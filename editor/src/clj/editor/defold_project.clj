@@ -302,28 +302,25 @@
                                   basis            (g/now)
                                   cache            (g/cache)}
                            :as   opts}]
-  (try
-    (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
-          build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
-          build-targets-by-key (and (not (g/error? build-targets))
-                                    (->> (g/node-value node :build-targets {:basis basis :cache cache})
-                                      build-targets-deep
-                                      targets-by-key))]
-      (if (g/error? build-targets)
-        (do
-          (when render-error!
-            (render-error! build-targets))
-          nil)
-        (do
-          (prune-build-cache! build-cache build-targets-by-key)
-          (progress/progress-mapv
-           (fn [target _]
-             (build-target basis (second target) build-targets-by-key build-cache))
-           build-targets-by-key
-           render-progress!
-           (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e)))))))))
-    (catch Throwable e
-      (println e))))
+  (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
+        build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
+        build-targets-by-key (and (not (g/error? build-targets))
+                                  (->> (g/node-value node :build-targets {:basis basis :cache cache})
+                                       build-targets-deep
+                                       targets-by-key))]
+    (if (g/error? build-targets)
+      (do
+        (when render-error!
+          (render-error! build-targets))
+        nil)
+      (do
+        (prune-build-cache! build-cache build-targets-by-key)
+        (progress/progress-mapv
+          (fn [target _]
+            (build-target basis (second target) build-targets-by-key build-cache))
+          build-targets-by-key
+          render-progress!
+          (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e))))))))))
 
 (defn- prune-fs [files-on-disk built-files]
   (let [files-on-disk (reverse files-on-disk)
