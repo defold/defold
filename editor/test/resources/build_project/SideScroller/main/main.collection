@@ -1,4 +1,8 @@
 name: "parallax"
+collection_instances {
+  id: "player"
+  collection: "/player/player.collection"
+}
 instances {
   id: "factory"
   prototype: "/stars/factory.go"
