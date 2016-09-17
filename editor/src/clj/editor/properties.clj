@@ -4,6 +4,7 @@
             [cognitect.transit :as transit]
             [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
+            [util.murmur :as murmur]
             [editor.types :as t]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
@@ -228,13 +229,13 @@
             value (str->go-prop (:value prop) type)
             value (case type
                     (:property-type-number :property-type-url) [value]
-                    :property-type-hash [(protobuf/hash64 value)]
+                    :property-type-hash [(murmur/hash64 value)]
                     :property-type-boolean [(if value 1.0 0.0)]
                     :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
                     value)
             [entry-key values-key] (type->entry-keys type)
             entry {:key (:id prop)
-                   :id (protobuf/hash64 (:id prop))
+                   :id (murmur/hash64 (:id prop))
                    :index (count (get decl values-key))}]
         (recur (rest properties)
                (-> decl

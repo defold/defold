@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [util.murmur :as murmur]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.math :as math]
@@ -200,7 +201,7 @@
 
 (defn- build-tracks [timelines duration sample-rate spf bone-id->index]
   (let [tracks-by-bone (reduce-kv (fn [m bone-name timeline]
-                                    (let [bone-index (bone-id->index (protobuf/hash64 bone-name))]
+                                    (let [bone-index (bone-id->index (murmur/hash64 bone-name))]
                                       (reduce-kv (fn [m type keys]
                                                    (let [field (timeline-type->pb-field type)
                                                          pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
@@ -418,8 +419,8 @@
   (let [spf (/ 1.0 sample-rate)
         ; Bone data
         bones (map (fn [b]
-                     {:id (protobuf/hash64 (get b "name"))
-                      :parent (when (contains? b "parent") (protobuf/hash64 (get b "parent")))
+                     {:id (murmur/hash64 (get b "name"))
+                      :parent (when (contains? b "parent") (murmur/hash64 (get b "parent")))
                       :position [(get b "x" 0) (get b "y" 0) 0]
                       :rotation (angle->clj-quat (get b "rotation" 0))
                       :scale [(get b "scaleX" 1) (get b "scaleY" 1) 1]
@@ -451,7 +452,7 @@
         ; Slot data
         slots (get spine-scene "slots" [])
         slots-data (into {} (map-indexed (fn [i slot]
-                                           (let [bone-index (bone-id->index (protobuf/hash64 (get slot "bone")))]
+                                           (let [bone-index (bone-id->index (murmur/hash64 (get slot "bone")))]
                                              [(get slot "name")
                                               {:bone-index bone-index
                                                :bone-world (get bone-world-transforms bone-index)
@@ -463,13 +464,13 @@
         flatten-meshes (fn [meshes] (map-indexed (fn [i [k v]] [k (assoc v :draw-order i)]) (sort-by mesh-sort-fn meshes)))
         skins (get spine-scene "skins" {})
         generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-world-transforms)
-        new-skins {"" (flatten-meshes generic-meshes)}
+        new-skins {"default" (flatten-meshes generic-meshes)}
         new-skins (reduce (fn [m [skin slots]]
                             (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-world-transforms)]
                               (assoc m skin (flatten-meshes (merge generic-meshes specific-meshes)))))
                           new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
         slot->track-data (reduce-kv (fn [m skin meshes]
-                                      (let [skin-id (protobuf/hash64 skin)]
+                                      (let [skin-id (murmur/hash64 skin)]
                                         (reduce (fn [m [[slot att] mesh]]
                                                   (update m slot conj {:skin-id skin-id :mesh-index (:draw-order mesh) :attachment att}))
                                                 m meshes)))
@@ -479,19 +480,19 @@
             :animation-set (let [events (into {} (get spine-scene "events" []))
                                  animations (mapv (fn [[name a]]
                                                     (let [duration (anim-duration a)]
-                                                      {:id (protobuf/hash64 name)
+                                                      {:id (murmur/hash64 name)
                                                       :sample-rate sample-rate
                                                       :duration duration
                                                       :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
                                                       :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
                                                       :event-tracks (mapv (fn [[event-name keys]]
                                                                             (let [default (merge {"int" 0 "float" 0 "string" ""} (get events event-name))]
-                                                                              {:event-id (protobuf/hash64 event-name)
+                                                                              {:event-id (murmur/hash64 event-name)
                                                                               :keys (mapv (fn [k]
                                                                                             {:t (get k "time")
                                                                                              :integer (get k "int" (get default "int"))
                                                                                              :float (get k "float" (get default "float"))
-                                                                                             :string (protobuf/hash64 (get k "string" (get default "string")))})
+                                                                                             :string (murmur/hash64 (get k "string" (get default "string")))})
                                                                                           keys)}))
                                                                           (reduce (fn [m e]
                                                                                     (update-in m [(get e "name")] conj e))
@@ -499,7 +500,7 @@
                                                   (get spine-scene "animations"))]
                              {:animations animations})
              :mesh-set {:mesh-entries (mapv (fn [[skin meshes]]
-                                              {:id (protobuf/hash64 skin)
+                                              {:id (murmur/hash64 skin)
                                                :meshes (mapv second meshes)}) new-skins)}}]
     pb))
 
