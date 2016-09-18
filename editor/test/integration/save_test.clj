@@ -4,11 +4,12 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.defold-project :as project]
+            [editor.workspace :as workspace]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.asset-browser :as asset-browser]
             [integration.test-util :as test-util])
-  (:import [java.io StringReader]
+  (:import [java.io StringReader File]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.model.proto Model$ModelDesc]
@@ -103,6 +104,16 @@
                                   (g/transact
                                     (for [n nodes]
                                       (g/delete-node n)))))))
+      (is (not (g/error? (project/save-data project)))))))
+
+(deftest save-after-external-delete []
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          atlas-id (test-util/resource-node project "/switcher/switcher.atlas")
+          path (resource/abs-path (g/node-value atlas-id :resource))]
+      (doto (File. path)
+        (.delete))
+      (workspace/resource-sync! workspace)
       (is (not (g/error? (project/save-data project)))))))
 
 (deftest save-after-rename []
