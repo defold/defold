@@ -642,7 +642,7 @@ instructions.configure=\
         self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
 
         ext_lib_path = join(self.dynamo_home, 'ext', 'lib')
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86-linux', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version, '--ext-lib-path=%s' % ext_lib_path], cwd = cwd)
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version, '--ext-lib-path=%s' % ext_lib_path], cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
