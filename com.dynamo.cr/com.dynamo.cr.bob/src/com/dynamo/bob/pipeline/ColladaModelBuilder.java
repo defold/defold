@@ -2,7 +2,10 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 
 import javax.xml.stream.XMLStreamException;
 
@@ -12,14 +15,17 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
+import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.Mesh;
 import com.dynamo.rig.proto.Rig.MeshEntry;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
+import com.google.protobuf.TextFormat;
 
 
-@BuilderParams(name="ColladaModel", inExts=".dae", outExt=".rigscenec")
+@BuilderParams(name="ColladaModel", inExts=".model", outExt=".rigscenec")
 public class ColladaModelBuilder extends Builder<Void>  {
 
     @Override
@@ -38,6 +44,18 @@ public class ColladaModelBuilder extends Builder<Void>  {
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         ByteArrayOutputStream out;
+
+        // collect resources
+        final File input = new File(task.input(0).getAbsPath());
+        FileInputStream inputStream = new FileInputStream(input);
+        InputStreamReader inputReader = new InputStreamReader(inputStream);
+        ModelDesc.Builder inputBuilder = ModelDesc.newBuilder();
+        TextFormat.merge(inputReader, inputBuilder);
+
+        String meshInput = inputBuilder.getMesh();
+        String skeletonInput = inputBuilder.getSkeleton();
+        List<String> animInput = inputBuilder.getAnimationsList();
+
 
         // MeshSet
         ByteArrayInputStream mesh_is = new ByteArrayInputStream(task.input(0).getContent());

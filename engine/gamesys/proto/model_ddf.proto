@@ -11,6 +11,8 @@ message ModelDesc
     required string mesh        = 2 [(resource)=true];
     required string material    = 3 [(resource)=true];
     repeated string textures    = 4 [(resource)=true];
+    optional string skeleton    = 5 [(resource)=true];
+    repeated string animations  = 6 [(resource)=true];
 
     optional string name        = 10; // Deprecated
 }

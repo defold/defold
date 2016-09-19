@@ -90,10 +90,8 @@ public class ColladaUtil {
     public static XMLCOLLADA loadDAE(InputStream is) throws IOException, XMLStreamException, LoaderException {
         XMLInputFactory factory = XMLInputFactory.newInstance();
         XMLStreamReader stream_reader = factory.createXMLStreamReader(is);
-
         XMLCOLLADA collada = new XMLCOLLADA();
         collada.parse(stream_reader);
-
         return collada;
     }
 
