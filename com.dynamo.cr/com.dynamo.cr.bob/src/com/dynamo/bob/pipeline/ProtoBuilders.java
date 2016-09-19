@@ -69,15 +69,34 @@ public class ProtoBuilders {
         protected ModelDesc.Builder transform(Task<Void> task, IResource resource, ModelDesc.Builder messageBuilder) throws CompileExceptionError {
 
             BuilderUtil.checkResource(this.project, resource, "mesh", messageBuilder.getMesh());
+
             messageBuilder.setMesh(BuilderUtil.replaceExt(messageBuilder.getMesh(), ".dae", ".rigscenec"));
+            if(!messageBuilder.getSkeleton().isEmpty()) {
+                BuilderUtil.checkResource(this.project, resource, "skeleton", messageBuilder.getSkeleton());
+                messageBuilder.setSkeleton(BuilderUtil.replaceExt(messageBuilder.getSkeleton(), ".dae", ".skeletonc"));
+            }
+
             BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"));
+
             List<String> newTextureList = new ArrayList<String>();
             for (String t : messageBuilder.getTexturesList()) {
+                BuilderUtil.checkResource(this.project, resource, "texture", t);
                 newTextureList.add(replaceTextureName(t));
             }
             messageBuilder.clearTextures();
             messageBuilder.addAllTextures(newTextureList);
+
+            if(messageBuilder.getAnimationsCount() > 0) {
+                List<String> newAnimationsList = new ArrayList<String>();
+                for (String t : messageBuilder.getAnimationsList()) {
+                    BuilderUtil.checkResource(this.project, resource, "animation", t);
+                    newAnimationsList.add(BuilderUtil.replaceExt(t, ".dae", ".animationsetc"));
+                }
+                messageBuilder.clearAnimations();
+                messageBuilder.addAllAnimations(newAnimationsList);
+            }
+
             return messageBuilder;
         }
     }

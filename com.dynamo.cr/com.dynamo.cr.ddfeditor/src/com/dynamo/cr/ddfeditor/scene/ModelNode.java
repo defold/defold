@@ -36,6 +36,14 @@ public class ModelNode extends ComponentTypeNode {
     @Resource
     private String texture = "";
 
+    @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
+    @Resource
+    private String skeleton = "";
+
+    @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
+    @Resource
+    private String animations = "";
+
     public ModelNode(ModelDesc modelDesc) {
         super();
         setFlags(Flags.TRANSFORMABLE);
@@ -129,6 +137,24 @@ public class ModelNode extends ComponentTypeNode {
 
     public String getTexture() {
         return texture;
+    }
+
+    public void setSkeleton(String mesh) {
+        this.skeleton = mesh;
+        reload();
+    }
+
+    public String getSkeleton() {
+        return skeleton;
+    }
+
+    public void setAnimations(String mesh) {
+        this.animations = mesh;
+        reload();
+    }
+
+    public String getAnimations() {
+        return animations;
     }
 
     public MeshNode getMeshNode() {
