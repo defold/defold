@@ -33,7 +33,6 @@
             [editor.model :as model]
             [editor.outline-view :as outline-view]
             [editor.particlefx :as particlefx]
-            [editor.platformer :as platformer]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
@@ -44,7 +43,6 @@
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
             [editor.targets :as targets]
             [editor.text :as text]
             [editor.tile-map :as tile-map]
@@ -105,7 +103,6 @@
         (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
-        (platformer/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
         (rig/register-resource-types workspace)
         (script/register-resource-types workspace)
@@ -113,7 +110,6 @@
         (sound/register-resource-types workspace)
         (spine/register-resource-types workspace)
         (sprite/register-resource-types workspace)
-        (switcher/register-resource-types workspace)
         (tile-map/register-resource-types workspace)
         (tile-source/register-resource-types workspace)))
     (workspace/resource-sync! workspace)

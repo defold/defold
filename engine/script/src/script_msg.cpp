@@ -21,6 +21,14 @@ namespace dmScript
 {
 #define SCRIPT_LIB_NAME "msg"
 #define SCRIPT_TYPE_NAME_URL "url"
+    
+    /*# Messaging API documentation
+     *
+     * Functions for passing messages and constructing URL objects.
+     *
+     * @name Message
+     * @namespace msg
+     */
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
 

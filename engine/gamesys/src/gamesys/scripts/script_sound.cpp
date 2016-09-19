@@ -20,6 +20,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Sound API documentation
+     *
+     * Functions and messages for controlling sound components and
+     * mixer groups.
+     *
+     * @name Sound
+     * @namespace sound
+     */
+
     /*# check if background music is playing
      * Checks if background music is playing, e.g. from iTunes
      *

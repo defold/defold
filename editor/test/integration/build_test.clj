@@ -30,7 +30,7 @@
            [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
-(def project-path "resources/build_project/SideScroller")
+(def project-path "test/resources/build_project/SideScroller")
 
 (defn- ->BuildResource
   ([project path]

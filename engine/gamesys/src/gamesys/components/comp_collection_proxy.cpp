@@ -19,6 +19,15 @@
 
 namespace dmGameSystem
 {
+    /*# Collection proxy API documentation
+     *
+     * Messages for controlling and interacting with collection proxies 
+     * which are used to dynamically load collections into the runtime.
+     *
+     * @name Collection proxy
+     * @namespace collection_proxy
+     */
+
     using namespace Vectormath::Aos;
 
     const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";

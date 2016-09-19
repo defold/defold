@@ -10,12 +10,10 @@
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
             [editor.image :as image]
-            [editor.platformer :as platformer]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
             [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
             [editor.font :as font]
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
@@ -42,7 +40,7 @@
            [org.apache.commons.io FilenameUtils FileUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
-(def project-path "resources/test_project")
+(def project-path "test/resources/test_project")
 
 (defn setup-workspace!
   ([graph]
@@ -71,7 +69,6 @@
         (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
-        (platformer/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
         (rig/register-resource-types workspace)
         (script/register-resource-types workspace)
@@ -79,7 +76,6 @@
         (sound/register-resource-types workspace)
         (spine/register-resource-types workspace)
         (sprite/register-resource-types workspace)
-        (switcher/register-resource-types workspace)
         (tile-map/register-resource-types workspace)
         (tile-source/register-resource-types workspace)))
       (workspace/resource-sync! workspace)
@@ -218,11 +214,11 @@
 (defn ->lib-server []
   (doto (http-server/->server 0 {"/lib" (fn [request]
                                           (let [lib (subs (:url request) 5)
-                                                path-offset (count (format "resources/%s/" lib))
+                                                path-offset (count (format "test/resources/%s/" lib))
                                                 ignored #{".internal" "build"}
                                                 file-filter (reify FilenameFilter
                                                               (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "resources/%s" lib)))
+                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "test/resources/%s" lib)))
                                                         (filter (fn [^File f] (not (.isDirectory f)))))]
                                             (with-open [byte-stream (ByteArrayOutputStream.)
                                                         out (ZipOutputStream. byte-stream)]

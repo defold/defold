@@ -20,6 +20,16 @@ extern "C"
 
 namespace dmGui
 {
+    /*# GUI API documentation
+     *
+     * GUI core hooks, functions, messages, properties and constants for 
+     * creation and manipulation of GUI nodes. The "gui" namespace is 
+     * accessible only from gui scripts.
+     *
+     * @name GUI
+     * @namespace gui
+     */
+
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 

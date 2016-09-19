@@ -1,5 +1,8 @@
 (ns editor.code
-  (:require [clojure.string :as string]))
+  (:require [clojure.string :as string])
+  (:import [com.defold.editor.eclipse DefoldRuleBasedScanner DefoldRuleBasedScanner$DocumentCharSequence]))
+
+(set! *warn-on-reflection* true)
 
 (defn not-ascii-or-delete [key-typed]
  ;; ascii control chars like Enter are all below 32
@@ -20,54 +23,57 @@
     :doc doc
     :tab-triggers (or tab-triggers [])}))
 
-(defn match-while [body p]
-  (loop [body body
+(defn- sub-sequence [^CharSequence code begin]
+  (.subSequence code begin (.length code)))
+
+(defn match-while [code p]
+  (loop [body (seq code)
          length 0]
     (if-let [c (first body)]
       (if (p c)
         (recur (rest body) (inc length))
-        {:body body :length length})
-      {:body body :length length})))
+        {:body (sub-sequence code length) :length length})
+      {:body (sub-sequence code length) :length length})))
 
-(defn match-while-eq [body ch]
-  (match-while body (fn [c] (= c ch))))
+(defn match-while-eq [code ch]
+  (match-while code (fn [c] (= c ch))))
 
-(defn match-until-string [body s]
+(defn match-until-string [code s]
   (if-let [s (seq s)]
     (let [slen (count s)]
-      (when-let [index (ffirst (->> (partition slen 1 body)
+      (when-let [index (ffirst (->> (partition slen 1 code)
                                     (map-indexed vector)
                                     (filter #(= (second %) s))))]
         (let [length (+ index slen)]
-          {:body (nthrest body length) :length length})))
-    {:body body :length 0}))
+          {:body (sub-sequence code length) :length length})))
+    {:body code :length 0}))
 
-(defn match-until-eol [body]
-  (match-while body (fn [ch] (and ch (not (#{\newline \return} ch))))))
+(defn match-until-eol [code]
+  (match-while code (fn [ch] (and ch (not (#{\newline \return} ch))))))
 
-(defn match-string [body s]
-  (if-let [s (seq s)]
-    (let [length (count s)]
-      (when (= s (take length body))
-        {:body (nthrest body length) :length length}))
-    {:body body :length 0}))
+(defn match-string [^DefoldRuleBasedScanner$DocumentCharSequence code ^String s]
+  (let [slen (.length s)]
+    (if (> slen 0)
+      (when (.matchString code s)
+        {:body (sub-sequence code slen) :length slen})
+      {:body code :length 0})))
 
 (defn combine-matches [& matches]
   {:body (last matches) :length (apply + (map :length matches))})
 
-(defn match-regex [pattern s]
-(when-let [result (re-find pattern s)]
+(defn match-regex [^CharSequence code pattern]
+  (when-let [result (re-find pattern code)]
     (if (string? result)
-      {:body result :length (count result)}
+      {:body (sub-sequence code (count result)) :length (count result)}
       (let [first-group-match (->> result (remove nil?) first)]
-        {:body first-group-match :length (count first-group-match)}))))
+        {:body (sub-sequence code (count first-group-match)) :length (count first-group-match)}))))
 
 (def number-pattern   #"^-?(?:0|[1-9]\d*)(?:\.\d*)?(?:[eE][+\-]?\d+)?" )
 (def leading-decimal-number-pattern   #"^-?(?:\.\d*)(?:[eE][+\-]?\d+)?" )
 
-(defn match-number [s]
-  (or (match-regex number-pattern s)
-      (match-regex leading-decimal-number-pattern s)))
+(defn match-number [code]
+  (or (match-regex code number-pattern)
+      (match-regex code leading-decimal-number-pattern)))
 
 (def ^:private pattern1 #"([a-zA-Z0-9_]+)([\\(]?)$")
 (def ^:private pattern2 #"([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]*)([\\(]?)$")

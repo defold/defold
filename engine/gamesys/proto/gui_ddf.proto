@@ -6,6 +6,12 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.gui.proto";
 option java_outer_classname = "Gui";
 
+/*# GUI API documentation
+ *
+ * @name GUI
+ * @namespace gui
+ */
+
 message NodeDesc
 {
     // NOTE: Enum values must correspond to the enum values in dmGui

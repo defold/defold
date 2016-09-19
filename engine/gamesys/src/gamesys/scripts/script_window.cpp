@@ -7,6 +7,14 @@
 
 namespace dmGameSystem
 {
+    /*# Window API documentation
+     *
+     * Functions and constants to access the window, window event listeners 
+     * and screen dimming.
+     *
+     * @name Window
+     * @namespace window
+     */
 
 enum WindowEvent
 {

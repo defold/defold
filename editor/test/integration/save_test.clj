@@ -21,9 +21,7 @@
                            "spinemodel" Spine$SpineModelDesc})
 
 (deftest save-all
-  (let [queries ["**/level1.platformer"
-                 "**/level01.switcher"
-                 "**/env.cubemap"
+  (let [queries ["**/env.cubemap"
                  "**/switcher.atlas"
                  "**/atlas_sprite.collection"
                  "**/props.collection"
