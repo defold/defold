@@ -362,9 +362,6 @@ namespace dmGui
                 params.m_Instance = n->m_Node.m_RigInstance;
                 dmRig::InstanceDestroy(params);
                 n->m_Node.m_RigInstance = 0x0;
-
-                delete n->m_Node.m_SpineBoneNodes;
-                n->m_Node.m_SpineBoneNodes = 0x0;
             }
             if (n->m_Node.m_Text)
                 free((void*) n->m_Node.m_Text);
@@ -1732,7 +1729,7 @@ namespace dmGui
             node->m_Node.m_SpineSceneHash = 0;
             node->m_Node.m_SpineScene = 0;
             node->m_Node.m_RigInstance = 0;
-            node->m_Node.m_ReadOnly = 0;
+            node->m_Node.m_IsBone = 0;
             node->m_Node.m_LayerHash = DEFAULT_LAYER;
             node->m_Node.m_LayerIndex = 0;
             node->m_Node.m_NodeDescTable = 0;
@@ -1868,18 +1865,15 @@ namespace dmGui
         InternalNode*n = GetNode(scene, node);
 
         if (n->m_Node.m_NodeType == NODE_TYPE_SPINE && n->m_Node.m_RigInstance) {
-            if (!n->m_Node.m_SpineBoneNodes->Empty()) {
-                DeleteNode(scene, (*n->m_Node.m_SpineBoneNodes)[0]);
-            }
+            // if (!n->m_Node.m_SpineBoneNodes->Empty()) {
+            //     DeleteNode(scene, (*n->m_Node.m_SpineBoneNodes)[0]);
+            // }
 
             dmRig::InstanceDestroyParams params = {0};
             params.m_Context = scene->m_Context->m_RigContext;
             params.m_Instance = n->m_Node.m_RigInstance;
             dmRig::InstanceDestroy(params);
             n->m_Node.m_RigInstance = 0x0;
-
-            delete n->m_Node.m_SpineBoneNodes;
-            n->m_Node.m_SpineBoneNodes = 0x0;
         }
 
         // Delete children first
@@ -2115,11 +2109,9 @@ namespace dmGui
     void SetNodeProperty(HScene scene, HNode node, Property property, const Vector4& value)
     {
         assert(property < PROPERTY_COUNT);
-        if (!GetNodeReadOnly(scene, node)) {
-            InternalNode* n = GetNode(scene, node);
-            n->m_Node.m_Properties[property] = value;
-            n->m_Node.m_DirtyLocal = 1;
-        }
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[property] = value;
+        n->m_Node.m_DirtyLocal = 1;
     }
 
     void SetNodeResetPoint(HScene scene, HNode node)
@@ -2242,21 +2234,47 @@ namespace dmGui
         return SetNodeTexture(scene, node, dmHashString64(texture_id));
     }
 
+    static void SetBoneTransforms(HScene scene, InternalNode* n, uint32_t& bone_index, dmArray<dmTransform::Transform>& pose)
+    {
+        uint16_t child_index = n->m_ChildHead;
+        while (child_index != INVALID_INDEX)
+        {
+            InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
+            if (child->m_Node.m_IsBone) {
+                dmTransform::Transform transform = pose[bone_index];
+                HNode b = GetNodeHandle(child);
+                SetNodePosition(scene, b, Point3(transform.GetTranslation()));
+                SetNodeProperty(scene, b, dmGui::PROPERTY_ROTATION, (Vector4)dmVMath::QuatToEuler(transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW()));
+                SetNodeProperty(scene, b, dmGui::PROPERTY_SCALE, (Vector4)transform.GetScale());
+                bone_index++;
+
+                SetBoneTransforms(scene, child, bone_index, pose);
+            }
+            child_index = child->m_NextIndex;
+        }
+    }
+
     static void SpinePoseCallback(void* userdata1, void* userdata2)
     {
         HScene scene = (HScene)userdata1;
         InternalNode* n = (InternalNode*)userdata2;
 
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(n->m_Node.m_RigInstance);
+        uint32_t bone_index = 0;
+        SetBoneTransforms(scene, n, bone_index, pose);
         uint32_t bone_count = pose.Size();
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmTransform::Transform transform = pose[i];
-            HNode b = (*n->m_Node.m_SpineBoneNodes)[i];
-            SetNodePosition(scene, b, Point3(transform.GetTranslation()));
-            SetNodeProperty(scene, b, dmGui::PROPERTY_ROTATION, (Vector4)dmVMath::QuatToEuler(transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW()));
-            SetNodeProperty(scene, b, dmGui::PROPERTY_SCALE, (Vector4)transform.GetScale());
-        }
+        // assert(bone_count == updated_count);
+
+        //
+        //
+        // for (uint32_t i = 0; i < bone_count; ++i)
+        // {
+        //     dmTransform::Transform transform = pose[i];
+        //     HNode b = (*n->m_Node.m_SpineBoneNodes)[i];
+        //     SetNodePosition(scene, b, Point3(transform.GetTranslation()));
+        //     SetNodeProperty(scene, b, dmGui::PROPERTY_ROTATION, (Vector4)dmVMath::QuatToEuler(transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW()));
+        //     SetNodeProperty(scene, b, dmGui::PROPERTY_SCALE, (Vector4)transform.GetScale());
+        // }
     }
 
     dmhash_t GetNodeSpineSceneId(HScene scene, HNode node)
@@ -2277,8 +2295,17 @@ namespace dmGui
         // Delete previous spine scene and bones
         if (n->m_Node.m_RigInstance) {
             // delete root bone node (this will delete all bone children)
-            if (!n->m_Node.m_SpineBoneNodes->Empty()) {
-                DeleteNode(scene, (*n->m_Node.m_SpineBoneNodes)[0]);
+            // if (!n->m_Node.m_SpineBoneNodes->Empty()) {
+            //     DeleteNode(scene, (*n->m_Node.m_SpineBoneNodes)[0]);
+            // }
+
+            // Delete children
+            uint16_t child_index = n->m_ChildHead;
+            while (child_index != INVALID_INDEX)
+            {
+                InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
+                child_index = child->m_NextIndex;
+                DeleteNode(scene, GetNodeHandle(child));
             }
 
             dmRig::InstanceDestroyParams params = {0};
@@ -2286,9 +2313,6 @@ namespace dmGui
             params.m_Instance = n->m_Node.m_RigInstance;
             dmRig::InstanceDestroy(params);
             n->m_Node.m_RigInstance = 0x0;
-
-            delete n->m_Node.m_SpineBoneNodes;
-            n->m_Node.m_SpineBoneNodes = 0x0;
         }
 
         // Create rig instance
@@ -2336,30 +2360,28 @@ namespace dmGui
         const dmArray<dmRig::RigBone>& bind_pose = *rig_data.m_BindPose;
         const dmRigDDF::Skeleton* skeleton = rig_data.m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
-        n->m_Node.m_SpineBoneNodes = new dmArray<HNode>();
-        n->m_Node.m_SpineBoneNodes->SetCapacity(bone_count);
-        n->m_Node.m_SpineBoneNodes->SetSize(bone_count);
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
-            HNode bone_node = NewNode(scene, Point3(transform.GetTranslation()), Vector3(0, 0, 0), NODE_TYPE_BOX);
-            SetNodeReadOnly(scene, bone_node, true);
-            (*n->m_Node.m_SpineBoneNodes)[i] = bone_node;
-        }
+
+        // for (uint32_t i = 0; i < bone_count; ++i)
+        // {
+        //     dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
+        //     HNode bone_node = NewNode(scene, Point3(transform.GetTranslation()), Vector3(0, 0, 0), NODE_TYPE_BOX);
+        //     SetNodeReadOnly(scene, bone_node, true);
+        //     (*n->m_Node.m_SpineBoneNodes)[i] = bone_node;
+        // }
 
         // Set parents in reverse to account for child-prepending
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            uint32_t index = bone_count - 1 - i;
-            HNode b = (*n->m_Node.m_SpineBoneNodes)[index];
-            HNode parent = node;
-            if (index > 0)
-            {
-                parent = (*n->m_Node.m_SpineBoneNodes)[skeleton->m_Bones[index].m_Parent];
-            }
-            SetNodeAdjustMode(scene, b, (AdjustMode)n->m_Node.m_AdjustMode);
-            SetNodeParent(scene, b, parent);
-        }
+        // for (uint32_t i = 0; i < bone_count; ++i)
+        // {
+        //     uint32_t index = bone_count - 1 - i;
+        //     HNode b = (*n->m_Node.m_SpineBoneNodes)[index];
+        //     HNode parent = node;
+        //     if (index > 0)
+        //     {
+        //         parent = (*n->m_Node.m_SpineBoneNodes)[skeleton->m_Bones[index].m_Parent];
+        //     }
+        //     SetNodeAdjustMode(scene, b, (AdjustMode)n->m_Node.m_AdjustMode);
+        //     SetNodeParent(scene, b, parent);
+        // }
 
         return RESULT_OK;
     }
@@ -2383,6 +2405,28 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_RigInstance;
+    }
+
+    static HNode FindBoneChildNode(HScene scene, InternalNode* n, uint32_t& bone_index)
+    {
+        uint16_t child_index = n->m_ChildHead;
+        while (child_index != INVALID_INDEX)
+        {
+            InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
+            if (child->m_Node.m_IsBone) {
+                if (bone_index == 0) {
+                    return GetNodeHandle(child);
+                }
+                bone_index--;
+                HNode child_search = FindBoneChildNode(scene, child, bone_index);
+                if (child_search != 0) {
+                    return child_search;
+                }
+            }
+            child_index = child->m_NextIndex;
+        }
+
+        return 0;
     }
 
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id)
@@ -2410,8 +2454,8 @@ namespace dmGui
         {
             return 0;
         }
-
-        return (*n->m_Node.m_SpineBoneNodes)[bone_index];
+        // return (*n->m_Node.m_SpineBoneNodes)[bone_index];
+        return FindBoneChildNode(scene, n, bone_index);
     }
 
     void* GetNodeFont(HScene scene, HNode node)
@@ -2711,16 +2755,16 @@ namespace dmGui
         n->m_Node.m_Pivot = (uint32_t) pivot;
     }
 
-    void SetNodeReadOnly(HScene scene, HNode node, bool read_only)
+    void SetNodeBone(HScene scene, HNode node, bool is_bone)
     {
         InternalNode* n = GetNode(scene, node);
-        n->m_Node.m_ReadOnly = read_only;
+        n->m_Node.m_IsBone = is_bone;
     }
 
-    bool GetNodeReadOnly(HScene scene, HNode node)
+    bool GetNodeBone(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
-        return n->m_Node.m_ReadOnly;
+        return n->m_Node.m_IsBone;
     }
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode)

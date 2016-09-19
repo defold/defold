@@ -462,7 +462,7 @@ namespace dmGui
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        if (n->m_Node.m_ReadOnly) {
+        if (n->m_Node.m_IsBone) {
             return luaL_error(L, "Unable to delete bone nodes of a spine node.");
             return 0;
         }
@@ -2806,7 +2806,7 @@ namespace dmGui
     {
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        if(n->m_Node.m_ReadOnly) {
+        if(n->m_Node.m_IsBone) {
             return 0;
         }
         HNode parent = INVALID_HANDLE;
@@ -3172,7 +3172,7 @@ namespace dmGui
         {\
             HNode hnode;\
             InternalNode* n = LuaCheckNode(L, 1, &hnode);\
-            if (n->m_Node.m_ReadOnly) {\
+            if (n->m_Node.m_IsBone) {\
                 return 0;\
             }\
             Vector4 v;\
@@ -3243,7 +3243,7 @@ namespace dmGui
             dmLogWarning("Can not set size on auto-sized nodes.");
             return 0;
         }
-        if(n->m_Node.m_ReadOnly)
+        if(n->m_Node.m_IsBone)
         {
             return 0;
         }
@@ -3368,12 +3368,12 @@ namespace dmGui
      * The returned node can be used for parenting and transform queries.
      * This function has complexity O(n), where n is the number of bones in the spine model skeleton.
      *
-     * @name gui.get_bone_node
+     * @name gui.get_spine_bone
      * @param node spine node to query for bone node (node)
      * @param bone_id id of the corresponding bone (string|hash)
      * @return node corresponding to the spine bone (node)
      */
-    int LuaGetBoneNode(lua_State* L)
+    int LuaGetSpineBone(lua_State* L)
     {
         int top = lua_gettop(L);
         HNode spine_node;
@@ -3538,7 +3538,7 @@ namespace dmGui
         {"get_size",        LuaGetSize},
         {"play_spine",      LuaPlaySpine},
         {"cancel_spine",    LuaCancelSpine},
-        {"get_bone_node",   LuaGetBoneNode},
+        {"get_spine_bone",  LuaGetSpineBone},
         {"set_spine_scene", LuaSetSpineScene},
         {"get_spine_scene", LuaGetSpineScene},
 

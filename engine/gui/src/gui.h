@@ -958,8 +958,9 @@ namespace dmGui
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
     Pivot GetNodePivot(HScene scene, HNode node);
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
-    void SetNodeReadOnly(HScene scene, HNode node, bool read_only);
-    bool GetNodeReadOnly(HScene scene, HNode node);
+
+    void SetNodeBone(HScene scene, HNode node, bool is_bone);
+    bool GetNodeBone(HScene scene, HNode node);
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
 

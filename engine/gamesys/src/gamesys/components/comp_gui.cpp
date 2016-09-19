@@ -225,6 +225,10 @@ namespace dmGameSystem
         dmGui::SetNodeClippingVisible(scene, n, node_desc->m_ClippingVisible);
         dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
 
+        if (node_desc->m_SpineNodeChild) {
+            dmGui::SetNodeBone(scene, n, true);
+        }
+
         // type specific attributes
         switch(node_desc->m_Type)
         {

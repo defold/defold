@@ -140,6 +140,7 @@ message NodeDesc
     optional string spine_scene             = 39;
     optional string spine_default_animation = 40;
     optional string spine_skin              = 41;
+    optional bool   spine_node_child        = 42 [default = false];
 }
 
 message SceneDesc

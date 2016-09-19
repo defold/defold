@@ -144,10 +144,8 @@ namespace dmGui
 
         uint64_t            m_SpineSceneHash;
         void*               m_SpineScene;
-        dmArray<HNode>*     m_SpineBoneNodes;
         dmRig::HRigInstance m_RigInstance;
-
-        uint32_t            m_ReadOnly : 1;
+        uint32_t            m_IsBone : 1;
     };
 
     struct InternalNode
