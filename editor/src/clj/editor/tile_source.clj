@@ -83,8 +83,9 @@
    :inner-padding inner-padding})
 
 (g/defnk produce-save-data [resource pb]
-  {:resource resource
-   :content (protobuf/map->str Tile$TileSet pb)})
+  (let [pb (dissoc pb :convex-hull-points)]
+    {:resource resource
+     :content (protobuf/map->str Tile$TileSet pb)}))
 
 (defn- build-texture [self basis resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
