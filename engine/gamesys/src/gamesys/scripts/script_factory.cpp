@@ -23,7 +23,7 @@ namespace dmGameSystem
 {
     /*# Factory API documentation
      *
-     * Functions for controlling factory components which are used to 
+     * Functions for controlling factory components which are used to
      * dynamically spawn game objects into the runtime.
      *
      * @name Factory
@@ -135,10 +135,11 @@ namespace dmGameSystem
         {
             scale = dmGameObject::GetWorldScale(sender_instance);
         }
-        dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
+        dmhash_t id = 0x0;
 
         if (msg_passing) {
             dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
+            id = dmGameObject::GenerateUniqueInstanceId(collection);
             create_msg->m_Id = id;
             create_msg->m_Position = position;
             create_msg->m_Rotation = rotation;
@@ -150,10 +151,13 @@ namespace dmGameSystem
             }
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + actual_prop_buffer_size);
         } else {
+            uint32_t index = dmGameObject::RetrieveInstanceIndex(collection);
+            id = dmGameObject::ConstructInstanceId(index);
             dmScript::GetInstance(L);
             int ref = luaL_ref(L, LUA_REGISTRYINDEX);
-            dmGameObject::Spawn(collection, component->m_Resource->m_FactoryDesc->m_Prototype, id, buffer, actual_prop_buffer_size,
-                    position, rotation, scale);
+            dmGameObject::HInstance instance = dmGameObject::Spawn(collection, component->m_Resource->m_FactoryDesc->m_Prototype,
+                id, buffer, actual_prop_buffer_size, position, rotation, scale);
+            (void) dmGameObject::AssignIdentifierIndex(index, instance, collection);
             lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
             dmScript::SetInstance(L);
             luaL_unref(L, LUA_REGISTRYINDEX, ref);

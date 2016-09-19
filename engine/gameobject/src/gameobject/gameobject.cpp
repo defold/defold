@@ -624,22 +624,52 @@ namespace dmGameObject
 
     bool Init(HCollection collection, HInstance instance);
 
-    void GenerateUniqueInstanceId(HCollection collection, char* buf, uint32_t bufsize)
+    dmhash_t ConstructInstanceId(uint32_t index)
     {
-        // global path
-        const char* id_format = "%sinstance%d";
-        uint32_t index = 0;
-        dmMutex::Lock(collection->m_Mutex);
-        index = collection->m_GenInstanceCounter++;
-        dmMutex::Unlock(collection->m_Mutex);
-        DM_SNPRINTF(buf, bufsize, id_format, ID_SEPARATOR, index);
+        char buffer[16] = { 0 };
+        DM_SNPRINTF(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
+        return dmHashString64(buffer);
     }
 
     dmhash_t GenerateUniqueInstanceId(HCollection collection)
     {
-        char id_s[16];
-        GenerateUniqueInstanceId(collection, id_s, sizeof(id_s));
-        return dmHashString64(id_s);
+        dmMutex::Lock(collection->m_Mutex);
+        uint32_t index = collection->m_GenInstanceCounter++;
+        dmMutex::Unlock(collection->m_Mutex);
+
+        dmLogInfo("GenerateUniqueInstanceId (%d)", index);
+        return ConstructInstanceId(index);
+    }
+
+    uint32_t RetrieveInstanceIndex(HCollection collection)
+    {
+        dmMutex::Lock(collection->m_Mutex);
+        uint32_t index = collection->m_InstanceIdPool.Pop();
+        dmMutex::Unlock(collection->m_Mutex);
+
+        dmLogInfo("RetrieveInstanceIndex (%d)", index);
+        return index;
+    }
+
+    void ReturnInstanceIndex(uint32_t index, HCollection collection)
+    {
+        dmMutex::Lock(collection->m_Mutex);
+        collection->m_InstanceIdPool.Push(index);
+        dmMutex::Unlock(collection->m_Mutex);
+
+        dmLogInfo("ReturnInstanceIndex (%d)", index);
+    }
+
+    bool AssignIdentifierIndex(uint32_t index, HInstance instance, HCollection collection)
+    {
+        if (instance == 0x0)
+        {
+            ReturnInstanceIndex(index, collection);
+            return false;
+        }
+
+        instance->m_IdentifierIndex = index;
+        return true;
     }
 
     void GenerateUniqueCollectionInstanceId(HCollection collection, char* buf, uint32_t bufsize)
@@ -1510,6 +1540,11 @@ namespace dmGameObject
             component_type->m_DestroyFunction(params);
         }
 
+        if (instance->m_IdentifierIndex < collection->m_MaxInstances)
+        {
+            // The identifier (hash) for this gameobject comes from the pool!
+            ReturnInstanceIndex(instance->m_IdentifierIndex, collection);
+        }
         ReleaseIdentifier(collection, instance);
 
         assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);

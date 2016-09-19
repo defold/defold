@@ -735,11 +735,42 @@ namespace dmGameObject
     HInstance New(HCollection collection, const char* prototype_name);
 
     /**
+     * Construct a hash of an instance id based on the index provided.
+     * @param index The index to base the id off of.
+     * @return hash of the instance id constructed.
+     */
+    dmhash_t ConstructInstanceId(uint32_t index);
+
+    /**
      * Generate a unique (collection-scope) instance id that can be used for the Spawn() function.
      * This is thread-safe.
      * @param collection Collection in which the id is unique
      */
     dmhash_t GenerateUniqueInstanceId(HCollection collection);
+
+    /**
+     * Retrieve an instance index from the index pool for the collection.
+     * @param collection Collection from which to retrieve the instance index.
+     * @return instance index from the index pool of collection.
+     */
+    uint32_t RetrieveInstanceIndex(HCollection collection);
+
+    /**
+     * Return an instance index to the index pool for the collection.
+     * @param index The index to return.
+     * @param collection Collection that the index should be returned to.
+     */
+    void ReturnInstanceIndex(uint32_t index, HCollection collection);
+
+    /**
+     * Get an instance id from a collection-scope'd pool that can be used for
+     * the Spawn() function. This is thread-safe, the caller is responsible to
+     * return the ID to the pool once it is no longer in use.
+     * @param collection Collection from where the id should be retrieved.
+     */
+    dmhash_t RetrieveInstanceId(HCollection collection);
+
+    bool AssignIdentifierIndex(uint32_t index, HInstance instance, HCollection collection);
 
     /**
      * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
