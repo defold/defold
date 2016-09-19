@@ -227,8 +227,9 @@ namespace dmGameSystem
             }
 
             uint32_t index = dmGameObject::RetrieveInstanceIndex(collection);
-            dmGameObject::AssignIdentifierIndex(index, inst, collection);
             dmhash_t id = dmGameObject::ConstructInstanceId(index);
+            dmGameObject::AssignInstanceIndex(index, instance);
+
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
             if (dmGameObject::RESULT_OK != result) {
                 dmGameObject::Delete(collection, inst);

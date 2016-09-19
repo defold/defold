@@ -63,7 +63,6 @@ namespace dmGameObject
 
     // Invalid instance index. Implies that maximum number of instances is 32766 (ie 0x7fff - 1)
     const uint32_t INVALID_INSTANCE_INDEX = 0x7fff;
-    const uint32_t INVALID_IDENTIFIER_INDEX = 0xffffffff;
 
     // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
     struct Instance
@@ -75,7 +74,7 @@ namespace dmGameObject
             m_EulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_PrevEulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_Prototype = prototype;
-            m_IdentifierIndex = INVALID_IDENTIFIER_INDEX;
+            m_IdentifierIndex = 0xffffffff;
             m_Identifier = UNNAMED_IDENTIFIER;
             dmHashInit64(&m_CollectionPathHashState, true);
             m_Depth = 0;

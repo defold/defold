@@ -631,23 +631,16 @@ namespace dmGameObject
         return dmHashString64(buffer);
     }
 
-    dmhash_t GenerateUniqueInstanceId(HCollection collection)
-    {
-        dmMutex::Lock(collection->m_Mutex);
-        uint32_t index = collection->m_GenInstanceCounter++;
-        dmMutex::Unlock(collection->m_Mutex);
-
-        dmLogInfo("GenerateUniqueInstanceId (%d)", index);
-        return ConstructInstanceId(index);
-    }
-
     uint32_t RetrieveInstanceIndex(HCollection collection)
     {
         dmMutex::Lock(collection->m_Mutex);
-        uint32_t index = collection->m_InstanceIdPool.Pop();
+        uint32_t index = 0xffffffff;
+        if (collection->m_InstanceIdPool.Remaining() > 0)
+        {
+            index = collection->m_InstanceIdPool.Pop();
+        }
         dmMutex::Unlock(collection->m_Mutex);
 
-        dmLogInfo("RetrieveInstanceIndex (%d)", index);
         return index;
     }
 
@@ -656,20 +649,14 @@ namespace dmGameObject
         dmMutex::Lock(collection->m_Mutex);
         collection->m_InstanceIdPool.Push(index);
         dmMutex::Unlock(collection->m_Mutex);
-
-        dmLogInfo("ReturnInstanceIndex (%d)", index);
     }
 
-    bool AssignIdentifierIndex(uint32_t index, HInstance instance, HCollection collection)
+    void AssignInstanceIndex(uint32_t index, HInstance instance)
     {
-        if (instance == 0x0)
+        if (instance != 0x0)
         {
-            ReturnInstanceIndex(index, collection);
-            return false;
+            instance->m_IdentifierIndex = index;
         }
-
-        instance->m_IdentifierIndex = index;
-        return true;
     }
 
     void GenerateUniqueCollectionInstanceId(HCollection collection, char* buf, uint32_t bufsize)
