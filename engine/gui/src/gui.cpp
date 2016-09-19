@@ -3277,7 +3277,7 @@ namespace dmGui
 
     Result CloneNode(HScene scene, HNode node, HNode* out_node)
     {
-        if (dmGui::GetNodeReadOnly(scene, node))
+        if (dmGui::GetNodeBone(scene, node))
         {
             dmLogError("Could not clone a bone node.");
             return RESULT_WRONG_TYPE;

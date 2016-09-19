@@ -22,8 +22,8 @@ namespace dmGui
 {
     /*# GUI API documentation
      *
-     * GUI core hooks, functions, messages, properties and constants for 
-     * creation and manipulation of GUI nodes. The "gui" namespace is 
+     * GUI core hooks, functions, messages, properties and constants for
+     * creation and manipulation of GUI nodes. The "gui" namespace is
      * accessible only from gui scripts.
      *
      * @name GUI
@@ -2899,7 +2899,7 @@ namespace dmGui
         while (index != INVALID_INDEX && result == dmGui::RESULT_OK)
         {
             InternalNode* node = &scene->m_Nodes[index];
-            if (dmGui::GetNodeReadOnly(scene, GetNodeHandle(node))) {
+            if (dmGui::GetNodeBone(scene, GetNodeHandle(node))) {
                 index = node->m_NextIndex;
                 continue;
             }
@@ -3417,7 +3417,7 @@ namespace dmGui
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &node);
-        if(dmGui::GetNodeReadOnly(scene, node)) {
+        if(dmGui::GetNodeBone(scene, node)) {
             return 0;
         }
 
