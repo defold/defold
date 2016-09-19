@@ -495,7 +495,7 @@ public class RigUtil {
         double t = (cursor - t0) / length;
         for (int i = 0; i < v0.length; ++i) {
             double v = 0.0;
-            if (curve.interpolation == CurveIntepolation.BEZIER) {
+            if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
                 double y = evalCurve(curve, t);
                 v = (1.0 - y) * v0[i] + y * v1[i];
             } else {
