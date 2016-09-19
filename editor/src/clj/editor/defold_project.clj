@@ -538,7 +538,7 @@
   (input selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-types g/Any)
-  (input save-data g/Any :array)
+  (input save-data g/Any :array :substitute (fn [save-data] (vec (remove g/error? save-data))))
   (input node-resources g/Any :array)
   (input settings g/Any)
   (input display-profiles g/Any)
