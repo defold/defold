@@ -540,7 +540,12 @@
                                                       (for [[comp-id label value] component-overrides]
                                                         (g/set-property comp-id label value)))))))))))
     (dynamic error (g/fnk [_node-id source-resource]
-                          (path-error _node-id source-resource))))
+                          (path-error _node-id source-resource)))
+    (dynamic edit-type (g/fnk [source-resource]
+                              {:type resource/Resource
+                               :ext "collection"
+                               :to-type (fn [v] (:resource v))
+                               :from-type (fn [r] {:resource r :overrides {}})})))
 
   (display-order [:id :url :path scene/ScalableSceneNode])
 

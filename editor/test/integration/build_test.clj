@@ -16,13 +16,14 @@
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.rig.proto Rig$RigScene]
+           [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.gui.proto Gui$SceneDesc]
+           [com.dynamo.spine.proto Spine$SpineModelDesc]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -40,10 +41,20 @@
    (let [node (test-util/resource-node project path)]
      (workspace/make-build-resource (g/node-value node :resource) prefix))))
 
+(def target-pb-classes {"skeletonc" Rig$Skeleton
+                        "animationsetc" Rig$AnimationSet
+                        "meshsetc" Rig$MeshSet
+                        "texturesetc" TextureSetProto$TextureSet})
+
+(defn- target [path targets]
+  (let [ext (FilenameUtils/getExtension path)
+        pb-class (get target-pb-classes ext)]
+    (protobuf/bytes->map pb-class (get targets path))))
+
 (def pb-cases [{:label    "ParticleFX"
                 :path     "/main/blob.particlefx"
                 :pb-class Particle$ParticleFX
-                :test-fn  (fn [pb]
+                :test-fn  (fn [pb targets]
                             (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
                {:label           "Sound"
                 :path            "/main/sound.sound"
@@ -56,15 +67,29 @@
                {:label           "Collision Object"
                 :path            "/collisionobject/convex_shape.collisionobject"
                 :pb-class        Physics$CollisionObjectDesc
-                :test-fn (fn [pb]
+                :test-fn (fn [pb targets]
                            (is (= "" (:collision-shape pb)))
                            (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
                {:label           "Tile Source"
                 :path            "/tile_source/simple.tilesource"
                 :pb-class        TextureSetProto$TextureSet
-                :test-fn (fn [pb]
+                :test-fn (fn [pb targets]
                            (is (= "default" (:collision-group (first (:convex-hulls pb)))))
-                           (is (< 0 (count (:convex-hull-points pb)))))}])
+                           (is (< 0 (count (:convex-hull-points pb)))))}
+               {:label "Spine Scene"
+                :path "/player/spineboy.spinescene"
+                :pb-class Rig$RigScene
+                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                :test-fn (fn [pb targets]
+                           (is (some? (-> pb :texture-set (target targets) :texture)))
+                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+               {:label "Spine Model"
+                :path "/player/spineboy.spinemodel"
+                :pb-class Spine$SpineModelDesc
+                :resource-fields [:spine-scene :material]}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -73,7 +98,7 @@
           test-fn    (:test-fn case)
           res-fields [:sound]]
       (when test-fn
-        (test-fn pb))
+        (test-fn pb content-by-target))
       (doseq [field (:resource-fields case)]
         (is (contains? content-by-target (get pb field)))
         (is (> (count (get content-by-target (get pb field))) 0))))))
@@ -280,16 +305,6 @@
             desc    (protobuf/bytes->map Font$FontMap content)]
         (is (= 1024 (:cache-width desc)))
         (is (= 256 (:cache-height desc)))))))
-
-(deftest build-spine-scene
-  (testing "Building spine scene"
-    (with-build-results "/player/spineboy.spinescene"
-      (let [content (get content-by-source "/player/spineboy.spinescene")
-            desc    (Rig$RigScene/parseFrom content)]
-        (is (contains? content-by-target (.getTextureSet desc)))
-        (is (contains? content-by-target (.getSkeleton desc)))
-        (is (contains? content-by-target (.getAnimationSet desc)))        
-        (is (contains? content-by-target (.getMeshSet desc)))))))
 
 (deftest build-mesh
   (testing "Building mesh"
