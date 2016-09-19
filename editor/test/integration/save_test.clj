@@ -14,7 +14,8 @@
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]))
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
+           [com.dynamo.tile.proto Tile$TileSet]))
 
 (def ^:private ext->proto {"go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
@@ -22,7 +23,8 @@
                            "model" Model$ModelDesc
                            "particlefx" Particle$ParticleFX
                            "spinescene" Spine$SpineSceneDesc
-                           "spinemodel" Spine$SpineModelDesc})
+                           "spinemodel" Spine$SpineModelDesc
+                           "tilesource" Tile$TileSet})
 
 (deftest save-all
   (let [queries ["**/env.cubemap"
@@ -74,18 +76,33 @@
                       (is (= file (:content save)))))))))))
 
 (deftest save-all-literal-equality
-  (let [queries ["**/embedded_instances.collection"
-                 "**/embedded_components.go"]]
+  (let [paths [#_"/collection/embedded_instances.collection"
+               #_"/game_object/embedded_components.go"
+               #_"/editor1/level.tilesource"
+               "/editor1/ice.tilesource"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
             save-data (group-by :resource (project/save-data project))]
-        (doseq [query queries]
-          (testing (format "Saving %s" query)
-            (let [[resource _] (first (project/find-resources project query))
+        (doseq [path paths]
+          (testing (format "Saving %s" path)
+            (let [node-id (test-util/resource-node project path)
+                  resource (g/node-value node-id :resource)
                   save (first (get save-data resource))
-                  file (slurp resource)]
-               (is (= file (:content save))))))))))
+                  file (slurp resource)
+                  pb-class (-> resource resource/resource-type :ext ext->proto)]
+              #_(when (and pb-class (not= file (:content save)))
+                 (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
+                       pb-disk (protobuf/read-text pb-class resource)
+                       path []
+                       [disk save both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
+                   (is (nil? disk))
+                   (is (nil? save))))
+              #_(is (= file (:content save)))
+              (prn (subs file 0 400))
+              (prn (subs (:content save) 0 400)))))))))
+
+(save-all-literal-equality)
 
 (defn- setup-scratch
   [ws-graph]
