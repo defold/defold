@@ -108,57 +108,31 @@ namespace dmGameSystem
             dmLogError("Could not send animation_done to listener because of incomplete component.");
             return;
         }
-/*
-        switch (event_data.m_Type) {
-            case dmRig::RIG_EVENT_TYPE_DONE: {
-                    dmhash_t message_id = dmModelDDF::m_DDFDescriptor->m_NameHash;
+        switch (event_type) {
+            case dmRig::RIG_EVENT_TYPE_COMPLETED:
+            {
+                dmhash_t message_id = dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash;
+                const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
 
-                    dmModelDDF::ModelAnimationDone message;
-                    message.m_AnimationId = event_data.m_DataDone.m_AnimationId;
-                    message.m_Playback    = event_data.m_DataDone.m_Playback;
+                dmModelDDF::ModelAnimationDone message;
+                message.m_AnimationId = completed_event->m_AnimationId;
+                message.m_Playback    = completed_event->m_Playback;
 
-                    uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
-                    uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
-                    dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
-                    dmMessage::ResetURL(component->m_Listener);
-                    if (result != dmMessage::RESULT_OK)
-                    {
-                        dmLogError("Could not send animation_done to listener.");
-                    }
+                uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
+                uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                dmMessage::ResetURL(component->m_Listener);
+                if (result != dmMessage::RESULT_OK)
+                {
+                    dmLogError("Could not send animation_done to listener.");
+                }
 
-                } break;
-            case dmRig::RIG_EVENT_TYPE_MODEL: {
-
-                    if (!dmMessage::IsSocketValid(receiver.m_Socket))
-                    {
-                        receiver = sender;
-                        receiver.m_Fragment = 0; // broadcast to sibling components
-                    }
-
-                    dmhash_t message_id = dmGameSystemDDF::ModelEvent::m_DDFDescriptor->m_NameHash;
-
-                    dmModelDDF::ModelEvent event;
-                    event.m_EventId     = event_data.m_DataModel.m_EventId;
-                    event.m_AnimationId = event_data.m_DataModel.m_AnimationId;
-                    event.m_BlendWeight = event_data.m_DataModel.m_BlendWeight;
-                    event.m_T           = event_data.m_DataModel.m_T;
-                    event.m_Integer     = event_data.m_DataModel.m_Integer;
-                    event.m_Float       = event_data.m_DataModel.m_Float;
-                    event.m_String      = event_data.m_DataModel.m_String;
-
-                    uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelEvent::m_DDFDescriptor;
-                    uint32_t data_size = sizeof(dmGameSystemDDF::ModelEvent);
-                    dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size);
-                    if (result != dmMessage::RESULT_OK)
-                    {
-                        dmLogError("Could not send event to listener.");
-                    }
-                } break;
+                break;
+            }
             default:
-                dmLogError("Unknown rig event received (%d).", event_data.m_Type);
+                dmLogError("Unknown rig event received (%d).", event_type);
                 break;
         }
-        */
 
     }
 
@@ -628,26 +602,23 @@ namespace dmGameSystem
             component->m_Enabled = 0;
             dmRig::SetEnabled(component->m_RigInstance, false);
         }
-/*
         else if (params.m_Message->m_Descriptor != 0x0)
         {
-            if (params.m_Message->m_Id == dmModelDDF::PlayAnimation::m_DDFDescriptor->m_NameHash)
+            if (params.m_Message->m_Id == dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash)
             {
-                dmModelDDF::ModelPlayAnimation* ddf = (dmModelDDF::PlayAnimation*)params.m_Message->m_Data;
+                dmModelDDF::ModelPlayAnimation* ddf = (dmModelDDF::ModelPlayAnimation*)params.m_Message->m_Data;
                 if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback, ddf->m_BlendDuration))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
             }
-            else if (params.m_Message->m_Id == dmModelDDF::CancelAnimation::m_DDFDescriptor->m_NameHash)
+            else if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmRig::CancelAnimation(component->m_RigInstance);
             }
-
-
             else if (params.m_Message->m_Id == dmModelDDF::SetConstantModel::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::SetConstantModel* ddf = (dmGameSystemDDF::SetConstantModel*)params.m_Message->m_Data;
+                dmModelDDF::SetConstantModel* ddf = (dmModelDDF::SetConstantModel*)params.m_Message->m_Data;
                 dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
                         dmGameObject::PropertyVar(ddf->m_Value), CompModelSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
@@ -660,9 +631,9 @@ namespace dmGameSystem
                             (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
                 }
             }
-            else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantModel::m_DDFDescriptor->m_NameHash)
+            else if (params.m_Message->m_Id == dmModelDDF::ResetConstantModel::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::ResetConstantModel* ddf = (dmGameSystemDDF::ResetConstantModel*)params.m_Message->m_Data;
+                dmModelDDF::ResetConstantModel* ddf = (dmModelDDF::ResetConstantModel*)params.m_Message->m_Data;
                 dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
                 uint32_t size = constants.Size();
                 for (uint32_t i = 0; i < size; ++i)
@@ -678,7 +649,6 @@ namespace dmGameSystem
                 }
             }
         }
-*/
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

@@ -15,6 +15,7 @@
 #include "scripts/script_factory.h"
 #include "scripts/script_collection_factory.h"
 #include "scripts/script_spine_model.h"
+#include "scripts/script_model.h"
 #include "scripts/script_window.h"
 
 extern "C"
@@ -48,6 +49,7 @@ namespace dmGameSystem
         ScriptSpriteRegister(context);
         ScriptSoundRegister(context);
         ScriptSpineModelRegister(context);
+        ScriptModelRegister(context);
         ScriptWindowRegister(context);
 
         assert(top == lua_gettop(L));
