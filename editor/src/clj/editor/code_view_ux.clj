@@ -335,7 +335,7 @@
   (enabled? [selection] (editable? selection))
   (run [selection clipboard]
     (when-let [clipboard-text (text clipboard)]
-      (let [code (code/lf-normalize-line-endings (text selection))
+      (let [clipboard-text (code/lf-normalize-line-endings clipboard-text)
             caret (caret selection)]
         (if (pos? (selection-length selection))
           (replace-text-selection selection clipboard-text)
