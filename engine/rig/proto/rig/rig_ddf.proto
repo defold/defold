@@ -112,6 +112,8 @@ message Mesh
     optional bool visible = 7 [default = true];
     optional uint32 draw_order = 8;
     repeated float normals   = 9;
+    repeated uint32 normals_indices = 10;
+    repeated uint32 texcoord0_indices  = 11;
 }
 
 message MeshEntry

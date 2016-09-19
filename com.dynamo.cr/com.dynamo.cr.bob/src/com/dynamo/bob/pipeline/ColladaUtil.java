@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -34,6 +35,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLNode;
 import org.jagatoo.loaders.models.collada.stax.XMLSkin;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
+import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.openmali.FastMath;
 import org.openmali.vecmath2.Matrix4f;
 import org.openmali.vecmath2.Point3f;
@@ -430,105 +432,86 @@ public class ColladaUtil {
             texcoords = sourcesMap.get(texcoord_input.source);
         }
 
-        List<Float> position_list = new ArrayList<Float>();
-        List<Float> normal_list = new ArrayList<Float>();
-        List<Float> texcoord_list = new ArrayList<Float>();
-        List<Integer> indices_list = new ArrayList<Integer>();
-        List<Integer> bone_indices_list= new ArrayList<Integer>();
-        List<Float> bone_weights_list= new ArrayList<Float>();
-
-
-        System.out.println("PosVerts=" +  positions.floatArray.count/3 );
-
-        System.out.println("TriVerts=" +  mesh.triangles.count*3 );
-
         float meter = collada.asset.unit.meter;
+        List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
+        for (int i = 0; i < positions.floatArray.count; ++i) {
+            position_list.add(positions.floatArray.floats[i]*meter);
+        }
+
+        List<Float> normal_list;
+        if(normals == null) {
+            normal_list = new ArrayList<Float>(Arrays.asList(0f, 0f, 1f));
+        } else {
+            normal_list = new ArrayList<Float>(normals.floatArray.count);
+            for (int i = 0; i < normals.floatArray.count; ++i) {
+                normal_list.add(normals.floatArray.floats[i]);
+            }
+        }
+
+        List<Float> texcoord_list;
+        if(texcoords == null) {
+            texcoord_list = new ArrayList<Float>(Arrays.asList(0f, 0f));
+        } else {
+            texcoord_list = new ArrayList<Float>(texcoords.floatArray.count);
+            if(collada.asset.upAxis.equals(UpAxis.Y_UP)) {
+                for (int i = 0; i < texcoords.floatArray.count; i += 2 ) {
+                    texcoord_list.add(texcoords.floatArray.floats[i]);
+                    texcoord_list.add(1-texcoords.floatArray.floats[i+1]);
+                }
+            } else {
+                for (int i = 0; i < texcoords.floatArray.count; i += 2 ) {
+                    texcoord_list.add(texcoords.floatArray.floats[i]);
+                    texcoord_list.add(texcoords.floatArray.floats[i+1]);
+                }
+            }
+        }
+
+        List<Integer> position_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
+        List<Integer> normal_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
+        List<Integer> texcoord_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
         for (int i = 0; i < mesh.triangles.count; ++i) {
-            int idx = i * stride * 3 + vertex_input.offset;
-
-            // TMP since rig needs indexed rendering for now...
-            indices_list.add(i*3);
-            indices_list.add(i*3+1);
-            indices_list.add(i*3+2);
-
-/*            for (int v = 0; v < 3; v++) {
-                bone_indices_list.add(0);
-                bone_indices_list.add(0);
-                bone_indices_list.add(0);
-                bone_indices_list.add(0);
-                bone_weights_list.add(1.0f);
-                bone_weights_list.add(0.0f);
-                bone_weights_list.add(0.0f);
-                bone_weights_list.add(0.0f);
-            }
-*/
-
 
             for (int j = 0; j < 3; ++j) {
-                int tri_ind = mesh.triangles.p[idx + stride * j];
-
-                float px = positions.floatArray.floats[3 * tri_ind + 0];
-                float py = positions.floatArray.floats[3 * tri_ind + 1];
-                float pz = positions.floatArray.floats[3 * tri_ind + 2];
-
-                position_list.add(px * meter);
-                position_list.add(py * meter);
-                position_list.add(pz * meter);
-            }
-
-            for (int j = 0; j < 3; ++j) {
-
-                float px, py, pz;
+                int idx = i * stride * 3 + vertex_input.offset;
+                int vert_idx = mesh.triangles.p[idx + stride * j];
+                position_indices_list.add(vert_idx);
 
                 if (normals == null) {
-                    px = py = 0;
-                    pz = 1;
+                    normal_indices_list.add(0);
                 } else {
                     idx = i * stride * 3 + normalOffset;
-                    int tri_ind = mesh.triangles.p[idx + stride * j];
-                    px = normals.floatArray.floats[3 * tri_ind + 0];
-                    py = normals.floatArray.floats[3 * tri_ind + 1];
-                    pz = normals.floatArray.floats[3 * tri_ind + 2];
+                    vert_idx = mesh.triangles.p[idx + stride * j];
+                    normal_indices_list.add(vert_idx);
                 }
 
-                normal_list.add(px);
-                normal_list.add(py);
-                normal_list.add(pz);
-            }
-
-
-            for (int j = 0; j < 3; ++j) {
-
-                float u, v;
-
-                if (normals == null || texcoords == null) {
-                    u  = v  = 0;
+                if (texcoords == null) {
+                    texcoord_indices_list.add(0);
                 } else {
                     idx = i * stride * 3 + texcoord_input.offset;
-                    int tri_ind = mesh.triangles.p[idx + stride * j];
-                    u = texcoords.floatArray.floats[2 * tri_ind + 0];
-                    v = texcoords.floatArray.floats[2 * tri_ind + 1];
+                    vert_idx = mesh.triangles.p[idx + stride * j];
+                    texcoord_indices_list.add(vert_idx);
                 }
 
-                texcoord_list.add(u);
-                texcoord_list.add(v);
             }
 
         }
 
+        List<Integer> bone_indices_list= new ArrayList<Integer>(position_list.size()*4);
+        List<Float> bone_weights_list= new ArrayList<Float>(position_list.size()*4);
         loadVertexWeights(collada, bone_weights_list, bone_indices_list);
 
         Mesh.Builder b = Mesh.newBuilder();
         b.addAllPositions(position_list);
         b.addAllNormals(normal_list);
         b.addAllTexcoord0(texcoord_list);
-        b.addAllIndices(indices_list);
+        b.addAllIndices(position_indices_list);
+        b.addAllNormalsIndices(normal_indices_list);
+        b.addAllTexcoord0Indices(texcoord_indices_list);
         b.addAllWeights(bone_weights_list);
         b.addAllBoneIndices(bone_indices_list);
 
         return b.build();
     }
-
 
     public static com.dynamo.rig.proto.Rig.Skeleton loadSkeleton(XMLCOLLADA collada) throws IOException, XMLStreamException, LoaderException {
         com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder = com.dynamo.rig.proto.Rig.Skeleton.newBuilder();
@@ -560,7 +543,12 @@ public class ColladaUtil {
         }
 
         if(rootNode != null) {
-            Vector3f upVector = new Vector3f(0.0f, 1.0f, 0.0f);
+            Vector3f upVector;
+            if(collada.asset.upAxis.equals(UpAxis.Y_UP)) {
+                upVector = new Vector3f(0.0f, 1.0f, 0.0f);
+            } else {
+                upVector = new Vector3f(0.0f, 0.0f, 1.0f);
+            }
             Point3f skeletonPos;
             Matrix4f localToWorld;
             localToWorld = rootNode.matrix.matrix4f;
@@ -723,8 +711,6 @@ public class ColladaUtil {
 
         XMLInput weights_input = findInput(skin.vertexWeights.inputs, "WEIGHT", true);
         XMLSource weightsSource = sourcesMap.get(weights_input.source);
-
-        System.out.println("VWVertex=" + skin.vertexWeights.vcount.ints.length);
 
         int vIndex = 0;
         for ( int i = 0; i < skin.vertexWeights.vcount.ints.length; i++ )

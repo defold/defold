@@ -882,6 +882,7 @@ namespace dmRig
             if (!properties->m_Visible) {
                 continue;
             }
+            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
             uint32_t index_count = mesh->m_Indices.m_Count;
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -910,7 +911,8 @@ namespace dmRig
                 write_ptr->x = posed_vertex[0];
                 write_ptr->y = posed_vertex[1];
                 write_ptr->z = posed_vertex[2];
-                e = vi*2;
+                vi = texcoord0_indices[ii];
+                e = vi << 1;
                 write_ptr->u = TO_SHORT(mesh->m_Texcoord0[e+0]);
                 write_ptr->v = TO_SHORT(mesh->m_Texcoord0[e+1]);
                 write_ptr->r = TO_BYTE(properties->m_Color[0]);

@@ -1,6 +1,7 @@
 package com.dynamo.cr.ddfeditor.scene;
 
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
@@ -38,13 +39,14 @@ public class ModelRenderer implements INodeRenderer<ModelNode> {
 
         MeshNode mesh = node.getMeshNode();
         FloatBuffer pos = mesh.getPositions();
+        IntBuffer indices = mesh.getIndices();
 
         GL2 gl = renderContext.getGL();
 
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
         gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
         gl.glVertexPointer(3, GL.GL_FLOAT, 0, pos);
-        gl.glDrawArrays(GL.GL_TRIANGLES, 0, pos.capacity() / 3);
+        gl.glDrawElements(GL.GL_TRIANGLES, indices.capacity(), GL.GL_UNSIGNED_INT, indices);
         gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
     }
 
