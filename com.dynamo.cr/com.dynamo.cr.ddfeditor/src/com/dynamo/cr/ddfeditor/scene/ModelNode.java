@@ -52,6 +52,10 @@ public class ModelNode extends ComponentTypeNode {
         if (modelDesc.getTexturesCount() > 0) {
             texture = modelDesc.getTextures(0);
         }
+        skeleton = modelDesc.getSkeleton();
+        if (modelDesc.getAnimationsCount() > 0) {
+            animations = modelDesc.getAnimations(0);
+        }
     }
 
     @Override
