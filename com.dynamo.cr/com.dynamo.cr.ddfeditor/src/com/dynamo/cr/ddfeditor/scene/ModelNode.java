@@ -168,11 +168,16 @@ public class ModelNode extends ComponentTypeNode {
     public Message buildMessage() {
         Builder b = ModelDesc.newBuilder()
             .setMesh(this.mesh)
-            .setMaterial(this.material);
+            .setMaterial(this.material)
+            .setSkeleton(this.skeleton);
 
         if (texture.length() > 0) {
             b.addTextures(texture);
         }
+        if (animations.length() > 0) {
+            b.addAnimations(animations);
+        }
+
         return b.build();
     }
 

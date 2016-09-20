@@ -2,10 +2,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 
 import javax.xml.stream.XMLStreamException;
 
@@ -15,17 +12,14 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-import com.dynamo.model.proto.Model.ModelDesc;
-import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.Mesh;
 import com.dynamo.rig.proto.Rig.MeshEntry;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
-import com.google.protobuf.TextFormat;
 
 
-@BuilderParams(name="ColladaModel", inExts=".model", outExt=".rigscenec")
+@BuilderParams(name="ColladaModel", inExts=".dae", outExt=".meshsetc")
 public class ColladaModelBuilder extends Builder<Void>  {
 
     @Override
@@ -35,27 +29,13 @@ public class ColladaModelBuilder extends Builder<Void>  {
             .addInput(input);
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.addOutput(input.changeExt(".skeletonc"));
-        taskBuilder.addOutput(input.changeExt(".meshsetc"));
         taskBuilder.addOutput(input.changeExt(".animationsetc"));
         return taskBuilder.build();
     }
 
-
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         ByteArrayOutputStream out;
-
-        // collect resources
-        final File input = new File(task.input(0).getAbsPath());
-        FileInputStream inputStream = new FileInputStream(input);
-        InputStreamReader inputReader = new InputStreamReader(inputStream);
-        ModelDesc.Builder inputBuilder = ModelDesc.newBuilder();
-        TextFormat.merge(inputReader, inputBuilder);
-
-        String meshInput = inputBuilder.getMesh();
-        String skeletonInput = inputBuilder.getSkeleton();
-        List<String> animInput = inputBuilder.getAnimationsList();
-
 
         // MeshSet
         ByteArrayInputStream mesh_is = new ByteArrayInputStream(task.input(0).getContent());
@@ -78,7 +58,7 @@ public class ColladaModelBuilder extends Builder<Void>  {
         out = new ByteArrayOutputStream(64 * 1024);
         meshSetBuilder.build().writeTo(out);
         out.close();
-        task.output(2).setContent(out.toByteArray());
+        task.output(0).setContent(out.toByteArray());
 
         // Skeleton
         out = new ByteArrayOutputStream(64 * 1024);
@@ -90,22 +70,7 @@ public class ColladaModelBuilder extends Builder<Void>  {
         out = new ByteArrayOutputStream(64 * 1024);
         animSetBuilder.build().writeTo(out);
         out.close();
-        task.output(3).setContent(out.toByteArray());
-
-        // Rigscene
-        com.dynamo.rig.proto.Rig.RigScene.Builder rigSceneBuilder = com.dynamo.rig.proto.Rig.RigScene.newBuilder();
-        out = new ByteArrayOutputStream(64 * 1024);
-
-        int buildDirLen = project.getBuildDirectory().length();
-        rigSceneBuilder.setSkeleton(task.output(1).getPath().substring(buildDirLen));
-        rigSceneBuilder.setMeshSet(task.output(2).getPath().substring(buildDirLen));
-        rigSceneBuilder.setAnimationSet(task.output(3).getPath().substring(buildDirLen));
-        rigSceneBuilder.setTextureSet(""); // this is set in the model
-
-        rigSceneBuilder.build().writeTo(out);
-        out.close();
-        task.output(0).setContent(out.toByteArray());
-
+        task.output(2).setContent(out.toByteArray());
     }
 }
 

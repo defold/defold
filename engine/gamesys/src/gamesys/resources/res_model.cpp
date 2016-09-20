@@ -6,7 +6,7 @@ namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, ModelResource* resource, const char* filename)
     {
-        dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_Mesh, (void**) &resource->m_RigScene);
+        dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**) &resource->m_RigScene);
         if (result != dmResource::RESULT_OK)
             return result;
         result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &resource->m_Material);
