@@ -77,9 +77,10 @@
 
 (deftest save-all-literal-equality
   (let [paths ["/collection/embedded_instances.collection"
+               "/editor1/test.collection"
                "/game_object/embedded_components.go"
                "/editor1/level.tilesource"
-               "/editor1/test.collection"
+               "/editor1/test.tileset"
                ;; TODO - fix as part of DEFEDIT-432
                #_"/editor1/ice.tilesource"]]
     (with-clean-system
