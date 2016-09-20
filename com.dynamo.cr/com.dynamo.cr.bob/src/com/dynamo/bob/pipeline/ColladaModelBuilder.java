@@ -6,6 +6,8 @@ import java.io.IOException;
 
 import javax.xml.stream.XMLStreamException;
 
+import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
+
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -45,9 +47,9 @@ public class ColladaModelBuilder extends Builder<Void>  {
         try {
             ColladaUtil.load(mesh_is, meshBuilder, animSetBuilder, skeletonBuilder);
         } catch (XMLStreamException e) {
-            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh", e);
+            throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh: " + e.getLocalizedMessage(), e);
         } catch (LoaderException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh", e);
+            throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh: " + e.getLocalizedMessage(), e);
         }
         Mesh mesh = meshBuilder.build();
         MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();

@@ -45,6 +45,8 @@ import org.openmali.vecmath2.util.FloatUtils;
  */
 public class Bone
 {
+    private final String id;
+    
     /** The source-id of this bone */
     private final String sid;
     
@@ -120,6 +122,12 @@ public class Bone
     
     /** Children (optional) */
     private ArrayList<Bone> children;
+    
+
+    public final String getId()
+    {
+        return ( id );
+    }
     
     public final String getSourceId()
     {
@@ -320,8 +328,9 @@ public class Bone
      * @param bindRotation
      *                The bind rotation of this bone
      */
-    public Bone( String sid, String name, Matrix4f matrix, Quaternion4f bindRotation )
+    public Bone( String id, String sid, String name, Matrix4f matrix, Quaternion4f bindRotation )
     {
+        this.id = id;
         this.sid = sid;
         this.name = name;
         

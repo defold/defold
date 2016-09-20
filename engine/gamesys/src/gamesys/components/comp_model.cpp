@@ -266,7 +266,7 @@ namespace dmGameSystem
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
         create_params.m_MeshId           = 0; //dmHashString64(component->m_Resource->m_Model->m_Skin);
-        create_params.m_DefaultAnimation = dmHashString64("default"); // dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
+        create_params.m_DefaultAnimation = 0; // dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
