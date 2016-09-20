@@ -70,7 +70,7 @@
    :tile-height tile-height
    :tile-margin tile-margin
    :tile-spacing tile-spacing
-   :collision (when collision (resource/proj-path collision))
+   :collision (resource/resource->proj-path collision)
    :material-tag material-tag
    :convex-hulls (mapv (fn [{:keys [index count collision-group]}]
                          {:index index
