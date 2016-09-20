@@ -148,7 +148,7 @@ namespace dmGameSystem
                 luaL_error(L, "factory.create can not be called from this script type");
                 return 1;
             }
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + actual_prop_buffer_size);
+            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + actual_prop_buffer_size, 0);
         } else {
             dmScript::GetInstance(L);
             int ref = luaL_ref(L, LUA_REGISTRYINDEX);
