@@ -46,7 +46,9 @@ public class ModelBuilder extends Builder<Void> {
         BuilderUtil.checkResource(this.project, resource, "model", modelBuilder.getMesh());
         modelBuilder.setMesh(BuilderUtil.replaceExt(modelBuilder.getMesh(), ".dae", ".meshsetc"));
 
-        if(!modelBuilder.getSkeleton().isEmpty()) {
+        if(modelBuilder.getSkeleton().isEmpty()) {
+            modelBuilder.setSkeleton(BuilderUtil.replaceExt(modelBuilder.getMesh(), ".meshsetc", ".skeletonc"));
+        } else {
             BuilderUtil.checkResource(this.project, resource, "skeleton", modelBuilder.getSkeleton());
             modelBuilder.setSkeleton(BuilderUtil.replaceExt(modelBuilder.getSkeleton(), ".dae", ".skeletonc"));
         }
@@ -63,9 +65,13 @@ public class ModelBuilder extends Builder<Void> {
         modelBuilder.addAllTextures(newTextureList);
 
         List<String> newAnimationsList = new ArrayList<String>();
-        for (String t : modelBuilder.getAnimationsList()) {
-            BuilderUtil.checkResource(this.project, resource, "animation", t);
-            newAnimationsList.add(BuilderUtil.replaceExt(t, ".dae", ".animationsetc"));
+        if(modelBuilder.getAnimationsList().isEmpty()) {
+            newAnimationsList.add(BuilderUtil.replaceExt(modelBuilder.getMesh(), ".meshsetc", ".animationsetc"));
+        } else {
+            for (String t : modelBuilder.getAnimationsList()) {
+                BuilderUtil.checkResource(this.project, resource, "animation", t);
+                newAnimationsList.add(BuilderUtil.replaceExt(t, ".dae", ".animationsetc"));
+            }
         }
         modelBuilder.clearAnimations();
         modelBuilder.addAllAnimations(newAnimationsList);
