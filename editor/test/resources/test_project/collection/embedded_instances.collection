@@ -1,4 +1,5 @@
 name: "default"
+scale_along_z: 0
 embedded_instances {
   id: "go"
   data: "embedded_components {\n"
