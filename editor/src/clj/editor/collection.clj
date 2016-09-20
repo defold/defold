@@ -323,8 +323,9 @@
   (output build-error g/Err (g/fnk [_node-id source-resource]
                                    (path-error _node-id source-resource))))
 
-(g/defnk produce-proto-msg [name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
+(g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   {:name name
+   :scale-along-z (if scale-along-z 1 0)
    :instances ref-inst-ddf
    :embedded-instances embed-inst-ddf
    :collection-instances ref-coll-ddf})
@@ -420,6 +421,10 @@
   (inherits project/ResourceNode)
 
   (property name g/Str)
+  ;; This property is legacy and purposefully hidden
+  ;; The feature is only useful for uniform scaling, we use non-uniform now
+  (property scale-along-z g/Bool
+            (dynamic visible (g/always false)))
 
   (input ref-inst-ddf g/Any :array)
   (input embed-inst-ddf g/Any :array)
@@ -748,6 +753,7 @@
     (concat
       prototype-load-data
       (g/set-property self :name (:name collection))
+      (g/set-property self :scale-along-z (not= 0 (:scale-along-z collection)))
       (let [tx-go-creation (flatten
                              (concat
                                (for [game-object (:instances collection)

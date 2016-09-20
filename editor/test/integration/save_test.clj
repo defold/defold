@@ -79,6 +79,7 @@
   (let [paths ["/collection/embedded_instances.collection"
                "/game_object/embedded_components.go"
                "/editor1/level.tilesource"
+               "/editor1/test.collection"
                ;; TODO - fix as part of DEFEDIT-432
                #_"/editor1/ice.tilesource"]]
     (with-clean-system
