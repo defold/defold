@@ -7,6 +7,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 
+#include <dlib/log.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "gameobject/test/message/test_gameobject_message_ddf.h"
@@ -151,7 +152,7 @@ dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(const dmGameO
         if (self->m_MessageTargetCounter == 2)
         {
             dmhash_t message_id = dmHashString64("test_message");
-            assert(dmMessage::RESULT_OK == dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, message_id, 0, 0, 0x0, 0));
+            assert(dmMessage::RESULT_OK == dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, message_id, 0, 0, 0x0, 0, 0));
         }
     }
     else if (params.m_Message->m_Id == dmHashString64("dec"))
@@ -194,7 +195,7 @@ TEST_F(MessageTest, TestPostNamedTo)
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(instance);
     receiver.m_Fragment = dmHashString64("script");
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0, 0));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 }
 
@@ -210,7 +211,7 @@ TEST_F(MessageTest, TestPostDDFTo)
     receiver.m_Path = dmGameObject::GetIdentifier(instance);
     receiver.m_Fragment = dmHashString64("script");
     uintptr_t descriptor = (uintptr_t)TestGameObjectDDF::TestMessage::m_DDFDescriptor;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash, 0, descriptor, &ddf, sizeof(TestGameObjectDDF::TestMessage)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash, 0, descriptor, &ddf, sizeof(TestGameObjectDDF::TestMessage), 0));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 }
 
@@ -241,11 +242,11 @@ TEST_F(MessageTest, TestComponentMessage)
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_Fragment = dmHashString64("mt");
 
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0, 0));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(1U, m_MessageTargetCounter);
 
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0, 0));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
@@ -269,7 +270,7 @@ TEST_F(MessageTest, TestComponentMessageFail)
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_Fragment = dmHashString64("apa");
 
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0, 0));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     dmGameObject::Delete(m_Collection, go);
@@ -303,7 +304,7 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_Fragment = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0, 0));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
@@ -321,7 +322,7 @@ TEST_F(MessageTest, TestInputFocus)
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_Fragment = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor, 0x0, 0, 0));
 
     ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
 
@@ -331,7 +332,7 @@ TEST_F(MessageTest, TestInputFocus)
 
     message_id = dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor->m_NameHash;
 
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor, 0x0, 0, 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -396,7 +397,7 @@ TEST_F(MessageTest, TestGameObjectTransform)
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_Fragment = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::RequestTransform::m_DDFDescriptor, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::RequestTransform::m_DDFDescriptor, 0x0, 0, 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -455,7 +456,7 @@ TEST_F(MessageTest, TestSetParent)
     dmhash_t parent_id = dmHashString64("parent_test_instance");
     ddf.m_ParentId = parent_id;
     ddf.m_KeepWorldTransform = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
 
@@ -474,7 +475,7 @@ TEST_F(MessageTest, TestSetParent)
 
     ddf.m_ParentId = 0;
     ddf.m_KeepWorldTransform = 1;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
@@ -495,7 +496,7 @@ TEST_F(MessageTest, TestSetParent)
 
     ddf.m_ParentId = parent_id;
     ddf.m_KeepWorldTransform = 1;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
@@ -512,7 +513,7 @@ TEST_F(MessageTest, TestSetParent)
 
     ddf.m_ParentId = 0;
     ddf.m_KeepWorldTransform = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
@@ -554,6 +555,56 @@ TEST_F(MessageTest, TestInfPingPong)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &update_context));
     dmGameObject::Delete(m_Collection, go);
 }
+
+
+
+uint32_t g_PostDistpatchCalled = 0;
+
+void CustomMessageDestroyCallback(dmMessage::Message* message)
+{
+    TestGameObjectDDF::TestDataMessage* test = (TestGameObjectDDF::TestDataMessage*)message->m_Data;
+    g_PostDistpatchCalled = test->m_Value;
+}
+
+TEST_F(MessageTest, MessagePostDispatch)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/test_onmessage.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_instance"));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(instance);
+    receiver.m_Fragment = dmHashString64("script");
+
+    // Here we assume the code invoked a message, which later will complete (actual example: http_service.cpp which will post a response later on)
+    dmGameObject::Delete(m_Collection, instance);
+    
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmGameObject::PostUpdate(m_Collection);
+
+    //
+
+    TestGameObjectDDF::TestDataMessage ddf;
+    ddf.m_Value = 42;
+    uintptr_t descriptor = (uintptr_t)TestGameObjectDDF::TestDataMessage::m_DDFDescriptor;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, TestGameObjectDDF::TestDataMessage::m_DDFDescriptor->m_NameHash, 0, descriptor, &ddf, sizeof(TestGameObjectDDF::TestDataMessage), CustomMessageDestroyCallback));
+
+
+    ASSERT_EQ(0, g_PostDistpatchCalled);
+
+    dmLogInfo("Expected error ->");
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+    dmLogInfo("<- Expected error end");
+
+    ASSERT_EQ(42, g_PostDistpatchCalled);
+}
+
+
 
 int main(int argc, char **argv)
 {
