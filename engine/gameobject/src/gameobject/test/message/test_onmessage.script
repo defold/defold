@@ -2,6 +2,7 @@ function on_message(self, message_id, message)
     if message_id == hash("post_named_to_instance") then
     elseif message_id == hash("test_message") then
         assert(message.test_uint32 == 2, "wrong ddf data")
+    elseif message_id == hash("test_data_message") then
     else
         assert(false, "unknown message")
     end
