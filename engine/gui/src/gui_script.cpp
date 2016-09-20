@@ -520,34 +520,6 @@ namespace dmGui
         assert(top == lua_gettop(L));
     }
 
-    void LuaSpineEvent(HScene scene, HNode node, void* userdata1, void* userdata2)
-    {
-        lua_State* L = scene->m_Context->m_LuaState;
-
-        int top = lua_gettop(L);
-        (void) top;
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
-        dmScript::SetInstance(L);
-
-        int ref = (int) ((uintptr_t) userdata1 & 0xffffffff);
-        int node_ref = (int) ((uintptr_t) userdata2 & 0xffffffff);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
-        assert(lua_type(L, -3) == LUA_TFUNCTION);
-
-        dmScript::PCall(L, 2, 0);
-
-        lua_unref(L, ref);
-        lua_unref(L, node_ref);
-
-        lua_pushnil(L);
-        dmScript::SetInstance(L);
-
-        assert(top == lua_gettop(L));
-    }
-
     /*# once forward
      *
      * @name gui.PLAYBACK_ONCE_FORWARD
@@ -3329,7 +3301,7 @@ namespace dmGui
         if (animation_complete_ref == LUA_NOREF) {
             res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, 0, 0, 0);
         } else {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, &LuaSpineEvent, (void*) animation_complete_ref, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
 
         if (res == RESULT_WRONG_TYPE) {

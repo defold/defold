@@ -56,6 +56,37 @@ TEST_P(ResourceTest, Test)
     dmResource::Release(m_Factory, resource);
 }
 
+TEST_P(ResourceReloadTest, Test)
+{
+    const ResourceReloadParams& p = GetParam();
+    void* resource;
+    void* resource2;
+
+    char tmp_name[128];
+    char tmp_path[128];
+    DM_SNPRINTF(tmp_name, sizeof(tmp_name), "tmp%s", p.m_FilenameEnding);
+    DM_SNPRINTF(tmp_path, sizeof(tmp_path), "/tmp%s", p.m_FilenameEnding);
+
+    // Copy initial version
+    ASSERT_TRUE(CopyResource(p.m_InitialResource, tmp_name));
+
+    // Load initial version
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, tmp_path, &resource));
+    ASSERT_NE((void*)0, resource);
+
+    // Copy second version
+    ASSERT_TRUE(CopyResource(p.m_SecondResource, tmp_name));
+
+    // Reload
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, tmp_path, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, tmp_path, &resource2));
+    ASSERT_NE((void*)0, resource);
+    ASSERT_EQ(resource, resource2);
+
+    dmResource::Release(m_Factory, resource);
+    UnlinkResource(tmp_name);
+}
+
 TEST_P(ResourceTest, TestPreload)
 {
     const char* resource_name = GetParam();
@@ -234,7 +265,7 @@ TEST_F(WindowEventTest, Test)
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    
+
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -416,6 +447,12 @@ INSTANTIATE_TEST_CASE_P(Gui, ResourceFailTest, ::testing::ValuesIn(invalid_gui_r
 
 const char* valid_gui_gos[] = {"/gui/valid_gui.goc"};
 INSTANTIATE_TEST_CASE_P(Gui, ComponentTest, ::testing::ValuesIn(valid_gui_gos));
+
+ResourceReloadParams reload_gui_resource[] =
+{
+    {".guic", "/gui/reload_initial.guic", "/gui/reload_second.guic"},
+};
+INSTANTIATE_TEST_CASE_P(Gui, ResourceReloadTest, ::testing::ValuesIn(reload_gui_resource));
 
 const char* invalid_gui_gos[] =
 {

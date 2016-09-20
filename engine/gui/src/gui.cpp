@@ -1565,7 +1565,9 @@ namespace dmGui
         for (uint32_t i = 0; i < n; ++i)
         {
             InternalNode* node = &scene->m_Nodes[i];
-            if (node->m_Deleted)
+
+            // We need to make sure we delete spine nodes since these include rig instances.
+            if (node->m_Deleted || node->m_Node.m_NodeType == NODE_TYPE_SPINE)
             {
                 HNode hnode = GetNodeHandle(node);
                 DeleteNode(scene, hnode);
@@ -2239,6 +2241,7 @@ namespace dmGui
         {
             InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
             if (child->m_Node.m_IsBone) {
+                assert(bone_index < pose.Size());
                 dmTransform::Transform transform = pose[bone_index];
                 HNode b = GetNodeHandle(child);
                 SetNodePosition(scene, b, Point3(transform.GetTranslation()));
