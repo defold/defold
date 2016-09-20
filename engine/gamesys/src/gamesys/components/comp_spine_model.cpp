@@ -233,9 +233,20 @@ namespace dmGameSystem
                 return false;
             }
 
-            dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
+            uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+            if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+            {
+                dmGameObject::Delete(collection, inst);
+                component->m_NodeInstances.SetSize(i);
+                return false;
+            }
+
+            dmhash_t id = dmGameObject::ConstructInstanceId(index);
+            dmGameObject::AssignInstanceIndex(index, instance);
+
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
-            if (dmGameObject::RESULT_OK != result) {
+            if (dmGameObject::RESULT_OK != result)
+            {
                 dmGameObject::Delete(collection, inst);
                 component->m_NodeInstances.SetSize(i);
                 return false;
