@@ -155,11 +155,11 @@ public class ColladaUtil {
     private static void loadTransformTrack(XMLAnimation animation, RigUtil.AnimationTrack positionTrack, RigUtil.AnimationTrack rotationTrack, RigUtil.AnimationTrack scaleTrack) {
         float[] t = animation.getInput();
         float[] outputs = animation.getOutput();
-        
+
         for (int i = 0; i < t.length; i++) {
-            
+
             int m_i = i*4*4;
-            
+
             XMLMatrix4x4 matrix = new XMLMatrix4x4();
             int sub_i = 0;
             for(int x = 0; x < 4; x++) {
@@ -167,10 +167,10 @@ public class ColladaUtil {
                     matrix.matrix4f.set(x, y, outputs[m_i + sub_i++]);
                 }
             }
-            
+
             AnimationCurve curve = new AnimationCurve();
             curve.interpolation = CurveIntepolation.LINEAR;
-            
+
             AnimationKey positionKey = new AnimationKey();
             positionKey.t = t[i];
             positionKey.curve = curve;
@@ -180,7 +180,7 @@ public class ColladaUtil {
             AnimationKey scaleKey = new AnimationKey();
             scaleKey.t = t[i];
             scaleKey.curve = curve;
-            
+
             // get translation
             float x = matrix.matrix4f.get(0, 3);
             float y = matrix.matrix4f.get(1, 3);
@@ -190,24 +190,24 @@ public class ColladaUtil {
 //            System.out.println("x: " + x);
 //            System.out.println("y: " + y);
 //            System.out.println("z: " + z);
-            
+
             // get euler rotation
             double r11 = matrix.matrix4f.get(0, 0);
             double r21 = matrix.matrix4f.get(1, 0);
             double r31 = matrix.matrix4f.get(2, 0);
-            
+
             double r12 = matrix.matrix4f.get(0, 1);
             double r22 = matrix.matrix4f.get(1, 1);
             double r32 = matrix.matrix4f.get(2, 1);
-            
+
             double r13 = matrix.matrix4f.get(0, 2);
             double r23 = matrix.matrix4f.get(1, 2);
             double r33 = matrix.matrix4f.get(2, 2);
-            
+
             double eulerX = Math.atan2(r32, r33);
             double eulerY = Math.atan2(-r31, Math.sqrt(r32*r32 + r33*r33));
             double eulerZ = Math.atan2(r21,  r11);
-            
+
             Quat4d quat = new Quat4d();
             Tuple3d euler = new Tuple3d() {
             };
@@ -217,10 +217,10 @@ public class ColladaUtil {
 //          System.out.println("rotX: " + eulerX);
 //          System.out.println("rotY: " + eulerY);
 //          System.out.println("rotZ: " + eulerZ);
-            
+
             // TODO get scale
             scaleKey.value = new float[]{1.0f, 1.0f, 1.0f};
-            
+
             positionTrack.keys.add(positionKey);
             rotationTrack.keys.add(rotationKey);
             scaleTrack.keys.add(scaleKey);
@@ -294,7 +294,7 @@ public class ColladaUtil {
         // We loop through all bones in the skeleton, this also includes the "fake root" representing the model.
         for (int bi = 0; bi < skeleton.getBonesCount(); bi++) {
             com.dynamo.rig.proto.Rig.Bone bone = skeleton.getBones(bi);
-            
+
             System.out.println("bone index " + bi + ", hash:" + bone.getId());
             // Check if there exist any animation for the current bone
             if (boneToAnimations.containsKey(bone.getId())) {
@@ -303,32 +303,32 @@ public class ColladaUtil {
 
                 AnimationTrack.Builder animTrackBuilder = AnimationTrack.newBuilder();
                 animTrackBuilder.setBoneIndex(bi);
-                
+
                 if (propAnimations.containsKey("transform")) {
                     System.out.println("has transformation track");
                     XMLAnimation anim = propAnimations.get("transform");
-                    
+
                     AnimationTrack.Builder animTrackPosition = AnimationTrack.newBuilder();
                     AnimationTrack.Builder animTrackRotation = AnimationTrack.newBuilder();
                     AnimationTrack.Builder animTrackScale = AnimationTrack.newBuilder();
                     RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackPosition);
                     RigUtil.RotationBuilder rotationBuilder = new RigUtil.RotationBuilder(animTrackRotation);
                     RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackScale);
-                    
+
                     RigUtil.AnimationTrack trackPosition = new RigUtil.AnimationTrack();
                     trackPosition.property = RigUtil.AnimationTrack.Property.POSITION;
-                    
+
                     RigUtil.AnimationTrack trackRotation = new RigUtil.AnimationTrack();
                     trackRotation.property = RigUtil.AnimationTrack.Property.ROTATION;
-                    
+
                     RigUtil.AnimationTrack trackScale = new RigUtil.AnimationTrack();
                     trackScale.property = RigUtil.AnimationTrack.Property.SCALE;
-                    
+
                     loadTransformTrack(anim, trackPosition, trackRotation, trackScale);
                     RigUtil.sampleTrack(trackPosition, positionBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true);
                     RigUtil.sampleTrack(trackRotation, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf, true);
                     RigUtil.sampleTrack(trackScale, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf, true);
-                    
+
                     // TODO do this better...
                     for (int i = 0; i < animTrackPosition.getPositionsCount(); i++) {
                         animTrackBuilder.addPositions(animTrackPosition.getPositions(i));
@@ -339,7 +339,7 @@ public class ColladaUtil {
                     for (int i = 0; i < animTrackPosition.getScaleCount(); i++) {
                         animTrackBuilder.addScale(animTrackScale.getScale(i));
                     }
-                    
+
                 } else {
                     System.out.println("has split composite tracks");
 
@@ -348,43 +348,43 @@ public class ColladaUtil {
                     //
                     // We load each of these tracks (for each component), then sample them individually,
                     // finally we assemble the final track by picking samples from each component-track.
-    
+
                     // Positions
                     if (propAnimations.containsKey("location.X") || propAnimations.containsKey("location.Y") || propAnimations.containsKey("location.Z")) {
-    
+
                         AnimationTrack.Builder animTrackBuilderX = AnimationTrack.newBuilder();
                         AnimationTrack.Builder animTrackBuilderY = AnimationTrack.newBuilder();
                         AnimationTrack.Builder animTrackBuilderZ = AnimationTrack.newBuilder();
-    
+
                         loadComponentTrack(propAnimations.get("location.X"), animTrackBuilderX, Property.POSITION_COMPONENT, 0.0, duration, sampleRate, spf);
                         loadComponentTrack(propAnimations.get("location.Y"), animTrackBuilderY, Property.POSITION_COMPONENT, 0.0, duration, sampleRate, spf);
                         loadComponentTrack(propAnimations.get("location.Z"), animTrackBuilderZ, Property.POSITION_COMPONENT, 0.0, duration, sampleRate, spf);
-    
+
                         assert(animTrackBuilderX.getPositionsCount() == animTrackBuilderY.getPositionsCount());
                         assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
-    
+
                         for (int i = 0; i < animTrackBuilderX.getPositionsCount(); i++) {
                             animTrackBuilder.addPositions(animTrackBuilderY.getPositions(i));
                             animTrackBuilder.addPositions(animTrackBuilderZ.getPositions(i));
                             animTrackBuilder.addPositions(animTrackBuilderX.getPositions(i));
-    
+
                         }
                     }
-    
+
                     // Euler rotations
                     if (propAnimations.containsKey("rotationX.ANGLE") || propAnimations.containsKey("rotationY.ANGLE") || propAnimations.containsKey("rotationZ.ANGLE")) {
-    
+
                         AnimationTrack.Builder animTrackBuilderX = AnimationTrack.newBuilder();
                         AnimationTrack.Builder animTrackBuilderY = AnimationTrack.newBuilder();
                         AnimationTrack.Builder animTrackBuilderZ = AnimationTrack.newBuilder();
-    
+
                         loadComponentTrack(propAnimations.get("rotationX.ANGLE"), animTrackBuilderX, Property.ROTATION_COMPONENT, 0.0, duration, sampleRate, spf);
                         loadComponentTrack(propAnimations.get("rotationY.ANGLE"), animTrackBuilderY, Property.ROTATION_COMPONENT, 0.0, duration, sampleRate, spf);
                         loadComponentTrack(propAnimations.get("rotationZ.ANGLE"), animTrackBuilderZ, Property.ROTATION_COMPONENT, 0.0, duration, sampleRate, spf);
-    
+
                         assert(animTrackBuilderX.getPositionsCount() == animTrackBuilderY.getPositionsCount());
                         assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
-    
+
                         for (int i = 0; i < animTrackBuilderX.getPositionsCount(); i++) {
                             Quat4d quat = new Quat4d();
                             Tuple3d euler = new Tuple3d() {
@@ -393,35 +393,35 @@ public class ColladaUtil {
                                       animTrackBuilderZ.getPositions(i),
                                       animTrackBuilderX.getPositions(i));
                             eulerToQuat(euler, quat);
-    
+
                             animTrackBuilder.addRotations((float)quat.getX());
                             animTrackBuilder.addRotations((float)quat.getY());
                             animTrackBuilder.addRotations((float)quat.getZ());
                             animTrackBuilder.addRotations((float)quat.getW());
                         }
                     }
-    
+
                     // Scale
                     if (propAnimations.containsKey("scale.X") || propAnimations.containsKey("scale.Y") || propAnimations.containsKey("scale.Z")) {
-    
+
                         AnimationTrack.Builder animTrackBuilderX = AnimationTrack.newBuilder();
                         AnimationTrack.Builder animTrackBuilderY = AnimationTrack.newBuilder();
                         AnimationTrack.Builder animTrackBuilderZ = AnimationTrack.newBuilder();
-    
+
                         loadComponentTrack(propAnimations.get("scale.X"), animTrackBuilderX, Property.POSITION_COMPONENT, 1.0, duration, sampleRate, spf);
                         loadComponentTrack(propAnimations.get("scale.Y"), animTrackBuilderY, Property.POSITION_COMPONENT, 1.0, duration, sampleRate, spf);
                         loadComponentTrack(propAnimations.get("scale.Z"), animTrackBuilderZ, Property.POSITION_COMPONENT, 1.0, duration, sampleRate, spf);
-    
+
                         assert(animTrackBuilderX.getPositionsCount() == animTrackBuilderY.getPositionsCount());
                         assert(animTrackBuilderY.getPositionsCount() == animTrackBuilderZ.getPositionsCount());
-    
+
                         for (int i = 0; i < animTrackBuilderX.getPositionsCount(); i++) {
                             animTrackBuilder.addScale(animTrackBuilderY.getPositions(i));
                             animTrackBuilder.addScale(animTrackBuilderZ.getPositions(i));
                             animTrackBuilder.addScale(animTrackBuilderX.getPositions(i));
                         }
                     }
-                
+
                 }
 
                 animBuilder.addTracks(animTrackBuilder.build());
@@ -432,7 +432,7 @@ public class ColladaUtil {
     public static AnimationSet loadAnimations(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate) throws IOException, XMLStreamException, LoaderException {
 
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
-        if (collada.libraryAnimations.size() != 1) {
+        if (collada.libraryAnimations.size() != 1 || collada.libraryGeometries.isEmpty()) {
             return animationSetBuilder.build();
         }
 
@@ -464,7 +464,7 @@ public class ColladaUtil {
                 String[] targetParts = targetPath.split("/");
                 String boneTarget = targetParts[0];
                 String propertyTarget = targetParts[1];
-                
+
                 System.out.println("Animation target available: " + boneTarget);
 
                 if (!boneToAnimations.containsKey(MurmurHash.hash64(boneTarget))) {
@@ -504,8 +504,12 @@ public class ColladaUtil {
     public static Mesh loadMesh(XMLCOLLADA collada) throws IOException,
             XMLStreamException, LoaderException {
 
+        Mesh.Builder meshBuilder = Mesh.newBuilder();
 
         if (collada.libraryGeometries.size() != 1) {
+            if (collada.libraryGeometries.isEmpty()) {
+                return meshBuilder.build();
+            }
             throw new LoaderException("Only a single geometry is supported");
         }
 
@@ -620,23 +624,22 @@ public class ColladaUtil {
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
         loadVertexWeights(collada, position_indices_list, bone_weights_list, bone_indices_list);
 
-        Mesh.Builder b = Mesh.newBuilder();
-        b.addAllPositions(position_list);
-        b.addAllNormals(normal_list);
-        b.addAllTexcoord0(texcoord_list);
-        b.addAllIndices(position_indices_list);
-        b.addAllNormalsIndices(normal_indices_list);
-        b.addAllTexcoord0Indices(texcoord_indices_list);
-        b.addAllWeights(bone_weights_list);
-        b.addAllBoneIndices(bone_indices_list);
+        meshBuilder.addAllPositions(position_list);
+        meshBuilder.addAllNormals(normal_list);
+        meshBuilder.addAllTexcoord0(texcoord_list);
+        meshBuilder.addAllIndices(position_indices_list);
+        meshBuilder.addAllNormalsIndices(normal_indices_list);
+        meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
+        meshBuilder.addAllWeights(bone_weights_list);
+        meshBuilder.addAllBoneIndices(bone_indices_list);
 
-        return b.build();
+        return meshBuilder.build();
     }
 
     public static com.dynamo.rig.proto.Rig.Skeleton loadSkeleton(XMLCOLLADA collada) throws IOException, XMLStreamException, LoaderException {
         com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder = com.dynamo.rig.proto.Rig.Skeleton.newBuilder();
 
-        if (collada.libraryVisualScenes.size() != 1) {
+        if (collada.libraryVisualScenes.size() != 1 || collada.libraryGeometries.isEmpty()) {
             return skeletonBuilder.build();
         }
 
@@ -780,11 +783,11 @@ public class ColladaUtil {
 
         int boneIndex = builderList.size();
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
-        
+
         System.out.println("bone.getSourceId(): " + bone.getId());
         System.out.println("            hashed: " + MurmurHash.hash64(bone.getId()));
-        
-        
+
+
         b.setParent(parentIndex);
         b.setId(MurmurHash.hash64(bone.getId()));
 
@@ -827,7 +830,7 @@ public class ColladaUtil {
         }
         XMLSkin skin = findFirstSkin(collada.libraryControllers.get(0));
         if(skin == null) {
-            
+
             // DAE does not have any weights, so we need to add dummy entries so all vertices use the fake root bone.
             for ( int i = 0; i < position_indices_list.size(); i++ ) {
                 bone_indices_list.add(0);
@@ -839,7 +842,7 @@ public class ColladaUtil {
                 bone_weights_list.add(0f);
                 bone_weights_list.add(0f);
             }
-            
+
             return;
         }
 
