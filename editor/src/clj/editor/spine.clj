@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [util.murmur :as murmur]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.math :as math]
@@ -200,7 +201,7 @@
 
 (defn- build-tracks [timelines duration sample-rate spf bone-id->index]
   (let [tracks-by-bone (reduce-kv (fn [m bone-name timeline]
-                                    (let [bone-index (bone-id->index (protobuf/hash64 bone-name))]
+                                    (let [bone-index (bone-id->index (murmur/hash64 bone-name))]
                                       (reduce-kv (fn [m type keys]
                                                    (let [field (timeline-type->pb-field type)
                                                          pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
@@ -418,8 +419,8 @@
   (let [spf (/ 1.0 sample-rate)
         ; Bone data
         bones (map (fn [b]
-                     {:id (protobuf/hash64 (get b "name"))
-                      :parent (when (contains? b "parent") (protobuf/hash64 (get b "parent")))
+                     {:id (murmur/hash64 (get b "name"))
+                      :parent (when (contains? b "parent") (murmur/hash64 (get b "parent")))
                       :position [(get b "x" 0) (get b "y" 0) 0]
                       :rotation (angle->clj-quat (get b "rotation" 0))
                       :scale [(get b "scaleX" 1) (get b "scaleY" 1) 1]
@@ -451,7 +452,7 @@
         ; Slot data
         slots (get spine-scene "slots" [])
         slots-data (into {} (map-indexed (fn [i slot]
-                                           (let [bone-index (bone-id->index (protobuf/hash64 (get slot "bone")))]
+                                           (let [bone-index (bone-id->index (murmur/hash64 (get slot "bone")))]
                                              [(get slot "name")
                                               {:bone-index bone-index
                                                :bone-world (get bone-world-transforms bone-index)
@@ -463,13 +464,13 @@
         flatten-meshes (fn [meshes] (map-indexed (fn [i [k v]] [k (assoc v :draw-order i)]) (sort-by mesh-sort-fn meshes)))
         skins (get spine-scene "skins" {})
         generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-world-transforms)
-        new-skins {"" (flatten-meshes generic-meshes)}
+        new-skins {"default" (flatten-meshes generic-meshes)}
         new-skins (reduce (fn [m [skin slots]]
                             (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-world-transforms)]
                               (assoc m skin (flatten-meshes (merge generic-meshes specific-meshes)))))
                           new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
         slot->track-data (reduce-kv (fn [m skin meshes]
-                                      (let [skin-id (protobuf/hash64 skin)]
+                                      (let [skin-id (murmur/hash64 skin)]
                                         (reduce (fn [m [[slot att] mesh]]
                                                   (update m slot conj {:skin-id skin-id :mesh-index (:draw-order mesh) :attachment att}))
                                                 m meshes)))
@@ -479,19 +480,19 @@
             :animation-set (let [events (into {} (get spine-scene "events" []))
                                  animations (mapv (fn [[name a]]
                                                     (let [duration (anim-duration a)]
-                                                      {:id (protobuf/hash64 name)
+                                                      {:id (murmur/hash64 name)
                                                       :sample-rate sample-rate
                                                       :duration duration
                                                       :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
                                                       :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
                                                       :event-tracks (mapv (fn [[event-name keys]]
                                                                             (let [default (merge {"int" 0 "float" 0 "string" ""} (get events event-name))]
-                                                                              {:event-id (protobuf/hash64 event-name)
+                                                                              {:event-id (murmur/hash64 event-name)
                                                                               :keys (mapv (fn [k]
                                                                                             {:t (get k "time")
                                                                                              :integer (get k "int" (get default "int"))
                                                                                              :float (get k "float" (get default "float"))
-                                                                                             :string (protobuf/hash64 (get k "string" (get default "string")))})
+                                                                                             :string (murmur/hash64 (get k "string" (get default "string")))})
                                                                                           keys)}))
                                                                           (reduce (fn [m e]
                                                                                     (update-in m [(get e "name")] conj e))
@@ -499,7 +500,7 @@
                                                   (get spine-scene "animations"))]
                              {:animations animations})
              :mesh-set {:mesh-entries (mapv (fn [[skin meshes]]
-                                              {:id (protobuf/hash64 skin)
+                                              {:id (murmur/hash64 skin)
                                                :meshes (mapv second meshes)}) new-skins)}}]
     pb))
 
@@ -608,6 +609,10 @@
   (let [positions (partition 3 (:positions mesh))]
     (reduce (fn [aabb pos] (apply geom/aabb-incorporate aabb pos)) aabb positions)))
 
+(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error :info _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
 
@@ -620,8 +625,8 @@
                                                 [:structure :scene-structure]
                                                 [:node-outline :source-outline])))
             (dynamic edit-type (g/always {:type resource/Resource :ext "json"}))
-            (validate (validation/validate-resource spine-json "Missing spine json"
-                                                    [spine-scene])))
+            (dynamic error (g/fnk [_node-id spine-json]
+                                  (prop-resource-error _node-id :spine-json spine-json "Spine Json"))))
 
   (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
@@ -632,8 +637,8 @@
                                                 [:gpu-texture :gpu-texture]
                                                 [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/always {:type resource/Resource :ext "atlas"}))
-            (validate (validation/validate-resource atlas "Missing atlas"
-                                                    [anim-data])))
+            (dynamic error (g/fnk [_node-id atlas]
+                                  (prop-resource-error _node-id :atlas atlas "Atlas"))))
 
   (property sample-rate g/Num)
 
@@ -653,7 +658,8 @@
   (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
                                                       (reduce mesh->aabb (geom/null-aabb) meshes))))
   (output anim-data g/Any (gu/passthrough anim-data))
-  (output scene-structure g/Any (gu/passthrough scene-structure)))
+  (output scene-structure g/Any (gu/passthrough scene-structure))
+  (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations")))))
 
 (defn load-spine-scene [project self resource]
   (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
@@ -700,12 +706,15 @@
                      (project/resource-setter basis self old-value new-value
                                                   [:resource :spine-scene-resource]
                                                   [:scene :spine-scene-scene]
+                                                  [:spine-anim-ids :spine-anim-ids]
                                                   [:aabb :aabb]
                                                   [:build-targets :dep-build-targets]
                                                   [:node-outline :source-outline]
                                                   [:anim-data :anim-data]
                                                   [:scene-structure :scene-structure])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "spinescene"})))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "spinescene"}))
+            (dynamic error (g/fnk [_node-id spine-scene]
+                                  (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/always (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
@@ -717,16 +726,26 @@
                                                 [:shader :material-shader]
                                                 [:sampler-data :sampler-data]
                                                 [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "material"})))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "material"}))
+            (dynamic error (g/fnk [_node-id material]
+                                  (prop-resource-error _node-id :material material "Material"))))
   (property default-animation g/Str
-            (value (g/fnk [default-animation anim-ids] (or (not-empty default-animation) (first anim-ids))))
-            (validate (validation/validate-animation default-animation anim-data))
+            (value (g/fnk [default-animation spine-anim-ids] (or (not-empty default-animation) (first spine-anim-ids))))
+            (dynamic error (g/fnk [_node-id spine-anim-ids default-animation spine-scene]
+                                  (when spine-scene
+                                    (validation/prop-error :fatal _node-id
+                                                           :default-animation (fn [anim ids]
+                                                                                (when (not (contains? ids anim))
+                                                                                  (format "animation '%s' could not be found in the specified scene" anim))) default-animation (set spine-anim-ids)))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
   (property skin g/Str
             (value (g/fnk [skin scene-structure] (or (not-empty skin) (first (:skins scene-structure)))))
-            (validate (g/fnk [skin scene-structure]
-                             (when (and (some? scene-structure) (not (contains? (into #{} (:skins scene-structure)) skin)))
-                               (g/error-severe (format "The skin \"%s\" could not be found in the specified scene" skin)))))
+            (dynamic error (g/fnk [_node-id skin scene-structure spine-scene]
+                                  (when spine-scene
+                                    (validation/prop-error :fatal _node-id :skin
+                                                         (fn [skin skins]
+                                                           (when (not (contains? skins skin))
+                                                             (format "skin '%s' could not be found in the specified scene" skin))) skin (set (:skins scene-structure))))))
             (dynamic edit-type (g/fnk [scene-structure]
                                       (properties/->choicebox (:skins scene-structure)))))
 
@@ -734,6 +753,7 @@
   (input spine-scene-resource resource/Resource)
   (input spine-scene-scene g/Any)
   (input scene-structure g/Any)
+  (input spine-anim-ids g/Any)
   (input aabb AABB)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)

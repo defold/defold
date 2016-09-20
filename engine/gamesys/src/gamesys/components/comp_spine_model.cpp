@@ -103,16 +103,17 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         dmMessage::URL receiver = component->m_Listener;
-        if (!GetSender(component, &sender))
-        {
-            dmLogError("Could not send animation_done to listener because of incomplete component.");
-            return;
-        }
 
         switch (event_type)
         {
             case dmRig::RIG_EVENT_TYPE_COMPLETED:
             {
+                if (!GetSender(component, &sender))
+                {
+                    dmLogError("Could not send animation_done to listener because of incomplete component.");
+                    return;
+                }
+
                 dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
                 const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
 
@@ -122,7 +123,7 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
                 dmMessage::ResetURL(component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
@@ -133,10 +134,16 @@ namespace dmGameSystem
             }
             case dmRig::RIG_EVENT_TYPE_KEYFRAME:
             {
+                if (!GetSender(component, &sender))
+                {
+                    return;
+                }
+                receiver.m_Function = 0;
+
                 if (!dmMessage::IsSocketValid(receiver.m_Socket))
                 {
                     receiver = sender;
-                    receiver.m_Fragment = 0; // broadcast to sibling components
+                    receiver.m_Fragment = 0;
                 }
 
                 dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
@@ -153,7 +160,7 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size, 0);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send spine_event to listener.");

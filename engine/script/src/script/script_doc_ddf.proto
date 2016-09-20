@@ -49,5 +49,5 @@ message Info
 message Document
 {
     repeated Element elements = 1;
-    required Info info = 2;
+    optional Info info = 2;
 }

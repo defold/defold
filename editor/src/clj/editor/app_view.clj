@@ -101,16 +101,16 @@
 
 (ui/extend-menu :toolbar nil
                 [{:id :select
-                  :icon "icons/Icons_T_01_Select.png"
+                  :icon "icons/45/Icons_T_01_Select.png"
                   :command :select-tool}
                  {:id :move
-                  :icon "icons/Icons_T_02_Move.png"
+                  :icon "icons/45/Icons_T_02_Move.png"
                   :command :move-tool}
                  {:id :rotate
-                  :icon "icons/Icons_T_03_Rotate.png"
+                  :icon "icons/45/Icons_T_03_Rotate.png"
                   :command :rotate-tool}
                  {:id :scale
-                  :icon "icons/Icons_T_04_Scale.png"
+                  :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
@@ -347,9 +347,15 @@
       (profiler/profile "view" (:name @(g/node-type* node))
                         (g/node-value node label)))))
 
+;; Here only because reports indicate that isDesktopSupported does
+;; some kind of initialization behind the scenes on Linux:
+;; http://stackoverflow.com/questions/23176624/javafx-freeze-on-desktop-openfile-desktop-browseuri
+(def desktop-supported? (delay (Desktop/isDesktopSupported)))
+
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
+  (force desktop-supported?)
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
     (-> tab-pane
       (.getSelectionModel)

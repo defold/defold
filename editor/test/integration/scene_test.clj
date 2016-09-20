@@ -5,10 +5,8 @@
             [editor.system :as system]
             [editor.collection :as collection]
             [editor.geom :as geom]
-            [editor.platformer :as platformer]
             [editor.defold-project :as project]
             [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
             [integration.test-util :as test-util]
             [editor.gl.pass :as pass])
   (:import [javax.vecmath Point3d]))
@@ -39,16 +37,6 @@
                         (fn [node-id]
                           (let [scene (g/node-value node-id :scene)]
                             (is (= (:aabb scene) geom/unit-bounding-box))))
-                        "/platformer/level1.platformer"
-                        (fn [node-id]
-                          (let [scene (g/node-value node-id :scene)
-                                aabb (make-aabb [0 10] [20 10])]
-                            (is (= (:aabb scene) aabb))))
-                        "/switcher/level01.switcher"
-                        (fn [node-id]
-                          (let [scene (g/node-value node-id :scene)
-                                aabb (make-aabb [-45 -45] [45 45])]
-                            (is (= (:aabb scene) aabb))))
                         "/switcher/switcher.atlas"
                         (fn [node-id]
                           (let [scene (g/node-value node-id :scene)
