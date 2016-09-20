@@ -2870,11 +2870,6 @@ namespace dmGui
         while (index != INVALID_INDEX && result == dmGui::RESULT_OK)
         {
             InternalNode* node = &scene->m_Nodes[index];
-            // if (dmGui::GetNodeIsBone(scene, GetNodeHandle(node))) {
-            //     index = node->m_NextIndex;
-            //     continue;
-            // }
-
             dmGui::HNode out_node;
             result = CloneNodeToTable(L, scene, node, &out_node);
             if (result == dmGui::RESULT_OK)
@@ -3309,9 +3304,9 @@ namespace dmGui
         } else if (res == RESULT_INVAL_ERROR) {
             const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
             if (id_string != 0x0) {
-                dmLogError("Could not find and play spine animation %s", id_string);
+                dmLogError("Could not find and play spine animation %s.", id_string);
             } else {
-                dmLogError("Could not find and play spine animation %llu", anim_id);
+                dmLogError("Could not find and play spine animation (hash %llu).", anim_id);
             }
         }
 
