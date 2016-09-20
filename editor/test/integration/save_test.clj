@@ -76,33 +76,29 @@
                       (is (= file (:content save)))))))))))
 
 (deftest save-all-literal-equality
-  (let [paths [#_"/collection/embedded_instances.collection"
-               #_"/game_object/embedded_components.go"
-               #_"/editor1/level.tilesource"
-               "/editor1/ice.tilesource"]]
+  (let [paths ["/collection/embedded_instances.collection"
+               "/game_object/embedded_components.go"
+               "/editor1/level.tilesource"
+               ;; TODO - fix as part of DEFEDIT-432
+               #_"/editor1/ice.tilesource"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            save-data (group-by :resource (project/save-data project))]
+            project   (test-util/setup-project! workspace)]
         (doseq [path paths]
           (testing (format "Saving %s" path)
             (let [node-id (test-util/resource-node project path)
                   resource (g/node-value node-id :resource)
-                  save (first (get save-data resource))
+                  save (g/node-value node-id :save-data)
                   file (slurp resource)
                   pb-class (-> resource resource/resource-type :ext ext->proto)]
-              #_(when (and pb-class (not= file (:content save)))
-                 (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
-                       pb-disk (protobuf/read-text pb-class resource)
-                       path []
-                       [disk save both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
-                   (is (nil? disk))
-                   (is (nil? save))))
-              #_(is (= file (:content save)))
-              (prn (subs file 0 400))
-              (prn (subs (:content save) 0 400)))))))))
-
-(save-all-literal-equality)
+              (when (and pb-class (not= file (:content save)))
+                (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
+                      pb-disk (protobuf/read-text pb-class resource)
+                      path []
+                      [disk save both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
+                  (is (nil? disk))
+                  (is (nil? save))))
+              (is (= file (:content save))))))))))
 
 (defn- setup-scratch
   [ws-graph]
