@@ -8,7 +8,7 @@
 <?import javafx.scene.layout.*?>
 
 
-<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="484.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="484.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <top>
       <ImageView fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" BorderPane.alignment="CENTER">
          <image>
@@ -43,12 +43,12 @@
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label id="sha1" text="(2b680b3ec7af8a84401ad584d8bc47a246f82947)" GridPane.rowIndex="2">
+            <TextField id="sha1" text="(2b680b3ec7af8a84401ad584d8bc47a246f82947)" GridPane.rowIndex="2" editable="false" focusTraversable="false" alignment="center" styleClass="copyable-label">
                <font>
                   <Font size="11.0" />
                </font>
-            </Label>
-            <Label text="Copyright (c) 2011-2015" GridPane.rowIndex="4">
+            </TextField>
+            <Label text="Copyright (c) 2011-2016" GridPane.rowIndex="4">
                <font>
                   <Font size="11.0" />
                </font>
