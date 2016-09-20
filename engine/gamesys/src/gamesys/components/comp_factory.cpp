@@ -101,6 +101,12 @@ namespace dmGameSystem
                     index = dmGameObject::AcquireInstanceIndex(collection);
                 }
 
+                if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+                {
+                    dmLogError("Can not create gameobject since the buffer is full.");
+                    return dmGameObject::UPDATE_RESULT_OK;
+                }
+
                 id = dmGameObject::ConstructInstanceId(index);
             }
 
