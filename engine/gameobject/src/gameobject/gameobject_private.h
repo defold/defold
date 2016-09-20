@@ -74,7 +74,7 @@ namespace dmGameObject
             m_EulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_PrevEulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_Prototype = prototype;
-            m_IdentifierIndex = 0xffffffff;
+            m_IdentifierIndex = INVALID_INSTANCE_POOL_INDEX;
             m_Identifier = UNNAMED_IDENTIFIER;
             dmHashInit64(&m_CollectionPathHashState, true);
             m_Depth = 0;

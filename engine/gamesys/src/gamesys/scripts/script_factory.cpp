@@ -136,8 +136,8 @@ namespace dmGameSystem
             scale = dmGameObject::GetWorldScale(sender_instance);
         }
 
-        uint32_t index = dmGameObject::RetrieveInstanceIndex(collection);
-        if (index != 0xffffffff)
+        uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+        if (index != dmGameObject::INVALID_INSTANCE_POOL_INDEX)
         {
             bool success = true;
             dmhash_t id = dmGameObject::ConstructInstanceId(index);
@@ -151,7 +151,7 @@ namespace dmGameSystem
                 create_msg->m_Scale3 = scale;
                 dmMessage::URL sender;
                 if (!dmScript::GetURL(L, &sender)) {
-                    dmGameObject::ReturnInstanceIndex(index, collection);
+                    dmGameObject::ReleaseInstanceIndex(index, collection);
                     return luaL_error(L, "factory.create can not be called from this script type");
                 }
 
@@ -168,7 +168,7 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmGameObject::ReturnInstanceIndex(index, collection);
+                    dmGameObject::ReleaseInstanceIndex(index, collection);
                     success = false;
                 }
 

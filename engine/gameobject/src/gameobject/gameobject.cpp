@@ -631,10 +631,10 @@ namespace dmGameObject
         return dmHashString64(buffer);
     }
 
-    uint32_t RetrieveInstanceIndex(HCollection collection)
+    uint32_t AcquireInstanceIndex(HCollection collection)
     {
         dmMutex::Lock(collection->m_Mutex);
-        uint32_t index = 0xffffffff;
+        uint32_t index = INVALID_INSTANCE_POOL_INDEX;
         if (collection->m_InstanceIdPool.Remaining() > 0)
         {
             index = collection->m_InstanceIdPool.Pop();
@@ -644,7 +644,7 @@ namespace dmGameObject
         return index;
     }
 
-    void ReturnInstanceIndex(uint32_t index, HCollection collection)
+    void ReleaseInstanceIndex(uint32_t index, HCollection collection)
     {
         dmMutex::Lock(collection->m_Mutex);
         collection->m_InstanceIdPool.Push(index);
@@ -1530,7 +1530,7 @@ namespace dmGameObject
         if (instance->m_IdentifierIndex < collection->m_MaxInstances)
         {
             // The identifier (hash) for this gameobject comes from the pool!
-            ReturnInstanceIndex(instance->m_IdentifierIndex, collection);
+            ReleaseInstanceIndex(instance->m_IdentifierIndex, collection);
         }
         ReleaseIdentifier(collection, instance);
 

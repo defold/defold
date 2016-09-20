@@ -96,9 +96,9 @@ namespace dmGameSystem
 
             if (id == 0)
             {
-                if (index == 0xffffffff)
+                if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
                 {
-                    index = dmGameObject::RetrieveInstanceIndex(collection);
+                    index = dmGameObject::AcquireInstanceIndex(collection);
                 }
 
                 id = dmGameObject::ConstructInstanceId(index);
@@ -117,7 +117,7 @@ namespace dmGameSystem
 
             dmGameObject::HInstance spawned_instance =  dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
                 create->m_Position, create->m_Rotation, scale);
-            if (index != 0xffffffff)
+            if (index != dmGameObject::INVALID_INSTANCE_POOL_INDEX)
             {
                 if (spawned_instance != 0x0)
                 {
@@ -125,7 +125,7 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmGameObject::ReturnInstanceIndex(index, collection);
+                    dmGameObject::ReleaseInstanceIndex(index, collection);
                 }
             }
         }

@@ -226,7 +226,7 @@ namespace dmGameSystem
                 return false;
             }
 
-            uint32_t index = dmGameObject::RetrieveInstanceIndex(collection);
+            uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
             dmhash_t id = dmGameObject::ConstructInstanceId(index);
             dmGameObject::AssignInstanceIndex(index, instance);
 

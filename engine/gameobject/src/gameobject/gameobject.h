@@ -25,6 +25,10 @@ namespace dmGameObject
     /// Default max instances in collection
     const uint32_t DEFAULT_MAX_COLLECTION_CAPACITY = 1024;
 
+    // Value for an invalid instance index, this must be the same as defined in
+    // gamesys_ddf.proto for Create#index.
+    const uint32_t INVALID_INSTANCE_POOL_INDEX = 0xffffffff;
+
     /// Config key to use for tweaking maximum number of instances in a collection
     extern const char* COLLECTION_MAX_INSTANCES_KEY;
 
@@ -746,14 +750,14 @@ namespace dmGameObject
      * @param collection Collection from which to retrieve the instance index.
      * @return instance index from the index pool of collection.
      */
-    uint32_t RetrieveInstanceIndex(HCollection collection);
+    uint32_t AcquireInstanceIndex(HCollection collection);
 
     /**
      * Return an instance index to the index pool for the collection.
      * @param index The index to return.
      * @param collection Collection that the index should be returned to.
      */
-    void ReturnInstanceIndex(uint32_t index, HCollection collection);
+    void ReleaseInstanceIndex(uint32_t index, HCollection collection);
 
     /**
      * Assign an index to the instance, only if the instance is not null.
