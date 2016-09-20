@@ -82,6 +82,7 @@ namespace dmGui
         dmArray<InternalClippingNode>   m_StencilClippingNodes;
         dmArray<StencilScope*>          m_StencilScopes;
         dmArray<uint16_t>               m_StencilScopeIndices;
+        dmArray<HNode>                  m_ScratchBoneNodes;
         dmHID::HContext                 m_HidContext;
         dmRig::HRigContext              m_RigContext;
         void*                           m_DefaultFont;
@@ -118,7 +119,8 @@ namespace dmGui
                 uint32_t    m_ClippingMode : 2;
                 uint32_t    m_ClippingVisible : 1;
                 uint32_t    m_ClippingInverted : 1;
-                uint32_t    m_Reserved : 5;
+                uint32_t    m_IsBone : 1;
+                uint32_t    m_Reserved : 4;
             };
 
             uint32_t m_State;
@@ -145,7 +147,6 @@ namespace dmGui
         uint64_t            m_SpineSceneHash;
         void*               m_SpineScene;
         dmRig::HRigInstance m_RigInstance;
-        uint32_t            m_IsBone : 1;
     };
 
     struct InternalNode

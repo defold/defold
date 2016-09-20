@@ -871,8 +871,8 @@ namespace dmGui
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
     dmhash_t GetNodeSpineSceneId(HScene scene, HNode node);
-    Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id);
-    Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id);
+    Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones);
+    Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones);
     dmhash_t GetNodeSpineScene(HScene scene, HNode node);
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
@@ -958,9 +958,8 @@ namespace dmGui
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
     Pivot GetNodePivot(HScene scene, HNode node);
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
-
-    void SetNodeBone(HScene scene, HNode node, bool is_bone);
-    bool GetNodeBone(HScene scene, HNode node);
+    bool GetNodeIsBone(HScene scene, HNode node);
+    void SetNodeIsBone(HScene scene, HNode node, bool is_bone);
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
 

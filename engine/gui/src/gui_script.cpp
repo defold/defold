@@ -1170,7 +1170,7 @@ namespace dmGui
         }
 
         dmhash_t spine_scene_id = dmScript::CheckHashOrString(L, 2);
-        if (RESULT_OK != SetNodeSpineScene(scene, node, spine_scene_id, 0, 0))
+        if (RESULT_OK != SetNodeSpineScene(scene, node, spine_scene_id, 0, 0, true))
         {
             GetNode(scene, node)->m_Deleted = 1;
             return luaL_error(L, "failed to set spine scene for new node");
@@ -1902,7 +1902,6 @@ namespace dmGui
             if (id_string != 0x0) {
                 luaL_error(L, "Font %s is not specified in scene", id_string);
             } else {
-                printf("%llu", font_id_hash);
                 luaL_error(L, "Font %llu is not specified in scene", font_id_hash);
             }
         }
@@ -2899,10 +2898,10 @@ namespace dmGui
         while (index != INVALID_INDEX && result == dmGui::RESULT_OK)
         {
             InternalNode* node = &scene->m_Nodes[index];
-            if (dmGui::GetNodeBone(scene, GetNodeHandle(node))) {
-                index = node->m_NextIndex;
-                continue;
-            }
+            // if (dmGui::GetNodeIsBone(scene, GetNodeHandle(node))) {
+            //     index = node->m_NextIndex;
+            //     continue;
+            // }
 
             dmGui::HNode out_node;
             result = CloneNodeToTable(L, scene, node, &out_node);
@@ -3336,7 +3335,12 @@ namespace dmGui
         if (res == RESULT_WRONG_TYPE) {
             dmLogError("Could not play spine animation on non-spine node.");
         } else if (res == RESULT_INVAL_ERROR) {
-            dmLogError("Could not find and play spine animation (%llx).", anim_id);
+            const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
+            if (id_string != 0x0) {
+                dmLogError("Could not find and play spine animation %s", id_string);
+            } else {
+                dmLogError("Could not find and play spine animation %llu", anim_id);
+            }
         }
 
         assert(top == lua_gettop(L));
@@ -3417,11 +3421,11 @@ namespace dmGui
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &node);
-        if(dmGui::GetNodeBone(scene, node)) {
+        if(dmGui::GetNodeIsBone(scene, node)) {
             return 0;
         }
 
-        if (RESULT_OK != SetNodeSpineScene(scene, node, dmScript::CheckHashOrString(L, 2), 0, 0))
+        if (RESULT_OK != SetNodeSpineScene(scene, node, dmScript::CheckHashOrString(L, 2), 0, 0, false))
         {
             return luaL_error(L, "failed to set spine scene for gui node");
         }

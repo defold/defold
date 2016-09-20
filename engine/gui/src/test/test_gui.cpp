@@ -4207,7 +4207,7 @@ TEST_F(dmGuiTest, SpineNodeNoData)
     // create nodes
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, "test_spine", 0, 0));
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, "test_spine", 0, 0, true));
 }
 
 TEST_F(dmGuiTest, SpineNode)
@@ -4226,7 +4226,7 @@ TEST_F(dmGuiTest, SpineNode)
     // create nodes
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)"")));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
 
     DeleteSpineDummyData(dummy_data);
 }
@@ -4247,7 +4247,7 @@ TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
     // create nodes
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)"")));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
 
     ASSERT_EQ(0, GetNodeSpineBone(m_Scene, node, 123));
     ASSERT_NE(0, GetNodeSpineBone(m_Scene, node, 0));
@@ -4281,10 +4281,10 @@ TEST_F(dmGuiTest, BoxNodeSetSpineScene)
 
     // should not be able to set spine scene for any other node than spine nodes
     dmhash_t spine_scene_id = dmHashString64("test_spine");
-    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_box, spine_scene_id, 0, 0));
-    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_pie, spine_scene_id, 0, 0));
-    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_text, spine_scene_id, 0, 0));
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, spine_scene_id, 0, 0));
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_box, spine_scene_id, 0, 0, true));
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_pie, spine_scene_id, 0, 0, true));
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_text, spine_scene_id, 0, 0, true));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, spine_scene_id, 0, 0, true));
 
     DeleteSpineDummyData(dummy_data);
 }
@@ -4304,7 +4304,7 @@ TEST_F(dmGuiTest, DeleteSpineNode)
 
     ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
     dmGui::HNode node_spine = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_SPINE);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, "test_spine", 0, 0));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, "test_spine", 0, 0, true));
 
     // Spine node + 2 bone nodes
     ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
@@ -4316,32 +4316,35 @@ TEST_F(dmGuiTest, DeleteSpineNode)
     DeleteSpineDummyData(dummy_data);
 }
 
-// TEST_F(dmGuiTest, DeleteBoneNode)
-// {
-//     uint32_t width = 100;
-//     uint32_t height = 50;
+TEST_F(dmGuiTest, DeleteBoneNode)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
 
-//     dmGui::SetPhysicalResolution(m_Context, width, height);
-//     dmGui::SetSceneResolution(m_Scene, width, height);
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
-//     dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-//     CreateSpineDummyData(dummy_data);
+    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+    CreateSpineDummyData(dummy_data);
 
-//     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
 
-//     ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
-//     dmGui::HNode node_spine = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_SPINE);
-//     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, "test_spine", 0, 0));
+    ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
+    dmGui::HNode node_spine = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, "test_spine", 0, 0, true));
 
-//     dmGui::HNode node_bone = dmGui::GetNodeSpineBone(m_Scene, node_spine, 1);
-//     ASSERT_NE(0, node_bone);
+    dmGui::HNode node_bone = dmGui::GetNodeSpineBone(m_Scene, node_spine, 1);
+    ASSERT_NE(0, node_bone);
 
-//     // Delete spine node will delete bone nodes also
-//     dmGui::DeleteNode(m_Scene, node_bone);
-//     ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
+    // Spine node + 2 bone nodes
+    ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
 
-//     DeleteSpineDummyData(dummy_data);
-// }
+    // Delete spine node will delete bone nodes also
+    dmGui::DeleteNode(m_Scene, node_spine);
+    ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
+
+    DeleteSpineDummyData(dummy_data);
+}
 
 int main(int argc, char **argv)
 {

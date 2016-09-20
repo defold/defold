@@ -226,7 +226,7 @@ namespace dmGameSystem
         dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
 
         if (node_desc->m_SpineNodeChild) {
-            dmGui::SetNodeBone(scene, n, true);
+            dmGui::SetNodeIsBone(scene, n, true);
         }
 
         // type specific attributes
@@ -248,7 +248,7 @@ namespace dmGameSystem
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_SPINE:
-                dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineSkin), dmHashString64(node_desc->m_SpineDefaultAnimation));
+                dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineSkin), dmHashString64(node_desc->m_SpineDefaultAnimation), false);
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:

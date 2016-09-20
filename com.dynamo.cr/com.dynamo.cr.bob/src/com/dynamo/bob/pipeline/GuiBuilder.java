@@ -524,12 +524,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                         });
                         
                         Vector4 oneV4 = Vector4.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).setW(0.0f).build();
-                        Vector4 redV4 = Vector4.newBuilder().setX(1.0f).setY(0.0f).setZ(0.0f).setW(1.0f).build();
                         Vector4 zeroV4 = Vector4.newBuilder().setX(0.0f).setY(0.0f).setZ(0.0f).setW(0.0f).build();
-                        Vector4 zeroV4_tmp = Vector4.newBuilder().setX(40.0f).setY(10.0f).setZ(10.0f).setW(0.0f).build();
                         
                         HashMap<RigScene.Bone,String> boneToPath = new HashMap<RigScene.Bone, String>();
-//                        boolean root = true;
                         for (int b = 0; b < rigScene.bones.size(); b++) {
                             RigScene.Bone bone = rigScene.bones.get(b);
                             NodeDesc.Builder boneNodeBuilder = NodeDesc.newBuilder();
@@ -543,10 +540,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             
                             boneNodeBuilder.setId(path);
                             boneNodeBuilder.setSpineNodeChild(true);
-                            boneNodeBuilder.setSize(zeroV4_tmp);
+                            boneNodeBuilder.setSize(zeroV4);
                             boneNodeBuilder.setPosition(zeroV4);
                             boneNodeBuilder.setType(Type.TYPE_BOX);
-                            boneNodeBuilder.setColor(redV4);
                             boneNodeBuilder.setAdjustMode(node.getAdjustMode());
                             boneNodeBuilder.setScale(oneV4);
                             
@@ -554,9 +550,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             if (b == 0) {
                                 parentName = spineNodeId;
                             }
-                            System.out.println("bone.name: " + bone.name);
-                            System.out.println(b + ": " + path);
-                            System.out.println("has parent: " + parentName);
                             boneNodeBuilder.setParent(parentName);
                             
                             NodeDesc boneNode = boneNodeBuilder.build();
@@ -565,7 +558,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                                 newScene.get(layout.getName()).add(boneNode);
                             }
                         }
-                        System.out.println("---");
                         
                     } catch (LoadException e) {
                         throw new CompileExceptionError(builder.project.getResource(input), 0, "Error while loading spine scene when building GUI: " + e.getLocalizedMessage());
