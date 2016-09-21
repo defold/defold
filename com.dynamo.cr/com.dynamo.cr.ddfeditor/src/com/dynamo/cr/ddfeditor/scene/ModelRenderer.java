@@ -1,17 +1,18 @@
 package com.dynamo.cr.ddfeditor.scene;
 
 import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 import java.util.EnumSet;
 
-import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
+import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
+
+import com.jogamp.opengl.util.texture.Texture;
 
 public class ModelRenderer implements INodeRenderer<ModelNode> {
 
@@ -39,15 +40,50 @@ public class ModelRenderer implements INodeRenderer<ModelNode> {
 
         MeshNode mesh = node.getMeshNode();
         FloatBuffer pos = mesh.getPositions();
-        IntBuffer indices = mesh.getIndices();
+        FloatBuffer texCoords0 = mesh.getTexCoords0();
 
         GL2 gl = renderContext.getGL();
-
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
+
+        Texture texture = null;
+        boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
+        if (transparent) {
+            TextureHandle textureHandle = node.getTextureHandle();
+            if(textureHandle != null) {
+                texture = textureHandle.getTexture(gl);
+                if(texture != null) {
+                    texture.bind(gl);
+                    texture.setTexParameteri(gl, GL2.GL_TEXTURE_MIN_FILTER, GL2.GL_LINEAR);
+                    texture.setTexParameteri(gl, GL2.GL_TEXTURE_MAG_FILTER, GL2.GL_LINEAR);
+                    texture.setTexParameteri(gl, GL2.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
+                    texture.setTexParameteri(gl, GL2.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
+                    texture.enable(gl);
+                }
+            }
+            gl.glEnable(GL2.GL_DEPTH_TEST);
+            gl.glDepthMask(true);
+            gl.glDepthFunc(GL2.GL_LEQUAL);
+        }
+
+        gl.glClientActiveTexture(GL2.GL_TEXTURE0);
         gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
-        gl.glVertexPointer(3, GL.GL_FLOAT, 0, pos);
-        gl.glDrawElements(GL.GL_TRIANGLES, indices.capacity(), GL.GL_UNSIGNED_INT, indices);
+        gl.glEnableClientState (GL2.GL_TEXTURE_COORD_ARRAY);
+
+        gl.glVertexPointer(3, GL2.GL_FLOAT, 0, pos);
+        gl.glTexCoordPointer(2, GL2.GL_FLOAT, 0, texCoords0);
+
+        gl.glDrawArrays(GL2.GL_TRIANGLES, 0, pos.capacity()/3);
+
+        gl.glDisableClientState(GL2.GL_TEXTURE_COORD_ARRAY);
         gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
+
+        if (texture != null) {
+            texture.disable(gl);
+        }
+        if(transparent) {
+            gl.glDisable(GL2.GL_DEPTH_TEST);
+            gl.glDepthMask(false);
+        }
     }
 
 }

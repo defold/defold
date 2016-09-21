@@ -1,6 +1,9 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import java.awt.image.BufferedImage;
 import java.nio.FloatBuffer;
+
+import javax.media.opengl.GL2;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
@@ -13,6 +16,7 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.model.proto.Model.ModelDesc.Builder;
 import com.google.protobuf.Message;
@@ -21,6 +25,7 @@ import com.google.protobuf.Message;
 public class ModelNode extends ComponentTypeNode {
 
     private transient MeshNode meshNode;
+    private transient TextureHandle textureHandle = new TextureHandle();
 
     @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
     @Resource
@@ -43,6 +48,23 @@ public class ModelNode extends ComponentTypeNode {
     @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
     @Resource
     private String animations = "";
+
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        textureHandle.clear(gl);
+    }
+
+    public TextureHandle getTextureHandle() {
+        return textureHandle;
+    }
+
+    private void updateTexture() {
+        BufferedImage image = getModel().getImage(this.texture);
+        this.textureHandle.setImage(image);
+    }
+
 
     public ModelNode(ModelDesc modelDesc) {
         super();
@@ -76,6 +98,8 @@ public class ModelNode extends ComponentTypeNode {
     @Override
     public boolean handleReload(IFile file, boolean childWasReloaded) {
         if (!this.mesh.isEmpty()) {
+            updateTexture();
+
             IFile meshFile = getModel().getFile(this.mesh);
             if (meshFile.exists() && meshFile.equals(file)) {
                 reload();
@@ -90,6 +114,7 @@ public class ModelNode extends ComponentTypeNode {
         if (getModel() == null) {
             return false;
         }
+        updateTexture();
 
         if (!mesh.equals("")) {
             try {
@@ -137,6 +162,7 @@ public class ModelNode extends ComponentTypeNode {
 
     public void setTexture(String texture) {
         this.texture = texture;
+        updateTexture();
     }
 
     public String getTexture() {
