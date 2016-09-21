@@ -422,6 +422,17 @@
       (prop! new-tmpl :template {:resource (workspace/resolve-workspace-resource workspace "/gui/sub_scene.gui") :overrides {}})
       (is (contains? (:overrides (prop super-template :template)) "template/sub_box")))))
 
+(deftest gui-template-overrides-anchors
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/scene.gui")
+          box (gui-node node-id "sub_scene/sub_box")]
+      (is (= :xanchor-left (g/node-value box :x-anchor))))))
+
+;; Layouts
+
 (deftest gui-layout
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
