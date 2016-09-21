@@ -39,22 +39,22 @@
 (def unknown-icon "icons/32/Icons_29-AT-Unkown.png") ; spelling...
 
 (defn- gen-ref-ddf
-  ([id position ^Quat4d rotation-q4 path]
-    (gen-ref-ddf id position rotation-q4 path {}))
-  ([id position ^Quat4d rotation-q4 path ddf-properties ddf-property-decls]
+  ([id position rotation path]
+    (gen-ref-ddf id position rotation path {}))
+  ([id position rotation path ddf-properties ddf-property-decls]
     {:id id
      :position position
-     :rotation (math/vecmath->clj rotation-q4)
+     :rotation rotation
      :component (resource/resource->proj-path path)
      :properties ddf-properties
      :property-decls ddf-property-decls}))
 
-(defn- gen-embed-ddf [id position ^Quat4d rotation-q4 save-data]
+(defn- gen-embed-ddf [id position rotation save-data]
   {:id id
    :type (or (and (:resource save-data) (:ext (resource/resource-type (:resource save-data))))
              "unknown")
    :position position
-   :rotation (math/vecmath->clj rotation-q4)
+   :rotation rotation
    :data (or (:content save-data) "")})
 
 (defn- wrap-if-raw-sound [_node-id target]
@@ -137,8 +137,8 @@
   (inherits ComponentNode)
 
   (input save-data g/Any :cascade-delete)
-  (output rt-ddf-message g/Any :cached (g/fnk [id position ^Quat4d rotation-q4 save-data]
-                                              (gen-embed-ddf id position rotation-q4 save-data))))
+  (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
+                                              (gen-embed-ddf id position rotation save-data))))
 
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
@@ -206,8 +206,8 @@
   (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties)))
   (output node-outline-label g/Str :cached (g/fnk [id source-resource]
                                                   (format "%s - %s" id (resource/resource->proj-path source-resource))))
-  (output rt-ddf-message g/Any :cached (g/fnk [id position ^Quat4d rotation-q4 source-resource ddf-properties ddf-property-decls]
-                                              (gen-ref-ddf id position rotation-q4 source-resource ddf-properties ddf-property-decls))))
+  (output rt-ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
+                                              (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf
@@ -331,7 +331,7 @@
                         (concat
                           (g/operation-label "Add Component")
                           (g/operation-sequence op-seq)
-                          (add-component go-id project resource id [0 0 0] [0 0 0] {}))))]
+                          (add-component go-id project resource id [0 0 0] [0 0 0 1] {}))))]
     ;; Selection
     (g/transact
       (concat
@@ -381,7 +381,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0] true)))))
+      (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0 1] true)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -408,9 +408,6 @@
                  workspace (:workspace (g/node-value self :resource))]
              (add-embedded-component-options self workspace user-data))))
 
-(defn- v4->euler [v]
-  (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
-
 (defn load-game-object [project self resource]
   (let [project-graph (g/node-id->graph-id self)
         prototype     (protobuf/read-text GameObject$PrototypeDesc resource)]
@@ -418,9 +415,9 @@
       (for [component (:components prototype)
             :let [source-resource (workspace/resolve-resource resource (:component component))
                   properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))]) (:properties component)))]]
-        (add-component self project source-resource (:id component) (:position component) (v4->euler (:rotation component)) properties))
+        (add-component self project source-resource (:id component) (:position component) (:rotation component) properties))
       (for [embedded (:embedded-components prototype)]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (v4->euler (:rotation embedded)) false)))))
+        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (:rotation embedded) false)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

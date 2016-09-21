@@ -354,17 +354,19 @@
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))}))
 
 (defn values [property]
-  (mapv (fn [value default-value]
-          (if-not (nil? value)
-            value
-            default-value))
-        (:values property)
-        (:original-values property (repeat nil))))
+  (let [f (get-in property [:edit-type :to-type] identity)]
+    (mapv (fn [value default-value]
+            (f (if-not (nil? value)
+                 value
+                 default-value)))
+          (:values property)
+          (:original-values property (repeat nil)))))
 
 (defn- set-values [basis property values]
   (let [key (:key property)
-        set-fn (get-in property [:edit-type :set-fn])]
-    (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) values)]
+        set-fn (get-in property [:edit-type :set-fn])
+        from-fn (get-in property [:edit-type :from-type] identity)]
+    (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) (map from-fn values))]
       (cond
         set-fn (set-fn basis node-id old-value new-value)
         (vector? key) (g/update-property node-id (first key) assoc-in (rest key) new-value)
@@ -465,3 +467,8 @@
   {:type t/Vec2
    :from-type (fn [[x y _]] [x y])
    :to-type (fn [[x y]] [x y default-z])})
+
+(defn quat->euler []
+  {:type t/Vec3
+   :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
+   :to-type (fn [v] (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))})

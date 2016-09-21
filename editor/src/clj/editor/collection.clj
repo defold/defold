@@ -51,23 +51,23 @@
 (defn- strip-properties [v]
   (mapv #(dissoc % :properties) v))
 
-(defn- gen-embed-ddf [id child-ids position ^Quat4d rotation-q4 scale proto-msg ddf-component-properties]
+(defn- gen-embed-ddf [id child-ids position rotation scale proto-msg ddf-component-properties]
   (let [proto-msg (-> proto-msg
                     (update :components strip-properties))]
     {:id id
      :children child-ids
      :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
      :position position
-     :rotation (math/vecmath->clj rotation-q4)
+     :rotation rotation
      :scale3 scale
      :component-properties ddf-component-properties}))
 
-(defn- gen-ref-ddf [id child-ids position ^Quat4d rotation-q4 scale path ddf-component-properties]
+(defn- gen-ref-ddf [id child-ids position rotation scale path ddf-component-properties]
   {:id id
    :children child-ids
    :prototype (resource/resource->proj-path path)
    :position position
-   :rotation (math/vecmath->clj rotation-q4)
+   :rotation rotation
    :scale3 scale
    :component-properties ddf-component-properties})
 
@@ -231,8 +231,8 @@
 
   (input proto-msg g/Any)
 
-  (output ddf-message g/Any :cached (g/fnk [id child-ids position ^Quat4d rotation-q4 scale proto-msg ddf-component-properties]
-                                           (gen-embed-ddf id child-ids position rotation-q4 scale proto-msg ddf-component-properties))))
+  (output ddf-message g/Any :cached (g/fnk [id child-ids position rotation scale proto-msg ddf-component-properties]
+                                           (gen-embed-ddf id child-ids position rotation scale proto-msg ddf-component-properties))))
 
 (defn- component-resource [comp-id basis]
   (cond
@@ -318,8 +318,8 @@
 
   (input source-resource resource/Resource)
   (output node-outline-label g/Str (g/fnk [id source-resource] (format "%s (%s)" id (resource/resource->proj-path source-resource))))
-  (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource position ^Quat4d rotation-q4 scale ddf-component-properties]
-                                           (gen-ref-ddf id child-ids position rotation-q4 scale source-resource ddf-component-properties)))
+  (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource position rotation scale ddf-component-properties]
+                                           (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
   (output build-error g/Err (g/fnk [_node-id source-resource]
                                    (path-error _node-id source-resource))))
 
@@ -564,11 +564,11 @@
   (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
-  (output ddf-message g/Any :cached (g/fnk [id source-resource position ^Quat4d rotation-q4 scale ddf-properties]
+  (output ddf-message g/Any :cached (g/fnk [id source-resource position rotation scale ddf-properties]
                                            {:id id
                                             :collection (resource/resource->proj-path source-resource)
                                             :position position
-                                            :rotation (math/vecmath->clj rotation-q4)
+                                            :rotation rotation
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
@@ -620,7 +620,7 @@
                       (concat
                         (g/operation-label "Add Game Object")
                         (g/operation-sequence op-seq)
-                        (make-ref-go coll-node project resource id [0 0 0] [0 0 0] [1 1 1] true {}))))]
+                        (make-ref-go coll-node project resource id [0 0 0] [0 0 0 1] [1 1 1] true {}))))]
     ;; Selection
     (g/transact
       (concat
@@ -680,7 +680,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0] [1 1 1] true true {})))))
+        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] true true {})))))
 
 (handler/defhandler :add :global
   (active? [selection] (and (single-selection? selection)
@@ -730,9 +730,6 @@
                            (g/operation-label "Add Collection")
                            (project/select project [coll-inst-node]))))))))
 
-(defn- v4->euler [v]
-  (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
-
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]
   (if (-> pb-map meta :proto-defaults :scale3)
@@ -760,12 +757,12 @@
                                      :let [scale (read-scale3-or-scale game-object)
                                            source-resource (workspace/resolve-resource resource (:prototype game-object))]]
                                  (make-ref-go self project source-resource (:id game-object) (:position game-object)
-                                   (v4->euler (:rotation game-object)) scale false (:component-properties game-object)))
+                                   (:rotation game-object) scale false (:component-properties game-object)))
                                (for [embedded (:embedded-instances collection)
                                      :let [scale (read-scale3-or-scale embedded)]]
                                  (make-embedded-go self project "go" (:data embedded) (:id embedded)
                                    (:position embedded)
-                                   (v4->euler (:rotation embedded))
+                                   (:rotation embedded)
                                    scale false false (:component-properties embedded)))))
             new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
@@ -785,7 +782,7 @@
                   scale (:scale coll-instance)
                   source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
         (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-          (v4->euler (:rotation coll-instance)) [scale scale scale] (:instance-properties coll-instance))))))
+          (:rotation coll-instance) [scale scale scale] (:instance-properties coll-instance))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

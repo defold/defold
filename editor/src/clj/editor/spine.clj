@@ -799,7 +799,7 @@
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))
-                           (math/euler->quat [0 0 rotation])
+                           (math/euler-z->quat rotation)
                            (Vector3d. (double-array scale))))
 
 (g/defnode SpineBone
