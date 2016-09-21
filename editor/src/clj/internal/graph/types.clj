@@ -1,6 +1,5 @@
 (ns internal.graph.types
   (:require [internal.util :as util]
-            [internal.graph.error-values :as ie]
             [schema.core :as s]))
 
 (set! *warn-on-reflection* true)

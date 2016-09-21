@@ -16,6 +16,14 @@ extern "C"
 
 namespace dmScript
 {
+    /*# JSON API documentation
+     *
+     * Manipulation of JSON data strings.
+     *
+     * @name JSON
+     * @namespace json
+     */
+
     #define LIB_NAME "json"
 
     int JsonToLua(lua_State*L, dmJson::Document* doc, int index)

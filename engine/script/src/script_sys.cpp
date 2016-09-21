@@ -32,6 +32,15 @@ extern "C"
 namespace dmScript
 {
 #define LIB_NAME "sys"
+    
+    /*# System API documentation
+     *
+     * Functions and messages for using system resources, controlling the engine
+     * and for debugging.
+     *
+     * @name System
+     * @namespace sys
+     */
 
     const uint32_t MAX_BUFFER_SIZE =  128 * 1024;
 

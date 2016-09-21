@@ -76,7 +76,7 @@
 
 (defn- font-type [font output-format]
   (if (= output-format :type-bitmap)
-    (if (= "fnt" (:ext (resource/resource-type font)))
+    (if (and font (= "fnt" (:ext (resource/resource-type font))))
       :bitmap
       :defold)
     :distance-field))
@@ -349,7 +349,9 @@
     (set (fn [basis self old-value new-value]
            (project/resource-setter basis self old-value new-value
                                     [:resource :font-resource])))
-    (validate (validation/validate-resource font)))
+    (dynamic error (g/fnk [_node-id font-resource]
+                          (or (validation/prop-error :info _node-id :font validation/prop-nil? font-resource "Font")
+                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font")))))
 
   (property material resource/Resource
     (value (gu/passthrough material-resource))
@@ -359,33 +361,51 @@
                                     [:build-targets :dep-build-targets]
                                     [:samplers :material-samplers]
                                     [:shader :material-shader])))
-    (validate (validation/validate-resource material)))
+    (dynamic error (g/fnk [_node-id material-resource]
+                          (or (validation/prop-error :fatal _node-id :font validation/prop-nil? material-resource "Material")
+                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? material-resource "Material")))))
 
-  (property size g/Int (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                      (or (= type :defold) (= type :distance-field))))))
+  (property size g/Int
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (or (= type :defold) (= type :distance-field)))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? size)))
   (property antialias g/Int (dynamic visible (g/always false)))
-  (property alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                       (= type :defold)))))
-  (property outline-alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                               (= type :defold)))))
-  (property outline-width g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                               (or (= type :defold) (= type :distance-field))))))
-  (property shadow-alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                              (= type :defold)))))
-  (property shadow-blur g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                             (= type :defold)))))
-  (property shadow-x g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                          (= type :defold)))))
-  (property shadow-y g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                          (= type :defold)))))
+  (property alpha g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha)))
+  (property outline-alpha g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-alpha)))
+  (property outline-width g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (or (= type :defold) (= type :distance-field)))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-width)))
+  (property shadow-alpha g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha)))
+  (property shadow-blur g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-blur)))
+  (property shadow-x g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold)))))
+  (property shadow-y g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold)))))
   (property extra-characters g/Str (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                                   (or (= type :defold) (= type :distance-field))))))
   (property output-format g/Keyword
     (dynamic edit-type (g/always (properties/->pb-choicebox Font$FontTextureFormat))))
 
   (property all-chars g/Bool)
-  (property cache-width g/Int)
-  (property cache-height g/Int)
+  (property cache-width g/Int
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width)))
+  (property cache-height g/Int
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height)))
 
   (input dep-build-targets g/Any :array)
   (input font-resource resource/Resource)
