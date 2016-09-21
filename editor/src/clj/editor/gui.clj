@@ -278,15 +278,16 @@
                                (keep (fn [[prop val]] (and (:original-value val) (indices prop))))
                                (sort)
                                (vec))
-        msg (-> {:parent parent
-                 :type type
+        msg (-> {:type type
                  :index index
+                 :template-node-child false
                  :overridden-fields overridden-fields}
               (into (map (fn [[k v]] [k (:value v)])
                          (filter (fn [[k v]] (and (get v :visible true)
                                                   (not (contains? (set (keys pb-renames)) k))))
                                  props)))
               (cond->
+                (and parent (not-empty parent)) (assoc :parent parent)
                 (= type :type-template) (->
                                           (update :template (fn [t] (resource/proj-path (:resource t))))
                                           (assoc :color [1.0 1.0 1.0 1.0])))
@@ -1165,22 +1166,23 @@
       clipping/setup-states
       sort-scene)))
 
-(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
+(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
   {:script (proj-path script-resource)
    :material (proj-path material-resource)
    :adjust-reference adjust-reference
    :background-color background-color
+   :max-nodes max-nodes
    :nodes node-msgs
    :layers layer-msgs
    :fonts font-msgs
    :textures texture-msgs
    :layouts layout-msgs})
 
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
-  (->scene-pb-msg script-resource material-resource adjust-reference background-color node-msgs layer-msgs font-msgs texture-msgs layout-msgs))
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
+  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs))
 
-(g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs]
-  (->scene-pb-msg script-resource material-resource adjust-reference background-color node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs))
+(g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs]
+  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs))
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
@@ -1266,6 +1268,12 @@
             (dynamic visible (g/always false))
             (dynamic edit-type (g/fnk [layout-msgs] {:type :choicebox
                                                      :options (into {"" "Default"} (map (fn [l] [(:name l) (:name l)]) layout-msgs))})))
+  (property max-nodes g/Int
+            (dynamic error (g/fnk [_node-id max-nodes node-ids]
+                                  (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 1024]) max-nodes "Max Nodes")
+                                      (validation/prop-error :fatal _node-id :max-nodes (fn [v] (let [c (count node-ids)]
+                                                                                                  (when (> c max-nodes)
+                                                                                                    (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))))
 
   (input script-resource resource/Resource)
 
@@ -1600,6 +1608,7 @@
       (g/set-property self :pb scene)
       (g/set-property self :def def)
       (g/set-property self :background-color (:background-color scene))
+      (g/set-property self :max-nodes (:max-nodes scene))
       (g/connect project :settings self :project-settings)
       (g/connect project :display-profiles self :display-profiles)
       (g/make-nodes graph-id [fonts-node FontsNode]
