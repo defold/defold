@@ -34,6 +34,7 @@ import com.dynamo.gui.proto.Gui.SceneDesc.Builder;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayoutDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc.SpineSceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message;
@@ -71,6 +72,12 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         } else if (builder.getType() == Type.TYPE_TEMPLATE) {
             TemplateNode templateNode = (TemplateNode) node;
             templateNode.setTemplatePath(builder.getTemplate());
+        } else if (builder.getType() == Type.TYPE_SPINE) {
+            SpineNode spineNode = (SpineNode) node;
+            spineNode.setSpineScene(builder.getSpineScene());
+            spineNode.setSkin(builder.getSpineSkin());
+            spineNode.setSpineDefaultAnimation(builder.getSpineDefaultAnimation());
+            node = spineNode;
         }
         node.setSizeMode(builder.getSizeMode());
         node.setId(builder.getId());
@@ -123,6 +130,12 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setType(NodeDesc.Type.TYPE_TEMPLATE);
             TemplateNode templateNode = (TemplateNode) node;
             builder.setTemplate(templateNode.getTemplatePath());
+        } else if (node instanceof SpineNode) {
+            builder.setType(NodeDesc.Type.TYPE_SPINE);
+            SpineNode spine = (SpineNode)node;
+            builder.setSpineScene(spine.getSpineScene());
+            builder.setSpineSkin(spine.getSkin());
+            builder.setSpineDefaultAnimation(spine.getSpineDefaultAnimation());
         }
         builder.setSizeMode(node.getSizeMode());
         builder.setId(node.getId());
@@ -163,6 +176,10 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             TemplateNode templateNode = new TemplateNode();
             builderToNode(templateNode, descBuilder);
             node = templateNode;
+        } else if (descBuilder.getType() == Type.TYPE_SPINE) {
+            SpineNode spineNode = new SpineNode();
+            builderToNode(spineNode, descBuilder);
+            node = spineNode;
         }
         return node;
     }
@@ -274,6 +291,14 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             texture.setId(t.getName());
             texture.setTexture(t.getTexture());
             texturesNode.addChild(texture);
+        }
+
+        Node spineScenesNode = node.getSpineScenesNode();
+        for (SpineSceneDesc s : sceneBuilder.getSpineScenesList()) {
+            SpineSceneNode spineScene = new SpineSceneNode();
+            spineScene.setId(s.getName());
+            spineScene.setSpineScene(s.getSpineScene());
+            spineScenesNode.addChild(spineScene);
         }
 
         Node layersNode = node.getLayersNode();
@@ -417,6 +442,13 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setName(fontNode.getId());
             builder.setFont(fontNode.getFont());
             b.addFonts(builder);
+        }
+        for (Node n : node.getSpineScenesNode().getChildren()) {
+            SpineSceneNode spineSceneNode = (SpineSceneNode) n;
+            SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
+            builder.setName(spineSceneNode.getId());
+            builder.setSpineScene(spineSceneNode.getSpineScene());
+            b.addSpineScenes(builder);
         }
         for (Node n : node.getLayersNode().getChildren()) {
             LayerNode layerNode = (LayerNode) n;
