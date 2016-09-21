@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.swt.widgets.Display;
@@ -28,8 +29,8 @@ public class ColladaUtilTest {
 
     @Test
     public void testMayaQuad() throws Exception {
-        XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("maya_quad.dae"));
-        Mesh mesh = ColladaUtil.loadMesh(collada);
+        Mesh.Builder mesh = Mesh.newBuilder();
+        ColladaUtil.loadMesh(getClass().getResourceAsStream("maya_quad.dae"), mesh);
         List<Float> pos = mesh.getPositionsList();
         List<Float> nrm = mesh.getNormalsList();
         List<Float> uvs = mesh.getTexcoord0List();
@@ -60,8 +61,8 @@ public class ColladaUtilTest {
 
     @Test
     public void testBlenderPolylistQuad() throws Exception {
-        XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("blender_polylist_quad.dae"));
-        Mesh mesh = ColladaUtil.loadMesh(collada);
+        Mesh.Builder mesh = Mesh.newBuilder();
+        ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"), mesh);
 
         List<Float> pos = mesh.getPositionsList();
         List<Float> nrm = mesh.getNormalsList();
@@ -93,9 +94,10 @@ public class ColladaUtilTest {
 
     @Test
     public void testBlenderAnimations() throws Exception {
-        XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("blender_animated_cube.dae"));
-        Skeleton skeleton = ColladaUtil.loadSkeleton(collada);
-        AnimationSet animation = ColladaUtil.loadAnimations(collada, skeleton, 16.0f);
+        Skeleton.Builder skeleton = Skeleton.newBuilder();
+        ColladaUtil.loadSkeleton(getClass().getResourceAsStream("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
+        AnimationSet.Builder animation = AnimationSet.newBuilder();
+        ColladaUtil.loadAnimations(getClass().getResourceAsStream("blender_animated_cube.dae"), animation, skeleton.clone().build(), 16.0f, new ArrayList<String>());
         //assert(0.0, animation.getDuration());
         assertEquals(1, animation.getAnimationsCount());
     }
@@ -129,13 +131,11 @@ public class ColladaUtilTest {
     @Test
     public void testSkeleton() throws Exception {
         // Temp test (and temp data)
-        XMLCOLLADA collada = ColladaUtil.loadDAE(getClass().getResourceAsStream("simple_anim.dae"));
+        Mesh.Builder mesh = Mesh.newBuilder();
+        ColladaUtil.loadMesh(getClass().getResourceAsStream("simple_anim.dae"), mesh);
 
-        Mesh mesh = ColladaUtil.loadMesh(collada);
-
-
-
-        Skeleton skeleton = ColladaUtil.loadSkeleton(collada);
+        Skeleton.Builder skeleton = Skeleton.newBuilder();
+        ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
         List<Bone> bones = skeleton.getBonesList();
         assertEquals(65535, bones.get(0).getParent()); // fake root
         assertEquals(0,     bones.get(1).getParent()); // "real" root

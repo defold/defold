@@ -22,14 +22,12 @@ public class MeshLoader implements INodeLoader<MeshNode> {
     public MeshNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {
 
-        Mesh mesh;
         try {
             Mesh.Builder meshBuilder = Mesh.newBuilder();
             Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
             AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
             ColladaUtil.load(contents, meshBuilder, animSetBuilder, skeletonBuilder);
-            mesh = meshBuilder.build();
-            return new MeshNode(mesh);
+            return new MeshNode(meshBuilder.build());
         } catch (XMLStreamException e) {
             return invalidMeshNode(e);
         } catch (LoaderException e) {

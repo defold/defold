@@ -2,6 +2,7 @@ package com.dynamo.cr.ddfeditor.scene;
 
 import java.awt.image.BufferedImage;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
 
 import javax.media.opengl.GL2;
 
@@ -9,6 +10,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
+import com.dynamo.bob.pipeline.ColladaUtil;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -16,9 +18,11 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.model.proto.Model.ModelDesc.Builder;
+import com.dynamo.rig.proto.Rig.Skeleton;
 import com.google.protobuf.Message;
 
 @SuppressWarnings("serial")
@@ -26,6 +30,7 @@ public class ModelNode extends ComponentTypeNode {
 
     private transient MeshNode meshNode;
     private transient TextureHandle textureHandle = new TextureHandle();
+    private transient Skeleton rigSkeleton;
 
     @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
     @Resource
@@ -110,11 +115,43 @@ public class ModelNode extends ComponentTypeNode {
         return false;
     }
 
+    private void updateBones() {
+        rigSkeleton = Skeleton.newBuilder().build();
+        for(Node child : getChildren()) {
+            removeChild(child);
+        }
+        if(skeleton.isEmpty()) {
+            updateStatus();
+            return;
+        }
+
+
+        Skeleton.Builder b = Skeleton.newBuilder();
+        ArrayList<String> boneIds = new ArrayList<String>();
+        try {
+            IFile skeletonFile = getModel().getFile(this.skeleton);
+            ColladaUtil.loadSkeleton(skeletonFile.getContents(), b, boneIds);
+        } catch (Exception e) {
+            updateStatus();
+            return;
+        }
+
+/*        for(Bone bone : bones) {
+            ModelBoneNode n = new ModelBoneNode(bone.toString());
+            // n.setFlags(Flags.LOCKED);
+            addChild(n);
+        }
+*/
+        rigSkeleton = b.build();
+        updateStatus();
+    }
+
     private boolean reload() {
         if (getModel() == null) {
             return false;
         }
         updateTexture();
+        updateBones();
 
         if (!mesh.equals("")) {
             try {

@@ -100,10 +100,9 @@ public class ColladaUtil {
 
     public static boolean load(InputStream is, Mesh.Builder meshBuilder, AnimationSet.Builder animationSetBuilder, Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        meshBuilder.mergeFrom(loadMesh(collada));
-        Skeleton skeleton = loadSkeleton(collada);
-        skeletonBuilder.mergeFrom(skeleton);
-        animationSetBuilder.mergeFrom(loadAnimations(collada, skeleton, 30.0f)); // TODO pick the sample rate from a parameter
+        loadMesh(collada, meshBuilder);
+        loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
+        loadAnimations(collada, animationSetBuilder, skeletonBuilder.clone().build(), 30.0f, new ArrayList<String>()); // TODO pick the sample rate from a parameter
         return true;
     }
 
@@ -429,11 +428,15 @@ public class ColladaUtil {
         }
     }
 
-    public static AnimationSet loadAnimations(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(InputStream is, AnimationSet.Builder animationSetBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+        XMLCOLLADA collada = loadDAE(is);
+        loadAnimations(collada, animationSetBuilder, skeleton, sampleRate, animationIds);
+    }
 
-        AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
+    public static void loadAnimations(XMLCOLLADA collada, AnimationSet.Builder animationSetBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+
         if (collada.libraryAnimations.size() != 1 || collada.libraryGeometries.isEmpty()) {
-            return animationSetBuilder.build();
+            return;
         }
 
         // We only support one model per scene for now, get first geo entry.
@@ -495,20 +498,20 @@ public class ColladaUtil {
             RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
             toDDF(animBuilder, skeleton, "default", MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate);
             animationSetBuilder.addAnimations(animBuilder.build());
-
+            animationIds.add("default"); // animationId ?
         }
-
-        return animationSetBuilder.build();
     }
 
-    public static Mesh loadMesh(XMLCOLLADA collada) throws IOException,
-            XMLStreamException, LoaderException {
+    public static void loadMesh(InputStream is, Mesh.Builder meshBuilder) throws IOException, XMLStreamException, LoaderException {
+        XMLCOLLADA collada = loadDAE(is);
+        loadMesh(collada, meshBuilder);
+    }
 
-        Mesh.Builder meshBuilder = Mesh.newBuilder();
+    public static void loadMesh(XMLCOLLADA collada, Mesh.Builder meshBuilder) throws IOException, XMLStreamException, LoaderException {
 
         if (collada.libraryGeometries.size() != 1) {
             if (collada.libraryGeometries.isEmpty()) {
-                return meshBuilder.build();
+                return;
             }
             throw new LoaderException("Only a single geometry is supported");
         }
@@ -632,15 +635,16 @@ public class ColladaUtil {
         meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
         meshBuilder.addAllWeights(bone_weights_list);
         meshBuilder.addAllBoneIndices(bone_indices_list);
-
-        return meshBuilder.build();
     }
 
-    public static com.dynamo.rig.proto.Rig.Skeleton loadSkeleton(XMLCOLLADA collada) throws IOException, XMLStreamException, LoaderException {
-        com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder = com.dynamo.rig.proto.Rig.Skeleton.newBuilder();
 
+    public static void loadSkeleton(InputStream is, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
+        loadSkeleton(loadDAE(is), skeletonBuilder, new ArrayList<String>());
+    }
+
+    public static void loadSkeleton(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryVisualScenes.size() != 1 || collada.libraryGeometries.isEmpty()) {
-            return skeletonBuilder.build();
+            return;
         }
 
         // We only support one model per scene for now, get first geo entry.
@@ -684,10 +688,9 @@ public class ColladaUtil {
             fakeRootBone.addChild(rootBone);
         }
 
-        toDDF(bones, fakeRootBone, 0xffff);
+        toDDF(bones, fakeRootBone, 0xffff, boneIds);
 
         skeletonBuilder.addAllBones(bones);
-        return skeletonBuilder.build();
     }
 
     private static XMLNode findFirstSkeleton(XMLNode node) {
@@ -779,7 +782,7 @@ public class ColladaUtil {
         }
     }
 
-    private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> builderList, Bone bone, int parentIndex) {
+    private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> builderList, Bone bone, int parentIndex, ArrayList<String> boneIds) {
 
         int boneIndex = builderList.size();
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
@@ -787,6 +790,7 @@ public class ColladaUtil {
         System.out.println("bone.getSourceId(): " + bone.getId());
         System.out.println("            hashed: " + MurmurHash.hash64(bone.getId()));
 
+        boneIds.add(bone.getId());
 
         b.setParent(parentIndex);
         b.setId(MurmurHash.hash64(bone.getId()));
@@ -809,7 +813,7 @@ public class ColladaUtil {
 
         for(int i = 0; i < bone.numChildren(); i++) {
             Bone childBone = bone.getChild(i);
-            toDDF(builderList, childBone, boneIndex);
+            toDDF(builderList, childBone, boneIndex, boneIds);
         }
     }
 
