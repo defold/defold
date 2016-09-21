@@ -1,7 +1,7 @@
 name: "unnamed"
 instances {
   id: "checkpoint_activator"
-  prototype: "/game_object/test.go"
+  prototype: "/editor1/test.go"
   position {
     x: 0.0
     y: 0.0
@@ -21,7 +21,7 @@ instances {
 }
 instances {
   id: "interactionpoint"
-  prototype: "/game_object/test.go"
+  prototype: "/editor1/test.go"
   position {
     x: 0.0
     y: 0.0
