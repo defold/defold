@@ -74,6 +74,7 @@ namespace dmGameObject
             m_EulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_PrevEulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_Prototype = prototype;
+            m_IdentifierIndex = INVALID_INSTANCE_POOL_INDEX;
             m_Identifier = UNNAMED_IDENTIFIER;
             dmHashInit64(&m_CollectionPathHashState, true);
             m_Depth = 0;
@@ -106,6 +107,8 @@ namespace dmGameObject
         // We should consider to remove this (memory footprint)
         HCollection     m_Collection;
         Prototype*      m_Prototype;
+
+        uint32_t        m_IdentifierIndex;
         dmhash_t        m_Identifier;
 
         // Collection path hash-state. Used for calculating global identifiers. Contains the hash-state for the collection-path to the instance.
@@ -212,8 +215,12 @@ namespace dmGameObject
             m_NameHash = 0;
             m_ComponentSocket = 0;
             m_FrameSocket = 0;
-            m_GenInstanceCounter = 0;
+
+            // Instances that cannot use an ID from the InstanceIdPool will
+            // generate indexes greater than the size of the pool.
+            m_GenInstanceCounter = max_instances;
             m_GenCollectionInstanceCounter = 0;
+            m_InstanceIdPool.SetCapacity(max_instances);
             m_InUpdate = 0;
             m_ToBeDeleted = 0;
             m_ScaleAlongZ = 0;
@@ -282,6 +289,7 @@ namespace dmGameObject
         // Counter for generating instance ids, protected by m_Mutex
         uint32_t                 m_GenInstanceCounter;
         uint32_t                 m_GenCollectionInstanceCounter;
+        dmIndexPool32            m_InstanceIdPool;
 
         // Head of linked list of instances scheduled for deferred deletion
         uint16_t                 m_InstancesToDeleteHead;
