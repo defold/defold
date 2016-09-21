@@ -490,3 +490,14 @@
                (is (= 1280.0 (max-x (g/node-value node-id :scene))))
                (set-visible-layout! node-id "Portrait")
                (is (= 720.0 (max-x (g/node-value node-id :scene))))))))
+
+(deftest gui-legacy-alpha
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/legacy_alpha.gui")
+          box (gui-node node-id "box")
+          text (gui-node node-id "text")]
+      (is (= 0.5 (g/node-value box :alpha)))
+      (is (every? #(= 0.5 (g/node-value text %)) [:alpha :outline-alpha :shadow-alpha])))))

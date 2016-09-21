@@ -1550,14 +1550,13 @@
         (add-layout-options (first selection) user-data)))))
 
 (defn- color-alpha [node-desc color-field alpha-field]
-  (let [color (get node-desc color-field)
-        alpha (if (protobuf/field-set? node-desc alpha-field) (get node-desc alpha-field) (get color 3))]
-    (conj (subvec color 0 3) alpha)))
+  (let [color (get node-desc color-field)]
+    (if (protobuf/field-set? node-desc alpha-field) (get node-desc alpha-field) (get color 3))))
 
 (def node-property-fns (-> {}
                          (into (map (fn [label] [label [label (comp v4->v3 label)]]) [:position :rotation :scale :size]))
                          (conj [:rotation [:rotation (comp math/vecmath->clj math/euler->quat :rotation)]])
-                         (into (map (fn [[label alpha]] [label [label (fn [n] (color-alpha n label alpha))]])
+                         (into (map (fn [[label alpha]] [alpha [alpha (fn [n] (color-alpha n label alpha))]])
                                     [[:color :alpha]
                                      [:shadow :shadow-alpha]
                                      [:outline :outline-alpha]]))
