@@ -294,7 +294,6 @@ void dmLogInitialize(const dmLogParams* params)
     dmMessage::HSocket message_socket = 0;
     dmMessage::Result mr;
     dmThread::Thread thread = 0;
-    const char* error_msg = 0;
 
     mr = dmMessage::NewSocket("@log", &message_socket);
     if (mr != dmMessage::RESULT_OK)
@@ -324,7 +323,7 @@ void dmLogFinalize()
     receiver.m_Socket = self->m_MessgeSocket;
     receiver.m_Path = 0;
     receiver.m_Fragment = 0;
-    dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg));
+    dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg), 0);
     dmThread::Join(self->m_Thread);
 
     uint32_t n = self->m_Connections.Size();
@@ -478,7 +477,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
         receiver.m_Socket = self->m_MessgeSocket;
         receiver.m_Path = 0;
         receiver.m_Fragment = 0;
-        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLogMessage) + n + 1, sizeof(tmp_buf)));
+        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLogMessage) + n + 1, sizeof(tmp_buf)), 0);
     }
 }
 

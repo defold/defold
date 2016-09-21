@@ -34,6 +34,16 @@ extern "C"
 
 namespace dmGameObject
 {
+    /*# Game object API documentation
+     *
+     * Functions, core hooks, messages and constants for manipulation of
+     * game objects. The "go" namespace is accessible from game object script 
+     * files.
+     *
+     * @name Game object
+     * @namespace go
+     */
+
     /*# game object position (vector3)
      *
      * The position of the game object.

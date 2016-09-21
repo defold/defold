@@ -49,7 +49,7 @@ public class NativeArtifacts {
     private static Map<com.defold.editor.Platform, String[]> nativeExes = new HashMap<>();
     static {
         nativeExes.put(Platform.X86_64Darwin, new String[] { "dmengine", "dmengine_release" });
-        nativeExes.put(Platform.X86Win32, new String[] { "dmengine.exe", "dmengine_release.exe" });
+        nativeExes.put(Platform.X86Win32, new String[] { "dmengine.exe", "dmengine_release.exe", "OpenAL32.dll" });
         nativeExes.put(Platform.X86Linux, new String[] { "dmengine", "dmengine_release" });
         nativeExes.put(Platform.X86_64Linux, nativeExes.get(Platform.X86Linux));
         nativeExes.put(Platform.X86_64Win32, nativeExes.get(Platform.X86Win32));

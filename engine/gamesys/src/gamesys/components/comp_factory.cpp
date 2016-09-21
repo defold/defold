@@ -90,10 +90,24 @@ namespace dmGameSystem
                 property_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
             }
             FactoryComponent* fc = (FactoryComponent*) *params.m_UserData;
+
+            uint32_t index = create->m_Index;
             dmhash_t id = create->m_Id;
+
             if (id == 0)
             {
-                id = dmGameObject::GenerateUniqueInstanceId(collection);
+                if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+                {
+                    index = dmGameObject::AcquireInstanceIndex(collection);
+                }
+
+                if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+                {
+                    dmLogError("Can not create gameobject since the buffer is full.");
+                    return dmGameObject::UPDATE_RESULT_OK;
+                }
+
+                id = dmGameObject::ConstructInstanceId(index);
             }
 
             // m_Scale is legacy, so use it if Scale3 is all zeroes
@@ -107,8 +121,19 @@ namespace dmGameSystem
                 scale = create->m_Scale3;
             }
 
-            dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
-                    create->m_Position, create->m_Rotation, scale);
+            dmGameObject::HInstance spawned_instance =  dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
+                create->m_Position, create->m_Rotation, scale);
+            if (index != dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+            {
+                if (spawned_instance != 0x0)
+                {
+                    dmGameObject::AssignInstanceIndex(index, spawned_instance);
+                }
+                else
+                {
+                    dmGameObject::ReleaseInstanceIndex(index, collection);
+                }
+            }
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

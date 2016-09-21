@@ -98,27 +98,31 @@
 
 (defn disconnect-source
   [g source source-label target target-label]
-  (update-in g [:sarcs source source-label]
-          (fn [arcs]
-            (util/removev
-             (fn [^ArcBase arc]
-               (and (= source       (.source arc))
-                    (= target       (.target arc))
-                    (= source-label (.sourceLabel arc))
-                    (= target-label (.targetLabel arc))))
-             arcs))))
+  (cond-> g
+    (graph->node g source)
+    (update-in  [:sarcs source source-label]
+                (fn [arcs]
+                  (util/removev
+                    (fn [^ArcBase arc]
+                      (and (= source       (.source arc))
+                           (= target       (.target arc))
+                           (= source-label (.sourceLabel arc))
+                           (= target-label (.targetLabel arc))))
+                    arcs)))))
 
 (defn disconnect-target
   [g source source-label target target-label]
-  (update-in g [:tarcs target target-label]
-          (fn [arcs]
-            (util/removev
-             (fn [^ArcBase arc]
-               (and (= source       (.source arc))
-                    (= target       (.target arc))
-                    (= source-label (.sourceLabel arc))
-                    (= target-label (.targetLabel arc))))
-             arcs))))
+  (cond-> g
+    (graph->node g target)
+    (update-in [:tarcs target target-label]
+               (fn [arcs]
+                 (util/removev
+                   (fn [^ArcBase arc]
+                     (and (= source       (.source arc))
+                          (= target       (.target arc))
+                          (= source-label (.sourceLabel arc))
+                          (= target-label (.targetLabel arc))))
+                   arcs)))))
 
 (defmacro for-graph
   [gsym bindings & body]

@@ -244,14 +244,14 @@
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective base"
-               (let [error (g/error-severe {:type :some-error :message "Something went wrong"})]
+               (let [error (g/error-fatal "Something went wrong" {:type :some-error})]
                  (g/transact
                    (g/mark-defective main error))
                  (is (g/error? (g/node-value or-main :a-property))))))
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective override, which throws exception"
-               (let [error (g/error-severe {:type :some-error :message "Something went wrong"})]
+               (let [error (g/error-fatal "Something went wrong" {:type :some-error})]
                  (is (thrown? Exception (g/transact
                                           (g/mark-defective or-main error)))))))))
 
@@ -778,6 +778,35 @@
 
 (g/defnode Collection
   (input instances g/NodeID :array :cascade-delete))
+
+(deftest override-created-on-connect
+  (with-clean-system
+    (let [[script] (tx-nodes (g/make-nodes world [script Script]))
+          [go comp or-script] (tx-nodes (g/make-nodes world [go GameObject
+                                                             comp Component]
+                                                      (let [o (g/override script {:traverse? (constantly true)})
+                                                            or-script ((:id-mapping o) script)]
+                                                        (concat
+                                                          (g/connect comp :_node-id go :components)
+                                                          (:tx-data o)
+                                                          (g/connect or-script :_node-id comp :instance)))))
+          [coll inst or-go] (tx-nodes (g/make-nodes world [coll Collection
+                                                           inst GameObjectInstance]
+                                                    (let [o (g/override go {:traverse? (constantly true)})
+                                                          or-go ((:id-mapping o) go)]
+                                                      (concat
+                                                        (g/connect inst :_node-id coll :instances)
+                                                        (:tx-data o)
+                                                        (g/connect or-go :_node-id inst :source)))))
+          [comp-2 or-script-2] (tx-nodes (g/make-nodes world [comp Component]
+                                                       (let [o (g/override script {:traverse? (constantly true)})
+                                                             or-script ((:id-mapping o) script)]
+                                                         (concat
+                                                           (:tx-data o)
+                                                           (g/connect or-script :_node-id comp :instance)))))
+          nodes-on-connect (tx-nodes (g/connect comp-2 :_node-id go :components))]
+      ;; 1 override for the component node and one for the script, w.r.t the collection
+      (is (= 2 (count nodes-on-connect))))))
 
 (deftest cascade-delete-avoided
   (with-clean-system

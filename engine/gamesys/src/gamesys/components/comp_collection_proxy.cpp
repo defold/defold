@@ -19,6 +19,15 @@
 
 namespace dmGameSystem
 {
+    /*# Collection proxy API documentation
+     *
+     * Messages for controlling and interacting with collection proxies 
+     * which are used to dynamically load collections into the runtime.
+     *
+     * @name Collection proxy
+     * @namespace collection_proxy
+     */
+
     using namespace Vectormath::Aos;
 
     const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";
@@ -58,7 +67,7 @@ namespace dmGameSystem
         }
         if (dmMessage::IsSocketValid(proxy->m_LoadSender.m_Socket))
         {
-            dmMessage::Result msg_result = dmMessage::Post(&proxy->m_LoadReceiver, &proxy->m_LoadSender, dmHashString64("proxy_loaded"), 0, 0, 0, 0);
+            dmMessage::Result msg_result = dmMessage::Post(&proxy->m_LoadReceiver, &proxy->m_LoadSender, dmHashString64("proxy_loaded"), 0, 0, 0, 0, 0);
             if (msg_result != dmMessage::RESULT_OK)
             {
                 dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
@@ -221,7 +230,7 @@ namespace dmGameSystem
                     sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(proxy->m_Instance));
                     sender.m_Path = dmGameObject::GetIdentifier(proxy->m_Instance);
                     dmGameObject::GetComponentId(proxy->m_Instance, proxy->m_ComponentIndex, &sender.m_Fragment);
-                    dmMessage::Result msg_result = dmMessage::Post(&sender, &proxy->m_Unloader, dmHashString64("proxy_unloaded"), 0, 0, 0, 0);
+                    dmMessage::Result msg_result = dmMessage::Post(&sender, &proxy->m_Unloader, dmHashString64("proxy_unloaded"), 0, 0, 0, 0, 0);
                     if (msg_result != dmMessage::RESULT_OK)
                     {
                         dmLogWarning("proxy_unloaded could not be posted: %d", msg_result);

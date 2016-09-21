@@ -6,6 +6,14 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.camera.proto";
 option java_outer_classname = "Camera";
 
+/*# Camera API documentation
+ *
+ * Messages to control camera components and camera focus.
+ *
+ * @name Camera
+ * @namespace camera
+ */
+
 message CameraDesc
 {
     required float  aspect_ratio        = 1;

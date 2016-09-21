@@ -25,6 +25,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Particle effects API documentation
+     *
+     * Functions for controlling particle effect component playback and
+     * shader constants.
+     *
+     * @name Particle effects
+     * @namespace particlefx
+     */
+
     /*# sleeping state
      *
      * @name particlefx.EMITTER_STATE_SLEEPING
@@ -91,13 +100,6 @@ namespace dmGameSystem
             dmLogError("No callback set for particlefx.");
         }
     }
-
-    /*# ParticleFX documentation
-     *
-     * ParticleFX documentation
-     * @name
-     * @package
-     */
 
     /*# start playing a particle FX
      * Particle FX started this way need to be manually stopped through particlefx.stop.
@@ -183,7 +185,8 @@ namespace dmGameSystem
             (uintptr_t)instance,
             (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor,
             (void*)msg_buf,
-            msg_size);
+            msg_size,
+            0);
 
         assert(top == lua_gettop(L));
         return 0;
@@ -222,7 +225,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size, 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -271,7 +274,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -315,7 +318,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

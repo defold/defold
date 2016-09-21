@@ -120,6 +120,17 @@ namespace dmGameSystem
                 return fr;
         }
 
+        resource->m_RigScenes.SetCapacity(resource->m_SceneDesc->m_SpineScenes.m_Count);
+        resource->m_RigScenes.SetSize(0);
+        for (uint32_t i = 0; i < resource->m_SceneDesc->m_SpineScenes.m_Count; ++i)
+        {
+            RigSceneResource* spine_scene = 0x0;
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_SpineScenes[i].m_SpineScene, (void**) &spine_scene);
+            if (r != dmResource::RESULT_OK)
+                return r;
+            resource->m_RigScenes.Push(spine_scene);
+        }
+
         resource->m_FontMaps.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
         resource->m_FontMaps.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Fonts.m_Count; ++i)
@@ -171,6 +182,10 @@ namespace dmGameSystem
 
     void ReleaseResources(dmResource::HFactory factory, GuiSceneResource* resource)
     {
+        for (uint32_t j = 0; j < resource->m_RigScenes.Size(); ++j)
+        {
+            dmResource::Release(factory, resource->m_RigScenes[j]);
+        }
         for (uint32_t j = 0; j < resource->m_FontMaps.Size(); ++j)
         {
             dmResource::Release(factory, resource->m_FontMaps[j]);

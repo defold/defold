@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import javax.vecmath.Vector3d;
+
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -21,6 +23,7 @@ import com.dynamo.cr.guied.operations.AddFontsOperation;
 import com.dynamo.cr.guied.operations.AddGuiNodeOperation;
 import com.dynamo.cr.guied.operations.AddLayersOperation;
 import com.dynamo.cr.guied.operations.AddLayoutOperation;
+import com.dynamo.cr.guied.operations.AddSpineScenesOperation;
 import com.dynamo.cr.guied.operations.AddTexturesOperation;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -111,6 +114,13 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
             context.executeOperation(new AddGuiNodeOperation(scene, templateScene, context));
         }
     }
+    
+    public void onAddSpineNode(IPresenterContext context) {
+        Node scene = findGuiNodeParentFromSelection(context.getSelection());
+        SpineNode node = new SpineNode();
+        node.setId("spine");
+        context.executeOperation(new AddGuiNodeOperation(scene, node, context));
+    }
 
     public void onAddTextureNode(IPresenterContext context) {
         String[] textures = context.selectFiles("Add Textures", new String[] { "atlas", "tilesource" });
@@ -133,6 +143,18 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
                 nodes.add(new FontNode(font));
             }
             context.executeOperation(new AddFontsOperation(scene, nodes, context));
+        }
+    }
+    
+    public void onAddSpineSceneNode(IPresenterContext context) {
+        String[] spineScenes = context.selectFiles("Add Spine Scenes", new String[] { "spinescene" });
+        if (spineScenes != null) {
+            GuiSceneNode scene = findSceneFromSelection(context.getSelection());
+            List<Node> nodes = new ArrayList<Node>(spineScenes.length);
+            for (String spineScene : spineScenes) {
+                nodes.add(new SpineSceneNode(spineScene));
+            }
+            context.executeOperation(new AddSpineScenesOperation(scene, nodes, context));
         }
     }
 
