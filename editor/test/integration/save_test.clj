@@ -11,6 +11,7 @@
             [editor.asset-browser :as asset-browser]
             [integration.test-util :as test-util])
   (:import [java.io StringReader File]
+           [com.dynamo.render.proto Font$FontDesc]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.model.proto Model$ModelDesc]
@@ -18,7 +19,8 @@
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.dynamo.tile.proto Tile$TileSet]))
 
-(def ^:private ext->proto {"go" GameObject$PrototypeDesc
+(def ^:private ext->proto {"font" Font$FontDesc
+                           "go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
                            "model" Model$ModelDesc
@@ -85,7 +87,8 @@
                ;; TODO - fix as part of DEFEDIT-432
                #_"/editor1/ice.tilesource"
                "/editor1/ship_thruster_trail.particlefx"
-               "/editor1/camera_fx.gui"]]
+               "/editor1/camera_fx.gui"
+               "/editor1/body_font.font"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)]
