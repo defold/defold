@@ -1,7 +1,6 @@
 package com.dynamo.cr.guied.core;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 
 import org.eclipse.core.resources.IFile;
@@ -9,7 +8,6 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.graphics.Image;
 
-import com.dynamo.cr.go.core.ComponentNode;
 import com.dynamo.cr.guied.Activator;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.guied.util.GuiTemplateBuilder;

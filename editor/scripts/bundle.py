@@ -163,28 +163,27 @@ def unlink_artifacts(artifacts):
         for e in artifacts[p]['exes']:
             os.unlink(e[1])
 
-def bundle_natives(platform, artifacts, in_jar_name, out_jar_name):
+def bundle_natives(artifacts, in_jar_name, out_jar_name):
     with zipfile.ZipFile(out_jar_name, 'w') as out_jar:
 
-        jogl_platform = platform_to_jogl[platform]
-        add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
-        add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
+        for platform in ['x86-linux', 'x86_64-linux', 'x86_64-darwin', 'x86-win32']:
+            jogl_platform = platform_to_jogl[platform]
+            add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
+            add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
 
         with zipfile.ZipFile(os.path.expanduser("~/.m2/repository/net/java/dev/jna/jna/%s/jna-%s.jar" % (JNA_VERSION, JNA_VERSION)), 'r') as in_jar:
             for jna_p, p, lib in [("darwin", "x86_64-darwin", "libjnidispatch.jnilib"),
                                   ("win32-x86", "x86-win32", "jnidispatch.dll"),
                                   ("linux-x86", "x86-linux", "libjnidispatch.so"),
                                   ("linux-x86-64", "x86_64-linux", "libjnidispatch.so")]:
-                if p == platform:
-                    d = in_jar.read('com/sun/jna/%s/%s' % (jna_p, lib))
-                    n = 'lib/%s/%s' % (p, lib)
-                    print "adding", n
-                    out_jar.writestr(n, d)
+                d = in_jar.read('com/sun/jna/%s/%s' % (jna_p, lib))
+                n = 'lib/%s/%s' % (p, lib)
+                print "adding", n
+                out_jar.writestr(n, d)
 
         for p in artifacts.keys():
-            if platform == p:
-                for l in artifacts[p]['libs']:
-                    out_jar.write(l[1], 'lib/%s/%s' % (p, l[0]))
+            for l in artifacts[p]['libs']:
+                out_jar.write(l[1], 'lib/%s/%s' % (p, l[0]))
 
             for e in artifacts[p]['exes']:
                 out_jar.write(e[1], 'libexec/%s/%s' % (p, e[0]))
@@ -211,7 +210,7 @@ def git_sha1(ref = None):
     sha1 = line.split()[0]
     return sha1
 
-def bundle(platform, artifacts, options):
+def bundle(platform, jar_file, options):
     if os.path.exists('tmp'):
         shutil.rmtree('tmp')
 
@@ -259,7 +258,6 @@ def bundle(platform, artifacts, options):
     mkdirs(resources_dir)
     mkdirs(packages_dir)
     mkdirs('%s/jre' % packages_dir)
-    mkdirs('target/editor/update')
 
     if is_mac:
         shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
@@ -276,9 +274,7 @@ def bundle(platform, artifacts, options):
     with open('target/editor/update/config', 'wb') as f:
         config.write(f)
 
-    jar_file = 'defold-%s.jar' % sha1
-    bundle_natives(platform, artifacts, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/%s' % (packages_dir, jar_file))
-    shutil.copy('%s/%s' % (packages_dir, jar_file), 'target/editor/update/%s' % jar_file)
+    shutil.copy('target/editor/update/%s' % jar_file, '%s/%s' % (packages_dir, jar_file))
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
     exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
 
@@ -335,12 +331,15 @@ if __name__ == '__main__':
     exec_command('./scripts/lein clean')
     exec_command('./scripts/lein with-profile +release uberjar')
 
-    artifacts = download_artifacts(options.target_platform, options.ext_lib_path)
-    for platform in options.target_platform:
-        bundle(platform, artifacts, options)
-    unlink_artifacts(artifacts)
-
     sha1 = git_sha1()
+    artifacts = download_artifacts(options.target_platform, options.ext_lib_path)
+    mkdirs('target/editor/update')
+    jar_file = 'defold-%s.jar' % sha1
+    bundle_natives(artifacts, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', 'target/editor/update/%s' % jar_file)
+    unlink_artifacts(artifacts)
+    for platform in options.target_platform:
+        bundle(platform, jar_file, options)
+
     package_info = {'version' : options.version,
                     'sha1' : sha1,
                     'packages': [{'url': 'defold-%s.jar' % sha1,
