@@ -275,7 +275,7 @@
         props (:properties _declared-properties)
         indices (clojure.set/map-invert (protobuf/fields-by-indices Gui$NodeDesc))
         overridden-fields (->> props
-                               (keep (fn [[prop val]] (and (:original-value val) (indices prop))))
+                               (keep (fn [[prop val]] (when (contains? val :original-value) (indices prop))))
                                (sort)
                                (vec))
         msg (-> {:parent parent
