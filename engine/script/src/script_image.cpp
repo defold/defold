@@ -16,6 +16,14 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Image API documentation
+     *
+     * Functions for creating image objects.
+     * 
+     * @name Image
+     * @namespace image
+     */
+
     #define LIB_NAME "image"
 
     /*# RGB image type

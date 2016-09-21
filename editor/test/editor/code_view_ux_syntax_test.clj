@@ -10,7 +10,10 @@
             [editor.gl.shader :as shader]
             [editor.code-view-test :as cvt :refer [setup-code-view-nodes load-buffer expect-buffer buffer-commands should-be]]
             [support.test-support :refer [with-clean-system tx-nodes]]
-            [clojure.string :as str]))
+            [clojure.string :as string])
+  (:import [com.sun.javafx.tk Toolkit]
+           [javafx.scene.input KeyEvent KeyCode]))
+
 
 ;; ----------------------------------------
 ;; Simulate commands
@@ -25,7 +28,15 @@
   (cvx/handler-run :backwards-tab-trigger [{:name :code-view :env {:selection source-viewer}}] {}))
 
 (defn- key-typed! [source-viewer key-typed]
-  (cvx/handler-run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
+  (cvx/handler-run :key-typed [{:name :code-view
+                                :env {:selection source-viewer :key-typed key-typed :key-event (KeyEvent. KeyEvent/KEY_TYPED
+                                                                                                          key-typed
+                                                                                                          ""
+                                                                                                          (KeyCode/getKeyCode key-typed)
+                                                                                                          false
+                                                                                                          false
+                                                                                                          false
+                                                                                                          false)}}] {}))
 
 (defn- toggle-comment! [source-viewer]
   (cvx/handler-run :toggle-comment [{:name :code-view :env {:selection source-viewer}}] {}))

@@ -8,6 +8,7 @@
 #include <gui/gui.h>
 #include "../proto/gui_ddf.h"
 #include "res_textureset.h"
+#include "res_rig_scene.h"
 
 namespace dmGameSystem
 {
@@ -23,6 +24,7 @@ namespace dmGameSystem
         dmGui::HScript                  m_Script;
         dmArray<dmRender::HFontMap>     m_FontMaps;
         dmArray<GuiSceneTextureSetResource> m_GuiTextureSets;
+        dmArray<RigSceneResource*>      m_RigScenes;
         const char*                     m_Path;
         dmGui::HContext                 m_GuiContext;
         dmRender::HMaterial             m_Material;
