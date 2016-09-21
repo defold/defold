@@ -19,7 +19,8 @@ Require-Bundle: org.eclipse.ui,
  javax.media.opengl;bundle-version="1.1.1",
  slf4j;bundle-version="1.6.4",
  org.eclipse.core.filesystem;bundle-version="1.3.200",
- com.dynamo.cr.bob;bundle-version="1.0.0"
+ com.dynamo.cr.bob;bundle-version="1.0.0",
+ com.dynamo.cr.spine;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Export-Package: com.dynamo.cr.guied.core,
