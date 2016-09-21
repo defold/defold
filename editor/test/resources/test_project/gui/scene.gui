@@ -201,7 +201,7 @@ nodes {
   texture: ""
   id: "sub_scene/sub_box"
   parent: "sub_scene"
-  xanchor: XANCHOR_NONE
+  xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_NONE
   pivot: PIVOT_CENTER
   adjust_mode: ADJUST_MODE_FIT
@@ -218,6 +218,7 @@ nodes {
   clipping_inverted: false
   alpha: 1.0
   overridden_fields: 1
+  overridden_fields: 12
   template_node_child: true
 }
 nodes {

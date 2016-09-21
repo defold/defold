@@ -267,15 +267,22 @@
 (defn- v3->v4 [v3 default]
   (conj (or v3 default) 1.0))
 
+(def ^:private prop-index->prop-key
+  (let [index->pb-field (protobuf/fields-by-indices Gui$NodeDesc)
+        renames {:xanchor :x-anchor
+                 :yanchor :y-anchor}]
+    (into {} (map (fn [[k v]] [k (get renames v v)]) index->pb-field))))
+
+(def ^:private prop-key->prop-index (clojure.set/map-invert prop-index->prop-key))
+
 (g/defnk produce-node-msg [type parent index _declared-properties _node-id basis]
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor
                     :generated-id :id}
         v3-fields {:position [0.0 0.0 0.0] :scale [1.0 1.0 1.0] :size [200.0 100.0 0.0]}
         props (:properties _declared-properties)
-        indices (clojure.set/map-invert (protobuf/fields-by-indices Gui$NodeDesc))
         overridden-fields (->> props
-                               (keep (fn [[prop val]] (when (contains? val :original-value) (indices prop))))
+                               (keep (fn [[prop val]] (when (contains? val :original-value) (prop-key->prop-index prop))))
                                (sort)
                                (vec))
         msg (-> {:type type
@@ -994,7 +1001,7 @@
   (output layer-id IDMap (g/fnk [_node-id name] {name _node-id})))
 
 (defn- extract-overrides [node-desc]
-  (select-keys node-desc (map (protobuf/fields-by-indices Gui$NodeDesc) (:overridden-fields node-desc))))
+  (select-keys node-desc (map prop-index->prop-key (:overridden-fields node-desc))))
 
 (defn- layout-pb-msg [name node-msgs]
   (let [node-msgs (filter (comp not-empty :overridden-fields) node-msgs)]
