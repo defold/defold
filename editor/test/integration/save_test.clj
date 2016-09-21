@@ -82,7 +82,8 @@
                "/editor1/level.tilesource"
                "/editor1/test.tileset"
                ;; TODO - fix as part of DEFEDIT-432
-               #_"/editor1/ice.tilesource"]]
+               #_"/editor1/ice.tilesource"
+               "/editor1/ship_thruster_trail.particlefx"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)]

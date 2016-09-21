@@ -121,7 +121,7 @@
                            :modifier-type-vortex [:modifier-key-magnitude :modifier-key-max-distance]})
 
 (g/defnk produce-modifier-pb
-  [position ^Quat4d rotation-q4 type magnitude max-distance]
+  [position rotation type magnitude max-distance]
   (let [values {:modifier-key-magnitude magnitude
                 :modifier-key-max-distance max-distance}
         properties (->> (mod-type->properties type)
@@ -131,7 +131,7 @@
                                 :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals p))
                                 :spread (:spread p)})))]
     {:position position
-     :rotation (math/vecmath->clj rotation-q4)
+     :rotation rotation
      :type type
      :properties properties}))
 
@@ -389,10 +389,10 @@
       v)))
 
 (g/defnk produce-emitter-pb
-  [position ^Quat4d rotation-q4 _declared-properties modifier-msgs]
+  [position rotation _declared-properties modifier-msgs]
   (let [properties (:properties _declared-properties)]
     (into {:position position
-           :rotation (math/vecmath->clj rotation-q4)
+           :rotation rotation
            :modifiers modifier-msgs}
           (concat
             (map (fn [kw] [kw (get-property properties kw)])
@@ -686,7 +686,7 @@
   ([self parent-id modifier select?]
     (let [graph-id (g/node-id->graph-id self)]
       (g/make-nodes graph-id
-                    [mod-node [ModifierNode :position (:position modifier) :rotation (v4->euler (:rotation modifier))
+                    [mod-node [ModifierNode :position (:position modifier) :rotation (:rotation modifier)
                                :type (:type modifier)]]
                     (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
                                                        (:properties modifier)))]
@@ -746,7 +746,7 @@
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
-                    [emitter-node [EmitterNode :position (:position emitter) :rotation (v4->euler (:rotation emitter))
+                    [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration (:duration emitter) :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)

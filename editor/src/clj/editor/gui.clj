@@ -271,7 +271,7 @@
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor
                     :generated-id :id}
-        v3-fields {:position [0.0 0.0 0.0] :rotation [0.0 0.0 0.0] :scale [1.0 1.0 1.0] :size [200.0 100.0 0.0]}
+        v3-fields {:position [0.0 0.0 0.0] :scale [1.0 1.0 1.0] :size [200.0 100.0 0.0]}
         props (:properties _declared-properties)
         indices (clojure.set/map-invert (protobuf/fields-by-indices Gui$NodeDesc))
         overridden-fields (->> props
@@ -291,7 +291,8 @@
                                           (update :template (fn [t] (resource/proj-path (:resource t))))
                                           (assoc :color [1.0 1.0 1.0 1.0])))
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
-        msg (reduce (fn [msg [k default]] (update msg k v3->v4 default)) msg v3-fields)]
+        msg (-> (reduce (fn [msg [k default]] (update msg k v3->v4 default)) msg v3-fields)
+              (update :rotation (fn [r] (conj (math/quat->euler (doto (Quat4d.) (math/clj->vecmath (or r [0.0 0.0 0.0 1.0])))) 1))))]
     msg))
 
 (defn- attach-gui-node [scene node-tree parent gui-node type]
@@ -1547,6 +1548,7 @@
 
 (def node-property-fns (-> {}
                          (into (map (fn [label] [label [label (comp v4->v3 label)]]) [:position :rotation :scale :size]))
+                         (conj [:rotation [:rotation (comp math/vecmath->clj math/euler->quat :rotation)]])
                          (into (map (fn [[label alpha]] [label [label (fn [n] (color-alpha n label alpha))]])
                                     [[:color :alpha]
                                      [:shadow :shadow-alpha]
