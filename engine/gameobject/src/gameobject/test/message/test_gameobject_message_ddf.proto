@@ -9,3 +9,8 @@ message MessageTarget
 {
     required uint32 value = 1;
 }
+
+message TestDataMessage
+{
+    required uint32 value = 1;
+}

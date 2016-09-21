@@ -39,8 +39,8 @@ namespace dmGameSystem
         float x;
         float y;
         float z;
-        uint16_t u;
-        uint16_t v;
+        float u;
+        float v;
         uint8_t r;
         uint8_t g;
         uint8_t b;
