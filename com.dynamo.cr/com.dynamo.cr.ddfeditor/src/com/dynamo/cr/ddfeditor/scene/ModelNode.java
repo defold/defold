@@ -3,6 +3,7 @@ package com.dynamo.cr.ddfeditor.scene;
 import java.awt.image.BufferedImage;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.media.opengl.GL2;
 
@@ -22,6 +23,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.model.proto.Model.ModelDesc.Builder;
+import com.dynamo.rig.proto.Rig.Bone;
 import com.dynamo.rig.proto.Rig.Skeleton;
 import com.google.protobuf.Message;
 
@@ -29,8 +31,7 @@ import com.google.protobuf.Message;
 public class ModelNode extends ComponentTypeNode {
 
     private transient MeshNode meshNode;
-    private transient TextureHandle textureHandle = new TextureHandle();
-    private transient Skeleton rigSkeleton;
+    private transient TextureHandle textureHandle;
 
     @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
     @Resource
@@ -66,6 +67,13 @@ public class ModelNode extends ComponentTypeNode {
     }
 
     private void updateTexture() {
+        if(this.textureHandle == null) {
+            this.textureHandle = new TextureHandle();
+        }
+        if(this.texture.isEmpty()) {
+            this.textureHandle.setImage(null);
+            return;
+        }
         BufferedImage image = getModel().getImage(this.texture);
         this.textureHandle.setImage(image);
     }
@@ -115,34 +123,46 @@ public class ModelNode extends ComponentTypeNode {
         return false;
     }
 
+
+    private Node addBone(int boneIndex, Node node, List<Bone> bones, List<String> boneIds) {
+        ModelBoneNode boneNode = new ModelBoneNode(boneIds.get(boneIndex));
+        if(node != null) {
+            node.addChild(boneNode);
+        }
+        int i = 0;
+        for(; i < bones.size(); i++) {
+            if(bones.get(i).getParent() == boneIndex) {
+                addBone(i, boneNode, bones, boneIds);
+            }
+        }
+        return boneNode;
+    }
+
     private void updateBones() {
-        rigSkeleton = Skeleton.newBuilder().build();
-        for(Node child : getChildren()) {
-            removeChild(child);
-        }
-        if(skeleton.isEmpty()) {
-            updateStatus();
-            return;
-        }
+        clearChildren();
 
-
-        Skeleton.Builder b = Skeleton.newBuilder();
+        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
         ArrayList<String> boneIds = new ArrayList<String>();
         try {
-            IFile skeletonFile = getModel().getFile(this.skeleton);
-            ColladaUtil.loadSkeleton(skeletonFile.getContents(), b, boneIds);
+            IFile skeletonFile = getModel().getFile(this.skeleton.isEmpty() ? this.mesh : this.skeleton);
+            ColladaUtil.loadSkeleton(skeletonFile.getContents(), skeletonBuilder, boneIds);
         } catch (Exception e) {
             updateStatus();
             return;
         }
 
-/*        for(Bone bone : bones) {
-            ModelBoneNode n = new ModelBoneNode(bone.toString());
-            // n.setFlags(Flags.LOCKED);
-            addChild(n);
+        int rootBoneIndex = 0;
+        List<Bone> bones = skeletonBuilder.getBonesList();
+        for(; rootBoneIndex < bones.size(); rootBoneIndex++) {
+            if(bones.get(rootBoneIndex).getParent() == 0xffff) {
+                break;
+            }
         }
-*/
-        rigSkeleton = b.build();
+        if(rootBoneIndex < bones.size()) {
+            Node rootSkeletonNode = addBone(rootBoneIndex, this, bones, boneIds);
+            this.addChild(rootSkeletonNode);
+        }
+
         updateStatus();
     }
 

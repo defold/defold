@@ -639,7 +639,7 @@ public class ColladaUtil {
 
 
     public static void loadSkeleton(InputStream is, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
-        loadSkeleton(loadDAE(is), skeletonBuilder, new ArrayList<String>());
+        loadSkeleton(loadDAE(is), skeletonBuilder, boneIds);
     }
 
     public static void loadSkeleton(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
