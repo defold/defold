@@ -1,6 +1,7 @@
 (ns integration.save-test
   (:require [clojure.test :refer :all]
             [clojure.data :as data]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.defold-project :as project]
@@ -83,7 +84,8 @@
                "/editor1/test.tileset"
                ;; TODO - fix as part of DEFEDIT-432
                #_"/editor1/ice.tilesource"
-               "/editor1/ship_thruster_trail.particlefx"]]
+               "/editor1/ship_thruster_trail.particlefx"
+               "/editor1/camera_fx.gui"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)]
@@ -98,9 +100,14 @@
                 (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
                       pb-disk (protobuf/read-text pb-class resource)
                       path []
-                      [disk save both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
-                  (is (nil? disk))
-                  (is (nil? save))))
+                      [disk-diff save-diff both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
+                  (is (nil? disk-diff))
+                  (is (nil? save-diff))
+                  (when (and (nil? disk-diff) (nil? save-diff))
+                    (let [diff-lines (keep (fn [[f s]] (when (not= f s) [f s])) (map vector (str/split-lines file) (str/split-lines (:content save))))]
+                      (doseq [[f s] diff-lines]
+                        (prn "f" f)
+                        (prn "s" s))))))
               (is (= file (:content save))))))))))
 
 (defn- setup-scratch

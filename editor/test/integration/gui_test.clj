@@ -59,7 +59,14 @@
      (is (nil? (test-util/prop-error node-id :material)))
      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
        (test-util/with-prop [node-id :material v]
-         (is (g/error-fatal? (test-util/prop-error node-id :material))))))))
+         (is (g/error-fatal? (test-util/prop-error node-id :material)))))
+     (is (nil? (test-util/prop-error node-id :max-nodes)))
+     (doseq [v [0 1025]]
+       (test-util/with-prop [node-id :max-nodes v]
+         (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))
+     ;; Valid number, but now the amount of nodes exceeds the max
+     (test-util/with-prop [node-id :max-nodes 1]
+       (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))))
 
 (deftest gui-box-auto-size
   (with-clean-system
