@@ -50,7 +50,7 @@ namespace dmGameSystem
         dmGraphics::VertexElement ve[] =
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, true},
                 {"color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
         };
 
@@ -97,9 +97,9 @@ namespace dmGameSystem
         return false;
     }
 
-    static void CompSpineModelEventCallback(void* user_data, dmRig::RigEventType event_type, const void* event_data)
+    static void CompSpineModelEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        SpineModelComponent* component = (SpineModelComponent*)user_data;
+        SpineModelComponent* component = (SpineModelComponent*)user_data1;
 
         dmMessage::URL sender;
         dmMessage::URL receiver = component->m_Listener;
@@ -175,9 +175,9 @@ namespace dmGameSystem
 
     }
 
-    static void CompSpineModelPoseCallback(void* user_data)
+    static void CompSpineModelPoseCallback(void* user_data1, void* user_data2)
     {
-        SpineModelComponent* component = (SpineModelComponent*)user_data;
+        SpineModelComponent* component = (SpineModelComponent*)user_data1;
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
@@ -309,8 +309,11 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompSpineModelEventCallback;
-        create_params.m_EventCBUserData = component;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;
@@ -653,7 +656,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
-                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback, ddf->m_BlendDuration))
+                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
@@ -713,8 +716,11 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompSpineModelEventCallback;
-        create_params.m_EventCBUserData = component;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;
