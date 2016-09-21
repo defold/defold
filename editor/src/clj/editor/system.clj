@@ -22,6 +22,9 @@
   ^String []
   (System/getProperty "defold.sha1"))
 
+(defn defold-dev? []
+  (not (defold-version)))
+
 (defn java-home
   ^String []
   (System/getProperty "java.home"))

@@ -1,4 +1,8 @@
 name: "parallax"
+collection_instances {
+  id: "player"
+  collection: "/player/player.collection"
+}
 instances {
   id: "factory"
   prototype: "/stars/factory.go"
@@ -112,7 +116,7 @@ instances {
   scale: 1.0
 }
 instances {
-  id: "spaceship"
+  id: "spaceship_tile"
   prototype: "/spaceship/spaceship_tile_source.go"
   position {
     x: 209.66061

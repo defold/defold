@@ -98,7 +98,9 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :prototype-resource]
                                             [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource prototype "Missing prototype"))
+            (dynamic error (g/fnk [_node-id prototype-resource]
+                                  (or (validation/prop-error :info _node-id :prototype validation/prop-nil? prototype-resource "Prototype")
+                                      (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
 

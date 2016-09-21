@@ -50,6 +50,7 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.system :as system]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
@@ -136,6 +137,8 @@
                          (ui/with-progress [render-fn ui/default-render-progress!]
                            (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
 
+(defn- find-tab [^TabPane tabs id]
+  (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -184,23 +187,32 @@
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
-                                                                 (partial app-view/remove-resource-tab editor-tabs))
+                                                                 (fn [resources]
+                                                                   (doseq [resource resources]
+                                                                     (app-view/remove-resource-tab editor-tabs resource))
+                                                                   (let [nodes (keep #(project/get-resource-node project %) resources)]
+                                                                     (when (not-empty nodes)
+                                                                       (g/transact
+                                                                         (for [n nodes]
+                                                                           (g/delete-node n)))
+                                                                       (g/reset-undo! (g/node-id->graph-id project))))))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
-                                                                         (partial app-view/open-resource
-                                                                                  app-view
-                                                                                  (g/node-value project :workspace)
-                                                                                  project))
+                                                                         (fn [resource node-id]
+                                                                           (app-view/open-resource app-view
+                                                                                                   (g/node-value project :workspace)
+                                                                                                   project
+                                                                                                   resource)
+                                                                           (project/select! project node-id)))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! project *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
-                                                      {:tab (some #(and (= "curve-editor-tab" (.getId ^Tab %)) %)
-                                                                  (.getTabs tool-tabs))})]
+                                                      {:tab (find-tab tool-tabs "curve-editor-tab")})]
 
       (when-let [div-pos (prefs/get-prefs prefs app-view/prefs-split-positions nil)]
         (doall (map (fn [^SplitPane sp pos]
@@ -234,8 +246,10 @@
             (g/connect app-view label outline-view label))
           (for [view [outline-view asset-browser]]
             (g/update-property app-view :auto-pulls conj [view :tree-view]))
-          (g/update-property app-view :auto-pulls conj [properties-view :pane]))))
-    (graph-view/setup-graph-view root)
+          (g/update-property app-view :auto-pulls conj [properties-view :pane])))
+      (if (system/defold-dev?)
+        (graph-view/setup-graph-view root)
+        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"])))))
     (reset! the-root root)
     root))
 

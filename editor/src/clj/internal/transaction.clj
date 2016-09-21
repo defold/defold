@@ -5,7 +5,6 @@
             [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.graph.error-values :as ie]
             [internal.node :as in]
             [internal.system :as is]
             [schema.core :as s]))

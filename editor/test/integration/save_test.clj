@@ -4,18 +4,22 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.defold-project :as project]
+            [editor.workspace :as workspace]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.asset-browser :as asset-browser]
             [integration.test-util :as test-util])
-  (:import [java.io StringReader]
+  (:import [java.io StringReader File]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
+           [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]))
 
 (def ^:private ext->proto {"go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
+                           "model" Model$ModelDesc
                            "particlefx" Particle$ParticleFX
                            "spinescene" Spine$SpineSceneDesc
                            "spinemodel" Spine$SpineModelDesc})
@@ -27,6 +31,7 @@
                  "**/props.collection"
                  "**/sub_props.collection"
                  "**/sub_sub_props.collection"
+                 "**/go_with_scale3.collection"
                  "**/atlas_sprite.go"
                  "**/atlas.sprite"
                  "**/props.go"
@@ -46,7 +51,9 @@
                  "**/new.camera"
                  "**/non_default.camera"
                  "**/new.tilemap"
-                 "**/with_layers.tilemap"]]
+                 "**/with_layers.tilemap"
+                 "**/test.model"
+                 "**/empty_mesh.model"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
@@ -79,3 +86,39 @@
                   save (first (get save-data resource))
                   file (slurp resource)]
                (is (= file (:content save))))))))))
+
+(defn- setup-scratch
+  [ws-graph]
+  (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
+        project (test-util/setup-project! workspace)]
+    [workspace project]))
+
+(deftest save-after-delete []
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
+      (asset-browser/delete [(g/node-value atlas-id :resource)]
+                            (fn [resources]
+                              (let [nodes (keep #(project/get-resource-node project %) resources)]
+                                (when (not-empty nodes)
+                                  (g/transact
+                                    (for [n nodes]
+                                      (g/delete-node n)))))))
+      (is (not (g/error? (project/save-data project)))))))
+
+(deftest save-after-external-delete []
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          atlas-id (test-util/resource-node project "/switcher/switcher.atlas")
+          path (resource/abs-path (g/node-value atlas-id :resource))]
+      (doto (File. path)
+        (.delete))
+      (workspace/resource-sync! workspace)
+      (is (not (g/error? (project/save-data project)))))))
+
+(deftest save-after-rename []
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
+      (asset-browser/rename (g/node-value atlas-id :resource) "/switcher/switcher2.atlas")
+      (is (not (g/error? (project/save-data project)))))))
