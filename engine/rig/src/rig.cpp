@@ -34,6 +34,8 @@ namespace dmRig
 
     static const dmRigDDF::RigAnimation* FindAnimation(const dmRigDDF::AnimationSet* anim_set, dmhash_t animation_id)
     {
+        if(anim_set == 0x0)
+            return 0x0;
         uint32_t anim_count = anim_set->m_Animations.m_Count;
         for (uint32_t i = 0; i < anim_count; ++i)
         {

@@ -22,7 +22,7 @@ namespace dmGameSystem
 
         SkeletonResource*       m_SkeletonRes;
         MeshSetResource*        m_MeshSetRes;
-        AnimationSetResource*   m_AnimationSetRes;
+        dmArray<AnimationSetResource*> m_AnimationSetRes;
         TextureSetResource*     m_TextureSet;
     };
 

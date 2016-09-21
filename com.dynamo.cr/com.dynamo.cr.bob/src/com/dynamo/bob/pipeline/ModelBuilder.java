@@ -92,7 +92,7 @@ public class ModelBuilder extends Builder<Void> {
             rigSceneBuilder.setSkeleton(modelDesc.getSkeleton());
         }
         if(modelDesc.getAnimationsCount() != 0) {
-            rigSceneBuilder.setAnimationSet(modelDesc.getAnimations(0));
+            rigSceneBuilder.addAnimationSet(modelDesc.getAnimations(0));
         }
         rigSceneBuilder.setTextureSet(""); // this is set in the model
         rigSceneBuilder.build().writeTo(out);

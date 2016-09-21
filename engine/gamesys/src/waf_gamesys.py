@@ -415,7 +415,7 @@ def compile_mesh(task):
 
         msg_out.skeleton = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
         msg_out.mesh_set = "/" + os.path.relpath(task.outputs[2].abspath(), task.generator.content_root)
-        msg_out.animation_set = "/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)
+        msg_out.animation_set.extend(["/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)])
         # msg_out.texture_set = transform_tilesource_name("")
 
         # write scene desc
@@ -499,7 +499,7 @@ def compile_spinescene(task):
 
         msg_out.skeleton = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
         msg_out.mesh_set = "/" + os.path.relpath(task.outputs[2].abspath(), task.generator.content_root)
-        msg_out.animation_set = "/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)
+        msg_out.animation_set.extend(["/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)])
         msg_out.texture_set = transform_tilesource_name(msg.atlas)
 
         # write scene desc
