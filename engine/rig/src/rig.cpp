@@ -862,6 +862,7 @@ namespace dmRig
         const Matrix4& model_matrix = params.m_ModelMatrix;
         const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
+        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
         if (!instance->m_MeshEntry || !instance->m_DoRender) {
             return write_ptr;
         }
@@ -870,11 +871,6 @@ namespace dmRig
         if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
             context->m_DrawOrderToMesh.SetCapacity(mesh_count);
 
-        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-        for (uint32_t bi = 0; bi < pose.Size(); ++bi)
-        {
-            pose[bi] = dmTransform::Mul(pose[bi], bind_pose[bi].m_ModelToLocal);
-        }
 
         UpdateMeshDrawOrder(context, instance, mesh_count);
         for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
@@ -904,7 +900,7 @@ namespace dmRig
                             uint32_t bone_index = bone_indices[bi];
                             // TODO: Check for this in the pipeline stage if we can find a good way of doing that.. happens as any skeleton can be set to any mesh
                             if(bone_index < pose.Size())
-                                out_p += Vector3(dmTransform::Apply(pose[bone_index], in_p)) * bone_weights[bi];
+                                out_p += Vector3(dmTransform::Apply(pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
                             else
                                 out_p = in_p;
                         }
