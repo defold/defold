@@ -902,7 +902,11 @@ namespace dmRig
                         if (bone_weights[bi] > 0.0f)
                         {
                             uint32_t bone_index = bone_indices[bi];
-                            out_p += Vector3(dmTransform::Apply(pose[bone_index], in_p)) * bone_weights[bi];
+                            // TODO: Check for this in the pipeline stage if we can find a good way of doing that.. happens as any skeleton can be set to any mesh
+                            if(bone_index < pose.Size())
+                                out_p += Vector3(dmTransform::Apply(pose[bone_index], in_p)) * bone_weights[bi];
+                            else
+                                out_p = in_p;
                         }
                     }
                 } else {

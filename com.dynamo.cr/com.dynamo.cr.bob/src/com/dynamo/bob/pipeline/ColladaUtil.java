@@ -829,10 +829,10 @@ public class ColladaUtil {
 
     private static void loadVertexWeights(XMLCOLLADA collada, List<Integer> position_indices_list, List<Float> bone_weights_list, List<Integer> bone_indices_list) throws IOException, XMLStreamException, LoaderException {
 
-        if (collada.libraryControllers.isEmpty()) {
-            return;
+        XMLSkin skin = null;
+        if (!collada.libraryControllers.isEmpty()) {
+            skin = findFirstSkin(collada.libraryControllers.get(0));
         }
-        XMLSkin skin = findFirstSkin(collada.libraryControllers.get(0));
         if(skin == null) {
 
             // DAE does not have any weights, so we need to add dummy entries so all vertices use the fake root bone.

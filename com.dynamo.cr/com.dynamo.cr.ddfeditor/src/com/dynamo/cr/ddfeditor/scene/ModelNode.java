@@ -53,7 +53,7 @@ public class ModelNode extends ComponentTypeNode {
 
     @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
     @Resource
-    private String animations = "";
+    private String animation = "";
 
 
     @Override
@@ -88,8 +88,8 @@ public class ModelNode extends ComponentTypeNode {
             texture = modelDesc.getTextures(0);
         }
         skeleton = modelDesc.getSkeleton();
-        if (modelDesc.getAnimationsCount() > 0) {
-            animations = modelDesc.getAnimations(0);
+        if (modelDesc.getAnimationsCount() != 0) {
+            animation = modelDesc.getAnimations(0);
         }
     }
 
@@ -235,13 +235,13 @@ public class ModelNode extends ComponentTypeNode {
         return skeleton;
     }
 
-    public void setAnimations(String mesh) {
-        this.animations = mesh;
+    public void setAnimation(String mesh) {
+        this.animation = mesh;
         reload();
     }
 
-    public String getAnimations() {
-        return animations;
+    public String getAnimation() {
+        return animation;
     }
 
     public MeshNode getMeshNode() {
@@ -261,10 +261,9 @@ public class ModelNode extends ComponentTypeNode {
         if (texture.length() > 0) {
             b.addTextures(texture);
         }
-        if (animations.length() > 0) {
-            b.addAnimations(animations);
+        if (animation.length() > 0) {
+            b.addAnimations(animation);
         }
-
         return b.build();
     }
 

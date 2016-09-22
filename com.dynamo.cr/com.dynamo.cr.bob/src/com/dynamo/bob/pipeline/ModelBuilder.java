@@ -76,8 +76,6 @@ public class ModelBuilder extends Builder<Void> {
         modelBuilder.clearAnimations();
         modelBuilder.addAllAnimations(newAnimationsList);
 
-        modelBuilder.setRigScene(task.output(1).getPath().substring( project.getBuildDirectory().length()));
-
         out = new ByteArrayOutputStream(64 * 1024);
         ModelDesc modelDesc = modelBuilder.build();
         modelDesc.writeTo(out);
