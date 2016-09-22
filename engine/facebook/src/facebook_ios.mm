@@ -639,7 +639,7 @@ int Facebook_Logout(lua_State* L)
  * actually granted with <code>facebook.permissions()</code>.
  *
  * @name facebook.request_read_permissions
- * @param permissions a table with the requested permission strings (table)
+ * @param permissions a table with the requested read permission strings (table)
  * The following strings are valid permission identifiers and are requested by default on login:
  * <ul>
  *   <li><code>"public_profile"</code></li>
@@ -700,7 +700,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
  *  actually granted with <code>facebook.permissions()</code>.
  *
  * @name facebook.request_publish_permissions
- * @param permissions a table with the requested permissions (table)
+ * @param permissions a table with the requested publish permission strings (table)
  * @param audience (constant|number)
  * <ul>
  *     <li>facebook.AUDIENCE_NONE</li>
@@ -711,7 +711,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
  * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
  * @examples
  * <pre>
- * facebook.request_publish_permissions({ "user_friends", "email" }, function (self, error)
+ * facebook.request_publish_permissions({ "publish_actions" }, facebook.AUDIENCE_FRIENDS, function (self, error)
  *     if error then
  *         -- Something bad happened
  *         return
