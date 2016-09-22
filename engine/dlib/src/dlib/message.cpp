@@ -159,12 +159,12 @@ namespace dmMessage
             return RESULT_SOCKET_EXISTS;
         }
 
+        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+
         if (g_MessageContext->m_SocketPool.Remaining() == 0)
         {
             return RESULT_SOCKET_OUT_OF_RESOURCES;
         }
-
-        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
 
         uint16_t id = g_MessageContext->m_SocketPool.Pop();
 
