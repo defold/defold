@@ -641,8 +641,8 @@ instructions.configure=\
         self.check_editor2_reflections()
         self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
 
-        # TODO: Version
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86-linux', '--platform=x86_64-linux', '--platform=x86-win32', '--version=2.0.0'], cwd = cwd)
+        ext_lib_path = join(self.dynamo_home, 'ext', 'lib')
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version, '--ext-lib-path=%s' % ext_lib_path], cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -657,7 +657,7 @@ instructions.configure=\
         host = bucket.get_website_endpoint()
 
         release_sha1 = self._git_sha1()
-
+        self.wait_uploads()
         self._log('Uploading update.json')
         key = bucket.new_key('editor2/update.json')
         key.content_type = 'application/json'
@@ -993,7 +993,7 @@ instructions.configure=\
 
     def upload_file(self, path, url):
         url = url.replace('\\', '/')
-        self._log('%s -> %s' % (path, url))
+        self._log('Uploading %s -> %s' % (path, url))
 
         u = urlparse.urlparse(url)
 
@@ -1020,6 +1020,7 @@ instructions.configure=\
             def upload():
                 key = bucket.new_key(p)
                 key.set_contents_from_filename(path)
+                self._log('Uploaded %s -> %s' % (path, url))
 
             f = Future(self.thread_pool, upload)
             self.futures.append(f)

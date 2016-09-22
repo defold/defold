@@ -3,6 +3,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.code-completion :as code-completion]
+            [editor.code :as code]
             [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -43,7 +44,7 @@
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
-                   :tags #{:component :overridable-properties}}
+                   :tags #{:component :non-embeddable :overridable-properties}}
                   {:ext "render_script"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
@@ -65,8 +66,8 @@
 
 (def ^:private status-errors
   {:ok nil
-   :invalid-args (g/error-severe "Invalid arguments to go.property call") ; TODO: not used for now
-   :invalid-value (g/error-severe "Invalid value in go.property call")})
+   :invalid-args (g/error-fatal "Invalid arguments to go.property call") ; TODO: not used for now
+   :invalid-value (g/error-fatal "Invalid value in go.property call")})
 
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
@@ -78,7 +79,7 @@
                                     prop (-> (select-keys p [:value])
                                            (assoc :node-id _node-id
                                                   :type (go-prop-type->property-types type)
-                                                  :validation-problems (status-errors (:status p))
+                                                  :error (status-errors (:status p))
                                                   :edit-type {:type (go-prop-type->property-types type)}
                                                   :go-prop-type type
                                                   :read-only? (nil? (g/override-original _node-id))))]
@@ -152,7 +153,7 @@
                                                                                 module-nodes))))
 
 (defn load-script [project self resource]
-  (g/set-property self :code (slurp resource)))
+  (g/set-property self :code (code/lf-normalize-line-endings (slurp resource))))
 
 (defn- register [workspace def]
   (let [args (merge def

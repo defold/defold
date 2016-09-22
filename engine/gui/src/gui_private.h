@@ -82,7 +82,9 @@ namespace dmGui
         dmArray<InternalClippingNode>   m_StencilClippingNodes;
         dmArray<StencilScope*>          m_StencilScopes;
         dmArray<uint16_t>               m_StencilScopeIndices;
+        dmArray<HNode>                  m_ScratchBoneNodes;
         dmHID::HContext                 m_HidContext;
+        dmRig::HRigContext              m_RigContext;
         void*                           m_DefaultFont;
         void*                           m_DisplayProfiles;
         SceneTraversalCache             m_SceneTraversalCache;
@@ -117,7 +119,8 @@ namespace dmGui
                 uint32_t    m_ClippingMode : 2;
                 uint32_t    m_ClippingVisible : 1;
                 uint32_t    m_ClippingInverted : 1;
-                uint32_t    m_Reserved : 5;
+                uint32_t    m_IsBone : 1;
+                uint32_t    m_Reserved : 4;
             };
 
             uint32_t m_State;
@@ -140,6 +143,10 @@ namespace dmGui
         uint16_t    m_LayerIndex;
 
         void**      m_NodeDescTable;
+
+        uint64_t            m_SpineSceneHash;
+        void*               m_SpineScene;
+        dmRig::HRigInstance m_RigInstance;
     };
 
     struct InternalNode
@@ -186,6 +193,14 @@ namespace dmGui
         uint16_t m_Backwards : 1;
     };
 
+    struct SpineAnimation
+    {
+        HNode    m_Node;
+        AnimationComplete m_AnimationComplete;
+        void*    m_Userdata1;
+        void*    m_Userdata2;
+    };
+
     struct Script
     {
         int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
@@ -228,9 +243,11 @@ namespace dmGui
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
         dmArray<Animation>      m_Animations;
+        dmArray<SpineAnimation> m_SpineAnimations;
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
+        dmHashTable64<void*>    m_SpineScenes;
         void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_Layouts;
@@ -250,6 +267,7 @@ namespace dmGui
         uint32_t                m_Width;
         uint32_t                m_Height;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
+        FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
         OnWindowResizeCallback   m_OnWindowResizeCallback;
     };
 
