@@ -67,7 +67,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         ProtoUtil.merge(input, builder);
         BuilderUtil.checkResource(this.project, input, "spine_json", builder.getSpineJson());
         BuilderUtil.checkResource(this.project, input, "atlas", builder.getAtlas());
-
+        
         taskBuilder.addOutput(input.changeExt(".skeletonc"));
         taskBuilder.addOutput(input.changeExt(".meshsetc"));
         taskBuilder.addOutput(input.changeExt(".animationsetc"));
@@ -430,7 +430,7 @@ public class SpineSceneBuilder extends Builder<Void> {
 
         b.setSkeleton(task.output(1).getPath().substring(buildDirLen));
         b.setMeshSet(task.output(2).getPath().substring(buildDirLen));
-        b.addAnimationSet(task.output(3).getPath().substring(buildDirLen));
+        b.setAnimationSet(task.output(3).getPath().substring(buildDirLen));
         b.setTextureSet(BuilderUtil.replaceExt(builder.getAtlas(), "atlas", "texturesetc"));
 
         Message msg = b.build();

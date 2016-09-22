@@ -57,6 +57,8 @@ namespace dmGameSystem
 
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_Mesh);
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Animations);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Skeleton);
 
         *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;

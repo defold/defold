@@ -298,7 +298,7 @@ namespace dmGameSystem
         create_params.m_BindPose         = &rig_resource->m_BindPose;
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
-        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes.Empty() ? 0x0 : rig_resource->m_AnimationSetRes[0]->m_AnimationSet;
+        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
         create_params.m_MeshId           = dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
@@ -702,7 +702,7 @@ namespace dmGameSystem
         create_params.m_BindPose         = &rig_resource->m_BindPose;
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
-        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes.Empty() ? 0x0 : rig_resource->m_AnimationSetRes[0]->m_AnimationSet;
+        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
         create_params.m_MeshId           = dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 

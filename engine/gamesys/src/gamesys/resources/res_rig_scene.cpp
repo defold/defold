@@ -18,16 +18,9 @@ namespace dmGameSystem
         result = dmResource::Get(factory, resource->m_RigScene->m_Skeleton, (void**) &resource->m_SkeletonRes);
         if (result != dmResource::RESULT_OK)
             return result;
-
-        resource->m_AnimationSetRes.SetCapacity(resource->m_RigScene->m_AnimationSet.m_Count);
-        for(uint32_t i = 0; i < resource->m_RigScene->m_AnimationSet.m_Count; ++i)
-        {
-            AnimationSetResource* res;
-            result = dmResource::Get(factory, resource->m_RigScene->m_AnimationSet[i], (void**) &res);
-            if (result != dmResource::RESULT_OK)
-                return result;
-            resource->m_AnimationSetRes.Push(res);
-        }
+        result = dmResource::Get(factory, resource->m_RigScene->m_AnimationSet, (void**) &resource->m_AnimationSetRes);
+        if (result != dmResource::RESULT_OK)
+            return result;
         result = dmResource::Get(factory, resource->m_RigScene->m_MeshSet, (void**) &resource->m_MeshSetRes);
         if (result != dmResource::RESULT_OK)
             return result;
@@ -70,11 +63,8 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_TextureSet);
         if (resource->m_SkeletonRes != 0x0)
             dmResource::Release(factory, resource->m_SkeletonRes);
-        for(uint32_t i = 0; i < resource->m_AnimationSetRes.Size(); ++i)
-        {
-            dmResource::Release(factory, resource->m_AnimationSetRes[i]);
-        }
-        resource->m_AnimationSetRes.SetSize(0);
+        if (resource->m_AnimationSetRes != 0x0)
+            dmResource::Release(factory, resource->m_AnimationSetRes);
         if (resource->m_MeshSetRes != 0x0)
             dmResource::Release(factory, resource->m_MeshSetRes);
 
@@ -91,10 +81,7 @@ namespace dmGameSystem
 
         dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_TextureSet);
         dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_Skeleton);
-        for(uint32_t i = 0; i < rig_scene->m_AnimationSet.m_Count; ++i)
-        {
-            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_AnimationSet[i]);
-        }
+        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_AnimationSet);
         dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_MeshSet);
 
         *params.m_PreloadData = rig_scene;
