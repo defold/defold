@@ -141,7 +141,6 @@ namespace dmGui
         context->m_Dpi = params->m_Dpi;
         context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
-
         return context;
     }
 
@@ -258,6 +257,7 @@ namespace dmGui
         memset(scene, 0, sizeof(Scene));
         scene->m_InstanceReference = LUA_NOREF;
         scene->m_DataReference = LUA_NOREF;
+        scene->m_RefTableReference = LUA_NOREF;
     }
 
     HScene NewScene(HContext context, const NewSceneParams* params)
@@ -278,6 +278,9 @@ namespace dmGui
 
         lua_pushvalue(L, -1);
         scene->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+
+        lua_newtable(L);
+        scene->m_RefTableReference = luaL_ref(L, LUA_REGISTRYINDEX);
 
         lua_newtable(L);
         scene->m_DataReference = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -340,6 +343,7 @@ namespace dmGui
 
         luaL_unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         luaL_unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
+        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
 
         dmArray<HScene>& scenes = scene->m_Context->m_Scenes;
         uint32_t scene_count = scenes.Size();
@@ -1217,7 +1221,7 @@ namespace dmGui
                             // before invoking the call-back. The call-back could potentially
                             // start a new animation that could reuse the same animation slot.
                             anim->m_AnimationCompleteCalled = 1;
-                            anim->m_AnimationComplete(scene, anim->m_Node, anim->m_Userdata1, anim->m_Userdata2);
+                            anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
 
                             if (anim->m_Easing.release_callback != 0x0)
                             {
@@ -1823,6 +1827,17 @@ namespace dmGui
 
             if (anim->m_Node == node)
             {
+                if(!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                {
+                    anim->m_AnimationCompleteCalled = 1;
+                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+
+                    if (anim->m_Easing.release_callback != 0x0)
+                    {
+                        anim->m_Easing.release_callback(&anim->m_Easing);
+                    }
+                }
+
                 animations->EraseSwap(i);
                 i--;
                 n_anims--;

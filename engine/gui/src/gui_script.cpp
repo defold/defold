@@ -454,62 +454,62 @@ namespace dmGui
      */
     int LuaDeleteNode(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void) top;
+        DM_LUA_STACK_CHECK(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         // Set deferred delete flag
         n->m_Deleted = 1;
 
-        assert(top == lua_gettop(L));
-
         return 0;
     }
 
     void LuaCurveRelease(dmEasing::Curve* curve)
     {
-        lua_State* L = (lua_State*)curve->userdata1;
-
-        int top = lua_gettop(L);
-        (void) top;
+        HScene scene = (HScene)curve->userdata1;
+        lua_State* L = scene->m_Context->m_LuaState;
+        DM_LUA_STACK_CHECK(L);
 
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
-        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        luaL_unref(L, -1, ref);
+        lua_pop(L, 1);
 
         curve->release_callback = 0x0;
         curve->userdata1 = 0x0;
         curve->userdata2 = 0x0;
-
-        assert(top == lua_gettop(L));
     }
 
-    void LuaAnimationComplete(HScene scene, HNode node, void* userdata1, void* userdata2)
+    void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
-
-        int top = lua_gettop(L);
-        (void) top;
+        DM_LUA_STACK_CHECK(L);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        int ref = (int) ((uintptr_t) userdata1 & 0xffffffff);
+        int callback_ref = (int) ((uintptr_t) userdata1 & 0xffffffff);
         int node_ref = (int) ((uintptr_t) userdata2 & 0xffffffff);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
-        assert(lua_type(L, -3) == LUA_TFUNCTION);
 
-        dmScript::PCall(L, 2, 0);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
 
-        lua_unref(L, ref);
-        lua_unref(L, node_ref);
+        if( finished )
+        {
+            lua_rawgeti(L, -1, callback_ref);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+            lua_rawgeti(L, -3, node_ref);
+            assert(lua_type(L, -3) == LUA_TFUNCTION);
+
+            dmScript::PCall(L, 2, 0);
+        }
+
+        luaL_unref(L, -1, callback_ref);
+        luaL_unref(L, -1, node_ref);
+        lua_pop(L, 1);
 
         lua_pushnil(L);
         dmScript::SetInstance(L);
-
-        assert(top == lua_gettop(L));
     }
 
     /*# once forward
@@ -855,8 +855,7 @@ namespace dmGui
      */
     int LuaAnimate(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void) top;
+        DM_LUA_STACK_CHECK(L);
 
         Scene* scene = GuiScriptInstance_Check(L);
 
@@ -902,10 +901,13 @@ namespace dmGui
             curve.type = dmEasing::TYPE_FLOAT_VECTOR;
             curve.vector = dmScript::CheckVector(L, 4);
 
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
             lua_pushvalue(L, 4);
+
             curve.release_callback = LuaCurveRelease;
-            curve.userdata1 = (void*)L;
-            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+            curve.userdata1 = (void*)scene;
+            curve.userdata2 = (void*)luaL_ref(L, -2);
+            lua_pop(L, 1);
         }
         else
         {
@@ -921,10 +923,12 @@ namespace dmGui
             delay = (float) lua_tonumber(L, 6);
             if (lua_isfunction(L, 7))
             {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
                 lua_pushvalue(L, 7);
-                animation_complete_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                animation_complete_ref = luaL_ref(L, -2);
                 lua_pushvalue(L, 1);
-                node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                node_ref = luaL_ref(L, -2);
+                lua_pop(L, 1);
             }
         } else if (!lua_isnone(L, 6)) {
             // If argument 6 is specified is has to be a number
@@ -941,8 +945,6 @@ namespace dmGui
         } else {
             AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
-
-        assert(top== lua_gettop(L));
         return 0;
     }
 
@@ -1316,11 +1318,12 @@ namespace dmGui
         int animation_complete_ref = LUA_NOREF;
         if (lua_isfunction(L, 3))
         {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
             lua_pushvalue(L, 3);
-            animation_complete_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            animation_complete_ref = luaL_ref(L, -2);
             lua_pushvalue(L, 1);
-            node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-            fflush(stdout);
+            node_ref = luaL_ref(L, -2);
+            lua_pop(L, 1);
         }
 
         if (lua_isstring(L, 2))
@@ -1828,7 +1831,6 @@ namespace dmGui
             if (id_string != 0x0) {
                 luaL_error(L, "Font %s is not specified in scene", id_string);
             } else {
-                printf("%llu", font_id_hash);
                 luaL_error(L, "Font %llu is not specified in scene", font_id_hash);
             }
         }
