@@ -304,13 +304,10 @@
          app-view (test-util/setup-app-view!)
          node-id (test-util/resource-node project "/gui/scene.gui")
          sub-node (gui-node node-id "sub_scene/sub_box")]
-     (let [color (prop sub-node :color)
-           alpha (prop sub-node :alpha)]
+     (let [alpha (prop sub-node :alpha)]
        (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
-       (is (not= color (prop sub-node :color)))
        (is (not= alpha (prop sub-node :alpha)))
        (g/transact (g/clear-property sub-node :alpha))
-       (is (= color (prop sub-node :color)))
        (is (= alpha (prop sub-node :alpha)))))))
 
 (deftest gui-template-hierarchy
