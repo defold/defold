@@ -1,8 +1,38 @@
-## JavaFX Clojure Editor
+# JavaFX Clojure Editor
 
-### Requirements
+## Requirements
 * Java 1.8
 * Leiningen
+
+
+## Windows
+
+First of all, follow the windows instructions in [Defold Readme](../README.md).
+
+* Run `msys.bat` as described
+
+* Download the lein _script_ from [leiningen.org](leiningen.org). Put it somewhere in your (msys) path. If you’re lazy, `c:\MinGW\msys\1.0\bin`.
+
+* Running `lein` in the editor subdirectory will attempt to download leiningen and other dependencies.
+    - If `lein` fails with message
+
+            Could not find or load main class clojure.main
+
+      Try pointing your `HOME` environment variable to your “windows home”. For instance change it from `/home/Erik.Angelin` (msys) to `/c/Users/erik.angelin`
+
+          export HOME="/c/Users/erik.angelin"
+
+      The problem seems to be that the directory isn't translated properly for use as java class path.
+
+    - If `lein` fails because the github certificate cannot be verified, a hacky workaround is as follows:
+      * open `lein.sh` with notepad
+      * search for `wget` - you should get a hit near the `HTTP_CLIENT` definition
+      * stick in a `--no-check-certificate` flag
+      * save, retry
+
+* Now, follow the OS X/Linux instructions
+
+## OS X/Linux
 
 ### Environment Setup
 * `cd` to the `defold` directory
@@ -11,18 +41,18 @@
 This is the shell environment that you must have to run the project.
 Consider putting it in an alias in your bash profile.
 
-## Setup
+### Setup
 * Build the engine with `scripts/build.py build_engine --skip-tests`
   from the `defold` directory
 * From the `defold/editor` directory, run `lein protobuf`
 * From the `defold/editor` directory, run `lein builtins`
 
-## Running Tests
+### Running Tests
 `lein test` will run all the tests including the integration tests.
 
 If you are using a repl, you can also run the tests by calling `(suite/suite)`.
 
-## Setup NREPL for debugging
+### Setup NREPL for debugging
 
 If you want to work on the editor chances are you want to `connect` or `jack-in` to a REPL as described below.
 
@@ -36,13 +66,13 @@ For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, 
 
 Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
 
-## Running the Editor
+### Running the Editor
 `lein run` will launch the editor as well as providing a nprel port
 for you to jack into
 
 **PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
 
-## Jacking into a REPL
+### Jacking into a REPL
 
 You can also use `M-x cider-jack-in` or launch the editor inside Cursive for debugging with breakpoints etc.
 
@@ -55,18 +85,18 @@ user=> (dev)
 dev=> (go)
 ```
 
-## Running Benchmarks
+### Running Benchmarks
 `lein benchmark` will run the benchmarks and put the results to the
 `test/benchmark/bench-result.txt` file. Make sure to have everything
 on your system closed down
 
-## Generating the docs
+### Generating the docs
 Running `lein doc` will generate the codox to the target/docs directory
 
-## Styling
+### Styling
 A single stylesheet is set on the root node (by convention) in the scene. The stylesheet `editor.css` is loaded as a regular java resource, from the uberjar or from the file-system in dev-mode. If an `editor.css` is found in the current working directory that file will take precedence over the aforementioned java resource.
 
 The stylesheet can be reloaded with the function key `F5`.
 
-### JavaFX Styling
+#### JavaFX Styling
 The best way to understand how JavaFX styling works is by studying the default stylesheet `modena.css` included in `jfxrt.jar`
