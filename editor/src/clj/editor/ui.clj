@@ -280,7 +280,11 @@
              (focus-fn got-focus))))
 
 (defn load-fxml [path]
-  (FXMLLoader/load (io/resource path)))
+  (let [root ^Parent (FXMLLoader/load (io/resource path))
+        css (io/file "editor.css")]
+    (when (and (.exists css) (seq (.getStylesheets root)))
+      (.setAll (.getStylesheets root) ^java.util.Collection (vec [(str (.toURI css))])))
+    root))
 
 (extend-type Node
   HasUserData
