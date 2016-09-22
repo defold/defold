@@ -53,6 +53,13 @@ public class ModelBuilder extends Builder<Void> {
             modelBuilder.setSkeleton(BuilderUtil.replaceExt(modelBuilder.getSkeleton(), ".dae", ".skeletonc"));
         }
 
+        if(modelBuilder.getAnimations().isEmpty()) {
+            modelBuilder.setAnimations(BuilderUtil.replaceExt(modelBuilder.getMesh(), ".meshsetc", ".animationsetc"));
+        } else {
+            BuilderUtil.checkResource(this.project, resource, "animations", modelBuilder.getAnimations());
+            modelBuilder.setAnimations(BuilderUtil.replaceExt(modelBuilder.getAnimations(), ".dae", ".animationsetc"));
+        }
+
         BuilderUtil.checkResource(this.project, resource, "material", modelBuilder.getMaterial());
         modelBuilder.setMaterial(BuilderUtil.replaceExt(modelBuilder.getMaterial(), ".material", ".materialc"));
 
@@ -64,18 +71,6 @@ public class ModelBuilder extends Builder<Void> {
         modelBuilder.clearTextures();
         modelBuilder.addAllTextures(newTextureList);
 
-        List<String> newAnimationsList = new ArrayList<String>();
-        if(modelBuilder.getAnimationsList().isEmpty()) {
-            newAnimationsList.add(BuilderUtil.replaceExt(modelBuilder.getMesh(), ".meshsetc", ".animationsetc"));
-        } else {
-            for (String t : modelBuilder.getAnimationsList()) {
-                BuilderUtil.checkResource(this.project, resource, "animation", t);
-                newAnimationsList.add(BuilderUtil.replaceExt(t, ".dae", ".animationsetc"));
-            }
-        }
-        modelBuilder.clearAnimations();
-        modelBuilder.addAllAnimations(newAnimationsList);
-
         out = new ByteArrayOutputStream(64 * 1024);
         ModelDesc modelDesc = modelBuilder.build();
         modelDesc.writeTo(out);
@@ -86,12 +81,8 @@ public class ModelBuilder extends Builder<Void> {
         com.dynamo.rig.proto.Rig.RigScene.Builder rigSceneBuilder = com.dynamo.rig.proto.Rig.RigScene.newBuilder();
         out = new ByteArrayOutputStream(64 * 1024);
         rigSceneBuilder.setMeshSet(modelDesc.getMesh());
-        if(modelDesc.hasSkeleton()) {
-            rigSceneBuilder.setSkeleton(modelDesc.getSkeleton());
-        }
-        if(modelDesc.getAnimationsCount() != 0) {
-            rigSceneBuilder.addAnimationSet(modelDesc.getAnimations(0));
-        }
+        rigSceneBuilder.setSkeleton(modelDesc.getSkeleton());
+        rigSceneBuilder.setAnimationSet(modelDesc.getAnimations());
         rigSceneBuilder.setTextureSet(""); // this is set in the model
         rigSceneBuilder.build().writeTo(out);
         out.close();
