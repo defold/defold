@@ -279,7 +279,7 @@ public class ColladaUtil {
                     curve.interpolation = CurveIntepolation.LINEAR;
                 }
                 // TEMP: Force linear curve interpolation!
-                //curve.interpolation = CurveIntepolation.LINEAR;
+                curve.interpolation = CurveIntepolation.LINEAR;
                 curve.x0 = (float)inTangents[i*2];
                 curve.y0 = (float)inTangents[i*2+1];
                 curve.x1 = (float)outTangents[i*2];
