@@ -4,11 +4,11 @@
             [support.test-support :refer :all]))
 
 (g/defnode InputNode
-  (input string-scalar String))
+  (input string-scalar g/Str))
 
 (g/defnode OutputNode
-  (property string-scalar String)
-  (property int-scalar Integer))
+  (property string-scalar g/Str)
+  (property int-scalar g/Int))
 
 (deftest connection-rules
   (testing "compatible single value connections"

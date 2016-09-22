@@ -7,14 +7,17 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.upnp.SSDP;
+
 public class SSDPTest {
-    SSDP ssdp;
+    ISSDP ssdp;
     final static String USN1 = "uuid:00000001-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
     final static String USN2 = "uuid:00000002-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
 
     @Before
     public void setUp() throws Exception {
         ssdp = new SSDP();
+        ssdp.setup();
         Thread.sleep(100);
         ssdp.update(false);
         ssdp.clearDiscovered();
@@ -45,7 +48,8 @@ public class SSDPTest {
         assertNotDevice(USN2);
 
         for (int i = 0; i < 5; ++i) {
-            ssdp.update(true);
+            // Search in the first iteration
+            ssdp.update(i == 0);
             Thread.sleep(100);
         }
         assertDevice(USN2);
@@ -53,7 +57,6 @@ public class SSDPTest {
 
     @Test
     public void testAnnounce() throws Exception {
-        ssdp.update(false);
         assertNotDevice(USN1);
 
         for (int i = 0; i < 15; ++i) {

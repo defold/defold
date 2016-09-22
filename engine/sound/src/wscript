@@ -7,81 +7,47 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('openal')
 
-    source =  'sound_common.cpp sound.cpp sound_codec.cpp sound_decoder.cpp'.split()
-    source2 =  'devices/device_null.cpp sound_common.cpp sound2.cpp sound_codec.cpp sound_decoder.cpp'.split()
-    source_null = 'devices/device_null.cpp sound_common.cpp sound_null.cpp sound_decoder.cpp sound_codec.cpp sound_generic.cpp'.split()
+    source        = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
+    source_null   = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound_common.cpp sound_null.cpp sound_generic.cpp'.split()
+    decoders      = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c decoders/decoder_wav.cpp'.split()
 
-    stb_vorbis = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
-    wav = ['decoders/decoder_wav.cpp']
-    tremolo = ['decoders/decoder_tremolo.cpp'];
+    if bld.env['PLATFORM'] not in ['js-web', 'win32']:
+        decoders += 'decoders/decoder_tremolo.cpp'.split()
 
-    if bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'win32':
-        decoders = stb_vorbis + wav
-    else:
-        decoders = tremolo + stb_vorbis + wav
+    source       += decoders
+    source_null  += decoders
 
-    source = source + decoders
-    source2 = source2 + decoders
-    source_null = source_null + decoders
-
-    defines = 'TREMOLO_SCORE=8'
-    include = ''
-
+    defines, include = ('', '')
     if re.match('arm.*?android', bld.env['PLATFORM']):
+        defines = 'TREMOLO_SCORE=10'
         include = 'openal/include'
+        source += ['sound_android.cpp', 'devices/device_opensl.cpp']
+    elif re.match('arm.*?darwin', bld.env['PLATFORM']):
         defines = 'TREMOLO_SCORE=10'
-
-    if re.match('arm.*?darwin', bld.env['PLATFORM']):
-        source.append('sound_ios.cpp')
-        source2.append('sound_ios.cpp')
-        defines = 'TREMOLO_SCORE=10'
-    elif re.match('arm.*?android', bld.env['PLATFORM']):
-        source.append('sound_android.cpp')
-        source2.append('sound_android.cpp')
+        source += ['sound_ios.mm', 'devices/device_openal.cpp']
+    elif re.match('js-web', bld.env['PLATFORM']):
+        defines = 'TREMOLO_SCORE=8'
+        source += ['sound_generic.cpp', 'devices/device_js.cpp']
     else:
-        source.append('sound_generic.cpp')
-        source2.append('sound_generic.cpp')
+        defines = 'TREMOLO_SCORE=8'
+        source += ['sound_generic.cpp', 'devices/device_openal.cpp']
 
-
-    if 'js-web' in bld.env.PLATFORM:
-        source2.append('devices/device_js.cpp')
+    if re.match('js-web', bld.env['PLATFORM']):
         bld.install_files('${PREFIX}/lib/js-web/js', 'js/library_sound.js', postpone = False)
         bld.install_files('${PREFIX}/bin/js-web', 'flash/defold_sound.swf', postpone = False)
     elif re.match('arm.*?android', bld.env['PLATFORM']):
-        source2.append('devices/device_opensl.cpp')
-    else:
-        source2.append('devices/device_openal.cpp')
-
-    if 'android' in bld.env['PLATFORM']:
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
-        classpath = os.pathsep.join(classpath)
-
-        bld.new_task_gen(features='javac seq',
-                         classpath=classpath,
-                         source_root='java')
-
+        classpath = os.path.join(bld.env['DYNAMO_HOME'], 'ext/share/java/android.jar')
         bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
-
-        bld.new_task_gen(features='jar seq',
-                         basedir='java',
-                         destfile='sound_android.jar')
-
+        bld.new_task_gen(features='javac seq', classpath=classpath, source_root='java')
+        bld.new_task_gen(features='jar seq', basedir='java', destfile='sound_android.jar')
         bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
 
-    # NOTE: This if was just for 'sound' in EMSCRIPTEN branch,
-    # assumed it applied to both sound and sound2
-    if bld.env.platform != 'js-web':
-      sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                               includes = '. %s' % include,
-                               defines = defines,
-                               target = 'sound',
-                               source = source)
 
-      sound2 = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                                includes = '. %s' % include,
-                                defines = defines,
-                                target = 'sound2',
-                                source = source2)
+    sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                             includes = '. %s' % include,
+                             defines = defines,
+                             target = 'sound',
+                             source = source)
 
     sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                                   includes = '.',
@@ -89,6 +55,7 @@ def build(bld):
                                   target = 'sound_null',
                                   source = source_null)
 
+    bld.install_files('${PREFIX}/include/sound', 'sound.h')
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -96,4 +63,3 @@ def build(bld):
         sound_null.defines = '_XBOX'
 
     bld.add_subdirs('test')
-    bld.install_files('${PREFIX}/include/sound', 'sound.h')

@@ -15,7 +15,7 @@ namespace dmRender
     static const uint32_t MAX_TAG_COUNT = 32;
     struct Tag
     {
-        uint32_t m_Tag;
+        dmhash_t m_Tag;
         uint32_t m_BitIndex;
     };
 
@@ -375,7 +375,7 @@ namespace dmRender
         return material->m_TagMask;
     }
 
-    uint32_t ConvertTagToBitfield(uint32_t tag)
+    static uint32_t ConvertTagToBitfield(dmhash_t tag)
     {
         Tag t;
         t.m_Tag = tag;
@@ -402,7 +402,7 @@ namespace dmRender
         }
     }
 
-    void AddMaterialTag(HMaterial material, uint32_t tag)
+    void AddMaterialTag(HMaterial material, dmhash_t tag)
     {
         material->m_TagMask |= ConvertTagToBitfield(tag);
     }
@@ -412,7 +412,7 @@ namespace dmRender
         material->m_TagMask = 0;
     }
 
-    uint32_t ConvertMaterialTagsToMask(uint32_t* tags, uint32_t tag_count)
+    uint32_t ConvertMaterialTagsToMask(dmhash_t* tags, uint32_t tag_count)
     {
         uint32_t mask = 0;
         for (uint32_t i = 0; i < tag_count; ++i)

@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.core :as core])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
@@ -17,6 +18,7 @@
   (children [this])
   (resource-type [this])
   (source-type [this])
+  (exists? [this])
   (read-only? [this])
   (path [this])
   (abs-path ^String [this])
@@ -26,8 +28,11 @@
   (workspace [this])
   (resource-hash [this]))
 
+(defn- ->unix-seps ^String [^String path]
+  (FilenameUtils/separatorsToUnix path))
+
 (defn relative-path [^File f1 ^File f2]
-  (.toString (.relativize (.toPath f1) (.toPath f2))))
+  (->unix-seps (.toString (.relativize (.toPath f1) (.toPath f2)))))
 
 (defn file->proj-path [^File project-path ^File f]
   (try
@@ -35,16 +40,17 @@
     (catch IllegalArgumentException e
       nil)))
 
-(defrecord FileResource [workspace ^File file children]
+(defrecord FileResource [workspace root ^File file children]
   Resource
   (children [this] children)
   (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension (.getPath file))))
   (source-type [this] (if (.isDirectory file) :folder :file))
+  (exists? [this] (.exists file))
   (read-only? [this] (not (.canWrite file)))
-  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String (g/node-value workspace :root)) file)))
+  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
-  (url [this] (relative-path (File. ^String (g/node-value workspace :root)) file))
+  (url [this] (relative-path (File. ^String root) file))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
@@ -59,7 +65,7 @@
  "file-resource"
  (transit/read-handler
   (fn [{:keys [workspace ^String file children]}]
-    (FileResource. workspace (File. file) children))))
+    (FileResource. workspace (g/node-value workspace :root) (File. file) children))))
 
 (core/register-write-handler!
  FileResource
@@ -78,6 +84,7 @@
   (children [this] nil)
   (resource-type [this] (get (g/node-value workspace :resource-types) ext))
   (source-type [this] :file)
+  (exists? [this] true)
   (read-only? [this] false)
   (path [this] nil)
   (abs-path [this] nil)
@@ -106,6 +113,7 @@
   (children [this] children)
   (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension name)))
   (source-type [this] (if (zero? (count children)) :file :folder))
+  (exists? [this] (not (nil? data)))
   (read-only? [this] true)
   (path [this] path)
   (abs-path [this] nil)
@@ -161,7 +169,7 @@
          (mapv (fn [x] (->zip-resources workspace "" x))))))
 
 (g/defnode ResourceNode
-  (extern resource (g/protocol Resource) (dynamic visible (g/always false))))
+  (extern resource Resource (dynamic visible (g/always false))))
 
 (defn- seq-children [resource]
   (seq (children resource)))
@@ -179,3 +187,5 @@
   (if resource
     (proj-path resource)
     ""))
+
+(g/deftype ResourceVec [(s/maybe (s/protocol Resource))])

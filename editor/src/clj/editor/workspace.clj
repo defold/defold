@@ -7,8 +7,8 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
-            [editor.library :as library])
-
+            [editor.library :as library]
+            [editor.graph-util :as gu])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]
@@ -77,7 +77,7 @@ ordinary paths."
 
 (g/defnk produce-resource-tree [_node-id root resource-snapshot]
   (sort-resource-tree
-   (FileResource. _node-id (io/as-file root) (:resources resource-snapshot))))
+   (FileResource. _node-id root (io/as-file root) (:resources resource-snapshot))))
 
 (g/defnk produce-resource-list [resource-tree]
   (resource/resource-seq resource-tree))
@@ -150,15 +150,17 @@ ordinary paths."
           (get default-icons (resource/source-type resource))))))
 
 (defn file-resource [workspace path]
-  (FileResource. workspace (File. (str (g/node-value workspace :root) path)) []))
+  (let [root (g/node-value workspace :root)]
+    (FileResource. workspace root (File. (str root path)) [])))
 
 (defn find-resource [workspace proj-path]
   (get (g/node-value workspace :resource-map) proj-path))
 
 (defn resolve-workspace-resource [workspace path]
-  (or
-   (find-resource workspace path)
-   (file-resource workspace path)))
+  (when (and path (not-empty path))
+    (or
+      (find-resource workspace path)
+      (file-resource workspace path))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))
@@ -183,7 +185,12 @@ ordinary paths."
     (g/set-property! workspace :dependencies library-urls)
     library-urls))
 
-(defn update-dependencies! [workspace render-progress!]
+(defn- has-dependencies? [workspace]
+  (not-empty (g/node-value workspace :dependencies)))
+
+(defn update-dependencies! [workspace render-progress! login-fn]
+  (when (and (has-dependencies? workspace) login-fn)
+    (login-fn))
   (library/update-libraries! (project-path workspace)
                              (g/node-value workspace :dependencies)
                              library/default-http-resolver
@@ -248,7 +255,7 @@ ordinary paths."
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map)
-  (output resource-types g/Any :cached (g/fnk [resource-types] resource-types)))
+  (output resource-types g/Any :cached (gu/passthrough resource-types)))
 
 (defn make-workspace [graph project-path]
   (g/make-node! graph Workspace

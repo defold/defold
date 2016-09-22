@@ -4,6 +4,8 @@
             [internal.graph.types :as gt]
             [support.test-support :refer :all]
             [internal.util :refer :all]
+            [editor.resource :as resource]
+            [schema.core :as s]
             [dynamo.integration.override-test-support :as support])
   (:import  [javax.vecmath Vector3d]))
 
@@ -242,14 +244,14 @@
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective base"
-               (let [error (g/error-severe {:type :some-error :message "Something went wrong"})]
+               (let [error (g/error-fatal "Something went wrong" {:type :some-error})]
                  (g/transact
                    (g/mark-defective main error))
                  (is (g/error? (g/node-value or-main :a-property))))))
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective override, which throws exception"
-               (let [error (g/error-severe {:type :some-error :message "Something went wrong"})]
+               (let [error (g/error-fatal "Something went wrong" {:type :some-error})]
                  (is (thrown? Exception (g/transact
                                           (g/mark-defective or-main error)))))))))
 
@@ -302,7 +304,7 @@
                  (g/transact (g/clear-property or-res :reference))
                  (is (= :node-a2 (g/node-value or-res :reference))))))))
 
-(def ^:private IDMap {g/Str g/NodeID})
+(g/deftype ^:private IDMap {s/Str s/Int})
 
 (defprotocol Resource
   (path [this]))
@@ -311,7 +313,7 @@
   Resource
   (path [this] path))
 
-(defn- properties->overrides [id properties]
+(defn properties->overrides [id properties]
   {id (->> (:properties properties)
         (filter (fn [[k v]] (contains? v :original-value)))
         (map (fn [[k v]] [k (:value v)]))
@@ -328,8 +330,9 @@
   (inherits Node)
   (property value g/Str))
 
+
 (g/defnode SceneResourceNode
-  (extern resource (g/protocol Resource)))
+  (extern resource Resource))
 
 (g/defnode NodeTree
   (input nodes g/NodeID :array :cascade-delete)
@@ -373,10 +376,10 @@
                        (let [gid (g/node-id->graph-id self)
                              path (:path new-value)]
                          (if-let [scene (scene-by-path basis gid path)]
-                           (let [tmpl-path (g/node-value self :template-path :basis basis)
+                           (let [tmpl-path (g/node-value self :template-path {:basis basis})
                                  {:keys [id-mapping tx-data]} (g/override basis scene {})
                                  mapping (comp id-mapping (into {} (map (fn [[k v]] [(str tmpl-path k) v])
-                                                                        (g/node-value scene :node-ids :basis basis))))
+                                                                        (g/node-value scene :node-ids {:basis basis}))))
                                  set-prop-data (for [[id props] (:overrides new-value)
                                                      :let [node-id (mapping id)]
                                                      :when node-id
@@ -392,7 +395,7 @@
                                  (g/connect or-scene from self to))
                                (g/connect self :template-path or-scene :id-prefix)))
                            [])))))))
-  (input template-resource (g/protocol Resource) :cascade-delete)
+  (input template-resource Resource :cascade-delete)
   (input node-ids IDMap)
   (input instance g/NodeID)
   (input source-overrides g/Any)
@@ -414,7 +417,7 @@
                              node-tree (g/node-value scene :node-tree)
                              {:keys [id-mapping tx-data]} (g/override node-tree {})
                              node-tree-or (id-mapping node-tree)]
-                         (into tx-data
+                         (concat tx-data
                            (for [[from to] [[:_node-id :node-tree]]]
                              (g/connect node-tree-or from self to)))))))))
   (input node-tree g/NodeID :cascade-delete)
@@ -588,7 +591,7 @@
                                                   (-> _declared-properties
                                                     (update :properties dissoc :script-properties)
                                                     (update :properties merge (into {} (map (fn [[key value]] [key {:value value
-                                                                                                                    :type (g/make-property-type key (type value))
+                                                                                                                    :type (type value)
                                                                                                                     :node-id _node-id}]) script-properties)))
                                                     (update :display-order (comp vec (partial remove #{:script-properties})))))))
 
@@ -597,7 +600,7 @@
   (property component g/Any
             (set (fn [basis self old-value new-value]
                    (concat
-                     (if-let [instance (g/node-value self :instance :basis basis)]
+                     (if-let [instance (g/node-value self :instance {:basis basis})]
                        (g/delete-node instance)
                        [])
                      (let [gid (g/node-id->graph-id self)
@@ -605,7 +608,7 @@
                        (if-let [script (get (g/graph-value basis gid :resources) path)]
                          (let [{:keys [id-mapping tx-data]} (g/override basis script {})
                                or-script (id-mapping script)
-                               script-props (g/node-value script :_properties :basis basis)
+                               script-props (g/node-value script :_properties {:basis basis})
                                set-prop-data (for [[key value] (:overrides new-value)]
                                                (g/set-property or-script key value))
                                conn-data (for [[src tgt] [[:_node-id :instance]
@@ -639,10 +642,14 @@
 
 ;; Overloaded outputs with different types
 
+(g/deftype XYZ [(s/one s/Num "x") (s/one s/Num "y") (s/one s/Num "z")])
+
+(g/deftype Complex {s/Keyword Vector3d})
+
 (g/defnode TypedOutputNode
-  (property value [(g/one g/Num "x") (g/one g/Num "y") (g/one g/Num "z")])
+  (property value XYZ)
   (output value Vector3d (g/fnk [value] (let [[x y z] value] (Vector3d. x y z))))
-  (output complex {g/Keyword Vector3d} (g/fnk [value] {:value value})))
+  (output complex Complex (g/fnk [value] {:value value})))
 
 (deftest overloaded-outputs-and-types
   (with-clean-system
@@ -684,7 +691,7 @@
 
 (defn- outs [nodes output]
   (for [n nodes]
-    [n :virt-property]))
+    [n output]))
 
 (defn- conn? [[src src-label tgt tgt-label]]
   (let [basis (g/now)]
@@ -771,6 +778,35 @@
 
 (g/defnode Collection
   (input instances g/NodeID :array :cascade-delete))
+
+(deftest override-created-on-connect
+  (with-clean-system
+    (let [[script] (tx-nodes (g/make-nodes world [script Script]))
+          [go comp or-script] (tx-nodes (g/make-nodes world [go GameObject
+                                                             comp Component]
+                                                      (let [o (g/override script {:traverse? (constantly true)})
+                                                            or-script ((:id-mapping o) script)]
+                                                        (concat
+                                                          (g/connect comp :_node-id go :components)
+                                                          (:tx-data o)
+                                                          (g/connect or-script :_node-id comp :instance)))))
+          [coll inst or-go] (tx-nodes (g/make-nodes world [coll Collection
+                                                           inst GameObjectInstance]
+                                                    (let [o (g/override go {:traverse? (constantly true)})
+                                                          or-go ((:id-mapping o) go)]
+                                                      (concat
+                                                        (g/connect inst :_node-id coll :instances)
+                                                        (:tx-data o)
+                                                        (g/connect or-go :_node-id inst :source)))))
+          [comp-2 or-script-2] (tx-nodes (g/make-nodes world [comp Component]
+                                                       (let [o (g/override script {:traverse? (constantly true)})
+                                                             or-script ((:id-mapping o) script)]
+                                                         (concat
+                                                           (:tx-data o)
+                                                           (g/connect or-script :_node-id comp :instance)))))
+          nodes-on-connect (tx-nodes (g/connect comp-2 :_node-id go :components))]
+      ;; 1 override for the component node and one for the script, w.r.t the collection
+      (is (= 2 (count nodes-on-connect))))))
 
 (deftest cascade-delete-avoided
   (with-clean-system

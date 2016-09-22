@@ -1,0 +1,10 @@
+collision_shape: "/tilegrid/test.tilegrid"
+type: COLLISION_OBJECT_TYPE_DYNAMIC
+mass: 42.0
+friction: 2.3
+restitution: 1.5
+group: "default"
+mask: "default"
+linear_damping: 0.0
+angular_damping: 0.0
+locked_rotation: false

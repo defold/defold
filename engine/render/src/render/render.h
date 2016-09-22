@@ -67,7 +67,7 @@ namespace dmRender
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
-        uint32_t m_Tags[MAX_TAG_COUNT];
+        dmhash_t m_Tags[MAX_TAG_COUNT];
         uint32_t m_TagCount;
     };
 
@@ -340,9 +340,9 @@ namespace dmRender
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
 
     uint32_t                        GetMaterialTagMask(HMaterial material);
-    void                            AddMaterialTag(HMaterial material, uint32_t tag);
+    void                            AddMaterialTag(HMaterial material, dmhash_t tag);
     void                            ClearMaterialTags(HMaterial material);
-    uint32_t                        ConvertMaterialTagsToMask(uint32_t* tags, uint32_t tag_count);
+    uint32_t                        ConvertMaterialTagsToMask(dmhash_t* tags, uint32_t tag_count);
 
 }
 

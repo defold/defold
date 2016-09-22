@@ -6,6 +6,7 @@
             [editor.game-object :as game-object]
             [editor.handler :as handler]
             [editor.defold-project :as project]
+            [editor.workspace :as workspace]
             [editor.types :as types]
             [editor.properties :as properties]
             [integration.test-util :as test-util])
@@ -39,6 +40,23 @@
                ; One component and game object under the game object
                (is (= 2 (count (:children (first (:children scene))))))))))
 
+(defn- reachable? [source target]
+  (contains? (set (g/dependencies (g/now) [source])) target))
+
+(deftest two-instances-are-invalidated
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/logic/two_atlas_sprites.collection")
+          scene (g/node-value node-id :scene)
+          go-id (test-util/resource-node project "/logic/atlas_sprite.go")
+          go-scene (g/node-value go-id :scene)
+          sprite (get-in go-scene [:children 0 :node-id])]
+      (is (reachable? [sprite :scene] [go-id :scene]))
+      (is (reachable? [sprite :scene] [(get-in scene [:children 0 :node-id]) :scene]))
+      (is (not (reachable? [go-id :scene] [(get-in scene [:children 0 :node-id]) :scene])))
+      (is (reachable? [(get-in scene [:children 0 :node-id]) :scene] [node-id :scene])))))
+
 (deftest add-embedded-instance
   (testing "Hierarchical scene"
            (with-clean-system
@@ -50,7 +68,7 @@
                ; Select the collection node
                (project/select! project [node-id])
                ; Run the add handler
-               (handler/run :add [{:name :global :env {:selection [node-id]}}] {})
+               (test-util/handler-run :add [{:name :global :env {:selection [node-id]}}] {})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
@@ -145,3 +163,46 @@
           (is (= 1.0 (script-prop coll-comp "number")))
           (g/set-property! script-id :code "go.property(\"new_value\", 2.0)\n")
           (is (= 2.0 (script-prop coll-comp "new_value"))))))))
+
+(defn- build-error? [node-id]
+  (g/error? (g/node-value node-id :build-targets)))
+
+(deftest validation
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          coll-id   (test-util/resource-node project "/collection/props.collection")
+          inst-id   (:node-id (test-util/outline coll-id [0]))]
+      (testing "game object ref instance"
+               (is (not (build-error? coll-id)))
+               (is (nil? (test-util/prop-error inst-id :path)))
+               (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
+                 (is (g/error? (test-util/prop-error inst-id :path)))
+                 (is (build-error? coll-id)))
+               (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.go")]
+                 (test-util/with-prop [inst-id :path {:resource not-found :overrides []}]
+                   (is (g/error? (test-util/prop-error inst-id :path)))))
+               (test-util/with-prop [inst-id :id "props_embedded"]
+                 (is (g/error? (test-util/prop-error inst-id :id)))
+                 (is (build-error? coll-id))))
+      (testing "game object embedded instance"
+               (let [inst-id (:node-id (test-util/outline coll-id [1]))]
+                 (is (nil? (test-util/prop-error inst-id :id)))
+                 (test-util/with-prop [inst-id :id "props"]
+                   (is (g/error? (test-util/prop-error inst-id :id))))))
+      (testing "collection ref instance"
+               (is (not (build-error? coll-id)))
+               (let [res (workspace/resolve-workspace-resource workspace "/collection/test.collection")]
+                 (g/transact (collection/add-collection-instance coll-id res "coll" [0 0 0] [0 0 0] [1 1 1] []))
+                 (let [inst-id (:node-id (test-util/outline coll-id [0]))]
+                   (is (nil? (test-util/prop-error inst-id :path)))
+                   (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
+                     (is (g/error? (test-util/prop-error inst-id :path)))
+                     (is (build-error? coll-id)))
+                   (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.collection")]
+                     (test-util/with-prop [inst-id :path {:resource not-found :overrides []}]
+                       (is (g/error? (test-util/prop-error inst-id :path)))))
+                   (is (nil? (test-util/prop-error inst-id :id)))
+                   (test-util/with-prop [inst-id :id "props"]
+                     (is (g/error? (test-util/prop-error inst-id :id)))
+                     (is (build-error? coll-id)))))))))

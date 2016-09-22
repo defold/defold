@@ -21,7 +21,9 @@ public class BundleGenericDialog extends TitleAreaDialog implements
     public interface IPresenter {
         public void start();
         public void releaseModeSelected(boolean selection);
+        public void releaseModeSelected(boolean selection, boolean validate);
         public void generateReportSelected(boolean selection);
+        public void generateReportSelected(boolean selection, boolean validate);
     }
 
     private Button packageApplication;
@@ -29,6 +31,9 @@ public class BundleGenericDialog extends TitleAreaDialog implements
     private Button releaseMode;
     private Button generateReport;
     private String title = "";
+
+    private static boolean persistentReleaseMode = false;
+    private static boolean persistentGenerateReport = false;
 
     public BundleGenericDialog(Shell parentShell) {
         super(parentShell);
@@ -62,20 +67,30 @@ public class BundleGenericDialog extends TitleAreaDialog implements
         releaseMode = new Button(container, SWT.CHECK);
         releaseMode.setText("Release mode");
         releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        if (persistentReleaseMode == true) {
+            releaseMode.setSelection(persistentReleaseMode);
+            presenter.releaseModeSelected(persistentReleaseMode, false);
+        }
         releaseMode.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                presenter.releaseModeSelected(releaseMode.getSelection());
+                persistentReleaseMode = releaseMode.getSelection();
+                presenter.releaseModeSelected(persistentReleaseMode);
             }
         });
 
         generateReport = new Button(container, SWT.CHECK);
         generateReport.setText("Generate build report");
         generateReport.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        if (persistentGenerateReport == true) {
+            generateReport.setSelection(persistentGenerateReport);
+            presenter.generateReportSelected(persistentGenerateReport, false);
+        }
         generateReport.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                presenter.generateReportSelected(generateReport.getSelection());
+                persistentGenerateReport = generateReport.getSelection();
+                presenter.generateReportSelected(persistentGenerateReport);
             }
         });
 

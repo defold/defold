@@ -16,14 +16,29 @@
 
 (set! *warn-on-reflection* true)
 
-(def short-status {:add "A" :modify "M" :delete "D" :rename "R"})
-
 (defn refresh! [git list-view]
   (when git
     (ui/items! list-view (git/unified-status git))))
 
+(def ^:const status-icons
+  {:add    "icons/32/Icons_M_07_plus.png"
+   :modify "icons/32/Icons_S_06_arrowup.png"
+   :delete "icons/32/Icons_M_06_trash.png"
+   :rename "icons/32/Icons_S_08_arrow-d-right.png"})
+
+(def ^:const status-styles
+  {:add    "-fx-text-fill: #00FF00;"
+   :delete "-fx-text-fill: #FF0000;"
+   :rename "-fx-text-fill: #0000FF;"})
+
+(def ^:const status-default-style
+  "-fx-background-color: #272b30;")
+
 (defn- status-render [status]
-  {:text (format "[%s]%s" ((:change-type status) short-status) (or (:new-path status) (:old-path status)))})
+  {:text  (format "%s" (or (:new-path status)
+                           (:old-path status)))
+   :icon  (get status-icons (:change-type status))
+   :style (get status-styles (:change-type status) status-default-style)})
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Diff"
@@ -62,6 +77,21 @@
           prefs (g/node-value changes-view :prefs)]
       (sync/open-sync-dialog (sync/make-flow git prefs)))))
 
+(defn changes-view-post-create
+  [this basis event]
+  (let [{:keys [^Parent parent git workspace]} event
+        refresh                      (.lookup parent "#changes-refresh")
+        ^ListView list-view          (.lookup parent "#changes")]
+    (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
+                                        ; TODO: Should we really include both git and list-view in the context. Have to think about this
+    (ui/context! list-view :asset-browser {:git git :list-view list-view :workspace workspace} list-view)
+    (ui/register-context-menu list-view ::changes-menu)
+    (ui/cell-factory! list-view status-render)
+    (ui/on-action! refresh (fn [_] (refresh! git list-view)))
+    (when-not git
+      (ui/disable! refresh true))
+    (refresh! git list-view)))
+
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize"
                   :id ::synchronize
@@ -72,23 +102,7 @@
   (inherits core/Scope)
   (property parent-view g/Any)
   (property git g/Any)
-  (property prefs g/Any)
-
-  core/ICreate
-  (post-create
-   [this basis event]
-   (let [{:keys [^Parent parent git workspace]} event
-         refresh                      (.lookup parent "#changes-refresh")
-         ^ListView list-view          (.lookup parent "#changes")]
-     (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-     ; TODO: Should we really include both git and list-view in the context. Have to think about this
-     (ui/context! list-view :asset-browser {:git git :list-view list-view :workspace workspace} list-view)
-     (ui/register-context-menu list-view ::changes-menu)
-     (ui/cell-factory! list-view status-render)
-     (ui/on-action! refresh (fn [_] (refresh! git list-view)))
-     (when-not git
-       (ui/disable! refresh true))
-     (refresh! git list-view))))
+  (property prefs g/Any))
 
 (defn make-changes-view [view-graph workspace prefs parent]
   (let [git     (try (Git/open (io/file (g/node-value workspace :root)))
@@ -98,7 +112,7 @@
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
-      (core/post-create view (g/now) {:parent parent :git git :workspace workspace})
+      (changes-view-post-create view (g/now) {:parent parent :git git :workspace workspace})
       view-id
       (catch Exception e
         (log/error :exception e)))))

@@ -88,7 +88,7 @@ public class TargetService implements ITargetService, Runnable {
             logger.error("Could not get host address", e);
         }
 
-        return new Target(name, LOCAL_TARGET_ID, localAddress, null, 0);
+        return new Target(name, LOCAL_TARGET_ID, localAddress, null, 0, "127.0.0.1");
     }
 
     @Inject
@@ -102,8 +102,13 @@ public class TargetService implements ITargetService, Runnable {
         this.logClient = new LogClient(consoleFactory.getConsole("console"));
         this.logClient.start();
 
-        thread = new Thread(this, "Targets Service");
-        thread.start();
+        try {
+            this.ssdp.setup();
+            thread = new Thread(this, "Targets Service");
+            thread.start();
+        } catch (IOException e) {
+            logger.error("Could not setup SSDP", e);
+        }
     }
 
     @Override
@@ -257,7 +262,7 @@ public class TargetService implements ITargetService, Runnable {
                     InetAddress hostAddress = NetworkUtil.getClosestAddress(NetworkUtil.getValidHostAddresses(),
                             targetAddress);
                     ITarget target = new Target(name, udn, targetAddress, url,
-                            Integer.parseInt(logPort));
+                            Integer.parseInt(logPort), deviceInfo.localAddress);
 
                     // The local target is separately added below to ensure its position in the list
                     if (deviceInfo.address.equals(hostAddress.getHostAddress())) {
@@ -330,15 +335,8 @@ public class TargetService implements ITargetService, Runnable {
         return activeTarget;
     }
 
-    public URL getHttpServerURL(InetAddress targetAddress, int httpServerPort) {
-        String localAddress = "127.0.0.1";
-        try {
-            localAddress = NetworkUtil.getClosestAddress(NetworkUtil.getValidHostAddresses(), targetAddress)
-                    .getHostAddress();
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-        }
-
+    public URL getHttpServerURL(ITarget target, int httpServerPort) {
+        String localAddress = target.getLocalAddress();
         try {
             return UriBuilder.fromPath("/").scheme("http").host(localAddress).port(httpServerPort).build().toURL();
         } catch (Exception e) {
@@ -357,8 +355,7 @@ public class TargetService implements ITargetService, Runnable {
 
         ITarget targetToLaunch = getSelectedTarget();
         LaunchThread launchThread = new LaunchThread(targetToLaunch, customApplication, location, runInDebugger,
-                autoRunDebugger, socksProxy, socksProxyPort, getHttpServerURL(targetToLaunch.getInetAddress(),
-                        httpServerPort), quitOnEsc);
+                autoRunDebugger, socksProxy, socksProxyPort, getHttpServerURL(targetToLaunch, httpServerPort), quitOnEsc);
         launchThread.start();
         logClient.resetLogSocket(targetToLaunch);
     }

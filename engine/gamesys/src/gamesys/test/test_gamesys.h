@@ -6,6 +6,7 @@
 
 #include <sound/sound.h>
 #include <gameobject/gameobject.h>
+#include <rig/rig.h>
 
 #include "gamesys/gamesys.h"
 
@@ -42,6 +43,7 @@ protected:
     dmGameSystem::FactoryContext m_FactoryContext;
     dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
+    dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
@@ -49,6 +51,19 @@ class ResourceTest : public GamesysTest<const char*>
 {
 public:
     virtual ~ResourceTest() {}
+};
+
+struct ResourceReloadParams
+{
+    const char* m_FilenameEnding;
+    const char* m_InitialResource;
+    const char* m_SecondResource;
+};
+
+class ResourceReloadTest : public GamesysTest<ResourceReloadParams>
+{
+public:
+    virtual ~ResourceReloadTest() {}
 };
 
 struct ResourceFailParams
@@ -81,6 +96,12 @@ public:
     virtual ~SpriteAnimTest() {}
 };
 
+class WindowEventTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~WindowEventTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
@@ -92,7 +113,7 @@ void GamesysTest<T>::SetUp()
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
     dmResource::NewFactoryParams params;
-    params.m_MaxResources = 16;
+    params.m_MaxResources = 32;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
     m_ScriptContext = dmScript::NewContext(0, m_Factory);
@@ -101,6 +122,12 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
+
+    // Create rig context
+    dmRig::NewContextParams rig_params;
+    rig_params.m_Context = &m_RigContext;
+    rig_params.m_MaxRigInstanceCount = 2;
+    assert(dmRig::RESULT_OK == dmRig::NewContext(rig_params));
 
     m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams render_params;
@@ -113,6 +140,7 @@ void GamesysTest<T>::SetUp()
     m_GuiContext.m_ScriptContext = m_ScriptContext;
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
+    gui_params.m_RigContext = m_RigContext;
     gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
     gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
@@ -146,6 +174,7 @@ void GamesysTest<T>::SetUp()
 
     m_SpineModelContext.m_RenderContext = m_RenderContext;
     m_SpineModelContext.m_Factory = m_Factory;
+    m_SpineModelContext.m_RigContext = m_RigContext;
     m_SpineModelContext.m_MaxSpineModelCount = 32;
 
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
@@ -166,6 +195,7 @@ void GamesysTest<T>::TearDown()
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
+    dmRig::DeleteContext(m_RigContext);
     dmGui::DeleteContext(m_GuiContext.m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);

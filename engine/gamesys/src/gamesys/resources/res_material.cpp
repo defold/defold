@@ -96,7 +96,7 @@ namespace dmGameSystem
     {
         for (uint32_t i = 0; i < resources->m_DDF->m_Tags.m_Count; ++i)
         {
-            dmRender::AddMaterialTag(material, dmHashString32(resources->m_DDF->m_Tags[i]));
+            dmRender::AddMaterialTag(material, dmHashString64(resources->m_DDF->m_Tags[i]));
         }
 
         dmRenderDDF::MaterialDesc::Constant* fragment_constant = resources->m_DDF->m_FragmentConstants.m_Data;

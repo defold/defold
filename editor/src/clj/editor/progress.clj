@@ -12,6 +12,8 @@
    {:pre [(<= pos size)]}
    {:message msg :size size :pos pos}))
 
+(def done (make "Done" 1 1))
+
 (defn message [p msg]
   (assoc p :message msg))
 

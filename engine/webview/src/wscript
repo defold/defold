@@ -7,9 +7,7 @@ def configure(conf):
 def build(bld):
     embed_source = ''
     source = ['webview_common.cpp']
-
-    print "bld.env.PLATFORM", bld.env.PLATFORM
-
+    
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ['webview_ios.mm']
     elif re.match('.*?android', bld.env.PLATFORM):

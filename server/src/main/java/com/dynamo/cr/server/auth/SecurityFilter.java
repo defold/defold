@@ -1,21 +1,5 @@
 package com.dynamo.cr.server.auth;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.security.Principal;
-
-import javax.inject.Inject;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.SecurityContext;
-import javax.ws.rs.core.UriInfo;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
@@ -23,34 +7,62 @@ import com.dynamo.cr.server.model.User.Role;
 import com.sun.jersey.api.container.MappableContainerException;
 import com.sun.jersey.spi.container.ContainerRequest;
 import com.sun.jersey.spi.container.ContainerRequestFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
+import javax.inject.Inject;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.SecurityContext;
+import javax.ws.rs.core.UriInfo;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.security.Principal;
+import java.util.Objects;
 
 public class SecurityFilter implements ContainerRequestFilter {
 
-    protected static Logger logger = LoggerFactory.getLogger(SecurityFilter.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SecurityFilter.class);
+    private static final String REALM = "Defold";
+
+    /**
+     * A request to a path that exactly matches any string in the array will be skipped by this filter.
+     */
+    private static final String[] SKIP_REQUEST_PATHS_EQUALS = {"/login"};
+
+    /**
+     * A request to a path that starts with any string in the array will be skipped by this filter.
+     */
+    private static final String[] SKIP_REQUEST_PATHS_PREFIXED = {"/login/openid/google", "/login/oauth/google",
+            "/login/openid/yahoo", "/login/openid/exchange", "/login/openid/register","/login/oauth/exchange",
+            "/login/oauth/register", "/prospects", "/discourse/sso"};
 
     @Context
     UriInfo uriInfo;
 
-    private static final String REALM = "HTTPS Example authentication";
+    @Context
+    HttpServletRequest httpServletRequest;
 
     @Inject
     private EntityManagerFactory emf;
 
+    @Inject
+    private AccessTokenAuthenticator accessTokenAuthenticator;
+
     @Override
     public ContainerRequest filter(ContainerRequest request) {
         MDC.put("userId", Long.toString(-1));
+
         String path = request.getAbsolutePath().getPath();
-        if (!path.equals("/login")
-                && !path.startsWith("/login/openid/google")
-                && !path.startsWith("/login/oauth/google")
-                && !path.startsWith("/login/openid/yahoo")
-                && !path.startsWith("/login/openid/exchange") && !path.startsWith("/login/openid/register")
-                && !path.startsWith("/login/oauth/exchange") && !path.startsWith("/login/oauth/register")
-                && !path.startsWith("/prospects")) {
-            // Only authenticate users for paths != /login or != /login/openid or != /prospects
+
+        if (processRequestPath(path)) {
             User user = authenticate(request);
             request.setSecurityContext(new Authorizer(user));
+
             if (user != null && user.getId() != null /* id is null for anonymous */) {
                 MDC.put("userId", Long.toString(user.getId()));
             }
@@ -59,9 +71,21 @@ public class SecurityFilter implements ContainerRequestFilter {
         return request;
     }
 
+    private boolean processRequestPath(String path) {
+        for (String s : SKIP_REQUEST_PATHS_EQUALS) {
+            if (path.equals(s)) {
+                return false;
+            }
+        }
+        for (String s : SKIP_REQUEST_PATHS_PREFIXED) {
+            if (path.startsWith(s)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private User authenticate(ContainerRequest request) {
-        String authToken = request.getHeaderValue("X-Auth");
-        String email = request.getHeaderValue("X-Email");
 
         if (request.getMethod().equals("OPTIONS")) {
             // Skip authentication for method OPTION
@@ -73,24 +97,25 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         EntityManager em = emf.createEntityManager();
 
+        /*
+            X-header authentication.
+         */
+        String authToken = request.getHeaderValue("X-Auth");
+        String email = request.getHeaderValue("X-Email");
+
         if (authToken != null && email != null) {
             try {
                 email = URLDecoder.decode(email, "UTF-8");
-                User user = ModelUtil.findUserByEmail(em, email);
-                if (user != null && AuthToken.auth(email, authToken)) {
-                    return user;
-                } else {
-                    throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
-                }
-
             } catch (UnsupportedEncodingException e) {
                 throw new RuntimeException(e);
             }
+            return authenticateAccessToken(email, authToken, em);
         }
 
-        // Extract authentication credentials
-        String authentication = request
-                .getHeaderValue(ContainerRequest.AUTHORIZATION);
+        /*
+            Basic authentication.
+         */
+        String authentication = request.getHeaderValue(ContainerRequest.AUTHORIZATION);
 
         if (authentication != null && authentication.startsWith("Basic ")) {
             /*
@@ -102,8 +127,7 @@ public class SecurityFilter implements ContainerRequestFilter {
              */
 
             authentication = authentication.substring("Basic ".length());
-            String[] values = new String(Base64.base64Decode(authentication))
-                    .split(":");
+            String[] values = Base64.base64Decode(authentication).split(":");
             if (values.length < 2) {
                 throw new WebApplicationException(400);
                 // "Invalid syntax for username and password"
@@ -119,7 +143,7 @@ public class SecurityFilter implements ContainerRequestFilter {
             User user = ModelUtil.findUserByEmail(em, username);
             if (user != null && user.authenticate(password)) {
                 return user;
-            } else if (user != null && AuthToken.auth(username, password)) {
+            } else if (user != null && accessTokenAuthenticator.authenticate(user, password, httpServletRequest.getRemoteAddr())) {
                 // NOTE: This is rather messy. We also support
                 // auth-cookie login using http basic auth.
                 // Should perhaps deprecate X-Auth and use basic auth for
@@ -128,31 +152,38 @@ public class SecurityFilter implements ContainerRequestFilter {
                 // are used in tests
                 return user;
             } else {
-                logger.warn("User authentication failed");
-                throw new MappableContainerException(new AuthenticationException(
-                        "Invalid username or password", REALM));
+                LOGGER.warn("User authentication failed for user {}", email);
+                throw new MappableContainerException(new AuthenticationException("Invalid username or password", REALM));
             }
-        } else {
-            /*
-             * This experimental. Return an anonymous user if not
-             * authToken/email header is set. We could perhaps get rid of
-             * !path.startsWith("..") above?
-             * The first test is to allow anonymous download of the engine using
-             * a provided secret key in the url
-             */
-            User anonymous = new User();
-            anonymous.setEmail("anonymous");
-            anonymous.setRole(Role.ANONYMOUS);
-            return anonymous;
         }
+
+        /*
+         * This experimental. Return an anonymous user if not
+         * authToken/email header is set. We could perhaps get rid of
+         * !path.startsWith("..") above?
+         * The first test is to allow anonymous download of the engine using
+         * a provided secret key in the url
+         */
+        User anonymous = new User();
+        anonymous.setEmail("anonymous");
+        anonymous.setRole(Role.ANONYMOUS);
+        return anonymous;
     }
 
-    public class Authorizer implements SecurityContext {
+    private User authenticateAccessToken(String email, String token, EntityManager entityManager) {
+        User user = ModelUtil.findUserByEmail(entityManager, email);
+        if (user != null && accessTokenAuthenticator.authenticate(user, token, httpServletRequest.getRemoteAddr())) {
+            return user;
+        }
+        LOGGER.warn("User authentication failed for user {}", email);
+        throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
+    }
 
-        private User user;
-        private Principal principal;
+    private class Authorizer implements SecurityContext {
+        private final User user;
+        private final Principal principal;
 
-        public Authorizer(final User user) {
+        Authorizer(User user) {
             this.user = user;
             this.principal = new UserPrincipal(user);
         }
@@ -164,28 +195,29 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         @Override
         public boolean isUserInRole(String role) {
-            if (role.equals("admin")) {
-                return user.getRole() == Role.ADMIN;
-            }
-            else if (role.equals("owner")) {
-                long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
-                for (Project p : user.getProjects()) {
-                    if (p.getId().longValue() == projectId && p.getOwner().getId() == user.getId())
-                        return true;
+            switch (role) {
+                case "admin":
+                    return user.getRole() == Role.ADMIN;
+                case "owner": {
+                    long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                    for (Project p : user.getProjects()) {
+                        if (p.getId() == projectId && Objects.equals(p.getOwner().getId(), user.getId()))
+                            return true;
+                    }
+                    break;
                 }
-            }
-            else if (role.equals("member")) {
-                long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
-                for (Project p : user.getProjects()) {
-                    if (p.getId().longValue() == projectId)
-                        return true;
+                case "member": {
+                    long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                    for (Project p : user.getProjects()) {
+                        if (p.getId() == projectId)
+                            return true;
+                    }
+                    break;
                 }
-            }
-            else if (role.equals("user")) {
-                return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
-            }
-            else if (role.equals("anonymous")) {
-                return true;
+                case "user":
+                    return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
+                case "anonymous":
+                    return true;
             }
             return false;
         }

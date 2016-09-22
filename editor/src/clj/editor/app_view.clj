@@ -2,16 +2,19 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
+            [editor.github :as github]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.graph-util :as gu]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
@@ -34,6 +37,7 @@
            [javafx.stage Stage FileChooser]
            [javafx.util Callback]
            [java.io File ByteArrayOutputStream]
+           [java.net URI]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
@@ -48,15 +52,15 @@
 
   (input outline g/Any)
 
-  (output active-tab Tab (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
-  (output active-outline g/Any :cached (g/fnk [outline] outline))
-  (output active-resource (g/protocol resource/Resource) (g/fnk [^Tab active-tab]
-                                                                 (when active-tab
-                                                                   (ui/user-data active-tab ::resource))))
-  (output active-view g/NodeID (g/fnk [^Tab active-tab]
-                                      (when active-tab
-                                        (ui/user-data active-tab ::view))))
-  (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (ui/user-data tab ::resource)) (.getTabs tab-pane)))))
+  (output active-tab Tab :cached (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
+  (output active-outline g/Any :cached (gu/passthrough outline))
+  (output active-resource resource/Resource :cached (g/fnk [^Tab active-tab]
+                                                           (when active-tab
+                                                             (ui/user-data active-tab ::resource))))
+  (output active-view g/NodeID :cached (g/fnk [^Tab active-tab]
+                                              (when active-tab
+                                                (ui/user-data active-tab ::view))))
+  (output open-resources g/Any :cached (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (ui/user-data tab ::resource)) (.getTabs tab-pane)))))
 
 (defn- invalidate [node label]
   (g/invalidate! [[node label]]))
@@ -97,16 +101,16 @@
 
 (ui/extend-menu :toolbar nil
                 [{:id :select
-                  :icon "icons/Icons_T_01_Select.png"
+                  :icon "icons/45/Icons_T_01_Select.png"
                   :command :select-tool}
                  {:id :move
-                  :icon "icons/Icons_T_02_Move.png"
+                  :icon "icons/45/Icons_T_02_Move.png"
                   :command :move-tool}
                  {:id :rotate
-                  :icon "icons/Icons_T_03_Rotate.png"
+                  :icon "icons/45/Icons_T_03_Rotate.png"
                   :command :rotate-tool}
                  {:id :scale
-                  :icon "icons/Icons_T_04_Scale.png"
+                  :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
@@ -127,20 +131,16 @@
       (Platform/exit))))
 
 (handler/defhandler :new :global
-  (enabled? [] true)
   (run [] (prn "NEW NOW!")))
 
 (handler/defhandler :open :global
-  (enabled? [] true)
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
 (handler/defhandler :logout :global
-  (enabled? [] true)
   (run [prefs] (login/logout prefs)))
 
 (handler/defhandler :preferences :global
-  (enabled? [] true)
   (run [prefs] (prefs-dialog/open-prefs prefs)))
 
 (defn- remove-tab [^TabPane tab-pane ^Tab tab]
@@ -163,6 +163,15 @@
 (defn- get-tabs [app-view]
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
+
+(handler/defhandler :hot-reload :global
+  (enabled? [app-view]
+            (g/node-value app-view :active-resource))
+  (run [project app-view prefs build-errors-view]
+    (when-let [resource (g/node-value app-view :active-resource)]
+      (let [build (project/build-and-save-project project build-errors-view)]
+        (when (and (future? build) @build)
+            (engine/reload-resource (:url (project/get-selected-target prefs)) resource))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -198,12 +207,19 @@
     (.setScene stage scene)
     (ui/show! stage)))
 
+(handler/defhandler :documentation :global
+  (run [] (.browse (Desktop/getDesktop) (URI. "http://www.defold.com/learn/"))))
+
+(handler/defhandler :report-issue :global
+  (run [] (.browse (Desktop/getDesktop) (github/new-issue-link))))
+
+(handler/defhandler :report-praise :global
+  (run [] (.browse (Desktop/getDesktop) (github/new-praise-link))))
+
 (handler/defhandler :about :global
-  (enabled? [] true)
   (run [] (make-about-dialog)))
 
 (handler/defhandler :reload-stylesheet :global
-  (enabled? [] true)
   (run [] (ui/reload-root-styles!)))
 
 (ui/extend-menu ::menubar nil
@@ -225,6 +241,9 @@
                               :acc "Shift+Shortcut+F"
                               :command :search-in-files}
                              {:label :separator}
+                             {:label "Hot Reload"
+                              :acc "Shortcut+R"
+                              :command :hot-reload}
                              {:label "Close"
                               :acc "Shortcut+W"
                               :command :close}
@@ -284,11 +303,20 @@
                              {:label "Reload Stylesheet"
                               :acc "F5"
                               :command :reload-stylesheet}
+                             {:label "Documentation"
+                              :command :documentation}
+                             {:label "Report Issue"
+                              :command :report-issue}
+                             {:label "Report Praise"
+                              :command :report-praise}
                              {:label "About"
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Close"
+                [{:label "Hot Reload"
+                  :acc "Shortcut+R"
+                  :command :hot-reload}
+                 {:label "Close"
                   :acc "Shortcut+W"
                   :command :close}
                  {:label "Close Others"
@@ -316,12 +344,18 @@
 (defn- refresh-views! [app-view]
   (let [auto-pulls (g/node-value app-view :auto-pulls)]
     (doseq [[node label] auto-pulls]
-      (profiler/profile "view" (:name (g/node-type* node))
+      (profiler/profile "view" (:name @(g/node-type* node))
                         (g/node-value node label)))))
+
+;; Here only because reports indicate that isDesktopSupported does
+;; some kind of initialization behind the scenes on Linux:
+;; http://stackoverflow.com/questions/23176624/javafx-freeze-on-desktop-openfile-desktop-browseuri
+(def desktop-supported? (delay (Desktop/isDesktopSupported)))
 
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
+  (force desktop-supported?)
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
     (-> tab-pane
       (.getSelectionModel)
@@ -341,8 +375,8 @@
     (ui/register-toolbar (.getScene stage) "#toolbar" :toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
-    (let [refresh-timers [(ui/->timer 2 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
-                          (ui/->timer 10 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
+    (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
+                          (ui/->timer 13 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
       (doseq [timer refresh-timers]
         (ui/timer-stop-on-close! stage timer)
         (ui/timer-start! timer)))
@@ -435,7 +469,6 @@
     (open-resource app-view workspace project resource)))
 
 (handler/defhandler :open-asset :global
-  (enabled? [] true)
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
 (defn- make-search-in-files-dialog [workspace project app-view]
@@ -447,17 +480,15 @@
       (open-resource app-view workspace project resource opts))))
 
 (handler/defhandler :search-in-files :global
-  (enabled? [] true)
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
-(defn- fetch-libraries [workspace project]
+(defn- fetch-libraries [workspace project prefs]
   (workspace/set-project-dependencies! workspace (project/project-dependencies project))
   (future
     (ui/with-disabled-ui
       (ui/with-progress [render-fn ui/default-render-progress!]
-        (workspace/update-dependencies! workspace render-fn)
+        (workspace/update-dependencies! workspace render-fn (partial login/login prefs))
         (workspace/resource-sync! workspace true [] render-fn)))))
 
 (handler/defhandler :fetch-libraries :global
-  (enabled? [] true)
-  (run [workspace project] (fetch-libraries workspace project)))
+  (run [workspace project prefs] (fetch-libraries workspace project prefs)))

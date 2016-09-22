@@ -16,12 +16,14 @@
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.spine.proto Spine$SpineScene]
+           [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.gui.proto Gui$SceneDesc]
+           [com.dynamo.spine.proto Spine$SpineModelDesc]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -30,7 +32,7 @@
            [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
-(def project-path "resources/build_project/SideScroller")
+(def project-path "test/resources/build_project/SideScroller")
 
 (defn- ->BuildResource
   ([project path]
@@ -39,15 +41,55 @@
    (let [node (test-util/resource-node project path)]
      (workspace/make-build-resource (g/node-value node :resource) prefix))))
 
+(def target-pb-classes {"skeletonc" Rig$Skeleton
+                        "animationsetc" Rig$AnimationSet
+                        "meshsetc" Rig$MeshSet
+                        "texturesetc" TextureSetProto$TextureSet})
+
+(defn- target [path targets]
+  (let [ext (FilenameUtils/getExtension path)
+        pb-class (get target-pb-classes ext)]
+    (protobuf/bytes->map pb-class (get targets path))))
+
 (def pb-cases [{:label    "ParticleFX"
                 :path     "/main/blob.particlefx"
                 :pb-class Particle$ParticleFX
-                :test-fn  (fn [pb]
+                :test-fn  (fn [pb targets]
                             (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
                {:label           "Sound"
                 :path            "/main/sound.sound"
                 :pb-class        Sound$SoundDesc
-                :resource-fields [:sound]}])
+                :resource-fields [:sound]}
+               {:label           "Collision Object"
+                :path            "/collisionobject/tile_map.collisionobject"
+                :pb-class        Physics$CollisionObjectDesc
+                :resource-fields [:collision-shape]}
+               {:label           "Collision Object"
+                :path            "/collisionobject/convex_shape.collisionobject"
+                :pb-class        Physics$CollisionObjectDesc
+                :test-fn (fn [pb targets]
+                           (is (= "" (:collision-shape pb)))
+                           (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
+               {:label           "Tile Source"
+                :path            "/tile_source/simple.tilesource"
+                :pb-class        TextureSetProto$TextureSet
+                :test-fn (fn [pb targets]
+                           (is (= "default" (:collision-group (first (:convex-hulls pb)))))
+                           (is (< 0 (count (:convex-hull-points pb)))))}
+               {:label "Spine Scene"
+                :path "/player/spineboy.spinescene"
+                :pb-class Rig$RigScene
+                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                :test-fn (fn [pb targets]
+                           (is (some? (-> pb :texture-set (target targets) :texture)))
+                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+               {:label "Spine Model"
+                :path "/player/spineboy.spinemodel"
+                :pb-class Spine$SpineModelDesc
+                :resource-fields [:spine-scene :material]}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -56,7 +98,7 @@
           test-fn    (:test-fn case)
           res-fields [:sound]]
       (when test-fn
-        (test-fn pb))
+        (test-fn pb content-by-target))
       (doseq [field (:resource-fields case)]
         (is (contains? content-by-target (get pb field)))
         (is (> (count (get content-by-target (get pb field))) 0))))))
@@ -86,8 +128,10 @@
                        "/builtins/render/default.render"
                        "/builtins/render/default.render_script"
                        "/background/bg.png"
-                       "/builtins/graphics/particle_blob.tilesource"
-                       "/main/blob.tilemap"]
+                       "/tile_source/simple.tilesource"
+                       "/main/blob.tilemap"
+                       "/collisionobject/tile_map.collisionobject"
+                       "/collisionobject/convex_shape.collisionobject"]
           exp-exts    ["vpc" "fpc" "texturec"]]
       (doseq [case pb-cases]
         (run-pb-case case content-by-source content-by-target))
@@ -248,11 +292,11 @@
             path              "/background/background.atlas"
             resource-node     (test-util/resource-node project path)
             _                 (g/set-property! resource-node :margin -42)
-            error-message     (atom nil)
+            build-error       (atom nil)
             build-results     (project/build project resource-node {:render-progress! progress/null-render-progress!
-                                                                    :render-error!    #(reset! error-message %)})]
+                                                                    :render-error!    #(reset! build-error %)})]
         (is (nil? build-results))
-        (is (= "Build error [background.atlas] 'Margin must be greater than or equal to zero'" @error-message))))))
+        (is (instance? internal.graph.error_values.ErrorValue @build-error))))))
 
 (deftest build-font
   (testing "Building font"
@@ -262,30 +306,19 @@
         (is (= 1024 (:cache-width desc)))
         (is (= 256 (:cache-height desc)))))))
 
-(deftest build-spine-scene
-  (testing "Building spine scene"
-    (with-build-results "/player/spineboy.spinescene"
-      (let [content (get content-by-source "/player/spineboy.spinescene")
-            desc    (Spine$SpineScene/parseFrom content)
-            bones   (-> desc (.getSkeleton) (.getBonesList))
-            meshes  (-> desc (.getMeshSet) (.getMeshEntriesList) (first) (.getMeshesList))]
-        (is (contains? content-by-target (.getTextureSet desc)))))))
-
 (deftest build-mesh
   (testing "Building mesh"
     (with-build-results "/model/book_of_defold.dae"
       (let [content (get content-by-source "/model/book_of_defold.dae")
             desc    (Mesh$MeshDesc/parseFrom content)]
-        #_(prn desc)
-        #_(is (contains? content-by-target (.getTextureSet desc)))))))
+        (is (= "Book" (-> desc (.getComponentsList) (first) (.getName))))))))
 
 (deftest build-model
   (testing "Building model"
     (with-build-results "/model/book_of_defold.model"
       (let [content (get content-by-source "/model/book_of_defold.model")
             desc    (Model$ModelDesc/parseFrom content)]
-        #_(prn desc)
-        #_(is (contains? content-by-target (.getTextureSet desc)))))))
+        (is (= "/model/book_of_defold.meshc" (-> desc (.getMesh))))))))
 
 (deftest build-script-properties
   (with-build-results "/script/props.collection"
@@ -383,8 +416,8 @@
           atlas-path          "/background/background.atlas"
           atlas-resource-node (test-util/resource-node project atlas-path)
           _                   (g/set-property! atlas-resource-node :inner-padding -42)
-          error-message       (atom nil)
+          build-error         (atom nil)
           build-results       (project/build project resource-node {:render-progress! progress/null-render-progress!
-                                                                    :render-error!    #(reset! error-message %)})]
+                                                                    :render-error!    #(reset! build-error %)})]
       (is (nil? build-results))
-      (is (= "Build error [background.atlas] 'Inner padding must be greater than or equal to zero'" @error-message)))))
+      (is (instance? internal.graph.error_values.ErrorValue @build-error)))))

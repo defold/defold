@@ -5,7 +5,6 @@
 #include <dlib/profile.h>
 
 #include "sound.h"
-#include "sound2.h"
 #include "sound_decoder.h"
 
 #if DM_ENDIAN == DM_ENDIAN_LITTLE

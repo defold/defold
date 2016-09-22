@@ -20,9 +20,18 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Sound API documentation
+     *
+     * Functions and messages for controlling sound components and
+     * mixer groups.
+     *
+     * @name Sound
+     * @namespace sound
+     */
+
     /*# check if background music is playing
      * Checks if background music is playing, e.g. from iTunes
-    *
+     *
      * @name sound.is_music_playing
      * @return true if music is playing (bool)
      */
@@ -52,7 +61,8 @@ namespace dmGameSystem
      * @param group group name (hash|string)
      * @param window window length in seconds (number)
      * @name sound.get_rms
-     * @return rms values for left and right channel
+     * @return rms value for left channel (number)
+     * @return rms value for right channel (number)
      */
     int Sound_GetRMS(lua_State* L)
     {
@@ -83,7 +93,8 @@ namespace dmGameSystem
      * @param group group name (hash|string)
      * @param window window length in seconds (number)
      * @name sound.get_peak
-     * @return peak values for left and right channel
+     * @return peak value for left channel (number)
+     * @return peak value for right channel (number)
      */
     int Sound_GetPeak(lua_State* L)
     {
@@ -202,6 +213,21 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# check if a phone call is active
+     * Checks if a phone call is active. If there is an active phone call all
+     * other sounds will be muted until the phone call is finished.
+     *
+     * @name sound.is_phone_call_active
+     * @return true if there is an active phone call (bool)
+     */
+    int Sound_IsPhoneCallActive(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        lua_pushboolean(L, (int) dmSound::IsPhoneCallActive());
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg SOUND_FUNCTIONS[] =
     {
         {"is_music_playing", Sound_IsMusicPlaying},
@@ -211,6 +237,7 @@ namespace dmGameSystem
         {"get_group_gain", Sound_GetGroupGain},
         {"get_groups", Sound_GetGroups},
         {"get_group_name", Sound_GetGroupName},
+        {"is_phone_call_active", Sound_IsPhoneCallActive},
         {0, 0}
     };
 

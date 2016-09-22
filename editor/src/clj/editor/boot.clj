@@ -1,38 +1,45 @@
 (ns editor.boot
-  (:require [clojure.java.io :as io]
-            [clojure.stacktrace :as stack]
-            [dynamo.graph :as g]
-            [editor.import :as import]
-            [editor.prefs :as prefs]
-            [editor.progress :as progress]
-            [editor.ui :as ui]
-            [service.log :as log])
-  (:import [com.defold.control ListCell]
-           [javafx.scene Scene Parent]
-           [javafx.scene.control Button Control Label ListView]
-           [javafx.scene.input MouseEvent]
-           [javafx.scene.layout VBox]
-           [javafx.stage Stage]
-           [javafx.util Callback]
-           [java.io File]))
+  (:require
+   [clojure.java.io :as io]
+   [clojure.pprint :as pprint]
+   [clojure.stacktrace :as stack]
+   [dynamo.graph :as g]
+   [editor.dialogs :as dialogs]
+   [editor.import :as import]
+   [editor.prefs :as prefs]
+   [editor.progress :as progress]
+   [editor.sentry :as sentry]
+   [editor.ui :as ui]
+   [service.log :as log])
+  (:import
+   [com.defold.control ListCell]
+   [java.io File]
+   [java.util.concurrent.atomic AtomicReference]
+   [javafx.scene Scene Parent]
+   [javafx.scene.control Button Control Label ListView]
+   [javafx.scene.input MouseEvent]
+   [javafx.scene.layout VBox]
+   [javafx.stage Stage]
+   [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
-(declare main)
+(def namespace-counter (atom 0))
+(def namespace-progress-reporter (atom nil))
 
-(defmacro deferred
-   "Loads and runs a function dynamically to defer loading the namespace.
-    Usage: \"(deferred clojure.core/+ 1 2 3)\" returns 6.  There's no issue
-    calling require multiple times on an ns."
-   [fully-qualified-func & args]
-   (let [func (symbol (name fully-qualified-func))
-         space (symbol (namespace fully-qualified-func))]
-     `(do
-        (try (require '~space)
-          (catch Throwable t#
-                  (prn "Error requiring ns" t#)))
-        (let [v# (ns-resolve '~space '~func)]
-          (v# ~@args)))))
+(alter-var-root (var clojure.core/load-lib)
+                (fn [f]
+                  (fn [prefix lib & options]
+                    (swap! namespace-counter inc)
+                    (when @namespace-progress-reporter
+                      (@namespace-progress-reporter
+                       #(assoc %
+                               :message (str "Initializing editor " (if prefix
+                                                                      (str prefix "." lib)
+                                                                      (str lib)))
+                               :pos @namespace-counter)))
+                    (apply f prefix lib options))))
+
 
 (defn- add-to-recent-projects [prefs project-file]
   (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
@@ -53,7 +60,7 @@
     (.addAll (.getChildren vbox) controls)
     vbox))
 
-(defn open-welcome [prefs]
+(defn open-welcome [prefs cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
         stage (Stage.)
         scene (Scene. root)
@@ -67,18 +74,18 @@
                                           ; In other words, we can't reuse the welcome page and it has to be closed.
                                           ; We should potentially changed this when we have uberjar support and hence
                                           ; faster loading.
-                                          (main [file-name]))))
+                                          (cont file-name))))
 
     (ui/on-action! import-project (fn [_] (when-let [file-name (import/open-import-dialog prefs)]
                                             (ui/close! stage)
                                             ; See comment above about main and class-loaders
-                                            (main [file-name]))))
+                                            (cont file-name))))
 
     (.setOnMouseClicked recent-projects (ui/event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                                               (when-let [file (-> recent-projects (.getSelectionModel) (.getSelectedItem))]
                                                                 (ui/close! stage)
                                                                 ; See comment above about main and class-loaders
-                                                                (main [(.getAbsolutePath ^File file)])))))
+                                                                (cont (.getAbsolutePath ^File file))))))
     (.setCellFactory recent-projects (reify Callback (call ^ListCell [this view]
                                                        (proxy [ListCell] []
                                                          (updateItem [file empty]
@@ -97,37 +104,82 @@
     (.setResizable stage false)
     (ui/show! stage)))
 
-(def namespaces-loaded (promise))
+(defn- load-namespaces-in-background
+  []
+  ;; load the namespaces of the project with all the defnode
+  ;; creation in the background
+  (future
+    (require 'editor.boot-open-project)))
+
+(defn- open-project-with-progress-dialog
+  [namespace-loader prefs project]
+  (ui/modal-progress
+   "Loading project" 100
+   (fn [render-progress!]
+     (let [progress (atom (progress/make "Loading project" 733))
+           project-file (io/file project)]
+       (reset! namespace-progress-reporter #(render-progress! (swap! progress %)))
+       (render-progress! (swap! progress progress/message "Initializing project"))
+       ;; ensure that namespace loading has completed
+       @namespace-loader
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
+       (add-to-recent-projects prefs project)
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-progress!])
+       (reset! namespace-progress-reporter nil)))))
+
+(defn- select-project-from-welcome
+  [namespace-loader prefs]
+  (ui/run-later
+   (open-welcome prefs
+                 (fn [project]
+                   (open-project-with-progress-dialog namespace-loader prefs project)))))
+
+
+;; Exception alerting.
+
+;; keep track of last exception so we can alert only on new ones
+(def ^:private ^AtomicReference last-exception (AtomicReference.))
+
+(defn new-exception?
+  [ex-map]
+  (let [last (.getAndSet last-exception ex-map)]
+    (not= last ex-map)))
+
+(defn display-exception [ex]
+  (let [ex-map (Throwable->map ex)]
+    (when (new-exception? ex-map)
+      (let [message (with-out-str (clojure.pprint/pprint ex-map))]
+        (ui/run-now (dialogs/make-alert-dialog message))))))
+
+(defn setup-exception-handling!
+  []
+  (let [exception-reporter (sentry/make-exception-reporter {:project-id "97739"
+                                                            :key "9e25fea9bc334227b588829dd60265c1"
+                                                            :secret "f694ef98d47d42cf8bb67ef18a4e9cdb"})]
+    (Thread/setDefaultUncaughtExceptionHandler
+      (reify Thread$UncaughtExceptionHandler
+        (uncaughtException [_ thread exception]
+          (log/error :exception exception :msg "uncaught exception")
+          (exception-reporter exception thread)
+          (display-exception exception))))))
 
 (defn main [args]
-  (Thread/setDefaultUncaughtExceptionHandler
-   (reify Thread$UncaughtExceptionHandler
-     (uncaughtException [_ thread exception]
-       (log/error :exception exception :msg "uncaught exception"))))
-  (let [prefs (prefs/make-prefs "defold")]
-    (if (= (count args) 0)
-      (do
-        ;; load the namespaces of the project with all the defnode
-        ;; creation in the background while the open-welcome is coming
-        ;; up and the user is browsing for a project
-        (future ((fn [p]
-                   (deferred editor.boot-open-project/load-namespaces)
-                   (deliver p true)) namespaces-loaded))
-        (ui/run-later (open-welcome prefs)))
-      (try
-        (ui/modal-progress "Loading project" 100
-                           (fn [render-progress!]
-                             (do
-                               (let [progress  (atom (progress/make "Loading project" 1))]
-                                 (render-progress! (swap! progress progress/message "Initializing project"))
-                                 ;; ensure the the namespaces have been loaded
-                                 @namespaces-loaded
-                                 (deferred editor.boot-open-project/initialize-project)
-                                 (let [project-file (first args)]
-                                   (add-to-recent-projects prefs project-file)
-                                   (deferred editor.boot-open-project/open-project (io/file project-file) prefs render-progress!))))))
-        (catch Throwable t
-          (log/error :exception t)
-          (stack/print-stack-trace t)
-          (.flush *out*)
-          (System/exit -1))))))
+  ;; note - the default exception handler gets reset each time a new
+  ;; project is opened. this _probably_ doesn't cause any issues, just
+  ;; don't rely on the identity of the handler.
+  (setup-exception-handling!)
+  (let [namespace-loader (load-namespaces-in-background)
+        prefs            (prefs/make-prefs "defold")]
+    (try
+      (if (= (count args) 0)
+        (select-project-from-welcome namespace-loader prefs)
+        (open-project-with-progress-dialog namespace-loader prefs (first args)))
+      (catch Throwable t
+        (log/error :exception t)
+        (stack/print-stack-trace t)
+        (.flush *out*)
+        ;; note - i'm not sure System/exit is a good idea here. it
+        ;; means that failing to open one project causes the whole
+        ;; editor to quit, maybe losing unsaved work in other open
+        ;; projects.
+        (System/exit -1)))))

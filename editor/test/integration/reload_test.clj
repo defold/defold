@@ -17,7 +17,7 @@
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.spine.proto Spine$SpineScene]
+           [com.dynamo.rig.proto Rig$RigScene]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
            [editor.types Region]
@@ -30,7 +30,7 @@
            [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils FileUtils]))
 
-(def ^:dynamic *project-path* "resources/reload_project")
+(def ^:dynamic *project-path* "test/resources/reload_project")
 
 (defn- setup-scratch
   ([ws-graph] (setup-scratch ws-graph *project-path*))
@@ -264,18 +264,18 @@
 (deftest project-with-missing-parts-can-be-saved
   ;; missing embedded game object, sub collection
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "resources/missing_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/missing_project"))]
       (is (not (g/error? (project/save-data project)))))))
 
 (deftest project-with-nil-parts-can-be-saved
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "resources/nil_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/nil_project"))]
       (is (not (g/error? (project/save-data project)))))))
 
-(deftest broken-project-cannot-be-saved
+(deftest broken-project-can-be-saved
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "resources/broken_project"))]
-      (is (g/error? (project/save-data project))))))
+    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/broken_project"))]
+      (is (not (g/error? (project/save-data project)))))))
 
 (defn- gui-node [scene id]
   (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])

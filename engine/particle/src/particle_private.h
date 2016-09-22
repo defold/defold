@@ -15,6 +15,7 @@ namespace dmParticle
 
     struct EmitterPrototype;
     struct Prototype;
+    struct EmitterStateChangedData;
 
     /**
      * Key when sorting particles, based on life time with additional index for stable sort
@@ -81,14 +82,6 @@ namespace dmParticle
         SortKey     m_SortKey;
     };
 
-    enum EmitterState
-    {
-        EMITTER_STATE_SLEEPING = 0,
-        EMITTER_STATE_PRESPAWN = 1,
-        EMITTER_STATE_SPAWNING = 2,
-        EMITTER_STATE_POSTSPAWN = 3,
-    };
-
     /**
      * Representation of an emitter.
      */
@@ -132,7 +125,9 @@ namespace dmParticle
     {
         Instance()
         : m_Emitters()
+        , m_NumAwakeEmitters(0)
         , m_Prototype(0x0)
+        , m_EmitterStateChangedData()
         , m_PlayTime(0.0f)
         , m_VersionNumber(0)
         , m_ScaleAlongZ(0)
@@ -140,12 +135,16 @@ namespace dmParticle
             m_WorldTransform.SetIdentity();
         }
 
-        // Emitter buffer
+        /// Emitter buffer
         dmArray<Emitter>        m_Emitters;
+        /// Number of awake emitters
+        uint32_t                m_NumAwakeEmitters;
         /// World transform of the emitter.
         dmTransform::TransformS1 m_WorldTransform;
         /// DDF resource.
         Prototype*              m_Prototype;
+        /// Emitter state changed callback
+        EmitterStateChangedData m_EmitterStateChangedData;
         /// Used when reloading to fast forward new emitters
         float                   m_PlayTime;
         /// Version number used to check that the handle is still valid.

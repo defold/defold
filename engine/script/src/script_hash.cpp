@@ -16,6 +16,15 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Built-ins API documentation
+     *
+     * Built-in scripting functions.
+     * 
+     * @name Built-ins
+     * @namespace builtins
+     */
+
+
     #define SCRIPT_TYPE_NAME_HASH "hash"
     #define SCRIPT_HASH_TABLE "__script_hash_table"
 
@@ -146,13 +155,31 @@ namespace dmScript
     dmhash_t CheckHash(lua_State* L, int index)
     {
         dmhash_t* lua_hash = 0x0;
-        if (lua_isuserdata(L, index))
+        if (IsHash(L, index))
         {
             lua_hash = (dmhash_t*)lua_touserdata(L, index);
             return *lua_hash;
         }
 
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_HASH);
+        return 0;
+    }
+
+    dmhash_t CheckHashOrString(lua_State* L, int index)
+    {
+        dmhash_t* lua_hash = 0x0;
+        if (IsHash(L, index))
+        {
+            lua_hash = (dmhash_t*)lua_touserdata(L, index);
+            return *lua_hash;
+        }
+        else if( lua_type(L, index) == LUA_TSTRING )
+        {
+            const char* s = lua_tostring(L, index);
+            return dmHashString64(s);
+        }
+
+        luaL_typerror(L, index, "hash or string");
         return 0;
     }
 

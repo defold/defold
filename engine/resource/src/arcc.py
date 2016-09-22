@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import stat, os, sys, struct, dlib
+import stat, os, sys, struct, dlib, signal
 from optparse import OptionParser
 
 ENCRYPTED_EXTS = [".luac", ".scriptc", ".gui_scriptc", ".render_scriptc"]
@@ -18,7 +18,7 @@ class Entry(object):
         if compress == True:
             tmp_buf = f.read()
             max_compressed_size = dlib.dmLZ4MaxCompressedSize(size)
-            self.resource = dlib.dmLZ4CompressBuffer(tmp_buf, max_compressed_size)
+            self.resource = dlib.dmLZ4CompressBuffer(tmp_buf, size, max_compressed_size)
             self.compressed_size = len(self.resource)
             # Store uncompressed if gain is less than 5%
             # We believe that the shorter load time will compensate in this case.

@@ -188,6 +188,15 @@ namespace dmScript
     dmhash_t CheckHash(lua_State* L, int index);
 
     /**
+     * Check if the value in the supplied index on the lua stack is a hash or string.
+     * If it is a string, it gets hashed on the fly
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The hash value
+     */
+    dmhash_t CheckHashOrString(lua_State* L, int index);
+
+    /**
      * Check if the value at #index is a FloatVector
      * @param L Lua state
      * @param index Index of the value

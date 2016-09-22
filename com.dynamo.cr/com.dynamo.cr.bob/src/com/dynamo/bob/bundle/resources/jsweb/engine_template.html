@@ -69,6 +69,9 @@
 			archive_location_filter: function( path ) {
 				return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
 			},
+            {{#HAS_DEFOLD_ENGINE_ARGUMENTS}}
+			engine_arguments: ["{{DEFOLD_ENGINE_ARGUMENTS}}"],
+			{{/HAS_DEFOLD_ENGINE_ARGUMENTS}}
 			splash_image: "{{DEFOLD_SPLASH_IMAGE}}",
 			custom_heap_size: {{DEFOLD_HEAP_SIZE}}
 		}

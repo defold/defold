@@ -19,9 +19,16 @@
 namespace dmHttpService
 {
     #define HTTP_SOCKET_NAME "@http"
+
+    // The stack size was increased from 0x10000 to 0x20000 due to
+    // a crash happening on older Android devices (< 4.3).
+    // (Reason: Our HTTP service threads call getaddrinfo() which
+    //  resulted in a writes outside the stack space inside libc.)
+    const uint32_t THREAD_STACK_SIZE = 0x20000;
     const uint32_t THREAD_COUNT = 4;
     const uint32_t DEFAULT_RESPONSE_BUFFER_SIZE = 64 * 1024;
     const uint32_t DEFAULT_HEADER_BUFFER_SIZE = 16 * 1024;
+
 
     struct HttpService;
 
@@ -137,6 +144,13 @@ namespace dmHttpService
         return dmHttpClient::RESULT_OK;
     }
 
+    static void MessageDestroyCallback(dmMessage::Message* message)
+    {
+        dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
+        free((void*) response->m_Headers);
+        free((void*) response->m_Response);
+    }
+
     static void SendResponse(const dmMessage::URL* requester, int status,
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length)
@@ -154,7 +168,7 @@ namespace dmHttpService
         memcpy((void*) resp.m_Response, response, response_length);
 
         if (dmMessage::IsSocketValid(requester->m_Socket)) {
-            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp));
+            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback);
         } else {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
@@ -282,7 +296,7 @@ namespace dmHttpService
                             message->m_UserData,
                             message->m_Descriptor,
                             message->m_Data,
-                            message->m_DataSize);
+                            message->m_DataSize, 0);
             service->m_LoadBalanceCount++;
         }
     }
@@ -352,11 +366,11 @@ namespace dmHttpService
             worker->m_Run = true;
             service->m_Workers.Push(worker);
 
-            dmThread::Thread t = dmThread::New(&Loop, 0x10000, worker, "http");
+            dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
             worker->m_Thread = t;
         }
 
-        dmThread::Thread t = dmThread::New(&LoadBalancer, 0x10000, service, "http_balance");
+        dmThread::Thread t = dmThread::New(&LoadBalancer, THREAD_STACK_SIZE, service, "http_balance");
         service->m_Balancer = t;
 
         return service;
@@ -371,12 +385,12 @@ namespace dmHttpService
     {
         dmMessage::URL url;
         url.m_Socket = http_service->m_Socket;
-        dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0);
+        dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
         for (uint32_t i = 0; i < THREAD_COUNT; ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
             url.m_Socket = worker->m_Socket;
-            dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0);
+            dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
             dmThread::Join(worker->m_Thread);
             dmMessage::DeleteSocket(worker->m_Socket);
             if (worker->m_Client) {

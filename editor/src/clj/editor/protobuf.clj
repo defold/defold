@@ -2,12 +2,12 @@
   (:require [camel-snake-kebab :refer :all]
             [clojure.java.io :as io]
             [clojure.string :as s]
-            [internal.java :as j])
+            [internal.java :as j]
+            [util.murmur :as murmur])
   (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
-           [com.defold.editor.pipeline MurmurHash]
            [java.io Reader ByteArrayOutputStream]
            [org.apache.commons.io FilenameUtils]))
 
@@ -17,9 +17,15 @@
   [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
+(defn- break-embedded-newlines
+  [^String pb-str]
+  (.replace pb-str "\\n" "\\n\"\n  \""))
+
 (defn- pb->str
-  [^Message pb]
-  (TextFormat/printToString pb))
+  [^Message pb format-newlines?]
+  (cond-> (TextFormat/printToString pb)
+    format-newlines?
+    (break-embedded-newlines)))
 
 (defn pb->bytes
   [^Message pb]
@@ -288,10 +294,12 @@
     (doall (map #(set-field m % builder) all-fields))
     (.build builder)))
 
-(defn map->str [desc-or-cls m]
-  (->
+(defn map->str
+  ([desc-or-cls m] (map->str desc-or-cls m true))
+  ([desc-or-cls m format-newlines?]
+   (->
     (map->pb desc-or-cls m)
-    (pb->str)))
+    (pb->str format-newlines?))))
 
 (defn map->bytes [desc-or-cls m]
   (->
@@ -319,7 +327,7 @@
           value-descs)))
 
 (defn hash64 [v]
-  (MurmurHash/hash64 v))
+  (murmur/hash64 v))
 
 (defn fields-by-indices
   [^java.lang.Class cls]

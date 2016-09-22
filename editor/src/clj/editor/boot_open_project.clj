@@ -1,53 +1,62 @@
 (ns editor.boot-open-project
-  (:require [editor.defold-project :as project]
-            [editor.progress :as progress]
-            [editor.workspace :as workspace]
-            [editor.ui :as ui]
+  (:require [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.asset-browser :as asset-browser]
+            [editor.atlas :as atlas]
+            [editor.build-errors-view :as build-errors-view]
+            [editor.camera-editor :as camera]
             [editor.changes-view :as changes-view]
-            [editor.properties-view :as properties-view]
-            [editor.text :as text]
             [editor.code-view :as code-view]
-            [editor.scene :as scene]
-            [editor.form-view :as form-view]
-            [editor.collection :as colleciton]
+            [editor.collection :as collection]
+            [editor.collision-object :as collision-object]
+            [editor.console :as console]
+            [editor.core :as core]
+            [editor.cubemap :as cubemap]
+            [editor.curve-view :as curve-view]
+            [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.display-profiles :as display-profiles]
+            [editor.factory :as factory]
             [editor.font :as font]
+            [editor.form-view :as form-view]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
-            [editor.console :as console]
-            [editor.cubemap :as cubemap]
-            [editor.image :as image]
-            [editor.workspace :as workspace]
-            [editor.collection :as collection]
-            [editor.atlas :as atlas]
-            [editor.platformer :as platformer]
-            [editor.prefs :as prefs]
-            [editor.protobuf-types :as protobuf-types]
-            [editor.script :as script]
-            [editor.switcher :as switcher]
-            [editor.sprite :as sprite]
             [editor.gl.shader :as shader]
-            [editor.tile-source :as tile-source]
+            [editor.graph-view :as graph-view]
+            [editor.gui :as gui]
+            [editor.hot-reload :as hotload]
+            [editor.image :as image]
+            [editor.json :as json]
+            [editor.login :as login]
+            [editor.material :as material]
+            [editor.mesh :as mesh]
+            [editor.model :as model]
+            [editor.outline-view :as outline-view]
+            [editor.particlefx :as particlefx]
+            [editor.prefs :as prefs]
+            [editor.progress :as progress]
+            [editor.properties-view :as properties-view]
+            [editor.protobuf-types :as protobuf-types]
+            [editor.rig :as rig]
+            [editor.scene :as scene]
+            [editor.script :as script]
             [editor.sound :as sound]
             [editor.spine :as spine]
-            [editor.json :as json]
-            [editor.mesh :as mesh]
-            [editor.material :as material]
-            [editor.particlefx :as particlefx]
-            [editor.gui :as gui]
-            [editor.app-view :as app-view]
-            [editor.outline-view :as outline-view]
-            [editor.asset-browser :as asset-browser]
-            [editor.graph-view :as graph-view]
-            [editor.core :as core]
-            [dynamo.graph :as g]
-            [editor.display-profiles :as display-profiles]
+            [editor.sprite :as sprite]
+            [editor.targets :as targets]
+            [editor.text :as text]
+            [editor.tile-map :as tile-map]
+            [editor.tile-source :as tile-source]
+            [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
+            [editor.workspace :as workspace]
+            [editor.system :as system]
             [util.http-server :as http-server])
   (:import  [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
             [javafx.stage Stage]
-            [javafx.scene.control Button TextArea SplitPane]))
+            [javafx.scene.control Button TextArea SplitPane TabPane Tab]))
 
 (set! *warn-on-reflection* true)
 
@@ -68,16 +77,6 @@
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(g/defnode CurveEditor
-    (inherits editor.core/Scope)
-
-    editor.core/ICreate
-    (post-create
-     [this basis event]
-     (let [btn (Button.)]
-       (ui/text! btn "Curve Editor WIP!")
-       (.add (.getChildren ^VBox (:parent event)) btn))))
-
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
     (g/transact
@@ -87,44 +86,68 @@
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)))
     (g/transact
-     (concat
-      (collection/register-resource-types workspace)
-      (font/register-resource-types workspace)
-      (game-object/register-resource-types workspace)
-      (game-project/register-resource-types workspace)
-      (cubemap/register-resource-types workspace)
-      (image/register-resource-types workspace)
-      (atlas/register-resource-types workspace)
-      (platformer/register-resource-types workspace)
-      (protobuf-types/register-resource-types workspace)
-      (script/register-resource-types workspace)
-      (switcher/register-resource-types workspace)
-      (sprite/register-resource-types workspace)
-      (shader/register-resource-types workspace)
-      (tile-source/register-resource-types workspace)
-      (sound/register-resource-types workspace)
-      (spine/register-resource-types workspace)
-      (json/register-resource-types workspace)
-      (mesh/register-resource-types workspace)
-      (material/register-resource-types workspace)
-      (particlefx/register-resource-types workspace)
-      (gui/register-resource-types workspace)
-      (display-profiles/register-resource-types workspace)))
+      (concat
+        (atlas/register-resource-types workspace)
+        (camera/register-resource-types workspace)
+        (collection/register-resource-types workspace)
+        (collision-object/register-resource-types workspace)
+        (cubemap/register-resource-types workspace)
+        (display-profiles/register-resource-types workspace)
+        (factory/register-resource-types workspace)
+        (font/register-resource-types workspace)
+        (game-object/register-resource-types workspace)
+        (game-project/register-resource-types workspace)
+        (gui/register-resource-types workspace)
+        (image/register-resource-types workspace)
+        (json/register-resource-types workspace)
+        (material/register-resource-types workspace)
+        (mesh/register-resource-types workspace)
+        (model/register-resource-types workspace)
+        (particlefx/register-resource-types workspace)
+        (protobuf-types/register-resource-types workspace)
+        (rig/register-resource-types workspace)
+        (script/register-resource-types workspace)
+        (shader/register-resource-types workspace)
+        (sound/register-resource-types workspace)
+        (spine/register-resource-types workspace)
+        (sprite/register-resource-types workspace)
+        (tile-map/register-resource-types workspace)
+        (tile-source/register-resource-types workspace)))
     (workspace/resource-sync! workspace)
     workspace))
 
-(defn load-stage [workspace project prefs]
 
+;; Slight hack to work around the fact that we have not yet found a
+;; reliable way of detecting when the application loses focus.
+
+;; If no application-owned windows have had focus within this
+;; threshold, we consider the application to have lost focus.
+(def application-unfocused-threshold-ms 500)
+
+(defn- watch-focus-state! [workspace]
+  (add-watch dialogs/focus-state :main-stage
+             (fn [key ref old new]
+               (when (and old
+                          (not (:focused? old))
+                          (:focused? new))
+                 (let [unfocused-ms (- (:t new) (:t old))]
+                   (when (< application-unfocused-threshold-ms unfocused-ms)
+                     (future
+                       (ui/with-disabled-ui
+                         (ui/with-progress [render-fn ui/default-render-progress!]
+                           (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
+
+(defn- find-tab [^TabPane tabs id]
+  (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
+
+(defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (Stage.)
         scene      (Scene. root)]
-
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
-                  (when (true? new-val)
-                    (ui/with-disabled-ui
-                      (ui/with-progress [render-fn ui/default-render-progress!]
-                        (editor.workspace/resource-sync! workspace true [] render-fn))))))
+                  (dialogs/record-focus-change! new-val)))
+    (watch-focus-state! workspace)
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -135,12 +158,14 @@
       (.setWidth stage (:width dims))
       (.setHeight stage (:height dims)))
 
+    (ui/init-progress!)
     (ui/show! stage)
+    (targets/start)
 
     (ui/on-close-request! stage
                           (fn [_]
                             (g/transact
-                             (g/delete-node project))))
+                              (g/delete-node project))))
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
@@ -154,18 +179,40 @@
           search-console       (.lookup root "#search-console")
           splits               [(.lookup root "#main-split")
                                 (.lookup root "#center-split")
-                                (.lookup root "#right-split")]
+                                (.lookup root "#right-split")
+                                (.lookup root "#assets-split")]
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {})))
-                                                                 (partial app-view/remove-resource-tab editor-tabs))
-          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler})
+                                                                 (fn [resources]
+                                                                   (doseq [resource resources]
+                                                                     (app-view/remove-resource-tab editor-tabs resource))
+                                                                   (let [nodes (keep #(project/get-resource-node project %) resources)]
+                                                                     (when (not-empty nodes)
+                                                                       (g/transact
+                                                                         (for [n nodes]
+                                                                           (g/delete-node n)))
+                                                                       (g/reset-undo! (g/node-id->graph-id project))))))
+          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
+                                                            project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
+          build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
+                                                                         (fn [resource node-id]
+                                                                           (app-view/open-resource app-view
+                                                                                                   (g/node-value project :workspace)
+                                                                                                   project
+                                                                                                   resource)
+                                                                           (project/select! project node-id)))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
-                                                               (.lookup root "#changes-container"))]
+                                                               (.lookup root "#changes-container"))
+          curve-view           (curve-view/make-view! project *view-graph*
+                                                      (.lookup root "#curve-editor-container")
+                                                      (.lookup root "#curve-editor-list")
+                                                      (.lookup root "#curve-editor-view")
+                                                      {:tab (find-tab tool-tabs "curve-editor-tab")})]
 
       (when-let [div-pos (prefs/get-prefs prefs app-view/prefs-split-positions nil)]
         (doall (map (fn [^SplitPane sp pos]
@@ -180,51 +227,38 @@
                                :prev   prev-console})
 
       (ui/restyle-tabs! tool-tabs)
-      (let [context-env {:app-view      app-view
-                         :project       project
-                         :project-graph (project/graph project)
-                         :prefs         prefs
-                         :workspace     (g/node-value project :workspace)
-                         :outline-view  outline-view
-                         :web-server    web-server
-                         :changes-view  changes-view
-                         :main-stage    stage
-                         :splits        splits}]
+      (let [context-env {:app-view          app-view
+                         :project           project
+                         :project-graph     (project/graph project)
+                         :prefs             prefs
+                         :workspace         (g/node-value project :workspace)
+                         :outline-view      outline-view
+                         :web-server        web-server
+                         :build-errors-view build-errors-view
+                         :changes-view      changes-view
+                         :main-stage        stage
+                         :splits            splits}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
-       (concat
-        (g/connect project :selected-node-ids outline-view :selection)
-        (for [label [:active-resource :active-outline :open-resources]]
-          (g/connect app-view label outline-view label))
-        (for [view [outline-view asset-browser]]
-          (g/update-property app-view :auto-pulls conj [view :tree-view]))
-        (g/update-property app-view :auto-pulls conj [properties-view :pane]))))
-    (graph-view/setup-graph-view root)
+        (concat
+          (g/connect project :selected-node-ids outline-view :selection)
+          (for [label [:active-resource :active-outline :open-resources]]
+            (g/connect app-view label outline-view label))
+          (for [view [outline-view asset-browser]]
+            (g/update-property app-view :auto-pulls conj [view :tree-view]))
+          (g/update-property app-view :auto-pulls conj [properties-view :pane])))
+      (if (system/defold-dev?)
+        (graph-view/setup-graph-view root)
+        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"])))))
     (reset! the-root root)
     root))
 
-(defn- create-view [game-project ^VBox root place node-type]
-  (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
-    (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
-
 (defn open-project
   [^File game-project-file prefs render-progress!]
-  (let [progress     (atom (progress/make "Loading project" 3))
-        _            (render-progress! @progress)
-        project-path (.getPath (.getParentFile game-project-file))
+  (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
-        project      (project/make-project *project-graph* workspace)
-        project      (project/load-project project
-                                           (g/node-value project :resources)
-                                           (progress/nest-render-progress render-progress! @progress))
-        _            (render-progress! (swap! progress progress/advance 1 "Updating dependencies"))
-        _            (workspace/set-project-dependencies! workspace (project/project-dependencies project))
-        _            (workspace/update-dependencies! workspace
-                                                     (progress/nest-render-progress render-progress! @progress))
-        _            (render-progress! (swap! progress progress/advance 1 "Reloading dependencies"))
-        _            (workspace/resource-sync! workspace true []
-                                               (progress/nest-render-progress render-progress! @progress))
-        ^VBox root   (ui/run-now (load-stage workspace project prefs))
-        curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))]
+        game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
+        ^VBox root   (ui/run-now (load-stage workspace project prefs))]
     (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)))

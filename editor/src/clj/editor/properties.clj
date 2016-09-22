@@ -4,11 +4,12 @@
             [cognitect.transit :as transit]
             [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
+            [util.murmur :as murmur]
             [editor.types :as t]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
-            [editor.validation :as validation]
             [editor.core :as core]
+            [schema.core :as s]
             [util.id-vec :as iv])
   (:import [java.util StringTokenizer]
            [javax.vecmath Quat4d Point3d Matrix4d Vector3d]))
@@ -25,19 +26,23 @@
     name
     (subs 2)))
 
-(defn- ->spline [points]
-  (sort-by first points))
+(defn ->spline [points]
+  (->> points
+    (sort-by first)
+    vec))
 
-(defn- spline-cp [spline x]
+(defn spline-cp [spline x]
   (let [x (min (max x 0.0) 1.0)
-        [[cp0 cp1]] (filter (fn [[[x0] [x1]]] (and (<= x0 x) (< x x1))) (partition 2 1 spline))]
+        [cp0 cp1] (some (fn [cps] (and (<= (ffirst cps) x) (<= x (first (second cps))) cps)) (partition 2 1 spline))]
     (when (and cp0 cp1)
       (let [[x0 y0 s0 t0] cp0
             [x1 y1 s1 t1] cp1
             dx (- x1 x0)
-            t (/ (- x (first cp0)) (- (first cp1) (first cp0)))
-            y (math/hermite y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t)
-            ty (/ (math/hermite' y0 y1 (* dx (/ t0 s0)) (* dx (/ t1 s1)) t) dx)
+            t (/ (- x x0) (- x1 x0))
+            d0 (* dx (/ t0 s0))
+            d1 (* dx (/ t1 s1))
+            y (math/hermite y0 y1 d0 d1 t)
+            ty (/ (math/hermite' y0 y1 d0 d1 t) dx)
             l (Math/sqrt (+ 1.0 (* ty ty)))
             ty (/ ty l)
             tx (/ 1.0 l)]
@@ -62,21 +67,37 @@
     (update curve :points iv/iv-into points)))
 
 (defn- curve-delete [curve ids]
-  (update curve :points iv/iv-remove-ids ids))
+  (let [include (->> (iv/iv-mapv identity (:points curve))
+                  (sort-by (comp first second))
+                  (map first)
+                  (drop 1)
+                  (butlast)
+                  (into #{}))]
+    (update curve :points iv/iv-remove-ids (filter include ids))))
 
 (defn- curve-update [curve ids f]
   (let [ids (set ids)]
-    (assoc curve :points (iv/iv-mapv (fn [entry]
-                                       (let [[id v] entry]
-                                         (if (ids id) [id (f v)] entry))) (:points curve)))))
+    (update curve :points (partial iv/iv-update-ids f) ids)))
 
 (defn- curve-transform [curve ids ^Matrix4d transform]
-  (let [p (Point3d.)]
-    (t/geom-update curve ids (fn [v]
-                               (let [[x y] v]
-                                 (.set p x y 0.0)
-                                 (.transform transform p)
-                                 [(.getX p) (.getY p) 0.0])))))
+  (let [p (Point3d.)
+        cps (->> (:points curve) iv/iv-vals (mapv first) sort vec)
+        margin 0.01
+        limits (->> cps
+                 (partition 3 1)
+                 (mapv (fn [[min x max]] [x [(+ min margin) (- max margin)]]))
+                 (into {}))
+        limits (-> limits
+                 (assoc (first cps) [0.0 0.0]
+                        (last cps) [1.0 1.0]))]
+    (curve-update curve ids (fn [v]
+                              (let [[x y] v]
+                                (.set p x y 0.0)
+                                (.transform transform p)
+                                (let [[min-x max-x] (limits x)
+                                      x (max min-x (min max-x (.getX p)))
+                                      y (.getY p)]
+                                  (assoc v 0 x 1 y)))))))
 
 (defrecord Curve [points]
   Sampler
@@ -138,13 +159,9 @@
     {:points (curve-vals c)
      :spread (:spread c)})))
 
-(def go-prop-type->clj-type {:property-type-number g/Num
-                             :property-type-hash String
-                             :property-type-url String
-                             :property-type-vector3 t/Vec3
-                             :property-type-vector4 t/Vec4
-                             :property-type-quat t/Vec3
-                             :property-type-boolean g/Bool})
+(def default-curve (map->Curve {:points [{:x 0 :y 0 :t-x 1 :t-y 0}]}))
+
+(def default-curve-spread (map->CurveSpread {:points [{:x 0 :y 0 :t-x 1 :t-y 0}] :spread 0}))
 
 (defn- q-round [v]
   (let [f 10e6]
@@ -212,13 +229,13 @@
             value (str->go-prop (:value prop) type)
             value (case type
                     (:property-type-number :property-type-url) [value]
-                    :property-type-hash [(protobuf/hash64 value)]
+                    :property-type-hash [(murmur/hash64 value)]
                     :property-type-boolean [(if value 1.0 0.0)]
                     :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
                     value)
             [entry-key values-key] (type->entry-keys type)
             entry {:key (:id prop)
-                   :id (protobuf/hash64 (:id prop))
+                   :id (murmur/hash64 (:id prop))
                    :index (count (get decl values-key))}]
         (recur (rest properties)
                (-> decl
@@ -228,7 +245,7 @@
 
 (defn- property-edit-type [property]
   (or (get property :edit-type)
-      {:type (g/property-value-type (:type property))}))
+      {:type (:type property)}))
 
 (def ^:private links #{:link :override})
 
@@ -325,7 +342,7 @@
                                   (let [prop {:key k
                                               :node-ids (mapv :node-id v)
                                               :values (mapv :value v)
-                                              :validation-problems (mapv :validation-problems v)
+                                              :errors (mapv :error v)
                                               :edit-type (property-edit-type (first v))
                                               :label (:label (first v))
                                               :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}
@@ -337,32 +354,34 @@
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))}))
 
 (defn values [property]
-  (mapv (fn [value default-value validation-problem]
-          (if-not (nil? validation-problem)
-            (:value validation-problem)
-            (if-not (nil? value)
-              value
-              default-value)))
+  (mapv (fn [value default-value]
+          (if-not (nil? value)
+            value
+            default-value))
         (:values property)
-        (:original-values property (repeat nil))
-        (:validation-problems property)))
+        (:original-values property (repeat nil))))
 
-(defn- set-values [property values]
-  (let [key (:key property)]
-    (for [[node-id value] (map vector (:node-ids property) values)]
-      (if (vector? key)
-        (g/update-property node-id (first key) assoc-in (rest key) value)
-        (g/set-property node-id (:key property) value)))))
+(defn- set-values [basis property values]
+  (let [key (:key property)
+        set-fn (get-in property [:edit-type :set-fn])]
+    (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) values)]
+      (cond
+        set-fn (set-fn basis node-id old-value new-value)
+        (vector? key) (g/update-property node-id (first key) assoc-in (rest key) new-value)
+        true (g/set-property node-id key new-value)))))
+
+(defn keyword->name [kw]
+  (-> kw
+    name
+    camel/->Camel_Snake_Case_String
+    (clojure.string/replace "_" " ")))
 
 (defn label
   [property]
   (or (:label property)
       (let [k (:key property)
            k (if (vector? k) (last k) k)]
-       (-> k
-         name
-         camel/->Camel_Snake_Case_String
-         (clojure.string/replace "_" " ")))))
+       (keyword->name k))))
 
 (defn read-only? [property]
   (:read-only? property))
@@ -372,11 +391,12 @@
     (set-values! property values (gensym)))
   ([property values op-seq]
     (when (not (read-only? property))
-      (g/transact
-        (concat
-          (g/operation-label (str "Set " (label property)))
-          (g/operation-sequence op-seq)
-          (set-values property values))))))
+      (let [basis (g/now)]
+        (g/transact
+          (concat
+            (g/operation-label (str "Set " (label property)))
+            (g/operation-sequence op-seq)
+            (set-values basis property values)))))))
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
@@ -405,9 +425,22 @@
 (defn overridden? [property]
   (and (contains? property :original-values) (not-every? nil? (:values property))))
 
+(defn- error-seq [e]
+  (tree-seq :causes :causes e))
+
+(defn- error-messages [e]
+  (distinct (keep :message (error-seq e))))
+
+(defn error-message [e]
+  (str/join "\n" (error-messages e)))
+
+(defn error-aggregate [vals]
+  (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
+    (g/error-aggregate errors)))
+
 (defn validation-message [property]
-  (when-let [err (validation/error-aggregate (:validation-problems property))]
-    {:severity (:severity err) :message (validation/error-message err)}))
+  (when-let [err (error-aggregate (:errors property))]
+    {:severity (:severity err) :message (error-message err)}))
 
 (defn clear-override! [property]
   (when (overridden? property)
@@ -427,3 +460,8 @@
     {:type :choicebox
      :options (zipmap (map first options)
                       (map (comp :display-name second) options))}))
+
+(defn vec3->vec2 [default-z]
+  {:type t/Vec2
+   :from-type (fn [[x y _]] [x y])
+   :to-type (fn [[x y]] [x y default-z])})

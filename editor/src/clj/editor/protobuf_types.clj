@@ -15,14 +15,9 @@
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
-           [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
-            GameSystem$CollectionProxyDesc GameSystem$LightDesc]
+           [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc GameSystem$LightDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
            [com.dynamo.input.proto Input$GamepadMaps]
-           [com.dynamo.camera.proto Camera$CameraDesc]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
-           [com.dynamo.tile.proto Tile$TileGrid]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -45,18 +40,6 @@
                :resource-fields [:script [:materials :material]]
                :view-types [:form-view :text]
                :label "Render"}
-              {:ext "factory"
-               :label "Factory"
-               :icon "icons/32/Icons_07-Factory.png"
-               :pb-class GameSystem$FactoryDesc
-               :resource-fields [:prototype]
-               :tags #{:component}}
-              {:ext "collectionfactory"
-               :label "Collection Factory"
-               :icon "icons/32/Icons_08-Collection-factory.png"
-               :pb-class GameSystem$CollectionFactoryDesc
-               :resource-fields [:prototype]
-               :tags #{:component}}
               {:ext "collectionproxy"
                :label "Collection Proxy"
                :icon "icons/32/Icons_09-Collection.png"
@@ -68,41 +51,16 @@
                :icon "icons/32/Icons_21-Light.png"
                :pb-class GameSystem$LightDesc
                :tags #{:component}}
-              {:ext "collisionobject"
-               :label "Collision Object"
-               ; TODO - missing icon
-               :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
-               :pb-class Physics$CollisionObjectDesc
-               :resources-fields [:collision_shape]
-               :tags #{:component}}
               {:ext "gamepads"
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
                :pb-class Input$GamepadMaps
                :view-types [:form-view :text]}
-              {:ext "camera"
-               :label "Camera"
-               :icon "icons/32/Icons_20-Camera.png"
-               :pb-class Camera$CameraDesc
-               :tags #{:component}}
-              {:ext "model"
-               :label "Model"
-               :icon "icons/32/Icons_22-Model.png"
-               :resource-fields [:mesh :material [:textures]]
-               :pb-class Model$ModelDesc
-               :tags #{:component}}
               {:ext "convexshape"
                :label "Convex Shape"
                ; TODO - missing icon
                :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
                :pb-class Physics$ConvexShape}
-              {:ext ["tilemap" "tilegrid"]
-               :build-ext "tilegridc"
-               :label "Tile Map"
-               :icon "icons/32/Icons_48-Tilemap.png"
-               :pb-class Tile$TileGrid
-               :resource-fields [:tile-set :material]
-               :tags #{:component}}
               {:ext "sound"
                :label "Sound"
                :icon "icons/32/Icons_26-AT-Sound.png"

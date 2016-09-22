@@ -17,6 +17,7 @@
 #include "script_http.h"
 #include "script_zlib.h"
 #include "script_luasocket.h"
+#include "script_bitop.h"
 
 extern "C"
 {
@@ -25,6 +26,14 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Built-ins API documentation
+     *
+     * Built-in scripting functions.
+     * 
+     * @name Built-ins
+     * @namespace builtins
+     */
+
     const char* INSTANCE_NAME = "__dm_script_instance__";
     const int MAX_PPRINT_TABLE_CALL_DEPTH = 32;
 
@@ -127,6 +136,7 @@ namespace dmScript
         InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
         InitializeLuasocket(L);
+        InitializeBitop(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);

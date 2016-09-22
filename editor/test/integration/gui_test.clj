@@ -8,7 +8,8 @@
             [editor.gui :as gui]
             [editor.gl.pass :as pass]
             [editor.handler :as handler]
-            [editor.types :as types])
+            [editor.types :as types]
+            [criterium.core :as bench])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [javax.vecmath Point3d Matrix4d Vector3d]
@@ -45,6 +46,20 @@
          node-id   (test-util/resource-node project "/logic/main.gui")
          scene (g/node-value node-id :scene)]
      (is (= 0.25 (get-in scene [:children 0 :children 2 :children 0 :renderable :user-data :color 3]))))))
+
+(deftest gui-scene-validation
+ (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")]
+     (is (nil? (test-util/prop-error node-id :script)))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.script")]]
+       (test-util/with-prop [node-id :script v]
+         (is (g/error-fatal? (test-util/prop-error node-id :script)))))
+     (is (nil? (test-util/prop-error node-id :material)))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+       (test-util/with-prop [node-id :material v]
+         (is (g/error-fatal? (test-util/prop-error node-id :material))))))))
 
 (deftest gui-box-auto-size
   (with-clean-system
@@ -85,6 +100,18 @@
      (is (= "png_texture" (prop png-node :texture)))
      (prop! png-tex :name "new-name")
      (is (= "new-name" (prop png-node :texture))))))
+
+(deftest gui-texture-validation
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+        atlas-tex (:node-id (test-util/outline node-id [1 1]))]
+     (test-util/with-prop [atlas-tex :name ""]
+       (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
+       (test-util/with-prop [atlas-tex :texture v]
+         (is (g/error-fatal? (test-util/prop-error atlas-tex :texture))))))))
 
 (deftest gui-atlas
   (with-clean-system
@@ -127,6 +154,17 @@
      (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
      (is (some #{new-font} (build-targets-deps gui-scene-node))))))
 
+(deftest gui-font-validation
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         gui-scene-node (test-util/resource-node project "/logic/main.gui")
+         gui-font-node (:node-id (test-util/outline gui-scene-node [2 0]))]
+     (is (nil? (test-util/prop-error gui-font-node :font)))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
+       (test-util/with-prop [gui-font-node :font v]
+         (is (g/error-fatal? (test-util/prop-error gui-font-node :font))))))))
+
 (deftest gui-text-node
   (with-clean-system
    (let [workspace (test-util/setup-workspace! world)
@@ -136,6 +174,18 @@
          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
+
+(deftest gui-text-node-text-layout
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value node-id :node-outline)
+         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+         text-node (get nodes "multi_line_text")]
+     (is (some? (g/node-value text-node :text-layout)))
+     (is (some? (g/node-value text-node :aabb)))
+     (is (some? (g/node-value text-node :text-data))))))
 
 (defn- render-order [view]
   (let [renderables (g/node-value view :renderables)]
@@ -196,10 +246,10 @@
   (testing "loading"
            ;; WARM-UP
            (dotimes [i 10]
-                      (test-load))
+             (test-load))
            (let [elapsed (measure [i 20]
                                   (test-load))]
-             (is (< elapsed 1500))))
+         (is (< elapsed 750))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
@@ -207,13 +257,14 @@
                    app-view (test-util/setup-app-view!)
                    node-id (test-util/resource-node project "/gui/scene.gui")
                    box (gui-node node-id "sub_scene/sub_box")]
+               ;; (bench/bench (drag-pull-outline! node-id box))
                ;; WARM-UP
                (dotimes [i 20]
                  (drag-pull-outline! node-id box i))
                ;; GO!
                (let [elapsed (measure [i 500]
                                       (drag-pull-outline! node-id box i))]
-                 (is (< elapsed 33)))))))
+                 (is (< elapsed 12)))))))
 
 (deftest gui-template-ids
   (with-clean-system
@@ -377,7 +428,7 @@
 (defn- add-layout! [project scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
-    (handler/run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
+    (test-util/handler-run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
 
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))

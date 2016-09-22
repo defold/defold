@@ -136,6 +136,25 @@
     1 (Vector3d. 0 1 0)
     2 (Vector3d. 0 0 1)))
 
+(defn ->mat4 ^Matrix4d []
+  (doto (Matrix4d.) (.setIdentity)))
+
+(defn ->mat4-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^double scale]
+  (Matrix4d. rotation position scale))
+
+(defn ->mat4-non-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (let [s (doto (Matrix3d.)
+            (.setElement 0 0 (.x scale))
+            (.setElement 1 1 (.y scale))
+            (.setElement 2 2 (.z scale)))
+        rs (doto (Matrix3d.)
+             (.set rotation)
+             (.mul s))]
+    (doto (Matrix4d.)
+      (.setRotationScale rs)
+      (.setTranslation position)
+      (.setElement 3 3 1.0))))
+
 (defn split-mat4 [^Matrix4d mat ^Point3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
   (let [tmp (Vector4d.)
         _ (.getColumn mat 3 tmp)

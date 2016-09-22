@@ -2,8 +2,10 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.node :as in]
+            [schema.core :as s]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
+(g/deftype StrArray [(s/maybe s/Str)])
 
 (g/defnode SimpleOutputNode
   (output my-output g/Str (g/always "scones")))
@@ -14,7 +16,7 @@
 
 (g/defnode SimpleArrayTestNode
   (input my-input g/Str :array)
-  (output passthrough [(g/maybe g/Str)] (g/fnk [my-input] my-input)))
+  (output passthrough StrArray (g/fnk [my-input] my-input)))
 
 (deftest test-producing-values-without-substitutes
   (testing "values with no errors"
@@ -86,13 +88,13 @@
         (is (= [nil] (g/node-value atnode2 :passthrough)))))))
 
 (g/defnode ErrorOutputNode
-  (output my-output g/Str (g/always (g/error-severe "I am an error!"))))
+  (output my-output g/Str (g/always (g/error-fatal "I am an error!"))))
 
 (defn thrown-for-reason?
   [node output reason]
   (let [error (:error (try (g/node-value node output)
                            (catch Exception e (ex-data e))))]
-    (and (g/error-severe? error)
+    (and (g/error-fatal? error)
          (= reason (:reason error)))))
 
 (deftest test-producing-vals-with-errors
@@ -135,7 +137,7 @@
 
 (g/defnode SubArrayTestNode
   (input my-input g/Str :array :substitute (fn [_] ["beans"]))
-  (output passthrough [(g/maybe g/Str)] (g/fnk [my-input] my-input)))
+  (output passthrough StrArray (g/fnk [my-input] my-input)))
 
 (deftest test-producing-vals-with-nil-substitutes
   (testing "values with nils do not trigger substitutes"
@@ -239,4 +241,3 @@
                                 (g/make-node world NamedSubstFn))]
         (g/transact (g/connect err :my-output sub :the-input))
         (is (= "substitute" (g/node-value sub :the-input)))))))
-

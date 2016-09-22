@@ -46,11 +46,11 @@ namespace dmRender
 
         HMaterial material3d = NewMaterial(render_context, vertex_program, fragment_program);
         SetMaterialProgramConstantType(material3d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        AddMaterialTag(material3d, dmHashString32(DEBUG_3D_NAME));
+        AddMaterialTag(material3d, dmHashString64(DEBUG_3D_NAME));
 
         HMaterial material2d = NewMaterial(render_context, vertex_program, fragment_program);
         SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        AddMaterialTag(material2d, dmHashString32(DEBUG_2D_NAME));
+        AddMaterialTag(material2d, dmHashString64(DEBUG_2D_NAME));
 
         dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES, dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES};
         HMaterial materials[MAX_DEBUG_RENDER_TYPE_COUNT] = {material3d, material3d, material2d, material2d};
@@ -68,9 +68,9 @@ namespace dmRender
             type_data.m_ClientBuffer = new char[buffer_size];
         }
 
-        debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString32(DEBUG_3D_NAME);
+        debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString64(DEBUG_3D_NAME);
         debug_renderer.m_3dPredicate.m_TagCount = 1;
-        debug_renderer.m_2dPredicate.m_Tags[0] = dmHashString32(DEBUG_2D_NAME);
+        debug_renderer.m_2dPredicate.m_Tags[0] = dmHashString64(DEBUG_2D_NAME);
         debug_renderer.m_2dPredicate.m_TagCount = 1;
         debug_renderer.m_RenderBatchVersion = 0;
     }

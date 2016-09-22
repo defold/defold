@@ -36,8 +36,14 @@ public class BundleGenericPresenter implements BundleGenericDialog.IPresenter {
 
     @Override
     public void releaseModeSelected(boolean selection) {
+        this.releaseModeSelected(selection, true);
+    }
+
+    public void releaseModeSelected(boolean selection, boolean validate) {
         this.releaseMode = selection;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
     public boolean shouldGenerateReport() {
@@ -46,8 +52,14 @@ public class BundleGenericPresenter implements BundleGenericDialog.IPresenter {
 
     @Override
     public void generateReportSelected(boolean selection) {
+        this.generateReportSelected(selection, true);
+    }
+
+    public void generateReportSelected(boolean selection, boolean validate) {
         this.generateReport = selection;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
 }

@@ -27,11 +27,12 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
 
         nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        Bundle extras = intent.getExtras();
-        int id = extras.getInt("uid");
-
         Intent new_intent = new Intent(context, LocalPushDispatchActivity.class).setAction("com.defold.push.FORWARD");
+
+        Bundle extras = intent.getExtras();
+        extras.putByte("wasActivated", (byte) (DefoldActivity.isActivityVisible() ? 0 : 1));
         new_intent.putExtras(extras);
+
         new_intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         if (DefoldActivity.isActivityVisible()) {
@@ -41,7 +42,7 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
             context.startActivity(new_intent);
         } else {
             try {
-
+                int id = extras.getInt("uid");
                 PendingIntent contentIntent = PendingIntent.getActivity(context, id, new_intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT);
 
                 ApplicationInfo info = context.getApplicationInfo();

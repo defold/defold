@@ -19,6 +19,14 @@ extern "C"
 
 namespace dmCrash
 {
+    /*# Crash API documentation
+     *
+     * Native crash logging functions and constants.
+     *
+     * @name Crash
+     * @namespace crash
+     */
+    
     static HDump CheckHandle(lua_State* L, int index)
     {
         HDump h = (HDump) luaL_checkint(L, index);

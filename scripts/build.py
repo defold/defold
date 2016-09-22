@@ -447,7 +447,7 @@ class Configuration(object):
 
         eclipse = '--eclipse' if self.eclipse else ''
 
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject gui sound gamesys tools record iap push iac adtruth webview facebook crash engine".split()
+        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject rig gui sound gamesys tools record iap push iac adtruth webview facebook crash engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
@@ -611,7 +611,7 @@ instructions.configure=\
     def _build_cr(self, product):
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
     def check_editor2_reflections(self):
         cwd = join(self.defold_root, 'editor')
@@ -641,8 +641,8 @@ instructions.configure=\
         self.check_editor2_reflections()
         self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
 
-        # TODO: Version
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86-linux', '--platform=x86-win32', '--version=2.0.0'], cwd = cwd)
+        ext_lib_path = join(self.dynamo_home, 'ext', 'lib')
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version, '--ext-lib-path=%s' % ext_lib_path], cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -657,7 +657,7 @@ instructions.configure=\
         host = bucket.get_website_endpoint()
 
         release_sha1 = self._git_sha1()
-
+        self.wait_uploads()
         self._log('Uploading update.json')
         key = bucket.new_key('editor2/update.json')
         key.content_type = 'application/json'
@@ -993,7 +993,7 @@ instructions.configure=\
 
     def upload_file(self, path, url):
         url = url.replace('\\', '/')
-        self._log('%s -> %s' % (path, url))
+        self._log('Uploading %s -> %s' % (path, url))
 
         u = urlparse.urlparse(url)
 
@@ -1020,6 +1020,7 @@ instructions.configure=\
             def upload():
                 key = bucket.new_key(p)
                 key.set_contents_from_filename(path)
+                self._log('Uploaded %s -> %s' % (path, url))
 
             f = Future(self.thread_pool, upload)
             self.futures.append(f)

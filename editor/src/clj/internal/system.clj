@@ -68,12 +68,16 @@
        vec))
 
 (defn time-warp [history-ref system-snapshot graph outputs-to-refresh]
-  (let [gid                  (:_gid graph)
-        graphs               (graphs system-snapshot)]
+  (let [gid (:_gid graph)
+        graphs (graphs system-snapshot)
+        changes (->> outputs-to-refresh
+                  (group-by first)
+                  (map (fn [[node-id labels]] [node-id (set (map second labels))]))
+                  (into {}))]
     (-> (map-vals deref graphs)
         (ig/multigraph-basis)
         (ig/hydrate-after-undo graph)
-        (ig/update-successors outputs-to-refresh)
+        (ig/update-successors changes)
         (get-in [:graphs gid]))))
 
 (defn step-through-history

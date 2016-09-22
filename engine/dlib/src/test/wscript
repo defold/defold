@@ -20,7 +20,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     task_args = {
         'features': ' '.join(req_features),
-        'source': name + '.cpp',
+        'source': name + '.cpp' + ' testutil.cpp',
         'uselib': ' '.join(req_libs),
         'uselib_local': 'dlib',
         'includes': req_includes,

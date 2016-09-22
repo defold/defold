@@ -70,8 +70,15 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
 
     @Override
     public void setProvisioningProfile(String profile) {
+        this.setProvisioningProfile(profile, true);
+    }
+
+    @Override
+    public void setProvisioningProfile(String profile, boolean validate) {
         this.profile = profile;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
     public String getProvisioningProfile() {
@@ -84,8 +91,14 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
 
     @Override
     public void releaseModeSelected(boolean selection) {
+        this.releaseModeSelected(selection, true);
+    }
+
+    public void releaseModeSelected(boolean selection, boolean validate) {
         this.releaseMode = selection;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
     public boolean shouldGenerateReport() {
@@ -94,8 +107,14 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
 
     @Override
     public void generateReportSelected(boolean selection) {
+        this.generateReportSelected(selection, true);
+    }
+
+    public void generateReportSelected(boolean selection, boolean validate) {
         this.generateReport = selection;
-        validate();
+        if (validate) {
+            validate();
+        }
     }
 
 }

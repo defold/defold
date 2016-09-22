@@ -1,6 +1,7 @@
 (ns editor.image
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.core :as core]
             [editor.geom :refer [clamper]]
             [editor.defold-project :as project]
@@ -15,6 +16,8 @@
            [javax.imageio ImageIO]))
 
 (set! *warn-on-reflection* true)
+
+(def exts ["jpg" "png"])
 
 ;; TODO - fix real profiles
 (def test-profile {:name "test-profile"
@@ -38,12 +41,9 @@
   (output content BufferedImage :cached (g/fnk [resource] (try
                                                             (if-let [img (ImageIO/read (io/input-stream resource))]
                                                               img
-                                                              (g/error-severe {:type :invalid-content
-                                                                        :message (format "The image '%s' could not be loaded." (resource/proj-path resource))}))
+                                                              (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
                                                             (catch java.io.FileNotFoundException e
-                                                              (log/warn :exception e)
-                                                              (g/error-severe {:type :file-not-found
-                                                                               :message (format "The image '%s' could not be found." (resource/proj-path resource))})))))
+                                                              (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics
@@ -53,26 +53,26 @@
        (.dispose ~(first binding))
        ~rsym)))
 
-(g/s-defn make-color :- java.awt.Color
+(s/defn make-color :- java.awt.Color
   "creates a color using rgb values (optional a). Color values between 0 and 1.0"
   ([r :- Float g :- Float b :- Float]
     (java.awt.Color. r g b))
   ([r :- Float g :- Float b :- Float a :- Float]
     (java.awt.Color. r g b a)))
 
-(g/s-defn make-image :- Image
-  [nm :- g/Any contents :- BufferedImage]
+(s/defn make-image :- Image
+  [nm :- s/Any contents :- BufferedImage]
   (Image. nm contents (.getWidth contents) (.getHeight contents)))
 
-(g/s-defn blank-image :- BufferedImage
+(s/defn blank-image :- BufferedImage
   ([space :- Rect]
     (blank-image (.width space) (.height space)))
-  ([width :- g/Int height :- g/Int]
+  ([width :- s/Int height :- s/Int]
     (blank-image width height BufferedImage/TYPE_4BYTE_ABGR))
-  ([width :- g/Int height :- g/Int t :- g/Int]
+  ([width :- s/Int height :- s/Int t :- s/Int]
     (BufferedImage. width height t)))
 
-(g/s-defn flood :- BufferedImage
+(s/defn flood :- BufferedImage
   "Floods the image with the specified color (r g b <a>). Color values between 0 and 1.0."
   [^BufferedImage img :- BufferedImage r :- Float g :- Float b :- Float]
   (let [gfx (.createGraphics img)
@@ -94,11 +94,11 @@
 
   (output content Image :cached (g/fnk [filename] (load-image filename (types/local-path filename)))))
 
-(g/s-defn image-color-components :- long
+(s/defn image-color-components :- long
   [src :- BufferedImage]
   (.. src (getColorModel) (getNumComponents)))
 
-(g/s-defn image-infer-type :- long
+(s/defn image-infer-type :- long
   [src :- BufferedImage]
   (if (not= 0 (.getType src))
     (.getType src)
@@ -107,12 +107,12 @@
       3 BufferedImage/TYPE_3BYTE_BGR
       1 BufferedImage/TYPE_BYTE_GRAY)))
 
-(g/s-defn image-type :- g/Int
+(s/defn image-type :- g/Int
   [src :- BufferedImage]
   (let [t (.getType src)]
     (if (not= 0 t) t (image-infer-type src))))
 
-(g/s-defn image-convert-type :- BufferedImage
+(s/defn image-convert-type :- BufferedImage
   [original :- BufferedImage new-type :- g/Int]
   (if (= new-type (image-type original))
     original
@@ -121,11 +121,11 @@
         (.drawImage g2d original 0 0 nil))
       new)))
 
-(g/s-defn image-bounds :- Rect
+(s/defn image-bounds :- Rect
   [source :- Image]
   (types/rect (.path source) 0 0 (.width source) (.height source)))
 
-(g/s-defn image-pixels :- ints
+(s/defn image-pixels :- ints
   [src :- BufferedImage]
   (let [w      (.getWidth src)
         h      (.getHeight src)
@@ -133,7 +133,7 @@
     (.. src (getRaster) (getPixels 0 0 w h pixels))
     pixels))
 
-(g/s-defn image-from-pixels :- BufferedImage
+(s/defn image-from-pixels :- BufferedImage
   [^long width :- g/Int ^long height :- g/Int t :- g/Int pixels :- ints]
   (doto (blank-image width height t)
     (.. (getRaster) (setPixels 0 0 width height pixels))))
@@ -141,7 +141,7 @@
 (defmacro pixel-index [x y step stride]
   `(* ~step (+ ~x (* ~y ~stride))))
 
-(g/s-defn extrude-borders :- Image
+(s/defn extrude-borders :- Image
   "Return a new pixel array, larger than the original by `extrusion`
 with the orig-pixels centered in it. The source pixels on the edges
 will bleed into the surrounding empty space. The pixels in the border
@@ -173,7 +173,7 @@ region will be identical to the nearest pixel of the source image."
 (defn- map-by [p coll]
   (zipmap (map p coll) coll))
 
-(g/s-defn composite :- BufferedImage
+(s/defn composite :- BufferedImage
   [onto :- BufferedImage placements :- [Rect] sources :- [Image]]
   (let [src-by-path (map-by :path sources)]
     (with-graphics [graphics (.getGraphics onto)]
@@ -184,7 +184,7 @@ region will be identical to the nearest pixel of the source image."
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
-                                      :ext ["jpg" "png"]
+                                      :ext exts
                                       :label "Image"
                                       :icon "icons/32/Icons_25-AT-Image.png"
                                       :build-ext "texturec"

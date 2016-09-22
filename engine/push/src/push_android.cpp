@@ -31,6 +31,7 @@ struct Command
     int32_t  m_ResponseCode;
     void*    m_Data1;
     void*    m_Data2;
+    bool     m_WasActivated;
 };
 
 static JNIEnv* Attach()
@@ -253,7 +254,7 @@ int Push_Schedule(lua_State* L)
 
 static void RemoveNotification(int id)
 {
-    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    for (unsigned int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
 
@@ -281,7 +282,7 @@ int Push_Cancel(lua_State* L)
 {
     int cancel_id = luaL_checkinteger(L, 1);
 
-    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    for (unsigned int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
 
@@ -336,7 +337,7 @@ int Push_GetScheduled(lua_State* L)
     int get_id = luaL_checkinteger(L, 1);
     uint64_t cur_time = dmTime::GetTime();
 
-    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    for (unsigned int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
 
@@ -362,7 +363,7 @@ int Push_GetAllScheduled(lua_State* L)
     uint64_t cur_time = dmTime::GetTime();
 
     lua_createtable(L, 0, 0);
-    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    for (unsigned int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
 
@@ -443,7 +444,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onRegistration(JNIEnv* env, 
 }
 
 
-JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobject, jstring json)
+JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobject, jstring json, bool wasActivated)
 {
     const char* j = 0;
 
@@ -455,6 +456,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobje
     Command cmd;
     cmd.m_Command = CMD_PUSH_MESSAGE_RESULT;
     cmd.m_Data1 = strdup(j);
+    cmd.m_WasActivated = wasActivated;
     if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
@@ -464,7 +466,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobje
     }
 }
 
-JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onLocalMessage(JNIEnv* env, jobject, jstring json, int id)
+JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onLocalMessage(JNIEnv* env, jobject, jstring json, int id, bool wasActivated)
 {
     const char* j = 0;
 
@@ -479,6 +481,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onLocalMessage(JNIEnv* env, 
     Command cmd;
     cmd.m_Command = CMD_LOCAL_MESSAGE_RESULT;
     cmd.m_Data1 = strdup(j);
+    cmd.m_WasActivated = wasActivated;
     if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
@@ -574,7 +577,9 @@ void HandlePushMessageResult(const Command* cmd, bool local)
             lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
         }
 
-        dmScript::PCall(L, 3, LUA_MULTRET);
+        lua_pushboolean(L, cmd->m_WasActivated);
+
+        dmScript::PCall(L, 4, LUA_MULTRET);
     } else {
         dmLogError("Failed to parse push response (%d)", r);
     }

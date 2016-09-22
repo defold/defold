@@ -175,31 +175,41 @@
      :min-filter (filter-mode-min->gl (:filter-min s))
      :mag-filter (filter-mode-mag->gl (:filter-mag s))}))
 
+(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error :info _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
 (g/defnode MaterialNode
   (inherits project/ResourceNode)
 
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))
-  (property vertex-program (g/protocol resource/Resource)
+  (property vertex-program resource/Resource
     (dynamic visible (g/always false))
     (value (gu/passthrough vertex-resource))
-    (set (project/gen-resource-setter [[:resource :vertex-resource]
-                                       [:full-source :vertex-source]]))
-    (validate (validation/validate-resource vertex-program)))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter basis self old-value new-value
+                                        [:resource :vertex-resource]
+                                        [:full-source :vertex-source])))
+    (dynamic error (g/fnk [_node-id vertex-program]
+                          (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program"))))
 
-  (property fragment-program (g/protocol resource/Resource)
+  (property fragment-program resource/Resource
     (dynamic visible (g/always false))
     (value (gu/passthrough fragment-resource))
-    (set (project/gen-resource-setter [[:resource :fragment-resource]
-                                       [:full-source :fragment-source]]))
-    (validate (validation/validate-resource fragment-program)))
+    (set (fn [basis self old-value new-value]
+           (project/resource-setter basis self old-value new-value
+                                        [:resource :fragment-resource]
+                                        [:full-source :fragment-source])))
+    (dynamic error (g/fnk [_node-id fragment-program]
+                          (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program"))))
 
   (output form-data g/Any :cached produce-form-data)
 
   (input dep-build-targets g/Any :array)
-  (input vertex-resource (g/protocol resource/Resource))
+  (input vertex-resource resource/Resource)
   (input vertex-source g/Str)
-  (input fragment-resource (g/protocol resource/Resource))
+  (input fragment-resource resource/Resource)
   (input fragment-source g/Str)
 
   (output save-data g/Any :cached produce-save-data)
@@ -208,7 +218,7 @@
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source pb]
                                            (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat (:vertex-constants pb) (:fragment-constants pb))))]
                                              (shader/make-shader _node-id vertex-source fragment-source uniforms))))
-  (output samplers [{g/Keyword g/Any}] :cached (g/fnk [pb] (vec (:samplers pb)))))
+  (output samplers [g/KeywordMap] :cached (g/fnk [pb] (vec (:samplers pb)))))
 
 (defn- connect-build-targets [project self resource path]
   (let [resource (workspace/resolve-resource resource path)]

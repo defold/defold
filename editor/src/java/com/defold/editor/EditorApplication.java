@@ -19,11 +19,7 @@ public class EditorApplication {
         EditorApplication.startInstance = startInstance;
         runtime = ClojureRuntimeShim.newRuntime(classLoader, "editor");
         if (Editor.isDev()) {
-            new Thread() {
-                public void run() {
-                    runtime.invoke("editor.debug/start-server", null);
-                }
-            }.start();
+            runtime.invoke("editor.debug/start-server", null);
         }
         runtime.require("editor.boot");
     }

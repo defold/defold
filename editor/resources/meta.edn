@@ -256,6 +256,11 @@
    :path ["sprite" "subpixels"]}
   {:type :integer,
    :filter nil,
+   :help "max number of spine models, 128 by default",
+   :default 128,
+   :path ["spine" "max_count"]}
+  {:type :integer,
+   :filter nil,
    :help "max number of collection proxies, 8 by default",
    :default 8,
    :path ["collection_proxy" "max_count"]}

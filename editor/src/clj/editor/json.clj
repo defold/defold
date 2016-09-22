@@ -24,17 +24,33 @@
 ;; TODO - missing icon
 (def json-icon "icons/32/Icons_29-AT-Unkown.png")
 
-(g/defnk produce-content [resource]
-  (let [content (slurp resource)]
-    (json/read-str content)))
+(defonce ^:private json-loaders (atom {}))
 
 (g/defnode JsonNode
   (inherits project/ResourceNode)
+  (property content g/Any)
+  (input structure g/Any)
+  (output structure g/Any (g/fnk [structure] structure)))
 
-  (output content g/Any :cached produce-content))
+(defn load-json [project self resource]
+  (let [content (-> (slurp resource)
+                  json/read-str)
+        [load-fn new-content] (some (fn [[loader-id {:keys [accept-fn load-fn]}]]
+                                      (when-let [new-content (accept-fn content)]
+                                        [load-fn new-content]))
+                                    @json-loaders)]
+    (if load-fn
+      (concat
+        (g/set-property self :content new-content)
+        (load-fn self new-content))
+      (g/set-property self :content content))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "json"
                                     :node-type JsonNode
+                                    :load-fn load-json
                                     :icon json-icon))
+
+(defn register-json-loader [loader-id accept-fn load-fn]
+  (swap! json-loaders assoc loader-id {:accept-fn accept-fn :load-fn load-fn}))

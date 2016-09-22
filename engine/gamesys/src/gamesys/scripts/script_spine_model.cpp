@@ -22,6 +22,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Spine model API documentation
+     *
+     * Functions and messages for interacting with the 'Spine' 2D bone 
+     * animation system.
+     *
+     * @name Spine
+     * @namespace spine
+     */
+
     /*# play an animation on a spine model
      *
      * @name spine.play
@@ -61,21 +70,8 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        dmhash_t anim_id;
-        if (lua_isstring(L, 2))
-        {
-            anim_id = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            anim_id = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "animation_id must be either a hash or a string");
-        }
+        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
-
         lua_Number blend_duration = luaL_checknumber(L, 4);
 
         dmMessage::URL receiver;
@@ -92,17 +88,12 @@ namespace dmGameSystem
             }
         }
 
-        const uint32_t buffer_size = 256;
-        uint8_t buffer[buffer_size];
-        dmGameSystemDDF::SpinePlayAnimation* play = (dmGameSystemDDF::SpinePlayAnimation*)buffer;
+        dmGameSystemDDF::SpinePlayAnimation msg;
+        msg.m_AnimationId = anim_id;
+        msg.m_Playback = playback;
+        msg.m_BlendDuration = blend_duration;
 
-        uint32_t msg_size = sizeof(dmGameSystemDDF::SpinePlayAnimation);
-
-        play->m_AnimationId = anim_id;
-        play->m_Playback = playback;
-        play->m_BlendDuration = blend_duration;
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, buffer, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -134,11 +125,9 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmGameSystemDDF::SpineCancelAnimation cancel;
+        dmGameSystemDDF::SpineCancelAnimation msg;
 
-        uint32_t msg_size = sizeof(dmGameSystemDDF::SpineCancelAnimation);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor, &cancel, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -179,21 +168,9 @@ namespace dmGameSystem
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
         SpineModelComponent* component = world->m_Components.Get(user_data);
 
-        dmhash_t bone_id;
-        if (lua_isstring(L, 2))
-        {
-            bone_id = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            bone_id = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "bone_id must be either a hash or a string");
-        }
+        dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         uint32_t bone_index = ~0u;
         for (uint32_t i = 0; i < bone_count; ++i)
@@ -256,42 +233,14 @@ namespace dmGameSystem
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
         SpineModelComponent* component = world->m_Components.Get(user_data);
 
-        dmhash_t ik_constraint_id;
-        if (lua_isstring(L, 2))
-        {
-            ik_constraint_id = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            ik_constraint_id = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "ik_constraint_id must be either a hash or a string");
-        }
-
+        dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
         Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 3);
 
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
-        uint32_t ik_count = skeleton->m_Iks.m_Count;
-        uint32_t ik_index = ~0u;
-        for (uint32_t i = 0; i < ik_count; ++i)
-        {
-            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
-            {
-                ik_index = i;
-                break;
-            }
-        }
-        if (ik_index == ~0u)
+        if (!CompSpineModelSetIKTargetPosition(component, ik_constraint_id, 1.0f, (Point3)*position))
         {
             return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
         }
 
-        dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
-        ik_target.m_Mix = 1.0f;
-        ik_target.m_InstanceId = 0;
-        ik_target.m_Position = *position;
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -329,35 +278,7 @@ namespace dmGameSystem
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
         SpineModelComponent* component = world->m_Components.Get(user_data);
 
-        dmhash_t ik_constraint_id;
-        if (lua_isstring(L, 2))
-        {
-            ik_constraint_id = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            ik_constraint_id = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "ik_constraint_id must be either a hash or a string");
-        }
-
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
-        uint32_t ik_count = skeleton->m_Iks.m_Count;
-        uint32_t ik_index = ~0u;
-        for (uint32_t i = 0; i < ik_count; ++i)
-        {
-            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
-            {
-                ik_index = i;
-                break;
-            }
-        }
-        if (ik_index == ~0u)
-        {
-            return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
-        }
+        dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
 
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
@@ -365,16 +286,16 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 3, &target, &sender);
         if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
         {
-            luaL_error(L, "go.animate can only animate instances within the same collection.");
+            return luaL_error(L, "spine.set_ik_target can only use instances within the same collection.");
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
             return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
 
-
-        dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
-        ik_target.m_Mix = 1.0f;
-        ik_target.m_InstanceId = target.m_Path;
+        if (!CompSpineModelSetIKTargetInstance(component, ik_constraint_id, 1.0f, target.m_Path))
+        {
+            return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
+        }
 
         assert(top == lua_gettop(L));
         return 0;
@@ -410,35 +331,18 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        dmhash_t name_hash;
-        if (lua_isstring(L, 2))
-        {
-            name_hash = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            name_hash = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "name must be either a hash or a string");
-        }
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
         Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
 
-        const uint32_t buffer_size = 256;
-        uint8_t buffer[buffer_size];
-        dmGameSystemDDF::SetConstantSpineModel* request = (dmGameSystemDDF::SetConstantSpineModel*)buffer;
-
-        uint32_t msg_size = sizeof(dmGameSystemDDF::SetConstantSpineModel);
-
-        request->m_NameHash = name_hash;
-        request->m_Value = *value;
+        dmGameSystemDDF::SetConstantSpineModel msg;
+        msg.m_NameHash = name_hash;
+        msg.m_Value = *value;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor, buffer, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -470,34 +374,16 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
 
-        dmhash_t name_hash;
-        if (lua_isstring(L, 2))
-        {
-            name_hash = dmHashString64(lua_tostring(L, 2));
-        }
-        else if (dmScript::IsHash(L, 2))
-        {
-            name_hash = dmScript::CheckHash(L, 2);
-        }
-        else
-        {
-            return luaL_error(L, "name must be either a hash or a string");
-        }
-
-        const uint32_t buffer_size = 256;
-        uint8_t buffer[buffer_size];
-        dmGameSystemDDF::ResetConstantSpineModel* request = (dmGameSystemDDF::ResetConstantSpineModel*)buffer;
-
-        uint32_t msg_size = sizeof(dmGameSystemDDF::ResetConstantSpineModel);
-
-        request->m_NameHash = name_hash;
+        dmGameSystemDDF::ResetConstantSpineModel msg;
+        msg.m_NameHash = name_hash;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor, buffer, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

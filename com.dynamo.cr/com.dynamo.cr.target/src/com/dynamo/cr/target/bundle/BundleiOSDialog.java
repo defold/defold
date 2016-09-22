@@ -7,6 +7,7 @@ import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
@@ -32,8 +33,11 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         public void start();
         public void setIdentity(String identity);
         public void setProvisioningProfile(String profile);
+        public void setProvisioningProfile(String profile, boolean validate);
         public void releaseModeSelected(boolean selection);
+        public void releaseModeSelected(boolean selection, boolean validate);
         public void generateReportSelected(boolean selection);
+        public void generateReportSelected(boolean selection, boolean validate);
     }
 
     private Text profileText;
@@ -42,7 +46,11 @@ public class BundleiOSDialog extends TitleAreaDialog implements
     private IPresenter presenter;
     private Button releaseMode;
     private Button generateReport;
-    
+
+    private static String persistentProfileText = null;
+    private static boolean persistentReleaseMode = false;
+    private static boolean persistentGenerateReport = false;
+
     public BundleiOSDialog(Shell parentShell) {
         super(parentShell);
         setShellStyle(SWT.DIALOG_TRIM | SWT.RESIZE);
@@ -97,6 +105,10 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         profileText = new Text(container, SWT.BORDER);
         profileText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
         profileText.setEditable(false);
+        if (BundleiOSDialog.persistentProfileText != null) {
+            profileText.setText(BundleiOSDialog.persistentProfileText);
+            presenter.setProvisioningProfile(persistentProfileText, false);
+        }
 
         Button selectProfileButton = new Button(container, SWT.FLAT);
         GridData gd = new GridData(SWT.LEFT, SWT.FILL, false, false, 1, 1);
@@ -108,6 +120,7 @@ public class BundleiOSDialog extends TitleAreaDialog implements
                 FileDialog fileDialog = new FileDialog(getShell());
                 String profile = fileDialog.open();
                 if (profile != null) {
+                    BundleiOSDialog.persistentProfileText = profile;
                     profileText.setText(profile);
                     presenter.setProvisioningProfile(profile);
                 }
@@ -118,20 +131,30 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         releaseMode = new Button(container, SWT.CHECK);
         releaseMode.setText("Release mode");
         releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        if (persistentReleaseMode == true) {
+            releaseMode.setSelection(persistentReleaseMode);
+            presenter.releaseModeSelected(persistentReleaseMode, false);
+        }
         releaseMode.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                presenter.releaseModeSelected(releaseMode.getSelection());
+                persistentReleaseMode = releaseMode.getSelection();
+                presenter.releaseModeSelected(persistentReleaseMode);
             }
         });
 
         generateReport = new Button(container, SWT.CHECK);
         generateReport.setText("Generate build report");
         generateReport.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        if (persistentGenerateReport == true) {
+            generateReport.setSelection(persistentGenerateReport);
+            presenter.generateReportSelected(persistentGenerateReport, false);
+        }
         generateReport.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                presenter.generateReportSelected(generateReport.getSelection());
+                persistentGenerateReport = generateReport.getSelection();
+                presenter.generateReportSelected(persistentGenerateReport);
             }
         });
 

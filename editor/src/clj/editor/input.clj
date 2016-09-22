@@ -1,5 +1,6 @@
 (ns editor.input
-  (:require [dynamo.graph :as g])
+  (:require [dynamo.graph :as g]
+            [schema.core :as s])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer Screenshot]
            [editor.types Camera AABB Region]
@@ -23,9 +24,9 @@
 
 (set! *warn-on-reflection* true)
 
-(def ActionType (g/enum :scroll :mouse-pressed :mouse-released :mouse-clicked :mouse-moved :undefined))
+(def ActionType (s/enum :scroll :mouse-pressed :mouse-released :mouse-clicked :mouse-moved :undefined))
 
-(def ButtonType (g/enum :none :primary :middle :secondary))
+(def ButtonType (s/enum :none :primary :middle :secondary))
 
 (def action-map {ScrollEvent/SCROLL :scroll
                  MouseEvent/MOUSE_PRESSED :mouse-pressed

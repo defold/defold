@@ -4,7 +4,6 @@
 #include "sound_codec.h"
 #include "sound_decoder.h"
 #include "sound.h"
-#include "sound2.h"
 
 namespace dmSoundCodec
 {

@@ -1,0 +1,4 @@
+sound: "/sounds/tink.wav"
+looping: 1
+group: "fx"
+gain: 0.5

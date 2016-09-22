@@ -23,16 +23,11 @@ public class Util {
         int iter = 0;
         while (queries.size() > 0) {
             String q = queries.remove(0);
-            Statement stmnt = con.createStatement();
-            try {
+            try (Statement stmnt = con.createStatement()) {
                 stmnt.execute(q);
-            }
-            catch (SQLException e) {
+            } catch (SQLException e) {
                 // Failed to drop. Add last in query list
                 queries.add(q);
-            }
-            finally {
-                stmnt.close();
             }
             ++iter;
             if (iter > 100) {
@@ -53,25 +48,15 @@ public class Util {
 
         // Brute force delete of all rows. We don't know the correct order due to constraints
         // iterate until done
-        int iter = 0;
         while (queries.size() > 0) {
             String q = queries.remove(0);
-            Statement stmnt = con.createStatement();
-            try {
+            try (Statement stmnt = con.createStatement()) {
                 stmnt.execute(q);
-            }
-            catch (SQLException e) {
+            } catch (SQLException e) {
                 // Failed to drop. Add last in query list
                 queries.add(q);
-            }
-            finally {
-                stmnt.close();
-            }
-            if (iter > 100) {
-                throw new RuntimeException(String.format("Unable to clear all tables after %d iterations. Something went very wrong", iter));
             }
         }
         con.close();
     }
-
 }

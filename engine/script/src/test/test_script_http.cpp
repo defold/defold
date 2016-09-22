@@ -305,11 +305,10 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
         ASSERT_EQ(0, result);
     }
     lua_pop(L, 1);
-
     dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
     m_DefaultURL.m_Socket = 0;
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 100; ++i) {
         dmSys::PumpMessageQueue();
         dmTime::Sleep(10 * 1000);
     }

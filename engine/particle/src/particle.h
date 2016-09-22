@@ -7,6 +7,12 @@
 #include <ddf/ddf.h>
 #include "particle/particle_ddf.h"
 
+/*extern "C"
+{
+#include <lua/lua.h>
+#include <lua/lauxlib.h>
+}*/
+
 /**
  * System to handle particle systems
  */
@@ -99,6 +105,33 @@ namespace dmParticle
         FETCH_ANIMATION_UNKNOWN_ERROR = -1000
     };
 
+    enum EmitterState
+    {
+        EMITTER_STATE_SLEEPING = 0,
+        EMITTER_STATE_PRESPAWN = 1,
+        EMITTER_STATE_SPAWNING = 2,
+        EMITTER_STATE_POSTSPAWN = 3,
+    };
+
+    /**
+    * Callback for emitter state changed
+    */
+    typedef void (*EmitterStateChanged)(uint32_t num_awake_emitters, dmhash_t emitter_id, EmitterState emitter_state, void* user_data);
+
+    /**
+    * Data for emitter state change callback
+    */
+    struct EmitterStateChangedData
+    {
+        EmitterStateChangedData()
+        {
+            m_UserData = 0x0;
+        }
+
+        EmitterStateChanged m_StateChangedCallback;
+        void* m_UserData;
+    };
+
     /**
      * Callback to fetch the animation from a tile source
      */
@@ -185,7 +218,7 @@ namespace dmParticle
      * @param prototype Prototype of the instance to be created
      * @return Instance handle, or INVALID_INSTANCE when the resource is broken or the context is full.
      */
-    DM_PARTICLE_PROTO(HInstance, CreateInstance, HContext context, HPrototype prototype);
+    DM_PARTICLE_PROTO(HInstance, CreateInstance, HContext context, HPrototype prototype, EmitterStateChangedData* data);
     /**
      * Destroy instance in the specified context.
      * @param context Context handle, must be valid.

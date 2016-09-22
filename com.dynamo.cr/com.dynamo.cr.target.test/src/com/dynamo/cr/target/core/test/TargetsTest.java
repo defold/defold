@@ -169,7 +169,7 @@ public class TargetsTest implements ITargetListener {
     private DeviceInfo newDeviceInfo(String localAddress) {
         HashMap<String, String> headers = new HashMap<String, String>();
         headers.put("LOCATION", "http://localhost");
-        return new DeviceInfo(System.currentTimeMillis() + 1000, headers, localAddress);
+        return new DeviceInfo(System.currentTimeMillis() + 1000, headers, localAddress, "127.0.0.1");
     }
 
     @Test

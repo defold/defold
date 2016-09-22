@@ -1,7 +1,9 @@
 (ns editor.game-object
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [schema.core :as s]
             [editor.graph-util :as gu]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -16,7 +18,8 @@
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline])
+            [editor.outline :as outline]
+            [editor.util :as util])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sound.proto Sound$SoundDesc]
@@ -54,12 +57,10 @@
    :rotation (math/vecmath->clj rotation-q4)
    :data (or (:content save-data) "")})
 
-(def sound-exts (into #{} (map :ext sound/sound-defs)))
-
 (defn- wrap-if-raw-sound [_node-id target]
   (let [source-path (resource/proj-path (:resource (:resource target)))
         ext (FilenameUtils/getExtension source-path)]
-    (if (sound-exts ext)
+    (if (sound/supported-audio-formats ext)
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
@@ -79,33 +80,41 @@
    :icon ""
    :label ""})
 
+(defn- prop-id-duplicate? [id-counts id]
+  (when (> (id-counts id) 1)
+    (format "'%s' is in use by another instance" id)))
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
 
-  (property id g/Str)
+  (property id g/Str
+            (dynamic error (g/fnk [_node-id id id-counts]
+                                  (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
+                                      (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id)))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
             (dynamic read-only? (g/always true)))
 
   (display-order [:id :url :path scene/SceneNode])
 
-  (input source-resource (g/protocol resource/Resource))
+  (input source-resource resource/Resource)
   (input source-properties g/Properties :substitute {:properties {}})
   (input scene g/Any)
   (input build-targets g/Any)
   (input base-url g/Str)
+  (input id-counts g/Any)
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
-  (output component-id [(g/one g/Str "id") (g/one g/NodeID "node-id")] (g/fnk [_node-id id] [id _node-id]))
+  (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id node-outline-label id source-outline source-properties]
       (let [source-outline (or source-outline {:icon unknown-icon})
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
         (assoc source-outline :node-id _node-id :label node-outline-label
                :outline-overridden? overridden?))))
-  (output node-outline-label g/Str (g/fnk [id] id))
+  (output node-outline-label g/Str (gu/passthrough id))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
@@ -120,23 +129,23 @@
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                 :instance-msg rt-ddf-message
                                                                                 :transform transform})])
-                                               []))))
+                                               [])))
+  (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
+                                                  (merge-with into _declared-properties source-properties))))
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
 
   (input save-data g/Any :cascade-delete)
   (output rt-ddf-message g/Any :cached (g/fnk [id position ^Quat4d rotation-q4 save-data]
-                                              (gen-embed-ddf id position rotation-q4 save-data)))
-  (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
-                                                  (merge-with into _declared-properties source-properties))))
+                                              (gen-embed-ddf id position rotation-q4 save-data))))
 
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
 
   (property path g/Any
             (dynamic edit-type (g/fnk [source-resource]
-                                      {:type (g/protocol resource/Resource)
+                                      {:type resource/Resource
                                        :ext (some-> source-resource resource/resource-type :ext)
                                        :to-type (fn [v] (:resource v))
                                        :from-type (fn [r] {:resource r :overrides {}})}))
@@ -146,7 +155,7 @@
                                                     ddf-properties))}))
             (set (fn [basis self old-value new-value]
                    (concat
-                     (if-let [old-source (g/node-value self :source-id :basis basis)]
+                     (if-let [old-source (g/node-value self :source-id {:basis basis})]
                        (g/delete-node old-source)
                        [])
                      (let [new-resource (:resource new-value)
@@ -172,15 +181,15 @@
                                                                     (g/connect or-node from self to)))
                                                                 (for [[label value] (:overrides new-value)]
                                                                   (g/set-property or-node label value)))))))
-                        (let [f (project/gen-resource-setter [[:resource :source-resource]
-                                                              [:node-outline :source-outline]
-                                                              [:user-properties :user-properties]
-                                                              [:scene :scene]
-                                                              [:build-targets :build-targets]])]
-                          (f basis self (:resource old-value) (:resource new-value))))))))
-            (validate (g/fnk [path]
-                        (when (nil? path)
-                          (g/error-warning "Missing component")))))
+                         (project/resource-setter basis self (:resource old-value) (:resource new-value)
+                                                  [:resource :source-resource]
+                                                  [:node-outline :source-outline]
+                                                  [:user-properties :user-properties]
+                                                  [:scene :scene]
+                                                  [:build-targets :build-targets]))))))
+            (dynamic error (g/fnk [_node-id source-resource]
+                                  (or (validation/prop-error :info _node-id :path validation/prop-nil? source-resource "Path")
+                                      (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
 
   (input source-id g/NodeID :cascade-delete)
   (output ddf-properties g/Any :cached
@@ -198,10 +207,7 @@
   (output node-outline-label g/Str :cached (g/fnk [id source-resource]
                                                   (format "%s - %s" id (resource/resource->proj-path source-resource))))
   (output rt-ddf-message g/Any :cached (g/fnk [id position ^Quat4d rotation-q4 source-resource ddf-properties ddf-property-decls]
-                                              (gen-ref-ddf id position rotation-q4 source-resource ddf-properties ddf-property-decls)))
-  ;; TODO - cache it, not possible now because of dynamic prop invalidation bug
-  (output _properties g/Properties #_:cached (g/fnk [_declared-properties source-properties]
-                                                    (merge-with into _declared-properties source-properties))))
+                                              (gen-ref-ddf id position rotation-q4 source-resource ddf-properties ddf-property-decls))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf
@@ -225,12 +231,15 @@
         msg {:components instance-msgs}]
     {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
 
-(g/defnk produce-build-targets [_node-id resource proto-msg dep-build-targets]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-game-object
-    :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
-    :deps (flatten dep-build-targets)}])
+(g/defnk produce-build-targets [_node-id resource proto-msg dep-build-targets id-counts]
+  (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
+        (when (not-empty dup-ids)
+          (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
+      [{:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-game-object
+        :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
+        :deps (flatten dep-build-targets)}]))
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id
@@ -243,15 +252,15 @@
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
                      [:ddf-message ddf-input]
-                     [:component-id :component-ids]
+                     [:component-id :component-id-pairs]
                      [:scene :child-scenes]]]
       (g/connect comp-id from self-id to))
-    (for [[from to] [[:base-url :base-url]]]
+    (for [[from to] [[:base-url :base-url]
+                     [:id-counts :id-counts]]]
       (g/connect self-id from comp-id to))))
 
 (defn- attach-ref-component [self-id comp-id]
-  (concat
-    (attach-component self-id comp-id :ref-ddf)))
+  (attach-component self-id comp-id :ref-ddf))
 
 (defn- attach-embedded-component [self-id comp-id]
   (attach-component self-id comp-id :embed-ddf))
@@ -260,7 +269,7 @@
   {:node-id _node-id
    :label "Game Object"
    :icon game-object-icon
-   :children child-outlines
+   :children (vec (sort-by :label util/natural-order child-outlines))
    :child-reqs [{:node-type ReferencedComponent
                  :tx-attach-fn attach-ref-component}
                 {:node-type EmbeddedComponent
@@ -272,17 +281,17 @@
   (input ref-ddf g/Any :array)
   (input embed-ddf g/Any :array)
   (input child-scenes g/Any :array)
-  (input component-ids [(g/one g/Str "id") (g/one g/NodeID "node-id")] :array)
+  (input component-id-pairs g/IdPair :array)
   (input dep-build-targets g/Any :array)
   (input base-url g/Str)
 
-  (output base-url g/Str (g/fnk [base-url] base-url))
+  (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
-  (output component-ids {g/Str g/NodeID} :cached (g/fnk [component-ids] (reduce conj {} component-ids)))
+  (output component-ids g/Dict :cached (g/fnk [component-id-pairs] (reduce conj {} component-id-pairs)))
   (output ddf-component-properties g/Any :cached
           (g/fnk [ref-ddf]
                  (reduce (fn [props m]
@@ -291,7 +300,11 @@
                              (conj props (-> m
                                            (select-keys [:id :properties])
                                            (assoc :property-decls (properties/properties->decls (:properties m)))))))
-                         [] ref-ddf))))
+                         [] ref-ddf)))
+  (output id-counts g/Any :cached (g/fnk [component-id-pairs]
+                                         (reduce (fn [res id]
+                                                   (update res id (fn [id] (inc (or id 0)))))
+                                                 {} (map first component-id-pairs)))))
 
 (defn- gen-component-id [go-node base]
   (let [ids (map first (g/node-value go-node :component-ids))]
@@ -319,7 +332,7 @@
                           (g/operation-label "Add Component")
                           (g/operation-sequence op-seq)
                           (add-component go-id project resource id [0 0 0] [0 0 0] {}))))]
-    ; Selection
+    ;; Selection
     (g/transact
       (concat
         (g/operation-sequence op-seq)
@@ -327,7 +340,8 @@
         (project/select project [comp-node])))))
 
 (defn add-component-handler [workspace go-id]
-  (let [component-exts (map :ext (workspace/get-resource-types workspace :component))]
+  (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
+                                         (workspace/get-resource-types workspace :embeddable)))]
     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource))))
 
@@ -362,21 +376,12 @@
   (let [self (:_node-id user-data)
         project (project/get-project self)
         component-type (:resource-type user-data)
-        template (workspace/template component-type)]
-    (let [id (gen-component-id self (:ext component-type))
-          op-seq (gensym)
-          [comp-node source-node] (g/tx-nodes-added
-                                   (g/transact
-                                    (concat
-                                     (g/operation-sequence op-seq)
-                                     (g/operation-label "Add Component")
-                                     (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0] true))))]
-      (g/transact
-       (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Add Component")
-        ((:load-fn component-type) project source-node (io/reader (g/node-value source-node :resource)))
-        (project/select project [comp-node]))))))
+        template (workspace/template component-type)
+        id (gen-component-id self (:ext component-type))]
+    (g/transact
+     (concat
+      (g/operation-label "Add Component")
+      (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0] true)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -386,12 +391,13 @@
 
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
-    (let [resource-types (workspace/get-resource-types workspace :component)]
-      (mapv (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                            :icon (:icon res-type)
-                            :command :add
-                            :user-data {:_node-id self :resource-type res-type}})
-            resource-types))))
+    (->> (remove (comp :non-embeddable :tags) (workspace/get-resource-types workspace :component))
+         (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
+                              :icon (:icon res-type)
+                              :command :add
+                              :user-data {:_node-id self :resource-type res-type}}))
+         (sort-by :label)
+         vec)))
 
 (handler/defhandler :add :global
   (label [user-data] (add-embedded-component-label user-data))

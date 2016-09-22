@@ -98,7 +98,7 @@ message TileGrid
 /*# (DEPRECATED) changes a tile in a tile map
  * Send this message to a tile map component to change the tile in one of its cells.
  *
- * DEPRECATED! Use <code>tilemap.set_tile()</code> instead.
+ * @deprecated Use <code>tilemap.set_tile()</code> instead.
  *
  * @examples
  * <p>
@@ -141,7 +141,7 @@ message SetTile
 message SetConstantTileMap
 {
     required uint64         name_hash   = 1;
-    required dmMath.Vector4 value       = 2;
+    required dmMath.Vector4 value       = 2 [(field_align)=true];
 }
 
 /* Function wrapper documented in script_tilemap.cpp */

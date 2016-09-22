@@ -14,6 +14,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
+            [schema.core :as s]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
@@ -81,7 +82,7 @@
                                   (let [selection-set (set selection)
                                         prev-selection-set (g/node-value controller :prev-selection-set)]
                                     (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))
-        selection (or (not-empty (sel-filter-fn (map :node-id selection))) (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
+        selection (or (not-empty (sel-filter-fn selection)) (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
     (select-fn selection op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})
@@ -137,12 +138,14 @@
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
     (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
+(g/deftype SelectionMode (s/enum :direct :toggle))
+
 (g/defnode SelectionController
   (property select-fn Runnable)
   (property start types/Vec3)
   (property current types/Vec3)
   (property op-seq g/Any)
-  (property mode (g/enum :direct :toggle))
+  (property mode SelectionMode)
   (property prev-selection-set g/Any)
 
   (input selection g/Any)

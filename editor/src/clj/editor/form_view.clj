@@ -4,7 +4,8 @@
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [editor.types :as types])
   (:import [javafx.animation AnimationTimer]
            [java.util Collection]
            [javafx.scene Parent Group]

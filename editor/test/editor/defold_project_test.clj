@@ -14,7 +14,7 @@
   (property value-piece g/Str)
   (property value g/Str
             (set (fn [basis self old-value new-value]
-                   (let [input (g/node-value self :value-input :basis basis)]
+                   (let [input (g/node-value self :value-input {:basis basis})]
                      (g/set-property self :value-piece (str (first input)))))))
   (input value-input g/Str))
 
@@ -42,7 +42,7 @@
 (deftest loading
   (reset! load-counter 0)
   (with-clean-system
-    (let [workspace (workspace/make-workspace world "resources/load_project")]
+    (let [workspace (workspace/make-workspace world "test/resources/load_project")]
       (g/transact
        (register-resource-types workspace [{:ext "type_a"
                                             :node-type ANode

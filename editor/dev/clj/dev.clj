@@ -39,7 +39,7 @@
   []
   (for [n (nodes)
         :let [node-id (g/node-id n)]]
-    [(gt/node-id->graph-id node-id) (gt/node-id->nid node-id) (class n)]))
+    [(gt/node-id->graph-id node-id) (gt/node-id->nid node-id) (some-> n :node-type deref :name)]))
 
 (defn node
   ([node-id]

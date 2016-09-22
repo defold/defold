@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#include "facebook.h"
+#include "facebook_private.h"
 #include "facebook_util.h"
 #include "facebook_analytics.h"
 
@@ -48,7 +48,7 @@ typedef void (*OnRequestPublishPermissionsCallback)(void *L, const char* error);
 
 extern "C" {
     // Implementation in library_facebook.js
-    void dmFacebookInitialize(const char* app_id);
+    void dmFacebookInitialize(const char* app_id, const char* version);
     void dmFacebookAccessToken(OnAccessTokenCallback callback, lua_State* L);
     void dmFacebookPermissions(OnPermissionsCallback callback, lua_State* L);
     void dmFacebookMe(OnMeCallback callback, lua_State* L);
@@ -251,13 +251,16 @@ static void VerifyCallback(lua_State* L)
     }
 }
 
-void OnLoginComplete(void* L, int state, const char* error, const char* me_json, const char* permissions_json)
+static void OnLoginComplete(void* L, int state, const char* error, const char* me_json, const char* permissions_json)
 {
     dmLogDebug("FB login complete...(%d, %s)", state, error);
     g_Facebook.m_MeJson = me_json;
     g_Facebook.m_PermissionsJson = permissions_json;
     RunStateCallback((lua_State*)L, state, error);
 }
+
+namespace dmFacebook
+{
 
 int Facebook_Login(lua_State* L)
 {
@@ -520,15 +523,21 @@ int Facebook_ShowDialog(lua_State* L)
         return luaL_error(L, "Could not convert show dialog param table.");
     }
 
-    char params_json[2048];
-    if (0 == dmFacebook::LuaTableToJson(L, to_index, params_json, 2048)) {
+    int size_needed = 1 + dmFacebook::LuaTableToJson(L, to_index, 0, 0);
+    char* params_json = (char*)malloc(size_needed);
+
+    if (params_json == 0 || 0 == dmFacebook::LuaTableToJson(L, to_index, params_json, size_needed)) {
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
+        if( params_json ) {
+            free(params_json);
+        }
         return luaL_error(L, "Dialog params table too large.");
     }
     lua_pop(L, 1);
 
     dmFacebookShowDialog(params_json, dialog, (OnShowDialogCallback) OnShowDialogComplete, dmScript::GetMainThread(L));
+    free(params_json);
 
     assert(top == lua_gettop(L));
     return 0;
@@ -577,68 +586,18 @@ int Facebook_DisableEventUsage(lua_State* L)
     return 0;
 }
 
-
-static const luaL_reg Facebook_methods[] =
-{
-    {"login", Facebook_Login},
-    {"logout", Facebook_Logout},
-    {"access_token", Facebook_AccessToken},
-    {"permissions", Facebook_Permissions},
-    {"request_read_permissions", Facebook_RequestReadPermissions},
-    {"request_publish_permissions", Facebook_RequestPublishPermissions},
-    {"me", Facebook_Me},
-    {"post_event", Facebook_PostEvent},
-    {"enable_event_usage", Facebook_EnableEventUsage},
-    {"disable_event_usage", Facebook_DisableEventUsage},
-    {"show_dialog", Facebook_ShowDialog},
-    {0, 0}
-};
+} // namespace
 
 dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
-    lua_State* L = params->m_L;
-    int top = lua_gettop(L);
-    luaL_register(L, LIB_NAME, Facebook_methods);
-
-#define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
-        lua_setfield(L, -2, #name);\
-
-    SETCONSTANT(STATE_CREATED,              dmFacebook::STATE_CREATED);
-    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, dmFacebook::STATE_CREATED_TOKEN_LOADED);
-    SETCONSTANT(STATE_CREATED_OPENING,      dmFacebook::STATE_CREATED_OPENING);
-    SETCONSTANT(STATE_OPEN,                 dmFacebook::STATE_OPEN);
-    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED,  dmFacebook::STATE_OPEN_TOKEN_EXTENDED);
-    SETCONSTANT(STATE_CLOSED,               dmFacebook::STATE_CLOSED);
-    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED,  dmFacebook::STATE_CLOSED_LOGIN_FAILED);
-
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE,   dmFacebook::GAMEREQUEST_ACTIONTYPE_NONE);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND,   dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, dmFacebook::GAMEREQUEST_ACTIONTYPE_ASKFOR);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN,   dmFacebook::GAMEREQUEST_ACTIONTYPE_TURN);
-
-    SETCONSTANT(GAMEREQUEST_FILTER_NONE,        dmFacebook::GAMEREQUEST_FILTER_NONE);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS,    dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, dmFacebook::GAMEREQUEST_FILTER_APPNONUSERS);
-
-    SETCONSTANT(AUDIENCE_NONE,     dmFacebook::AUDIENCE_NONE);
-    SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
-    SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
-    SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
-
-#undef SETCONSTANT
-
-    dmFacebook::Analytics::RegisterConstants(L);
-
-    lua_pop(L, 1);
-    assert(top == lua_gettop(L));
+    dmFacebook::LuaInit(params->m_L);
 
     if(!g_Facebook.m_Initialized)
     {
         g_Facebook.m_appId = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
         if( g_Facebook.m_appId )
         {
-            dmFacebookInitialize(g_Facebook.m_appId);
+            dmFacebookInitialize(g_Facebook.m_appId, dmFacebook::GRAPH_API_VERSION);
 
             dmLogDebug("FB initialized.");
 

@@ -9,6 +9,7 @@
 * In Preferences -> Accounts
     ** Add a new account, use your apple ID
     ** You should now see account and that it’s a member of the Midasplayer team
+* You also need to set up a Provisional Profile. This is done in Xcode->Preferences->Accounts. "Team Midasplayer AB" should be visible in the list. Double-click and  a window should appear with IDs in the top half and Provisioning Profiles in the bottom half. Select the profile you want (e.g. "iOS Team Provision Profile: *". Use the downloaded profile when deploying to an iOS device.
 
 After installation of XCode (and each update!) you need to create a symbolic link to iOS sdk:
 

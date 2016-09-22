@@ -19,10 +19,10 @@ def configure(conf):
 
 def build(bld):
     embed_source = ''
-    source = 'dummy.cpp facebook_util.cpp'
+    source = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
 
     if re.match('arm.*?darwin', bld.env.PLATFORM):
-        source += ' facebook.mm'
+        source += ' facebook_ios.mm'
         source += ' facebook_analytics.cpp'
         embed_source += ' ../resources/ios/close.png ../resources/ios/close@2x.png'
 
@@ -59,11 +59,11 @@ def build(bld):
                                 embed_source = embed_source,
                                 target = 'facebookext')
 
-    bld.new_task_gen(source = 'facebook.mm',
+    bld.new_task_gen(source = 'facebook_ios.mm',
                      target = 'facebook_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
-    bld.new_task_gen(source = 'facebook.mm',
+    bld.new_task_gen(source = 'facebook_ios.mm',
                      target = 'facebook_doc.json',
                      rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
 

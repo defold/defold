@@ -1,14 +1,15 @@
 package com.dynamo.cr.server.model;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import com.dynamo.cr.server.auth.PasswordHashGenerator;
+
+import javax.persistence.*;
 
 @Entity
 @Table(name="new_users")
+@NamedQueries({
+        @NamedQuery(name = "NewUser.delete", query = "DELETE FROM NewUser u WHERE u.email = :email"),
+        @NamedQuery(name = "NewUser.findByLoginToken", query = "SELECT u FROM NewUser u WHERE u.loginToken = :loginToken")
+})
 public class NewUser {
 
     @Id
@@ -26,6 +27,9 @@ public class NewUser {
 
     @Column(nullable = false)
     private String lastName;
+
+    @Column
+    private String password;
 
     public Long getId() {
         return id;
@@ -61,6 +65,14 @@ public class NewUser {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = PasswordHashGenerator.generateHash(password);
     }
 
     @Override

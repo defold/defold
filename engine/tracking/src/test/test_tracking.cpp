@@ -432,7 +432,7 @@ TEST_F(dmTrackingTest, TestDDFMessage)
 
     dmMessage::URL url;
     url.m_Socket = dmTracking::GetSocket(m_Tracking);
-    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, sz);
+    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, sz, 0);
     dmTracking::Update(m_Tracking, 1.0f);
 
     lua_getglobal(m_LuaState, "test_assert_request_has_event");
@@ -476,7 +476,7 @@ TEST_F(dmTrackingTest, TestAttribute)
 
     dmMessage::URL url;
     url.m_Socket = dmTracking::GetSocket(m_Tracking);
-    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[5]);
+    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[5], 0);
     dmTracking::Update(m_Tracking, 1.0f);
 
     lua_getglobal(m_LuaState, "test_assert_request_has_attribute");
@@ -518,7 +518,7 @@ TEST_F(dmTrackingTest, TestMetric)
 
     dmMessage::URL url;
     url.m_Socket = dmTracking::GetSocket(m_Tracking);
-    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[4]);
+    dmMessage::Post(0, &url, dmTrackingDDF::TrackingEvent::m_DDFHash, 0, (uintptr_t) dmTrackingDDF::TrackingEvent::m_DDFDescriptor, evt, ofs[4], 0);
     dmTracking::Update(m_Tracking, 1.0f);
 
     lua_getglobal(m_LuaState, "test_assert_request_has_metric");
@@ -818,11 +818,16 @@ class dmTrackingNoHookLocalhost : public ::testing::Test
 TEST_F(dmTrackingNoHookLocalhost, Test)
 {
     dmTracking::Start(m_Tracking, "Defold", "unit-test");
-    for (uint32_t i=0;i!=2;i++)
+    // The first update will perform an http.request
+    // Since the http.request is not mocked away in this test, the real http-service is used, which expects the recipient to deallocate some dynamic memory attached to the response
+    // Let's wait for it to make valgrind happy
+    dmMessage::HSocket socket = dmTracking::GetSocket(m_Tracking);
+    dmTracking::Update(m_Tracking, 0.3f);
+    while (!dmMessage::HasMessages(socket))
     {
-        dmTracking::Update(m_Tracking, 0.3f);
-        dmTime::Sleep(300*1000);
+        dmTime::Sleep(10000);
     }
+    dmTracking::Update(m_Tracking, 0.3f);
 }
 
 int main(int argc, char **argv)

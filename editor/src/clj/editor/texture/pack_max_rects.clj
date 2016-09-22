@@ -25,14 +25,14 @@
   (min (Math/abs ^int (- (width r1)  (width r2)))
        (Math/abs ^int (- (height r1) (height r2)))))
 
-(s/defn ^:private area-fit :- g/Int
+(s/defn ^:private area-fit :- s/Int
   [r1 :- Rect r2 :- Rect]
   (let [a1 (area r1)
         a2 (area r2)]
     (when (> a1 a2)
       (/ a2 a1))))
 
-(s/defn score-rect :- [(g/one g/Int "score") (g/one Rect "free-rect")]
+(s/defn score-rect :- [(s/one s/Int "score") (s/one Rect "free-rect")]
   [free-rect :- Rect rect :- Rect]
   (if (and  (>= (:width free-rect) (:width rect))
             (>= (:height free-rect) (:height rect)))
@@ -40,7 +40,7 @@
     [nil free-rect]))
 
 ; find the best free-rect into which to place rect
-(s/defn score-rects :- [[(g/one g/Int "score") (g/one Rect "free-rect")]]
+(s/defn score-rects :- [[(s/one s/Int "score") (s/one Rect "free-rect")]]
   [free-rects :- [Rect] {:keys [width height] :as rect} :- Rect]
   "Sort the free-rects according to how well rect fits into them.
    A 'good fit' means the least amount of leftover area."
@@ -55,7 +55,7 @@
 (def max-width 2048)
 
 (s/defn with-top-right-margin :- Rect
-  [margin :- g/Int r :- Rect]
+  [margin :- s/Int r :- Rect]
   (assoc r
          :width (+ margin (:width r))
          :height (+ margin (:height r))))
@@ -65,7 +65,7 @@
 (def trace (atom []))
 
 (s/defn pack-at-size :- TexturePacking
-  [margin :- g/Int sources :- [Rect] space-available :- Rect]
+  [margin :- s/Int sources :- [Rect] space-available :- Rect]
   (loop [free-rects   [space-available]
          remaining    (reverse (sort-by area sources))
          placed       []]
@@ -136,7 +136,7 @@
 (s/defn max-rects-packing :- TexturePacking
   ([sources :- [Rect]]
     (max-rects-packing 0 sources))
-  ([margin :- g/Int sources :- [Rect]]
+  ([margin :- s/Int sources :- [Rect]]
     (case (count sources)
       0   :packing-failed
       1   (types/->TexturePacking (first sources) nil sources sources [])

@@ -5,7 +5,7 @@
 #include <cstdlib>
 
 #include <dlib/log.h>
-#include "facebook.h"
+#include "facebook_private.h"
 
 namespace
 {

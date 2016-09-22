@@ -4,7 +4,8 @@
             [clojure.tools.namespace.dependency :as dep]
             [clojure.tools.namespace.file :as file]
             [clojure.tools.namespace.find :as find]
-            [clojure.tools.namespace.track :as track]))
+            [clojure.tools.namespace.track :as track]
+            [clojure.walk :as walk]))
 
 (defn all-sources-tracker
   [srcdirs]
@@ -51,11 +52,32 @@
 
 (def srcdirs (map io/file ["src/clj"]))
 
+(defn system-properties
+  []
+  (walk/keywordize-keys (into {} (System/getProperties))))
+
+(def build-type (atom (get (system-properties) :defold.build "development")))
+
+(def build->compiler-options
+  {"development"
+   {:elide-meta           #{:file :line :column}
+    :defold/check-schemas true}
+
+   "release"
+   {:elide-meta     #{:file :line :column}
+    :direct-linking true
+    :defold/check-schemas  false}})
+
+(def default-compiler-options (build->compiler-options "development"))
+
 (defn compile-clj
   [namespaces]
-  (doseq [n namespaces]
-    (println "Compiling " n)
-    (compile n)))
+  (binding [*compiler-options* (build->compiler-options @build-type default-compiler-options)]
+    (println "Using build profile " @build-type)
+    (println "Compiler options: " *compiler-options*)
+    (doseq [n namespaces]
+      (println "Compiling " n)
+      (compile n))))
 
 (defn -main [& args]
   (defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))

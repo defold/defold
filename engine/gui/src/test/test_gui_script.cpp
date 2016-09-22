@@ -5,6 +5,7 @@
 #include <script/lua_source_ddf.h>
 
 #include "../gui.h"
+#include "../gui_private.h"
 #include "../gui_script.h"
 
 extern "C"
@@ -30,6 +31,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str)
 }
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
+bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
 
 class dmGuiScriptTest : public ::testing::Test
 {
@@ -48,10 +50,16 @@ public:
         context_params.m_PhysicalWidth = 1;
         context_params.m_PhysicalHeight = 1;
         m_Context = dmGui::NewContext(&context_params);
+
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &m_Context->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = 2;
+        dmRig::NewContext(rig_params);
     }
 
     virtual void TearDown()
     {
+        dmRig::DeleteContext(m_Context->m_RigContext);
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
@@ -63,6 +71,21 @@ void GetTextMetricsCallback(const void* font, const char* text, float width, boo
     out_metrics->m_Width = strlen(text) * TEXT_GLYPH_WIDTH;
     out_metrics->m_MaxAscent = TEXT_MAX_ASCENT;
     out_metrics->m_MaxDescent = TEXT_MAX_DESCENT;
+}
+
+bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data)
+{
+    if (!spine_scene) {
+        return false;
+    }
+
+    dmGui::RigSceneDataDesc* spine_scene_ptr = (dmGui::RigSceneDataDesc*)spine_scene;
+    out_data->m_BindPose = spine_scene_ptr->m_BindPose;
+    out_data->m_Skeleton = spine_scene_ptr->m_Skeleton;
+    out_data->m_MeshSet = spine_scene_ptr->m_MeshSet;
+    out_data->m_AnimationSet = spine_scene_ptr->m_AnimationSet;
+
+    return true;
 }
 
 TEST_F(dmGuiScriptTest, URLOutsideFunctions)
@@ -433,6 +456,46 @@ TEST_F(dmGuiScriptTest, TestSlice9)
     dmGui::DeleteScript(script);
 }
 
+
+TEST_F(dmGuiScriptTest, TestSizeMode)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    dmGui::Result result;
+
+    int t1, ts1;
+    result = dmGui::AddTexture(scene, "t1", (void*) &t1, (void*) &ts1, 1, 1);
+    ASSERT_EQ(result, dmGui::RESULT_OK);
+
+    const char* src =
+            "function init(self)\n"
+            "    local n = gui.new_box_node(vmath.vector3(0, 0, 0), vmath.vector3(10, 10, 0))\n"
+            "    gui.set_texture(n, 't1')\n"
+            "    assert(gui.get_size_mode(n) == gui.SIZE_MODE_MANUAL)\n"
+            "    assert(gui.get_size(n) == vmath.vector3(10, 10, 0))\n"
+            "    gui.set_size_mode(n, gui.SIZE_MODE_AUTO)\n"
+            "    assert(gui.get_size_mode(n) == gui.SIZE_MODE_AUTO)\n"
+            "    assert(gui.get_size(n) == vmath.vector3(1, 1, 0))\n"
+            "end\n";
+
+    result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+
 void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
@@ -475,6 +538,82 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
 
     dmGui::DeleteScene(scene);
 
+    dmGui::DeleteScript(script);
+}
+
+static void InitializeScriptScene(dmGui::HContext* context,
+    dmGui::HScript* script, dmGui::HScene* scene, void* user_data, const char* source)
+{
+    *script = dmGui::NewScript(*context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = user_data;
+    *scene = dmGui::NewScene(*context, &params);
+
+    dmGui::Result result = dmGui::RESULT_OK;
+
+    dmGui::SetSceneResolution(*scene, 1, 1);
+
+    result = dmGui::SetSceneScript(*scene, *script);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = SetScript(*script, LuaSourceFromStr(source));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(*scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderMinimum)
+{
+    dmGui::HScript script = NULL;
+    dmGui::HScene scene = NULL;
+
+    const char* source = "function init(self)\ngui.set_render_order(0)\nend\n";
+    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    ASSERT_EQ(0, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderMaximum)
+{
+    dmGui::HScript script = NULL;
+    dmGui::HScene scene = NULL;
+
+    const char* source = "function init(self)\ngui.set_render_order(15)\nend\n";
+    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    ASSERT_EQ(15, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderUnderflow)
+{
+    dmGui::HScript script = NULL;
+    dmGui::HScene scene = NULL;
+
+    const char* source = "function init(self)\ngui.set_render_order(-1)\nend\n";
+    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    ASSERT_EQ(0, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestSetRenderOrderOverflow)
+{
+    dmGui::HScript script = NULL;
+    dmGui::HScene scene = NULL;
+
+    const char* source = "function init(self)\ngui.set_render_order(16)\nend\n";
+    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    ASSERT_EQ(15, scene->m_RenderOrder);
+
+    dmGui::DeleteScene(scene);
     dmGui::DeleteScript(script);
 }
 
@@ -702,6 +841,273 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
 
         dmGui::DeleteScene(scene);
         dmGui::DeleteScript(script);
+}
+
+static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton* skeleton)
+{
+    // Calculate bind pose
+    // (code from res_rig_scene.h)
+    uint32_t bone_count = skeleton->m_Bones.m_Count;
+    bind_pose->SetCapacity(bone_count);
+    bind_pose->SetSize(bone_count);
+    for (uint32_t i = 0; i < bone_count; ++i)
+    {
+        dmRig::RigBone* bind_bone = &(*bind_pose)[i];
+        dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
+        bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
+        if (i > 0)
+        {
+            bind_bone->m_LocalToModel = dmTransform::Mul((*bind_pose)[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
+            if (!bone->m_InheritScale)
+            {
+                bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
+            }
+        }
+        else
+        {
+            bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
+        }
+        bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
+        bind_bone->m_ParentIndex = bone->m_Parent;
+        bind_bone->m_Length = bone->m_Length;
+    }
+}
+
+static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+{
+    dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+
+    uint32_t bone_count = 2;
+    skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
+    skeleton->m_Bones.m_Count = bone_count;
+
+    // Bone 0
+    dmRigDDF::Bone& bone0 = skeleton->m_Bones.m_Data[0];
+    bone0.m_Parent       = 0xffff;
+    bone0.m_Id           = dmHashString64("b0");
+    bone0.m_Position     = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    bone0.m_Rotation     = Vectormath::Aos::Quat::identity();
+    bone0.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+    bone0.m_InheritScale = false;
+    bone0.m_Length       = 0.0f;
+
+    // Bone 1
+    dmRigDDF::Bone& bone1 = skeleton->m_Bones.m_Data[1];
+    bone1.m_Parent       = 0;
+    bone1.m_Id           = dmHashString64("b1");
+    bone1.m_Position     = Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f);
+    bone1.m_Rotation     = Vectormath::Aos::Quat::identity();
+    bone1.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+    bone1.m_InheritScale = false;
+    bone1.m_Length       = 1.0f;
+
+    dummy_data->m_BindPose = new dmArray<dmRig::RigBone>();
+    dummy_data->m_Skeleton = skeleton;
+    dummy_data->m_MeshSet = mesh_set;
+    dummy_data->m_AnimationSet = animation_set;
+
+    BuildBindPose(dummy_data->m_BindPose, skeleton);
+}
+
+static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+{
+    delete dummy_data->m_BindPose;
+    delete [] dummy_data->m_Skeleton->m_Bones.m_Data;
+    delete dummy_data->m_Skeleton;
+    delete dummy_data->m_MeshSet;
+    delete dummy_data->m_AnimationSet;
+    delete dummy_data;
+}
+
+TEST_F(dmGuiScriptTest, SpineScenes)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+        CreateSpineDummyData(dummy_data);
+
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
+
+        // Set position
+        const char* src =
+                "function init(self)\n"
+                "    local n = gui.new_spine_node(vmath.vector3(1, 1, 1), \"test_spine\")\n"
+                "    gui.set_pivot(n, gui.PIVOT_SW)\n"
+                "    gui.set_position(n, vmath.vector3(0, 0, 0))\n"
+                "    gui.animate(n, gui.PROP_SCALE, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1, 0, nil, gui.PLAYBACK_LOOP_FORWARD)\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+
+        DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiScriptTest, DeleteSpine)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+        CreateSpineDummyData(dummy_data);
+
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
+
+        // Set position
+        const char* src =
+                "function init(self)\n"
+                "    n = gui.new_spine_node(vmath.vector3(1, 1, 1), \"test_spine\")\n"
+                "    gui.set_pivot(n, gui.PIVOT_SW)\n"
+                "end\n"
+                "function update(self, dt)\n"
+                "    -- produces a lua error since the spine nodes has been deleted\n"
+                "    gui.get_position(n)\n"
+                "    gui.delete_node(n)\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_NE(dmGui::RESULT_OK, result);
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+
+        DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiScriptTest, DeleteBone)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+        CreateSpineDummyData(dummy_data);
+
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
+
+        // Set position
+        const char* src =
+                "function init(self)\n"
+                "    n = gui.new_spine_node(vmath.vector3(1, 1, 1), \"test_spine\")\n"
+                "    gui.set_pivot(n, gui.PIVOT_SW)\n"
+                "    bone_node = gui.get_spine_bone(n, \"b1\")\n"
+                "end\n"
+                "function update(self, dt)\n"
+                "    -- produces a lua error since bone nodes cannot be deleted on their own\n"
+                "    gui.get_position(bone_node)\n"
+                "    gui.delete_node(bone_node)\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_NE(dmGui::RESULT_OK, result);
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+
+        DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiScriptTest, SetBoneNodeProperties)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+        CreateSpineDummyData(dummy_data);
+
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(scene, "test_spine", (void*)dummy_data));
+
+        // Set position
+        const char* src =
+                "function init(self)\n"
+                "    spine_node = gui.new_spine_node(vmath.vector3(1, 1, 1), \"test_spine\")\n"
+                "    fake_parent = gui.new_box_node(vmath.vector3(1, 1, 1),vmath.vector3(1, 1, 1))\n"
+                "\n"
+                "    bone_node = gui.get_spine_bone(spine_node, \"b1\")\n"
+                "    gui.set_position(bone_node, vmath.vector3(100, 100, 0))\n"
+                "    gui.set_size(bone_node, vmath.vector3(100, 100, 100))\n"
+                "    gui.set_scale(bone_node, vmath.vector3(100, 100, 100))\n"
+                "    gui.set_scale(bone_node, vmath.vector3(100, 100, 100))\n"
+                "    gui.set_parent(bone_node, fake_parent)\n"
+                "    gui.set_spine_scene(bone_node, \"test_spine\")\n"
+                "end\n"
+                "\n"
+                "function update(self, dt)\n"
+                "    -- properties should not have changed since it's not possible to set them directly for bones\n"
+                "    assert(gui.get_position(bone_node).x == 1.0)\n"
+                "    assert(gui.get_size(bone_node).x == 0.0)\n"
+                "    assert(gui.get_scale(bone_node).x == 1.0)\n"
+                "    assert(gui.get_parent(bone_node) ~= fake_parent)\n"
+                "    assert(gui.get_spine_scene(bone_node) == hash(\"\"))\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::UpdateScene(scene, 1.0f / 60);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+
+        DeleteSpineDummyData(dummy_data);
 }
 
 int main(int argc, char **argv)

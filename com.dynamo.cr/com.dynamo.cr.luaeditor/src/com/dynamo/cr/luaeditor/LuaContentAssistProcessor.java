@@ -20,6 +20,7 @@ import org.eclipse.ui.statushandlers.StatusManager;
 
 import com.dynamo.scriptdoc.proto.ScriptDoc;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Parameter;
+import com.dynamo.scriptdoc.proto.ScriptDoc.ReturnValue;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Type;
 
 public class LuaContentAssistProcessor implements IContentAssistProcessor {
@@ -113,11 +114,16 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
                     }
                     s = s + ")";
 
-                    if (element.getReturn().length() > 0) {
-                        additionalInfo.append("<br>");
-                        additionalInfo.append("<b>Returns:</b><br>");
+                    additionalInfo.append("<br>");
+                    additionalInfo.append("<b>Returns:</b>");
+                    additionalInfo.append("<br>");
+                    
+                    for (ReturnValue returnvalue : element.getReturnvaluesList()) {
                         additionalInfo.append("&#160;&#160;&#160;&#160;<b>");
-                        additionalInfo.append(element.getReturn());
+                        additionalInfo.append(returnvalue.getName());
+                        additionalInfo.append("</b> ");
+                        additionalInfo.append(returnvalue.getDoc());
+                        additionalInfo.append("<br>");
                     }
                 } else if (element.getType() == Type.NAMESPACE) {
                     // We do nothing currently

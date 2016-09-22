@@ -206,7 +206,9 @@ namespace dmScript
         {
             // Check overflow
             if (count == (uint16_t)0xffff)
+            {
                 luaL_error(L, "too many values in table, %d is max", 0xffff);
+            }
 
             count++;
 
@@ -214,11 +216,13 @@ namespace dmScript
             int value_type = lua_type(L, -1);
             if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER)
             {
-                luaL_error(L, "keys in table must be of type number or string");
+                luaL_error(L, "keys in table must be of type number or string (found %s)", lua_typename(L, key_type));
             }
 
             if (buffer_end - buffer < 2)
-                luaL_error(L, "table too large");
+            {
+                luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
+            }
 
             (*buffer++) = (char) key_type;
             (*buffer++) = (char) value_type;
@@ -230,7 +234,7 @@ namespace dmScript
 
                 if (buffer_end - buffer < int32_t(1 + key_len))
                 {
-                    luaL_error(L, "table too large");
+                    luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
                 }
                 memcpy(buffer, key, key_len);
                 buffer += key_len;
@@ -245,7 +249,9 @@ namespace dmScript
                 case LUA_TBOOLEAN:
                 {
                     if (buffer_end - buffer < 1)
-                        luaL_error(L, "table too large");
+                    {
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                    }
                     (*buffer++) = (char) lua_toboolean(L, -1);
                 }
                 break;
@@ -258,7 +264,9 @@ namespace dmScript
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
 
                     if (buffer_end - buffer < align_size)
-                        luaL_error(L, "table too large");
+                    {
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                    }
 
 #ifndef NDEBUG
                     memset(buffer, 0, align_size);
@@ -267,7 +275,7 @@ namespace dmScript
 
                     if (buffer_end - buffer < int32_t(sizeof(lua_Number)) || buffer_end - buffer < align_size)
                     {
-                        luaL_error(L, "table too large");
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
 
                     union
@@ -287,7 +295,9 @@ namespace dmScript
                     const char* value = lua_tostring(L, -1);
                     uint32_t value_len = strlen(value) + 1;
                     if (buffer_end - buffer < int32_t(value_len))
-                        luaL_error(L, "table too large");
+                    {
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                    }
                     memcpy(buffer, value, value_len);
                     buffer += value_len;
                 }
@@ -296,7 +306,9 @@ namespace dmScript
                 case LUA_TUSERDATA:
                 {
                     if (buffer_end - buffer < 1)
-                        luaL_error(L, "table too large");
+                    {
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                    }
 
                     char* sub_type = buffer++;
 
@@ -306,7 +318,9 @@ namespace dmScript
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
 
                     if (buffer_end - buffer < align_size)
-                        luaL_error(L, "table too large");
+                    {
+                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                    }
 
 #ifndef NDEBUG
                     memset(buffer, 0, align_size);
@@ -319,7 +333,9 @@ namespace dmScript
                         Vectormath::Aos::Vector3* v = CheckVector3(L, -1);
 
                         if (buffer_end - buffer < int32_t(sizeof(float) * 3))
-                            luaL_error(L, "table too large");
+                        {
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        }
 
                         *sub_type = (char) SUB_TYPE_VECTOR3;
                         *f++ = v->getX();
@@ -333,7 +349,9 @@ namespace dmScript
                         Vectormath::Aos::Vector4* v = CheckVector4(L, -1);
 
                         if (buffer_end - buffer < int32_t(sizeof(float) * 4))
-                            luaL_error(L, "table too large");
+                        {
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        }
 
                         *sub_type = (char) SUB_TYPE_VECTOR4;
                         *f++ = v->getX();
@@ -348,7 +366,9 @@ namespace dmScript
                         Vectormath::Aos::Quat* v = CheckQuat(L, -1);
 
                         if (buffer_end - buffer < int32_t(sizeof(float) * 4))
-                            luaL_error(L, "table too large");
+                        {
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        }
 
                         *sub_type = (char) SUB_TYPE_QUAT;
                         *f++ = v->getX();
@@ -363,7 +383,9 @@ namespace dmScript
                         Vectormath::Aos::Matrix4* v = CheckMatrix4(L, -1);
 
                         if (buffer_end - buffer < int32_t(sizeof(float) * 16))
-                            luaL_error(L, "table too large");
+                        {
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        }
 
                         *sub_type = (char) SUB_TYPE_MATRIX4;
                         for (uint32_t i = 0; i < 4; ++i)
@@ -378,7 +400,9 @@ namespace dmScript
                         const uint32_t hash_size = sizeof(dmhash_t);
 
                         if (buffer_end - buffer < int32_t(hash_size))
-                            luaL_error(L, "table too large");
+                        {
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        }
 
                         *sub_type = (char) SUB_TYPE_HASH;
 
@@ -391,7 +415,9 @@ namespace dmScript
                         const uint32_t url_size = sizeof(dmMessage::URL);
 
                         if (buffer_end - buffer < int32_t(url_size))
-                            luaL_error(L, "table too large");
+                        {
+                            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                        }
 
                         *sub_type = (char) SUB_TYPE_URL;
 
@@ -441,7 +467,7 @@ namespace dmScript
 
             return sizeof(TableHeader) + DoCheckTable(L, *header, original_buffer, buffer, buffer_size, index);
         } else {
-            luaL_error(L, "buffer too small for header");
+            luaL_error(L, "buffer (%d bytes) too small for header (%d bytes)", buffer_size, sizeof(TableHeader));
             return 0;
         }
     }
@@ -592,7 +618,7 @@ namespace dmScript
                     }
                     else
                     {
-                        luaL_error(L, "Invalid user data");
+                        return luaL_error(L, "Table contains invalid UserData subtype (%s) at element #%d: %s", lua_typename(L, key_type), i, buffer);
                     }
                 }
                 break;
@@ -604,7 +630,7 @@ namespace dmScript
                 break;
 
                 default:
-                    luaL_error(L, "Invalid table buffer");
+                    return luaL_error(L, "Table contains invalid type (%s) at element #%d: %s", lua_typename(L, key_type), i, buffer);
                     break;
             }
             lua_settable(L, -3);

@@ -51,7 +51,7 @@ namespace dmLZ4
         *compressed_size = LZ4_compress_HC((const char *)buffer, (char *)compressed_buffer, buffer_size, LZ4_compressBound(buffer_size), 9);
 
         Result r;
-        if(compressed_size == 0)
+        if(*compressed_size == 0)
             r = dmLZ4::RESULT_COMPRESSION_FAILED;
         else
             r = dmLZ4::RESULT_OK;
