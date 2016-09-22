@@ -15,18 +15,50 @@ For Eclipse:
 
 ### Required Software
 
-* [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
+* [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
 * [Eclipse SDK 3.8.2]((***REMOVED***)/view?usp=sharing)
 * Python (on OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
 * Linux:
-
-        $ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential
+    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential
 
 * Windows:
-  - [Visual C++ 2010 Express](http://www.visualstudio.com/downloads/download-visual-studio-vs#DownloadFamilies_4)
-  - [MSYS/MinGW](http://www.mingw.org/), will get you a shell that behaves like Linux, and much easier to build defold through.
-  - [easy_install]( https://pypi.python.org/pypi/setuptools#id3 )
+    - [Visual C++ 2010 Express](https://drive.google.com/open?id=0BxFxQdv6jzseVG5ELWNRUVB5bnM)
+
+        Newer versions have not been properly tested and might not be recognized by waf.  
+
+    - [Python](https://www.python.org/downloads/windows/)
+
+        Install the latest 2.7.X 32-bit version. We only build 32-bit versions of Defold on Windows, and during the build process a python script needs to load a defold library. A 64-bit version of python will get you pretty far and then fail. Add `C:\Python27` to the PATH environment variable.
+  
+    - [easy_install](https://pypi.python.org/pypi/setuptools#id3 )
+
+        Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
+
+    - [MSYS/MinGW](http://www.mingw.org/download/installer)
+
+        This will get you a shell that behaves like Linux and is much easier to build Defold through. Run `mingw-get.exe` (from C:\MinGW\bin), add `mingw32-base` (bin) from `MinGW Base System` and `msys-base` (bin) and `msys-bash` from `MSYS Base System` then Installation > Apply Changes. You also need to install wget, from a cmd command line run
+        
+                mingw-get install msys-wget-bin.
+
+    - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+
+        This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_102`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
+
+    - [Git](https://git-scm.com/download/win)
+
+        The 32-bit version is known to work. If you use ssh (public/private keys) to access github then:
+        - Run Git GUI
+        - Help > Show SSH Key
+        - If you don't have an SSH Key, press Generate Key
+        - Add the public key to your Github profile
+        - You might need to run start-ssh-agent
+        
+        Now you should be able to clone the defold repo from a cmd prompt:
+        
+                git clone git@github.com:defold/defold.git
+        
+        If this won't work, you can try cloning using Github Desktop.
 
 * OSX:
     - [Homebrew](http://brew.sh/)
@@ -137,6 +169,45 @@ If eclipse doesn’t get the JDK setup automatically:
 
 
 ## Build Engine
+
+### Windows
+
+* Run `Visual Studio Command Prompt (2010)`
+
+* You should now have a cmd prompt. Start msys as follows:
+
+        C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC> C:\MinGW\msys\1.0\msys.bat
+
+* You should now have a bash prompt. Verify that:
+
+    - `which git` points to the git from the windows installation instructions above
+    - `which javac` points to the `javac.exe` in the JDK directory
+    - `which python` points to `/c/Python27/python.exe` 
+
+    Note that your C: drive is mounted to /c under MinGW/MSYS
+
+* `cd` your way to the directory you cloned Defold into, for instance
+
+        cd /c/Users/erik.angelin/Documents/src/defold
+
+* Run `./scripts/build.py shell`
+
+    This will start a new shell and land you in your msys home (for instance `/usr/home/Erik.Angelin`) so `cd` back to Defold.
+
+* Run `./scripts/build.py install_ext`
+
+    If during install_ext you get an error about downloading go, you might have to update `build.py` and retry:
+    - open `build.py` (notepad is your only friend)
+    - find `_install_go`
+    - replace the url for win32 with a newer from [GOLANG](https://golang.org/dl/), for instance:
+
+        https://storage.googleapis.com/golang/go1.2.2.windows-386.zip
+
+* Now, you should be able to build the engine
+
+        ./scripts/build.py build_engine --skip-tests --skip-build-tests
+
+### OS X/Linux
 
 Setup build environment with `$PATH` and other environment variables.
 
