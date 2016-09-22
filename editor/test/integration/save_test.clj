@@ -43,6 +43,7 @@
                  "game.project"
                  "**/super_scene.gui"
                  "**/scene.gui"
+                 "**/simple.gui"
                  "**/fireworks_big.particlefx"
                  "**/new.collisionobject"
                  "**/three_shapes.collisionobject"
@@ -88,7 +89,8 @@
                #_"/editor1/ice.tilesource"
                "/editor1/ship_thruster_trail.particlefx"
                "/editor1/camera_fx.gui"
-               "/editor1/body_font.font"]]
+               "/editor1/body_font.font"
+               "/editor1/test.gui"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)]
@@ -99,6 +101,7 @@
                   save (g/node-value node-id :save-data)
                   file (slurp resource)
                   pb-class (-> resource resource/resource-type :ext ext->proto)]
+              (is (not (g/error? save)))
               (when (and pb-class (not= file (:content save)))
                 (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
                       pb-disk (protobuf/read-text pb-class resource)

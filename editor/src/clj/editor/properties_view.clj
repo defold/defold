@@ -277,7 +277,7 @@
                            (ui/disable! text-field curved?)))]
     [box update-ui-fn]))
 
-(defmethod create-property-control! types/Color [_ _ property-fn]
+(defmethod create-property-control! types/Color [edit-type _ property-fn]
   (let [color-picker (doto (ColorPicker.)
                        (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn  (fn [values message read-only?]
@@ -290,8 +290,11 @@
                         (ui/editable! color-picker (not read-only?)))]
 
     (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
-                                              v        [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
-                                          (properties/set-values! (property-fn) (repeat v)))))
+                                              v        [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]
+                                              values (if (:ignore-alpha? edit-type)
+                                                       (map #(assoc %1 3 %2) (repeat v) (map last (properties/values (property-fn))))
+                                                       (repeat v))]
+                                          (properties/set-values! (property-fn) values))))
     [color-picker update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [edit-type _ property-fn]
