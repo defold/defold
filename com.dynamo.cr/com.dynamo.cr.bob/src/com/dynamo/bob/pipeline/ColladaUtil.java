@@ -9,7 +9,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 
-import org.jagatoo.loaders.models.collada.Rotations;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
 import javax.vecmath.Point3d;
@@ -22,10 +21,12 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.jagatoo.loaders.models.collada.stax.XMLAnimation;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset;
+import org.jagatoo.loaders.models.collada.stax.XMLAnimationClip;
 import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 import org.jagatoo.loaders.models.collada.stax.XMLController;
 import org.jagatoo.loaders.models.collada.stax.XMLGeometry;
 import org.jagatoo.loaders.models.collada.stax.XMLInput;
+import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimationClips;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimations;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryControllers;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryGeometries;
@@ -38,7 +39,6 @@ import org.jagatoo.loaders.models.collada.stax.XMLSkin;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
-import org.openmali.FastMath;
 import org.openmali.vecmath2.Matrix4f;
 import org.openmali.vecmath2.Point3f;
 import org.openmali.vecmath2.Quaternion4f;
@@ -63,8 +63,6 @@ import com.dynamo.rig.proto.Rig.AnimationTrack;
 import com.dynamo.rig.proto.Rig.Mesh;
 import com.dynamo.rig.proto.Rig.RigAnimation;
 import com.dynamo.rig.proto.Rig.Skeleton;
-import com.jogamp.graph.math.Quaternion;
-
 
 public class ColladaUtil {
 
@@ -294,7 +292,7 @@ public class ColladaUtil {
             track.keys.add(key);
         }
     }
-    
+
     private static float[] swizzleXYZ(XMLAsset.UpAxis upAxis, float[] input) {
         float[] output = new float[3];
         if (upAxis == UpAxis.Z_UP) {
@@ -379,21 +377,21 @@ public class ColladaUtil {
 //                        animTrackBuilder.addPositions(0.0f);
 //                        animTrackBuilder.addPositions(0.0f);
 //                        animTrackBuilder.addPositions(0.0f);
-                        
+
                         bind_quat = bind_quat.invert();
                         key_quat = key_quat.mul(bind_quat);
-                        
+
 
 //                        animTrackBuilder.addRotations(animTrackRotation.getRotations(i*4));
 //                        animTrackBuilder.addRotations(animTrackRotation.getRotations(i*4+1));
 //                        animTrackBuilder.addRotations(animTrackRotation.getRotations(i*4+2));
 //                        animTrackBuilder.addRotations(animTrackRotation.getRotations(i*4+3));
-                        
+
                         animTrackBuilder.addRotations(key_quat.getA());
                         animTrackBuilder.addRotations(key_quat.getB());
                         animTrackBuilder.addRotations(key_quat.getC());
                         animTrackBuilder.addRotations(key_quat.getD());
-                        
+
                         animTrackBuilder.addScale(animTrackScale.getScale(i*3));
                         animTrackBuilder.addScale(animTrackScale.getScale(i*3+1));
                         animTrackBuilder.addScale(animTrackScale.getScale(i*3+2));
@@ -488,6 +486,18 @@ public class ColladaUtil {
         }
     }
 
+    public static void loadAnimationIds(InputStream is, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+        XMLCOLLADA collada = loadDAE(is);
+        ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
+        if(animClips.isEmpty()) {
+            animationIds.clear();
+            return;
+        }
+        for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
+            animationIds.add(clip.id == null ? "default" : clip.id);
+        }
+    }
+
     public static void loadAnimations(InputStream is, AnimationSet.Builder animationSetBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         loadAnimations(collada, animationSetBuilder, skeleton, sampleRate, animationIds);
@@ -498,6 +508,9 @@ public class ColladaUtil {
         if (collada.libraryAnimations.size() != 1 || collada.libraryGeometries.isEmpty()) {
             return;
         }
+
+        // Animation clips
+        ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
 
         // We only support one model per scene for now, get first geo entry.
         ArrayList<XMLLibraryGeometries> geometries = collada.libraryGeometries;
@@ -552,10 +565,28 @@ public class ColladaUtil {
                 assert(maxAnimationLength > 0.0f);
             }
 
+
             RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
             toDDF(collada, animBuilder, skeleton, "default", MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate);
             animationSetBuilder.addAnimations(animBuilder.build());
             animationIds.add("default"); // animationId ?
+/*
+            // Temp "fake" loop adding same animation to all clips.
+            // TODO: Code above should iterate over animclips and create each aninm from .start to .end time for each riganim
+            if(!animClips.isEmpty()) {
+                for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
+                    RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
+                    toDDF(collada, animBuilder, skeleton, clip.id, MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate);
+                    animationSetBuilder.addAnimations(animBuilder.build());
+                    animationIds.add(clip.id);
+                    // System.out.println("name: " + clip.name);
+                    // System.out.println("id: " + clip.id);
+                    // System.out.println("start: " + clip.start);
+                    // System.out.println("end: " + clip.end);
+                    //System.out.println("animinst-name: " + clip.animations.get(0).url);
+                }
+            }
+*/
         }
     }
 
@@ -738,37 +769,37 @@ public class ColladaUtil {
             } else {
                 upVector = new Vector3f(0.0f, 0.0f, 1.0f);
             }
-            
+
             Point3f skeletonPos;
             Matrix4f localToWorld;
             localToWorld = rootNode.matrix.matrix4f;
             skeletonPos = new Point3f( localToWorld.m03(), localToWorld.m13(), localToWorld.m23() );
 
 //            System.out.println(rootNode.matrix);
-            
+
             Bone rootBone = new Bone( rootNode.id, rootNode.sid, rootNode.name, localToWorld, new Quaternion4f( 0f, 0f, 0f, 1f ) );
-            
+
             // Translation
             float x = rootNode.matrix.matrix4f.get(0, 3);
             float y = rootNode.matrix.matrix4f.get(1, 3);
             float z = rootNode.matrix.matrix4f.get(2, 3);
-            
+
             // Rotation
             float[] quat = quatFromMatrix(rootNode.matrix);
-            
+
             Quaternion4f quat2 = new Quaternion4f(quat);
             rootBone.setBindRotation( quat2 );
             rootBone.setLength( 0.0f );
-            
+
             Vector3f bonePos = new Vector3f(x, y, z);
             rootBone.setAbsoluteTranslation(bonePos);
-            
+
             ArrayList<Bone> boneList = new ArrayList<Bone>();
             loadJoint( localToWorld, rootNode, upVector, Point3f.ZERO, quat2, Point3f.ZERO, rootBone, boneList );
             fakeRootBone.addChild(rootBone);
         }
-        
-        
+
+
 
         toDDF(bones, fakeRootBone, 0xffff, boneIds);
 
@@ -804,35 +835,35 @@ public class ColladaUtil {
         if (node.childrenList != null && node.childrenList.size() > 0) {
             colMatrix = node.childrenList.get( 0 ).matrix.matrix4f;
         }
-        
+
         XMLMatrix4x4 matrix = node.matrix;
-        
+
         // Translation
         float x = matrix.matrix4f.get(0, 3);
         float y = matrix.matrix4f.get(1, 3);
         float z = matrix.matrix4f.get(2, 3);
-        
+
         // Rotation
         float[] quat = quatFromMatrix(matrix);
-        
+
         Quaternion4f quat2 = new Quaternion4f(quat);
         //quat2 = parentQuat.mul(quat2);
         bone.setBindRotation( quat2 );
         bone.setLength( 1.0f );
-        
+
         Vector3f bonePos = new Vector3f(x, y, z);
         bone.setAbsoluteTranslation(bonePos);
-        
+
 //        System.out.println("bone pos: " + x + ", " + y + ", " + z);
 //        System.out.println("bone rot: " + quat[0] + ", " + quat[1] + ", " + quat[2] + ", " + quat[3]);
-        
+
         for ( XMLNode child : node.childrenList )
         {
             Bone newBone = new Bone( child.id, child.sid, child.name, child.matrix.matrix4f, new Quaternion4f( 0f, 0f, 0f, 1f ) );
             bone.addChild( newBone );
             loadJoint( localToWorld, child, upVector, parentTip, quat2, null, newBone, boneList );
         }
-        
+
         /*
 //        Matrix4f colMatrix = node.childrenList.get( 0 ).matrix.matrix4f;
         Point3f nodePos = new Point3f(colMatrix.get( 0, 3 ), colMatrix.get( 1, 3 ), colMatrix.get( 2, 3 ));
@@ -865,7 +896,7 @@ public class ColladaUtil {
         float length = nodeVecW.length();
         parentVecW.normalize();
         nodeVecW.normalize();
-        
+
         System.out.println("nodeVecW: " + nodeVecW.x() + ", " + nodeVecW.y() + ", " + nodeVecW.z());
 
         // Compute the angle
@@ -900,7 +931,7 @@ public class ColladaUtil {
         Quaternion4f quat = Rotations.toQuaternion( axis, angle );
         bone.setBindRotation( quat );
         bone.setLength( length );
-        
+
         Vector3f bonePos = new Vector3f(parentTip.getX(), parentTip.getY(), parentTip.getZ());
         bone.setAbsoluteTranslation(bonePos);
 //        bone.setAbsoluteTranslation(nodeVecW);
@@ -929,10 +960,10 @@ public class ColladaUtil {
 //        Point3 position = MathUtil.vecmathToDDF(new Point3d(xyz[0], xyz[1], xyz[2]));
 //        System.out.println("v: " + position.getX() + ", " + position.getY() + ", " + position.getZ() );
 //        float xyz[] = swizzleXYZ(XMLAsset.UpAxis.Z_UP, new float[]{absTrans.get(0, 3), absTrans.get(1, 3), absTrans.get(2, 3)});
-        
+
         Vector3f xyz = bone.getAbsoluteTranslation();
         Point3 position = MathUtil.vecmathToDDF(new Point3d(xyz.getX(), xyz.getY(), xyz.getZ()));
-        
+
         b.setPosition(position);
 
         Quaternion4f q = bone.getBindRotation();

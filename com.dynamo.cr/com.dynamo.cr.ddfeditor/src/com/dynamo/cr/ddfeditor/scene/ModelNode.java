@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import javax.media.opengl.GL2;
 
@@ -55,6 +56,10 @@ public class ModelNode extends ComponentTypeNode {
     @Resource
     private String animations = "";
 
+    @Property(editorType = EditorType.DROP_DOWN, category = "")
+    private String defaultAnimation = "default";
+    private ArrayList<String> animationOptions = new ArrayList<String>();
+
 
     @Override
     public void dispose(GL2 gl) {
@@ -89,6 +94,7 @@ public class ModelNode extends ComponentTypeNode {
         }
         skeleton = modelDesc.getSkeleton();
         animations = modelDesc.getAnimations();
+        defaultAnimation = "default";
     }
 
     @Override
@@ -121,6 +127,34 @@ public class ModelNode extends ComponentTypeNode {
         return false;
     }
 
+
+    private void updateAnimations() {
+        animationOptions.clear();
+        try {
+            IFile animFile = getModel().getFile(this.animations.isEmpty() ? this.mesh : this.animations);
+            ColladaUtil.loadAnimationIds(animFile.getContents(), animationOptions);
+        } catch (Exception e) {
+            updateStatus();
+            return;
+        }
+    }
+
+    public String getDefaultAnimation() {
+        return this.defaultAnimation;
+    }
+
+    public void setDefaultAnimation(String defaultAnimation) {
+        this.defaultAnimation = defaultAnimation;
+        updateStatus();
+        updateAABB();
+    }
+
+    public Object[] getDefaultAnimationOptions() {
+        if(animationOptions.isEmpty()) {
+            return new Object[0];
+        }
+        return animationOptions.toArray();
+    }
 
     private Node addBone(int boneIndex, Node node, List<Bone> bones, List<String> boneIds) {
         ModelBoneNode boneNode = new ModelBoneNode(boneIds.get(boneIndex));
@@ -160,8 +194,6 @@ public class ModelNode extends ComponentTypeNode {
             Node rootSkeletonNode = addBone(rootBoneIndex, this, bones, boneIds);
             this.addChild(rootSkeletonNode);
         }
-
-        updateStatus();
     }
 
     private boolean reload() {
@@ -169,18 +201,21 @@ public class ModelNode extends ComponentTypeNode {
             return false;
         }
         updateTexture();
-        updateBones();
 
         if (!mesh.equals("")) {
             try {
                 meshNode = (MeshNode) getModel().loadNode(mesh);
-                updateAABB();
-                return true;
             } catch (Exception e) {
+                updateStatus();
+                return false;
             }
         }
 
-        return false;
+        updateBones();
+        updateAnimations();
+        updateAABB();
+        updateStatus();
+        return true;
     }
 
     private void updateAABB() {
@@ -256,6 +291,7 @@ public class ModelNode extends ComponentTypeNode {
             .setMaterial(this.material)
             .setSkeleton(this.skeleton)
             .setAnimations(this.animations);
+
 
         if (texture.length() > 0) {
             b.addTextures(texture);

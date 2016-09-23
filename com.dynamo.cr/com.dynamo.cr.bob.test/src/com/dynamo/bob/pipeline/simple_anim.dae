@@ -1120,6 +1120,17 @@ dereferenceXRefs=0;cameraXFov=0;cameraYFov=1</comments>
       <channel source="#astroboy_w_skel02_gog_polySurface5_translate_astroboy_w_skel02_gog_polySurface5_translate-sampler" target="astroboy_w_skel02_gog_polySurface5/translate"/>
     </animation>
   </library_animations>
+
+    <library_animation_clips>
+     <animation_clip id="GuyWalking" start="0.25" end="1.25">
+     <instance_animation url="#Guy1MoveAnim"/>
+     </animation_clip>
+     <animation_clip id="GuyRunning" start="2.5" end="4.5">
+     <instance_animation url="#Guy1MoveAnim"/>
+     <instance_animation url="#Guy1BreatheAnim"/>
+     </animation_clip>
+    </library_animation_clips>
+
   <library_lights>
     <light id="pointLightShape1-lib" name="pointLightShape1">
       <technique_common>
