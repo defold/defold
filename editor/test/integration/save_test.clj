@@ -91,7 +91,8 @@
                "/editor1/camera_fx.gui"
                "/editor1/body_font.font"
                "/editor1/test.gui"
-               "/editor1/test.model"]]
+               "/editor1/test.model"
+               "/editor1/test.particlefx"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)]
