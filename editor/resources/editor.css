@@ -1101,3 +1101,12 @@ Line numbers:
   -fx-border-color: #4a4b4f;
   -fx-border-width: 0 1 0 0;
   -fx-padding: 0.0em; }
+
+.copyable-label, .copyable-label:focused {
+  -fx-background-color: transparent;
+  -fx-border-width: 0px;
+  -fx-text-fill: #b0b0b0;
+}
+
+
+    
