@@ -21,10 +21,12 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
 import org.jagatoo.loaders.models.collada.stax.XMLAnimation;
+import org.jagatoo.loaders.models.collada.stax.XMLAnimationClip;
 import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 import org.jagatoo.loaders.models.collada.stax.XMLController;
 import org.jagatoo.loaders.models.collada.stax.XMLGeometry;
 import org.jagatoo.loaders.models.collada.stax.XMLInput;
+import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimationClips;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimations;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryControllers;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryGeometries;
@@ -454,6 +456,23 @@ public class ColladaUtil {
         if (collada.libraryAnimations.size() != 1 || collada.libraryGeometries.isEmpty()) {
             return;
         }
+
+/*
+        // Example anim clip reading..
+        ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
+        for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
+            System.out.println("====");
+            System.out.println("name: " + clip.name);
+            System.out.println("id: " + clip.id);
+            System.out.println("start: " + clip.start);
+            System.out.println("end: " + clip.end);
+            //System.out.println("animinst-name: " + clip.animations.get(0).url);
+            System.out.println("animinst-url: " + clip.animations.get(0).url);
+            if(clip.animations.size() > 1)
+            System.out.println("animinst-url: " + clip.animations.get(1).url);
+            System.out.println("====");
+        }
+*/
 
         // We only support one model per scene for now, get first geo entry.
         ArrayList<XMLLibraryGeometries> geometries = collada.libraryGeometries;

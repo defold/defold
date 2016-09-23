@@ -159,5 +159,14 @@ public class ColladaUtilTest {
         assertEquals(18,    bones.get(19).getParent());
     }
 
+    @Test
+    public void testAnimClip() throws Exception {
+
+        Skeleton.Builder skeleton = Skeleton.newBuilder();
+        ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
+        AnimationSet.Builder animation = AnimationSet.newBuilder();
+        ColladaUtil.loadAnimations(getClass().getResourceAsStream("simple_anim.dae"), animation, skeleton.clone().build(), 16.0f, new ArrayList<String>());
+    }
+
 
 }
