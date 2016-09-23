@@ -182,6 +182,11 @@ public class Bone
         return ( bindRotation );
     }
     
+    public final void setAbsoluteTranslation(Vector3f v)
+    {
+        absoluteTranslation.set(v);
+    }
+    
     /**
      * Get the absolute translation of this bone. Absolute translation/rotation
      * are updated by the Skeleton.updateAbsolutes() method.

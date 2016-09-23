@@ -730,12 +730,14 @@ namespace dmRig
     static dmRig::Result CreatePose(HRigContext context, HRigInstance instance)
     {
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         instance->m_Pose.SetCapacity(bone_count);
         instance->m_Pose.SetSize(bone_count);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            instance->m_Pose[i].SetIdentity();
+            instance->m_Pose[i] = bind_pose[i].m_ModelToLocal;
+            // instance->m_Pose[i].SetIdentity();
         }
 
         instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
