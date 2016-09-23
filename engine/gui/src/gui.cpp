@@ -117,7 +117,7 @@ namespace dmGui
 
         // We ignore rig keyframe events for now, only completed events are handled.
         if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
-            animation->m_AnimationComplete(scene, animation->m_Node, animation->m_Userdata1, animation->m_Userdata2);
+            animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
         }
 
     }
@@ -159,7 +159,7 @@ namespace dmGui
         context->m_RigContext = params->m_RigContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
-        
+
         return context;
     }
 
