@@ -686,10 +686,11 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
 
-(g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets]
+(g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets scene-structure]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])]
+        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
+        model-pb (update model-pb :skin (fn [skin] (if (not-empty skin) skin (first (:skins scene-structure)))))]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-spine-model
@@ -739,7 +740,6 @@
                                                                                   (format "animation '%s' could not be found in the specified scene" anim))) default-animation (set spine-anim-ids)))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
   (property skin g/Str
-            (value (g/fnk [skin scene-structure] (or (not-empty skin) (first (:skins scene-structure)))))
             (dynamic error (g/fnk [_node-id skin scene-structure spine-scene]
                                   (when spine-scene
                                     (validation/prop-error :fatal _node-id :skin
