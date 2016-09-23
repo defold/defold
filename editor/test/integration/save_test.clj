@@ -90,7 +90,8 @@
                "/editor1/ship_thruster_trail.particlefx"
                "/editor1/camera_fx.gui"
                "/editor1/body_font.font"
-               "/editor1/test.gui"]]
+               "/editor1/test.gui"
+               "/editor1/test.model"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)]
