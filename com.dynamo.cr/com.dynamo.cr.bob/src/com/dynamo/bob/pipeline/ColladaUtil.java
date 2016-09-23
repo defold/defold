@@ -446,6 +446,18 @@ public class ColladaUtil {
         }
     }
 
+    public static void loadAnimationIds(InputStream is, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+        XMLCOLLADA collada = loadDAE(is);
+        ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
+        if(animClips.isEmpty()) {
+            animationIds.clear();
+            return;
+        }
+        for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
+            animationIds.add(clip.id == null ? "default" : clip.id);
+        }
+    }
+
     public static void loadAnimations(InputStream is, AnimationSet.Builder animationSetBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         loadAnimations(collada, animationSetBuilder, skeleton, sampleRate, animationIds);
@@ -457,22 +469,8 @@ public class ColladaUtil {
             return;
         }
 
-/*
-        // Example anim clip reading..
+        // Animation clips
         ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
-        for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
-            System.out.println("====");
-            System.out.println("name: " + clip.name);
-            System.out.println("id: " + clip.id);
-            System.out.println("start: " + clip.start);
-            System.out.println("end: " + clip.end);
-            //System.out.println("animinst-name: " + clip.animations.get(0).url);
-            System.out.println("animinst-url: " + clip.animations.get(0).url);
-            if(clip.animations.size() > 1)
-            System.out.println("animinst-url: " + clip.animations.get(1).url);
-            System.out.println("====");
-        }
-*/
 
         // We only support one model per scene for now, get first geo entry.
         ArrayList<XMLLibraryGeometries> geometries = collada.libraryGeometries;
@@ -527,10 +525,21 @@ public class ColladaUtil {
                 assert(maxAnimationLength > 0.0f);
             }
 
-            RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
-            toDDF(animBuilder, skeleton, "default", MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate);
-            animationSetBuilder.addAnimations(animBuilder.build());
-            animationIds.add("default"); // animationId ?
+            // Temp "fake" loop adding same animation to all clips.
+            // TODO: Code above should iterate over animclips and create each aninm from .start to .end time for each riganim
+            if(!animClips.isEmpty()) {
+                for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
+                    RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
+                    toDDF(animBuilder, skeleton, clip.id, MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate);
+                    animationSetBuilder.addAnimations(animBuilder.build());
+                    animationIds.add(clip.id);
+                    // System.out.println("name: " + clip.name);
+                    // System.out.println("id: " + clip.id);
+                    // System.out.println("start: " + clip.start);
+                    // System.out.println("end: " + clip.end);
+                    //System.out.println("animinst-name: " + clip.animations.get(0).url);
+                }
+            }
         }
     }
 

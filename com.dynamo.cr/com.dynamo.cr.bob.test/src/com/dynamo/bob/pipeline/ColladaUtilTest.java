@@ -161,11 +161,14 @@ public class ColladaUtilTest {
 
     @Test
     public void testAnimClip() throws Exception {
-
         Skeleton.Builder skeleton = Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
         AnimationSet.Builder animation = AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(getClass().getResourceAsStream("simple_anim.dae"), animation, skeleton.clone().build(), 16.0f, new ArrayList<String>());
+        ArrayList<String> idList1 = new ArrayList<String>();
+        ColladaUtil.loadAnimations(getClass().getResourceAsStream("simple_anim.dae"), animation, skeleton.clone().build(), 16.0f, idList1);
+        ArrayList<String> idList2 = new ArrayList<String>();
+        ColladaUtil.loadAnimationIds(getClass().getResourceAsStream("simple_anim.dae"), idList2);
+        assertEquals(true, idList1.equals(idList2));
     }
 
 
