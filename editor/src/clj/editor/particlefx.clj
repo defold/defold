@@ -121,7 +121,7 @@
                            :modifier-type-vortex [:modifier-key-magnitude :modifier-key-max-distance]})
 
 (g/defnk produce-modifier-pb
-  [position rotation type magnitude max-distance]
+  [position rotation type magnitude max-distance use-direction]
   (let [values {:modifier-key-magnitude magnitude
                 :modifier-key-max-distance max-distance}
         properties (->> (mod-type->properties type)
@@ -133,7 +133,8 @@
     {:position position
      :rotation rotation
      :type type
-     :properties properties}))
+     :properties properties
+     :use-direction (if use-direction 1 0)}))
 
 (def ^:private type->vcount
   {:emitter-type-2dcone 6
@@ -276,6 +277,8 @@
   (inherits outline/OutlineNode)
 
   (property type g/Keyword (dynamic visible (g/always false)))
+  (property use-direction g/Bool (default false)
+            (dynamic visible (g/always false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
@@ -691,6 +694,7 @@
                     (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
                                                        (:properties modifier)))]
                       (concat
+                        (g/set-property mod-node :use-direction (= 1 (:use-direction mod-properties)))
                         (g/set-property mod-node :magnitude (if-let [prop (:modifier-key-magnitude mod-properties)]
                                                               (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)) (:spread prop))
                                                               props/default-curve-spread))
