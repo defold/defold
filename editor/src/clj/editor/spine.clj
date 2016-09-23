@@ -744,10 +744,10 @@
                                   (when spine-scene
                                     (validation/prop-error :fatal _node-id :skin
                                                          (fn [skin skins]
-                                                           (when (not (contains? skins skin))
+                                                           (when (and (not-empty skin) (not (contains? skins skin)))
                                                              (format "skin '%s' could not be found in the specified scene" skin))) skin (set (:skins scene-structure))))))
             (dynamic edit-type (g/fnk [scene-structure]
-                                      (properties/->choicebox (:skins scene-structure)))))
+                                      (properties/->choicebox (cons "" (:skins scene-structure))))))
 
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/Resource)
