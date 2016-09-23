@@ -29,7 +29,7 @@ For Eclipse:
 
     - [Python](https://www.python.org/downloads/windows/)
 
-        Install the latest 2.7.X 32-bit version. We only build 32-bit versions of Defold on Windows, and during the build process a python script needs to load a defold library. A 64-bit version of python will get you pretty far and then fail. Add `C:\Python27` to the PATH environment variable.
+        Install the 32-bit [2.7.12](https://www.python.org/ftp/python/2.7.12/python-2.7.12.msi) (latest tested version). We only build 32-bit versions of Defold on Windows, and during the build process a python script needs to load a defold library. A 64-bit version of python will get you pretty far and then fail. Add `C:\Python27` to the PATH environment variable.
   
     - [easy_install](https://pypi.python.org/pypi/setuptools#id3 )
 
@@ -196,16 +196,24 @@ If eclipse doesn’t get the JDK setup automatically:
 
 * Run `./scripts/build.py install_ext`
 
-    If during install_ext you get an error about downloading go, you might have to update `build.py` and retry:
-    - open `build.py` (notepad is your only friend)
-    - find `_install_go`
-    - replace the url for win32 with a newer from [GOLANG](https://golang.org/dl/), for instance:
+    If during install_ext you get an error about downloading go, you might have to update `scripts/build.py` and retry:
+    - Open `build.py`
+    - Find `_install_go`
+    - Replace the url for win32 with a newer from [GOLANG](https://golang.org/dl/), for instance:
 
         https://storage.googleapis.com/golang/go1.2.2.windows-386.zip
 
+    If using plain old notepad, note that it doesn't understand unix line endings so before the above steps do:
+
+        unix2dos scripts/build.py
+
+    And after, do:
+
+        dos2unix scripts/build.py
+
 * Now, you should be able to build the engine
 
-        ./scripts/build.py build_engine --skip-tests --skip-build-tests
+        ./scripts/build.py build_engine --skip-tests -- --skip-build-tests
 
 ### OS X/Linux
 
