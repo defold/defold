@@ -15,6 +15,7 @@ message ModelDesc
     repeated string textures    = 4 [(resource)=true];
     optional string skeleton    = 5 [(resource)=true];
     optional string animations  = 6 [(resource)=true];
+    optional string default_animation  = 7;
 
     optional string name        = 10; // Deprecated
 }

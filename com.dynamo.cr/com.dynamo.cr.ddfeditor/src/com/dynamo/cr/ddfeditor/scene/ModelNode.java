@@ -57,7 +57,7 @@ public class ModelNode extends ComponentTypeNode {
     private String animations = "";
 
     @Property(editorType = EditorType.DROP_DOWN, category = "")
-    private String defaultAnimation = "default";
+    private String defaultAnimation = "";
     private ArrayList<String> animationOptions = new ArrayList<String>();
 
 
@@ -94,7 +94,7 @@ public class ModelNode extends ComponentTypeNode {
         }
         skeleton = modelDesc.getSkeleton();
         animations = modelDesc.getAnimations();
-        defaultAnimation = "default";
+        defaultAnimation = modelDesc.getDefaultAnimation();
     }
 
     @Override
@@ -134,9 +134,13 @@ public class ModelNode extends ComponentTypeNode {
             IFile animFile = getModel().getFile(this.animations.isEmpty() ? this.mesh : this.animations);
             ColladaUtil.loadAnimationIds(animFile.getContents(), animationOptions);
         } catch (Exception e) {
-            updateStatus();
+            animationOptions.clear();
+        }
+        if(animationOptions.contains(defaultAnimation)) {
             return;
         }
+        defaultAnimation = animationOptions.isEmpty() ? "" : animationOptions.get(0);
+        setDefaultAnimation(defaultAnimation);
     }
 
     public String getDefaultAnimation() {
@@ -290,8 +294,8 @@ public class ModelNode extends ComponentTypeNode {
             .setMesh(this.mesh)
             .setMaterial(this.material)
             .setSkeleton(this.skeleton)
-            .setAnimations(this.animations);
-
+            .setAnimations(this.animations)
+            .setDefaultAnimation(this.defaultAnimation);
 
         if (texture.length() > 0) {
             b.addTextures(texture);

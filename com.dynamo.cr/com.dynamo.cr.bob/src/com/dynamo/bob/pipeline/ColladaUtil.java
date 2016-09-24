@@ -315,7 +315,7 @@ public class ColladaUtil {
         RigUtil.sampleTrack(track, posXBuilder, defaultValue, duration, sampleRate, spf, true, false);
     }
 
-    private static void toDDF(XMLCOLLADA collada, RigAnimation.Builder animBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, String animationId, long meshBoneId, HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
+    private static void toDDF(XMLCOLLADA collada, RigAnimation.Builder animBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, String animationId, HashMap<Long, HashMap<String, XMLAnimation>> boneToAnimations, float duration, float sampleRate) {
         animBuilder.setId(MurmurHash.hash64(animationId));
         animBuilder.setDuration(duration);
         animBuilder.setSampleRate(sampleRate);
@@ -491,10 +491,17 @@ public class ColladaUtil {
         ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
         if(animClips.isEmpty()) {
             animationIds.clear();
+            if(!collada.libraryAnimations.isEmpty()) {
+                animationIds.add("Default");
+            }
             return;
         }
         for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
-            animationIds.add(clip.id == null ? "default" : clip.id);
+            if(clip.id == null)
+            {
+                throw new LoaderException("Animation clip lacks id.");
+            }
+            animationIds.add(clip.id);
         }
     }
 
@@ -505,20 +512,12 @@ public class ColladaUtil {
 
     public static void loadAnimations(XMLCOLLADA collada, AnimationSet.Builder animationSetBuilder, com.dynamo.rig.proto.Rig.Skeleton skeleton, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
 
-        if (collada.libraryAnimations.size() != 1 || collada.libraryGeometries.isEmpty()) {
+        if (collada.libraryAnimations.size() != 1) {
             return;
         }
 
         // Animation clips
         ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
-
-        // We only support one model per scene for now, get first geo entry.
-        ArrayList<XMLLibraryGeometries> geometries = collada.libraryGeometries;
-        String geometryName = "";
-        for (XMLGeometry geometry : geometries.get(0).geometries.values()) {
-            geometryName = geometry.name;
-            break;
-        }
 
         float maxAnimationLength = 0.0f;
         //for (int i = 0; i < collada.libraryAnimations.size(); i++) {
@@ -565,18 +564,12 @@ public class ColladaUtil {
                 assert(maxAnimationLength > 0.0f);
             }
 
-
-            RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
-            toDDF(collada, animBuilder, skeleton, "default", MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate);
-            animationSetBuilder.addAnimations(animBuilder.build());
-            animationIds.add("default"); // animationId ?
-/*
             // Temp "fake" loop adding same animation to all clips.
             // TODO: Code above should iterate over animclips and create each aninm from .start to .end time for each riganim
             if(!animClips.isEmpty()) {
                 for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
                     RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
-                    toDDF(collada, animBuilder, skeleton, clip.id, MurmurHash.hash64(geometryName), boneToAnimations, maxAnimationLength, sampleRate);
+                    toDDF(collada, animBuilder, skeleton, clip.id, boneToAnimations, maxAnimationLength, sampleRate);
                     animationSetBuilder.addAnimations(animBuilder.build());
                     animationIds.add(clip.id);
                     // System.out.println("name: " + clip.name);
@@ -585,8 +578,15 @@ public class ColladaUtil {
                     // System.out.println("end: " + clip.end);
                     //System.out.println("animinst-name: " + clip.animations.get(0).url);
                 }
+            } else {
+                // If no clips are provided, add a "Default" clip that is the whole animation as one clip
+                RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
+                toDDF(collada, animBuilder, skeleton, "Default", boneToAnimations, maxAnimationLength, sampleRate);
+                animationSetBuilder.addAnimations(animBuilder.build());
+                animationIds.add("Default");
             }
-*/
+
+
         }
     }
 
