@@ -154,7 +154,8 @@ namespace dmGameSystem
         bool reverse = false;
         ModelResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
-        dmHashUpdateBuffer32(&state, &resource->m_RigScene->m_TextureSet, sizeof(resource->m_RigScene->m_TextureSet));
+//        dmHashUpdateBuffer32(&state, &resource->m_RigScene->m_TextureSet, sizeof(resource->m_RigScene->m_TextureSet));
+        dmHashUpdateBuffer32(&state, &resource->m_Textures[0], sizeof(resource->m_Textures[0])); // only one texture for now. Should we really support up to 32 textures per model?
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
         dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
         uint32_t size = constants.Size();
@@ -332,7 +333,7 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            params.m_ModelMatrix = Matrix4::identity();
+            params.m_ModelMatrix = c->m_World;
             params.m_VertexData = (void**)&vb_end;
             params.m_VertexStride = sizeof(ModelVertex);
 
@@ -351,7 +352,7 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = first->m_Resource->m_Material;
-        ro.m_WorldTransform = first->m_World;
+        ro.m_WorldTransform = Matrix4::identity();
         // ro.m_Textures[0] = texture_set->m_Texture;
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             ro.m_Textures[i] = first->m_Resource->m_Textures[i];
