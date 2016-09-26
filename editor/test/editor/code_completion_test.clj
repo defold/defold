@@ -56,11 +56,11 @@
           (is (=  #{"x" "foo" "y"} (set (filter  #{"x" "foo" "y"} var-names))))
           (is (= 1 @project-search-count))))
 
-      (testing "bare requires"
+      (testing "bare requires does not magically create module names"
         (g/transact (g/set-property script-node :code "require(\"mymath\")"))
         (let [completions  (with-redefs [find-module-node-in-project test-find-in-project
                                          resource-node-path (constantly "/mymath.lua")]
                                  (g/node-value script-node :completions))
               mymath-names (set (map :name (get completions "mymath")))]
-          (is (= #{"mymath.add" "mymath.sub"} mymath-names))
+          (is (= #{} mymath-names))
           (is (= 1 @project-search-count)))))))
