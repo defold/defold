@@ -38,7 +38,16 @@ message Element
     optional string deprecated = 9 [default=""];
 }
 
+message Info
+{
+    required string namespace = 1;
+    required string name = 2;
+    required string brief = 3;
+    required string description = 4;
+}
+
 message Document
 {
     repeated Element elements = 1;
+    optional Info info = 2;
 }

@@ -163,37 +163,37 @@
 (def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
                        "release_input_focus" "request_transform" "set_parent" "transform_response"})
 
-(def constant-pattern #"^(?<![^.]\.|:)\b(false|nil|true|_G|_VERSION|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)")
-(def operator-pattern #"^(\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
+(def constant-pattern #"^(?:(?<![^.]\.|:)\b(?:false|nil|true|_G|_VERSION|math\.(?:pi|huge))\b|(?<![.])\.{3}(?!\.))")
+
+(def operator-pattern #"^(?:\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
 
 (defn match-constant [s]
-  (code/match-regex constant-pattern s))
+  (code/match-regex s constant-pattern))
 
 (defn match-operator [s]
-  (code/match-regex operator-pattern s))
+  (code/match-regex s operator-pattern))
 
-(defn- is-word-start [^Character c] (or (Character/isLetter c) (#{\_ \:} c)))
-(defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c) (#{\-} c)))
+(defn- is-word-start [^Character c] (or (Character/isLetter c) (= c \_) (= c \:)))
+(defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c) (= c \-)))
 
-(defn- match-multi-comment [s]
-  (when-let [match-open (code/match-string s "--[")]
-    (when-let [match-eqs (code/match-while-eq (:body match-open) \=)]
-      (when-let [match-open2 (code/match-string (:body match-eqs) "[")]
-        (let [closing-marker (str "]" (apply str (repeat (:length match-eqs) \=)) "]")]
-          (when-let [match-body (code/match-until-string (:body match-open2) closing-marker)]
-            (code/combine-matches match-open match-eqs match-open2 match-body)))))))
-
-(defn- match-multi-open [s]
+(defn- match-long-bracket-section [s]
   (when-let [match-open (code/match-string s "[")]
     (when-let [match-eqs (code/match-while-eq (:body match-open) \=)]
       (when-let [match-open2 (code/match-string (:body match-eqs) "[")]
-        (code/combine-matches match-open match-eqs match-open2)))))
+        (let [closing-bracket (str "]" (apply str (repeat (:length match-eqs) \=)) "]")]
+          (when-let [match-body (code/match-until-string (:body match-open2) closing-bracket)]
+            (code/combine-matches match-open match-eqs match-open2 match-body)))))))
+                        
+
+(defn- match-multi-comment [s]
+  (when-let [match-open (code/match-string s "--")]
+    (when-let [match-bs (match-long-bracket-section (:body match-open))]
+      (code/combine-matches match-open match-bs))))
 
 (defn- match-single-comment [s]
   (when-let [match-open (code/match-string s "--")]
-    (when-not (match-multi-open (:body match-open))
-      (when-let [match-body (code/match-until-eol (:body match-open))]
-        (code/combine-matches match-open match-body)))))
+    (when-let [match-body (code/match-until-eol (:body match-open))]
+      (code/combine-matches match-open match-body))))
 
 (defn increase-indent? [s]
   (re-find #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$" s))
@@ -241,8 +241,8 @@
              :type :default
              :rules
              [{:type :whitespace :space? #{\space \tab \newline \return}}
-              {:type :custom :scanner match-single-comment :class "comment"}
               {:type :custom :scanner match-multi-comment :class "comment-multi"}
+              {:type :custom :scanner match-single-comment :class "comment"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords defold-keywords :class "defold-keyword"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords helper-keywords :class "helper-keyword"}
               {:type :keyword :start? is-word-start :part? is-word-part :keywords self-keyword :class "self-keyword"}

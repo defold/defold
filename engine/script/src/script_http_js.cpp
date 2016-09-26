@@ -41,6 +41,13 @@ namespace dmScript
         dmScriptHttpRequestAsync(method, url, headers, arg, ol, oe, send_data, send_data_length, timeout);
     }
 
+    static void MessageDestroyCallback(dmMessage::Message* message)
+    {
+        dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
+        free((void*) response->m_Headers);
+        free((void*) response->m_Response);
+    }
+
     static void SendResponse(const dmMessage::URL* requester, int status,
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length)
@@ -58,7 +65,7 @@ namespace dmScript
         memcpy((void*) resp.m_Response, response, response_length);
 
         if (dmMessage::IsSocketValid(requester->m_Socket)) {
-            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp));
+            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback);
         } else {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);

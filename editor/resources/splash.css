@@ -1,0 +1,57 @@
+@font-face {
+  font-family: 'Open Sans';
+  src: url("OpenSans-Regular.ttf"); }
+
+.root {
+  -fx-text-color-base: #f0f2f6;
+  -fx-text-background-color: #a8abaf;
+  -fx-text-inner-color: #a8abaf;
+  -fx-font-family: "Open Sans";
+  -fx-font-size: 12px;
+  -fx-font-weight: normal;
+}
+
+/* See modena.css for progress bar styling */
+.progress-bar {
+  -fx-background-radius: 0;
+  -fx-border-radius: 0; }
+  .progress-bar .track {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-width: 1;
+    -fx-border-color: #484d54;
+    -fx-background-insets: 0; }
+  .progress-bar .bar {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-min-height: 10;
+    -fx-padding: 8 0; }
+
+.small-progress-bar > .bar {
+  -fx-background-color: #3492ac;
+  -fx-background-insets: 0;
+  -fx-background-radius: 0;
+  -fx-padding: 1em;
+  /* 12 */ }
+
+.small-progress-bar > .track {
+  -fx-background-color: #33393f;
+  -fx-background-insets: 0;
+  -fx-background-radius: 0; }
+
+.button {
+  -fx-background-radius: 4;
+  -fx-border-radius: 4;
+  -fx-padding: 6px 17px;
+  -fx-min-width: 100px;
+  -fx-background-color: #2268e6;
+  -fx-background-insets: 0;
+  -fx-border-color: #222426;
+  -fx-border-width: 1;
+  -fx-text-fill: #f0f2f6;
+  -fx-font-weight: bold; }
+  .button:hover {
+    -fx-background-color: #264a8b; }
+  .button:armed {
+    -fx-background-color: #264a8b;
+    -fx-border-color: #60a8ff; }

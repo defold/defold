@@ -1,5 +1,6 @@
 (ns editor.protobuf-forms
   (:require [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
             [clojure.string :as str]
             [dynamo.graph :as g])
   (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
@@ -373,8 +374,25 @@
           ]
          }))
 
+(defn- maybe-resource->proj-path
+  [val]
+  (if (satisfies? resource/Resource val)
+    (resource/resource->proj-path val)
+    val))
+
+(defn render-set-resource
+  [{:keys [node-id]} path value]
+  (case path
+    [:script]
+    (g/update-property! node-id :pb assoc :script (resource/resource->proj-path value))
+
+    [:materials]
+    (let [materials (mapv #(update % :material maybe-resource->proj-path) value)]
+      (g/update-property! node-id :pb assoc :materials materials))))
+
 (defmethod protobuf-form-data Render$RenderPrototypeDesc [node-id pb def]
-  {
+  {:form-ops {:user-data {:node-id node-id}
+              :set render-set-resource}
    :sections
    [
     {
