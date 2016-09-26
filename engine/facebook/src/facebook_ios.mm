@@ -547,6 +547,14 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
 //
 
 namespace dmFacebook {
+    
+/*# Facebook API documentation
+ *
+ * Functions and constants for interacting with Facebook APIs.
+ *
+ * @name Facebook
+ * @namespace facebook
+ */
 
  /*# initiate a Facebook login
  *

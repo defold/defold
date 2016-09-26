@@ -25,4 +25,5 @@ Require-Bundle: org.eclipse.core.runtime,
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Bundle-Activator: com.dynamo.cr.spine.Activator
-Export-Package: com.dynamo.cr.spine.scene
+Export-Package: com.dynamo.cr.spine,
+ com.dynamo.cr.spine.scene

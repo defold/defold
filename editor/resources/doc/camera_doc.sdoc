@@ -32,4 +32,5 @@ Post this message to a camera-component to set its properties at run-time.
 In the examples, it is assumed that the instance of the script has a camera-component with id "camera".
 <pre>
 msg.post("#camera", "set_camera", {aspect_ratio = 16/9, fov = math.pi * 0.5, near_z = 0.1, far_z = 500})
-</pre>
+</pre>c
+cameraCameraCamera API documentation"7Messages to control camera components and camera focus.

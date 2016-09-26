@@ -56,7 +56,7 @@ Defold Orange       #fd6623             Guides etc
 */
 @font-face {
   font-family: 'Inconsolata';
-  src: url("Inconsolata.otf"); }
+  src: url("Inconsolata-Regular.ttf"); }
 @font-face {
   font-family: 'Open Sans';
   src: url("OpenSans-Regular.ttf"); }
@@ -507,12 +507,17 @@ Defold Orange       #fd6623             Guides etc
 
 .field-error {
   -fx-border-width: 1 !important;
-  -fx-border-color: #ff4646 !important;
+  -fx-border-color: -defold-red !important;
   -fx-effect: none !important; }
 
 .field-warning {
   -fx-border-width: 1 !important;
-  -fx-border-color: #fbce2f !important;
+  -fx-border-color: -defold-yellow !important;
+  -fx-effect: none !important; }
+
+.field-info {
+  -fx-border-width: 1 !important;
+  -fx-border-color: -defold-light-blue !important;
   -fx-effect: none !important; }
 
 .menu-button {
@@ -915,6 +920,13 @@ Defold Orange       #fd6623             Guides etc
 
 #toolbar > .toggle-button:selected {
   -fx-background-color: #484d54; }
+
+/* Code view */
+
+.styled-text-area, .styled-text-area .source-segment, .styled-text-area .plain-source-segment {
+  -fx-font-family: "Inconsolata";
+  -fx-font-size: 14;
+}
 
 .lua.styled-text-area .comment,
 .lua.styled-text-area .comment-multi,

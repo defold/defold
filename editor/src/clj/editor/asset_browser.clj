@@ -159,38 +159,27 @@
               (File. abs-path)))
           resources)))
 
-(defn- rename [resource]
+(defn rename [resource ^String new-name]
   (when resource
     (let [workspace        (resource/workspace resource)
           srcf             (File. (resource/abs-path resource))
-          dir?             (.isDirectory srcf)
-          ext              (:ext (resource/resource-type resource))
-          ^String new-name (dialogs/make-rename-dialog
-                            (if dir? "Rename folder" "Rename file")
-                            (if dir? "New folder name" "New file name")
-                            (if dir?
-                              (resource/resource-name resource)
-                              (string/replace (resource/resource-name resource)
-                                              (re-pattern (str "." ext))
-                                              ""))
-                            ext)
           dstf             (and new-name (File. (.getParent srcf) new-name))]
       (when dstf
-        (if dir?
+        (if (.isDirectory srcf)
           (FileUtils/moveDirectory srcf dstf)
           (FileUtils/moveFile srcf dstf))
-        (workspace/resource-sync! workspace [[srcf dstf]])))))
+        (workspace/resource-sync! workspace true [[srcf dstf]])))))
 
-(defn- delete [resources on-delete-resource-fn]
+(defn delete [resources on-delete-resource-fn]
   (when (not (empty? resources))
     (let [workspace (resource/workspace (first resources))]
       (doseq [resource resources]
         (let [f (File. (resource/abs-path resource))]
           (if (.isDirectory f)
             (FileUtils/deleteDirectory f)
-            (.delete (File. (resource/abs-path resource))))
-          (on-delete-resource-fn resource)))
-      (workspace/resource-sync! workspace))))
+            (.delete (File. (resource/abs-path resource))))))
+      (on-delete-resource-fn resources)
+      (workspace/resource-sync! workspace false))))
 
 (defn- copy [files]
   (let [cb (Clipboard/getSystemClipboard)
@@ -257,7 +246,19 @@
             (and (= 1 (count selection))
                  (not (resource/read-only? (first selection)))))
   (run [selection]
-    (rename (first selection))))
+    (let [resource (first selection)
+          dir? (= :folder (resource/source-type resource))
+          ext (:ext (resource/resource-type resource))
+          ^String new-name (dialogs/make-rename-dialog
+                             (if dir? "Rename folder" "Rename file")
+                             (if dir? "New folder name" "New file name")
+                             (if dir?
+                               (resource/resource-name resource)
+                               (string/replace (resource/resource-name resource)
+                                               (re-pattern (str "." ext))
+                                               ""))
+                             ext)]
+      (rename resource new-name))))
 
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
@@ -382,11 +383,12 @@
 (defn- drag-done [^DragEvent e selection])
 
 (defn- drag-entered [^DragEvent e]
-  (when-let [^TreeCell cell (target (.getTarget e))]
-    (let [resource (.getValue (.getTreeItem cell))]
-      (when (and (= :folder (resource/source-type resource))
-                 (not (resource/read-only? resource)))
-        (ui/add-style! cell "drop-target")))))
+  (let [^TreeCell cell (target (.getTarget e))]
+    (when (and cell (not (.isEmpty cell)))
+      (let [resource (.getValue (.getTreeItem cell))]
+        (when (and (= :folder (resource/source-type resource))
+                   (not (resource/read-only? resource)))
+          (ui/add-style! cell "drop-target"))))))
 
 (defn- drag-exited [^DragEvent e]
   (when-let [cell (target (.getTarget e))]

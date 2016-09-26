@@ -21,6 +21,14 @@ namespace dmScript
 {
 #define SCRIPT_LIB_NAME "msg"
 #define SCRIPT_TYPE_NAME_URL "url"
+    
+    /*# Messaging API documentation
+     *
+     * Functions for passing messages and constructing URL objects.
+     *
+     * @name Message
+     * @namespace msg
+     */
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
 
@@ -476,7 +484,7 @@ namespace dmScript
 
         assert(top == lua_gettop(L));
 
-        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size);
+        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size, 0);
         if (result != dmMessage::RESULT_OK)
         {
             return luaL_error(L, "Could not send message to %s.", dmMessage::GetSocketName(receiver.m_Socket));

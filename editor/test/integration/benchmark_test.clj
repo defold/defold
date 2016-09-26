@@ -10,7 +10,7 @@
 (deftest scene->renderables-with-graph
  (testing "Scene converted into renderables"
           (with-clean-system
-            (let [workspace      (test-util/setup-workspace! world "resources/massive_project")
+            (let [workspace      (test-util/setup-workspace! world "test/resources/massive_project")
                   project        (test-util/setup-project! workspace)
                   app-view       (test-util/setup-app-view!)
                   node           (test-util/resource-node project "/massive.collection")
@@ -25,7 +25,7 @@
 (deftest scene->renderables-without-graph
  (testing "Scene converted into renderables, pure conversion"
           (with-clean-system
-            (let [workspace      (test-util/setup-workspace! world "resources/massive_project")
+            (let [workspace      (test-util/setup-workspace! world "test/resources/massive_project")
                   project        (test-util/setup-project! workspace)
                   app-view       (test-util/setup-app-view!)
                   node           (test-util/resource-node project "/massive.collection")
