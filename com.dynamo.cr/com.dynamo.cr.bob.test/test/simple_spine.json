@@ -1,0 +1,61 @@
+{
+"skeleton": { "hash": "+fMXZxF9pPXNcD3RGk2nYi4/HZE", "spine": "2.1.27", "width": 197.4, "height": 151.31, "images": "./../" },
+"bones": [
+	{ "name": "root" },
+	{ "name": "bone", "parent": "root", "length": 100 },
+	{ "name": "bone3", "parent": "root", "length": 100, "y": -100 },
+	{ "name": "bone5", "parent": "root", "x": 200.04, "y": -100, "color": "ff3f00ff" },
+	{ "name": "bone2", "parent": "bone", "length": 100, "x": 100 },
+	{ "name": "bone4", "parent": "bone3", "length": 100, "x": 100 }
+],
+"ik": [
+	{
+		"name": "apa",
+		"bones": [ "bone3", "bone4" ],
+		"target": "bone5"
+	}
+],
+"slots": [
+	{ "name": "daltons", "bone": "bone", "attachment": "daltons" },
+	{ "name": "cross_128", "bone": "bone2", "attachment": "cross_128" },
+	{ "name": "daltons2", "bone": "bone3", "attachment": "daltons" },
+	{ "name": "cross_129", "bone": "bone4", "attachment": "cross_128" }
+],
+"skins": {
+	"default": {
+		"cross_128": {
+			"cross_128": { "x": 50.17, "y": 1.38, "scaleX": 0.745, "scaleY": 0.435, "width": 128, "height": 128 }
+		},
+		"cross_129": {
+			"cross_128": { "x": 46.93, "y": 0.34, "scaleX": 0.756, "scaleY": 0.35, "width": 128, "height": 128 }
+		},
+		"daltons": {
+			"daltons": { "x": 50.59, "y": 1.28, "scaleX": 0.048, "scaleY": 0.034, "width": 2048, "height": 1536 }
+		},
+		"daltons2": {
+			"daltons": { "x": 50.51, "y": -0.05, "scaleX": 0.048, "scaleY": 0.027, "width": 2048, "height": 1536 }
+		}
+	},
+	"test": {}
+},
+"animations": {
+	"idle": {},
+	"idle2": {
+		"bones": {
+			"bone": {
+				"rotate": [
+					{ "time": 0, "angle": 0 },
+					{ "time": 0.6666, "angle": 90 }
+				]
+			},
+			"bone2": {
+				"rotate": [
+					{ "time": 0, "angle": 0, "curve": "stepped" },
+					{ "time": 0.6666, "angle": 0 },
+					{ "time": 1.3333, "angle": 90 }
+				]
+			}
+		}
+	}
+}
+}
