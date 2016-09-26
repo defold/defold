@@ -569,6 +569,10 @@ public class ColladaUtil {
             if(!animClips.isEmpty()) {
                 for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
                     RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
+                    if(clip.id == null)
+                    {
+                        throw new LoaderException("Animation clip lacks id.");
+                    }
                     toDDF(collada, animBuilder, skeleton, clip.id, boneToAnimations, maxAnimationLength, sampleRate);
                     animationSetBuilder.addAnimations(animBuilder.build());
                     animationIds.add(clip.id);
