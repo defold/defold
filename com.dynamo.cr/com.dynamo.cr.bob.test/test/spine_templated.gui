@@ -55,10 +55,9 @@ nodes {
   spine_default_animation: ""
   spine_skin: ""
 }
-material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_PARENT
 max_nodes: 512
 spine_scenes {
   name: "spine_test"
-  spine_scene: "/test.spinescene"
+  spine_scene: "/test/test.spinescene"
 }
