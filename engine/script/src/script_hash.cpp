@@ -16,6 +16,15 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Built-ins API documentation
+     *
+     * Built-in scripting functions.
+     * 
+     * @name Built-ins
+     * @namespace builtins
+     */
+
+
     #define SCRIPT_TYPE_NAME_HASH "hash"
     #define SCRIPT_HASH_TABLE "__script_hash_table"
 

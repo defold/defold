@@ -16,6 +16,14 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Vector math API documentation
+     *
+     * Functions for mathematical operations on vectors, matrices and quaternions.
+     *
+     * @name Vector math
+     * @namespace vmath
+     */
+
 #define SCRIPT_LIB_NAME "vmath"
 #define SCRIPT_TYPE_NAME_VECTOR "vector" // Vector of unspecific length
 #define SCRIPT_TYPE_NAME_VECTOR3 "vector3"
@@ -1043,7 +1051,7 @@ namespace dmScript
 
     /*# creates a new quaternion from its coordinates
      * 
-     * Creates a new quartenion with the components set
+     * Creates a new quaternion with the components set
      * according to the supplied parameter values.
      * 
      * @name vmath.quat

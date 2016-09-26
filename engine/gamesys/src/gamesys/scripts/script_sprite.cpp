@@ -22,6 +22,14 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Sprite API documentation
+     *
+     * Functions, messages and properties used to manipulate sprite components.
+     *
+     * @name Sprite
+     * @namespace sprite
+     */
+
     /*# sprite size (vector3)
      *
      * [READ ONLY] Returns the size of the sprite, not allowing for any additional scaling that may be applied.
@@ -97,7 +105,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -134,7 +142,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -179,7 +187,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -220,7 +228,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -241,7 +249,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetScale::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetScale::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

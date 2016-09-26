@@ -39,12 +39,24 @@ namespace dmRig
         RIG_MODEL = 2
     };
 
+    enum RigPlayback
+    {
+        PLAYBACK_NONE          = 0,
+        PLAYBACK_ONCE_FORWARD  = 1,
+        PLAYBACK_ONCE_BACKWARD = 2,
+        PLAYBACK_ONCE_PINGPONG = 3,
+        PLAYBACK_LOOP_FORWARD  = 4,
+        PLAYBACK_LOOP_BACKWARD = 5,
+        PLAYBACK_LOOP_PINGPONG = 6,
+        PLAYBACK_COUNT = 7,
+    };
+
     struct RigPlayer
     {
         RigPlayer() : m_Animation(0x0),
                       m_AnimationId(0x0),
                       m_Cursor(0.0f),
-                      m_Playback(dmGameObject::PLAYBACK_ONCE_FORWARD),
+                      m_Playback(dmRig::PLAYBACK_ONCE_FORWARD),
                       m_Playing(0x0),
                       m_Backwards(0x0) {};
         /// Currently playing animation
@@ -53,7 +65,7 @@ namespace dmRig
         /// Playback cursor in the interval [0,duration]
         float                         m_Cursor;
         /// Playback mode
-        dmGameObject::Playback        m_Playback;
+        RigPlayback                   m_Playback;
         /// Whether the animation is currently playing
         uint16_t                      m_Playing : 1;
         /// Whether the animation is playing backwards (e.g. ping pong)
@@ -150,8 +162,8 @@ namespace dmRig
         uint32_t     m_MaxRigInstanceCount;
     };
 
-    typedef void (*RigEventCallback)(void*, RigEventType, const void*);
-    typedef void (*RigPoseCallback)(void*);
+    typedef void (*RigEventCallback)(RigEventType, void*, void*, void*);
+    typedef void (*RigPoseCallback)(void*, void*);
 
     struct RigInstance
     {
@@ -163,10 +175,12 @@ namespace dmRig
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
         RigPoseCallback               m_PoseCallback;
-        void*                         m_PoseCBUserData;
+        void*                         m_PoseCBUserData1;
+        void*                         m_PoseCBUserData2;
         /// Event handling
         RigEventCallback              m_EventCallback;
-        void*                         m_EventCBUserData;
+        void*                         m_EventCBUserData1;
+        void*                         m_EventCBUserData2;
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
         /// Animated IK
@@ -204,9 +218,11 @@ namespace dmRig
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
         RigPoseCallback               m_PoseCallback;
-        void*                         m_PoseCBUserData;
+        void*                         m_PoseCBUserData1;
+        void*                         m_PoseCBUserData2;
         RigEventCallback              m_EventCallback;
-        void*                         m_EventCBUserData;
+        void*                         m_EventCBUserData1;
+        void*                         m_EventCBUserData2;
     };
 
     struct InstanceDestroyParams
@@ -220,8 +236,8 @@ namespace dmRig
         float x;
         float y;
         float z;
-        uint16_t u;
-        uint16_t v;
+        float u;
+        float v;
         union  {
             struct {
                 uint8_t r;
@@ -243,6 +259,13 @@ namespace dmRig
         Matrix4 m_ModelMatrix;
         void**  m_VertexData;
         int32_t m_VertexStride;
+        Vector4 m_Color;
+        RigGenVertexDataParams() {
+            m_ModelMatrix = Matrix4::identity();
+            m_VertexData = NULL;
+            m_VertexStride = 0;
+            m_Color = Vector4(1.0f,1.0f,1.0f,1.0f);
+        }
     };
 
     Result NewContext(const NewContextParams& params);
@@ -252,7 +275,7 @@ namespace dmRig
     Result InstanceCreate(const InstanceCreateParams& params);
     Result InstanceDestroy(const InstanceDestroyParams& params);
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration);
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration);
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
     uint32_t GetVertexCount(HRigInstance instance);
@@ -266,6 +289,7 @@ namespace dmRig
     void SetEnabled(HRigInstance instance, bool enabled);
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);
+    void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
 }
 

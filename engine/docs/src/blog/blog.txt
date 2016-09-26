@@ -1,9 +1,0 @@
-:max-width: 45em
-
-Test stuff
-----------
-_October 23, 2011_
-
-Welcome to this update-post from Defold!
-
-Here is stuff to be read.

@@ -10,10 +10,12 @@ public class Messages extends BobNLS {
 
     public static String GuiBuilder_MISSING_TEXTURE;
     public static String GuiBuilder_MISSING_FONT;
+    public static String GuiBuilder_MISSING_SPINESCENE;
     public static String GuiBuilder_MISSING_LAYER;
 
     public static String GuiBuilder_DUPLICATED_TEXTURE;
     public static String GuiBuilder_DUPLICATED_FONT;
+    public static String GuiBuilder_DUPLICATED_SPINESCENE;
     public static String GuiBuilder_DUPLICATED_LAYER;
 
     public static String TileSetBuilder_MISSING_IMAGE_AND_COLLISION;

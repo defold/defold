@@ -12,6 +12,15 @@
 
 struct Push;
 
+/*# Push notifications API documentation
+ *
+ * Functions and constants for interacting with local, as well as 
+ * Apple's and Google's push notification services.
+ *
+ * @name Push notifications
+ * @namespace push
+ */
+
 struct PushListener
 {
     PushListener()

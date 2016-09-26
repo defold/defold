@@ -166,7 +166,6 @@
   (property grid-color types/Color)
   (property auto-grid  g/Bool)
   (property fixed-grid-size g/Int
-            (default 0)
-            (validate (validation/validate-positive fixed-grid-size "Grid size must be positive")))
+            (default 0))
   (output grids      g/Any :cached update-grids)
   (output renderable pass/RenderData :cached grid-renderable))

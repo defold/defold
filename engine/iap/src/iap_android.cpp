@@ -20,7 +20,7 @@ struct IAP;
 #define CMD_PRODUCT_RESULT (0)
 #define CMD_PURCHASE_RESULT (1)
 
-struct Command
+struct DM_ALIGNED(16) Command
 {
     Command()
     {
