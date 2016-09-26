@@ -10,6 +10,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.gui.proto.Gui;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.render.proto.Font;
 import com.dynamo.rig.proto.Rig;
@@ -130,6 +131,12 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return Font.FontMap.parseFrom(content);
+            }
+        });
+        parseMap.put("guic", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Gui.SceneDesc.parseFrom(content);
             }
         });
     }
