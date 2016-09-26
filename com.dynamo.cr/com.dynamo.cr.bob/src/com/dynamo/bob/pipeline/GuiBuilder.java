@@ -525,19 +525,15 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                         Vector4 oneV4 = Vector4.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).setW(0.0f).build();
                         Vector4 zeroV4 = Vector4.newBuilder().setX(0.0f).setY(0.0f).setZ(0.0f).setW(0.0f).build();
 
-                        HashMap<RigScene.Bone,String> boneToPath = new HashMap<RigScene.Bone, String>();
+                        HashMap<RigScene.Bone,String> boneToId = new HashMap<RigScene.Bone, String>();
                         for (int b = 0; b < rigScene.bones.size(); b++) {
                             RigScene.Bone bone = rigScene.bones.get(b);
                             NodeDesc.Builder boneNodeBuilder = NodeDesc.newBuilder();
 
-                            String path = spineNodeId + "/" + bone.name;
-                            if (bone.parent != null) {
-                                path = boneToPath.get(bone.parent) + "/" + bone.name;
-                            }
+                            String id = spineNodeId + "/" + bone.name;
+                            boneToId.put(bone, id);
 
-                            boneToPath.put(bone, path);
-
-                            boneNodeBuilder.setId(path);
+                            boneNodeBuilder.setId(id);
                             boneNodeBuilder.setSpineNodeChild(true);
                             boneNodeBuilder.setSize(zeroV4);
                             boneNodeBuilder.setPosition(zeroV4);
@@ -545,11 +541,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             boneNodeBuilder.setAdjustMode(node.getAdjustMode());
                             boneNodeBuilder.setScale(oneV4);
 
-                            String parentName = boneToPath.get(bone.parent);
+                            String parentId = boneToId.get(bone.parent);
                             if (b == 0) {
-                                parentName = spineNodeId;
+                                parentId = spineNodeId;
                             }
-                            boneNodeBuilder.setParent(parentName);
+                            boneNodeBuilder.setParent(parentId);
 
                             NodeDesc boneNode = boneNodeBuilder.build();
                             newScene.get("").add(boneNode);
