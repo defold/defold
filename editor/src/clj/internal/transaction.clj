@@ -264,13 +264,16 @@
 (defn- cascade-delete-sources
   [basis node-id]
   (if-let [n (gt/node-by-id-at basis node-id)]
-    (let [orig (gt/original n)]
+    (let [override-id (gt/override-id n)]
       (for [input (some-> n
                     (gt/node-type basis)
                     in/cascade-deletes)
-            [source-id source-label] (gt/sources basis node-id input)
-            :when (or (nil? orig) (not (gt/connected? basis source-id source-label orig input)))]
-    source-id))
+            :let [explicit (map first (ig/explicit-sources basis node-id input))
+                  implicit (filter (fn [node-id] (when-let [n (gt/node-by-id-at basis node-id)]
+                                                   (= override-id (gt/override-id n))))
+                                   (map first (gt/sources basis node-id input)))]
+            source (into (set explicit) implicit)]
+        source))
     []))
 
 (defn- ctx-delete-node [ctx node-id]
@@ -416,7 +419,7 @@
              override-node? (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
                                                               (not (gt/property-overridden? node property)) (conj :_overridden-properties)))
              (not (nil? setter-fn))
-             (update :deferred-setters conj [setter-fn node-id old-value new-value]))))))))
+             (update :deferred-setters conj [setter-fn node-id property old-value new-value]))))))))
 
 (defn apply-defaults [ctx node]
   (let [node-id (gt/node-id node)
@@ -635,7 +638,7 @@
       (println (txerrstr ctx "deferred setters" setters " with meta" (pr-str (map meta setters)))))
     (if (empty? setters)
       ctx
-      (-> (reduce (fn [ctx [f node-id old-value new-value :as deferred]]
+      (-> (reduce (fn [ctx [f node-id property old-value new-value :as deferred]]
                     (try
                       (if (gt/node-by-id-at (:basis ctx) node-id)
                         (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
@@ -643,7 +646,10 @@
                       (catch clojure.lang.ArityException ae
                         (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)
                                  (:node-type (gt/node-by-id-at (:basis ctx) node-id)))
-                        (throw ae))))
+                        (throw ae))
+                      (catch Exception e
+                        (let [node-type (:name @(:node-type (gt/node-by-id-at (:basis ctx) node-id)))]
+                          (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
                   ctx setters)
           recur))))
 

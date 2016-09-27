@@ -186,3 +186,6 @@
 
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))
+
+(defn default-settings []
+  (make-settings-map (make-default-settings (:settings basic-meta-info))))

@@ -47,12 +47,6 @@
   (let [path (gpcore/get-setting-or-default meta-settings settings [category key])]
     (workspace/resolve-resource base-resource path)))
 
-(def ^:private settings-map-substitute (gpcore/make-settings-map (gpcore/make-default-settings (:settings gpcore/basic-meta-info))))
-
-(g/defnode GameProjectSettingsProxy
-  (input settings-map g/Any :substitute settings-map-substitute)
-  (output settings-map g/Any :cached (gu/passthrough settings-map)))
-
 (def ^:private path->property {["display" "display_profiles"] :display-profiles
                                ["bootstrap" "main_collection"] :main-collection
                                ["bootstrap" "render"] :render
@@ -62,31 +56,20 @@
 (def ^:private property->path (clojure.set/map-invert path->property))
 
 (defn- load-game-project [project self input]
-  (g/make-nodes
-   (g/node-id->graph-id self)
-   [proxy [GameProjectSettingsProxy]]
-   (g/connect self :display-profiles-data project :display-profiles)
-   (g/connect proxy :settings-map project :settings)
-   (g/connect proxy :_node-id self :nodes)
-   (try
-     (let [raw-settings (gpcore/parse-settings (gpcore/string-reader (slurp input)))
-           meta-info (gpcore/complement-meta-info gpcore/basic-meta-info raw-settings)
-           meta-settings (:settings meta-info)
-           sanitized-settings (gpcore/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
-           resource   (g/node-value self :resource)
-           roots      (into {} (map (fn [[category field]] [[category field] (root-resource resource sanitized-settings meta-settings category field)])
-                                   (keys path->property)))]
-       (concat
-        ;; We retain the actual raw string settings and update these when/if the user changes a setting,
-        ;; rather than parse to proper typed/sanitized values and rendering these on save - again only to
-        ;; reduce diffs.
-        (g/set-property self :raw-settings raw-settings :meta-info meta-info)
-        (for [[p root] roots]
-          (g/set-property self (path->property p) root))))
-     (catch java.lang.Exception e
-       (log/warn :exception e)
-       (g/mark-defective self (g/error-fatal (.getMessage e) {:type :invalid-content}))))
-   (g/connect self :settings-map proxy :settings-map)))
+  (let [raw-settings (gpcore/parse-settings (gpcore/string-reader (slurp input)))
+        meta-info (gpcore/complement-meta-info gpcore/basic-meta-info raw-settings)
+        meta-settings (:settings meta-info)
+        sanitized-settings (gpcore/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
+        resource   (g/node-value self :resource)
+        roots      (into {} (map (fn [[category field]] [[category field] (root-resource resource sanitized-settings meta-settings category field)])
+                                 (keys path->property)))]
+    (concat
+      ;; We retain the actual raw string settings and update these when/if the user changes a setting,
+      ;; rather than parse to proper typed/sanitized values and rendering these on save - again only to
+      ;; reduce diffs.
+      (g/set-property self :raw-settings raw-settings :meta-info meta-info)
+      (for [[p root] roots]
+        (g/set-property self (path->property p) root)))))
 
 (g/defnk produce-save-data [resource raw-settings meta-info _declared-properties]
   (let [content (->> raw-settings

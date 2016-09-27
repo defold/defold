@@ -236,6 +236,10 @@
       (get tgt-id)
       (get tgt-label))))
 
+(defn explicit-sources [basis tgt-id tgt-label]
+  (->> (explicit-arcs-by-target (node-id->graph basis tgt-id) tgt-id tgt-label)
+    (mapv gt/head)))
+
 (defn- implicit-overrides [basis node-id label arc-fn override-filter-fn]
   (let [graph (get (:graphs basis) (gt/node-id->graph-id node-id))]
     (loop [overrides (overrides graph node-id)

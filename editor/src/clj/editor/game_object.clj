@@ -315,8 +315,7 @@
           (recur (inc postfix)))))))
 
 (defn- add-component [self project source-resource id position rotation properties]
-  (let [resource-type (and source-resource (resource/resource-type source-resource))
-        path {:resource source-resource
+  (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
                   [comp-node [ReferencedComponent :id id :position position :rotation rotation :path path]]
