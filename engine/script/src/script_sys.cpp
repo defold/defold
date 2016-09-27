@@ -81,17 +81,18 @@ namespace dmScript
     int Sys_Save(lua_State* L)
     {
         char buffer[MAX_BUFFER_SIZE];
+        luaL_checktype(L, 2, LUA_TTABLE);
+        uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
+        
         const char* filename = luaL_checkstring(L, 1);
         const char* tmp_filename_ext = ".tmp\0";
-        const int filename_len = strlen(filename);
-        const int tmp_filename_ext_len = strlen(tmp_filename_ext);
-        char *tmp_filename = (char*)malloc(filename_len + tmp_filename_ext_len + 1);
+        size_t filename_len = strlen(filename);
+        size_t tmp_filename_ext_len = strlen(tmp_filename_ext);
+        char* tmp_filename = (char*)malloc(filename_len + tmp_filename_ext_len + 1);
 
         dmStrlCpy(tmp_filename, filename, filename_len + 1);
         dmStrlCat(tmp_filename, tmp_filename_ext, filename_len + tmp_filename_ext_len + 1);
 
-        luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
         FILE* file = fopen(tmp_filename, "wb");
         if (file != 0x0)
         {
