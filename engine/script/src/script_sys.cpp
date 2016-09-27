@@ -82,15 +82,30 @@ namespace dmScript
     {
         char buffer[MAX_BUFFER_SIZE];
         const char* filename = luaL_checkstring(L, 1);
+        const char* tmp_filename_ext = ".tmp\0";
+        int filename_len = strlen(filename);
+        int tmp_filename_ext_len = strlen(tmp_filename_ext);
+        char tmp_filename[filename_len + tmp_filename_ext_len + 1];
+
+        dmStrlCpy(tmp_filename, filename, filename_len + 1);
+        dmStrlCat(tmp_filename, tmp_filename_ext, filename_len + tmp_filename_ext_len + 1);
+
         luaL_checktype(L, 2, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
-        FILE* file = fopen(filename, "wb");
+        FILE* file = fopen(tmp_filename, "wb");
         if (file != 0x0)
         {
             bool result = fwrite(buffer, 1, n_used, file) == n_used;
             fclose(file);
             if (result)
             {
+                bool rename_result = rename(tmp_filename, filename) != -1;
+
+                if (!rename_result)
+                {
+                    return luaL_error(L, "Could not copy temporary file to the file %s.", filename);
+                }
+
                 lua_pushboolean(L, result);
                 return 1;
             }
