@@ -1,0 +1,194 @@
+script: ""
+fonts {
+  name: "test"
+  font: "/main/test.font"
+}
+textures {
+  name: "test"
+  texture: "/main/test.atlas"
+}
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 1.0
+}
+nodes {
+  position {
+    x: 777.3564
+    y: 262.3577
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: -7.6495366
+    y: -41.09756
+    z: -32.771122
+    w: 1.0
+  }
+  scale {
+    x: 2.0
+    y: 3.0
+    z: 4.0
+    w: 1.0
+  }
+  size {
+    x: 76.0
+    y: 76.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 1.0
+    y: 0.03529412
+    z: 0.0
+    w: 1.0
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ADD
+  texture: "test/test"
+  id: "box"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  adjust_mode: ADJUST_MODE_ZOOM
+  layer: "test"
+  inherit_alpha: false
+  slice9 {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.5
+  template_node_child: false
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  position {
+    x: -53.276108
+    y: 78.4107
+    z: -17.197472
+    w: 1.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 0.24705884
+    y: 1.0
+    z: 0.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_MULT
+  text: "ABCDE"
+  font: "test"
+  id: "text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NE
+  outline {
+    x: 1.0
+    y: 0.15294118
+    z: 0.0
+    w: 1.0
+  }
+  shadow {
+    x: 0.0
+    y: 0.2509804
+    z: 1.0
+    w: 1.0
+  }
+  adjust_mode: ADJUST_MODE_STRETCH
+  line_break: true
+  parent: "box"
+  layer: "test"
+  inherit_alpha: false
+  clipping_mode: CLIPPING_MODE_NONE
+  clipping_visible: true
+  clipping_inverted: false
+  alpha: 0.6
+  outline_alpha: 0.9
+  shadow_alpha: 0.3
+  template_node_child: false
+  text_leading: 2.0
+  text_tracking: 1.0
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  position {
+    x: 436.99472
+    y: 283.6402
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: -4.650592
+    y: -67.30523
+    z: -42.304806
+    w: 1.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 0.46274513
+    y: 0.42352945
+    z: 0.14509805
+    w: 1.0
+  }
+  type: TYPE_PIE
+  blend_mode: BLEND_MODE_ADD
+  texture: "test/logo"
+  id: "pie"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_NE
+  adjust_mode: ADJUST_MODE_ZOOM
+  layer: "test"
+  inherit_alpha: false
+  outerBounds: PIEBOUNDS_RECTANGLE
+  innerRadius: 1.0
+  perimeterVertices: 32
+  pieFillAngle: 45.0
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.8
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+}
+layers {
+  name: "test"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 512
