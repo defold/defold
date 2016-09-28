@@ -583,7 +583,7 @@ int Facebook_Login(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -625,7 +625,7 @@ int Facebook_Logout(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     [g_Facebook.m_Login logOut];
     [g_Facebook.m_Me release];
@@ -662,7 +662,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -724,7 +724,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -768,7 +768,7 @@ int Facebook_AccessToken(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     const char* token = [[[FBSDKAccessToken currentAccessToken] tokenString] UTF8String];
     lua_pushstring(L, token);
@@ -795,7 +795,7 @@ int Facebook_Permissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -839,7 +839,7 @@ int Facebook_Me(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -1065,7 +1065,7 @@ int Facebook_ShowDialog(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
