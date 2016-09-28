@@ -4,6 +4,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
+            [editor.collision-groups :as collision-groups]
             [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -18,6 +19,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
+            [editor.properties :as properties]
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
@@ -73,16 +75,18 @@
 (defn- load-node [project node-id node-type resource]
   (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
     (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
-      (try
-        (when *load-cache*
-          (swap! *load-cache* conj node-id))
-        (concat
-         (load-fn project node-id resource)
-         (when (instance? FileResource resource)
-           (g/connect node-id :save-data project :save-data)))
-        (catch java.io.IOException e
-          (log/warn :exception e)
-          (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+      (if (resource/exists? resource)
+        (try
+          (when *load-cache*
+            (swap! *load-cache* conj node-id))
+          (concat
+            (load-fn project node-id resource)
+            (when (instance? FileResource resource)
+              (g/connect node-id :save-data project :save-data)))
+          (catch Exception e
+            (log/warn :exception e)
+            (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
+        (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :invalid-content})))
       [])))
 
 (defn load-resource-nodes [project node-ids render-progress!]
@@ -164,19 +168,24 @@
                               basis            (g/now)
                               cache            (g/cache)}
                          :as opts}]
-  (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
-    (if-not (g/error? save-data)
-      (do
-        (progress/progress-mapv
-         (fn [{:keys [resource content]} _]
-           (when-not (resource/read-only? resource)
-             (spit resource content)))
-         save-data
-         render-progress!
-         (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-        (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
-      ;; TODO: error message somewhere...
-      (println (validation/error-message save-data)))))
+  (try
+    (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
+      (if-not (g/error? save-data)
+        (do
+          (progress/progress-mapv
+            (fn [{:keys [resource content]} _]
+              (when-not (resource/read-only? resource)
+                (spit resource content)))
+            save-data
+            render-progress!
+            (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
+          (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
+        (do
+          (ui/run-later
+            (throw (Exception. ^String (properties/error-message save-data)))))))
+    (catch Exception e
+      (ui/run-later
+        (throw e)))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"
@@ -302,28 +311,25 @@
                                   basis            (g/now)
                                   cache            (g/cache)}
                            :as   opts}]
-  (try
-    (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
-          build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
-          build-targets-by-key (and (not (g/error? build-targets))
-                                    (->> (g/node-value node :build-targets {:basis basis :cache cache})
-                                      build-targets-deep
-                                      targets-by-key))]
-      (if (g/error? build-targets)
-        (do
-          (when render-error!
-            (render-error! build-targets))
-          nil)
-        (do
-          (prune-build-cache! build-cache build-targets-by-key)
-          (progress/progress-mapv
-           (fn [target _]
-             (build-target basis (second target) build-targets-by-key build-cache))
-           build-targets-by-key
-           render-progress!
-           (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e)))))))))
-    (catch Throwable e
-      (println e))))
+  (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
+        build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
+        build-targets-by-key (and (not (g/error? build-targets))
+                                  (->> (g/node-value node :build-targets {:basis basis :cache cache})
+                                       build-targets-deep
+                                       targets-by-key))]
+    (if (g/error? build-targets)
+      (do
+        (when render-error!
+          (render-error! build-targets))
+        nil)
+      (do
+        (prune-build-cache! build-cache build-targets-by-key)
+        (progress/progress-mapv
+          (fn [target _]
+            (build-target basis (second target) build-targets-by-key build-cache))
+          build-targets-by-key
+          render-progress!
+          (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e))))))))))
 
 (defn- prune-fs [files-on-disk built-files]
   (let [files-on-disk (reverse files-on-disk)
@@ -504,7 +510,7 @@
             outputs-to-make (remove new-outputs current-outputs)]
         (g/transact
           (concat
-            (g/mark-defective new-node (g/error-severe {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/mark-defective new-node (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))
@@ -567,6 +573,10 @@
       (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
                                                (clojure.string/join ", " (map resource/proj-path unknown-changed)))))))
 
+(g/defnk produce-collision-groups-data
+  [collision-group-nodes]
+  (collision-groups/make-collision-groups-data collision-group-nodes))
+
 (g/defnode Project
   (inherits core/Scope)
 
@@ -580,10 +590,11 @@
   (input selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-types g/Any)
-  (input save-data g/Any :array)
+  (input save-data g/Any :array :substitute (fn [save-data] (vec (remove g/error? save-data))))
   (input node-resources g/Any :array)
   (input settings g/Any)
   (input display-profiles g/Any)
+  (input collision-group-nodes g/Any :array)
 
   (output selected-node-ids g/Any :cached (gu/passthrough selected-node-ids))
   (output selected-node-properties g/Any :cached (gu/passthrough selected-node-properties))
@@ -593,7 +604,9 @@
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
-  (output display-profiles g/Any :cached (gu/passthrough display-profiles)))
+  (output display-profiles g/Any :cached (gu/passthrough display-profiles))
+  (output nil-resource resource/Resource (g/always nil))
+  (output collision-groups-data g/Any :cached produce-collision-groups-data))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))

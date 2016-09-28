@@ -22,6 +22,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Spine model API documentation
+     *
+     * Functions and messages for interacting with the 'Spine' 2D bone 
+     * animation system.
+     *
+     * @name Spine
+     * @namespace spine
+     */
+
     /*# play an animation on a spine model
      *
      * @name spine.play
@@ -84,7 +93,7 @@ namespace dmGameSystem
         msg.m_Playback = playback;
         msg.m_BlendDuration = blend_duration;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -118,7 +127,7 @@ namespace dmGameSystem
 
         dmGameSystemDDF::SpineCancelAnimation msg;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -161,7 +170,7 @@ namespace dmGameSystem
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         uint32_t bone_index = ~0u;
         for (uint32_t i = 0; i < bone_count; ++i)
@@ -227,26 +236,11 @@ namespace dmGameSystem
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
         Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 3);
 
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
-        uint32_t ik_count = skeleton->m_Iks.m_Count;
-        uint32_t ik_index = ~0u;
-        for (uint32_t i = 0; i < ik_count; ++i)
-        {
-            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
-            {
-                ik_index = i;
-                break;
-            }
-        }
-        if (ik_index == ~0u)
+        if (!CompSpineModelSetIKTargetPosition(component, ik_constraint_id, 1.0f, (Point3)*position))
         {
             return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
         }
 
-        dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
-        ik_target.m_Mix = 1.0f;
-        ik_target.m_InstanceId = 0;
-        ik_target.m_Position = *position;
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -286,38 +280,22 @@ namespace dmGameSystem
 
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
 
-        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
-        uint32_t ik_count = skeleton->m_Iks.m_Count;
-        uint32_t ik_index = ~0u;
-        for (uint32_t i = 0; i < ik_count; ++i)
-        {
-            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
-            {
-                ik_index = i;
-                break;
-            }
-        }
-        if (ik_index == ~0u)
-        {
-            return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
-        }
-
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 3, &target, &sender);
         if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
         {
-            luaL_error(L, "go.animate can only animate instances within the same collection.");
+            return luaL_error(L, "spine.set_ik_target can only use instances within the same collection.");
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
             return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
 
-
-        dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
-        ik_target.m_Mix = 1.0f;
-        ik_target.m_InstanceId = target.m_Path;
+        if (!CompSpineModelSetIKTargetInstance(component, ik_constraint_id, 1.0f, target.m_Path))
+        {
+            return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
+        }
 
         assert(top == lua_gettop(L));
         return 0;
@@ -364,7 +342,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -405,7 +383,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

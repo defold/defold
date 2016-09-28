@@ -157,9 +157,10 @@ ordinary paths."
   (get (g/node-value workspace :resource-map) proj-path))
 
 (defn resolve-workspace-resource [workspace path]
-  (or
-   (find-resource workspace path)
-   (file-resource workspace path)))
+  (when (and path (not-empty path))
+    (or
+      (find-resource workspace path)
+      (file-resource workspace path))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))

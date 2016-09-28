@@ -58,3 +58,22 @@
       (is (not (.contains no-break " ")))
       (is (< w ew))
       (is (< eh h)))))
+
+(deftest validation
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          node-id   (test-util/resource-node project "/fonts/score.font")]
+      (is (nil? (test-util/prop-error node-id :font)))
+      (is (nil? (test-util/prop-error node-id :material)))
+      (test-util/with-prop [node-id :font nil]
+        (is (g/error-info? (test-util/prop-error node-id :font))))
+      (test-util/with-prop [node-id :font (workspace/resolve-workspace-resource workspace "/not_found.ttf")]
+        (is (g/error-fatal? (test-util/prop-error node-id :font))))
+      (test-util/with-prop [node-id :material nil]
+        (is (g/error-fatal? (test-util/prop-error node-id :material))))
+      (test-util/with-prop [node-id :material (workspace/resolve-workspace-resource workspace "/not_found.material")]
+        (is (g/error-fatal? (test-util/prop-error node-id :material))))
+      (doseq [p [:size :alpha :outline-alpha :outline-width :shadow-alpha :shadow-blur :cache-width :cache-height]]
+        (test-util/with-prop [node-id p -1]
+          (is (g/error-fatal? (test-util/prop-error node-id p))))))))

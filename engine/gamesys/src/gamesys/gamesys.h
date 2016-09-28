@@ -14,6 +14,7 @@
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <physics/physics.h>
+#include <rig/rig.h>
 
 namespace dmGameSystem
 {
@@ -70,6 +71,7 @@ namespace dmGameSystem
         dmRender::HRenderContext    m_RenderContext;
         dmGui::HContext             m_GuiContext;
         dmScript::HContext          m_ScriptContext;
+        dmRig::HRigContext          m_RigContext;
     };
 
     struct SpriteContext
@@ -90,6 +92,7 @@ namespace dmGameSystem
             memset(this, 0, sizeof(*this));
         }
         dmRender::HRenderContext    m_RenderContext;
+        dmRig::HRigContext          m_RigContext;
         dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxSpineModelCount;
     };

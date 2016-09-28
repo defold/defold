@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
+            [editor.camera-editor :as camera]
             [editor.collection :as collection]
             [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
@@ -9,17 +10,17 @@
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
             [editor.image :as image]
-            [editor.platformer :as platformer]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
             [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
             [editor.font :as font]
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
             [editor.workspace :as workspace]
             [editor.gl.shader :as shader]
+            [editor.rig :as rig]
+            [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]
             [editor.sound :as sound]
             [editor.spine :as spine]
@@ -27,6 +28,7 @@
             [editor.gui :as gui]
             [editor.json :as json]
             [editor.mesh :as mesh]
+            [editor.model :as model]
             [editor.material :as material]
             [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
@@ -38,7 +40,7 @@
            [org.apache.commons.io FilenameUtils FileUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
-(def project-path "resources/test_project")
+(def project-path "test/resources/test_project")
 
 (defn setup-workspace!
   ([graph]
@@ -46,34 +48,36 @@
   ([graph project-path]
     (let [workspace (workspace/make-workspace graph project-path)]
       (g/transact
-        (concat
-          (scene/register-view-types workspace)))
+       (concat
+         (scene/register-view-types workspace)))
       (g/transact
        (concat
+        (atlas/register-resource-types workspace)
+        (camera/register-resource-types workspace)
         (collection/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
+        (cubemap/register-resource-types workspace)
+        (display-profiles/register-resource-types workspace)
         (factory/register-resource-types workspace)
         (font/register-resource-types workspace)
         (game-object/register-resource-types workspace)
         (game-project/register-resource-types workspace)
-        (cubemap/register-resource-types workspace)
+        (gui/register-resource-types workspace)
         (image/register-resource-types workspace)
-        (atlas/register-resource-types workspace)
-        (platformer/register-resource-types workspace)
+        (json/register-resource-types workspace)
+        (material/register-resource-types workspace)
+        (mesh/register-resource-types workspace)
+        (model/register-resource-types workspace)
+        (particlefx/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
-        (switcher/register-resource-types workspace)
-        (sprite/register-resource-types workspace)
+        (rig/register-resource-types workspace)
         (script/register-resource-types workspace)
         (shader/register-resource-types workspace)
-        (tile-source/register-resource-types workspace)
         (sound/register-resource-types workspace)
         (spine/register-resource-types workspace)
-        (json/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
-        (particlefx/register-resource-types workspace)
-        (gui/register-resource-types workspace)
-        (material/register-resource-types workspace)
-        (display-profiles/register-resource-types workspace)))
+        (sprite/register-resource-types workspace)
+        (tile-map/register-resource-types workspace)
+        (tile-source/register-resource-types workspace)))
       (workspace/resource-sync! workspace)
       workspace)))
 
@@ -184,6 +188,9 @@
 (defn prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
 
+(defn prop-error [node-id label]
+  (get-in (g/node-value node-id :_properties) [:properties label :error]))
+
 (defn prop-node-id [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :node-id]))
 
@@ -210,11 +217,11 @@
 (defn ->lib-server []
   (doto (http-server/->server 0 {"/lib" (fn [request]
                                           (let [lib (subs (:url request) 5)
-                                                path-offset (count (format "resources/%s/" lib))
+                                                path-offset (count (format "test/resources/%s/" lib))
                                                 ignored #{".internal" "build"}
                                                 file-filter (reify FilenameFilter
                                                               (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "resources/%s" lib)))
+                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "test/resources/%s" lib)))
                                                         (filter (fn [^File f] (not (.isDirectory f)))))]
                                             (with-open [byte-stream (ByteArrayOutputStream.)
                                                         out (ZipOutputStream. byte-stream)]
@@ -240,3 +247,10 @@
 (defn handler-run [command command-contexts user-data]
   (-> (handler/active command command-contexts user-data)
     handler/run))
+
+(defmacro with-prop [binding & forms]
+  (let [[node-id# property# value#] binding]
+    `(let [old-value# (g/node-value ~node-id# ~property#)]
+       (g/set-property! ~node-id# ~property# ~value#)
+       ~@forms
+       (g/set-property! ~node-id# ~property# old-value#))))

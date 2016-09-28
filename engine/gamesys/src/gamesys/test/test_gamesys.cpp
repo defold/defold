@@ -234,7 +234,7 @@ TEST_F(WindowEventTest, Test)
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    
+
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -650,7 +650,7 @@ INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, ::testing::ValuesIn(inv
 
 /* Spine Scene */
 
-const char* valid_spine_scene_resources[] = {"/spine/valid.spinescenec"};
+const char* valid_spine_scene_resources[] = {"/spine/valid.rigscenec"};
 INSTANTIATE_TEST_CASE_P(SpineScene, ResourceTest, ::testing::ValuesIn(valid_spine_scene_resources));
 
 /* Spine Model */

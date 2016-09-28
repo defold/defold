@@ -1,5 +1,6 @@
 (ns editor.code-view-ux-test
   (:require [clojure.test :refer :all]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code-view :as cv :refer :all]
             [editor.code-view-ux :as cvx :refer :all]
@@ -7,7 +8,10 @@
             [editor.lua :as lua]
             [editor.script :as script]
             [editor.code-view-test :as cvt :refer [setup-code-view-nodes]]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [with-clean-system tx-nodes]])
+  (:import [com.sun.javafx.tk Toolkit]
+           [javafx.scene.input KeyEvent KeyCode]))
+
 
 (defrecord TestClipboard [content]
   TextContainer
@@ -16,13 +20,21 @@
   (replace! [this offset length s]))
 
 (defn- key-typed! [source-viewer key-typed]
-  (cvx/handler-run :key-typed [{:name :code-view :env {:selection source-viewer :key-typed key-typed}}] {}))
+  (cvx/handler-run :key-typed [{:name :code-view
+                                :env {:selection source-viewer :key-typed key-typed :key-event (KeyEvent. KeyEvent/KEY_TYPED
+                                                                                                          key-typed
+                                                                                                          ""
+                                                                                                          (KeyCode/getKeyCode key-typed)
+                                                                                                          false
+                                                                                                          false
+                                                                                                          false
+                                                                                                          false)}}] {}))
 
 (deftest key-typed-test
   (with-clean-system
     (let [code "hello"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "typing without text selected"
         (key-typed! source-viewer "a")
@@ -54,7 +66,7 @@
     (let [clipboard (new TestClipboard (atom ""))
           code "hello world"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (text-selection! source-viewer 6 5)
       (copy! source-viewer clipboard)
@@ -78,7 +90,7 @@
   (with-clean-system
     (let [code "hello world"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 5 false)
       (testing "moving right"
@@ -97,7 +109,7 @@
         (left! source-viewer)
         (left! source-viewer)
         (is (= 0 (caret source-viewer))))
-      (testing "with chunk of selected text, right takes cursor to end of chunk"
+      (testing "with chunk of selected text, and the cursor at the start, right takes cursor to end of chunk"
         (caret! source-viewer 0 false)
         (text-selection! source-viewer 0 5)
         (is (= 0 (caret source-viewer)))
@@ -105,11 +117,27 @@
         (right! source-viewer)
         (is (= "" (text-selection source-viewer)))
         (is (= 5 (caret source-viewer))))
-      (testing "with chunk of selected text, left takes cursor to beginning of chunk"
+      (testing "with chunk of selected text, and the cursor at the end, right takes cursor one forward"
+        (caret! source-viewer 4 false)
+        (text-selection! source-viewer 0 4)
+        (is (= 4 (caret source-viewer)))
+        (is (= "hell" (text-selection source-viewer)))
+        (right! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 5 (caret source-viewer))))
+      (testing "with chunk of selected text, and the cursor at the end, left takes cursor to beginning of chunk"
         (caret! source-viewer 5 false)
         (text-selection! source-viewer 0 5)
         (is (= 5 (caret source-viewer)))
         (is (= "hello" (text-selection source-viewer)))
+        (left! source-viewer)
+        (is (= "" (text-selection source-viewer)))
+        (is (= 0 (caret source-viewer))))
+      (testing "with chunk of selected text, and the cursor at the start, left takes cursor one step back"
+        (caret! source-viewer 1 false)
+        (text-selection! source-viewer 1 4)
+        (is (= 1 (caret source-viewer)))
+        (is (= "ello" (text-selection source-viewer)))
         (left! source-viewer)
         (is (= "" (text-selection source-viewer)))
         (is (= 0 (caret source-viewer)))))))
@@ -124,7 +152,7 @@
   (with-clean-system
    (let [code "hello world"
          opts lua/lua
-         source-viewer (setup-source-viewer opts false)
+         source-viewer (setup-source-viewer opts)
          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
      (testing "selecting right"
        (select-right! source-viewer)
@@ -167,7 +195,7 @@
   (with-clean-system
     (let [code "line1\nline2\n\nline3and"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
       (preferred-offset! source-viewer 4)
@@ -179,12 +207,13 @@
       (is (= \newline (get-char-at-caret source-viewer)))
       (down! source-viewer)
       (is (= \3 (get-char-at-caret source-viewer)))
+      ;; can't move further down
       (down! source-viewer)
-      (is (nil? (get-char-at-caret source-viewer)))
+      (is (= \3 (get-char-at-caret source-viewer)))
       (testing "out of bounds down"
         (down! source-viewer)
         (down! source-viewer)
-        (is (nil? (get-char-at-caret source-viewer))))
+        (is (= \3 (get-char-at-caret source-viewer))))
       (testing "moving up"
         (up! source-viewer)
         (is (= \newline (get-char-at-caret source-viewer)))
@@ -193,10 +222,11 @@
         (up! source-viewer)
         (is (= \1 (get-char-at-caret source-viewer)))
         (up! source-viewer)
-        (is (= \l (get-char-at-caret source-viewer))))
+        ;; can't move further up
+        (is (= \1 (get-char-at-caret source-viewer))))
       (testing "out of bounds up"
         (up! source-viewer)
-        (is (= \l (get-char-at-caret source-viewer))))
+        (is (= \1 (get-char-at-caret source-viewer))))
       (testing "respects tab spacing"
         (let [new-code "line1\n\t2345"]
           (text! source-viewer new-code)
@@ -238,7 +268,7 @@
   (with-clean-system
     (let [code "line1\nline2"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (caret! source-viewer 4 false)
       (preferred-offset! source-viewer 4)
@@ -262,7 +292,7 @@
   (with-clean-system
     (let [code "the quick.brown\nfox_test"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (is (= \t (get-char-at-caret source-viewer)))
       (testing "moving next word"
@@ -305,7 +335,14 @@
         (prev-word! source-viewer)
         (is (= \b (get-char-at-caret source-viewer)))
         (up! source-viewer)
-        (is (= \a (get-char-at-caret source-viewer)))))))
+        (is (= \a (get-char-at-caret source-viewer))))
+      (testing "treats opererators correctly"
+        (text! source-viewer "local v = 1")
+        (caret! source-viewer 0 false)
+        (next-word! source-viewer)
+        (next-word! source-viewer)
+        (next-word! source-viewer)
+        (is (= 9 (caret source-viewer)))))))
 
 (defn- select-next-word! [source-viewer]
   (cvx/handler-run :select-next-word [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -317,7 +354,7 @@
   (with-clean-system
     (let [code "the quick"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (is (= \t (get-char-at-caret source-viewer)))
       (testing "select moving next word"
@@ -329,7 +366,7 @@
         (select-prev-word! source-viewer)
         (is (= "the " (text-selection source-viewer)))
         (select-prev-word! source-viewer)
-        (is (= "the " (text-selection source-viewer)))))))
+        (is (= "" (text-selection source-viewer)))))))
 
 (defn- line-begin! [source-viewer]
   (cvx/handler-run :line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -341,7 +378,7 @@
   (with-clean-system
     (let [code "hello world"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "moving to beginning of the line"
         (caret! source-viewer 4 false)
@@ -378,7 +415,7 @@
   (with-clean-system
     (let [code "hello world"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "selecting to beginning of the line"
         (caret! source-viewer 4 false)
@@ -401,7 +438,7 @@
   (with-clean-system
     (let [code "hello\nworld"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "moving to beginning of the file"
         (caret! source-viewer 4 false)
@@ -424,7 +461,7 @@
   (with-clean-system
     (let [code "hello\nworld"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "selecting to the end of the file"
         (caret! source-viewer 4 false)
@@ -445,7 +482,7 @@
   (with-clean-system
     (let [code "a\nb\nc"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "goto line"
         (go-to-line! source-viewer "2")
@@ -470,7 +507,7 @@
   (with-clean-system
     (let [code "blue  cat"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "caret is in the middle of the word"
         (caret! source-viewer 2 false)
@@ -500,7 +537,7 @@
   (with-clean-system
     (let [code "line1\nline2"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "selects the line"
         (select-line! source-viewer)
@@ -516,11 +553,12 @@
   (with-clean-system
     (let [code "hello there"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "selects the entire doc"
         (select-all! source-viewer)
-        (is (= "hello there" (text-selection source-viewer)))))))
+        (is (= "hello there" (text-selection source-viewer)))
+        (is (= (caret source-viewer) (count (text source-viewer))))))))
 
 (defn- delete! [source-viewer]
   (cvx/handler-run :delete [{:name :code-view :env {:selection source-viewer}}]{}))
@@ -532,7 +570,7 @@
   (with-clean-system
     (let [code "blue"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "deleting"
         (caret! source-viewer 3 false)
@@ -559,7 +597,7 @@
   (with-clean-system
     (let [code "blue"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "deleting"
         (caret! source-viewer 2 false)
@@ -590,7 +628,7 @@
     (let [clipboard (new TestClipboard (atom ""))
           code "blue duck"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "cutting"
         (text-selection! source-viewer 0 4)
@@ -620,7 +658,7 @@
   (with-clean-system
     (let [code "blue duck"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "deleting back"
         (caret! source-viewer 7 false)
@@ -652,7 +690,7 @@
   (with-clean-system
     (let [code "blue duck"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "deleting to end of the line"
         (caret! source-viewer 7 false)
@@ -676,7 +714,7 @@
     (let [code "line1\nline2\nline3"
           clipboard (new TestClipboard (atom ""))
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "cutting to end of the line"
         (caret! source-viewer 2 false)
@@ -693,6 +731,19 @@
         (cut-to-end-of-line! source-viewer clipboard)
         (is (= "\nline3" (text source-viewer)))))))
 
+(deftest copy-paste-selection-preserves-caret
+  (with-clean-system
+    (let [code "line1\nline2\nline3"
+          clipboard (new TestClipboard (atom ""))
+          opts lua/lua
+          source-viewer (setup-source-viewer opts)
+          [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
+      (testing "copy-paste-preserves-caret"
+        (text-selection! source-viewer 2 8)
+        (copy! source-viewer clipboard)
+        (paste! source-viewer clipboard)
+        (is (= 10 (caret source-viewer)))))))
+
 (defn- find-text! [source-viewer text]
   ;; bypassing handler for the dialog handling
   (find-text source-viewer text))
@@ -701,7 +752,7 @@
   (with-clean-system
     (let [code "the blue ducks"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "find match"
         (find-text! source-viewer "the")
@@ -725,7 +776,7 @@
   (with-clean-system
     (let [code "duck1 duck2 duck3"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "find-next"
         (find-text! source-viewer "duck")
@@ -761,7 +812,7 @@
   (with-clean-system
     (let [code "the blue ducks"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "replacing match"
         (replace-text! source-viewer {:find-text "blue" :replace-text "red"})
@@ -779,7 +830,7 @@
   (with-clean-system
     (let [code "the blue blue ducks"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "replacing match"
         (replace-text! source-viewer {:find-text "blue" :replace-text "red"})
@@ -802,7 +853,7 @@
   (with-clean-system
     (let [code "hi"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "basic tab"
         (tab! source-viewer)
@@ -815,38 +866,41 @@
   (with-clean-system
     (let [code "hi"
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes world source-viewer code script/ScriptNode)]
       (testing "basic enter"
         (enter! source-viewer)
         (is (= "\nhi" (text source-viewer)))))))
 
 (defn- undo! [source-viewer view-node code-node]
-  (cvx/handler-run :undo [{:name :code-view :env {:selection source-viewer :view-node view-node :code-node code-node}}]{}))
+  (g/undo! (g/node-id->graph-id code-node)))
 
 (defn- redo! [source-viewer view-node code-node]
-  (cvx/handler-run :redo [{:name :code-view :env {:selection source-viewer :view-node view-node :code-node code-node}}]{}))
+  (g/redo! (g/node-id->graph-id code-node)))
 
 (defn- set-code-and-caret! [source-viewer code]
   (text! source-viewer code)
   (caret! source-viewer (count code) false)
-  (changes! source-viewer))
+  (typing-changes! source-viewer))
 
 (defn- propose! [source-viewer]
   (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
+
+(defn- refresh-viewer [viewer-node]
+  (g/node-value viewer-node :new-content))
 
 (deftest undo-redo-test
   (with-clean-system
     (let [pgraph-id  (g/make-graph! :history true)
           code ""
           opts lua/lua
-          source-viewer (setup-source-viewer opts false)
+          source-viewer (setup-source-viewer opts)
           [code-node viewer-node] (setup-code-view-nodes pgraph-id source-viewer code script/ScriptNode)]
       (testing "text editing"
         (key-typed! source-viewer "h")
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (key-typed! source-viewer "i")
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (is (= "hi" (g/node-value code-node :code)))
         (undo! source-viewer viewer-node code-node)
         (is (= "h" (g/node-value code-node :code)))
@@ -855,19 +909,21 @@
       (testing "preferred offset"
         (text! source-viewer "helllo world")
         (preferred-offset! source-viewer 4)
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (preferred-offset! source-viewer 0)
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (undo! source-viewer viewer-node code-node)
+        (refresh-viewer viewer-node)
         (is (= 4 (preferred-offset source-viewer))))
       (testing "snippet-tab-triggers"
         (set-code-and-caret! source-viewer "string.sub")
         (propose! source-viewer)
         (is (= "string.sub(s,i)" (text source-viewer)))
         (is (= "s" (text-selection source-viewer)))
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (tab! source-viewer)
-        (changes! source-viewer)
+        (typing-changes! source-viewer)
         (is (= "i" (text-selection source-viewer)))
         (undo! source-viewer viewer-node code-node)
+        (refresh-viewer viewer-node)
         (is (= "s" (text-selection source-viewer)))))))

@@ -8,7 +8,8 @@ import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
 import com.dynamo.cr.server.auth.Identity;
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.OAuthAuthenticator.Authentication;
-import com.dynamo.cr.server.model.*;
+import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.services.UserService;
 import com.dynamo.inject.persist.Transactional;
 import com.google.api.client.auth.oauth2.AuthorizationCodeFlow;
 import com.google.api.client.auth.oauth2.AuthorizationCodeRequestUrl;
@@ -29,8 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
-import javax.persistence.Query;
-import javax.persistence.TypedQuery;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -39,7 +38,7 @@ import javax.ws.rs.core.*;
 import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -53,14 +52,16 @@ public class LoginOAuthResource extends BaseResource {
     @Inject
     private AccessTokenAuthenticator accessTokenAuthenticator;
 
+    @Inject
+    private UserService userService;
+
     // Lock for the flow. The locking scheme is from the google examples.
     // Uncertain if it's actually required as AuthorizationCodeFlow shoudl be thread safe
     // Better be safe than sorry though
     private final Lock lock = new ReentrantLock();
     private AuthorizationCodeFlow flow;
 
-    private AuthorizationCodeFlow initializeFlow() throws ServletException,
-            IOException {
+    private AuthorizationCodeFlow initializeFlow() throws ServletException, IOException {
 
         // TODO: Couldn't find singleton method (getDefaultInstance)
         JacksonFactory jacksonFactory = new JacksonFactory();
@@ -176,9 +177,7 @@ public class LoginOAuthResource extends BaseResource {
                         .execute();
 
                 String accessToken = response.getAccessToken();
-                String jwt = response.getIdToken();
                 authenticator.authenticate(flow.getTransport().createRequestFactory(), loginToken, accessToken);
-
             } finally {
                 lock.unlock();
             }
@@ -212,18 +211,20 @@ public class LoginOAuthResource extends BaseResource {
 
         Identity identity = authentication.identity;
         TokenExchangeInfo.Builder tokenExchangeInfoBuilder = TokenExchangeInfo.newBuilder()
-            .setFirstName(identity.firstName)
-            .setLastName(identity.lastName)
-            .setEmail(identity.email)
-            .setLoginToken(token);
+                .setFirstName(identity.firstName)
+                .setLastName(identity.lastName)
+                .setEmail(identity.email)
+                .setLoginToken(token);
 
-        User user = ModelUtil.findUserByEmail(em, identity.email);
-        if (user != null) {
+        Optional<User> userOptional = userService.findByEmail(identity.email);
+
+        if (userOptional.isPresent()) {
 
             // Update name (could have changed, or be missing)
+            User user = userOptional.get();
             user.setFirstName(identity.firstName);
             user.setLastName(identity.lastName);
-            em.persist(user);
+            userService.save(user);
 
             tokenExchangeInfoBuilder.setType(Type.LOGIN);
             tokenExchangeInfoBuilder.setAuthToken(accessTokenAuthenticator.createSessionToken(user, "TODO"));
@@ -231,20 +232,7 @@ public class LoginOAuthResource extends BaseResource {
 
         } else {
             tokenExchangeInfoBuilder.setType(Type.SIGNUP);
-
-            // Delete old pending NewUser entries.
-            Query deleteQuery = em.createQuery("delete from NewUser u where u.email = :email").setParameter("email", identity.email);
-            int nDeleted = deleteQuery.executeUpdate();
-            if (nDeleted > 0) {
-                LOGGER.info("Removed old NewUser row for {}", identity.email);
-            }
-
-            NewUser newUser = new NewUser();
-            newUser.setFirstName(identity.firstName);
-            newUser.setLastName(identity.lastName);
-            newUser.setEmail(identity.email);
-            newUser.setLoginToken(token);
-            em.persist(newUser);
+            userService.signupOAuth(identity.email, identity.firstName, identity.lastName, token);
         }
 
         return tokenExchangeInfoBuilder.build();
@@ -253,81 +241,23 @@ public class LoginOAuthResource extends BaseResource {
     @PUT
     @Path("/register/{token}")
     @Transactional
-    public Response register(@PathParam("token") String token,
-                             @QueryParam("key") String key) {
-
-        if (key == null || key.isEmpty()) {
-            throw new ServerException("A registration key is required", Status.UNAUTHORIZED);
-        }
-
-        int initialInvitationCount;
-
-        String testKey = this.server.getConfiguration().getTestRegistrationKey();
-        if (testKey.equals(key)) {
-            initialInvitationCount = this.server.getConfiguration().getTestInvitationCount();
-        } else {
-            TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
-            List<Invitation> lst = q.setParameter("key", key).getResultList();
-            if (lst.size() == 0) {
-                throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
-            }
-            Invitation invitation = lst.get(0);
-            initialInvitationCount = invitation.getInitialInvitationCount();
-            // Remove invitation
-            em.remove(lst.get(0));
-        }
-
-        List<NewUser> list = em.createQuery("select u from NewUser u where u.loginToken = :loginToken", NewUser.class).setParameter("loginToken", token).getResultList();
-        if (list.size() == 0) {
-            LOGGER.error("Unable to find NewUser row for {}", token);
-            throw new ServerException("Unable to register.", Status.BAD_REQUEST);
-        }
-
-        NewUser newUser = list.get(0);
-
-        // Remove prospect (if registered with different email than invitation
-        Prospect p = ModelUtil.findProspectByEmail(em, newUser.getEmail());
-        if (p != null) {
-            em.remove(p);
-        }
-
-        // Generate some random password for OpenID accounts.
-        byte[] passwordBytes = new byte[32];
-        server.getSecureRandom().nextBytes(passwordBytes);
-        String password = Base64.encodeBase64String(passwordBytes);
-
-        User user = new User();
-        user.setEmail(newUser.getEmail());
-        user.setFirstName(newUser.getFirstName());
-        user.setLastName(newUser.getLastName());
-        user.setPassword(password);
-        em.persist(user);
-        InvitationAccount account = new InvitationAccount();
-        account.setUser(user);
-        account.setOriginalCount(initialInvitationCount);
-        account.setCurrentCount(initialInvitationCount);
-        em.persist(account);
-        em.remove(newUser);
-        em.flush();
-
-        LOGGER.info("New user registered: {}", user.getEmail());
+    public Response register(@PathParam("token") String token) {
+        User user = userService.create(token);
 
         String authToken = accessTokenAuthenticator.createSessionToken(user, null);
 
         LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
-            .setEmail(user.getEmail())
-            .setUserId(user.getId())
-            .setAuthToken(authToken)
-            .setFirstName(user.getFirstName())
-            .setLastName(user.getLastName());
-
-        ModelUtil.subscribeToNewsLetter(em, newUser.getEmail(), newUser.getFirstName(), newUser.getLastName());
+                .setEmail(user.getEmail())
+                .setUserId(user.getId())
+                .setAuthToken(authToken)
+                .setFirstName(user.getFirstName())
+                .setLastName(user.getLastName());
 
         return Response
-            .ok()
-            .entity(loginInfoBuilder.build())
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .build();
+                .ok()
+                .entity(loginInfoBuilder.build())
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .build();
     }
 
 }

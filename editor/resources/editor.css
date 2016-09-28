@@ -56,7 +56,10 @@ Defold Orange       #fd6623             Guides etc
 */
 @font-face {
   font-family: 'Inconsolata';
-  src: url("Inconsolata.otf"); }
+  src: url("Inconsolata-Regular.ttf"); }
+@font-face {
+  font-family: 'Open Sans';
+  src: url("OpenSans-Regular.ttf"); }
 
 .root {
   -fx-base: #272b30;
@@ -86,8 +89,7 @@ Defold Orange       #fd6623             Guides etc
   -fx-hover-base: #484d54;
   -fx-pressed-base: #b0b0b0;
   -fx-accent_: red;
-  /*-fx-font: 14px 'Avenir Medium' bold;*/
-  -fx-font-family: "Avenir Heavy";
+  -fx-font-family: "Open Sans";
   -fx-font-size: 12px;
   -fx-font-weight: normal;
 
@@ -505,12 +507,17 @@ Defold Orange       #fd6623             Guides etc
 
 .field-error {
   -fx-border-width: 1 !important;
-  -fx-border-color: #ff4646 !important;
+  -fx-border-color: -defold-red !important;
   -fx-effect: none !important; }
 
 .field-warning {
   -fx-border-width: 1 !important;
-  -fx-border-color: #fbce2f !important;
+  -fx-border-color: -defold-yellow !important;
+  -fx-effect: none !important; }
+
+.field-info {
+  -fx-border-width: 1 !important;
+  -fx-border-color: -defold-light-blue !important;
   -fx-effect: none !important; }
 
 .menu-button {
@@ -914,6 +921,13 @@ Defold Orange       #fd6623             Guides etc
 #toolbar > .toggle-button:selected {
   -fx-background-color: #484d54; }
 
+/* Code view */
+
+.styled-text-area, .styled-text-area .source-segment, .styled-text-area .plain-source-segment {
+  -fx-font-family: "Inconsolata";
+  -fx-font-size: 14;
+}
+
 .lua.styled-text-area .comment,
 .lua.styled-text-area .comment-multi,
 .glsl.styled-text-area .comment,
@@ -1087,3 +1101,12 @@ Line numbers:
   -fx-border-color: #4a4b4f;
   -fx-border-width: 0 1 0 0;
   -fx-padding: 0.0em; }
+
+.copyable-label, .copyable-label:focused {
+  -fx-background-color: transparent;
+  -fx-border-width: 0px;
+  -fx-text-fill: #b0b0b0;
+}
+
+
+    

@@ -30,7 +30,7 @@ public class SpineModelBuilderTest extends AbstractProtoBuilderTest {
         List<Message> outputs = build("/test.spinemodel", src.toString());
         SpineModelDesc scene = (SpineModelDesc)outputs.get(0);
 
-        assertEquals("/test.spinescenec", scene.getSpineScene());
+        assertEquals("/test.rigscenec", scene.getSpineScene());
         assertEquals("/test.materialc", scene.getMaterial());
         assertEquals("test", scene.getDefaultAnimation());
         assertEquals("test", scene.getSkin());

@@ -205,3 +205,23 @@
       (is (false? (read-only-fn [(first nodes)])))
       (is (true? (read-only-fn [(second nodes)])))
       (is (true? (read-only-fn nodes))))))
+
+(g/defnode DynamicSetFn
+  (property a g/Num)
+  (property count g/Any (default (atom 0)))
+
+  (output _properties g/Properties (g/fnk [_declared-properties]
+                                          (assoc-in _declared-properties [:properties :a :edit-type :set-fn]
+                                                    (fn [basis self old new]
+                                                      (swap! (g/node-value self :count {:basis basis}) inc)
+                                                      (g/set-property self :a new))))))
+
+(deftest dynamic-set-fn
+  (with-clean-system
+    (let [n (first
+              (tx-nodes
+                (g/make-nodes world [n DynamicSetFn])))
+          p (:a (coalesce-nodes [n]))]
+      (is (= 0 @(g/node-value n :count)))
+      (properties/set-values! p [1])
+      (is (= 1 @(g/node-value n :count))))))

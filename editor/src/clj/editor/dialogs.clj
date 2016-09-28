@@ -603,6 +603,7 @@
                                            (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
                                            (= code (KeyCode/ENTER)) (close (ui/selection list-view))
                                            (= code (KeyCode/TAB)) (close (ui/selection list-view))
+                                           (= code (KeyCode/ESCAPE)) (close nil)
 
                                            (or (= code (KeyCode/LEFT)) (= code (KeyCode/RIGHT)))
                                            (do
@@ -623,7 +624,7 @@
                                       (let [key-typed (.getCharacter ^KeyEvent event)]
                                         (cond
 
-                                          (and (not-empty key-typed) (code/not-ascii-or-delete key-typed))
+                                          (and (not-empty key-typed) (not (code/control-char-or-delete key-typed)))
                                           (do
                                             (swap! filter-text str key-typed)
                                             (update-items)

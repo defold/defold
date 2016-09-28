@@ -71,6 +71,44 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 #define dmLogFatal(format, args...) dmLogInternal(DM_LOG_SEVERITY_FATAL, DLIB_LOG_DOMAIN, format, ## args);
 #endif
 
+#define dmLogOnceIdentifier __dmLogOnce
+#define __DM_LOG_PASTE(x, y) x ## y
+#define DM_LOG_PASTE(x, y) __DM_LOG_PASTE(x, y)
+
+#ifdef _MSC_VER
+#define dmLogOnceInternal(method, format, ... )                     \
+    {                                                               \
+        static int DM_LOG_PASTE(dmLogOnceIdentifier, __LINE__) = 0; \
+        if (DM_LOG_PASTE(dmLogOnceIdentifier, __LINE__) == 0)       \
+        {                                                           \
+            DM_LOG_PASTE(dmLogOnceIdentifier, __LINE__) = 1;        \
+            method(format, __VA_ARGS__ );                           \
+        }                                                           \
+    }
+#define dmLogOnceDebug(format, ... ) dmLogOnceInternal(dmLogDebug, format, __VA_ARGS__ )
+#define dmLogOnceUserDebug(format, ... ) dmLogOnceInternal(dmLogUserDebug, format, __VA_ARGS__ )
+#define dmLogOnceInfo(format, ... ) dmLogOnceInternal(dmLogInfo, format, __VA_ARGS__ )
+#define dmLogOnceWarning(format, ... ) dmLogOnceInternal(dmLogWarning, format, __VA_ARGS__ )
+#define dmLogOnceError(format, ... ) dmLogOnceInternal(dmLogError, format, __VA_ARGS__ )
+#define dmLogOnceFatal(format, ... ) dmLogOnceCritical(dmLogFatal, format, __VA_ARGS__ )
+#else
+#define dmLogOnceInternal(method, format, args... )                 \
+    {                                                               \
+        static int DM_LOG_PASTE(dmLogOnceIdentifier, __LINE__) = 0; \
+        if (DM_LOG_PASTE(dmLogOnceIdentifier, __LINE__) == 0)       \
+        {                                                           \
+            DM_LOG_PASTE(dmLogOnceIdentifier, __LINE__) = 1;        \
+            method(format, ## args );                               \
+        }                                                           \
+    }
+#define dmLogOnceDebug(format, args... ) dmLogOnceInternal(dmLogDebug, format, ## args )
+#define dmLogOnceUserDebug(format, args... ) dmLogOnceInternal(dmLogUserDebug, format, ## args )
+#define dmLogOnceInfo(format, args... ) dmLogOnceInternal(dmLogInfo, format, ## args )
+#define dmLogOnceWarning(format, args... ) dmLogOnceInternal(dmLogWarning, format, ## args )
+#define dmLogOnceError(format, args... ) dmLogOnceInternal(dmLogError, format, ## args )
+#define dmLogOnceFatal(format, args... ) dmLogOnceCritical(dmLogFatal, format, ## args )
+#endif
+
 #endif
 
 struct dmLogParams

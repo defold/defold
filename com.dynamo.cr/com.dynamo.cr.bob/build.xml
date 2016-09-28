@@ -57,6 +57,7 @@
             <proto dir="../../engine/gamesys/proto/" file="texture_set_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="spine_ddf.proto"/>
+            <proto dir="../../engine/rig/proto/rig" file="rig_ddf.proto"/>
             <proto dir="../../engine/graphics/proto" file="graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input_ddf.proto"/>
             <proto dir="../../engine/particle/proto/particle" file="particle_ddf.proto"/>

@@ -1,41 +1,39 @@
 (ns editor.collision-object
-  (:require [clojure.string :as s]
-            [plumbing.core :as pc]
-            [dynamo.graph :as g]
-            [editor.colors :as colors]
-            [editor.defold-project :as project]
-            [editor.geom :as geom]
-            [editor.gl :as gl]
-            [editor.gl.pass :as pass]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.graph-util :as gu]
-            [editor.handler :as handler]
-            [editor.math :as math]
-            [editor.outline :as outline]
-            [editor.properties :as properties]
-            [editor.protobuf :as protobuf]
-            [editor.resource :as resource]
-            [editor.types :as types]
-            [editor.validation :as validation]
-            [editor.workspace :as workspace]
-            [editor.scene :as scene]
-            [editor.scene-tools :as scene-tools])
-  (:import [com.dynamo.physics.proto Physics$CollisionObjectDesc
-            Physics$CollisionObjectType
-            Physics$CollisionShape
-            Physics$CollisionShape$Shape
-            Physics$CollisionShape$Type]
-           [javax.media.opengl GL GL2]
-           [javax.vecmath Point3d Matrix4d Quat4d Vector3d]
-           [editor.types AABB]))
+  (:require
+   [clojure.string :as s]
+   [plumbing.core :as pc]
+   [dynamo.graph :as g]
+   [editor.colors :as colors]
+   [editor.collision-groups :as collision-groups]            
+   [editor.defold-project :as project]
+   [editor.geom :as geom]
+   [editor.gl :as gl]
+   [editor.gl.pass :as pass]
+   [editor.gl.shader :as shader]
+   [editor.gl.vertex :as vtx]
+   [editor.graph-util :as gu]
+   [editor.handler :as handler]
+   [editor.math :as math]
+   [editor.outline :as outline]
+   [editor.properties :as properties]
+   [editor.protobuf :as protobuf]
+   [editor.resource :as resource]
+   [editor.types :as types]
+   [editor.validation :as validation]
+   [editor.workspace :as workspace]
+   [editor.scene :as scene]
+   [editor.scene-tools :as scene-tools])
+  (:import
+   [com.dynamo.physics.proto Physics$CollisionObjectDesc
+    Physics$CollisionObjectType
+    Physics$CollisionShape
+    Physics$CollisionShape$Shape
+    Physics$CollisionShape$Type]
+   [javax.media.opengl GL GL2]
+   [javax.vecmath Point3d Matrix4d Quat4d Vector3d]
+   [editor.types AABB]))
 
 (set! *warn-on-reflection* true)
-
-(defmacro validate-greater-than-zero [field message]
-  `(g/fnk [~field]
-     (when (<= ~field 0.0)
-       (g/error-severe ~message))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
@@ -62,6 +60,8 @@
   (inherits outline/OutlineNode)
   (inherits scene/SceneNode)
 
+  (input color g/Any)
+  
   (property shape-type g/Any
             (dynamic visible (g/always false)))
 
@@ -101,11 +101,10 @@
 
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
-(def shape-color (scene/select-color pass/transparent false (colors/alpha colors/defold-orange 0.25)))
-(def selected-shape-color (scene/select-color pass/transparent true (colors/alpha colors/defold-orange 0.5)))
+(def outline-alpha 1.0)
+(def shape-alpha 0.1)
+(def selected-outline-alpha 1.0)
+(def selected-shape-alpha 0.3)
 
 (defn- gen-vertex
   [^Matrix4d wt ^Point3d pt x y cr cg cb ca]
@@ -145,8 +144,9 @@
   ([count]
    (->color-vtx (* count disc-segments)))
   ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [[cr cg cb ca] (if selected selected-outline-color outline-color)
-         {:keys [sphere-diameter]} user-data
+   (let [{:keys [sphere-diameter color]} user-data
+         [cr cg cb] color
+         ca (if selected selected-outline-alpha outline-alpha)
          r (* 0.5 sphere-diameter)]
      (conj-disc-outline! vbuf world-transform tmp-point r cr cg cb ca))))
 
@@ -154,8 +154,9 @@
   ([count]
    (->color-vtx (* count (+ 2 disc-segments))))
   ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [[cr cg cb ca] (if selected selected-shape-color shape-color)
-         {:keys [sphere-diameter]} user-data
+   (let [{:keys [sphere-diameter color]} user-data
+         [cr cg cb] color
+         ca (if selected selected-shape-alpha shape-alpha)
          r (* 0.5 sphere-diameter)]
      (-> vbuf
          (conj! (gen-vertex world-transform tmp-point 0 0 cr cg cb ca))
@@ -202,17 +203,19 @@
   ([count]
    (->color-vtx (* count 8)))
   ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [[cr cg cb ca] (if selected selected-outline-color outline-color)
-         {:keys [box-width box-height]} user-data]
+   (let [{:keys [box-width box-height color]} user-data
+         [cr cg cb] color
+         ca (if selected selected-outline-alpha outline-alpha)]
      (conj-outline-quad! vbuf world-transform tmp-point box-width box-height cr cg cb ca))))
 
 (defn- gen-box-vertex-buffer
   ([count]
    (->color-vtx (* count 8)))
   ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [[cr cg cb ca] (if (:selected renderable) selected-shape-color shape-color)
-         {:keys [box-width box-height]} user-data]
-     (conj-outline-quad! vbuf world-transform tmp-point box-width box-height cr cg cb ca)))  )
+   (let [{:keys [box-width box-height color]} user-data
+         [cr cg cb] color
+         ca (if selected selected-shape-alpha shape-alpha)]
+     (conj-outline-quad! vbuf world-transform tmp-point box-width box-height cr cg cb ca))))
 
 (defn render-box
   [^GL2 gl render-args renderables n]
@@ -271,8 +274,9 @@
   ([count]
    (->color-vtx (* count (+ 2 capsule-segments))))
   ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [[cr cg cb ca] (if (:selected renderable) selected-outline-color outline-color)
-         {:keys [capsule-diameter capsule-height]} user-data
+   (let [{:keys [capsule-diameter capsule-height color]} user-data
+         [cr cg cb] color
+         ca (if selected selected-outline-alpha outline-alpha)
          r (* 0.5 capsule-diameter)]
      (conj-capsule-outline! vbuf world-transform tmp-point r capsule-height cr cg cb ca))))
 
@@ -280,8 +284,9 @@
   ([count]
    (->color-vtx (* count (+ 4 capsule-segments))))
   ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [[cr cg cb ca] (if selected selected-shape-color shape-color)
-         {:keys [capsule-diameter capsule-height]} user-data
+   (let [{:keys [capsule-diameter capsule-height color]} user-data
+         [cr cg cb] color
+         ca (if selected selected-shape-alpha shape-alpha)
          r (* 0.5 capsule-diameter)
          ext-y (* 0.5 capsule-height)]
      (-> vbuf
@@ -314,18 +319,19 @@
 
 
 (g/defnk produce-sphere-shape-scene
-  [_node-id transform diameter]
+  [_node-id transform diameter color]
   {:node-id _node-id
    :transform transform
    :aabb (-> (geom/null-aabb)
              (geom/aabb-incorporate diameter diameter diameter)
              (geom/aabb-incorporate (- diameter) (- diameter) (- diameter)))
    :renderable {:render-fn render-sphere
-                :user-data {:sphere-diameter diameter}
+                :user-data {:sphere-diameter diameter
+                            :color color}
                 :passes [pass/outline pass/transparent pass/selection]}})
 
 (g/defnk produce-box-shape-scene
-  [_node-id transform dimensions]
+  [_node-id transform dimensions color]
   (let [[w h d] dimensions]
     {:node-id _node-id
      :transform transform
@@ -337,11 +343,12 @@
                  (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))))
      :renderable {:render-fn render-box
                   :user-data {:box-width w
-                              :box-height h}
+                              :box-height h
+                              :color color}
                   :passes [pass/outline pass/transparent pass/selection]}}))
 
 (g/defnk produce-capsule-shape-scene
-  [_node-id transform diameter height]
+  [_node-id transform diameter height color]
   {:node-id _node-id
    :transform transform
    :aabb (let [r (* 0.5 diameter)
@@ -351,14 +358,15 @@
                (geom/aabb-incorporate (- r) (- ext-y) (- r))))
    :renderable {:render-fn render-capsule
                 :user-data {:capsule-diameter diameter
-                            :capsule-height height}
+                            :capsule-height height
+                            :color color}
                 :passes [pass/outline pass/transparent pass/selection]}})
 
 (g/defnode SphereShape
   (inherits Shape)
 
   (property diameter g/Num
-            (validate (validate-greater-than-zero diameter "Diameter must be greater than zero")))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
 
   (display-order [Shape :diameter])
 
@@ -381,9 +389,10 @@
   (inherits Shape)
 
   (property dimensions types/Vec3
-            (validate (g/fnk [dimensions]
-                        (when (some #(<= % 0.0) dimensions)
-                          (g/error-severe "All dimensions must be greater than zero"))))
+            (dynamic error (validation/prop-error-fnk :fatal
+                                                      (fn [d _] (when (some #(<= % 0.0) d)
+                                                                  "All dimensions must be greater than zero"))
+                                                      dimensions))
             (dynamic edit-type (g/always {:type types/Vec3 :labels ["W" "H" "D"]})))
 
   (display-order [Shape :dimensions])
@@ -405,9 +414,9 @@
   (inherits Shape)
 
   (property diameter g/Num
-            (validate (validate-greater-than-zero diameter "Diameter must be greater than zero")))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
   (property height g/Num
-            (validate (validate-greater-than-zero height "Height must be greater than zero")))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? height)))
 
   (display-order [Shape :diameter :height])
 
@@ -432,10 +441,11 @@
 (defn attach-shape-node
   [parent shape-node]
   (concat
-   (g/connect shape-node :_node-id     parent :nodes)
-   (g/connect shape-node :node-outline parent :child-outlines)
-   (g/connect shape-node :scene        parent :child-scenes)
-   (g/connect shape-node :shape        parent :shapes)))
+   (g/connect shape-node :_node-id           parent :nodes)
+   (g/connect shape-node :node-outline       parent :child-outlines)
+   (g/connect shape-node :scene              parent :child-scenes)
+   (g/connect shape-node :shape              parent :shapes)
+   (g/connect parent :collision-group-color  shape-node :color)))
 
 (defmulti decode-shape-data
   (fn [shape data] (:shape-type shape)))
@@ -484,6 +494,8 @@
                      :linear-damping (:linear-damping co)
                      :angular-damping (:angular-damping co)
                      :locked-rotation (:locked-rotation co))
+     (g/connect self :collision-group-node project :collision-group-nodes)
+     (g/connect project :collision-groups-data self :collision-groups-data)
      (when-let [embedded-shape (:embedded-collision-shape co)]
        (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
          (let [data (subvec (:data embedded-shape) index (+ index count))
@@ -537,16 +549,41 @@
 
 (defn build-collision-object
   [self basis resource dep-resources user-data]
-  {:resource resource
-   :content (protobuf/map->bytes Physics$CollisionObjectDesc (:pb-msg user-data))})
+  (let [[shape] (vals dep-resources)
+        pb-msg (cond-> (:pb-msg user-data)
+                 shape (assoc :collision-shape (resource/proj-path shape)))]
+    {:resource resource
+     :content (protobuf/map->bytes Physics$CollisionObjectDesc pb-msg)}))
+
+(defn- merge-convex-shape [collision-shape convex-shape]
+  (if convex-shape
+    (let [collision-shape (or collision-shape {:shapes [] :data []})
+          shape {:shape-type (:shape-type convex-shape)
+                 :position [0 0 0]
+                 :rotation [0 0 0 1]
+                 :index (count (:data collision-shape))
+                 :count (count (:data convex-shape))}]
+      (-> collision-shape
+        (update :shapes conj shape)
+        (update :data into (:data convex-shape))))
+    collision-shape))
 
 (g/defnk produce-build-targets
   [_node-id resource pb-msg collision-shape dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
+        convex-shape (when (and collision-shape (= "convexshape" (:ext (resource/resource-type collision-shape))))
+                       (get-in (first dep-build-targets) [:user-data :pb]))
+        pb-msg (if convex-shape
+                 (dissoc pb-msg :collision-shape)
+                 pb-msg)
+        dep-build-targets (if convex-shape [] dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]]
-                             [label (get deps-by-source resource)])
-                           [[:collision-shape collision-shape]])]
+        dep-resources (if convex-shape
+                        []
+                        (map (fn [[label resource]]
+                               [label (get deps-by-source resource)])
+                             [[:collision-shape collision-shape]]))
+        pb-msg (update pb-msg :embedded-collision-shape merge-convex-shape convex-shape)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-collision-object
@@ -554,6 +591,9 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
+(g/defnk produce-collision-group-color
+  [collision-groups-data group]
+  (collision-groups/color collision-groups-data group))
 
 (g/defnode CollisionObjectNode
   (inherits project/ResourceNode)
@@ -562,6 +602,7 @@
   (input child-scenes g/Any :array)
   (input collision-shape-resource resource/Resource)
   (input dep-build-targets g/Any :array)
+  (input collision-groups-data g/Any)
 
   (property collision-shape resource/Resource
             (value (gu/passthrough collision-shape-resource))
@@ -569,7 +610,10 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :collision-shape-resource]
                                             [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "tilemap"})))
+            (dynamic edit-type (g/always {:type resource/Resource :ext "tilemap"}))
+            (dynamic error (g/fnk [_node-id collision-shape]
+                                  (when collision-shape
+                                    (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")))))
 
   (property type g/Any
             (dynamic edit-type (g/always (properties/->pb-choicebox Physics$CollisionObjectType))))
@@ -579,9 +623,9 @@
                      (if (= :collision-object-type-dynamic type) mass 0)))
             (dynamic read-only? (g/fnk [type]
                                   (not= :collision-object-type-dynamic type)))
-            (validate (g/fnk [mass type]
-                        (when (and (= :collision-object-type-dynamic type) (< mass 1))
-                          (g/error-severe "Must be greater than zero")))))
+            (dynamic error (g/fnk [_node-id mass type]
+                             (when (= :collision-object-type-dynamic type)
+                               (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass")))))
 
   (property friction g/Num)
   (property restitution g/Num)
@@ -605,7 +649,9 @@
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
+  (output collision-group-color g/Any :cached produce-collision-group-color))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -655,5 +701,3 @@
                                [])
                     (sort-by :label)
                     (into []))))))
-
-nil

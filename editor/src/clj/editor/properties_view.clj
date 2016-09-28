@@ -107,7 +107,8 @@
         update-fn    (fn [_] (if-let [v (to-double (.getText text))]
                                (properties/set-values! (property-fn) (repeat v))
                                (update-ui-fn (properties/values (property-fn))
-                                             (properties/validation-message (property-fn)))))]
+                                             (properties/validation-message (property-fn))
+                                             (properties/read-only? (property-fn)))))]
     (doto text
       (.setPrefWidth Double/MAX_VALUE)
       (ui/on-action! update-fn)
@@ -419,10 +420,9 @@
     (.add node-coords (.add scene-coords window-coords))))
 
 (def ^:private severity-tooltip-style-map
-  {g/FATAL "tooltip-error"
-   g/SEVERE "tooltip-error"
-   g/WARNING "tooltip-warning"
-   g/INFO "tooltip-warning"})
+  {:fatal "tooltip-error"
+   :warning "tooltip-warning"
+   :info "tooltip-info"})
 
 (defn- show-message-tooltip [^Node control]
   (when-let [tip (ui/user-data control ::field-message)]
@@ -455,10 +455,9 @@
           :move nil)))))
 
 (def ^:private severity-field-style-map
-  {g/FATAL "field-error"
-   g/SEVERE "field-error"
-   g/WARNING "field-warning"
-   g/INFO "field-warning"})
+  {:fatal "field-error"
+   :warning "field-warning"
+   :info "field-info"})
 
 (defn- update-field-message-style [ctrl msg]
   (if msg

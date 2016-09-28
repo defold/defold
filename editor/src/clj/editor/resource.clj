@@ -18,6 +18,7 @@
   (children [this])
   (resource-type [this])
   (source-type [this])
+  (exists? [this])
   (read-only? [this])
   (path [this])
   (abs-path ^String [this])
@@ -27,8 +28,11 @@
   (workspace [this])
   (resource-hash [this]))
 
+(defn- ->unix-seps ^String [^String path]
+  (FilenameUtils/separatorsToUnix path))
+
 (defn relative-path [^File f1 ^File f2]
-  (.toString (.relativize (.toPath f1) (.toPath f2))))
+  (->unix-seps (.toString (.relativize (.toPath f1) (.toPath f2)))))
 
 (defn file->proj-path [^File project-path ^File f]
   (try
@@ -41,6 +45,7 @@
   (children [this] children)
   (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension (.getPath file))))
   (source-type [this] (if (.isDirectory file) :folder :file))
+  (exists? [this] (.exists file))
   (read-only? [this] (not (.canWrite file)))
   (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
@@ -79,6 +84,7 @@
   (children [this] nil)
   (resource-type [this] (get (g/node-value workspace :resource-types) ext))
   (source-type [this] :file)
+  (exists? [this] true)
   (read-only? [this] false)
   (path [this] nil)
   (abs-path [this] nil)
@@ -107,6 +113,7 @@
   (children [this] children)
   (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension name)))
   (source-type [this] (if (zero? (count children)) :file :folder))
+  (exists? [this] (not (nil? data)))
   (read-only? [this] true)
   (path [this] path)
   (abs-path [this] nil)
@@ -180,3 +187,5 @@
   (if resource
     (proj-path resource)
     ""))
+
+(g/deftype ResourceVec [(s/maybe (s/protocol Resource))])

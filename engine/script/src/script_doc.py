@@ -30,6 +30,7 @@ def _parse_comment(str):
     lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
 
     name_found = False
+    docinfo_comment = False
     element_type = script_doc_ddf_pb2.FUNCTION
     for (tag, value) in lst:
         tag = tag.strip()
@@ -42,28 +43,42 @@ def _parse_comment(str):
             element_type = script_doc_ddf_pb2.MESSAGE
         elif tag == 'property':
             element_type = script_doc_ddf_pb2.PROPERTY
-        elif tag == 'package':
-            element_type = script_doc_ddf_pb2.PACKAGE
+        elif tag == 'namespace':
+            # This is a docinfo comment.
+            docinfo_comment = True
 
     if not name_found:
         logging.warn('Missing tag @name in "%s"' % str)
         return
 
-    element = script_doc_ddf_pb2.Element()
-    element.type = element_type
-
     desc_start = min(len(str), str.find('\n'))
-    element.brief = str[0:desc_start]
+    brief = str[0:desc_start]
     desc_end = min(len(str), str.find('\n@'))
-    element.description = str[desc_start:desc_end].strip()
-    element.return_ = ''
+    description = str[desc_start:desc_end].strip()
+
+    element = script_doc_ddf_pb2.Element()
+
+    # Is this element a doc info?
+    if docinfo_comment:
+        element = script_doc_ddf_pb2.Info()
+    else:
+        # A regular element
+        element.type = element_type
+
+    element.brief = brief
+    element.description = description
 
     for (tag, value) in lst:
         value = value.strip()
         if tag == 'name':
             element.name = value
         elif tag == 'return':
-            element.return_ = value
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            ret = element.returnvalues.add()
+            ret.name = tmp[0]
+            ret.doc = tmp[1]            
         elif tag == 'param':
             tmp = value.split(' ', 1)
             if len(tmp) < 2:
@@ -77,20 +92,31 @@ def _parse_comment(str):
             element.examples = value
         elif tag == 'deprecated':
             element.deprecated = value
+        elif tag == 'namespace':
+            element.namespace = value
     return element
 
 def parse_document(doc_str):
     doc = script_doc_ddf_pb2.Document()
     lst = re.findall('/\*#(.*?)\*/', doc_str, re.DOTALL)
     element_list = []
+    doc_info = None
     for comment_str in lst:
         element = _parse_comment(comment_str)
-        if element:
+        if type(element) is script_doc_ddf_pb2.Element:
             element_list.append(element)
+        if type(element) is script_doc_ddf_pb2.Info:
+            doc_info = element
+
+    if not doc_info:
+        logging.error('Missing @namespace in document')
+        return
 
     element_list.sort(cmp = lambda x,y: cmp(x.name, y.name))
     for i, e in enumerate(element_list):
         doc.elements.add().MergeFrom(e)
+
+    doc.info.CopyFrom(doc_info)
 
     return doc
 
@@ -134,19 +160,18 @@ if __name__ == '__main__':
         doc_str += f.read()
         f.close()
 
-    output_file = args[-1]
-    f = open(output_file, "wb")
     doc = parse_document(doc_str)
-
-    if options.type == 'protobuf':
-        f.write(doc.SerializeToString())
-    elif options.type == 'json':
-        doc_dict = message_to_dict(doc)
-        json.dump(doc_dict, f, indent = 2)
-    else:
-        print 'Unknown type: %s' % options.type
-        sys.exit(5)
-
-    f.close()
+    if doc:
+        output_file = args[-1]
+        f = open(output_file, "wb")
+        if options.type == 'protobuf':
+            f.write(doc.SerializeToString())
+        elif options.type == 'json':
+            doc_dict = message_to_dict(doc)
+            json.dump(doc_dict, f, indent = 2)
+        else:
+            print 'Unknown type: %s' % options.type
+            sys.exit(5)
+        f.close()
 
 
