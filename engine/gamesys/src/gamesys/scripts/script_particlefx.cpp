@@ -89,6 +89,7 @@ namespace dmGameSystem
             if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
             {
                 lua_unref(data.m_L, data.m_LuaCallbackRef);
+                lua_unref(data.m_L, data.m_LuaSelfRef);
                 data.m_LuaCallbackRef = LUA_NOREF;
                 data.m_LuaSelfRef = LUA_NOREF;
             }
