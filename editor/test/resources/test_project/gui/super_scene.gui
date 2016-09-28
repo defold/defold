@@ -250,7 +250,7 @@ nodes {
   texture: ""
   id: "scene/sub_scene/sub_box"
   parent: "scene/sub_scene"
-  xanchor: XANCHOR_NONE
+  xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_NONE
   pivot: PIVOT_CENTER
   adjust_mode: ADJUST_MODE_FIT
