@@ -14,25 +14,29 @@
  * 
  * @name webview.create
  *
- * @param callback (function) A callback which receives info about finished requests.
+ * @param callback (function) A callback which receives info about finished requests taking the following parameters
  * 
- * <ul>
- *     <li>self (object) The calling script</li>
- *     <li>webview_id (number) The webview id</li>
- *     <li>request_id (number) The request id</li>
- *     <li>type (number) The type of the callback. Can be one of these:</li>
- *     <ul>
- *         <li>webview.CALLBACK_RESULT_URL_OK</li>
- *         <li>webview.CALLBACK_RESULT_URL_ERROR</li>
- *         <li>webview.CALLBACK_RESULT_EVAL_OK</li>
- *         <li>webview.CALLBACK_RESULT_EVAL_ERROR</li>
- *     </ul>
- *     <li>data (table) The callback value ''data'' is a table which currently holds these values</li>
- *     <ul>
+ * <dt>
+ *     <dt>self (object)</dt> <dd>The calling script</dd>
+ *     <dt>webview_id (number)</dt> <dd>The webview id</dd>
+ *     <dt>request_id (number)</dt> <dd>The request id</dd>
+ *     <dt>type (number)</dt>
+ *      <dd>The type of the callback. Can be one of these:
+ *      <ul>
+ *          <li>webview.CALLBACK_RESULT_URL_OK</li>
+ *          <li>webview.CALLBACK_RESULT_URL_ERROR</li>
+ *          <li>webview.CALLBACK_RESULT_EVAL_OK</li>
+ *          <li>webview.CALLBACK_RESULT_EVAL_ERROR</li>
+ *      </ul>
+ *      </dd>
+ *     <dt>data (table)</dt>
+ *      <dd>The callback value ''data'' is a table which currently holds these values
+ *      <ul>
  *         <li>url (string) The url used in the webview.open() call. nil otherwise.</li>
  *         <li>result (string) Holds the result of either: a failed url open, a successful eval request or a failed eval. nil otherwise</li>
- *     </ul>
- * </ul>
+ *      </ul>
+ *      </dd>
+ * </dt>
  *
  * @return (int) The id number of the webview
  *
@@ -77,9 +81,9 @@
  * @param webview_id    (number) The webview id
  * @param url           (string) The url to open
  * @param options       (table) A table of options for the request. Currently it holds these options
- * <ul>
- *     <li>hidden (boolean) If true, the webview will stay hidden (default=false)</li>
- * </ul>
+ * <dl>
+ *     <dt>hidden (boolean)</dt><dd>If true, the webview will stay hidden (default=false)</dd>
+ * </dl>
  *
  * @return (int) The id number of the request
  *

@@ -474,27 +474,31 @@ int Push_SetBadgeCount(lua_State* L)
 
 /*# Schedule a local push notification to be triggered at a specific time in the future
  *
- * Notification settings is a platform specific table of data that can contain the following fields:
- *
- * <table>
- *   <th>Field</th>
- *   <th>Description</th>
- *   <tr><td><code>action</code></td><td>(iOS only). The alert action string to be used as the title of the
- *          right button of the alert or the value of the unlock slider, where the value replaces
- *          "unlock" in "slide to unlock" text. (string)</td></tr>
- *   <tr><td><code>badge_count</code></td><td>(iOS only). The numeric value of the icon badge. (number)</td></tr>
- *   <tr><td><code>badge_number</code></td><td>Deprecated. Use badge_count instead</td></tr>
- *   <tr><td><code>priority</code></td><td>(Android only). The priority is a hint to the device UI about how the notification
-            should be displayed. There are five priority levels, from -2 to 2 where -1 is the lowest priority
-            and 2 the highest. Unless specified, a default priority level of 2 is used. (number)</td></tr>
- * </table>
+ * Local push notifications are scheduled with this function. 
+ * The returned <code>id</code> value is uniquely identifying the scheduled notification 
+ * and can be stored for later reference.
  *
  * @name push.schedule
  * @param time number of seconds into the future until the notification should be triggered (number)
  * @param title localized title to be displayed to the user if the application is not running (string)
  * @param alert localized body message of the notification to be displayed to the user if the application is not running (string)
  * @param payload JSON string to be passed to the registered listener function (string)
- * @param notification_settings table with notification and platform specific data (table)
+ * @param notification_settings table with notification and platform specific fields (table)
+ * <dt>
+ *  <dt><code>action</code></dt>
+ *  <dd>(iOS only). The alert action string to be used as the title of the
+ *          right button of the alert or the value of the unlock slider, where the value replaces
+ *          "unlock" in "slide to unlock" text. (string)</dd>
+ *  <dt><code>badge_count</code></dt>
+ *  <dd>(iOS only). The numeric value of the icon badge. (number)</dd>
+ *  <dt><code>badge_number</code></dt>
+ *  <dd>Deprecated! Use badge_count instead</dd>
+ *  <dt><code>priority</code></dt>
+ *  <dd>(Android only). The priority is a hint to the device UI about how the notification
+ *      should be displayed. There are five priority levels, from -2 to 2 where -1 is the 
+ *      lowest priority and 2 the highest. Unless specified, a default priority level of 2 
+ *      is used. (number)</dd>
+ * </dt>
  * @return id unique id that can be used to cancel or inspect the notification (number)
  * @return err error string if something went wrong, otherwise nil (string)
  * @examples
