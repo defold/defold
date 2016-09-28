@@ -299,6 +299,8 @@ namespace dmGui
         lua_pushvalue(L, -1);
         scene->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
 
+        // Here we create a custom table to hold the references created by this gui scene
+        // Don't interact with this table with other functions than luaL_ref/luaL_unref
         lua_newtable(L);
         scene->m_RefTableReference = luaL_ref(L, LUA_REGISTRYINDEX);
 
