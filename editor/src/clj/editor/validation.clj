@@ -34,13 +34,16 @@
 (defn prop-resource-not-exists? [v name]
   (and v (not (resource/exists? v)) (format "%s '%s' could not be found" name (resource/resource-name v))))
 
-(defn prop-0-1? [v name]
-  (when (not (<= 0.0 v 1.0))
-    (format "'%s' must be between 0.0 and 1.0" name)))
+(defn prop-outside-range? [[min max] v name]
+  (let [tmpl (if (integer? min)
+               "'%s' must be between %d and %d"
+               "'%s' must be between %f and %f")]
+    (when (not (<= min v max))
+      (format tmpl name min max))))
 
-(defn prop-1-1? [v name]
-  (when (not (<= -1.0 v 1.0))
-    (format "'%s' must be between 0.0 and 1.0" name)))
+(def prop-0-1? (partial prop-outside-range? [0.0 1.0]))
+
+(def prop-1-1? (partial prop-outside-range? [-1.0 1.0]))
 
 (defn prop-error
   ([severity _node-id prop-kw f prop-value & args]

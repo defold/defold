@@ -59,7 +59,14 @@
      (is (nil? (test-util/prop-error node-id :material)))
      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
        (test-util/with-prop [node-id :material v]
-         (is (g/error-fatal? (test-util/prop-error node-id :material))))))))
+         (is (g/error-fatal? (test-util/prop-error node-id :material)))))
+     (is (nil? (test-util/prop-error node-id :max-nodes)))
+     (doseq [v [0 1025]]
+       (test-util/with-prop [node-id :max-nodes v]
+         (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))
+     ;; Valid number, but now the amount of nodes exceeds the max
+     (test-util/with-prop [node-id :max-nodes 1]
+       (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))))
 
 (deftest gui-box-auto-size
   (with-clean-system
@@ -249,7 +256,7 @@
              (test-load))
            (let [elapsed (measure [i 20]
                                   (test-load))]
-         (is (< elapsed 750))))
+         (is (< elapsed 900))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
@@ -297,13 +304,10 @@
          app-view (test-util/setup-app-view!)
          node-id (test-util/resource-node project "/gui/scene.gui")
          sub-node (gui-node node-id "sub_scene/sub_box")]
-     (let [color (prop sub-node :color)
-           alpha (prop sub-node :alpha)]
+     (let [alpha (prop sub-node :alpha)]
        (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
-       (is (not= color (prop sub-node :color)))
        (is (not= alpha (prop sub-node :alpha)))
        (g/transact (g/clear-property sub-node :alpha))
-       (is (= color (prop sub-node :color)))
        (is (= alpha (prop sub-node :alpha)))))))
 
 (deftest gui-template-hierarchy
@@ -415,6 +419,17 @@
       (prop! new-tmpl :template {:resource (workspace/resolve-workspace-resource workspace "/gui/sub_scene.gui") :overrides {}})
       (is (contains? (:overrides (prop super-template :template)) "template/sub_box")))))
 
+(deftest gui-template-overrides-anchors
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/scene.gui")
+          box (gui-node node-id "sub_scene/sub_box")]
+      (is (= :xanchor-left (g/node-value box :x-anchor))))))
+
+;; Layouts
+
 (deftest gui-layout
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
@@ -483,3 +498,14 @@
                (is (= 1280.0 (max-x (g/node-value node-id :scene))))
                (set-visible-layout! node-id "Portrait")
                (is (= 720.0 (max-x (g/node-value node-id :scene))))))))
+
+(deftest gui-legacy-alpha
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/legacy_alpha.gui")
+          box (gui-node node-id "box")
+          text (gui-node node-id "text")]
+      (is (= 0.5 (g/node-value box :alpha)))
+      (is (every? #(= 0.5 (g/node-value text %)) [:alpha :outline-alpha :shadow-alpha])))))
