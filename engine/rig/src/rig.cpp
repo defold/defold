@@ -855,41 +855,58 @@ namespace dmRig
 
     float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& model_matrix, float* out_buffer)
     {
+        const dmRigDDF::Mesh& mesh = instance->m_MeshEntry->m_Meshes[mesh_index];
+        const float *positions = mesh.m_Positions.m_Data;
+        const size_t vertex_count = mesh.m_Positions.m_Count / 3;
+        Point3 in_p;
+        Vector4 v;
+        if(!mesh.m_BoneIndices.m_Count)
+        {
+            for (uint32_t i = 0; i < vertex_count; ++i)
+            {
+                in_p[0] = *positions++;
+                in_p[1] = *positions++;
+                in_p[2] = *positions++;
+                v = model_matrix * in_p;
+                *out_buffer++ = v[0];
+                *out_buffer++ = v[1];
+                *out_buffer++ = v[2];
+            }
+            return out_buffer;
+        }
+
         const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-        const dmRigDDF::Mesh& mesh = instance->m_MeshEntry->m_Meshes[mesh_index];
-        const uint32_t vertex_count = mesh.m_Positions.m_Count / 3;
-        for (uint32_t ii = 0; ii < vertex_count; ++ii)
+        for (uint32_t i = 0; i < vertex_count; ++i)
         {
-            uint32_t vi = ii;
-            uint32_t e = vi*3;
-            Point3 in_p(mesh.m_Positions[e+0], mesh.m_Positions[e+1], mesh.m_Positions[e+2]);
+            in_p[0] = *positions++;
+            in_p[1] = *positions++;
+            in_p[2] = *positions++;
             Point3 out_p(0.0f, 0.0f, 0.0f);
-            if (mesh.m_BoneIndices.m_Count > 0) {
-                uint32_t bi_offset = vi * 4;
-                const uint32_t* bone_indices = &mesh.m_BoneIndices[bi_offset];
-                const float* bone_weights = &mesh.m_Weights[bi_offset];
-                for (uint32_t bi = 0; bi < 4; ++bi)
+            const uint32_t bi_offset = i << 2;
+            const uint32_t* bone_indices = &mesh.m_BoneIndices[bi_offset];
+            const float* bone_weights = &mesh.m_Weights[bi_offset];
+            for (uint32_t bi = 0; bi < 4; ++bi)
+            {
+                if (bone_weights[bi] > 0.0f)
                 {
-                    if (bone_weights[bi] > 0.0f)
+                    uint32_t bone_index = bone_indices[bi];
+                    // TODO: Check for this in the pipeline stage if we can find a good way of doing that.. happens as any skeleton can be set to any mesh
+                    if(bone_index < pose.Size())
                     {
-                        uint32_t bone_index = bone_indices[bi];
-                        // TODO: Check for this in the pipeline stage if we can find a good way of doing that.. happens as any skeleton can be set to any mesh
-                        if(bone_index < pose.Size())
-                        {
-                            out_p += Vector3(dmTransform::Apply(pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
-                        }
-                        else
-                            out_p = in_p;
+                        out_p += Vector3(dmTransform::Apply(pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
+                    }
+                    else
+                    {
+                        out_p = in_p;
+                        break;
                     }
                 }
-            } else {
-                out_p = in_p;
             }
-            Vector4 posed_vertex = model_matrix * out_p;
-            *out_buffer++ = posed_vertex[0];
-            *out_buffer++ = posed_vertex[1];
-            *out_buffer++ = posed_vertex[2];
+            v = model_matrix * out_p;
+            *out_buffer++ = v[0];
+            *out_buffer++ = v[1];
+            *out_buffer++ = v[2];
         }
         return out_buffer;
     }
