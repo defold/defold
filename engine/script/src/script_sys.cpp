@@ -89,8 +89,14 @@ namespace dmScript
         const char* tmp_filename_ext = ".tmp";
         char tmp_filename[DMPATH_MAX_PATH];
 
-        dmStrlCpy(tmp_filename, filename, DMPATH_MAX_PATH);
-        dmStrlCat(tmp_filename, tmp_filename_ext, DMPATH_MAX_PATH);
+        bool path_truncated;
+        path_truncated = dmStrlCpy(tmp_filename, filename, DMPATH_MAX_PATH) >= DMPATH_MAX_PATH;
+        path_truncated = path_truncated || (dmStrlCat(tmp_filename, tmp_filename_ext, DMPATH_MAX_PATH) >= DMPATH_MAX_PATH);
+
+        if (path_truncated)
+        {
+            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
+        }
 
         FILE* file = fopen(tmp_filename, "wb");
         if (file != 0x0)
