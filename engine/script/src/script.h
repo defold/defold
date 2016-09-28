@@ -478,6 +478,18 @@ namespace dmScript
      * @return index of next JSON node to handle
      */
     int JsonToLua(lua_State*L, dmJson::Document* doc, int index);
+
+    /** A utility to make sure we check the lua stack state before leaving a function
+    */
+    struct LuaStackCheck
+    {
+        lua_State* m_L;
+        int m_Top;
+        LuaStackCheck(lua_State* L) : m_L(L), m_Top(lua_gettop(L)) {}
+        ~LuaStackCheck() { assert(lua_gettop(m_L) == m_Top); }
+    };
+
+    #define DM_LUA_STACK_CHECK(_L_)    dmScript::LuaStackCheck lua_stack_check(_L_);
 }
 
 #endif // DM_SCRIPT_H
