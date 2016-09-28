@@ -484,7 +484,7 @@ int Push_SetBadgeCount(lua_State* L)
  * @param alert localized body message of the notification to be displayed to the user if the application is not running (string)
  * @param payload JSON string to be passed to the registered listener function (string)
  * @param notification_settings table with notification and platform specific fields (table)
- * <dt>
+ * <dl>
  *  <dt><code>action</code></dt>
  *  <dd>(iOS only). The alert action string to be used as the title of the
  *          right button of the alert or the value of the unlock slider, where the value replaces
@@ -498,7 +498,7 @@ int Push_SetBadgeCount(lua_State* L)
  *      should be displayed. There are five priority levels, from -2 to 2 where -1 is the 
  *      lowest priority and 2 the highest. Unless specified, a default priority level of 2 
  *      is used. (number)</dd>
- * </dt>
+ * </dl>
  * @return id unique id that can be used to cancel or inspect the notification (number)
  * @return err error string if something went wrong, otherwise nil (string)
  * @examples

@@ -16,11 +16,11 @@
  *
  * @param callback (function) A callback which receives info about finished requests taking the following parameters
  * 
- * <dt>
- *     <dt>self (object)</dt> <dd>The calling script</dd>
- *     <dt>webview_id (number)</dt> <dd>The webview id</dd>
- *     <dt>request_id (number)</dt> <dd>The request id</dd>
- *     <dt>type (number)</dt>
+ * <dl>
+ *     <dt><code>self</code> (object)</dt> <dd>The calling script</dd>
+ *     <dt><code>webview_id</code> (number)</dt> <dd>The webview id</dd>
+ *     <dt><code>request_id</code> (number)</dt> <dd>The request id</dd>
+ *     <dt><code>type</code> (number)</dt>
  *      <dd>The type of the callback. Can be one of these:
  *      <ul>
  *          <li>webview.CALLBACK_RESULT_URL_OK</li>
@@ -29,14 +29,14 @@
  *          <li>webview.CALLBACK_RESULT_EVAL_ERROR</li>
  *      </ul>
  *      </dd>
- *     <dt>data (table)</dt>
+ *     <dt><code>data</code> (table)</dt>
  *      <dd>The callback value ''data'' is a table which currently holds these values
  *      <ul>
  *         <li>url (string) The url used in the webview.open() call. nil otherwise.</li>
  *         <li>result (string) Holds the result of either: a failed url open, a successful eval request or a failed eval. nil otherwise</li>
  *      </ul>
  *      </dd>
- * </dt>
+ * </dl>
  *
  * @return (int) The id number of the webview
  *
