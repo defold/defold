@@ -616,65 +616,51 @@ TEST_F(RigInstanceTest, GenerateVertexData)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
-
-    dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
-    dmRig::RigGenVertexDataParams params;
-    params.m_ModelMatrix = Matrix4::identity();
-    params.m_VertexData = (void**)&data;
-    params.m_VertexStride = sizeof(dmRig::RigVertexData);
+    float data[3][3];
+    float* data_end = (float*)data + 3*3;
 
     // sample 0
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
-    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
-    ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
+    ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
-    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
-    ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
+    ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     // sample 2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
-    ASSERT_VEC3(Vector3(0.0f, 2.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
-
-    delete [] data;
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
+    ASSERT_VEC3(Vector3(0.0f, 2.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 }
+
 
 TEST_F(RigInstanceTest, SetMeshInvalid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
-
-    dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
-    dmRig::RigGenVertexDataParams params;
-    params.m_ModelMatrix = Matrix4::identity();
-    params.m_VertexData = (void**)&data;
-    params.m_VertexStride = sizeof(dmRig::RigVertexData);
-
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_EQ(0, data[0].r);
-    ASSERT_EQ(0, data[0].g);
-    ASSERT_EQ(0, data[0].b);
-    ASSERT_EQ(0, data[0].a);
+    float data[3][3];
+    float* data_end = (float*)data + 3*3;
 
     dmhash_t new_mesh = dmHashString64("not_a_valid_skin");
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
     ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(dmHashString64("test"), dmRig::GetMesh(m_Instance));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
+    ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_EQ(0, data[0].r);
-    ASSERT_EQ(0, data[0].g);
-    ASSERT_EQ(0, data[0].b);
-    ASSERT_EQ(0, data[0].a);
-
-    delete [] data;
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
+    ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 }
 
 
@@ -682,31 +668,22 @@ TEST_F(RigInstanceTest, SetMeshValid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f));
-
-    dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
-    dmRig::RigGenVertexDataParams params;
-    params.m_ModelMatrix = Matrix4::identity();
-    params.m_VertexData = (void**)&data;
-    params.m_VertexStride = sizeof(dmRig::RigVertexData);
-
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_EQ(0, data[0].r);
-    ASSERT_EQ(0, data[0].g);
-    ASSERT_EQ(0, data[0].b);
-    ASSERT_EQ(0, data[0].a);
+    float data[3][3];
+    float* data_end = (float*)data + 3*3;
 
     dmhash_t new_mesh = dmHashString64("secondary_skin");
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(new_mesh, dmRig::GetMesh(m_Instance));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
+    ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_EQ(255, data[0].r);
-    ASSERT_EQ(255, data[0].g);
-    ASSERT_EQ(255, data[0].b);
-    ASSERT_EQ(255, data[0].a);
-
-    delete [] data;
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
+    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
+    ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 }
 
 TEST_F(RigInstanceTest, CursorNoAnim)

@@ -51,15 +51,11 @@ namespace dmGameSystem
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
-                {"color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"normal", 2, 3, dmGraphics::TYPE_FLOAT, false},
         };
 
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-
-        // Assume 4 vertices per mesh
-        world->m_VertexBufferData.SetCapacity(4 * world->m_Components.Capacity());
-
         *params.m_World = world;
 
         dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
@@ -306,6 +302,48 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static ModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, ModelWorld* world, const Matrix4& model_matrix, ModelVertex* write_ptr, const size_t vertex_stride)
+    {
+        DM_PROFILE(Rig, "GenerateModelVertexData");
+        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
+        if (!instance->m_MeshEntry || !instance->m_DoRender) {
+            return write_ptr;
+        }
+        for (uint32_t i = 0; i < mesh_entry->m_Meshes.m_Count; ++i)
+        {
+            const dmRig::MeshProperties* properties = &instance->m_MeshProperties[i];
+            if (!properties->m_Visible) {
+                continue;
+            }
+            float* scratch_pos = (float*)world->m_ScratchPositionBufferData.Begin();
+            dmRig::GeneratePositionData(instance, i, model_matrix, scratch_pos);
+
+            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[i];
+            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
+            const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Count ? mesh->m_NormalsIndices.m_Data : mesh->m_Indices.m_Data;
+            uint32_t index_count = mesh->m_Indices.m_Count;
+            for (uint32_t ii = 0; ii < index_count; ++ii)
+            {
+                uint32_t vi = mesh->m_Indices[ii];
+                uint32_t e = vi * 3;
+                write_ptr->x = scratch_pos[e+0];
+                write_ptr->y = scratch_pos[e+1];
+                write_ptr->z = scratch_pos[e+2];
+                vi = texcoord0_indices[ii];
+                e = vi << 1;
+                write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
+                write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
+                vi = normal_indices[ii];
+                e = vi*3;
+                write_ptr->nx = mesh->m_Normals[e+0];
+                write_ptr->ny = mesh->m_Normals[e+1];
+                write_ptr->nz = mesh->m_Normals[e+2];
+                write_ptr = (ModelVertex*)((uintptr_t)write_ptr + vertex_stride);
+            }
+        }
+        return write_ptr;
+    }
+
     static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Model, "RenderBatch");
@@ -315,10 +353,13 @@ namespace dmGameSystem
         // TextureSetResource* texture_set = first->m_Resource->m_RigScene->m_TextureSet;
 
         uint32_t vertex_count = 0;
+        uint32_t max_component_vertices = 0;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            vertex_count += dmRig::GetVertexCount(c->m_RigInstance);
+            uint32_t count = dmRig::GetVertexCount(c->m_RigInstance);
+            vertex_count += count;
+            max_component_vertices = dmMath::Max(max_component_vertices, count);
         }
         assert(vertex_count > 0);
 
@@ -326,18 +367,17 @@ namespace dmGameSystem
         if (vertex_buffer.Remaining() < vertex_count)
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
+        dmArray<Vector3> &scratch_vertex_buffer_data = world->m_ScratchPositionBufferData;
+        if (scratch_vertex_buffer_data.Capacity() < max_component_vertices)
+            scratch_vertex_buffer_data.OffsetCapacity(max_component_vertices - scratch_vertex_buffer_data.Capacity());
+
         // Fill in vertex buffer
         ModelVertex *vb_begin = vertex_buffer.End();
         ModelVertex *vb_end = vb_begin;
-        dmRig::RigGenVertexDataParams params;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            params.m_ModelMatrix = c->m_World;
-            params.m_VertexData = (void**)&vb_end;
-            params.m_VertexStride = sizeof(ModelVertex);
-
-            vb_end = (ModelVertex *)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, params);
+            vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, vb_end, sizeof(ModelVertex));
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 

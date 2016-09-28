@@ -215,36 +215,6 @@ namespace dmRig
         HRigInstance m_Instance;
     };
 
-    struct RigVertexData
-    {
-        float x;
-        float y;
-        float z;
-        uint16_t u;
-        uint16_t v;
-        union  {
-            struct {
-                uint8_t r;
-                uint8_t g;
-                uint8_t b;
-                uint8_t a;
-            };
-            struct {
-                float nx;
-                float ny;
-                float nz;
-            };
-        };
-
-    };
-
-    struct RigGenVertexDataParams
-    {
-        Matrix4 m_ModelMatrix;
-        void**  m_VertexData;
-        int32_t m_VertexStride;
-    };
-
     Result NewContext(const NewContextParams& params);
     void DeleteContext(HRigContext context);
     Result Update(HRigContext context, float dt);
@@ -256,7 +226,10 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
     uint32_t GetVertexCount(HRigInstance instance);
-    RigVertexData* GenerateVertexData(HRigContext context, HRigInstance instance, const RigGenVertexDataParams& params);
+
+    float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& model_matrix, float* out_buffer);
+
+    void UpdateMeshDrawOrder(HRigContext context, const HRigInstance instance, uint32_t mesh_count);
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
     dmhash_t GetMesh(HRigInstance instance);
     float GetCursor(HRigInstance instance, bool normalized);

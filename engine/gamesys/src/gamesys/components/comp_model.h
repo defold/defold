@@ -41,22 +41,23 @@ namespace dmGameSystem
         float z;
         uint16_t u;
         uint16_t v;
-        uint8_t r;
-        uint8_t g;
-        uint8_t b;
-        uint8_t a;
+        float nx;
+        float ny;
+        float nz;
     };
 
     struct ModelWorld
     {
-        dmRig::HRigContext                  m_RigContext;
-        dmObjectPool<ModelComponent*>  m_Components;
-        dmArray<dmRender::RenderObject>     m_RenderObjects;
-        dmGraphics::HVertexDeclaration      m_VertexDeclaration;
-        dmGraphics::HVertexBuffer           m_VertexBuffer;
-        dmArray<ModelVertex>           m_VertexBufferData;
+        dmRig::HRigContext              m_RigContext;
+        dmObjectPool<ModelComponent*>   m_Components;
+        dmArray<dmRender::RenderObject> m_RenderObjects;
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        dmArray<ModelVertex>            m_VertexBufferData;
+        // Temporary scratch buffer used for transforming vertex buffer, used to creating primitives from indices
+        dmArray<Vector3>                m_ScratchPositionBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
-        dmArray<dmGameObject::HInstance>    m_ScratchInstances;
+        dmArray<dmGameObject::HInstance> m_ScratchInstances;
     };
 
     dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);

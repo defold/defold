@@ -800,10 +800,7 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-#define TO_BYTE(val) (uint8_t)(val * 255.0f)
-#define TO_SHORT(val) (uint16_t)((val) * 65535.0f)
-
-    static void UpdateMeshDrawOrder(RigContext* context, const RigInstance* instance, uint32_t mesh_count) {
+    void UpdateMeshDrawOrder(HRigContext context, const HRigInstance instance, uint32_t mesh_count) {
         // Spine's approach to update draw order is to:
         // * Initialize with default draw order (integer sequence)
         // * Add entries with changed draw order
@@ -856,83 +853,46 @@ namespace dmRig
         return vertex_count;
     }
 
-    RigVertexData* GenerateVertexData(HRigContext context, HRigInstance instance, const RigGenVertexDataParams& params)
+    float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& model_matrix, float* out_buffer)
     {
-        DM_PROFILE(Rig, "GenerateVertexData");
-
-        RigVertexData* write_ptr = *(dmRig::RigVertexData **)params.m_VertexData;
-        const Matrix4& model_matrix = params.m_ModelMatrix;
         const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
-        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-        if (!instance->m_MeshEntry || !instance->m_DoRender) {
-            return write_ptr;
-        }
-        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
-
-        if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
-            context->m_DrawOrderToMesh.SetCapacity(mesh_count);
-
-
-        UpdateMeshDrawOrder(context, instance, mesh_count);
-        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
-            uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
-            const MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
-            if (!properties->m_Visible) {
-                continue;
-            }
-            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
-            uint32_t index_count = mesh->m_Indices.m_Count;
-            for (uint32_t ii = 0; ii < index_count; ++ii)
-            {
-                uint32_t vi = mesh->m_Indices[ii];
-                uint32_t e = vi*3;
-                Point3 in_p(mesh->m_Positions[e+0], mesh->m_Positions[e+1], mesh->m_Positions[e+2]);
-                Point3 out_p(0.0f, 0.0f, 0.0f);
-
-                if (mesh->m_BoneIndices.m_Count > 0) {
-                    uint32_t bi_offset = vi * 4;
-                    const uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
-                    const float* bone_weights = &mesh->m_Weights[bi_offset];
-                    for (uint32_t bi = 0; bi < 4; ++bi)
+        const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+        const dmRigDDF::Mesh& mesh = instance->m_MeshEntry->m_Meshes[mesh_index];
+        const uint32_t vertex_count = mesh.m_Positions.m_Count / 3;
+        for (uint32_t ii = 0; ii < vertex_count; ++ii)
+        {
+            uint32_t vi = ii;
+            uint32_t e = vi*3;
+            Point3 in_p(mesh.m_Positions[e+0], mesh.m_Positions[e+1], mesh.m_Positions[e+2]);
+            Point3 out_p(0.0f, 0.0f, 0.0f);
+            if (mesh.m_BoneIndices.m_Count > 0) {
+                uint32_t bi_offset = vi * 4;
+                const uint32_t* bone_indices = &mesh.m_BoneIndices[bi_offset];
+                const float* bone_weights = &mesh.m_Weights[bi_offset];
+                for (uint32_t bi = 0; bi < 4; ++bi)
+                {
+                    if (bone_weights[bi] > 0.0f)
                     {
-                        if (bone_weights[bi] > 0.0f)
+                        uint32_t bone_index = bone_indices[bi];
+                        // TODO: Check for this in the pipeline stage if we can find a good way of doing that.. happens as any skeleton can be set to any mesh
+                        if(bone_index < pose.Size())
                         {
-                            uint32_t bone_index = bone_indices[bi];
-                            // TODO: Check for this in the pipeline stage if we can find a good way of doing that.. happens as any skeleton can be set to any mesh
-                            if(bone_index < pose.Size())
-                                out_p += Vector3(dmTransform::Apply(pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
-                            else
-                                out_p = in_p;
+                            out_p += Vector3(dmTransform::Apply(pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
                         }
+                        else
+                            out_p = in_p;
                     }
-                } else {
-                    out_p = in_p;
                 }
-
-                Vector4 posed_vertex = model_matrix * out_p;
-                write_ptr->x = posed_vertex[0];
-                write_ptr->y = posed_vertex[1];
-                write_ptr->z = posed_vertex[2];
-                vi = texcoord0_indices[ii];
-                e = vi << 1;
-                write_ptr->u = TO_SHORT(mesh->m_Texcoord0[e+0]);
-                write_ptr->v = TO_SHORT(mesh->m_Texcoord0[e+1]);
-                write_ptr->r = TO_BYTE(properties->m_Color[0]);
-                write_ptr->g = TO_BYTE(properties->m_Color[1]);
-                write_ptr->b = TO_BYTE(properties->m_Color[2]);
-                write_ptr->a = TO_BYTE(properties->m_Color[3]);
-                write_ptr = (dmRig::RigVertexData*)((uintptr_t)write_ptr + params.m_VertexStride);
+            } else {
+                out_p = in_p;
             }
+            Vector4 posed_vertex = model_matrix * out_p;
+            *out_buffer++ = posed_vertex[0];
+            *out_buffer++ = posed_vertex[1];
+            *out_buffer++ = posed_vertex[2];
         }
-
-        return write_ptr;
+        return out_buffer;
     }
-
-
-#undef TO_BYTE
-#undef TO_SHORT
 
     static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)
     {
