@@ -17,6 +17,7 @@
 #include <dlib/sys.h>
 #include <dlib/log.h>
 #include <dlib/socket.h>
+#include <dlib/path.h>
 #include <resource/resource.h>
 #include "script.h"
 
@@ -85,32 +86,27 @@ namespace dmScript
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
         
         const char* filename = luaL_checkstring(L, 1);
-        const char* tmp_filename_ext = ".tmp\0";
-        size_t filename_len = strlen(filename);
-        size_t tmp_filename_ext_len = strlen(tmp_filename_ext);
-        char* tmp_filename = (char*)malloc(filename_len + tmp_filename_ext_len + 1);
+        const char* tmp_filename_ext = ".tmp";
+        char tmp_filename[DMPATH_MAX_PATH];
 
-        dmStrlCpy(tmp_filename, filename, filename_len + 1);
-        dmStrlCat(tmp_filename, tmp_filename_ext, filename_len + tmp_filename_ext_len + 1);
+        dmStrlCpy(tmp_filename, filename, DMPATH_MAX_PATH);
+        dmStrlCat(tmp_filename, tmp_filename_ext, DMPATH_MAX_PATH);
 
         FILE* file = fopen(tmp_filename, "wb");
         if (file != 0x0)
         {
             bool result = fwrite(buffer, 1, n_used, file) == n_used;
-            fclose(file);
+            result = result && (fclose(file) == 0);
             if (result)
             {
                 bool rename_result = rename(tmp_filename, filename) != -1;
-
                 if (rename_result)
                 {
-                    free(tmp_filename);
                     lua_pushboolean(L, result);
                     return 1;
                 }
             }
         }
-        free(tmp_filename);
         return luaL_error(L, "Could not write to the file %s.", filename);
     }
 
