@@ -742,7 +742,7 @@
         prototype-resources (concat
                               (map :prototype (:instances collection))
                               (map :collection (:collection-instances collection)))
-        prototype-load-data  (project/load-resource-nodes project
+        prototype-load-data  (project/load-resource-nodes (g/now) project
                                                           (->> prototype-resources
                                                             (map #(project/get-resource-node project %))
                                                             (remove nil?))
