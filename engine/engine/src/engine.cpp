@@ -37,8 +37,6 @@ using namespace Vectormath::Aos;
 extern unsigned char CONNECT_PROJECT[];
 extern uint32_t CONNECT_PROJECT_SIZE;
 
-const dmhash_t g_HashLuaRefs = dmHashString64("LuaRefs");
-
 #if defined(__ANDROID__)
 // On Android we need to notify the activity which input method to use
 // before the keyboard is brought up. This choice is stored as a
