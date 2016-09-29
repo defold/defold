@@ -80,20 +80,21 @@
         (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
       [])))
 
-(defn load-resource-nodes [project node-ids render-progress!]
+(defn load-resource-nodes [basis project node-ids render-progress!]
   (let [progress (atom (progress/make "Loading resources" (count node-ids)))]
     (doall
      (for [node-id node-ids
-           :when (g/has-output? (g/node-type* node-id) :resource)
-           :let [resource (g/node-value node-id :resource)]]
+           :let [type (g/node-type* basis node-id)]
+           :when (g/has-output? type :resource)
+           :let [resource (g/node-value node-id :resource {:basis basis})]]
        (do
          (when render-progress!
            (render-progress! (swap! progress progress/advance)))
-         (load-node project node-id (g/node-type* node-id) resource))))))
+         (load-node project node-id type resource))))))
 
 (defn- load-nodes! [project node-ids render-progress!]
   (g/transact
-    (load-resource-nodes project node-ids render-progress!)))
+    (load-resource-nodes (g/now) project node-ids render-progress!)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
