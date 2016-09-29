@@ -689,9 +689,8 @@ namespace dmGameSystem
                 {
                     if( constants[i].m_NameHash == ddf->m_NameHash)
                     {
-                        constants[i] = constants[size - 1];
-                        component->m_PrevRenderConstants[i] = component->m_PrevRenderConstants[size - 1];
-                        constants.Pop();
+                        constants.EraseSwap(i);
+                        component->m_PrevRenderConstants.EraseSwap(i);
                         ReHash(component);
                         break;
                     }
