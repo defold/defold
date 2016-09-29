@@ -17,6 +17,7 @@
 #include <dlib/sys.h>
 #include <dlib/log.h>
 #include <dlib/socket.h>
+#include <dlib/path.h>
 #include <resource/resource.h>
 #include "script.h"
 
@@ -81,18 +82,35 @@ namespace dmScript
     int Sys_Save(lua_State* L)
     {
         char buffer[MAX_BUFFER_SIZE];
-        const char* filename = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
-        FILE* file = fopen(filename, "wb");
+        
+        const char* filename = luaL_checkstring(L, 1);
+        const char* tmp_filename_ext = ".tmp";
+        char tmp_filename[DMPATH_MAX_PATH];
+
+        bool path_truncated;
+        path_truncated = dmStrlCpy(tmp_filename, filename, DMPATH_MAX_PATH) >= DMPATH_MAX_PATH;
+        path_truncated = path_truncated || (dmStrlCat(tmp_filename, tmp_filename_ext, DMPATH_MAX_PATH) >= DMPATH_MAX_PATH);
+
+        if (path_truncated)
+        {
+            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
+        }
+
+        FILE* file = fopen(tmp_filename, "wb");
         if (file != 0x0)
         {
             bool result = fwrite(buffer, 1, n_used, file) == n_used;
-            fclose(file);
+            result = result && (fclose(file) == 0);
             if (result)
             {
-                lua_pushboolean(L, result);
-                return 1;
+                bool rename_result = rename(tmp_filename, filename) != -1;
+                if (rename_result)
+                {
+                    lua_pushboolean(L, result);
+                    return 1;
+                }
             }
         }
         return luaL_error(L, "Could not write to the file %s.", filename);
