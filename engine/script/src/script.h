@@ -491,7 +491,7 @@ namespace dmScript
 
     #define DM_LUA_STACK_CHECK(_L_)    dmScript::LuaStackCheck lua_stack_check(_L_);
 
-    /** A wrapper for dmScript::Ref(L, LUA_REGISTRYINDEX). It also tracks number of global references kept
+    /** A wrapper for luaL_ref(L, LUA_REGISTRYINDEX). It also tracks number of global references kept
      * @param L lua state
      * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
      * @return the new reference
