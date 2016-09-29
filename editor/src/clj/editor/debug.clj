@@ -1,9 +1,10 @@
-(ns editor.debug)
+(ns editor.debug
+  (:require [editor.system :as system]))
 
 (set! *warn-on-reflection* true)
 
 (defonce ^:private repl-server (agent nil))
-(defonce should-write-nrepl-port-file (atom true))
+(defonce should-write-nrepl-port-file (atom (system/defold-dev?)))
 
 (defn ^:private write-nrepl-port-file
   [port]
