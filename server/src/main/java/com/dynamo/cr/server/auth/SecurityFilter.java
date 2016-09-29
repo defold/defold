@@ -19,8 +19,6 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.core.UriInfo;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.security.Principal;
 import java.util.Objects;
 
@@ -104,11 +102,6 @@ public class SecurityFilter implements ContainerRequestFilter {
         String email = request.getHeaderValue("X-Email");
 
         if (authToken != null && email != null) {
-            try {
-                email = URLDecoder.decode(email, "UTF-8");
-            } catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
-            }
             return authenticateAccessToken(email, authToken, em);
         }
 
