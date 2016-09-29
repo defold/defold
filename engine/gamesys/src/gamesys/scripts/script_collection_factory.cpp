@@ -212,7 +212,7 @@ namespace dmGameSystem
         }
 
         dmScript::GetInstance(L);
-        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         dmGameObject::InstanceIdMap instances;
         bool success = dmGameObject::SpawnFromCollection(collection, component->m_Resource->m_CollectionFactoryDesc->m_Prototype, &prop_bufs,
@@ -220,7 +220,7 @@ namespace dmGameSystem
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
         dmScript::SetInstance(L);
-        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
 
         // Construct return table
         if (success)

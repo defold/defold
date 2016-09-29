@@ -293,8 +293,8 @@ static void VerifyCallback(lua_State* L)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     }
@@ -328,8 +328,8 @@ static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* err
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -364,8 +364,8 @@ static void RunCallback(lua_State*L, NSError* error)
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -433,8 +433,8 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -590,11 +590,11 @@ int Facebook_Login(lua_State* L)
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if ([FBSDKAccessToken currentAccessToken]) {
         UpdateUserData();
@@ -670,10 +670,10 @@ int Facebook_RequestReadPermissions(lua_State* L)
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
     NSMutableArray *permissions = [[NSMutableArray alloc] init];
@@ -726,10 +726,10 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     FBSDKDefaultAudience audience = convertDefaultAudience(luaL_checkinteger(L, 2));
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
     NSMutableArray *permissions = [[NSMutableArray alloc] init];
@@ -1060,9 +1060,9 @@ int Facebook_ShowDialog(lua_State* L)
     luaL_checktype(L, 2, LUA_TTABLE);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
     if (dialog == dmHashString64("feed")) {

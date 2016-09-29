@@ -37,6 +37,8 @@ using namespace Vectormath::Aos;
 extern unsigned char CONNECT_PROJECT[];
 extern uint32_t CONNECT_PROJECT_SIZE;
 
+const dmhash_t g_HashLuaRefs = dmHashString64("LuaRefs");
+
 #if defined(__ANDROID__)
 // On Android we need to notify the activity which input method to use
 // before the keyboard is brought up. This choice is stored as a
@@ -548,6 +550,8 @@ namespace dmEngine
             return false;
         }
 
+        dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
+
         dmArray<dmScript::HContext>& module_script_contexts = engine->m_ModuleContext.m_ScriptContexts;
 
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
@@ -912,6 +916,21 @@ bail:
         return a_is_text - b_is_text;
     }
 
+    static uint32_t GetLuaMemCount(HEngine engine)
+    {
+        uint32_t memcount = 0;
+        if (engine->m_SharedScriptContext) {
+            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_SharedScriptContext));
+        } else {
+            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GOScriptContext));
+            if (engine->m_GuiContext.m_GuiContext != 0x0)
+            {
+                memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
+            }
+        }
+        return memcount;
+    }
+
     void Step(HEngine engine)
     {
         engine->m_Alive = true;
@@ -976,6 +995,12 @@ bail:
             dmProfile::HProfile profile = dmProfile::Begin();
             {
                 DM_PROFILE(Engine, "Frame");
+
+                if (dLib::IsDebugMode() && engine->m_ShowProfile)
+                {
+                    DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
+                    DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
+                }
 
                 // We had buffering problems with the output when running the engine inside the editor
                 // Flushing stdout/stderr solves this problem.

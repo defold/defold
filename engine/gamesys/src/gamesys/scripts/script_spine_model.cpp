@@ -84,7 +84,7 @@ namespace dmGameSystem
             {
                 lua_pushvalue(L, 5);
                 // see message.h for why 2 is added
-                sender.m_Function = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
+                sender.m_Function = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
             }
         }
 
