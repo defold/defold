@@ -198,5 +198,9 @@
 
 (defn seq-starts-with?
   [coll subcoll]
-  (let [sentinels (repeat (Object.))]
-    (every? true? (map = subcoll (concat coll sentinels)))))
+  (if-not (seq subcoll)
+    true
+    (if-not (seq coll)
+      false
+      (and (= (first coll) (first subcoll))
+           (recur (next coll) (next subcoll))))))
