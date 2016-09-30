@@ -82,6 +82,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "crash",
                 "engine",
                 "factory",
+                "facebook",
                 "go",
                 "gui",
                 "http",
@@ -94,11 +95,13 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "push",
                 "render",
                 "sound",
+                "spine",
                 "sprite",
                 "sys",
                 "tilemap",
                 "vmath",
-                "spine",
+                "webview",
+                "window",
                 "zlib"
         };
         for (String doc : docs) {
