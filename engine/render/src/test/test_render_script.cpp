@@ -674,7 +674,7 @@ int TestRef(lua_State* L)
     lua_getglobal(L, REF_VALUE);
     int* ref = (int*)lua_touserdata(L, -1);
     dmScript::GetInstance(L);
-    *ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    *ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_pop(L, 1);
     return 0;
 }
