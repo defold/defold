@@ -80,7 +80,7 @@ namespace dmTracking
         script->m_Context = ctx;
         luaL_getmetatable(L, TRACKING_SCRIPT);
         lua_setmetatable(L, -2);
-        ctx->m_ContextReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        ctx->m_ContextReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         int top = lua_gettop(L);
         if (luaL_loadbuffer(L, (const char*)TRACKING_LUA, TRACKING_LUA_SIZE, "tracking.lua") != 0)
@@ -169,7 +169,7 @@ namespace dmTracking
                 lua_newtable(L);
             }
             dmScript::PCall(L, 3, LUA_MULTRET);
-            luaL_unref(L, LUA_REGISTRYINDEX, ref);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
         }
         else if (message->m_Descriptor != 0)
         {
