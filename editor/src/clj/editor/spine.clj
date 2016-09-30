@@ -738,7 +738,7 @@
                                                            :default-animation (fn [anim ids]
                                                                                 (when (not (contains? ids anim))
                                                                                   (format "animation '%s' could not be found in the specified scene" anim))) default-animation (set spine-anim-ids)))))
-            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
+            (dynamic edit-type (g/fnk [spine-anim-ids] (properties/->choicebox spine-anim-ids))))
   (property skin g/Str
             (dynamic error (g/fnk [_node-id skin scene-structure spine-scene]
                                   (when spine-scene
