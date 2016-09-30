@@ -46,11 +46,11 @@
   (let [data (outline/copy [(->iterator node path)])]
     (alter-var-root #'*clipboard* (constantly data))))
 
-(defn- cut? [node path]
-  (outline/cut? [(->iterator node path)]))
+(defn- cut? [node & paths]
+  (outline/cut? (mapv #(->iterator node %) paths)))
 
-(defn- cut! [node path]
-  (let [data (outline/cut! [(->iterator node path)])]
+(defn- cut! [node & paths]
+  (let [data (outline/cut! (mapv #(->iterator node %) paths))]
     (alter-var-root #'*clipboard* (constantly data))))
 
 (defn- paste!
@@ -393,3 +393,38 @@
       (paste! project root)
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
+
+(deftest cut-paste-multiple
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/collection/go_hierarchy.collection")]
+      ; Original tree
+      ; Collection
+      ; + left (go)
+      ;   + left_child (go)
+      ; + right (go)
+      ;   + right_child (go)
+      (is (= 2 (child-count root)))
+      (testing "Cut `left_child` and `right`"
+        (is (true? (cut? root [0 0] [1])))
+        (cut! root [0 0] [1])
+        (is (= 0 (child-count root [0])))
+        (is (= 1 (child-count root))))
+      (testing "Paste `left_child` and `right` below `root`"
+        (paste! project root)
+        (is (= 3 (child-count root)))))))
+
+(deftest cut-disallowed-multiple
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
+      ; Original tree
+      ; Game Object
+      ; + collisionobject
+      ;   + Sphere (shape)
+      ;   + Box (shape)
+      ;   + Capsule (shape)
+      ; + sprite
+      (is (= 2 (child-count root)))
+      (testing "Cut is disallowed when both `Capsule` and `sprite` are selected"
+        (is (false? (cut? root [0 2] [1])))))))
