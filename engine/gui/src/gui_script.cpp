@@ -481,7 +481,7 @@ namespace dmGui
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
-        luaL_unref(L, -1, ref);
+        dmScript::Unref(L, -1, ref);
         lua_pop(L, 1);
 
         curve->release_callback = 0x0;
@@ -512,8 +512,8 @@ namespace dmGui
             dmScript::PCall(L, 2, 0);
         }
 
-        luaL_unref(L, -1, callback_ref);
-        luaL_unref(L, -1, node_ref);
+        dmScript::Unref(L, -1, callback_ref);
+        dmScript::Unref(L, -1, node_ref);
         lua_pop(L, 1);
 
         lua_pushnil(L);
@@ -914,7 +914,7 @@ namespace dmGui
 
             curve.release_callback = LuaCurveRelease;
             curve.userdata1 = (void*)scene;
-            curve.userdata2 = (void*)luaL_ref(L, -2);
+            curve.userdata2 = (void*)dmScript::Ref(L, -2);
             lua_pop(L, 1);
         }
         else
@@ -933,9 +933,9 @@ namespace dmGui
             {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
                 lua_pushvalue(L, 7);
-                animation_complete_ref = luaL_ref(L, -2);
+                animation_complete_ref = dmScript::Ref(L, -2);
                 lua_pushvalue(L, 1);
-                node_ref = luaL_ref(L, -2);
+                node_ref = dmScript::Ref(L, -2);
                 lua_pop(L, 1);
             }
         } else if (!lua_isnone(L, 6)) {
@@ -1366,9 +1366,9 @@ namespace dmGui
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
             lua_pushvalue(L, 3);
-            animation_complete_ref = luaL_ref(L, -2);
+            animation_complete_ref = dmScript::Ref(L, -2);
             lua_pushvalue(L, 1);
-            node_ref = luaL_ref(L, -2);
+            node_ref = dmScript::Ref(L, -2);
             lua_pop(L, 1);
         }
 
@@ -3289,10 +3289,12 @@ namespace dmGui
         {
             if (lua_isfunction(L, 5))
             {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
                 lua_pushvalue(L, 5);
-                animation_complete_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                animation_complete_ref = dmScript::Ref(L, -2);
                 lua_pushvalue(L, 1);
-                node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                node_ref = dmScript::Ref(L, -2);
+                lua_pop(L, 1);
             }
         }
 

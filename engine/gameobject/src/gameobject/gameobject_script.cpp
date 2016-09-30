@@ -968,7 +968,7 @@ namespace dmGameObject
         (void) top;
 
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
-        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
 
         curve->release_callback = 0x0;
         curve->userdata1 = 0x0;
@@ -1009,7 +1009,7 @@ namespace dmGameObject
             dmScript::SetInstance(L);
         }
 
-        lua_unref(L, ref);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
 
         assert(top == lua_gettop(L));
     }
@@ -1127,7 +1127,7 @@ namespace dmGameObject
             lua_pushvalue(L, 5);
             curve.release_callback = LuaCurveRelease;
             curve.userdata1 = i;
-            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+            curve.userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
         }
         else
         {
@@ -1147,7 +1147,7 @@ namespace dmGameObject
             {
                 stopped = LuaAnimationStopped;
                 lua_pushvalue(L, 8);
-                userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+                userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
             }
         }
 
@@ -1607,7 +1607,7 @@ namespace dmGameObject
                     {
                         if (lua_type(L, -1) == LUA_TFUNCTION)
                         {
-                            script->m_FunctionReferences[i] = luaL_ref(L, LUA_REGISTRYINDEX);
+                            script->m_FunctionReferences[i] = dmScript::Ref(L, LUA_REGISTRYINDEX);
                         }
                         else
                         {
@@ -1657,7 +1657,7 @@ bail:
         script->m_LuaState = L;
 
         lua_pushvalue(L, -1);
-        script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        script->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         script->m_PropertySet.m_UserData = (uintptr_t)script;
         script->m_PropertySet.m_GetPropertyCallback = GetPropertyDefault;
@@ -1687,11 +1687,11 @@ bail:
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (script->m_FunctionReferences[i] != LUA_NOREF) {
-                luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
             }
         }
 
-        luaL_unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         script->~Script();
         ResetScript(script);
     }
@@ -1817,10 +1817,10 @@ bail:
         i->m_Script = script;
 
         lua_pushvalue(L, -1);
-        i->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         lua_newtable(L);
-        i->m_ScriptDataReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        i->m_ScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         i->m_Instance = instance;
         i->m_ComponentIndex = component_index;
@@ -1850,8 +1850,8 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
-        luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-        luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
         DeleteProperties(script_instance->m_Properties);
         script_instance->~ScriptInstance();

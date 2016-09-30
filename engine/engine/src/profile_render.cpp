@@ -330,7 +330,7 @@ namespace dmProfileRender
 
         }
         {
-            y0 = 300;
+            y0 = 500;
 
             params.m_WorldTransform.setElem(3, 1, y0);
 
