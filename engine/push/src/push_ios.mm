@@ -342,8 +342,8 @@ int Push_Register(lua_State* L)
     int top = lua_gettop(L);
     if (g_Push.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected push callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Push.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Push.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Push.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Push.m_Self);
         g_Push.m_L = 0;
         g_Push.m_Callback = LUA_NOREF;
         g_Push.m_Self = LUA_NOREF;
@@ -366,10 +366,10 @@ int Push_Register(lua_State* L)
 
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_Push.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Push.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Push.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Push.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     // iOS 8 API
     if ([[UIApplication sharedApplication] respondsToSelector:@selector(registerUserNotificationSettings:)]) {
@@ -436,18 +436,18 @@ int Push_SetListener(lua_State* L)
     Push* push = &g_Push;
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    int cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if (push->m_Listener.m_Callback != LUA_NOREF) {
-        luaL_unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Callback);
-        luaL_unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Self);
+        dmScript::Unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Callback);
+        dmScript::Unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Self);
     }
 
     push->m_Listener.m_L = dmScript::GetMainThread(L);
     push->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);
-    push->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    push->m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if (g_Push.m_SavedNotification) {
         RunListener(g_Push.m_SavedNotification, g_Push.m_SavedNotificationOrigin == DM_PUSH_EXTENSION_ORIGIN_LOCAL, g_Push.m_SavedWasActivated);
@@ -824,8 +824,8 @@ dmExtension::Result InitializePush(dmExtension::Params* params)
 dmExtension::Result FinalizePush(dmExtension::Params* params)
 {
     if (params->m_L == g_Push.m_Listener.m_L && g_Push.m_Listener.m_Callback != LUA_NOREF) {
-        luaL_unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
-        luaL_unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Self);
+        dmScript::Unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
+        dmScript::Unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Self);
         g_Push.m_Listener.m_L = 0;
         g_Push.m_Listener.m_Callback = LUA_NOREF;
         g_Push.m_Listener.m_Self = LUA_NOREF;
