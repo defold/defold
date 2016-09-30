@@ -490,6 +490,35 @@ namespace dmScript
     };
 
     #define DM_LUA_STACK_CHECK(_L_)    dmScript::LuaStackCheck lua_stack_check(_L_);
+
+    /** A wrapper for luaL_ref(L, LUA_REGISTRYINDEX). It also tracks number of global references kept
+     * @param L lua state
+     * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
+     * @return the new reference
+    */
+    int Ref(lua_State* L, int table);
+
+    /** A wrapper for luaL_unref. It also decreases the number of global references kept
+     * @param L lua state
+     * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
+     * @param reference the reference to the object
+    */
+    void Unref(lua_State* L, int table, int reference);
+
+    /** Gets the number of references currently kept
+     * @return the total number of references in the game
+    */
+    int GetLuaRefCount();
+
+    /** Upon engine restart, the reference count should be reset
+    */
+    void ClearLuaRefCount();
+
+    /** Gets the memory usage by lua (in kilobytes)
+    * @param L lua state
+    * @return the number of kilobytes lua uses
+    */
+    uint32_t GetLuaGCCount(lua_State* L);
 }
 
 #endif // DM_SCRIPT_H

@@ -297,15 +297,15 @@ namespace dmGui
         scenes.Push(scene);
 
         lua_pushvalue(L, -1);
-        scene->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        scene->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         // Here we create a custom table to hold the references created by this gui scene
-        // Don't interact with this table with other functions than luaL_ref/luaL_unref
+        // Don't interact with this table with other functions than dmScript::Ref/dmScript::Unref
         lua_newtable(L);
-        scene->m_RefTableReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        scene->m_RefTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         lua_newtable(L);
-        scene->m_DataReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        scene->m_DataReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         scene->m_Context = context;
         scene->m_Script = 0x0;
@@ -373,9 +373,9 @@ namespace dmGui
                 free((void*) n->m_Node.m_Text);
         }
 
-        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
-        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
-        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
 
         dmArray<HScene>& scenes = scene->m_Context->m_Scenes;
         uint32_t scene_count = scenes.Size();
@@ -1638,7 +1638,7 @@ namespace dmGui
 
         if (is_callback) {
             lua_State* L = scene->m_Context->m_LuaState;
-            luaL_unref(L, LUA_REGISTRYINDEX, custom_ref);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, custom_ref);
         }
         return r;
     }
@@ -3383,7 +3383,7 @@ namespace dmGui
         luaL_getmetatable(L, GUI_SCRIPT);
         lua_setmetatable(L, -2);
 
-        script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        script->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         return script;
     }
@@ -3393,10 +3393,10 @@ namespace dmGui
         lua_State* L = script->m_Context->m_LuaState;
         for (int i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i) {
             if (script->m_FunctionReferences[i] != LUA_NOREF) {
-                luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
             }
         }
-        luaL_unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         script->~Script();
         ResetScript(script);
     }
@@ -3436,14 +3436,14 @@ namespace dmGui
         {
             if (script->m_FunctionReferences[i] != LUA_NOREF)
             {
-                luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
                 script->m_FunctionReferences[i] = LUA_NOREF;
             }
 
             lua_getglobal(L, SCRIPT_FUNCTION_NAMES[i]);
             if (lua_type(L, -1) == LUA_TFUNCTION)
             {
-                script->m_FunctionReferences[i] = luaL_ref(L, LUA_REGISTRYINDEX);
+                script->m_FunctionReferences[i] = dmScript::Ref(L, LUA_REGISTRYINDEX);
             }
             else
             {
