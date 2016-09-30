@@ -81,8 +81,8 @@ static void VerifyCallback(lua_State* L)
 {
     if (g_IAP.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
         g_IAP.m_Callback = LUA_NOREF;
         g_IAP.m_Self = LUA_NOREF;
         g_IAP.m_L = 0;
@@ -103,10 +103,10 @@ int IAP_List(lua_State* L)
 
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_IAP.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_IAP.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_IAP.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_IAP.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     g_IAP.m_L = dmScript::GetMainThread(L);
 
@@ -204,12 +204,12 @@ int IAP_SetListener(lua_State* L)
     IAP* iap = &g_IAP;
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    int cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     bool had_previous = false;
     if (iap->m_Listener.m_Callback != LUA_NOREF) {
-        luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Callback);
-        luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
+        dmScript::Unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Callback);
+        dmScript::Unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
         had_previous = true;
     }
 
@@ -217,7 +217,7 @@ int IAP_SetListener(lua_State* L)
     iap->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);
-    iap->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    iap->m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     // On first set listener, trigger process old ones.
     if (!had_previous) {
@@ -343,8 +343,8 @@ void HandleProductResult(const Command* cmd)
 
     dmScript::PCall(L, 3, LUA_MULTRET);
 
-    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
     g_IAP.m_Callback = LUA_NOREF;
     g_IAP.m_Self = LUA_NOREF;
 
@@ -537,8 +537,8 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
     --g_IAP.m_InitCount;
 
     if (params->m_L == g_IAP.m_Listener.m_L && g_IAP.m_Listener.m_Callback != LUA_NOREF) {
-        luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
-        luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
+        dmScript::Unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
+        dmScript::Unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
         g_IAP.m_Listener.m_L = 0;
         g_IAP.m_Listener.m_Callback = LUA_NOREF;
         g_IAP.m_Listener.m_Self = LUA_NOREF;
