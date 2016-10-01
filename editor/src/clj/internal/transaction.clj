@@ -186,31 +186,21 @@
   such as [[connect]] and [[update-property]]."
   (fn [ctx m] (:type m)))
 
-(defn- disconnect-inputs
-  [ctx target-node target-label]
-  (loop [ctx ctx
-         sources (gt/sources (:basis ctx) target-node target-label)]
-    (if-let [source (first sources)]
-      (recur (perform ctx {:type         :disconnect
-                           :source-id    (first source)
-                           :source-label (second source)
-                           :target-id    target-node
-                           :target-label target-label})
-        (next sources))
-      ctx)))
+(def ^:private ctx-disconnect)
 
-(defn- disconnect-outputs
-  [ctx source-node source-label]
-  (loop [ctx ctx
-         targets (gt/targets (:basis ctx) source-node source-label)]
-    (if-let [target (first targets)]
-      (recur (perform ctx {:type         :disconnect
-                           :source-id    source-node
-                           :source-label source-label
-                           :target-id    (first target)
-                           :target-label (second target)})
-        (next targets))
-      ctx)))
+(defn- ctx-disconnect-arc [ctx arc]
+  (let [[src-id src-label] (gt/head arc)
+        [tgt-id tgt-label] (gt/tail arc)]
+    (ctx-disconnect ctx src-id src-label tgt-id tgt-label)))
+
+(defn- disconnect-inputs [ctx tgt-id tgt-label]
+  (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-target (:basis ctx) tgt-id tgt-label)))
+
+(defn- disconnect-all-inputs [ctx tgt-id]
+  (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-target (:basis ctx) tgt-id)))
+
+(defn- disconnect-outputs [ctx src-id src-label]
+  (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-source (:basis ctx) src-id src-label)))
 
 (defn- disconnect-stale [ctx node-id old-node new-node labels-fn disconnect-fn]
   (let [basis (:basis ctx)
@@ -244,45 +234,40 @@
 
 (def ^:private basis-delete-node (comp first gt/delete-node))
 
-(defn- disconnect-all-inputs [ctx node-id node]
-  (reduce (fn [ctx in] (disconnect-inputs ctx node-id in)) ctx (-> node (gt/node-type (:basis ctx)) in/input-labels)))
-
-(defn- disconnect-all-outputs [ctx node-id node]
-  (reduce (fn [ctx in] (disconnect-outputs ctx node-id in)) ctx (-> node (gt/node-type (:basis ctx)) in/output-labels)))
-
 (defn- delete-single
   [ctx node-id]
   (if-let [node (gt/node-by-id-at (:basis ctx) node-id)] ; nil if node was deleted in this transaction
     (-> ctx
-      (disconnect-all-inputs node-id node)
+      (disconnect-all-inputs node-id)
       (mark-all-outputs-activated node-id)
       (update :basis basis-delete-node node-id)
       (assoc-in [:nodes-deleted node-id] node)
       (update :nodes-added (partial filterv #(not= node-id %))))
     ctx))
 
+(def ^:private reduce-conj (partial reduce conj))
+
 (defn- cascade-delete-sources
   [basis node-id]
   (if-let [n (gt/node-by-id-at basis node-id)]
     (let [override-id (gt/override-id n)]
-      (for [input (some-> n
-                    (gt/node-type basis)
-                    in/cascade-deletes)
-            :let [explicit (map first (ig/explicit-sources basis node-id input))
-                  implicit (filter (fn [node-id] (when-let [n (gt/node-by-id-at basis node-id)]
-                                                   (= override-id (gt/override-id n))))
-                                   (map first (gt/sources basis node-id input)))]
-            source (into (set explicit) implicit)]
-        source))
+      (loop [inputs (some-> n
+                      (gt/node-type basis)
+                      in/cascade-deletes)
+             result (vec (ig/get-overrides basis node-id))]
+        (if-let [input (first inputs)]
+          (let [explicit (map first (ig/explicit-sources basis node-id input))
+                implicit (filter (fn [node-id] (when-let [n (gt/node-by-id-at basis node-id)]
+                                                 (= override-id (gt/override-id n))))
+                                 (map first (gt/sources basis node-id input)))]
+            (recur (rest inputs) (-> result (reduce-conj explicit) (reduce-conj implicit))))
+          result)))
     []))
 
 (defn- ctx-delete-node [ctx node-id]
   (when *tx-debug*
     (println (txerrstr ctx "deleting " node-id)))
-  (let [basis (:basis ctx)
-        overrides-deep (comp reverse (partial tree-seq (constantly true) (partial ig/get-overrides basis)))
-        to-delete    (->> (ig/pre-traverse basis [node-id] cascade-delete-sources)
-                          (mapcat overrides-deep))]
+  (let [to-delete (ig/pre-traverse (:basis ctx) [node-id] cascade-delete-sources)]
     (when (and *tx-debug* (not (empty? to-delete)))
       (println (txerrstr ctx "cascading delete of " (pr-str to-delete))))
     (reduce delete-single ctx to-delete)))
@@ -523,7 +508,7 @@
                   override-id (gt/override-id or-node)
                   tgt-ors (filter #(= override-id (gt/override-id %)) src-or-nodes)
                   traverse-fn (ig/override-traverse-fn basis override-id)
-                  to-delete (ig/pre-traverse-sources basis (mapv gt/node-id tgt-ors) traverse-fn)]
+                  to-delete (ig/pre-traverse basis (mapv gt/node-id tgt-ors) traverse-fn)]
               (recur (rest tgt-overrides)
                      (reduce ctx-delete-node ctx to-delete)))
             ctx)))
