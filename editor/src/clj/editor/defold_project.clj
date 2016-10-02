@@ -445,6 +445,19 @@
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
 
+;; Reloading works like this:
+;; * All moved files are handled by simply updating their resource property
+;; * All truly added files are added/loaded
+;;   - "Truly added" means it was not referenced before
+;;   - Referenced missing files will still be represented with a node
+;; * The remaining files are handled by:
+;;   - Adding the new nodes
+;;   - Transfering overrides from old nodes
+;;   - Deleting old nodes
+;;   - Loading new nodes
+;;   - Reconnecting remaining connections from old nodes
+;; * Invalidate external resource nodes, e.g. png's and wav's
+;; * Reset undo history when necessary
 (defn- handle-resource-changes [project changes render-progress!]
   (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
     (let [project-graph (g/node-id->graph-id project)]
@@ -464,11 +477,11 @@
       (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
             res->node (comp nodes-by-path resource/proj-path)
             known? (fn [r] (contains? nodes-by-path (resource/proj-path r)))
-            all             (vec (mapcat (fn [[k vs]] (map vector (repeat k) vs)) (select-keys changes [:added :removed :changed])))
+            all-but-moved (vec (mapcat (fn [[k vs]] (map vector (repeat k) vs)) (select-keys changes [:added :removed :changed])))
             reset-undo?     (or (not (empty? (:moved changes)))
-                                (some (comp loadable? second) all))
+                                (some (comp loadable? second) all-but-moved))
             unknown-changed (filterv (complement known?) (:changed changes))
-            to-reload       (filterv (comp known? second) all)
+            to-reload       (filterv (comp known? second) all-but-moved)
             to-reload-int   (filterv (comp loadable? second) to-reload)
             to-reload-ext   (filterv (comp (complement loadable?) second) to-reload)
             old-outputs (reduce (fn [res [_ resource]]
@@ -477,10 +490,7 @@
                                 {} to-reload-int)
             old->new (atom {})]
         ;; Internal resources to reload
-        (let [resources-to-create (mapv second
-                                        (filter (fn [[type r]] (let [nid (nodes-by-path (resource/proj-path r))]
-                                                                 (not (and (= type :removed) (every? (fn [[src-label [tgt-id tgt-label]]] (= tgt-id project)) (old-outputs nid))))))
-                                                to-reload-int))
+        (let [resources-to-create (mapv second to-reload-int)
               new-nodes (make-nodes! project resources-to-create)
               new-nodes-by-path (into {} (map (fn [n] (let [r (g/node-value n :resource)]
                                                         [(resource/proj-path r) n]))
@@ -496,7 +506,7 @@
               (for [[_ r] to-reload-int
                     :let [old-node (nodes-by-path (resource/proj-path r))]]
                 (g/delete-node old-node))))
-          (load-nodes! project new-nodes nil)
+          (load-nodes! project new-nodes render-progress!)
           ;; Re-connect existing outputs
           (g/transact
             (for [[old new] old->new
@@ -504,7 +514,7 @@
                   :let [existing (set (outputs new))]
                   [src-label [tgt-id tgt-label]] (old-outputs old)
                   :let [tgt-id (get old->new tgt-id tgt-id)]
-                  :when (and tgt-id (not (contains? existing [src-label [tgt-id tgt-label]])) (g/node-by-id tgt-id))]
+                  :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
               (g/connect new src-label tgt-id tgt-label))))
         ;; External resources to invalidate
         (let [all-outputs (mapcat (fn [[_ resource]]
