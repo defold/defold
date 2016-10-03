@@ -697,7 +697,11 @@
    (if-let [menubar (.lookup root menubar-id)]
      (let [desc (make-desc menubar menu-id)]
        (user-data! root ::menubar desc))
-     (log/warn :message (format "menubar %s not found" menubar-id)))))
+     (log/warn :message (format "menubar %s not found" menubar-id))))
+  (.addEventFilter scene KeyEvent/KEY_PRESSED
+    (event-handler event
+      (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
+        (.consume event)))))
 
 (def ^:private invalidate-menus? (atom false))
 
