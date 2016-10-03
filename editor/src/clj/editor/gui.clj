@@ -704,7 +704,7 @@
   (property text-leading g/Num (default 1.0))
   (property text-tracking g/Num (default 0.0))
   (property outline types/Color (default [1 1 1 1])
-            (dynamic edit-type (g/always {:edit-type types/Color
+            (dynamic edit-type (g/always {:type types/Color
                                           :ignore-alpha? true})))
   (property outline-alpha g/Num (default 1.0)
     (dynamic edit-type (g/always {:type :slider
@@ -712,7 +712,7 @@
                                   :max 1.0
                                   :precision 0.01})))
   (property shadow types/Color (default [1 1 1 1])
-            (dynamic edit-type (g/always {:edit-type types/Color
+            (dynamic edit-type (g/always {:type types/Color
                                           :ignore-alpha? true})))
   (property shadow-alpha g/Num (default 1.0)
     (dynamic edit-type (g/always {:type :slider
