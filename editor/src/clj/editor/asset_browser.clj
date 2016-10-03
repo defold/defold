@@ -460,10 +460,10 @@
   (let [handler (reify EventHandler
                   (handle [this e]
                     (when (= 2 (.getClickCount ^MouseEvent e))
-                      (let [item (-> tree-view (.getSelectionModel) (.getSelectedItem))
-                            resource (.getValue ^TreeItem item)]
-                        (when (= :file (resource/source-type resource))
-                          (open-resource-fn resource))))))
+                      (if-let [item (-> tree-view (.getSelectionModel) (.getSelectedItem))]
+                        (let [resource (.getValue ^TreeItem item)]
+                          (when (= :file (resource/source-type resource))
+                            (open-resource-fn resource)))))))
         over-handler (ui/event-handler e (drag-over e))
         done-handler (ui/event-handler e (drag-done e (workspace/selection tree-view)))
         dropped-handler (ui/event-handler e (drag-dropped e))
