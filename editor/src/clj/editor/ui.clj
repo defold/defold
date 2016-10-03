@@ -7,6 +7,7 @@
    [editor.jfx :as jfx]
    [editor.progress :as progress]
    [editor.workspace :as workspace]
+   [internal.util :as util]
    [service.log :as log]
    [util.profiler :as profiler])
   (:import
@@ -488,7 +489,7 @@
           roots (loop [paths (keys items)
                        roots []]
                   (if-let [path (first paths)]
-                    (let [ancestors (filter #(= (subvec path 0 (count %)) %) roots)
+                    (let [ancestors (filter #(util/seq-starts-with? path %) roots)
                           roots (if (empty? ancestors)
                                   (conj roots path)
                                   roots)]
