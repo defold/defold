@@ -73,11 +73,23 @@ public class ProjectTest {
         }
     }
 
+    private String getTempDirectory() {
+    	File directory = null;
+    	String root = FileUtils.getTempDirectoryPath();
+    	while (directory == null || !directory.isDirectory()) {
+    		String name = "defold_" + System.currentTimeMillis();
+    		directory = new File(root, name);
+    		directory.mkdir();
+    	}
+    	
+    	return directory.toString();
+    }
+    
     @Before
     public void setUp() throws Exception {
         bundle = Platform.getBundle("com.dynamo.cr.bob");
         fileSystem = new MockFileSystem();
-        project = new Project(fileSystem, FileUtils.getTempDirectoryPath(), "build/default");
+        project = new Project(fileSystem, getTempDirectory(), "build/default");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
         project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
