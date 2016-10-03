@@ -1597,7 +1597,7 @@
                                          tmpl-roots))
         template-resources (map (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
         texture-resources  (map (comp resolve-fn :texture) (:textures scene))
-        scene-load-data  (project/load-resource-nodes project
+        scene-load-data  (project/load-resource-nodes (g/now) project
                                                       (->> (concat template-resources texture-resources)
                                                            (map #(project/get-resource-node project %))
                                                            (remove nil?))

@@ -97,7 +97,7 @@ namespace dmScript
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
             // NOTE: + 2 as LUA_NOREF is defined as - 2 and 0 is interpreted as uninitialized
-            int callback = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
+            int callback = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
             sender.m_Function = callback;
 
             dmArray<char> h;
