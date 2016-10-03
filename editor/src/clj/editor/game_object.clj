@@ -101,7 +101,7 @@
   (input source-resource resource/Resource)
   (input source-properties g/Properties :substitute {:properties {}})
   (input scene g/Any)
-  (input build-targets g/Any)
+  (input source-build-targets g/Any)
   (input base-url g/Str)
   (input id-counts g/Any)
 
@@ -123,9 +123,11 @@
                                               :transform transform
                                               :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
                                        (update :node-path (partial cons _node-id)))))
-  (output build-targets g/Any :cached (g/fnk [_node-id build-targets rt-ddf-message transform]
-                                             (if-let [target (first build-targets)]
-                                               (let [target (wrap-if-raw-sound _node-id target)]
+  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
+  (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
+                                             (if-let [target (first source-build-targets)]
+                                               (let [target (->> (assoc target :resource build-resource)
+                                                              (wrap-if-raw-sound _node-id))]
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                 :instance-msg rt-ddf-message
                                                                                 :transform transform})])
@@ -138,7 +140,11 @@
 
   (input save-data g/Any :cascade-delete)
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
-                                              (gen-embed-ddf id position rotation save-data))))
+                                              (gen-embed-ddf id position rotation save-data)))
+  (output build-resource resource/Resource (g/fnk [source-resource save-data]
+                                                  (some-> source-resource
+                                                     (assoc :data (:content save-data))
+                                                     workspace/make-build-resource))))
 
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
@@ -176,7 +182,7 @@
                                                                                    [:node-outline :source-outline]
                                                                                    [:_properties :source-properties]
                                                                                    [:scene :scene]
-                                                                                   [:build-targets :build-targets]]
+                                                                                   [:build-targets :source-build-targets]]
                                                                         :when (contains? outputs from)]
                                                                     (g/connect or-node from self to)))
                                                                 (for [[label value] (:overrides new-value)]
@@ -186,7 +192,7 @@
                                                   [:node-outline :source-outline]
                                                   [:user-properties :user-properties]
                                                   [:scene :scene]
-                                                  [:build-targets :build-targets]))))))
+                                                  [:build-targets :source-build-targets]))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (or (validation/prop-error :info _node-id :path validation/prop-nil? source-resource "Path")
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
@@ -363,7 +369,7 @@
                                                                                         [:node-outline :source-outline]
                                                                                         [:save-data :save-data]
                                                                                         [:scene :scene]
-                                                                                        [:build-targets :build-targets]]
+                                                                                        [:build-targets :source-build-targets]]
                                                                              self [[:_node-id :nodes]]})]
         (concat
           tx-data
