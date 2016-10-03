@@ -250,7 +250,7 @@
   (set-property [this basis property value]
     (assert (contains? (-> node-type deref :property util/key-set) property)
             (format "Attempting to use property %s from %s, but it does not exist"
-                    property (:name node-type)))
+                    property (:name @node-type)))
     (assoc this property value))
 
   (overridden-properties [this basis] {})
