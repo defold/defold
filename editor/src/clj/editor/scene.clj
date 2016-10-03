@@ -641,11 +641,11 @@
                                                 (fn [dt]
                                                   (when (.isSelected tab)
                                                     (update-image-view! image-view dt))))]
-                             (ui/on-close tab
-                                          (fn [e]
-                                            (ui/timer-stop! repainter)
-                                            (scene-view-dispose view-id)
-                                            (scene-cache/drop-context! nil true)))
+                             (ui/on-closed! tab
+                                            (fn [e]
+                                              (ui/timer-stop! repainter)
+                                              (scene-view-dispose view-id)
+                                              (scene-cache/drop-context! nil true)))
                              (ui/timer-start! repainter))
                            (let [drawable (make-drawable w h)]
                              (g/transact
