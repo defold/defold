@@ -195,3 +195,12 @@
 (defn update-paths
   [m paths xf]
   (reduce (fn [m [p v]] (assoc-in m p (xf p v (get-in m p)))) m paths))
+
+(defn seq-starts-with?
+  [coll subcoll]
+  (if-not (seq subcoll)
+    true
+    (if-not (seq coll)
+      false
+      (and (= (first coll) (first subcoll))
+           (recur (next coll) (next subcoll))))))
