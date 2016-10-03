@@ -656,7 +656,7 @@
               check (:check item)]
           (when-let [handler-ctx (handler/active command command-contexts user-data)]
             (let [label (or (handler/label handler-ctx) item-label)]
-              (if-let [options (handler/options handler-ctx)]
+              (if-let [options (and (handler/enabled? handler-ctx) (handler/options handler-ctx))]
                 (make-submenu label icon (make-menu-items options command-contexts) on-open)
                 (make-menu-command label icon (:acc item) user-data command handler-ctx check)))))))))
 
@@ -769,7 +769,7 @@
                         (let [^Control child (if separator?
                                                (doto (Separator. Orientation/VERTICAL)
                                                  (add-style! "separator"))
-                                               (if-let [opts (handler/options handler-ctx)]
+                                               (if-let [opts (and (handler/enabled? handler-ctx) (handler/options handler-ctx))]
                                                  (let [hbox (doto (HBox.)
                                                               (add-style! "cell"))
                                                        cb (doto (ChoiceBox.)
