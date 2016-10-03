@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -72,24 +73,12 @@ public class ProjectTest {
             throw new IOException("Unable to start http server", e);
         }
     }
-
-    private String getTempDirectory() {
-    	File directory = null;
-    	String root = FileUtils.getTempDirectoryPath();
-    	while (directory == null || !directory.isDirectory()) {
-    		String name = "defold_" + System.currentTimeMillis();
-    		directory = new File(root, name);
-    		directory.mkdir();
-    	}
-    	
-    	return directory.toString();
-    }
     
     @Before
     public void setUp() throws Exception {
         bundle = Platform.getBundle("com.dynamo.cr.bob");
         fileSystem = new MockFileSystem();
-        project = new Project(fileSystem, getTempDirectory(), "build/default");
+        project = new Project(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
         project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
