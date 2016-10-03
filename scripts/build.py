@@ -481,7 +481,7 @@ class Configuration(object):
 
     def build_go(self):
         # TODO: shell=True is required only on windows otherwise it fails. WHY?
-        self.exec_env_command('go clean defold/...', shell=True)
+        self.exec_env_command('go clean -i defold/...', shell=True)
         if not self.skip_tests:
             self.exec_env_command('go test defold/...', shell=True)
         self.exec_env_command('go install defold/...', shell=True)
