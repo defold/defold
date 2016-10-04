@@ -20,16 +20,17 @@
 (defn parse-include-dirs [include-string]
   (filter (comp not str/blank?) (str/split include-string  #"[,\s]")))
 
-(defn- extract-game-project-include-dirs [reader]
-  (let [settings (game-project-core/parse-settings reader)]
-    (parse-include-dirs (str (game-project-core/get-setting settings ["library" "include_dirs"])))))
+(defn- extract-game-project-include-dirs [game-project-resource]
+  (with-open [reader (io/reader game-project-resource)]
+    (let [settings (game-project-core/parse-settings reader)]
+      (parse-include-dirs (str (game-project-core/get-setting settings ["library" "include_dirs"]))))))
 
 (defn- make-library-zip-tree [workspace file]
-  (let [zip-resources (resource/make-zip-tree workspace file)
-        flat-zip-resources (resource/resource-list-seq zip-resources)
-        game-project-resource (first (filter (fn [resource] (= "game.project" (resource/resource-name resource))) flat-zip-resources))]
+  (let [base-path (library/library-base-path file)
+        zip-resources (resource/make-zip-tree workspace file base-path)
+        game-project-resource (first (filter (fn [resource] (= "game.project" (resource/resource-name resource))) zip-resources))]
     (when game-project-resource
-      (let [include-dirs (set (extract-game-project-include-dirs (io/reader game-project-resource)))]
+      (let [include-dirs (set (extract-game-project-include-dirs game-project-resource))]
         (filter #(include-dirs (resource-root-dir %)) zip-resources)))))
 
 (defn- make-library-snapshot [workspace lib-state]
