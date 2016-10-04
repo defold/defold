@@ -635,6 +635,7 @@ namespace dmSocket
                     // This is used exclusively for SSDP, and our current SSDP
                     // implementation does not support IPv6. Therefore we'll
                     // only manage IPv4 interfaces.
+                    address->m_family = DOMAIN_IPV4;
                     *IPv4(address) = sin->sin_addr.s_addr;
                 }
             }
