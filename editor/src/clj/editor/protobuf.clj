@@ -2,12 +2,12 @@
   (:require [camel-snake-kebab :refer :all]
             [clojure.java.io :as io]
             [clojure.string :as s]
-            [internal.java :as j])
+            [internal.java :as j]
+            [util.murmur :as murmur])
   (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
-           [com.defold.editor.pipeline MurmurHash]
            [java.io Reader ByteArrayOutputStream]
            [org.apache.commons.io FilenameUtils]))
 
@@ -327,7 +327,7 @@
           value-descs)))
 
 (defn hash64 [v]
-  (MurmurHash/hash64 v))
+  (murmur/hash64 v))
 
 (defn fields-by-indices
   [^java.lang.Class cls]

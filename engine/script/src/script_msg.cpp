@@ -484,7 +484,7 @@ namespace dmScript
 
         assert(top == lua_gettop(L));
 
-        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size);
+        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size, 0);
         if (result != dmMessage::RESULT_OK)
         {
             return luaL_error(L, "Could not send message to %s.", dmMessage::GetSocketName(receiver.m_Socket));
