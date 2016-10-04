@@ -1,0 +1,94 @@
+.button {
+  -fx-background-radius: 4;
+  -fx-border-radius: 4;
+  -fx-padding: 6px 17px;
+  -fx-min-width: 100px;
+  -fx-background-color: $defold-blue;
+  -fx-background-insets: 0;
+  -fx-border-color: $dark-black;
+  -fx-border-width: 1;
+  -fx-text-fill: $defold-white;
+  -fx-font-weight: bold; 
+  &:hover {
+    -fx-background-color: $selected-blue;
+  }
+  &:armed {
+    -fx-background-color: $selected-blue;
+    -fx-border-color: $defold-light-blue;
+  }
+  &.low-prio {
+    -fx-background-color: $dark-grey;
+    -fx-border-color: $mid-grey;
+    -fx-text-fill: $bright-grey;
+    -fx-font-weight: normal; 
+  }
+  &.low-prio:hover {
+      -fx-background-color: $bright-black;
+  }
+  &.low-prio:armed {
+      -fx-background-color: $bright-black;
+      -fx-border-color: $bright-grey;
+      -fx-text-fill: $defold-white;
+  }
+}
+
+.button-small {
+	@extend .button;
+	-fx-padding: 4px;
+	-fx-min-width: 0px;
+}
+
+.button-large {
+	@extend .button;
+	-fx-padding: 10px 25px;
+	-fx-min-width: 200px;
+  }
+
+.embedded-properties-button,
+.embedded-properties-button:selected,
+.embedded-properties-button:armed {
+  -fx-border-radius: 0;
+  -fx-padding: 5px 3px;
+  -fx-background-insets: 0;
+}
+
+.clear-button {
+  -fx-background-radius: 0;
+  -fx-border-radius: 0;
+  -fx-background-color: transparent;
+  -fx-padding: 0;
+  -fx-min-width: 27px;
+  -fx-max-width: 27px;
+  -fx-min-height: 27px;
+  -fx-max-height: 27px;
+  -fx-border-width: 0;
+  -fx-text-fill: $defold-blue; }
+  .clear-button:hover {
+    -fx-background-color: transparent; }
+  .clear-button:armed {
+    -fx-background-color: transparent; }
+
+.toggle-button,
+.color-picker.split-button > .color-picker-label {
+  -fx-background-color: $defold-blue;
+  -fx-background-insets: 0;
+  -fx-background-radius: 4;
+  -fx-border-width: 1;
+  -fx-border-radius: 4;
+  -fx-border-color: $dark-black;
+  -fx-text-fill: -fx-text-base-color; }
+
+.toggle-button:hover,
+.color-picker.split-button > .arrow-button:hover,
+.color-picker.split-button > .color-picker-label:hover {
+  -fx-background-color: $selected-blue;
+  -fx-text-fill: -fx-text-base-color; }
+
+.toggle-button:armed {
+  -fx-background-color: #60a8ff, $selected-blue;
+  -fx-text-fill: $defold-white;
+  -fx-background-insets: 1; }
+
+.toggle-button:selected {
+  -fx-background-color: $defold-green;
+}
