@@ -3,15 +3,21 @@ package com.dynamo.bob.pipeline;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.vecmath.Point3d;
+import javax.vecmath.Quat4d;
+import javax.vecmath.Tuple3d;
 
 import org.eclipse.swt.widgets.Display;
 import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 import org.junit.Test;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
+import com.dynamo.rig.proto.Rig.AnimationTrack;
 import com.dynamo.rig.proto.Rig.Bone;
 import com.dynamo.rig.proto.Rig.Mesh;
 import com.dynamo.rig.proto.Rig.Skeleton;
@@ -170,6 +176,83 @@ public class ColladaUtilTest {
         ColladaUtil.loadAnimationIds(getClass().getResourceAsStream("simple_anim.dae"), idList2);
         assertEquals(true, idList1.equals(idList2));
     }
+    
+    private static void quatToEuler(Quat4d quat, Tuple3d euler) {
+        double heading;
+        double attitude;
+        double bank;
+        double test = quat.x * quat.y + quat.z * quat.w;
+        if (test > 0.499)
+        { // singularity at north pole
+            heading = 2 * Math.atan2(quat.x, quat.w);
+            attitude = Math.PI / 2;
+            bank = 0;
+        }
+        else if (test < -0.499)
+        { // singularity at south pole
+            heading = -2 * Math.atan2(quat.x, quat.w);
+            attitude = -Math.PI / 2;
+            bank = 0;
+        }
+        else
+        {
+            double sqx = quat.x * quat.x;
+            double sqy = quat.y * quat.y;
+            double sqz = quat.z * quat.z;
+            heading = Math.atan2(2 * quat.y * quat.w - 2 * quat.x * quat.z, 1 - 2 * sqy - 2 * sqz);
+            attitude = Math.asin(2 * test);
+            bank = Math.atan2(2 * quat.x * quat.w - 2 * quat.y * quat.z, 1 - 2 * sqx - 2 * sqz);
+        }
+        euler.x = bank * 180 / Math.PI;
+        euler.y = heading * 180 / Math.PI;
+        euler.z = attitude * 180 / Math.PI;
+    }
 
+    @Test
+    public void testBoneAnimation() throws Exception {
+        Mesh.Builder meshBuilder = Mesh.newBuilder();
+        AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
+        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
+        ColladaUtil.load(getClass().getResourceAsStream("one_vertice_bone.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+        assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
+        
+        AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(0);
+        assertEquals(0, track.getBoneIndex());
+        
+        for (int i = 0; i < track.getPositionsCount(); i++) {
+            assertEquals(0.0, track.getPositions(i), 0.0001);
+        }
+        
+        for (int i = 0; i < track.getScaleCount(); i++) {
+            assertEquals(1.0, track.getScale(i), 0.0001);
+        }
+        
+        // Assert that the rotation keyframes keeps increasing rotation around X
+        Point3d rot = new Point3d(0.0,0.0,0.0);
+        Quat4d rQ = new Quat4d(track.getRotations(0), track.getRotations(1), track.getRotations(2), track.getRotations(3));
+        quatToEuler(rQ, rot);
+        double lastXRot = rot.getX();
+        for (int i = 1; i < track.getRotationsCount() / 4; i++) {
+            rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
+            quatToEuler(rQ, rot);
+            
+            assertTrue(rot.getX() > lastXRot);
+            lastXRot = rot.getX();
+        }
+        
+        assertEquals(1, skeletonBuilder.getBonesCount());
+        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getX(), 0.0001);
+        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getY(), 0.0001);
+        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getZ(), 0.0001);
+
+        // File is exported with blender
+        System.out.println(skeletonBuilder.getBones(0).getRotation());
+//        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getRotation().getX(), 0.0001);
+//        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getRotation().getY(), 0.0001);
+//        assertEquals(-0.70710677, (double)skeletonBuilder.getBones(0).getRotation().getZ(), 0.0001);
+//        assertEquals( 0.70710677, (double)skeletonBuilder.getBones(0).getRotation().getW(), 0.0001);
+        
+    }
 
 }

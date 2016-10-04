@@ -73,7 +73,7 @@ public class XMLLibraryAnimationClips
         animationClips = new HashMap< String, XMLAnimationClip >();
         for ( XMLAnimationClip animation: animationClipsList )
         {
-            animationClips.put( animation.id, animation );
+            animationClips.put( animation.name, animation );
         }
         animationClipsList = null;
     }

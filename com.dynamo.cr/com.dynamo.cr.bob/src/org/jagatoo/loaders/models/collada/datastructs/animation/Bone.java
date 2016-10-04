@@ -1,20 +1,20 @@
 /**
  * Copyright (c) 2007-2009, JAGaToo Project Group all rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
- * 
+ *
  * Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * Neither the name of the 'Xith3D Project Group' nor the names of its
  * contributors may be used to endorse or promote products derived from this
  * software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -31,6 +31,7 @@ package org.jagatoo.loaders.models.collada.datastructs.animation;
 
 import java.util.ArrayList;
 
+import org.jagatoo.loaders.models.collada.stax.XMLNode;
 import org.openmali.vecmath2.Matrix4f;
 import org.openmali.vecmath2.Quaternion4f;
 import org.openmali.vecmath2.Tuple3f;
@@ -39,40 +40,44 @@ import org.openmali.vecmath2.util.FloatUtils;
 
 /**
  * A Bone (of a Skeleton)
- * 
+ *
  * @author Amos Wenger (aka BlueSky)
  * @author Matias Leone (aka Maguila)
  */
 public class Bone
 {
-    private final String id;
-    
+//    private final String id;
+
+    public XMLNode node;
+
     /** The source-id of this bone */
     private final String sid;
-    
+
     /** The name of this bone */
     private final String name;
-    
+
     /** The length of this bone */
     private float length;
-    
+
     /** The bind rotation */
     private final Quaternion4f bindRotation;
-    
+
     /** The bind matrix */
     public final Matrix4f bindMatrix;
-    
+
     /** The inverse bind matrix */
     public final Matrix4f invBindMatrix;
-    
+
+    public Matrix4f invBindMatrix2;
+
     /** The rotation of this bone */
     public final Quaternion4f relativeRotation;
-    
+
     /**
      * The scaling of this bone, along the three axis : X, Y, and Z.
      */
     public final Tuple3f relativeScaling;
-    
+
     /**
      * The absolute rotation of this bone, ie, a multiplication of all the
      * velocities from the rootBone to this bone, passing by its parents.
@@ -84,7 +89,7 @@ public class Bone
      * setRotation()
      */
     Quaternion4f absoluteRotation;
-    
+
     /**
      * The absolute translation of this bone, ie, the position of this bone...
      *
@@ -95,15 +100,15 @@ public class Bone
      * setRotation()
      */
     Vector3f absoluteTranslation;
-    
+
     /**
      * The absolute scaling of this bone, along the three axis : X, Y, and Z.
      */
     Tuple3f absoluteScaling;
-    
+
     Matrix4f absoluteTransformation;
-    
-    
+
+
     /**
      * Temporal key frames for the bone. They are reference extracted from the
      * current animation and they will change every time you play a different
@@ -111,7 +116,7 @@ public class Bone
      * These are ROTATION key frames.
      */
     public ArrayList<KeyFrameQuat4f> rotKeyFrames = new ArrayList<KeyFrameQuat4f>();
-    
+
     /**
      * Temporal key frames for the bone. They are reference extracted from the
      * current animation and they will change every time you play a different
@@ -119,42 +124,42 @@ public class Bone
      * These are SCALE key frames.
      */
     public ArrayList<KeyFrameTuple3f> scaleKeyFrames = new ArrayList<KeyFrameTuple3f>();
-    
+
     /** Children (optional) */
     private ArrayList<Bone> children;
-    
 
-    public final String getId()
-    {
-        return ( id );
-    }
-    
+
+//    public final String getId()
+//    {
+//        return ( id );
+//    }
+
     public final String getSourceId()
     {
         return ( sid );
     }
-    
+
     /**
      * @return the name of this bone.
      */
-    public final String getName() 
+    public final String getName()
     {
         return ( name );
     }
-    
+
     /**
      * Sets the length.
-     * 
+     *
      * @param length
      */
     public void setLength( float length )
     {
         this.length = length;
-        
+
         bindMatrix.m23( length );
         invBindMatrix.invert( bindMatrix );
     }
-    
+
     /**
      * @return the length.
      */
@@ -162,10 +167,10 @@ public class Bone
     {
         return ( length );
     }
-    
+
     /**
      * Sets the bindRotation.
-     * 
+     *
      * @param quat
      */
     public void setBindRotation( Quaternion4f quat )
@@ -173,7 +178,7 @@ public class Bone
         bindRotation.set( quat );
         bindMatrix.set( bindRotation );
     }
-    
+
     /**
      * @return the bindRotation
      */
@@ -181,12 +186,12 @@ public class Bone
     {
         return ( bindRotation );
     }
-    
+
     public final void setAbsoluteTranslation(Vector3f v)
     {
         absoluteTranslation.set(v);
     }
-    
+
     /**
      * Get the absolute translation of this bone. Absolute translation/rotation
      * are updated by the Skeleton.updateAbsolutes() method.
@@ -197,7 +202,7 @@ public class Bone
     {
         return ( absoluteTranslation );
     }
-    
+
     /**
      * Get the absolute rotation of this bone. Absolute translation/rotation are
      * updated by the Skeleton.updateAbsolutes() method.
@@ -208,33 +213,33 @@ public class Bone
     {
         return ( absoluteRotation );
     }
-    
+
     public final Tuple3f getAbsoluteScaling()
     {
         return ( absoluteScaling );
     }
-    
+
     public final Matrix4f getAbsoluteTransformation()
     {
         return ( absoluteTransformation );
     }
-    
+
     /**
      * @return true if the bone has at least one key frame of any kind.
      */
     public final boolean hasKeyFrames()
     {
     	int total = 0;
-    	
+
     	if ( rotKeyFrames != null )
     		total += rotKeyFrames.size();
-    	
+
     	if ( scaleKeyFrames != null )
             total += scaleKeyFrames.size();
-    	
+
         return ( total > 0 );
     }
-    
+
     /**
      * Completes the relativeTranslation and relativeRotation all with 0.
      */
@@ -243,10 +248,10 @@ public class Bone
         this.relativeRotation.set( 0f, 0f, 0f, 1f );
         this.relativeScaling.set( 1f, 1f, 1f );
     }
-    
+
     /**
      * Selects the current translation key frame, based on the current time
-     * 
+     *
      * @param currentTime
      *                beetween 0 and the end of the animation, in milliseconds
      * @return frame index selected
@@ -255,10 +260,10 @@ public class Bone
     {
         return ( KeyFrame.searchNextFrame( rotKeyFrames, currentTime ) );
     }
-    
+
     /**
      * Selects the current scaling key frame, based on the current time
-     * 
+     *
      * @param currentTime
      *                beetween 0 and the end of the animation, in miliseconds
      * @return frame index selected
@@ -267,10 +272,10 @@ public class Bone
     {
         return ( KeyFrame.searchNextFrame( scaleKeyFrames, currentTime ) );
     }
-    
+
     /**
      * Adds a child bone.
-     * 
+     *
      * @param bone
      */
     public void addChild( Bone bone )
@@ -279,13 +284,13 @@ public class Bone
         {
             children = new ArrayList<Bone>();
         }
-        
+
         children.add( bone );
     }
-    
+
     /**
      * Removes a child bone.
-     * 
+     *
      * @param bone
      */
     public void removeChild( Bone bone )
@@ -295,7 +300,7 @@ public class Bone
             children.remove( bone );
         }
     }
-    
+
     /**
      * @return the number of children of this bone.
      */
@@ -303,10 +308,10 @@ public class Bone
     {
         return ( ( children == null ) ? 0 : children.size() );
     }
-    
+
     /**
      * Gets a bone by index.
-     * 
+     *
      * @param i
      *                The index of the bone you want to get.
      * @return The bone :)
@@ -315,16 +320,16 @@ public class Bone
     {
         return ( ( children == null ) ? null : children.get( i ) );
     }
-    
+
     @Override
     public String toString()
     {
         return ( name + "] Bind rotation : " + bindRotation + ", length : " + length );
     }
-    
+
     /**
      * Create a new Bone
-     * 
+     *
      * @param sid
      * @param name
      *                The name of this bone
@@ -333,28 +338,29 @@ public class Bone
      * @param bindRotation
      *                The bind rotation of this bone
      */
-    public Bone( String id, String sid, String name, Matrix4f matrix, Quaternion4f bindRotation )
+    public Bone( XMLNode node, String sid, String name, Matrix4f matrix, Quaternion4f bindRotation )
     {
-        this.id = id;
+//        this.id = id;
+        this.node = node;
         this.sid = sid;
         this.name = name;
-        
+
         this.bindMatrix = matrix;
         this.invBindMatrix = new Matrix4f();
         invBindMatrix.invert( bindMatrix );
-        
+
         this.length = FloatUtils.vectorLength( matrix.m03(), matrix.m13(), matrix.m23() );
         this.bindRotation = bindRotation;
-        
+
         // Init relative rot/scaling
         this.relativeRotation = new Quaternion4f( 0f, 0f, 0f, 1f );
         this.relativeScaling = new Tuple3f( 1f, 1f, 1f );
-        
+
         // Init absolute rot/trans/scaling
         this.absoluteRotation = new Quaternion4f( 0f, 0f, 0f, 1f );
         this.absoluteTranslation = new Vector3f( 0f, 0f, 0f );
         this.absoluteScaling = new Tuple3f( 1f, 1f, 1f );
-        
+
         this.absoluteTransformation = new Matrix4f( bindMatrix );
     }
 }
