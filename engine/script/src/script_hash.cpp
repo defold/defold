@@ -140,7 +140,7 @@ namespace dmScript
             luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
             lua_setmetatable(L, -2);
             lua_pushvalue(L, -1);
-            int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
             if (instances->Full())
             {

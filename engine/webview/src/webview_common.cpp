@@ -64,9 +64,9 @@ void RunCallback(CallbackInfo* cbinfo)
 void ClearWebViewInfo(WebViewInfo* info)
 {
     if( info->m_Callback != LUA_NOREF )
-        luaL_unref(info->m_L, LUA_REGISTRYINDEX, info->m_Callback);
+        dmScript::Unref(info->m_L, LUA_REGISTRYINDEX, info->m_Callback);
     if( info->m_Self != LUA_NOREF )
-        luaL_unref(info->m_L, LUA_REGISTRYINDEX, info->m_Self);
+        dmScript::Unref(info->m_L, LUA_REGISTRYINDEX, info->m_Self);
     info->m_L = 0;
     info->m_Callback = LUA_NOREF;
     info->m_Self = LUA_NOREF;
@@ -84,9 +84,9 @@ int Create(lua_State* L)
     lua_pushvalue(L, 1);
 
     WebViewInfo info;
-    info.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    info.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
-    info.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    info.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     info.m_L = L;
 
     int webview_id = Platform_Create(L, &info);

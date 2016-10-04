@@ -42,6 +42,9 @@ namespace dmScript
     const char* META_TABLE_GET_USER_DATA    = "__get_user_data";
     const char* META_TABLE_IS_VALID         = "__is_valid";
 
+    // A debug value for profiling lua references
+    int g_LuaReferenceCount = 0;
+
     HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory)
     {
         Context* context = new Context();
@@ -585,4 +588,30 @@ namespace dmScript
         return PCallInternal(L, nargs, nresult, 0);
     }
 
+    int Ref(lua_State* L, int table)
+    {
+        ++g_LuaReferenceCount;
+        return luaL_ref(L, table);
+    }
+
+    void Unref(lua_State* L, int table, int reference)
+    {
+        --g_LuaReferenceCount;
+        luaL_unref(L, table, reference);
+    }
+
+    int GetLuaRefCount()
+    {
+        return g_LuaReferenceCount;
+    }
+
+    void ClearLuaRefCount()
+    {
+        g_LuaReferenceCount = 0;
+    }
+
+    uint32_t GetLuaGCCount(lua_State* L)
+    {
+        return (uint32_t)lua_gc(L, LUA_GCCOUNT, 0);
+    }
 }

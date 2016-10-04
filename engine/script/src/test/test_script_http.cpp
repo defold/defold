@@ -139,7 +139,7 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 
     int ref = message->m_Receiver.m_Function - 2;
     lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-    luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
     lua_gc(L, LUA_GCCOLLECT, 0);
 
     dmScript::PushDDF(L, descriptor, (const char*)&message->m_Data[0]);

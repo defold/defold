@@ -198,7 +198,7 @@ TEST_F(ScriptTest, TestUserType) {
     memset(&dummy->m_URL, 0xABCD, sizeof(dmMessage::URL));
     luaL_getmetatable(L, type_name);
     lua_setmetatable(L, -2);
-    dummy->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+    dummy->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     // Invalid
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
@@ -245,7 +245,7 @@ TEST_F(ScriptTest, TestUserType) {
     ASSERT_EQ(dmMessage::RESULT_OK, result);
 
     // Destruction
-    luaL_unref(L, LUA_REGISTRYINDEX, dummy->m_InstanceReference);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_InstanceReference);
     memset(dummy, 0, sizeof(TestDummy));
 }
 
