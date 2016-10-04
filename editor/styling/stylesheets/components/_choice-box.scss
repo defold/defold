@@ -1,0 +1,21 @@
+.choice-box {
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+    -fx-background-color: $dark-grey;
+    -fx-background-insets: 0;
+    -fx-border-color: $mid-grey;
+    /* TODO: Why do we have to do this explicitly? */ 
+    &:hover {
+        -fx-background-color: $dark-black;
+    }
+    &:showing {
+        -fx-background-color: $dark-grey;
+        -fx-color: $defold-white;
+    }
+    &:showing .arrow {
+        -fx-background-color: $defold-white; 
+    }
+    .label {
+        -fx-text-fill: -fx-text-background-color;
+    }
+}
