@@ -102,7 +102,7 @@ namespace dmSocket
         // Implements the Hamming Distance algorithm.
         // https://en.wikipedia.org/wiki/Hamming_distance
         uint32_t difference = 0;
-        for (unsigned int i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
+        for (int i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
         {
             uint32_t current = a.m_address[i] ^ b.m_address[i];
             while (current != 0)
@@ -600,48 +600,47 @@ namespace dmSocket
     Result GetLocalAddress(Address* address)
     {
 #ifdef __ANDROID__
+        // NOTE: This method should probably be used on Linux as well
+        // We just fall-back to localhost
+        dmSocket::GetHostByName("localhost", address);
+
         struct ifreq *ifr;
         struct ifconf ifc;
         char buf[2048] = { 0 };
         int s = socket(AF_INET, SOCK_DGRAM, 0);
-        if (s != -1)
-        {
-            memset(&ifc, 0, sizeof(ifc));
-            ifr = (ifreq*) buf;
-            ifc.ifc_ifcu.ifcu_req = ifr;
-            ifc.ifc_len = sizeof(buf);
-            if (ioctl(s, SIOCGIFCONF, &ifc) != 0)
+        if (s < 0) {
+            // We just fall-back to localhost
+            return RESULT_OK;
+        }
+
+        memset(&ifc, 0, sizeof(ifc));
+        ifr = (ifreq*) buf;
+        ifc.ifc_ifcu.ifcu_req = ifr;
+        ifc.ifc_len = sizeof(buf);
+        if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
+            // We just fall-back to localhost
+            return RESULT_OK;
+        }
+
+        // NOTE: This is not compatible with BSD. You can't assume
+        // equivalent size for all items
+        int numif = ifc.ifc_len / sizeof(struct ifreq);
+        for (int i = 0; i < numif; i++) {
+            struct ifreq *r = &ifr[i];
+            struct sockaddr_in *sin = (struct sockaddr_in *)&r->ifr_addr;
+            if (strcmp(r->ifr_name, "lo") != 0)
             {
-                int numif = ifc.ifc_len / sizeof(struct ifreq);
-                for (int i = 0; i < numif; i++) {
-                    struct ifreq *r = &ifr[i];
-                    if (strcmp(r->ifr_name, "lo") != 0)
-                    {
-                        if (r->ifr_addr.sa_family == AF_INET)
-                        {
-                            sockaddr_in* saddr = (struct sockaddr_in *) r->ifr_addr.sa_data;
-                            address->m_family = dmSocket::DOMAIN_IPV4;
-                            *IPv4(address) = saddr->sin_addr.s_addr;
-
-                            close(s);
-                            return RESULT_OK;
-                        } else if (r->ifr_addr.sa_family == AF_INET6)
-                        {
-                            sockaddr_in6* saddr = (struct sockaddr_in6 *) r->ifr_addr.sa_data;
-                            address->m_family = dmSocket::DOMAIN_IPV6;
-                            memcpy(IPv6(address), &saddr->sin6_addr, sizeof(struct in6_addr));
-
-                            close(s);
-                            return RESULT_OK;
-                        }
-                    }
+                if (r->ifr_addr.sa_family == AF_INET)
+                {
+                    // This is used exclusively for SSDP, and our current SSDP
+                    // implementation does not support IPv6. Therefore we'll
+                    // only manage IPv4 interfaces.
+                    *IPv4(address) = sin->sin_addr.s_addr;
                 }
-
-                close(s);
             }
         }
 
-        dmSocket::GetHostByName("localhost", address);
+        close(s);
         return RESULT_OK;
 #else
         /*
