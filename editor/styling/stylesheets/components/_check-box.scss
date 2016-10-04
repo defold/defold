@@ -1,0 +1,16 @@
+.check-box:hover .box {
+  -fx-background-color: $dark-black;
+  -fx-border-color: $bright-grey; }
+
+.check-box:selected .mark {
+  -fx-background-color: $bright-grey; }
+
+.check-box:selected:hover .mark {
+  -fx-background-color: $defold-white; }
+
+.check-box .box {
+  -fx-background-color: $dark-black;
+  -fx-background-insets: 0;
+  -fx-border-width: 1;
+  -fx-border-color: $mid-grey;
+  -fx-padding: 1px 2px 3px; }

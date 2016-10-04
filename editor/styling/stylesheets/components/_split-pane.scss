@@ -1,0 +1,23 @@
+.split-pane {
+  -fx-padding: 0.0em; }
+
+.split-pane:horizontal > .split-pane-divider {
+  -fx-padding: 2; }
+
+.split-pane:vertical > .split-pane-divider {
+  -fx-padding: 2; }
+
+.split-pane:horizontal > .split-pane-divider {
+  -fx-background-color: $bright-black; }
+
+/* vertical the two nodes are placed on top of each other. */
+.split-pane:vertical > .split-pane-divider {
+  -fx-background-color: $bright-black; }
+
+.split-pane:horizontal {
+  -fx-border-width: 0;
+  -fx-background-insets: 0; }
+
+.split-pane:vertical {
+  -fx-border-width: 0;
+  -fx-background-insets: 0; }

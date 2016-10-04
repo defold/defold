@@ -1,0 +1,63 @@
+/* Defold re-skin project stylesheet */
+/* Base */
+/* Colors
+ * Defold Light Blue   #60a8ff             Highlight borders and always together with Defold Blue
+ * Defold Blue         #2268e6             Highlight buttons
+ * Selected Blue       #264a8b             Select states and mouseover for blue buttons
+ * Bright Black        #292c30 #2e3236     Background of the application
+ * Mid Black           #25282b #292d31     Mouseover tabs
+ * Dark Black          #222426 #26282a     Text fields, selected (inactive) files, scroll bg & Outline tabs
+ * Dark Grey           #34373b #3b3e43     Module headers
+ * Mid Grey            #494b4e #54565a     Inactive text and icons
+ * Bright Grey         #8f9296 #a8abaf     Normal text & icon color
+ * Defold White        #f0f2f6 #f8f8fb     Active text & icon color
+ * Defold Red          #ff4646             Errors (text and icons), guides, 3D-Axels
+ * Defold Yellow       #fbce2f             Guides, etc.
+ * Defold Turquoise    #00e6e1             Guides, (also new update color together with Defold Blue)
+ * Defold Green        #00df64             Success, guides etc
+ * Defold Orange       #fd6623             Guides etc
+ */
+
+$test:                #323232;
+$defold-light-blue:   #60a8ff;
+$defold-blue:         #2268e6;
+$selected-blue:       #264a8b;
+$bright-black:        #292c30;
+$bright-black-light:  #2e3236;
+$mid-black:           #25282b;
+$mid-black-light:     #292d31;
+$dark-black:          #222426;
+$dark-black-light:    #26282a;
+$dark-grey:           #34373b;
+$dark-grey-light:     #3b3e43;
+$mid-grey:            #494b4e;
+$mid-grey-light:      #54565a;
+$bright-grey:         #8f9296;
+$bright-grey-light:   #a8abaf;
+$defold-white:        #f0f2f6;
+$defold-white-light:  #f8f8fb;
+$defold-red:          #ff4646;
+$defold-yellow:       #fbce2f;
+$defold-turquoise:    #00e6e1;
+$defold-green:        #00df64;
+$defold-orange:       #fd6623;
+
+$defold-white:      #f0f2f6; // (text header & tools icon)
+$defold-dark-white: #cccfd3; // (text)
+$bright-grey:       #b0b0b0; // (icons)
+$mid-grey:          #484d54; // (bg active spaces)
+$dark-grey:         #33393f; // (tabs)
+$bright-black:      #272b30; // (forms)
+$mid-black:         #1e2021; // (selected)
+
+/* Lua script colors */
+$script-helper:         #33cccc;
+$script-self:           #E066FF;
+$script-logic:          #E3A869;
+$script-constant:       #FFBBFF;
+$script-keyword:        #33cc33;
+$script-operator:       #33cccc;
+$script-string:         #fbce2f;
+$script-comment:        #ff00ff;
+$script-number:         #aaaaff;
+$script-intellisense:   #00FFFF;
