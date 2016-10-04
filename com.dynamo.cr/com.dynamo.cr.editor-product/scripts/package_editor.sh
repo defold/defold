@@ -12,7 +12,12 @@ package () {
 
   (
     _PRODUCT_DIR="${SCRIPT_PATH}/../target/products"
-    _PACKAGE="Defold-${1}.${2}.${3}.zip"
+
+    if [ "${_PLATFORM}" == "macosx" ]; then
+      _PACKAGE="Defold-${1}.${2}.${3}.dmg"
+    else
+      _PACKAGE="Defold-${1}.${2}.${3}.zip"
+    fi
 
     cd "${_PRODUCT_DIR}/com.dynamo.cr.editor.product/${_PLATFORM}/${_WND}/${_ARCH}"
 
@@ -45,7 +50,11 @@ package () {
       fi
     fi
 
-    zip -r -y -q "${_PRODUCT_DIR}/${_PACKAGE}" .
+    if [ "${_PLATFORM}" == "macosx" ]; then
+      /bin/bash "${SCRIPT_PATH}/package-dmg.sh" . "${_PRODUCT_DIR}/${_PACKAGE}"
+    else
+      zip -r -y -q "${_PRODUCT_DIR}/${_PACKAGE}" .
+    fi
 
     # Clean up current artefacts
     if [ -f "Defold.ini" ]; then
