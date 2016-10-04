@@ -148,11 +148,13 @@ public class ColladaUtil {
 
                     AnimationTrack.Builder animTrackBuilder = AnimationTrack.newBuilder();
                     animTrackBuilder.setBoneIndex(bi);
+                    
+                    RigUtil.MatrixAnimationTrack track = new RigUtil.MatrixAnimationTrack();
+                    
                     switch ( animation.getType() )
                     {
                         case ROTATE :
                         {
-                            RigUtil.MatrixAnimationTrack track = new RigUtil.MatrixAnimationTrack();
 
                             for ( int j = 0; j < animation.getInput().length; j++ )
                             {
@@ -186,43 +188,13 @@ public class ColladaUtil {
                                 key.curve = curve;
                                 track.keys.add(key);
                             }
-                            ArrayList<Matrix4f> matrixTrack = new ArrayList<Matrix4f>();
-                            RigUtil.MatrixPropertyBuilder matrixBuilder = new RigUtil.MatrixPropertyBuilder(matrixTrack);
-                            RigUtil.sampleMatrixTrack(track, matrixBuilder, Matrix4f.IDENTITY, (double)duration, (double)sampleRate, (double)spf, true);
-
-                            Matrix4f invPose = new Matrix4f(bone.bindMatrix).invert();
-
-                            for (int i = 0; i < matrixTrack.size(); i++) {
-                                Matrix4f matrix = matrixTrack.get(i);
-                                matrix.mul(invPose, matrix);
-                                
-                                Vector3f position = new Vector3f();
-                                Quaternion4f rotation = new Quaternion4f();
-                                Vector3f scale = new Vector3f();
-                                decomposeMatrix(matrix, scale, rotation, position);
-
-                                animTrackBuilder.addPositions(position.getX());
-                                animTrackBuilder.addPositions(position.getY());
-                                animTrackBuilder.addPositions(position.getZ());
-                                
-                                animTrackBuilder.addRotations(rotation.getA());
-                                animTrackBuilder.addRotations(rotation.getB());
-                                animTrackBuilder.addRotations(rotation.getC());
-                                animTrackBuilder.addRotations(rotation.getD());
-                                
-                                animTrackBuilder.addScale(scale.getX());
-                                animTrackBuilder.addScale(scale.getY());
-                                animTrackBuilder.addScale(scale.getZ());
-                            }
-
-                            animBuilder.addTracks(animTrackBuilder.build());
+                            
                         }
                         break;
 
                         case MATRIX:
                         case TRANSFORM:
                         {
-                            RigUtil.MatrixAnimationTrack track = new RigUtil.MatrixAnimationTrack();
                             for ( int j = 0; j < animation.getInput().length; j++ )
                             {
                                 String operationId = "transform";
@@ -250,42 +222,42 @@ public class ColladaUtil {
                                 key.curve = curve;
                                 track.keys.add(key);
                             }
-
-                            ArrayList<Matrix4f> matrixTrack = new ArrayList<Matrix4f>();
-                            RigUtil.MatrixPropertyBuilder matrixBuilder = new RigUtil.MatrixPropertyBuilder(matrixTrack);
-                            RigUtil.sampleMatrixTrack(track, matrixBuilder, Matrix4f.IDENTITY, (double)duration, (double)sampleRate, (double)spf, true);
-
-                            Matrix4f invPose = new Matrix4f(bone.bindMatrix).invert();
-
-                            for (int i = 0; i < matrixTrack.size(); i++) {
-                                Matrix4f matrix = matrixTrack.get(i);
-                                matrix.mul(invPose, matrix);
-                                
-                                Vector3f position = new Vector3f();
-                                Quaternion4f rotation = new Quaternion4f();
-                                Vector3f scale = new Vector3f();
-                                decomposeMatrix(matrix, scale, rotation, position);
-
-                                animTrackBuilder.addPositions(position.getX());
-                                animTrackBuilder.addPositions(position.getY());
-                                animTrackBuilder.addPositions(position.getZ());
-                                
-                                animTrackBuilder.addRotations(rotation.getA());
-                                animTrackBuilder.addRotations(rotation.getB());
-                                animTrackBuilder.addRotations(rotation.getC());
-                                animTrackBuilder.addRotations(rotation.getD());
-                                
-                                animTrackBuilder.addScale(scale.getX());
-                                animTrackBuilder.addScale(scale.getY());
-                                animTrackBuilder.addScale(scale.getZ());
-                                
-                            }
-                            animBuilder.addTracks(animTrackBuilder.build());
                         }
                             break;
                         default:
                             throw new LoaderException("unsuported animation currently!" + animation.getType());
                     }
+                    
+                    ArrayList<Matrix4f> matrixTrack = new ArrayList<Matrix4f>();
+                    RigUtil.MatrixPropertyBuilder matrixBuilder = new RigUtil.MatrixPropertyBuilder(matrixTrack);
+                    RigUtil.sampleMatrixTrack(track, matrixBuilder, bone.bindMatrix, (double)duration, (double)sampleRate, (double)spf, true);
+
+                    Matrix4f invPose = new Matrix4f(bone.bindMatrix).invert();
+
+                    for (int i = 0; i < matrixTrack.size(); i++) {
+                        Matrix4f matrix = matrixTrack.get(i);
+                        matrix.mul(invPose, matrix);
+                        
+                        Vector3f position = new Vector3f();
+                        Quaternion4f rotation = new Quaternion4f();
+                        Vector3f scale = new Vector3f();
+                        decomposeMatrix(matrix, scale, rotation, position);
+
+                        animTrackBuilder.addPositions(position.getX());
+                        animTrackBuilder.addPositions(position.getY());
+                        animTrackBuilder.addPositions(position.getZ());
+                        
+                        animTrackBuilder.addRotations(rotation.getA());
+                        animTrackBuilder.addRotations(rotation.getB());
+                        animTrackBuilder.addRotations(rotation.getC());
+                        animTrackBuilder.addRotations(rotation.getD());
+                        
+                        animTrackBuilder.addScale(scale.getX());
+                        animTrackBuilder.addScale(scale.getY());
+                        animTrackBuilder.addScale(scale.getZ());
+                    }
+
+                    animBuilder.addTracks(animTrackBuilder.build());
                 }
             }
         }
