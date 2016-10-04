@@ -207,6 +207,6 @@
                                                        (.setScrollTop ta Double/MAX_VALUE)
                                                        (.deselect ta)
                                                        (.setScrollLeft ta left)))))))
-    (ui/on-hiding! stage (fn [_]
+    (ui/on-closed! stage (fn [_]
                            (remove-watch event-log :dialog)))
     (ui/show! stage)))
