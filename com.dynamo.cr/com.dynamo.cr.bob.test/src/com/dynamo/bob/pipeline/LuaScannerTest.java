@@ -48,10 +48,14 @@ public class LuaScannerTest {
         assertEquals("a/b", modules.get(7));
         assertEquals("a/b/c", modules.get(8));
         assertEquals("a/b/c", modules.get(9));
-        assertEquals("foo", modules.get(10));
-        assertEquals("foo", modules.get(11));
-        assertEquals("foo", modules.get(12));
-        assertEquals("foo", modules.get(13));
+        assertEquals("foo1", modules.get(10));
+        assertEquals("foo2", modules.get(11));
+        assertEquals("foo3", modules.get(12));
+        assertEquals("foo4", modules.get(13));
+        assertEquals("foo5", modules.get(14));
+        assertEquals("foo6", modules.get(15));
+        assertEquals("foo7", modules.get(16));
+        assertEquals("foo8", modules.get(17));
         
         // test require detection with a trailing comment
         assertValidRequire("require \"foo.bar\" -- some comment", "foo.bar");
