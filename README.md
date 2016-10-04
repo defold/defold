@@ -101,7 +101,7 @@ Explanations:
 
 <tr>
 <td>EclipseLink</td>
-<td>http://download.eclipse.org/rt/eclipselink/updates</td>
+<td>http://download.eclipse.org/rt/eclipselink/updates ([Alternative URL, usually faster download](http://ftp.gnome.org/mirror/eclipse.org/rt/eclipselink/updates/))</td>
 <td>`EclipseLink Target Components` v2.5.2 (for javax components)</td>
 </tr>
 
