@@ -483,12 +483,11 @@
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
 (defn- fetch-libraries [workspace project prefs]
-  (workspace/set-project-dependencies! workspace (project/project-dependencies project))
   (future
     (ui/with-disabled-ui
       (ui/with-progress [render-fn ui/default-render-progress!]
-        (workspace/update-dependencies! workspace render-fn (partial login/login prefs))
-        (workspace/resource-sync! workspace true [] render-fn)))))
+        (let [library-urls (project/project-dependencies project)]
+          (workspace/fetch-libraries! workspace library-urls render-fn (partial login/login prefs)))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
