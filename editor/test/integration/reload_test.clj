@@ -48,6 +48,46 @@
   (let [resource (workspace/file-resource workspace name)]
     (workspace/template (resource/resource-type resource))))
 
+(def ^:dynamic *no-sync* nil)
+(def ^:dynamic *moved-files* nil)
+(def ^:dynamic *notify-listeners?* nil)
+
+(defn- sync!
+  ([workspace]
+    (when (not *no-sync*) (workspace/resource-sync! workspace)))
+  ([workspace notify-listeners? moved-files]
+    (if (not *no-sync*)
+      (workspace/resource-sync! workspace notify-listeners? moved-files)
+      (do
+        (swap! *moved-files* into moved-files)
+        (swap! *notify-listeners?* #(and %1 %2) notify-listeners?)))))
+
+(defmacro bulk-change [workspace & forms]
+ `(with-bindings {#'*no-sync* true
+                  #'*moved-files* (atom [])
+                  #'*notify-listeners?* (atom true)}
+    ~@forms
+    (workspace/resource-sync! ~workspace @*notify-listeners?* @*moved-files*)))
+
+(defn- touch-file
+  ([workspace name]
+    (touch-file workspace name true))
+  ([workspace name sync?]
+    (let [f (File. (workspace/project-path workspace) name)]
+      (mkdirs f)
+      (if (not (.exists f))
+        (.createNewFile f)
+        (when sync? (Thread/sleep 1100)))
+      (.setLastModified f (System/currentTimeMillis)))
+    (when sync?
+      (sync! workspace))))
+
+(defn- touch-files [workspace names]
+  (doseq [name names]
+    (touch-file workspace name false))
+  (Thread/sleep 1100)
+  (sync! workspace))
+
 (defn- write-file [workspace name content]
   (let [f (File. (workspace/project-path workspace) name)]
     (mkdirs f)
@@ -55,7 +95,7 @@
       (.createNewFile f)
       (Thread/sleep 1100))
     (spit f content))
-  (workspace/resource-sync! workspace))
+  (sync! workspace))
 
 (defn- read-file [workspace name]
   (slurp (str (workspace/project-path workspace) name)))
@@ -66,17 +106,17 @@
 (defn- delete-file [workspace name]
   (let [f (File. (workspace/project-path workspace) name)]
     (.delete f))
-  (workspace/resource-sync! workspace))
+  (sync! workspace))
 
 (defn- copy-file [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
     (FileUtils/copyFile f new-f))
-  (workspace/resource-sync! workspace))
+  (sync! workspace))
 
 (defn- move-file [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
     (FileUtils/moveFile f new-f)
-    (workspace/resource-sync! workspace true [[f new-f]])))
+    (sync! workspace true [[f new-f]])))
 
 (defn- add-img [workspace name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
@@ -85,7 +125,7 @@
     (when (.exists f)
       (Thread/sleep 1100))
     (ImageIO/write img type f)
-    (workspace/resource-sync! workspace)))
+    (sync! workspace)))
 
 (defn- has-undo? [project]
   (g/has-undo? (g/node-id->graph-id project)))
@@ -157,7 +197,7 @@
                    (g/set-property node :name "new_name"))
                  (is (has-undo? project))
                  (project/save-all project {})
-                 (workspace/resource-sync! workspace)
+                 (sync! workspace)
                  (is (has-undo? project)))))))
 
 (defn- find-error [type v]
@@ -272,10 +312,10 @@
     (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/nil_project"))]
       (is (not (g/error? (project/save-data project)))))))
 
-(deftest broken-project-cannot-be-saved
+(deftest broken-project-can-be-saved
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/broken_project"))]
-      (is (g/error? (project/save-data project))))))
+      (is (not (g/error? (project/save-data project)))))))
 
 (defn- gui-node [scene id]
   (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])
@@ -304,3 +344,18 @@
       (g/transact (g/set-property node-id :display-profiles (workspace/file-resource workspace path)))
       (move-file workspace path new-path)
       (is (= new-path (get (g/node-value node-id :settings-map) p))))))
+
+(deftest all-project-files
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (let [all-files (->>
+                        (workspace/resolve-workspace-resource workspace "/")
+                        (tree-seq (fn [r] (and (not (resource/read-only? r)) (resource/children r))) resource/children)
+                        (filter (fn [r] (= (resource/source-type r) :file))))
+            paths (map resource/proj-path all-files)]
+        (bulk-change workspace
+                     (touch-files workspace paths))
+        (let [internal-paths (map resource/proj-path (filter (fn [r] (:load-fn (resource/resource-type r))) all-files))
+              saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
+              missing (filter #(not (contains? saved-paths %)) internal-paths)]
+          (is (empty? missing)))))))

@@ -293,8 +293,8 @@ static void VerifyCallback(lua_State* L)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     }
@@ -328,8 +328,8 @@ static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* err
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -364,8 +364,8 @@ static void RunCallback(lua_State*L, NSError* error)
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -433,8 +433,8 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -547,7 +547,7 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
 //
 
 namespace dmFacebook {
-    
+
 /*# Facebook API documentation
  *
  * Functions and constants for interacting with Facebook APIs.
@@ -583,18 +583,18 @@ int Facebook_Login(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if ([FBSDKAccessToken currentAccessToken]) {
         UpdateUserData();
@@ -625,7 +625,7 @@ int Facebook_Logout(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     [g_Facebook.m_Login logOut];
     [g_Facebook.m_Me release];
@@ -639,7 +639,7 @@ int Facebook_Logout(lua_State* L)
  * actually granted with <code>facebook.permissions()</code>.
  *
  * @name facebook.request_read_permissions
- * @param permissions a table with the requested permission strings (table)
+ * @param permissions a table with the requested read permission strings (table)
  * The following strings are valid permission identifiers and are requested by default on login:
  * <ul>
  *   <li><code>"public_profile"</code></li>
@@ -662,7 +662,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -670,18 +670,25 @@ int Facebook_RequestReadPermissions(lua_State* L)
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
     NSMutableArray *permissions = [[NSMutableArray alloc] init];
     AppendArray(L, permissions, 1);
 
-    [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-        RunCallback(main_thread, error);
-    }];
+    @try {
+        [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+            RunCallback(main_thread, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request read permissions: %@", exception.reason];
+        NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
+        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -693,7 +700,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
  *  actually granted with <code>facebook.permissions()</code>.
  *
  * @name facebook.request_publish_permissions
- * @param permissions a table with the requested permissions (table)
+ * @param permissions a table with the requested publish permission strings (table)
  * @param audience (constant|number)
  * <ul>
  *     <li>facebook.AUDIENCE_NONE</li>
@@ -704,7 +711,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
  * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
  * @examples
  * <pre>
- * facebook.request_publish_permissions({ "user_friends", "email" }, function (self, error)
+ * facebook.request_publish_permissions({ "publish_actions" }, facebook.AUDIENCE_FRIENDS, function (self, error)
  *     if error then
  *         -- Something bad happened
  *         return
@@ -717,7 +724,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -726,19 +733,26 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     FBSDKDefaultAudience audience = convertDefaultAudience(luaL_checkinteger(L, 2));
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
     NSMutableArray *permissions = [[NSMutableArray alloc] init];
     AppendArray(L, permissions, 1);
 
-    [g_Facebook.m_Login setDefaultAudience: audience];
-    [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-        RunCallback(main_thread, error);
-    }];
+    @try {
+        [g_Facebook.m_Login setDefaultAudience: audience];
+        [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+            RunCallback(main_thread, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request publish permissions: %@", exception.reason];
+        NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
+        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -754,7 +768,7 @@ int Facebook_AccessToken(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     const char* token = [[[FBSDKAccessToken currentAccessToken] tokenString] UTF8String];
     lua_pushstring(L, token);
@@ -781,7 +795,7 @@ int Facebook_Permissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -825,7 +839,7 @@ int Facebook_Me(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -1051,7 +1065,7 @@ int Facebook_ShowDialog(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -1060,9 +1074,9 @@ int Facebook_ShowDialog(lua_State* L)
     luaL_checktype(L, 2, LUA_TTABLE);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
     if (dialog == dmHashString64("feed")) {

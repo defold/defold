@@ -25,7 +25,8 @@
             [editor.ui :as ui]
             [editor.rulers :as rulers]
             [service.log :as log]
-            [editor.graph-util :as gu])
+            [editor.graph-util :as gu]
+            [editor.properties :as properties])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -798,12 +799,14 @@
                                 :label "Scene"
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview))
+
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))
-  (property rotation types/Vec3 (default [0.0 0.0 0.0]))
+  (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
+            (dynamic edit-type (g/always (properties/quat->euler))))
 
   (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
-  (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
+  (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec4 rotation] (doto (Quat4d.) (math/clj->vecmath rotation))))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (math/->mat4-uniform position-v3 rotation-q4 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/always (geom/null-aabb))))
@@ -814,9 +817,11 @@
     (g/set-property node-id :position [(.x p) (.y p) (.z p)])))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [basis node-id delta]
-  (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (g/node-value node-id :rotation {:basis basis}))) (.mul delta))
-        new-euler (math/quat->euler new-rotation)]
-    (g/set-property node-id :rotation new-euler)))
+  (let [new-rotation (math/vecmath->clj
+                       (doto (Quat4d.)
+                         (math/clj->vecmath (g/node-value node-id :rotation {:basis basis}))
+                         (.mul delta)))]
+    (g/set-property node-id :rotation new-rotation)))
 
 (g/defnk produce-transform [^Vector3d position-v3 ^Quat4d rotation-q4 ^Vector3d scale-v3]
   (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3))

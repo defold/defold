@@ -103,7 +103,7 @@ namespace dmGameSystem
             set_light->m_Position = position;
             set_light->m_Rotation = rotation;
 
-            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameSystemDDF::SetLight::m_DDFDescriptor, buf, data_size);
+            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameSystemDDF::SetLight::m_DDFDescriptor, buf, data_size, 0);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send 'set_light' message to '%s'.", dmRender::RENDER_SOCKET_NAME);

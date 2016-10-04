@@ -63,7 +63,7 @@ TEST(dmMessage, Post)
         {
             CustomMessageData1 message_data1;
             message_data1.m_MyValue = i;
-            ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1)));
+            ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
         }
         ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
     }
@@ -72,7 +72,7 @@ TEST(dmMessage, Post)
     {
         CustomMessageData1 message_data1;
         message_data1.m_MyValue = i;
-        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1)));
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
     }
 
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
@@ -129,7 +129,7 @@ TEST(dmMessage, Bench)
     // "Warm up", i.e. allocate all pages needed internally
     for (uint32_t iter = 0; iter < iter_count; ++iter)
     {
-        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1)));
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
     }
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
 
@@ -137,7 +137,7 @@ TEST(dmMessage, Bench)
     uint64_t start = dmTime::GetTime();
     for (uint32_t iter = 0; iter < iter_count; ++iter)
     {
-        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1)));
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
     }
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
     uint64_t end = dmTime::GetTime();
@@ -223,7 +223,7 @@ void HandleMessagePostDuring(dmMessage::Message *message_object, void *user_ptr)
     switch(message_object->m_Id)
     {
         case m_HashMessage2:
-            ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1)));
+            ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
         break;
 
         default:
@@ -247,7 +247,7 @@ TEST(dmMessage, PostDuringDispatch)
         {
             CustomMessageData1 message_data1;
             message_data1.m_MyValue = i;
-            ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage2, 0, 0x0, &message_data1, sizeof(CustomMessageData1)));
+            ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage2, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
         }
         uint32_t count;
         count = dmMessage::Dispatch(receiver.m_Socket, HandleMessagePostDuring, &receiver);
@@ -271,7 +271,7 @@ void PostThread(void* arg)
     for (int i = 0; i < 1024; ++i)
     {
         uint32_t m = i;
-        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, receiver, m_HashMessage1, 0, 0x0, &m, sizeof(m)));
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, receiver, m_HashMessage1, 0, 0x0, &m, sizeof(m), 0));
         if (i % 100 == 0) {
             dmTime::Sleep(1000);
         }
@@ -366,7 +366,7 @@ TEST(dmMessage, Integrity)
             }
             dmhash_t hash = dmHashBuffer64(msg, size);
 
-            ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, hash, 0, 0x0, msg, size));
+            ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, hash, 0, 0x0, msg, size, 0));
         }
         ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleIntegrityMessage, 0));
     }
@@ -387,7 +387,7 @@ TEST(dmMessage, UserData)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("my_socket", &receiver.m_Socket));
     uint32_t sent = 1;
     uint32_t received = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, (uintptr_t)&sent, 0x0, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, (uintptr_t)&sent, 0x0, 0x0, 0, 0));
     ASSERT_EQ(1u, dmMessage::Dispatch(receiver.m_Socket, HandleUserDataMessage, (void*)&received));
     ASSERT_EQ(sent, received);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
@@ -400,10 +400,40 @@ TEST(dmMessage, MemLeaks)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("my_socket", &receiver.m_Socket));
     for (uint32_t i = 0; i < 10000; ++i)
     {
-        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, 0, 0x0, 0x0, 0));
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, 0, 0x0, 0x0, 0, 0));
     }
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
+
+uint32_t g_PostDistpatchCalled = 0;
+
+void CustomMessageDestroyCallback(dmMessage::Message* message)
+{
+    g_PostDistpatchCalled = *((uint32_t*)message->m_UserData);
+}
+
+TEST(dmMessage, MessagePostDispatch)
+{
+    dmMessage::URL receiver;
+    dmMessage::ResetURL(receiver);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("my_socket", &receiver.m_Socket));
+    uint32_t sent = 42;
+    uint32_t received = 0;
+
+    // Make sure we get a call after the dispatch
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, (uintptr_t)&sent, 0x0, 0x0, 0, CustomMessageDestroyCallback));
+    ASSERT_EQ(1u, dmMessage::Dispatch(receiver.m_Socket, HandleUserDataMessage, (void*)&received));
+    ASSERT_EQ(42, g_PostDistpatchCalled);
+
+    g_PostDistpatchCalled = 0;
+    sent = 7011;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, (uintptr_t)&sent, 0x0, 0x0, 0, CustomMessageDestroyCallback));
+
+    // Make sure we get a call when the socket is destroyed
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
+    ASSERT_EQ(7011, g_PostDistpatchCalled);
+}
+
 
 int main(int argc, char **argv)
 {

@@ -122,7 +122,7 @@ static void RunStateCallback(Command* cmd)
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         (void)ret;
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
     } else {
         dmLogError("No callback set");
     }
@@ -158,7 +158,7 @@ static void RunCallback(Command* cmd)
         int ret = dmScript::PCall(L, 2, LUA_MULTRET);
         (void)ret;
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
     } else {
         dmLogError("No callback set");
     }
@@ -207,7 +207,7 @@ static void RunDialogResultCallback(Command* cmd)
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         (void)ret;
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
         g_Facebook.m_Callback = LUA_NOREF;
     } else {
         dmLogError("No callback set");
@@ -349,8 +349,8 @@ static void VerifyCallback(lua_State* L)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     }
@@ -362,17 +362,17 @@ int Facebook_Login(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     JNIEnv* env = Attach();
 
@@ -391,7 +391,7 @@ int Facebook_Logout(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -413,7 +413,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -421,10 +421,10 @@ int Facebook_RequestReadPermissions(lua_State* L)
     luaL_checktype(L, top-1, LUA_TTABLE);
     luaL_checktype(L, top, LUA_TFUNCTION);
     lua_pushvalue(L, top);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
     dmFacebook::LuaStringCommaArray(L, top-1, permissions, 512);
@@ -448,7 +448,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -457,10 +457,10 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     int audience = luaL_checkinteger(L, top-1);
     luaL_checktype(L, top, LUA_TFUNCTION);
     lua_pushvalue(L, top);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
     dmFacebook::LuaStringCommaArray(L, top-2, permissions, 512);
@@ -484,7 +484,7 @@ int Facebook_AccessToken(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -513,7 +513,7 @@ int Facebook_Permissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -536,7 +536,7 @@ int Facebook_Me(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -628,7 +628,7 @@ int Facebook_ShowDialog(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -637,9 +637,9 @@ int Facebook_ShowDialog(lua_State* L)
     luaL_checktype(L, 2, LUA_TTABLE);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     JNIEnv* env = Attach();
 

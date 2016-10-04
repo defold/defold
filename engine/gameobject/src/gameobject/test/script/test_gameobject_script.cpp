@@ -81,7 +81,7 @@ void TestScript01SystemDispatch(dmMessage::Message* message, void* user_ptr)
     TestGameObjectDDF::FactoryResult result;
     result.m_Status = 1010;
     dmDDF::Descriptor* descriptor = TestGameObjectDDF::FactoryResult::m_DDFDescriptor;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), 0, (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::FactoryResult)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), 0, (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::FactoryResult), 0));
 
     *dispatch_result = f->m_Pos.getX() == 1.0 && f->m_Pos.getY() == 2.0 && f->m_Pos.getZ() == 3.0 && strcmp("test", f->m_Prototype) == 0;
 }
@@ -356,7 +356,7 @@ int TestRef(lua_State* L)
     lua_getglobal(L, REF_VALUE);
     int* ref = (int*)lua_touserdata(L, -1);
     dmScript::GetInstance(L);
-    *ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    *ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_pop(L, 1);
     return 0;
 }

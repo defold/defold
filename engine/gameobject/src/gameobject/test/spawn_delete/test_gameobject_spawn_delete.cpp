@@ -20,7 +20,8 @@ static int Lua_Spawn(lua_State* L) {
     const char* prototype = luaL_checkstring(L, 1);
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-    dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
+    uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+    dmhash_t id = dmGameObject::ConstructInstanceId(index);
     dmGameObject::HInstance spawned = dmGameObject::Spawn(collection, prototype, id, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     if (spawned == 0x0) {
         luaL_error(L, "failed to spawn");
