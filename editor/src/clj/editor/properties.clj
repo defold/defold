@@ -4,6 +4,7 @@
             [cognitect.transit :as transit]
             [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
+            [util.murmur :as murmur]
             [editor.types :as t]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
@@ -228,13 +229,13 @@
             value (str->go-prop (:value prop) type)
             value (case type
                     (:property-type-number :property-type-url) [value]
-                    :property-type-hash [(protobuf/hash64 value)]
+                    :property-type-hash [(murmur/hash64 value)]
                     :property-type-boolean [(if value 1.0 0.0)]
                     :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
                     value)
             [entry-key values-key] (type->entry-keys type)
             entry {:key (:id prop)
-                   :id (protobuf/hash64 (:id prop))
+                   :id (murmur/hash64 (:id prop))
                    :index (count (get decl values-key))}]
         (recur (rest properties)
                (-> decl
@@ -353,17 +354,19 @@
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))}))
 
 (defn values [property]
-  (mapv (fn [value default-value]
-          (if-not (nil? value)
-            value
-            default-value))
-        (:values property)
-        (:original-values property (repeat nil))))
+  (let [f (get-in property [:edit-type :to-type] identity)]
+    (mapv (fn [value default-value]
+            (f (if-not (nil? value)
+                 value
+                 default-value)))
+          (:values property)
+          (:original-values property (repeat nil)))))
 
 (defn- set-values [basis property values]
   (let [key (:key property)
-        set-fn (get-in property [:edit-type :set-fn])]
-    (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) values)]
+        set-fn (get-in property [:edit-type :set-fn])
+        from-fn (get-in property [:edit-type :from-type] identity)]
+    (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) (map from-fn values))]
       (cond
         set-fn (set-fn basis node-id old-value new-value)
         (vector? key) (g/update-property node-id (first key) assoc-in (rest key) new-value)
@@ -464,3 +467,8 @@
   {:type t/Vec2
    :from-type (fn [[x y _]] [x y])
    :to-type (fn [[x y]] [x y default-z])})
+
+(defn quat->euler []
+  {:type t/Vec3
+   :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
+   :to-type (fn [v] (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))})

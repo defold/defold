@@ -21,13 +21,19 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.RigScene;
+import com.dynamo.bob.util.RigScene.LoadException;
+import com.dynamo.bob.util.RigScene.UVTransformProvider;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.gui.proto.Gui.NodeDesc;
+import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Type;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc.SpineSceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
@@ -56,6 +62,14 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     templateList.add(n.getTemplate());
                     taskBuilder.addInput(this.project.getResource(n.getTemplate()));
                 }
+            }
+        }
+
+        List<String> spineSceneList = new ArrayList<>();
+        for (SpineSceneDesc f : builder.getSpineScenesList()) {
+            if(!f.getSpineScene().isEmpty() && !spineSceneList.contains(f.getSpineScene())) {
+                spineSceneList.add(f.getSpineScene());
+                taskBuilder.addInput(this.project.getResource(f.getSpineScene()));
             }
         }
 
@@ -186,7 +200,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> fontNames, Set<String> textureNames, Set<String> layerNames) throws CompileExceptionError {
+    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> fontNames, Set<String> spineSceneNames, Set<String> textureNames, Set<String> layerNames) throws CompileExceptionError {
         if(builder == null) {
             return;
         }
@@ -198,6 +212,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         if (n.hasFont() && !n.getFont().isEmpty()) {
             if (!fontNames.contains(n.getFont())) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
+            }
+        }
+        if (n.hasSpineScene() && !n.getSpineScene().isEmpty()) {
+            if (!spineSceneNames.contains(n.getSpineScene())) {
+                throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_SPINESCENE, n.getSpineScene()));
             }
         }
         if (n.hasLayer() && !n.getLayer().isEmpty()) {
@@ -299,9 +318,12 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         // register resources
         Set<String> fontNames = new HashSet<String>();
         List<FontDesc> newFontList = new ArrayList<FontDesc>();
+        Set<String> spineSceneNames = new HashSet<String>();
+        List<SpineSceneDesc> newSpineSceneList = new ArrayList<SpineSceneDesc>();
         Set<String> textureNames = new HashSet<String>();
         List<TextureDesc> newTextureList = new ArrayList<TextureDesc>();
         Set<String> layerNames = new HashSet<String>();
+
         if(builder != null) {
             // transform and register scene external resources (if compiling)
             sceneBuilder.setScript(BuilderUtil.replaceExt(sceneBuilder.getScript(), ".gui_script", ".gui_scriptc"));
@@ -315,6 +337,16 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 fontNames.add(f.getName());
                 newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(BuilderUtil.replaceExt(f.getFont(), ".font", ".fontc")).build());
             }
+
+            for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
+                if (spineSceneNames.contains(f.getName())) {
+                    throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_SPINESCENE,
+                            f.getName()));
+                }
+                spineSceneNames.add(f.getName());
+                newSpineSceneList.add(SpineSceneDesc.newBuilder().mergeFrom(f).setSpineScene(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".rigscenec")).build());
+            }
+
             for (TextureDesc f : sceneBuilder.getTexturesList()) {
                 if (textureNames.contains(f.getName())) {
                     throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_TEXTURE,
@@ -337,6 +369,10 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             for (FontDesc f : sceneBuilder.getFontsList()) {
                 fontNames.add(f.getName());
                 newFontList.add(f);
+            }
+            for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
+                spineSceneNames.add(f.getName());
+                newSpineSceneList.add(f);
             }
             for (TextureDesc f : sceneBuilder.getTexturesList()) {
                 textureNames.add(f.getName());
@@ -377,11 +413,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
             // add current scene nodes
             newScene.get("").add(node);
-            validateNodeResources(node, builder, input, fontNames, textureNames, layerNames);
+            validateNodeResources(node, builder, input, fontNames, spineSceneNames, textureNames, layerNames);
             for(String layout : layouts) {
                 NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
-                    validateNodeResources(n, builder, input, fontNames, textureNames, layerNames);
+                    validateNodeResources(n, builder, input, fontNames, spineSceneNames, textureNames, layerNames);
                     newScene.get(layout).add(n);
                 }
             }
@@ -438,12 +474,90 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     fontNames.add(f.getName());
                     newFontList.add(f);
                 }
+                for (SpineSceneDesc f : templateBuilder.getSpineScenesList()) {
+                    if (spineSceneNames.contains(f.getName())) {
+                        continue;
+                    }
+                    spineSceneNames.add(f.getName());
+                    newSpineSceneList.add(f);
+                }
                 for (TextureDesc f : templateBuilder.getTexturesList()) {
                     if (textureNames.contains(f.getName())) {
                         continue;
                     }
                     textureNames.add(f.getName());
                     newTextureList.add(f);
+                }
+
+            } else if(node.getType() == Type.TYPE_SPINE) {
+
+                // If compiling we need to add child nodes for all bones
+                if (builder != null) {
+
+                    // Expand spine node
+                    String spineNodeId = node.getId();
+                    String spineSceneId = node.getSpineScene();
+                    String spineScenePath = null;
+                    for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
+                        if (f.getName().equals(spineSceneId)) {
+                            spineScenePath = f.getSpineScene();
+                            break;
+                        }
+                    }
+                    if (spineScenePath == null) {
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "Could not generate bone nodes from invalid spine scene: " + spineSceneId);
+                    }
+
+                    // Need to parse the spine JSON
+                    com.dynamo.spine.proto.Spine.SpineSceneDesc.Builder spineSceneBuilder = com.dynamo.spine.proto.Spine.SpineSceneDesc.newBuilder();
+                    IResource spineSceneRes = builder.project.getResource(spineScenePath);
+                    TextFormat.merge(new InputStreamReader(new ByteArrayInputStream(spineSceneRes.getContent()), "ASCII"), spineSceneBuilder);
+
+                    IResource jsonRes = builder.project.getResource(spineSceneBuilder.getSpineJson());
+                    try {
+                        RigScene rigScene = RigScene.loadJson(new ByteArrayInputStream(jsonRes.getContent()), new UVTransformProvider() {
+                            @Override
+                            public UVTransform getUVTransform(String animId) {
+                                return new UVTransform();
+                            }
+                        });
+
+                        Vector4 oneV4 = Vector4.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).setW(0.0f).build();
+                        Vector4 zeroV4 = Vector4.newBuilder().setX(0.0f).setY(0.0f).setZ(0.0f).setW(0.0f).build();
+
+                        HashMap<RigScene.Bone,String> boneToId = new HashMap<RigScene.Bone, String>();
+                        for (int b = 0; b < rigScene.bones.size(); b++) {
+                            RigScene.Bone bone = rigScene.bones.get(b);
+                            NodeDesc.Builder boneNodeBuilder = NodeDesc.newBuilder();
+
+                            String id = spineNodeId + "/" + bone.name;
+                            boneToId.put(bone, id);
+
+                            boneNodeBuilder.setId(id);
+                            boneNodeBuilder.setSpineNodeChild(true);
+                            boneNodeBuilder.setSize(zeroV4);
+                            boneNodeBuilder.setPosition(zeroV4);
+                            boneNodeBuilder.setType(Type.TYPE_BOX);
+                            boneNodeBuilder.setAdjustMode(node.getAdjustMode());
+                            boneNodeBuilder.setScale(oneV4);
+
+                            String parentId = boneToId.get(bone.parent);
+                            if (b == 0) {
+                                parentId = spineNodeId;
+                            }
+                            boneNodeBuilder.setParent(parentId);
+
+                            NodeDesc boneNode = boneNodeBuilder.build();
+                            newScene.get("").add(boneNode);
+                            for(LayoutDesc layout : sceneBuilder.getLayoutsList()) {
+                                newScene.get(layout.getName()).add(boneNode);
+                            }
+                        }
+
+                    } catch (LoadException e) {
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "Error while loading spine scene when building GUI: " + e.getLocalizedMessage());
+                    }
+
                 }
             }
         }
@@ -469,6 +583,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         sceneBuilder.clearFonts();
         sceneBuilder.addAllFonts(newFontList);
+
+        sceneBuilder.clearSpineScenes();
+        sceneBuilder.addAllSpineScenes(newSpineSceneList);
 
         sceneBuilder.clearTextures();
         sceneBuilder.addAllTextures(newTextureList);

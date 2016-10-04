@@ -1,0 +1,6 @@
+font: "/fonts/justov.ttf"
+material: "/builtins/fonts/font.material"
+size: 36
+shadow_alpha: 1.0
+shadow_blur: 2
+extra_characters: "\303\245\303\244\303\266\303\205\303\204\303\226\342\200\224"

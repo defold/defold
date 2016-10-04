@@ -4,7 +4,8 @@
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui])
-  (:import  [javafx.stage Stage]
+  (:import  [com.sun.javafx.tk Toolkit]
+            [javafx.stage Stage]
             [javafx.scene.input Clipboard KeyEvent KeyCode MouseEvent]))
 
 (set! *warn-on-reflection* true)
@@ -74,6 +75,7 @@
   (propose [this]))
 
 (def mappings
+  ;; Shortcut is Ctrl on Windows, so mapping Shortcut+X will shadow Ctrl+X.
   {
   ;;;movement
   :Up                    {:command :up}
@@ -121,10 +123,8 @@
 
   ;; find
   :Shortcut+F            {:command :find-text               :label "Find Text"                       :group "Find" :order 1}
-  :Shortcut+K            {:command :find-next               :label "Find Next"                       :group "Find" :order 2}
-  :Shortcut+G            {:command :find-next}
-  :Shift+Shortcut+K      {:command :find-prev               :label "Find Prev"                       :group "Find" :order 3}
-  :Shift+Shortcut+G      {:command :find-prev}
+  :Shortcut+G            {:command :find-next               :label "Find Next"                       :group "Find" :order 2}
+  :Shift+Shortcut+G      {:command :find-prev               :label "Find Prev"                       :group "Find" :order 3}
 
   ;; Replace
   :Shortcut+E            {:command :replace-text            :label "Replace"                         :group "Replace" :order 1}
@@ -156,8 +156,16 @@
 
   ;;Indentation
   :Shortcut+I            {:command :indent                  :label "Indent"                           :group "Indent" :order 1}
-
 })
+
+
+;; Finding overlaps...
+;; 
+;;  (def overlapping-mappings
+;;    (let [combos (map (comp #(string/split % #"[+]") name) (keys mappings))
+;;          ctrl-common (map set (map (partial replace {"Ctrl" "Ctrl/Shortcut"}) combos))
+;;          shortcut-common (map set (map (partial replace {"Shortcut" "Ctrl/Shortcut"}) combos))]
+;;      (filter #(contains? % "Ctrl/Shortcut") (clojure.set/intersection (set ctrl-common) (set shortcut-common)))))
 
 (def proposal-key-triggers #{"."})
 
@@ -210,23 +218,40 @@
   {:event e
    :key-code (.getCode ^KeyEvent e)
    :control? (.isControlDown ^KeyEvent e)
-   :meta? (.isShortcutDown ^KeyEvent e)
+   :shortcut? (.isShortcutDown ^KeyEvent e)
    :alt? (.isAltDown ^KeyEvent e)
    :shift? (.isShiftDown ^KeyEvent e)})
 
 (defn- add-modifier [code-str info modifier-key modifier-str]
   (if (get info modifier-key) (str modifier-str code-str) code-str))
 
+(def shortcut-is-ctrl? (= (.getPlatformShortcutKey (Toolkit/getToolkit)) KeyCode/CONTROL))
+
 ;; potentially slow with each new keyword that is created
-(defn- key-fn [info code]
-  (let [code (-> (.getName ^KeyCode code)
-                 (string/replace #" " "-")
-                 (add-modifier info :meta? "Shortcut+")
-                 (add-modifier info :alt? "Alt+")
-                 (add-modifier info :control? "Ctrl+")
-                 (add-modifier info :shift? "Shift+")
-                 (keyword))]
-    (get mappings code)))
+(defn- key-fn [info]
+  (let [key-code-name (-> ^KeyCode (:key-code info)
+                          (.getName)
+                          (string/replace #" " "-"))]
+    (if shortcut-is-ctrl?
+      (let [shortcut-chord (-> key-code-name
+                               (add-modifier info :shortcut? "Shortcut+")
+                               (add-modifier info :alt? "Alt+")
+                               (add-modifier info :shift? "Shift+")
+                               (keyword))
+            ctrl-chord (-> key-code-name
+                           (add-modifier info :alt? "Alt+")
+                           (add-modifier info :control? "Ctrl+")
+                           (add-modifier info :shift? "Shift+")
+                           (keyword))]
+        (or (get mappings shortcut-chord)
+            (get mappings ctrl-chord)))
+      (let [key-chord (-> key-code-name
+                          (add-modifier info :shortcut? "Shortcut+")
+                          (add-modifier info :alt? "Alt+")
+                          (add-modifier info :control? "Ctrl+")
+                          (add-modifier info :shift? "Shift+")
+                          (keyword))]
+        (get mappings key-chord)))))
 
 (defn- click-fn [click-count]
   (let [code (case (int click-count)
@@ -250,7 +275,7 @@
 
 (defn handle-key-pressed [^KeyEvent e source-viewer]
   (let [k-info (info e)
-        kf (key-fn k-info (.getCode e))]
+        kf (key-fn k-info)]
     (when (and (not (.isConsumed e)) (:command kf) (not (:label kf)))
       (handler-run
        (:command kf)
@@ -335,7 +360,7 @@
   (enabled? [selection] (editable? selection))
   (run [selection clipboard]
     (when-let [clipboard-text (text clipboard)]
-      (let [code (code/lf-normalize-line-endings (text selection))
+      (let [clipboard-text (code/lf-normalize-line-endings clipboard-text)
             caret (caret selection)]
         (if (pos? (selection-length selection))
           (replace-text-selection selection clipboard-text)

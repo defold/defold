@@ -1,10 +1,37 @@
-## JavaFX Clojure Editor
+# JavaFX Clojure Editor
 
-### Requirements
+## Requirements
 * Java 1.8
 * Leiningen
 
-### Environment Setup
+## Windows
+
+First of all, follow the Windows instructions in [Defold Readme](../README.md)
+
+* Start `msys.bat` as described
+* Download the lein _script_ from [Leiningen.org](leiningen.org) Put it somewhere in your (msys) path - if you're lazy, put it in `C:\MinGW\msys\1.0\bin`
+* Run `lein` in the `editor` subdirectory
+  This will attempt to download leiningen and dependencies to your home directory.
+
+  - If this fails with message
+
+          Could not find or load main class clojure.main
+
+    Try pointing your `HOME` environment variable to your “windows home”. For instance change it from `/home/Erik.Angelin` (msys) to `/c/Users/erik.angelin`:
+
+        export HOME="/c/Users/erik.angelin"
+
+    The problem seems to be that the (windows) java class path points to an invalid home directory.
+  
+  - If this fails because the github certificate cannot be verified, a hacky workaround is as follows:
+    - open `lein.sh` with notepad
+    - search for `wget`, you should get a hit near `HTTP_CLIENT` definition
+    - stick in a `--no-check-certificate` flag
+    - save, retry
+* Follow the OS X/Linux instructions!
+
+## OS X/Linux
+
 * `cd` to the `defold` directory
 * run `./scripts/build.py shell`
 

@@ -88,7 +88,8 @@ namespace dmGameSystem
             // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
             if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
             {
-                lua_unref(data.m_L, data.m_LuaCallbackRef);
+                dmScript::Unref(data.m_L, LUA_REGISTRYINDEX, data.m_LuaCallbackRef);
+                dmScript::Unref(data.m_L, LUA_REGISTRYINDEX, data.m_LuaSelfRef);
                 data.m_LuaCallbackRef = LUA_NOREF;
                 data.m_LuaSelfRef = LUA_NOREF;
             }
@@ -149,11 +150,11 @@ namespace dmGameSystem
 
         if (top > 1 && !lua_isnil(L, 2))
         {
-            int callback = luaL_ref(L, LUA_REGISTRYINDEX); // pops value from lua stack
+            int callback = dmScript::Ref(L, LUA_REGISTRYINDEX); // pops value from lua stack
             lua_pushnil(L); // push nil to lua stack to restore stack size (necessary? or just ditch the assert below?)
 
             dmScript::GetInstance(L);
-            int self = luaL_ref(L, LUA_REGISTRYINDEX);
+            int self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
             // path-only url (e.g. "/level/particlefx") has empty fragment, and relative path (e.g. "#particlefx") has non-empty fragment.
             if(receiver.m_Fragment == 0)
@@ -185,7 +186,8 @@ namespace dmGameSystem
             (uintptr_t)instance,
             (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor,
             (void*)msg_buf,
-            msg_size);
+            msg_size,
+            0);
 
         assert(top == lua_gettop(L));
         return 0;
@@ -224,7 +226,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size, 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -273,7 +275,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -317,7 +319,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg));
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

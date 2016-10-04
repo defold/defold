@@ -96,7 +96,7 @@ namespace dmEngine
         }
         else
         {
-            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resized, data_size);
+            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resized, data_size, 0);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);
@@ -548,6 +548,8 @@ namespace dmEngine
             return false;
         }
 
+        dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
+
         dmArray<dmScript::HContext>& module_script_contexts = engine->m_ModuleContext.m_ScriptContexts;
 
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
@@ -659,9 +661,11 @@ namespace dmEngine
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
         gui_params.m_HidContext = engine->m_HidContext;
+        gui_params.m_RigContext = engine->m_RigContext;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
+        engine->m_GuiContext.m_RigContext = engine->m_RigContext;
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(engine->m_Config, "physics.type", "2D");
@@ -910,6 +914,21 @@ bail:
         return a_is_text - b_is_text;
     }
 
+    static uint32_t GetLuaMemCount(HEngine engine)
+    {
+        uint32_t memcount = 0;
+        if (engine->m_SharedScriptContext) {
+            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_SharedScriptContext));
+        } else {
+            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GOScriptContext));
+            if (engine->m_GuiContext.m_GuiContext != 0x0)
+            {
+                memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
+            }
+        }
+        return memcount;
+    }
+
     void Step(HEngine engine)
     {
         engine->m_Alive = true;
@@ -974,6 +993,12 @@ bail:
             dmProfile::HProfile profile = dmProfile::Begin();
             {
                 DM_PROFILE(Engine, "Frame");
+
+                if (dLib::IsDebugMode() && engine->m_ShowProfile)
+                {
+                    DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
+                    DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
+                }
 
                 // We had buffering problems with the output when running the engine inside the editor
                 // Flushing stdout/stderr solves this problem.
