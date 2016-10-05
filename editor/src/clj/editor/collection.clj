@@ -722,7 +722,7 @@
                                                 (concat
                                                  (g/operation-label "Add Collection")
                                                  (g/operation-sequence op-seq)
-                                                 (add-collection-instance coll-node resource id [0 0 0] [0 0 0] [1 1 1] []))))]
+                                                 (add-collection-instance coll-node resource id [0 0 0] [0 0 0 1] [1 1 1] []))))]
                                         ; Selection
                          (g/transact
                           (concat
