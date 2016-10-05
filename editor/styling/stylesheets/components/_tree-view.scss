@@ -1,0 +1,37 @@
+.tree-view {
+    -fx-background-color: $bright-black;
+}
+
+.tree-cell {
+    -fx-background-color: $bright-black;
+    &:filled {
+        -fx-padding: 5;
+        -fx-border-width: 0 0 1 0;
+        -fx-border-color: $bright-black;
+
+        &:hover {
+            -fx-background-color: $dark-black;
+        }
+        &:selected {
+            -fx-background-color: rgba(38, 74, 139, 0.5);
+            &:hover {
+                -fx-background-color: $selected-blue;
+                -fx-text-fill: $defold-white; 
+            }
+        }
+        &.first-tree-item {
+            -fx-border-insets: 0 0 0 0;
+            -fx-padding: 6 0 5 0;
+            -fx-background-insets: 0 0 0 0;
+            &.last-tree-item {
+                -fx-border-insets: 0 0 0 0;
+                -fx-padding: 6 0 5 0;
+                -fx-background-insets: 0 0 0 0;
+            }
+        }
+        &.last-tree-item {
+            -fx-border-insets: 0 0 0 0;
+            -fx-background-insets: 0 0 0 0; 
+        }
+    }
+}
