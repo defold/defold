@@ -6,6 +6,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import javax.vecmath.Point3d;
@@ -13,8 +14,9 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 
 import org.eclipse.swt.widgets.Display;
-import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 import org.junit.Test;
+
+import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.AnimationTrack;
@@ -32,14 +34,23 @@ public class ColladaUtilTest {
         }
     }
 
+    private List<Float> bake(List<Integer> indices, List<Float> values, int elemCount) {
+        List<Float> result = new ArrayList<Float>(indices.size() * elemCount);
+        for (Integer idx : indices) {
+            for (int offset = 0; offset < elemCount; ++offset) {
+                result.add(values.get(idx * elemCount + offset));
+            }
+        }
+        return result;
+    }
 
     @Test
     public void testMayaQuad() throws Exception {
         Mesh.Builder mesh = Mesh.newBuilder();
         ColladaUtil.loadMesh(getClass().getResourceAsStream("maya_quad.dae"), mesh);
-        List<Float> pos = mesh.getPositionsList();
-        List<Float> nrm = mesh.getNormalsList();
-        List<Float> uvs = mesh.getTexcoord0List();
+        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
+        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
+        List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
         assertThat(2 * 3 * 3, is(pos.size()));
         assertThat(2 * 3 * 3, is(nrm.size()));
 
@@ -57,12 +68,12 @@ public class ColladaUtilTest {
         assertNrm(nrm, 4, 0, 0, 1);
         assertNrm(nrm, 5, 0, 0, 1);
 
-        assertUV(uvs, 0, 0, 0);
-        assertUV(uvs, 1, 1, 0);
-        assertUV(uvs, 2, 0, 1);
-        assertUV(uvs, 3, 0, 1);
-        assertUV(uvs, 4, 1, 0);
-        assertUV(uvs, 5, 1, 1);
+        assertUV(uvs, 0, 0, 1);
+        assertUV(uvs, 1, 1, 1);
+        assertUV(uvs, 2, 0, 0);
+        assertUV(uvs, 3, 0, 0);
+        assertUV(uvs, 4, 1, 1);
+        assertUV(uvs, 5, 1, 0);
     }
 
     @Test
@@ -70,11 +81,13 @@ public class ColladaUtilTest {
         Mesh.Builder mesh = Mesh.newBuilder();
         ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"), mesh);
 
-        List<Float> pos = mesh.getPositionsList();
-        List<Float> nrm = mesh.getNormalsList();
-        List<Float> uvs = mesh.getTexcoord0List();
+        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
+        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
+        List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
+
         assertThat(2 * 3 * 3, is(pos.size()));
         assertThat(2 * 3 * 3, is(nrm.size()));
+        assertThat(2 * 3 * 2, is(uvs.size()));
 
         assertVtx(pos, 0, -100, -100);
         assertVtx(pos, 1, 100, -100);
@@ -101,9 +114,9 @@ public class ColladaUtilTest {
     @Test
     public void testBlenderAnimations() throws Exception {
         Skeleton.Builder skeleton = Skeleton.newBuilder();
-        ColladaUtil.loadSkeleton(getClass().getResourceAsStream("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
+        ArrayList<org.jagatoo.loaders.models.collada.datastructs.animation.Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
         AnimationSet.Builder animation = AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(getClass().getResourceAsStream("blender_animated_cube.dae"), animation, skeleton.clone().build(), 16.0f, new ArrayList<String>());
+        ColladaUtil.loadAnimations(getClass().getResourceAsStream("blender_animated_cube.dae"), animation, bones, 16.0f, new ArrayList<String>());
         //assert(0.0, animation.getDuration());
         assertEquals(1, animation.getAnimationsCount());
     }
@@ -140,43 +153,38 @@ public class ColladaUtilTest {
         Mesh.Builder mesh = Mesh.newBuilder();
         ColladaUtil.loadMesh(getClass().getResourceAsStream("simple_anim.dae"), mesh);
 
+        String[] boneIds   = {"root", "l_hip", "l_knee", "l_ankle", "l_null_toe", "pelvis", "spine",  "l_humerus", "l_ulna",    "l_wrist", "r_humerus", "r_ulna",    "r_wrist", "neck",  "null_head", "r_hip", "r_knee", "r_ankle", "r_null_toe"};
+        String[] parentIds = {null,   "root",  "l_hip",  "l_knee",  "l_ankle",    "root",   "pelvis", "spine",     "l_humerus", "l_ulna",  "spine",     "r_humerus", "r_ulna",  "spine", "neck",      "root",  "r_hip",  "r_knee",  "r_ankle"};
+
         Skeleton.Builder skeleton = Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
         List<Bone> bones = skeleton.getBonesList();
-        assertEquals(65535, bones.get(0).getParent()); // fake root
-        assertEquals(0,     bones.get(1).getParent()); // "real" root
-        assertEquals(1,     bones.get(2).getParent());
-        assertEquals(2,     bones.get(3).getParent());
-        assertEquals(3,     bones.get(4).getParent());
-        assertEquals(4,     bones.get(5).getParent());
-        assertEquals(1,     bones.get(6).getParent());
-        assertEquals(6,     bones.get(7).getParent());
-        assertEquals(7,     bones.get(8).getParent());
-        assertEquals(8,     bones.get(9).getParent());
-        assertEquals(9,     bones.get(10).getParent());
-        assertEquals(7,     bones.get(11).getParent());
-        assertEquals(11,    bones.get(12).getParent());
-        assertEquals(12,    bones.get(13).getParent());
-        assertEquals(7,     bones.get(14).getParent());
-        assertEquals(14,    bones.get(15).getParent());
-        assertEquals(1,     bones.get(16).getParent());
-        assertEquals(16,    bones.get(17).getParent());
-        assertEquals(17,    bones.get(18).getParent());
-        assertEquals(18,    bones.get(19).getParent());
+        assertEquals(boneIds.length, bones.size());
+        HashMap<String,Integer> idToIndex = new HashMap<String,Integer>();
+        for (int index = 0; index < boneIds.length; ++index) {
+            idToIndex.put(boneIds[index], index);
+        }
+        for (int index = 0; index < boneIds.length; ++index) {
+            Bone bone = bones.get(index);
+            long id = MurmurHash.hash64(boneIds[index]);
+            assertEquals(id, bone.getId());
+            assertEquals(idToIndex.getOrDefault(parentIds[index], 65535).intValue(), bone.getParent());
+        }
     }
 
-    @Test
+    /* Currently throws exception due to lack of support for anim clips */
+    @Test(expected=LoaderException.class)
     public void testAnimClip() throws Exception {
         Skeleton.Builder skeleton = Skeleton.newBuilder();
-        ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
+        ArrayList<org.jagatoo.loaders.models.collada.datastructs.animation.Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
         AnimationSet.Builder animation = AnimationSet.newBuilder();
         ArrayList<String> idList1 = new ArrayList<String>();
-        ColladaUtil.loadAnimations(getClass().getResourceAsStream("simple_anim.dae"), animation, skeleton.clone().build(), 16.0f, idList1);
+        ColladaUtil.loadAnimations(getClass().getResourceAsStream("simple_anim.dae"), animation, bones, 16.0f, idList1);
         ArrayList<String> idList2 = new ArrayList<String>();
         ColladaUtil.loadAnimationIds(getClass().getResourceAsStream("simple_anim.dae"), idList2);
         assertEquals(true, idList1.equals(idList2));
     }
-    
+
     private static void quatToEuler(Quat4d quat, Tuple3d euler) {
         double heading;
         double attitude;

@@ -299,48 +299,7 @@ public class ColladaUtil {
         XMLLibraryAnimations libraryAnimation = collada.libraryAnimations.get(0);
 
         if(!animClips.isEmpty()) {
-            Collection<XMLAnimation> anims = collada.libraryAnimations.get(0).animations.values();
-            Iterator<Entry<String, XMLAnimationClip>> clipIt = animClips.get(0).animationClips.entrySet().iterator();
-            while (clipIt.hasNext()) {
-
-                XMLAnimationClip clip = (XMLAnimationClip)clipIt.next().getValue();
-                String clipName = null;
-                if (clip.name != null) {
-                    clipName = clip.name;
-                } else if (clip.id != null) {
-                    clipName = clip.id;
-                } else {
-                    throw new LoaderException("Animation clip lacks name and id.");
-                }
-
-                // Create a boneToAnimation lookup for the current clip
-                HashMap<String, ArrayList<XMLAnimation>> boneToAnimations = new HashMap<String, ArrayList<XMLAnimation>>();
-                for (int ci = 0; ci < clip.animations.size(); ci++) {
-                    XMLInstanceAnimation inst = clip.animations.get(ci);
-                    XMLAnimation animation = libraryAnimation.animations.get(inst.url);
-
-                    if(animation == null) {
-                        throw new LoaderException("Animation clip instance not found: " + inst.url);
-                    }
-
-                    String targetPath = animation.channels.get(0).target;
-                    String[] targetParts = targetPath.split("/");
-                    String boneTarget = targetParts[0];
-                    String propertyTarget = targetParts[1];
-
-                    if (!boneToAnimations.containsKey(animation.getTargetBone())) {
-                        boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
-                    }
-                    boneToAnimations.get(boneTarget).add(animation);
-                }
-
-                RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
-                boneAnimToDDF(collada, animBuilder, boneList, boneToAnimations, (float)(clip.end-clip.start), sampleRate);
-                animBuilder.setId(MurmurHash.hash64(clipName));
-                animationIds.add(clipName);
-                animationSetBuilder.addAnimations(animBuilder.build());
-
-            }
+            throw new LoaderException("Anmation clips are currently not supported.");
         } else {
             float totalAnimationLength = 0.0f;
             HashMap<String, ArrayList<XMLAnimation>> boneToAnimations = new HashMap<String, ArrayList<XMLAnimation>>();
