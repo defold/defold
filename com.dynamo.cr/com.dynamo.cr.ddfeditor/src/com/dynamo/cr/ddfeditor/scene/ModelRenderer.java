@@ -42,6 +42,10 @@ public class ModelRenderer implements INodeRenderer<ModelNode> {
         FloatBuffer pos = mesh.getPositions();
         FloatBuffer texCoords0 = mesh.getTexCoords0();
 
+        if(pos == null || texCoords0 == null) {
+            return;
+        }
+
         GL2 gl = renderContext.getGL();
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
 
