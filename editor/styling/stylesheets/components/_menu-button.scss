@@ -1,0 +1,23 @@
+.menu-button {
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+    -fx-background-color: $dark-grey;
+    -fx-background-insets: 0;
+    -fx-border-color: $mid-grey;
+    &:hover {
+        -fx-background-color: $dark-black;
+    }
+    &:showing {
+        -fx-background-color: $dark-grey;
+        -fx-text-fill: $defold-white;
+        .arrow {
+            -fx-background-color: $defold-white;
+        }
+        .label {
+            -fx-text-fill: $defold-white;
+        }
+    }
+    .label {
+        -fx-text-fill: $bright-grey;
+    }
+}

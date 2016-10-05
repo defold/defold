@@ -1,0 +1,37 @@
+.scroll-bar {
+    -fx-background-color: $dark-black;
+    &:horizontal {
+        >.thumb {
+            -fx-background-insets: 2px 5px 3px 5px;
+        }
+        .increment-button, .decrement-button {
+            -fx-padding: 0 0 10 0;
+        }
+    }
+    &:vertical {
+        >.thumb {
+            -fx-background-insets: 5px 3px 5px 2px;
+        }
+        .increment-button, .decrement-button {
+            -fx-padding: 0 10 0 0;
+        }
+    }
+    .thumb {
+        -fx-background-color: $dark-grey;
+        -fx-background-radius: 2em;
+        &:hover {
+            -fx-background-color: $bright-grey;
+        }
+        &:pressed {
+            -fx-background-color: $defold-white;
+        }
+    }
+    .increment-button, .decrement-button {
+        -fx-background-color: transparent;
+        -fx-background-radius: 0;
+    }
+    .increment-arrow, .decrement-arrow {
+        -fx-shape: " ";
+        -fx-padding: 0.0;
+    }
+}

@@ -1,0 +1,33 @@
+.form { 
+    .section-label {
+        -fx-font-size: 16pt;
+        -fx-text-fill: $defold-white;
+    }
+    .help-line {
+        -fx-text-fill: $bright-grey;
+    }
+    .inline-editor {
+        -fx-border-width: 0;
+    }
+    .editing-cell {
+        -fx-padding: 0;
+    }
+}
+
+.field-error {
+    -fx-border-width: 1 !important;
+    -fx-border-color: $defold-red !important;
+    -fx-effect: none !important;
+}
+
+.field-warning {
+    -fx-border-width: 1 !important;
+    -fx-border-color: $defold-yellow !important;
+    -fx-effect: none !important;
+}
+
+.field-info {
+    -fx-border-width: 1 !important;
+    -fx-border-color: $defold-light-blue !important;
+    -fx-effect: none !important;
+}

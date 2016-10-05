@@ -1,0 +1,25 @@
+.color-picker {
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+    -fx-background-color: $dark-grey;
+    -fx-background-insets: 0;
+    -fx-border-color: $mid-grey;
+    &:hover {
+        -fx-background-color: $dark-black;
+    }
+    &:showing {
+        -fx-background-color: $dark-grey;
+        -fx-color: $defold-white;
+    }
+    &:showing .arrow {
+        -fx-background-color: $defold-white;
+    }
+    .label {
+        -fx-text-fill: $bright-grey;
+    }
+}
+.color-palette {
+  -fx-background-radius: 3;
+  -fx-border-radius: 3;
+  -fx-border-color: $mid-grey;
+  -fx-background-color: $dark-grey; }
