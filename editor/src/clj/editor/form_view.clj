@@ -691,8 +691,8 @@
       (concat
         (g/connect resource-node :form-data view-id :form-data)))
     (ui/timer-start! repainter)
-    (ui/timer-stop-on-close! ^Tab (:tab opts) repainter)
-    (ui/timer-stop-on-close! (ui/parent->stage parent) repainter)
+    (ui/timer-stop-on-closed! ^Tab (:tab opts) repainter)
+    (ui/timer-stop-on-closed! (ui/parent->stage parent) repainter)
     view-id))
 
 (defn- make-form-view [graph ^Parent parent resource-node opts]
