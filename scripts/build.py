@@ -224,10 +224,13 @@ class Configuration(object):
         return path
 
     def _install_go(self):
-        urls = {'darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
-                'linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
-                'x86_64-linux' : 'http://go.googlecode.com/files/go1.1.linux-amd64.tar.gz',
-                'win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
+        urls = {
+            'darwin'       : 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
+            'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
+            'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
+            'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
+        }
+
         url = urls[self.host]
         path = self._download(url)
         self._extract(path, self.ext)
@@ -477,11 +480,16 @@ class Configuration(object):
             self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def build_go(self):
-        # TODO: shell=True is required only on windows
-        # otherwise it fails. WHY?
+        # TODO: shell=True is required only on windows otherwise it fails. WHY?
+
+        self.exec_env_command('go clean -i github.com/...', shell=True)
+        self.exec_env_command('go install github.com/...', shell=True)
+
+        self.exec_env_command('go clean -i defold/...', shell=True)
         if not self.skip_tests:
             self.exec_env_command('go test defold/...', shell=True)
         self.exec_env_command('go install defold/...', shell=True)
+
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
 
