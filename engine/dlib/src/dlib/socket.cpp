@@ -601,15 +601,15 @@ namespace dmSocket
     {
 #ifdef __ANDROID__
         // NOTE: This method should probably be used on Linux as well
-        // fall-back to 127.0.0.1
+        // We just fall-back to localhost
         dmSocket::GetHostByName("localhost", address);
 
         struct ifreq *ifr;
         struct ifconf ifc;
-        char buf[2048];
+        char buf[2048] = { 0 };
         int s = socket(AF_INET, SOCK_DGRAM, 0);
         if (s < 0) {
-            // We just fall-back to 127.0.0.1
+            // We just fall-back to localhost
             return RESULT_OK;
         }
 
@@ -618,7 +618,7 @@ namespace dmSocket
         ifc.ifc_ifcu.ifcu_req = ifr;
         ifc.ifc_len = sizeof(buf);
         if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
-            // We just fall-back to 127.0.0.1
+            // We just fall-back to localhost
             return RESULT_OK;
         }
 
@@ -630,7 +630,14 @@ namespace dmSocket
             struct sockaddr_in *sin = (struct sockaddr_in *)&r->ifr_addr;
             if (strcmp(r->ifr_name, "lo") != 0)
             {
-                *IPv4(address) = sin->sin_addr.s_addr;
+                if (r->ifr_addr.sa_family == AF_INET)
+                {
+                    // This is used exclusively for SSDP, and our current SSDP
+                    // implementation does not support IPv6. Therefore we'll
+                    // only manage IPv4 interfaces.
+                    address->m_family = DOMAIN_IPV4;
+                    *IPv4(address) = sin->sin_addr.s_addr;
+                }
             }
         }
 
@@ -643,7 +650,7 @@ namespace dmSocket
          * over network adapter to the find actual address for en0
          * See socket_cocoa.mm
          */
-        char hostname[256];
+        char hostname[256] = { 0 };
         Result r = dmSocket::GetHostname(hostname, sizeof(hostname));
         if (r != dmSocket::RESULT_OK)
             return r;
