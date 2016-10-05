@@ -1,0 +1,63 @@
+.combo-box {
+    -fx-background-radius: 0px;
+    -fx-border-radius: 0px;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    &:hover {
+        >.list-cell {
+            -fx-border-width: 1 0 1 1;
+            -fx-border-color: $mid-grey;
+            -fx-text-fill: $defold-white;
+        }
+    }
+    &:showing {
+        .arrow {
+            -fx-background-color: $defold-white;
+            -fx-rotate: 180;
+        }
+        >.list-cell {
+            -fx-border-width: 1 1 1 1;
+            -fx-border-color: $bright-grey;
+            -fx-text-fill: $defold-white;
+        }
+        .list-view {
+            -fx-border-color: $bright-grey;
+        }
+    }
+    .list-view {
+        -fx-min-width: 10em;
+        -fx-background-color: $dark-black;
+        -fx-border-width: 1;
+        -fx-border-color: $mid-grey;
+        -fx-border-insets: 0 24 0 0;
+        -fx-background-insets: 0 24 0 0;
+        -fx-text-fill: $mid-grey; 
+    }
+    .list-cell {
+        -fx-background-color: $dark-black;
+        -fx-color: $bright-grey; 
+    }
+    .arrow-button {
+        -fx-background-radius: 0px;
+        -fx-border-radius: 0px;
+        -fx-background-insets: 0;
+        -fx-background-color: $dark-grey;
+        -fx-border-width: 1;
+        -fx-border-color: $mid-grey;
+        -fx-padding: 5 7;
+
+        &:hover {
+            -fx-background-color: $bright-black; 
+        }
+        &:pressed {
+            -fx-background-color: $bright-black;
+            -fx-border-color: $bright-grey;
+            -fx-text-fill: $defold-white;
+        }
+    }
+    >.list-cell {
+        -fx-border-width: 1;
+        -fx-border-color: transparent;
+        -fx-text-fill: $bright-grey;
+    }
+}

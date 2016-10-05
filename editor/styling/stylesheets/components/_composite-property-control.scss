@@ -1,0 +1,29 @@
+.composite-property-control-container { 
+    .button, .button-small, .button-large {
+        -fx-background-radius: 0px;
+        -fx-border-radius: 0px;
+        -fx-background-insets: 0;
+        -fx-background-color: $dark-grey;
+        -fx-border-width: 1;
+        -fx-border-color: $mid-grey;
+        -fx-padding: 5 7;
+        -fx-min-width: 0;
+        -fx-text-fill: $bright-grey;
+        &:hover {
+            -fx-background-color: $bright-black;
+        }
+        &:armed {
+            -fx-background-color: $bright-black;
+            -fx-border-color: $bright-grey;
+            -fx-text-fill: $defold-white;
+        }
+    }
+    .text-field {
+        -fx-padding: 5px 9px 5px 8px;
+        -fx-border-width: 1 0 1 1;
+        &:focused {
+            -fx-padding: 5px 8px;
+            -fx-border-width: 1;
+        }
+    }
+}
