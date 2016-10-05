@@ -594,9 +594,9 @@
                                                     (update-image-view! image-view dt)
                                                     (g/node-value view-id :update-list-view))))]
                              (ui/user-data! view ::repainter repainter)
-                             (ui/on-close tab
-                                          (fn [e]
-                                            (ui/timer-stop! repainter)))
+                             (ui/on-closed! tab
+                                            (fn [e]
+                                              (ui/timer-stop! repainter)))
                              (ui/timer-start! repainter))
                            (let [drawable (scene/make-drawable w h)]
                              (g/transact
