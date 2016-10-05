@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -22,8 +21,6 @@ import org.jagatoo.loaders.models.collada.stax.XMLAnimation;
 import org.jagatoo.loaders.models.collada.stax.XMLAnimationClip;
 import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 import org.jagatoo.loaders.models.collada.stax.XMLChannel.ChannelType;
-import org.jagatoo.loaders.models.collada.stax.XMLInstanceAnimation;
-import org.jagatoo.loaders.models.collada.stax.XMLMatrix4x4;
 import org.jagatoo.loaders.models.collada.stax.XMLNode.OperationType;
 import org.jagatoo.loaders.models.collada.stax.XMLNode.TransformOperation;
 import org.jagatoo.loaders.models.collada.stax.XMLController;
@@ -41,9 +38,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.openmali.vecmath2.Matrix3f;
 import org.openmali.vecmath2.Matrix4f;
-import org.openmali.vecmath2.Point3f;
 import org.openmali.vecmath2.Quaternion4f;
-import org.openmali.vecmath2.Tuple3f;
 import org.openmali.vecmath2.Vector3f;
 import org.openmali.vecmath2.Vector4f;
 
@@ -59,11 +54,7 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 
-import com.dynamo.rig.proto.Rig.AnimationSet;
-import com.dynamo.rig.proto.Rig.AnimationTrack;
-import com.dynamo.rig.proto.Rig.Mesh;
-import com.dynamo.rig.proto.Rig.RigAnimation;
-import com.dynamo.rig.proto.Rig.Skeleton;
+import com.dynamo.rig.proto.Rig;
 
 public class ColladaUtil {
 
@@ -97,7 +88,7 @@ public class ColladaUtil {
         return collada;
     }
 
-    public static boolean load(InputStream is, Mesh.Builder meshBuilder, AnimationSet.Builder animationSetBuilder, Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
+    public static boolean load(InputStream is, Rig.Mesh.Builder meshBuilder, Rig.AnimationSet.Builder animationSetBuilder, Rig.Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         loadMesh(collada, meshBuilder);
         ArrayList<Bone> boneList = loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
@@ -124,7 +115,7 @@ public class ColladaUtil {
         return samplersLUT;
     }
 
-    private static void boneAnimToDDF(XMLCOLLADA collada, RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, float duration, float sampleRate) throws LoaderException {
+    private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, float duration, float sampleRate) throws LoaderException {
         animBuilder.setDuration(duration);
         animBuilder.setSampleRate(sampleRate);
 
@@ -146,7 +137,7 @@ public class ColladaUtil {
                         continue;
                     }
 
-                    AnimationTrack.Builder animTrackBuilder = AnimationTrack.newBuilder();
+                    Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
                     animTrackBuilder.setBoneIndex(bi);
 
                     RigUtil.MatrixAnimationTrack track = new RigUtil.MatrixAnimationTrack();
@@ -284,12 +275,12 @@ public class ColladaUtil {
         }
     }
 
-    public static void loadAnimations(InputStream is, AnimationSet.Builder animationSetBuilder, ArrayList<Bone> boneList, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> boneList, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         loadAnimations(collada, animationSetBuilder, boneList, sampleRate, animationIds);
     }
 
-    public static void loadAnimations(XMLCOLLADA collada, AnimationSet.Builder animationSetBuilder, ArrayList<Bone> boneList, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> boneList, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryAnimations.size() != 1) {
             return;
         }
@@ -322,7 +313,7 @@ public class ColladaUtil {
             }
 
             // If no clips are provided, add a "Default" clip that is the whole animation as one clip
-            RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
+            Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
             boneAnimToDDF(collada, animBuilder, boneList, boneToAnimations, totalAnimationLength, sampleRate);
             animBuilder.setId(MurmurHash.hash64("Default"));
             animationIds.add("Default");
@@ -330,7 +321,7 @@ public class ColladaUtil {
         }
     }
 
-    public static void loadMesh(InputStream is, Mesh.Builder meshBuilder) throws IOException, XMLStreamException, LoaderException {
+    public static void loadMesh(InputStream is, Rig.Mesh.Builder meshBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         loadMesh(collada, meshBuilder);
     }
@@ -386,7 +377,7 @@ public class ColladaUtil {
     }
 
 
-    public static void loadMesh(XMLCOLLADA collada, Mesh.Builder meshBuilder) throws IOException, XMLStreamException, LoaderException {
+    public static void loadMesh(XMLCOLLADA collada, Rig.Mesh.Builder meshBuilder) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryGeometries.size() != 1) {
             if (collada.libraryGeometries.isEmpty()) {
                 return;
@@ -568,12 +559,6 @@ public class ColladaUtil {
         ArrayList<Bone> boneList = new ArrayList<Bone>();
 
         HashMap<String, com.dynamo.rig.proto.Rig.Bone> bones = new HashMap<String, com.dynamo.rig.proto.Rig.Bone>();
-        Vector3f upVector;
-        if(collada.asset.upAxis.equals(UpAxis.Y_UP)) {
-            upVector = new Vector3f(0.0f, 1.0f, 0.0f);
-        } else {
-            upVector = new Vector3f(0.0f, 0.0f, 1.0f);
-        }
 
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
