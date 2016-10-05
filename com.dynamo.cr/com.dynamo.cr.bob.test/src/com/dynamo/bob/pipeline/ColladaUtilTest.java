@@ -14,15 +14,12 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 
 import org.eclipse.swt.widgets.Display;
+import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 import org.junit.Test;
 
 import com.dynamo.bob.util.MurmurHash;
 
-import com.dynamo.rig.proto.Rig.AnimationSet;
-import com.dynamo.rig.proto.Rig.AnimationTrack;
-import com.dynamo.rig.proto.Rig.Bone;
-import com.dynamo.rig.proto.Rig.Mesh;
-import com.dynamo.rig.proto.Rig.Skeleton;
+import com.dynamo.rig.proto.Rig;
 
 public class ColladaUtilTest {
 
@@ -46,7 +43,7 @@ public class ColladaUtilTest {
 
     @Test
     public void testMayaQuad() throws Exception {
-        Mesh.Builder mesh = Mesh.newBuilder();
+        Rig.Mesh.Builder mesh = Rig.Mesh.newBuilder();
         ColladaUtil.loadMesh(getClass().getResourceAsStream("maya_quad.dae"), mesh);
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
@@ -78,7 +75,7 @@ public class ColladaUtilTest {
 
     @Test
     public void testBlenderPolylistQuad() throws Exception {
-        Mesh.Builder mesh = Mesh.newBuilder();
+        Rig.Mesh.Builder mesh = Rig.Mesh.newBuilder();
         ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"), mesh);
 
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
@@ -113,9 +110,9 @@ public class ColladaUtilTest {
 
     @Test
     public void testBlenderAnimations() throws Exception {
-        Skeleton.Builder skeleton = Skeleton.newBuilder();
-        ArrayList<org.jagatoo.loaders.models.collada.datastructs.animation.Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
-        AnimationSet.Builder animation = AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
+        ArrayList<Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
+        Rig.AnimationSet.Builder animation = Rig.AnimationSet.newBuilder();
         ColladaUtil.loadAnimations(getClass().getResourceAsStream("blender_animated_cube.dae"), animation, bones, 16.0f, new ArrayList<String>());
         //assert(0.0, animation.getDuration());
         assertEquals(1, animation.getAnimationsCount());
@@ -150,22 +147,22 @@ public class ColladaUtilTest {
     @Test
     public void testSkeleton() throws Exception {
         // Temp test (and temp data)
-        Mesh.Builder mesh = Mesh.newBuilder();
+        Rig.Mesh.Builder mesh = Rig.Mesh.newBuilder();
         ColladaUtil.loadMesh(getClass().getResourceAsStream("simple_anim.dae"), mesh);
 
         String[] boneIds   = {"root", "l_hip", "l_knee", "l_ankle", "l_null_toe", "pelvis", "spine",  "l_humerus", "l_ulna",    "l_wrist", "r_humerus", "r_ulna",    "r_wrist", "neck",  "null_head", "r_hip", "r_knee", "r_ankle", "r_null_toe"};
         String[] parentIds = {null,   "root",  "l_hip",  "l_knee",  "l_ankle",    "root",   "pelvis", "spine",     "l_humerus", "l_ulna",  "spine",     "r_humerus", "r_ulna",  "spine", "neck",      "root",  "r_hip",  "r_knee",  "r_ankle"};
 
-        Skeleton.Builder skeleton = Skeleton.newBuilder();
+        Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
-        List<Bone> bones = skeleton.getBonesList();
+        List<Rig.Bone> bones = skeleton.getBonesList();
         assertEquals(boneIds.length, bones.size());
         HashMap<String,Integer> idToIndex = new HashMap<String,Integer>();
         for (int index = 0; index < boneIds.length; ++index) {
             idToIndex.put(boneIds[index], index);
         }
         for (int index = 0; index < boneIds.length; ++index) {
-            Bone bone = bones.get(index);
+            Rig.Bone bone = bones.get(index);
             long id = MurmurHash.hash64(boneIds[index]);
             assertEquals(id, bone.getId());
             assertEquals(idToIndex.getOrDefault(parentIds[index], 65535).intValue(), bone.getParent());
@@ -175,9 +172,9 @@ public class ColladaUtilTest {
     /* Currently throws exception due to lack of support for anim clips */
     @Test(expected=LoaderException.class)
     public void testAnimClip() throws Exception {
-        Skeleton.Builder skeleton = Skeleton.newBuilder();
-        ArrayList<org.jagatoo.loaders.models.collada.datastructs.animation.Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
-        AnimationSet.Builder animation = AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
+        ArrayList<Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
+        Rig.AnimationSet.Builder animation = Rig.AnimationSet.newBuilder();
         ArrayList<String> idList1 = new ArrayList<String>();
         ColladaUtil.loadAnimations(getClass().getResourceAsStream("simple_anim.dae"), animation, bones, 16.0f, idList1);
         ArrayList<String> idList2 = new ArrayList<String>();
@@ -218,14 +215,14 @@ public class ColladaUtilTest {
 
     @Test
     public void testBoneAnimation() throws Exception {
-        Mesh.Builder meshBuilder = Mesh.newBuilder();
-        AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
-        Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
+        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(getClass().getResourceAsStream("one_vertice_bone.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
         assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
         
-        AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(0);
+        Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(0);
         assertEquals(0, track.getBoneIndex());
         
         for (int i = 0; i < track.getPositionsCount(); i++) {
