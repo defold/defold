@@ -1033,7 +1033,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
-                                    :ext "tilemap"
+                                    :ext ["tilemap" "tilegrid"]
                                     :build-ext "tilegridc"
                                     :node-type TileMapNode
                                     :load-fn load-tile-map
