@@ -75,19 +75,6 @@ Links:
   -fx-font-size: 12px;
   -fx-font-weight: normal; }
 
-#topbar {
-  -fx-background-color: linear-gradient(to bottom, #33393f, #272b30);
-  -fx-padding: 1em; }
-
-/*
-.tree-cell > .tree-disclosure-node > .arrow,
-.tree-table-row-cell > .tree-disclosure-node > .arrow {
-    -fx-background-color: $bright-grey;
-}*/
-.titled-pane .list-view {
-  -fx-background-insets: 0;
-  -fx-border-width: 0; }
-
 #tool-tabs .list-view {
   -fx-background-insets: 0;
   -fx-border-width: 0; }
@@ -96,10 +83,6 @@ Links:
   -fx-border-width: 0;
   -fx-background-color: #272b30; }
 
-/* TODO: Hack. Should be only for .tree-view in .title-pane etc */
-.tree-view {
-  -fx-background-insets: 0; }
-
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:vertical {
   -fx-background-insets: 0;
@@ -107,16 +90,6 @@ Links:
 
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:horizontal {
-  -fx-background-insets: 0;
-  -fx-padding: -1 -1 -1 0; }
-
-/* Remove extra border */
-.tree-view > .virtual-flow > .scroll-bar:vertical {
-  -fx-background-insets: 0;
-  -fx-padding: -1 -1 -1 0; }
-
-/* Remove extra border */
-.tree-view > .virtual-flow > .scroll-bar:horizontal {
   -fx-background-insets: 0;
   -fx-padding: -1 -1 -1 0; }
 
@@ -152,15 +125,9 @@ Links:
 
 /* diff viewer */
 .diff-box {
-  -fx-fill: #cccccc55;
+  -fx-fill: #CCCCCC;
   -fx-stroke: #000000; }
 
-#changes-container > .tool-bar {
-  -fx-background-color: transparent;
-  -fx-border-width: 0 0 1 0;
-  -fx-border-color: #33393f; }
-
-/* Components - Mainly styling of controls */
 /* Modules - Major panes in the editor */
 #properties HBox {
   -fx-spacing: 0; }
@@ -185,27 +152,15 @@ Links:
 #console {
   -fx-highlight-fill: #264a8b; }
 
+/* Reusable components */
 /* Alert Dialog */
 .alert-dialog #message {
   -fx-background-color: transparent;
   -fx-border-width: 0;
   -fx-padding: 0; }
+  .alert-dialog #message:focused {
+    -fx-border-width: 0; }
 
-.alert-dialog #message:focused {
-  -fx-border-width: 0; }
-
-/* Curve View */
-#curve-editor-view {
-  -fx-border-color: #484d54;
-  -fx-border-width: 0 0 0 1;
-  -fx-padding: 0.0em; }
-
-#curve-editor-list-anchor {
-  -fx-border-color: #484d54;
-  -fx-border-width: 0 1 0 0;
-  -fx-padding: 0.0em; }
-
-/* Reusable components */
 .button, .button-small, .button-large {
   -fx-background-radius: 4;
   -fx-border-radius: 4;
@@ -771,6 +726,9 @@ Links:
   -fx-border-color: #484d54;
   -fx-border-width: 1;
   -fx-padding: 0.0em; }
+  .titled-pane .list-view {
+    -fx-background-insets: 0;
+    -fx-border-width: 0; }
   .titled-pane > .title {
     -fx-background-color: #484d54;
     -fx-background-insets: 0;
@@ -782,7 +740,14 @@ Links:
     -fx-border-width: 0; }
 
 .tree-view {
-  -fx-background-color: #272b30; }
+  -fx-background-color: #272b30;
+  -fx-background-insets: 0; }
+  .tree-view > .virtual-flow > .scroll-bar:vertical {
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0; }
+  .tree-view > .virtual-flow > .scroll-bar:horizontal {
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0; }
 
 .tree-cell {
   -fx-background-color: #272b30; }
@@ -810,6 +775,22 @@ Links:
       -fx-background-insets: 0 0 0 0; }
 
 /* Targeted modules */
+#changes-container > .tool-bar {
+  -fx-background-color: transparent;
+  -fx-border-width: 0 0 1 0;
+  -fx-border-color: #33393f; }
+
+/* Curve View */
+#curve-editor-view {
+  -fx-border-color: #484d54;
+  -fx-border-width: 0 0 0 1;
+  -fx-padding: 0.0em; }
+
+#curve-editor-list-anchor {
+  -fx-border-color: #484d54;
+  -fx-border-width: 0 1 0 0;
+  -fx-padding: 0.0em; }
+
 /* Code view */
 .styled-text-area, .styled-text-area .source-segment, .styled-text-area .plain-source-segment {
   -fx-font-family: "Inconsolata";
@@ -987,3 +968,7 @@ Line numbers:
     -fx-background-insets: 0;
     -fx-background-radius: 0;
     -fx-border-width: 0; }
+
+#topbar {
+  -fx-background-color: linear-gradient(to bottom, #33393f, #272b30);
+  -fx-padding: 1em; }

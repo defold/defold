@@ -1,5 +1,18 @@
 .tree-view {
     -fx-background-color: $bright-black;
+    -fx-background-insets: 0;
+    >.virtual-flow {
+        >.scroll-bar {
+            &:vertical {
+                -fx-background-insets: 0;
+                -fx-padding: -1 -1 -1 0;
+            }
+            &:horizontal {
+                -fx-background-insets: 0;
+                -fx-padding: -1 -1 -1 0;
+            }
+        }
+    }
 }
 
 .tree-cell {

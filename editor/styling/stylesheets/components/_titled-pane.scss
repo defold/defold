@@ -4,6 +4,11 @@
     -fx-border-width: 1;
     -fx-padding: 0.0em;
 
+    .list-view {
+        -fx-background-insets: 0;
+        -fx-border-width: 0;
+    }
+
     >.title {
         -fx-background-color: $mid-grey;
         -fx-background-insets: 0;
