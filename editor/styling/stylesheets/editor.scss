@@ -50,20 +50,6 @@ Links:
   -fx-font-weight: normal;
   }
 
-#topbar {
-  -fx-background-color: linear-gradient(to bottom, $dark-grey, $bright-black);
-  -fx-padding: 1em; }
-
-/*
-.tree-cell > .tree-disclosure-node > .arrow,
-.tree-table-row-cell > .tree-disclosure-node > .arrow {
-    -fx-background-color: $bright-grey;
-}*/
-
-.titled-pane .list-view {
-  -fx-background-insets: 0;
-  -fx-border-width: 0; }
-
 #tool-tabs .list-view {
   -fx-background-insets: 0;
   -fx-border-width: 0; }
@@ -71,10 +57,6 @@ Links:
 .scroll-pane {
   -fx-border-width: 0;
   -fx-background-color: $bright-black; }
-
-/* TODO: Hack. Should be only for .tree-view in .title-pane etc */
-.tree-view {
-  -fx-background-insets: 0; }
 
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:vertical {
@@ -86,15 +68,6 @@ Links:
   -fx-background-insets: 0;
   -fx-padding: -1 -1 -1 0; }
 
-/* Remove extra border */
-.tree-view > .virtual-flow > .scroll-bar:vertical {
-  -fx-background-insets: 0;
-  -fx-padding: -1 -1 -1 0; }
-
-/* Remove extra border */
-.tree-view > .virtual-flow > .scroll-bar:horizontal {
-  -fx-background-insets: 0;
-  -fx-padding: -1 -1 -1 0; }
 
 /* Selected rows */
 .list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
@@ -128,16 +101,9 @@ Links:
 
 /* diff viewer */
 .diff-box {
-  -fx-fill: #cccccc55;
-  -fx-stroke: #000000; }
-
-#changes-container > .tool-bar {
-  -fx-background-color: transparent;
-  -fx-border-width: 0 0 1 0;
-  -fx-border-color: $dark-grey; }
-
-/* Components - Mainly styling of controls */
-
+  -fx-fill: #CCCCCC;
+  -fx-stroke: #000000;
+}
 
 /* Modules - Major panes in the editor */
 #properties HBox {
@@ -168,26 +134,3 @@ Links:
 #console {
     -fx-highlight-fill: $selected-blue;
 }
-
-/* Alert Dialog */
-
-.alert-dialog #message {
-    -fx-background-color: transparent;
-    -fx-border-width: 0;
-    -fx-padding: 0;
-}
-
-.alert-dialog #message:focused {
-    -fx-border-width: 0;
-}
-
-/* Curve View */
-#curve-editor-view {
-  -fx-border-color: $mid-grey;
-  -fx-border-width: 0 0 0 1;
-  -fx-padding: 0.0em; }
-
-#curve-editor-list-anchor {
-  -fx-border-color: $mid-grey;
-  -fx-border-width: 0 1 0 0;
-  -fx-padding: 0.0em; }
