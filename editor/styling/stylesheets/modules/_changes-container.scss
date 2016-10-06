@@ -1,0 +1,7 @@
+#changes-container {
+    >.tool-bar {
+        -fx-background-color: transparent;
+        -fx-border-width: 0 0 1 0;
+        -fx-border-color: $dark-grey;
+    }
+}
