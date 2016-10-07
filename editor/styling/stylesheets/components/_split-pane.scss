@@ -8,11 +8,11 @@
   -fx-padding: 2; }
 
 .split-pane:horizontal > .split-pane-divider {
-  -fx-background-color: $bright-black; }
+  -fx-background-color: $dark-grey; }
 
 /* vertical the two nodes are placed on top of each other. */
 .split-pane:vertical > .split-pane-divider {
-  -fx-background-color: $bright-black; }
+  -fx-background-color: $dark-grey; }
 
 .split-pane:horizontal {
   -fx-border-width: 0;

@@ -11,10 +11,11 @@
         
         .tab {
             -fx-background-radius: 0;
-            -fx-background-insets: 0, 0 0 2 0;
-            -fx-background-color: $dark-black, $bright-black;
-            -fx-border-width: 1 1 0 0;
-            -fx-border-color: $mid-grey;
+            -fx-background-insets: 0;
+            /*-fx-background-insets: 0, 0 0 2 0;*/
+            -fx-background-color: $dark-grey;
+            -fx-border-width: 0 0 2 0;
+            -fx-border-color: $dark-grey;
             -fx-padding: 0 10 0 10;
             
             &:hover {
@@ -22,20 +23,22 @@
                 -fx-background-color: $mid-black;
             }
             &:selected {
-                -fx-background-color: $dark-black, $mid-grey;
-                -fx-background-insets: 0, 0;
+                /*-fx-background-insets: 0, 0;*/
+                -fx-border-width: 0 0 2 0;
+                -fx-border-color: $defold-orange;
+                -fx-color: $defold-white;
 
                 .tab-label {
                     -fx-text-fill: $defold-white;
                 }
                 .focus-indicator {
-                    -fx-border-width: 0;
+                    -fx-border-width: 0; 
                 }
             }
 
-            &.first-tab {
+            /*&.first-tab {
                 -fx-border-width: 1 1 0 0;
-            }
+            }*/
 
             .tab-label {
                 -fx-text-fill: $bright-grey;
@@ -45,18 +48,16 @@
 
 .tab-header-area {
     -fx-padding: 0;
-    -fx-border-width: 0 0 0 1;
-    -fx-border-color: $bright-grey;
+    -fx-border-width: 0 0 0 0;
     >.headers-region {
         -fx-padding: 0;
     }
 }
 
 .tab-header-background {
-    -fx-background-color: $bright-black;
+    -fx-background-color: $dark-grey;
     -fx-background-insets: 0;
-    -fx-border-width: 1 1 0 1;
-    -fx-border-color: $mid-grey;
+    -fx-border-width: 0 0 0 0;
     -fx-padding: 0; 
 }
 
