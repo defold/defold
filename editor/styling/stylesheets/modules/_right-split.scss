@@ -1,0 +1,11 @@
+#right-split {
+  -fx-background: $dark-black;
+  .tree-view, .tree-cell {
+    -fx-background-color: $dark-black;
+  }
+  .titled-pane {
+    >.title {
+      -fx-background-color: $dark-black;
+    }
+  }
+}

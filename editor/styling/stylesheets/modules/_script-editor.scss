@@ -1,112 +1,216 @@
 /* Code view */
+.styled-text-area {
+    -fx-font-family: "Inconsolata";
+    -fx-font-size: 14;
+    -fx-background-color: $bright-black;
 
-.styled-text-area, .styled-text-area .source-segment, .styled-text-area .plain-source-segment {
-  -fx-font-family: "Inconsolata";
-  -fx-font-size: 14;
+    .comment {
+        -styled-text-color: $script-comment; 
+    }
+    .list-view {
+        -fx-background-color: $bright-black;
+    }
+    .source-segment, .plain-source-segment {
+        -fx-font-family: "Inconsolata";
+        -fx-font-size: 14;
+    }
+    .selection-marker {
+	    -fx-background-color: rgba(172,148,120,0.3)
+    }
+    .text-caret {
+        -fx-fill: white;
+        -fx-stroke: white;
+    }
 }
 
-.lua.styled-text-area .comment,
+/* Script view colors */
+.lua, .glsl {
+    &.styled-text-area {
+        -styled-text-color: $script-comment;
+
+        /* Hack for current line */
+        .list-cell:selected {
+            -fx-background-color: $dark-grey;
+        }
+
+        .comment, .comment-multi {
+            -styled-text-color: $bright-grey;
+        }
+
+        .keyword {
+            -styled-text-color: $script-keyword;   
+        }
+
+        .operator {
+            -styled-text-color: $script-operator;
+        }
+
+        .default {
+            -styled-text-color: $defold-white;
+        }
+
+        .string {
+            -styled-text-color: $script-string;
+        }
+
+        .number {
+            -styled-text-color: $script-number;
+        }
+    }
+}
+
+.lua {
+    &.styled-text-area {
+        .helper-keyword {
+            -styled-text-color: $script-helper;
+        }
+
+        .self-keyword {
+            -styled-text-color: $script-self;
+        }
+
+        .logic-keywords {
+            -styled-text-color: $script-logic;
+        }
+
+        .control-flow-keyword {
+            -styled-text-color: $script-keyword;
+        }
+
+        .constant {
+            -styled-text-color: $script-constant;
+        }
+
+        .defold-keyword {
+            -styled-text-color: $script-function;
+        }
+    }
+}
+
+.glsl {
+    &.styled-text-area {
+        .directive, .macro-keyword, .precision-keyword,
+        .storage-modifier-keyword, .support-function-keyword {
+            -styled-text-color: $script-keyword;
+        }
+
+        .storage-type {
+            -styled-text-color: $script-function;
+        }
+
+        .support-variable-keyword {
+            -styled-text-color: $defold-white;
+        }
+    }
+}
+
+/* text editor code completion popup */
+#proposals .list-cell:filled:selected {
+    -fx-text-fill: $script-intellisense;
+}
+
+/*.lua.styled-text-area .comment,
 .lua.styled-text-area .comment-multi,
 .glsl.styled-text-area .comment,
 .glsl.styled-text-area .comment-multi {
     -styled-text-color: $bright-grey;
-}
+}*/
 
-.lua.styled-text-area .keyword,
+/*.lua.styled-text-area .keyword,
 .glsl.styled-text-area .keyword {
-    -styled-text-color: $defold-orange;
-}
+    -styled-text-color: $script-keyword;
+}*/
 
-.lua.styled-text-area .helper-keyword {
+/*.lua.styled-text-area .helper-keyword {
     -styled-text-color: $script-helper;
-}
+}*/
 
-.lua.styled-text-area .self-keyword {
+/*.lua.styled-text-area .self-keyword {
     -styled-text-color: $script-self;
-}
+}*/
 
-.lua.styled-text-area .logic-keywords {
+/*.lua.styled-text-area .logic-keywords {
     -styled-text-color: $script-logic;
-}
+}*/
 
-.lua.styled-text-area .control-flow-keyword,
+/*.lua.styled-text-area .control-flow-keyword,
 .glsl.styled-text-area .control-flow-keyword
  {
-    -styled-text-color: $defold-orange;
-}
-
-.lua.styled-text-area .constant {
-    -styled-text-color: $script-constant;
-}
-
-.lua.styled-text-area .defold-keyword {
     -styled-text-color: $script-keyword;
-}
+}*/
 
-.lua.styled-text-area .operator,
+/*.lua.styled-text-area .constant {
+    -styled-text-color: $script-constant;
+}*/
+
+/*.lua.styled-text-area .defold-keyword {
+    -styled-text-color: $script-function;
+}
+*/
+/*.lua.styled-text-area .operator,
 .glsl.styled-text-area .operator {
     -styled-text-color: $script-operator;
-}
+}*/
 
-.lua.styled-text-area .default,
+/*.lua.styled-text-area .default,
 .glsl.styled-text-area .default {
     -styled-text-color: $defold-white;
-}
+}*/
 
-.lua.styled-text-area .string,
+/*.lua.styled-text-area .string,
 .glsl.styled-text-area .string {
     -styled-text-color: $script-string;
 }
-
-.lua.styled-text-area,
+*/
+/*.lua.styled-text-area,
 .glsl.styled-text-area {
     -styled-text-color: $script-comment;
-}
+}*/
+/*
+.styled-text-area .comment { -styled-text-color: $script-comment; }*/
 
-.styled-text-area .comment { -styled-text-color: $script-comment; }
-
-.lua.styled-text-area .number,
+/*.lua.styled-text-area .number,
 .glsl.styled-text-area .number {
     -styled-text-color: $script-number;
-}
+}*/
 
-.glsl.styled-text-area .directive {
-    -styled-text-color: $defold-orange;
-}
-
-.glsl.styled-text-area .macro-keyword {
-    -styled-text-color: $defold-orange;
-}
-
-.glsl.styled-text-area .precision-keyword {
-    -styled-text-color: $defold-orange;
-}
-
-.glsl.styled-text-area .storage-type {
+/*.glsl.styled-text-area .directive {
     -styled-text-color: $script-keyword;
-}
+}*/
 
-.glsl.styled-text-area .storage-modifier-keyword {
-    -styled-text-color: $defold-orange;
-}
+/*.glsl.styled-text-area .macro-keyword {
+    -styled-text-color: $script-keyword;
+}*/
 
-.glsl.styled-text-area .support-variable-keyword {
+/*.glsl.styled-text-area .precision-keyword {
+    -styled-text-color: $script-keyword;
+}*/
+
+/*.glsl.styled-text-area .storage-type {
+    -styled-text-color: $script-function;
+}*/
+
+/*.glsl.styled-text-area .storage-modifier-keyword {
+    -styled-text-color: $script-keyword;
+}*/
+
+/*.glsl.styled-text-area .support-variable-keyword {
    -styled-text-color: $defold-white;
-}
-
+}*/
+/*
 .glsl.styled-text-area .support-function-keyword {
-    -styled-text-color: $defold-orange;
-}
+    -styled-text-color: $script-keyword;
+}*/
 
-
+/*
 .styled-text-area .text-caret {
 	-fx-fill: white;
 	-fx-stroke: white;
-}
+}*/
 
-.styled-text-area .selection-marker {
+/*.styled-text-area .selection-marker {
 	-fx-background-color: rgba(172,148,120,0.3)
-}
+}*/
 
 /*
 
@@ -119,13 +223,7 @@ Line numbers:
 */
 
 /* Hack for current line */
-.lua.styled-text-area .list-cell:selected,
+/*.lua.styled-text-area .list-cell:selected,
 .glsl.styled-text-area .list-cell:selected {
     -fx-background-color: $dark-grey;
-}
-
-/* text editor code completion popup */
-
-#proposals .list-cell:filled:selected {
-    -fx-text-fill: $script-intellisense;
-}
+}*/

@@ -26,21 +26,21 @@ $bright-black:        #292c30;
 $bright-black-light:  #2e3236;
 $mid-black:           #25282b;
 $mid-black-light:     #292d31;
-$dark-black:          #222426;
+$dark-black:          #232529;
 $dark-black-light:    #26282a;
-$dark-grey:           #34373b;
+$dark-grey:           #313439;
 $dark-grey-light:     #3b3e43;
 $mid-grey:            #494b4e;
 $mid-grey-light:      #54565a;
 $bright-grey:         #8f9296;
 $bright-grey-light:   #a8abaf;
-$defold-white:        #f0f2f6;
+$defold-white:        #dddddd;
 $defold-white-light:  #f8f8fb;
 $defold-red:          #ff4646;
 $defold-yellow:       #fbce2f;
 $defold-turquoise:    #00e6e1;
 $defold-green:        #00df64;
-$defold-orange:       #fd6623;
+$defold-orange:       #fa6731;
 
 $defold-white:      #f0f2f6; // (text header & tools icon)
 $defold-dark-white: #cccfd3; // (text)
@@ -55,7 +55,8 @@ $script-helper:         #33cccc;
 $script-self:           #E066FF;
 $script-logic:          #E3A869;
 $script-constant:       #FFBBFF;
-$script-keyword:        #33cc33;
+$script-function:       #33cc33;
+$script-keyword:        #fd6623;
 $script-operator:       #33cccc;
 $script-string:         #fbce2f;
 $script-comment:        #ff00ff;

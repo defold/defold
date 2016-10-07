@@ -19,14 +19,17 @@
     -fx-background-color: $bright-black;
     &:filled {
         -fx-padding: 5;
-        -fx-border-width: 0 0 1 0;
-        -fx-border-color: $bright-black;
+        -fx-border-width: 0 0 0 2;
+        -fx-border-color: transparent;
 
         &:hover {
             -fx-background-color: $dark-black;
+            -fx-text-fill: $defold-white;
         }
         &:selected {
-            -fx-background-color: rgba(38, 74, 139, 0.5);
+            /*-fx-background-color: rgba(38, 74, 139, 0.5);*/
+            -fx-border-width: 0 0 0 2;
+            -fx-border-color: $defold-orange;
             &:hover {
                 -fx-background-color: $selected-blue;
                 -fx-text-fill: $defold-white; 
