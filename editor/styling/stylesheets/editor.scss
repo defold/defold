@@ -18,9 +18,9 @@ Links:
 
 
 .root {
-  -fx-base: $bright-black;
-  -fx-background: $bright-black;
-  -fx-control-inner-background: $bright-black;
+  -fx-base: $dark-grey;
+  -fx-background: $dark-grey;
+  -fx-control-inner-background: $dark-grey;
   -fx-text-color-base: $defold-white;
   -fx-mark-color: $bright-grey;
   -fx-text-background-color: $bright-grey-light;
@@ -45,7 +45,7 @@ Links:
   -fx-hover-base: $mid-grey;
   -fx-pressed-base: $bright-grey;
   -fx-accent_: $defold-red;
-  -fx-font-family: "Open Sans";
+  -fx-font-family: "Source Sans Pro";
   -fx-font-size: 12px;
   -fx-font-weight: normal;
   }
@@ -109,7 +109,6 @@ Links:
 #properties HBox {
   -fx-spacing: 0; }
 
-
 /* Drag and drop targets */
 
 .drop-target {
@@ -133,4 +132,15 @@ Links:
 
 #console {
     -fx-highlight-fill: $selected-blue;
+}
+
+#assets-split {
+    .tree-cell {
+      &:filled {
+        -fx-border-width: 0 2 0 0;
+        &:selected {
+          -fx-border-width: 0 2 0 0;
+        }
+      }
+    }
 }
