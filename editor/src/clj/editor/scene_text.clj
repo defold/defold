@@ -4,7 +4,7 @@
   (:import [com.jogamp.opengl.util.awt TextRenderer]
            [java.awt Font]
            [java.awt.geom Rectangle2D]
-           [javax.media.opengl GL2]))
+           [com.jogamp.opengl GL2]))
 
 (set! *warn-on-reflection* true)
 
