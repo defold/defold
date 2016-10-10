@@ -30,7 +30,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private lua-code-opts {:code lua/lua})
-(def ^:private go-prop-type->property-types
+(def go-prop-type->property-types
   {:property-type-number  g/Num
    :property-type-hash    g/Str
    :property-type-url     g/Str
