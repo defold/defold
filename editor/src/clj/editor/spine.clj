@@ -203,10 +203,12 @@
   (let [tracks-by-bone (reduce-kv (fn [m bone-name timeline]
                                     (let [bone-index (bone-id->index (murmur/hash64 bone-name))]
                                       (reduce-kv (fn [m type keys]
-                                                   (let [field (timeline-type->pb-field type)
-                                                         pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
-                                                                   :bone-index bone-index}]
-                                                   (update-in m [bone-index] merge pb-track))) m timeline)))
+                                                   (if-let [field (timeline-type->pb-field type)]
+                                                     (let [pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
+                                                                     :bone-index bone-index}]
+                                                       (update-in m [bone-index] merge pb-track))
+                                                     m))
+                                                 m timeline)))
                                   {} timelines)]
     (sort-by :bone-index (vals tracks-by-bone))))
 
