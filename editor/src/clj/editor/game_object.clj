@@ -14,6 +14,7 @@
             [editor.scene :as scene]
             [editor.types :as types]
             [editor.sound :as sound]
+            [editor.script :as script]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
@@ -151,7 +152,7 @@
                                        :from-type (fn [r] {:resource r :overrides {}})}))
             (value (g/fnk [source-resource ddf-properties]
                           {:resource source-resource
-                           :overrides (into {} (map (fn [p] [(properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
+                           :overrides (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                     ddf-properties))}))
             (set (fn [basis self old-value new-value]
                    (concat
@@ -167,7 +168,8 @@
                                                           (fn [comp-node]
                                                             (let [override (g/override basis comp-node {:traverse? (constantly true)})
                                                                   id-mapping (:id-mapping override)
-                                                                  or-node (get id-mapping comp-node)]
+                                                                  or-node (get id-mapping comp-node)
+                                                                  comp-props (:properties (g/node-value comp-node :_properties {:basis basis}))]
                                                               (concat
                                                                 (:tx-data override)
                                                                 (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
@@ -179,8 +181,11 @@
                                                                                    [:build-targets :build-targets]]
                                                                         :when (contains? outputs from)]
                                                                     (g/connect or-node from self to)))
-                                                                (for [[label value] (:overrides new-value)]
-                                                                  (g/set-property or-node label value)))))))
+                                                                (for [[label [type value]] (:overrides new-value)]
+                                                                  (let [original-type (get-in comp-props [label :type])
+                                                                        override-type (script/go-prop-type->property-types type)]
+                                                                    (when (= original-type override-type)
+                                                                      (g/set-property or-node label value)))))))))
                          (project/resource-setter basis self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
@@ -413,7 +418,7 @@
     (concat
       (for [component (:components prototype)
             :let [source-resource (workspace/resolve-resource resource (:component component))
-                  properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))]) (:properties component)))]]
+                  properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
         (add-component self project source-resource (:id component) (:position component) (:rotation component) properties))
       (for [embedded (:embedded-components prototype)]
         (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (:rotation embedded) false)))))

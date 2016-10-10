@@ -13,6 +13,7 @@
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
+            [editor.script :as script]
             [editor.outline :as outline]
             [editor.types :as types]
             [editor.workspace :as workspace]
@@ -224,9 +225,14 @@
                                             component-ids
                                             (g/node-value :source-id {:basis basis}))
                                    key (properties/user-name->key (:id p))
-                                   val (properties/str->go-prop (:value p) (:type p))]
+                                   type (:type p)
+                                   val (properties/str->go-prop (:value p) type)]
                              :when src-id]
-                         (g/set-property src-id key val))))))
+                         (let [comp-props (:properties (g/node-value src-id :_properties {:basis basis}))
+                               original-type (get-in comp-props [key :type])
+                               override-type (script/go-prop-type->property-types type)]
+                           (when (= original-type override-type)
+                             (g/set-property src-id key val))))))))
   (display-order [:id :url scene/ScalableSceneNode])
 
   (input proto-msg g/Any)
@@ -281,7 +287,7 @@
                          (project/connect-resource-node project new-resource self []
                                                         (fn [go-node]
                                                           (let [component-overrides (into {} (map (fn [m]
-                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
+                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                                                                                            (:properties m)))])
                                                                                                   (:overrides new-value)))
                                                                 override (g/override basis go-node {:traverse? or-go-traverse?})
@@ -308,9 +314,14 @@
                                                               (for [[from to] [[:url :base-url]]]
                                                                 (g/connect self from or-node to))
                                                               (for [[id p] component-overrides
-                                                                    [label value] p
+                                                                    [key [type value]] p
                                                                     :let [comp-id (id-mapping id)]]
-                                                                (g/set-property comp-id label value)))))))))))
+                                                                (let [refd-component (component-ids id)
+                                                                      refd-component-props (:properties (g/node-value refd-component :_properties {:basis basis}))
+                                                                      original-type (get-in refd-component-props [key :type])
+                                                                      override-type (script/go-prop-type->property-types type)]
+                                                                  (when (= original-type override-type)
+                                                                    (g/set-property comp-id key value)))))))))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
