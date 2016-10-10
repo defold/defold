@@ -2,7 +2,7 @@
   (:require [dynamo.graph :as g]
             [schema.core :as s])
   (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util.awt TextRenderer Screenshot]
+           [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Camera AABB Region]
            [java.awt Font]
            [java.awt.image BufferedImage]

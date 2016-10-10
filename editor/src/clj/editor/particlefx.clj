@@ -29,7 +29,7 @@
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType]
-           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.defold.libs ParticleLibrary]
            [com.sun.jna Pointer]

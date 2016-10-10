@@ -33,8 +33,8 @@
            [com.google.protobuf ByteString]
            [editor.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point3d Matrix4d]
            [java.nio ByteBuffer ByteOrder FloatBuffer]))
 

@@ -23,8 +23,8 @@
            [com.google.protobuf ByteString]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
