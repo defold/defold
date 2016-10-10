@@ -8,7 +8,7 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass])
   (:import [editor.types AABB Camera]
-           [javax.media.opengl GL GL2]
+           [com.jogamp.opengl GL GL2]
            [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)

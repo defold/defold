@@ -10,7 +10,6 @@
             [editor.dialogs :as dialogs])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
-           [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
@@ -31,7 +30,7 @@
            [java.io File]
            [java.nio.file Path Paths Files attribute.FileAttribute]
            [java.util.prefs Preferences]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [org.apache.commons.io FileUtils FilenameUtils IOUtils]
            [com.defold.control TreeCell]))
 

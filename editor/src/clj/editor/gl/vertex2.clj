@@ -12,7 +12,7 @@
    [com.google.protobuf ByteString]
    [com.jogamp.common.nio Buffers]
    [java.nio ByteBuffer ByteOrder]
-   [javax.media.opengl GL GL2]))
+   [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
 

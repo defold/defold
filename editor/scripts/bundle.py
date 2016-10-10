@@ -8,6 +8,7 @@ import tempfile
 import urllib
 import optparse
 import urlparse
+import re
 import shutil
 import subprocess
 import tarfile
@@ -15,7 +16,7 @@ import zipfile
 import ConfigParser
 
 # Keep this version in sync with project.clj
-JOGL_VERSION = "2.0.2"
+JOGL_VERSION = "2.3.2"
 JNA_VERSION = "4.1.0"
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
@@ -111,9 +112,9 @@ def ziptree(path, outfile, directory = None):
 def add_native_libs(platform, in_jar_name, out_jar):
     with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
         for zi in in_jar.infolist():
-            if not 'META-INF' in zi.filename:
+            if not re.search(r"META-INF|TAG\.class", zi.filename):
                 d = in_jar.read(zi)
-                n = 'lib/%s/%s' % (platform, zi.filename)
+                n = 'lib/%s/%s' % (platform, os.path.basename(zi.filename))
                 print "adding", n
                 out_jar.writestr(n, d)
 

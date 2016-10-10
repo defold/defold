@@ -39,8 +39,8 @@
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
                      ;; Keep jogl version in sync with bundle.py. See JOGL_VERSION
-                     [org.jogamp.gluegen/gluegen-rt-main          "2.0.2"]
-                     [org.jogamp.jogl/jogl-all-main               "2.0.2"]]
+                     [org.jogamp.gluegen/gluegen-rt-main          "2.3.2"]
+                     [org.jogamp.jogl/jogl-all-main               "2.3.2"]]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
