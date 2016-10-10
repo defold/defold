@@ -8,10 +8,19 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
+
+import org.apache.commons.lang.ArrayUtils;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
+import javax.vecmath.AxisAngle4d;
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Matrix4f;
 import javax.vecmath.Point3d;
+import javax.vecmath.Point3f;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Quat4f;
+import javax.vecmath.Tuple3d;
+import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
@@ -20,9 +29,6 @@ import javax.xml.stream.XMLStreamReader;
 import org.jagatoo.loaders.models.collada.stax.XMLAnimation;
 import org.jagatoo.loaders.models.collada.stax.XMLAnimationClip;
 import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
-import org.jagatoo.loaders.models.collada.stax.XMLChannel.ChannelType;
-import org.jagatoo.loaders.models.collada.stax.XMLNode.OperationType;
-import org.jagatoo.loaders.models.collada.stax.XMLNode.TransformOperation;
 import org.jagatoo.loaders.models.collada.stax.XMLController;
 import org.jagatoo.loaders.models.collada.stax.XMLGeometry;
 import org.jagatoo.loaders.models.collada.stax.XMLInput;
@@ -36,20 +42,14 @@ import org.jagatoo.loaders.models.collada.stax.XMLSkin;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
-import org.openmali.vecmath2.Matrix3f;
-import org.openmali.vecmath2.Matrix4f;
-import org.openmali.vecmath2.Quaternion4f;
-import org.openmali.vecmath2.Vector3f;
-import org.openmali.vecmath2.Vector4f;
+import org.openmali.FastMath;
 
 
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
 
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.RigUtil.AnimationCurve;
-import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
-import com.dynamo.bob.util.RigUtil.MatrixAnimationKey;
+import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -115,140 +115,158 @@ public class ColladaUtil {
         return samplersLUT;
     }
 
+    private static AnimationKey createKey(float t, boolean stepped) {
+        AnimationKey key = new AnimationKey();
+        key.t = t;
+        key.stepped = stepped;
+        return key;
+    }
+
+    private static void ExtractRotateKeys(Bone bone, Matrix4d parentToLocal, XMLAnimation animation, RigUtil.AnimationTrack rotTrack) {
+        int keyCount = animation.getInput().length;
+        Vector3d axis = new Vector3d(0.0, 0.0, 0.0);
+        switch (animation.getRotationAxis()) {
+        case X: axis.setX(1.0); break;
+        case Y: axis.setY(1.0); break;
+        case Z: axis.setZ(1.0); break;
+        }
+        parentToLocal.transform(axis);
+        AxisAngle4d axisAngle = new AxisAngle4d(axis, 0.0);
+        float[] times = animation.getInput();
+        float[] values = animation.getOutput();
+        Quat4f q = new Quat4f();
+        for (int key = 0; key < keyCount; ++key) {
+            axisAngle.setAngle(FastMath.toRad(values[key]));
+            q.set(axisAngle);
+            AnimationKey rotKey = createKey(times[key], false);
+            q.get(rotKey.value);
+            rotTrack.keys.add(rotKey);
+        }
+    }
+
+    private static void toFloats(Tuple3d v, float[] f) {
+        f[0] = (float)v.getX();
+        f[1] = (float)v.getY();
+        f[2] = (float)v.getZ();
+        f[3] = 0.0f;
+    }
+
+    private static void toFloats(Tuple4d v, float[] f) {
+        f[0] = (float)v.getX();
+        f[1] = (float)v.getY();
+        f[2] = (float)v.getZ();
+        f[3] = (float)v.getW();
+    }
+
+    private static void ExtractMatrixKeys(Bone bone, Matrix4d parentToLocal, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
+        int keyCount = animation.getInput().length;
+        float[] time = animation.getInput();
+        float[] values = animation.getOutput();
+        for (int key = 0; key < keyCount; ++key) {
+            int index = key * 16;
+            Matrix4d m = MathUtil.floatToDouble(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
+            m.mul(parentToLocal, m);
+            Point3d p = new Point3d();
+            Quat4d r = new Quat4d();
+            Vector3d s = new Vector3d();
+            MathUtil.decompose(m, p, r, s);
+            float t = time[key];
+            AnimationKey posKey = createKey(t, false);
+            toFloats(p, posKey.value);
+            posTrack.keys.add(posKey);
+            AnimationKey rotKey = createKey(t, false);
+            toFloats(r, rotKey.value);
+            rotTrack.keys.add(rotKey);
+            AnimationKey scaleKey = createKey(t, false);
+            toFloats(s, scaleKey.value);
+            scaleTrack.keys.add(scaleKey);
+        }
+    }
+
+    private static void ExtractKeys(Bone bone, Matrix4d parentToLocal, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
+        switch (animation.getType()) {
+        case ROTATE:
+            ExtractRotateKeys(bone, parentToLocal, animation, rotTrack);
+            break;
+        case TRANSFORM:
+        case MATRIX:
+            ExtractMatrixKeys(bone, parentToLocal, animation, posTrack, rotTrack, scaleTrack);
+            break;
+        default:
+            throw new LoaderException(String.format("Animations of type %s are not supported.", animation.getType().name()));
+        }
+    }
+
+    private static Matrix4d getBoneParentToLocal(Bone bone) {
+        return MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.invBindMatrix));
+    }
+
+    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+        if (!track.keys.isEmpty()) {
+            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+            animTrackBuilder.setBoneIndex(boneIndex);
+            RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
+            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true, false);
+            animBuilder.addTracks(animTrackBuilder.build());
+        }
+    }
+
+    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+        if (!track.keys.isEmpty()) {
+            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+            animTrackBuilder.setBoneIndex(boneIndex);
+            RigUtil.RotationBuilder rotationBuilder = new RigUtil.RotationBuilder(animTrackBuilder);
+            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf, true, false);
+            animBuilder.addTracks(animTrackBuilder.build());
+        }
+    }
+
+    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+        if (!track.keys.isEmpty()) {
+            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+            animTrackBuilder.setBoneIndex(boneIndex);
+            RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
+            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf, true, false);
+            animBuilder.addTracks(animTrackBuilder.build());
+        }
+    }
+
     private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, float duration, float sampleRate) throws LoaderException {
         animBuilder.setDuration(duration);
         animBuilder.setSampleRate(sampleRate);
 
-        if(boneList == null)
+        if (boneList == null) {
             return;
+        }
 
         // loop through each bone
         double spf = 1.0 / sampleRate;
-        for(int bi = 0; bi < boneList.size(); ++bi)
+        for (int bi = 0; bi < boneList.size(); ++bi)
         {
             Bone bone = boneList.get(bi);
             if (boneToAnimations.containsKey(bone.getName()))
             {
+                Matrix4d parentToLocal = getBoneParentToLocal(bone);
+
                 // search the animations for each bone
                 ArrayList<XMLAnimation> anims = boneToAnimations.get(bone.getName());
-                for (XMLAnimation animation : anims)
-                {
-                    if ( animation.getType() == null ) {
+                for (XMLAnimation animation : anims) {
+                    if (animation.getType() == null) {
                         continue;
                     }
 
-                    Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-                    animTrackBuilder.setBoneIndex(bi);
+                    RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
+                    posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
+                    RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
+                    posTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
+                    RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
+                    posTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
-                    RigUtil.MatrixAnimationTrack track = new RigUtil.MatrixAnimationTrack();
+                    ExtractKeys(bone, parentToLocal, animation, posTrack, rotTrack, scaleTrack);
 
-                    switch ( animation.getType() )
-                    {
-                        case ROTATE :
-                        {
-
-                            for ( int j = 0; j < animation.getInput().length; j++ )
-                            {
-                                String operationId = "rotate" + animation.getRotationAxis();
-
-                                float[] data = new float[]{0.0f,0.0f,0.0f,animation.getOutput()[j]};
-                                switch ( animation.getRotationAxis() ) {
-                                    case X:
-                                        data[0] = 1.0f;
-                                        break;
-                                    case Y:
-                                        data[1] = 1.0f;
-                                        break;
-                                    case Z:
-                                        data[2] = 1.0f;
-                                        break;
-                                }
-
-                                TransformOperation t = new TransformOperation(OperationType.ROTATE, operationId, data);
-                                HashMap<String, TransformOperation> animationOverrides = new HashMap<String, TransformOperation>();
-                                animationOverrides.put(operationId, t);
-                                Matrix4f mat = new Matrix4f(Matrix4f.IDENTITY);
-                                bone.node.applyTransformOperations(mat, animationOverrides);
-
-                                // Create a animation key from resulting matrix
-                                MatrixAnimationKey key = new MatrixAnimationKey();
-                                key.t = animation.getInput()[j];
-                                key.matrix = mat;
-                                AnimationCurve curve = new AnimationCurve();
-                                curve.interpolation = CurveIntepolation.LINEAR;
-                                key.curve = curve;
-                                track.keys.add(key);
-                            }
-
-                        }
-                        break;
-
-                        case MATRIX:
-                        case TRANSFORM:
-                        {
-                            for ( int j = 0; j < animation.getInput().length; j++ )
-                            {
-                                String operationId = "transform";
-                                if (animation.getType() == ChannelType.MATRIX) {
-                                    operationId = "matrix";
-                                }
-
-                                float[] data = new float[16];
-                                for(int yx = 0; yx < 16; yx++) {
-                                        data[yx] = animation.getOutput()[j*16 + yx];
-                                }
-
-                                TransformOperation t = new TransformOperation(OperationType.MATRIX, operationId, data);
-                                HashMap<String, TransformOperation> animationOverrides = new HashMap<String, TransformOperation>();
-                                animationOverrides.put(operationId, t);
-                                Matrix4f mat = new Matrix4f(Matrix4f.IDENTITY);
-                                bone.node.applyTransformOperations(mat, animationOverrides);
-
-                                // Create a animation key from resulting matrix
-                                MatrixAnimationKey key = new MatrixAnimationKey();
-                                key.t = animation.getInput()[j];
-                                key.matrix = mat;
-                                AnimationCurve curve = new AnimationCurve();
-                                curve.interpolation = CurveIntepolation.LINEAR;
-                                key.curve = curve;
-                                track.keys.add(key);
-                            }
-                        }
-                            break;
-                        default:
-                            throw new LoaderException("unsuported animation currently!" + animation.getType());
-                    }
-
-                    ArrayList<Matrix4f> matrixTrack = new ArrayList<Matrix4f>();
-                    RigUtil.MatrixPropertyBuilder matrixBuilder = new RigUtil.MatrixPropertyBuilder(matrixTrack);
-                    RigUtil.sampleMatrixTrack(track, matrixBuilder, bone.bindMatrix, (double)duration, (double)sampleRate, (double)spf, true);
-
-                    Matrix4f invPose = new Matrix4f(bone.bindMatrix).invert();
-
-                    for (int i = 0; i < matrixTrack.size(); i++) {
-                        Matrix4f matrix = matrixTrack.get(i);
-                        matrix.mul(invPose, matrix);
-
-                        Vector3f position = new Vector3f();
-                        Quaternion4f rotation = new Quaternion4f();
-                        Vector3f scale = new Vector3f();
-                        decomposeMatrix(matrix, scale, rotation, position);
-
-                        animTrackBuilder.addPositions(position.getX());
-                        animTrackBuilder.addPositions(position.getY());
-                        animTrackBuilder.addPositions(position.getZ());
-
-                        animTrackBuilder.addRotations(rotation.getA());
-                        animTrackBuilder.addRotations(rotation.getB());
-                        animTrackBuilder.addRotations(rotation.getC());
-                        animTrackBuilder.addRotations(rotation.getD());
-
-                        animTrackBuilder.addScale(scale.getX());
-                        animTrackBuilder.addScale(scale.getY());
-                        animTrackBuilder.addScale(scale.getZ());
-                    }
-
-                    animBuilder.addTracks(animTrackBuilder.build());
+                    samplePosTrack(animBuilder, bi, posTrack, duration, sampleRate, spf, true, false);
+                    sampleRotTrack(animBuilder, bi, posTrack, duration, sampleRate, spf, true, true);
+                    sampleScaleTrack(animBuilder, bi, posTrack, duration, sampleRate, spf, true, false);
                 }
             }
         }
@@ -327,56 +345,6 @@ public class ColladaUtil {
     }
 
 
-    private static void decomposeMatrix(Matrix4f mat, Vector3f scaling, Quaternion4f rotation, Vector3f position) {
-
-        // extract translation
-        position.setX(mat.get(0,3));
-        position.setY(mat.get(1,3));
-        position.setZ(mat.get(2,3));
-
-        // extract the rows of the matrix
-        Vector3f vRows[] = {
-                new Vector3f(mat.get(0,0),mat.get(1,0),mat.get(2,0)),
-                new Vector3f(mat.get(0,1),mat.get(1,1),mat.get(2,1)),
-                new Vector3f(mat.get(0,2),mat.get(1,2),mat.get(2,2))
-        };
-
-        // extract the scaling factors
-        scaling.setX(vRows[0].length());
-        scaling.setY(vRows[1].length());
-        scaling.setZ(vRows[2].length());
-
-        // and the sign of the scaling
-        if (mat.determinant() < 0) {
-            scaling.setX(-scaling.getX());
-            scaling.setY(-scaling.getY());
-            scaling.setZ(-scaling.getZ());
-        }
-
-        // and remove all scaling from the matrix
-        if(scaling.getX() != 0.0f)
-        {
-            vRows[0] = new Vector3f(vRows[0].div(scaling.getX()));
-        }
-        if(scaling.getY() != 0.0f)
-        {
-            vRows[1] = new Vector3f(vRows[1].div(scaling.getY()));
-        }
-        if(scaling.getZ() != 0.0f)
-        {
-            vRows[2] = new Vector3f(vRows[2].div(scaling.getZ()));
-        }
-
-        // build a 3x3 rotation matrix
-        Matrix3f rotmat = new Matrix3f(vRows[0].getX(),vRows[1].getX(),vRows[2].getX(),
-                                    vRows[0].getY(),vRows[1].getY(),vRows[2].getY(),
-                                    vRows[0].getZ(),vRows[1].getZ(),vRows[2].getZ());
-
-        // and generate the rotation quaternion from it
-        rotation.set(rotmat);
-    }
-
-
     public static void loadMesh(XMLCOLLADA collada, Rig.Mesh.Builder meshBuilder) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryGeometries.size() != 1) {
             if (collada.libraryGeometries.isEmpty()) {
@@ -402,7 +370,7 @@ public class ColladaUtil {
         if (!collada.libraryControllers.isEmpty()) {
             skin = findFirstSkin(collada.libraryControllers.get(0));
             if (skin != null && skin.bindShapeMatrix != null) {
-                bindShapeMatrix.set(skin.bindShapeMatrix.matrix4f);
+                bindShapeMatrix.set(MathUtil.vecmath2ToVecmath1(skin.bindShapeMatrix.matrix4f));
             }
         }
 
@@ -438,12 +406,12 @@ public class ColladaUtil {
         float meter = collada.asset.unit.meter;
         List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
         for (int i = 0; i < positions.floatArray.count / 3; ++i) {
-            Vector4f xyz = new Vector4f(positions.floatArray.floats[i*3], positions.floatArray.floats[i*3+1], positions.floatArray.floats[i*3+2], 1.0f);
-            xyz.mul(meter);
-            bindShapeMatrix.transform(xyz);
-            position_list.add(xyz.getX());
-            position_list.add(xyz.getY());
-            position_list.add(xyz.getZ());
+            Point3f p = new Point3f(positions.floatArray.floats[i*3], positions.floatArray.floats[i*3+1], positions.floatArray.floats[i*3+2]);
+            p.scale(meter);
+            bindShapeMatrix.transform(p);
+            position_list.add(p.getX());
+            position_list.add(p.getY());
+            position_list.add(p.getZ());
         }
 
         List<Float> normal_list;
@@ -594,12 +562,11 @@ public class ColladaUtil {
         for(int i = 0; i < boneRefArrayCount; i++) {
             boneIndexMap.put(boneRefArray[i], i);
             XMLNode n = findJoint(rootNode, boneRefArray[i]);
-            Bone newBone = new Bone( n, n.sid, n.name, n.matrix.matrix4f, new Quaternion4f( 0f, 0f, 0f, 1f ) );
+            Bone newBone = new Bone(n, n.sid, n.name, n.matrix.matrix4f, new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
             boneList.add(newBone);
             boneNameMap.put(newBone.getSourceId(), newBone);
             int offset = i*16;
-            Matrix4f mat = new Matrix4f(Arrays.copyOfRange(invBindMatSource.floatArray.floats, offset, offset+16));
-            newBone.invBindMatrix2 = mat;
+            newBone.invBindMatrix2 = new org.openmali.vecmath2.Matrix4f(Arrays.copyOfRange(invBindMatSource.floatArray.floats, offset, offset+16));
         }
 
         for(Bone bone : boneList) {
@@ -649,20 +616,20 @@ public class ColladaUtil {
         b.setParent(parentIndex);
         b.setId(MurmurHash.hash64(bone.getName()));
 
-        Matrix4f matrix = bone.bindMatrix;
+        Matrix4d matrix = MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
 
-        Vector3f position = new Vector3f();
-        Quaternion4f rotation = new Quaternion4f();
-        Vector3f scale = new Vector3f();
-        decomposeMatrix(matrix, scale, rotation, position);
+        Point3d position = new Point3d();
+        Quat4d rotation = new Quat4d();
+        Vector3d scale = new Vector3d();
+        MathUtil.decompose(matrix, position, rotation, scale);
 
-        Point3 ddfpos = MathUtil.vecmathToDDF(new Point3d(position.getX(), position.getY(), position.getZ()));
+        Point3 ddfpos = MathUtil.vecmathToDDF(position);
         b.setPosition(ddfpos);
 
-        Quat ddfrot = MathUtil.vecmathToDDF(new Quat4d(rotation.getA(), rotation.getB(), rotation.getC(), rotation.getD()));
+        Quat ddfrot = MathUtil.vecmathToDDF(rotation);
         b.setRotation(ddfrot);
 
-        Vector3 ddfscale = MathUtil.vecmathToDDF(new Vector3d(scale.getX(), scale.getY(), scale.getZ()));
+        Vector3 ddfscale = MathUtil.vecmathToDDF(scale);
         b.setScale(ddfscale);
 
         b.setLength(0.0f);
@@ -672,8 +639,6 @@ public class ColladaUtil {
 
 
         parentIndex = boneIndexMap.getOrDefault(bone.getSourceId(), 0xffff);
-
-//        System.out.println("bone[" + parentIndex + "].getSourceId(): " + bone.getSourceId());
 
         for(int i = 0; i < bone.numChildren(); i++) {
             Bone childBone = bone.getChild(i);
@@ -716,17 +681,13 @@ public class ColladaUtil {
                 float bw = 0f;
                 int bi = 0;
                 bi = skin.vertexWeights.v.ints[ vIndex + j * 2 + 0 ];
-                if( bi != -1 ) {
+                if (bi != -1) {
                     final int weightIndex = skin.vertexWeights.v.ints[ vIndex + j * 2 + 1 ];
                     bw = weightsSource.floatArray.floats[ weightIndex ];
                     bone_indices_list.add(bi);
                     bone_weights_list.add(bw);
                 } else {
                     throw new LoaderException("Invalid bone index when loading vertex weights.");
-                    // influences[ i ][ j ] = new Influence( bindShapeMatrix.matrix4f, weight );
-//                    bone_indices_list.add(0);
-//                    bone_weights_list.add(0f);
-//                    bi = 0;
                 }
             }
             for (; j < 4; j++ ) {

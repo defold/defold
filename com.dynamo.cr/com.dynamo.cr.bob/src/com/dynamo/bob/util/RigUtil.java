@@ -9,8 +9,6 @@ import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 
-import org.openmali.vecmath2.Matrix4f;
-
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
 import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
@@ -169,20 +167,12 @@ public class RigUtil {
 
     public static class AnimationTrack extends AbstractAnimationTrack<AnimationKey> {
         public enum Property {
-            POSITION, ROTATION, SCALE, MATRIX
+            POSITION, ROTATION, SCALE
         }
         public Bone bone;
         public Property property;
     }
 
-    public static class MatrixAnimationKey extends AnimationKey {
-        public Matrix4f matrix;
-    }
-    
-    public static class MatrixAnimationTrack extends AbstractAnimationTrack<MatrixAnimationKey> {
-        
-    }
-    
     public static class IKAnimationKey extends AnimationKey {
         public float mix;
         public boolean positive;
@@ -286,31 +276,6 @@ public class RigUtil {
         }
     }
     
-    public static abstract class AbstractMatrixPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.MatrixAnimationKey> {
-        protected ArrayList<Matrix4f> builder;
-
-        public AbstractMatrixPropertyBuilder(ArrayList<Matrix4f> builder) {
-            this.builder = builder;
-        }
-    }
-
-    
-    public static class MatrixPropertyBuilder {
-        protected ArrayList<Matrix4f> builder;
-        public MatrixPropertyBuilder(ArrayList<Matrix4f> builder) {
-            this.builder = builder;
-        }
-
-        public void addComposite(Matrix4f v) {
-            builder.add(new Matrix4f(v));
-        }
-
-        public Matrix4f toComposite(RigUtil.AnimationKey key) {
-            RigUtil.MatrixAnimationKey k = (RigUtil.MatrixAnimationKey)key;
-            return new Matrix4f(k.matrix);
-        }
-    }
-
     public static class PositionBuilder extends AbstractPropertyBuilder<Point3d> {
         public PositionBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
             super(builder);
@@ -546,53 +511,6 @@ public class RigUtil {
         }
         qOut.interpolate(q0, q1, t);
         return qOut;
-    }
-    
-    private static void sampleMatrix(RigUtil.AnimationCurve curve, RigUtil.MatrixPropertyBuilder builder, double cursor, double t0, Matrix4f m0, double t1, Matrix4f m1, double spf) {
-        double length = t1 - t0;
-        double t = (cursor - t0) / length;
-        
-        Matrix4f out = new Matrix4f(m0);
-        out.interpolate(m0, m1, (float)t);
-        
-        builder.addComposite(out);
-    }
-    
-    public static void sampleMatrixTrack(RigUtil.AbstractAnimationTrack<RigUtil.MatrixAnimationKey> track, RigUtil.MatrixPropertyBuilder propertyBuilder, Matrix4f defaultValue, double duration, double sampleRate, double spf, boolean interpolate) {
-        if (track.keys.isEmpty()) {
-            return;
-        }
-        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
-        int keyIndex = 0;
-        int keyCount = track.keys.size();
-        RigUtil.MatrixAnimationKey key = null;
-        RigUtil.MatrixAnimationKey next = track.keys.get(keyIndex);
-        Matrix4f endValue = track.keys.get(keyCount-1).matrix;
-        
-        for (int i = 0; i < sampleCount; ++i) {
-            double cursor = i * spf;
-            // Skip passed keys
-            while (next != null && next.t <= cursor) {
-                key = next;
-                ++keyIndex;
-                if (keyIndex < keyCount) {
-                    next = track.keys.get(keyIndex);
-                } else {
-                    next = null;
-                }
-            }
-            if (key != null) {
-                if (next != null) {
-                    sampleMatrix(key.curve, propertyBuilder, cursor, key.t, key.matrix, next.t, next.matrix, spf);
-                } else {
-                    // Last key reached, use its value for remaining samples
-                    propertyBuilder.addComposite(endValue);
-                }
-            } else {
-                // No valid key yet, use default value
-                propertyBuilder.addComposite(defaultValue);
-            }
-        }
     }
 
     public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate, boolean shouldSlerp) {
