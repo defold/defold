@@ -75,6 +75,21 @@
       (is (= 1.0 (prop script-c "number")))
       (is (not (overridden? script-c "number"))))))
 
+(deftest script-properties-broken-component
+  (with-clean-system
+    (let [workspace (tu/setup-workspace! world)
+          project (tu/setup-project! workspace)
+          go-id (tu/resource-node project "/game_object/type_faulty_props.go")
+          script-c (component go-id "script")]
+      (is (not (overridden? script-c "number")))
+      (is (= 1.0 (prop script-c "number")))
+      (prop! script-c "number" 3.0)
+      (is (overridden? script-c "number"))
+      (is (= 3.0 (prop script-c "number")))
+      (clear! script-c "number")
+      (is (not (overridden? script-c "number")))
+      (is (= 1.0 (prop script-c "number"))))))
+
 (deftest script-properties-collection
   (with-clean-system
     (let [workspace (tu/setup-workspace! world)
@@ -89,3 +104,20 @@
             (is (:outline-overridden? outline))
             (is (= val (prop script-c "number")))
             (is (overridden? script-c "number"))))))))
+
+(deftest script-properties-broken-collection
+  (with-clean-system
+    (let [workspace (tu/setup-workspace! world)
+          project (tu/setup-project! workspace)]
+      ;; [0 0] instance script, bad collection level override, fallback to instance override = 2.0
+      ;; [1 0] embedded instance script, bad collection level override, fallback to script setting = 1.0
+      ;; [2 0] type faulty instance script, bad collection level override, fallback to script setting = 1.0
+      ;; [3 0] type faulty instance script, proper collection-level override = 3.0
+      (doseq [[resource path-vals] [["/collection/type_faulty_props.collection" [[[0 0] false 2.0] [[1 0] false 1.0] [[2 0] false 1.0]] [[3 0] true 3.0]]]
+              [path overriden val] path-vals]
+        (let [coll-id (tu/resource-node project resource)]
+          (let [outline (tu/outline coll-id path)
+                script-c (:node-id outline)]
+            (is (= overriden (:outline-overridden? outline)))
+            (is (= val (prop script-c "number")))
+            (is (= overriden (overridden? script-c "number")))))))))
