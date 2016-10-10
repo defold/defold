@@ -21,8 +21,9 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1".split()
-PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0".split()
+PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1 luajit-2.0.3".split()
+PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3".split()
+PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -258,6 +259,9 @@ class Configuration(object):
 
         for p in PACKAGES_LINUX:
                 self._extract_tgz(make_path('linux'), self.ext)
+
+        for p in PACKAGES_LINUX_64:
+                self._extract_tgz(make_path('x86_64-linux'), self.ext)
 
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
@@ -646,11 +650,10 @@ instructions.configure=\
         self.exec_env_command(['./scripts/lein', 'clean'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'protobuf'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'builtins'], cwd = cwd)
+        self.exec_env_command(['./scripts/lein', 'pack'], cwd = cwd)
         self.check_editor2_reflections()
         self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
-
-        ext_lib_path = join(self.dynamo_home, 'ext', 'lib')
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version, '--ext-lib-path=%s' % ext_lib_path], cwd = cwd)
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version], cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()

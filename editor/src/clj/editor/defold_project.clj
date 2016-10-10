@@ -362,7 +362,7 @@
 
 (defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
+        path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)
         pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
