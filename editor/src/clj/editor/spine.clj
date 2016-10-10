@@ -275,12 +275,14 @@
                              0 weights)]
     (mapv (fn [w] (update w :weight #(/ % total-weight))) weights)))
 
+(def ^:private ^TextureSetGenerator$UVTransform uv-identity (TextureSetGenerator$UVTransform.))
+
 (defn- attachment->mesh [attachment att-name slot-data anim-data bones-remap bone-index->world]
   (when anim-data
     (let [type (get attachment "type" "region")
           world ^SpineScene$Transform (:bone-world slot-data)
           anim-id (get attachment "name" att-name)
-          uv-trans ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms]))
+          uv-trans (or ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms])) uv-identity)
           mesh (case type
                  "region"
                  (let [local (doto (SpineScene$Transform.)
