@@ -1,13 +1,17 @@
 (ns editor.game-project
-  (:require [clojure.string :as s]
+  (:require [clojure.string :as string]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [util.murmur :as murmur]
             [editor.graph-util :as gu]
             [editor.game-project-core :as gpcore]
             [editor.defold-project :as project]
             [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [service.log :as log]))
+            [service.log :as log])
+  (:import [java.io File]
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -17,7 +21,7 @@
   (-> key
       name
       camel/->Camel_Snake_Case_String
-      (s/replace "_" " ")))
+      (string/replace "_" " ")))
 
 (defn- make-form-field [setting]
   (assoc setting
@@ -67,7 +71,8 @@
       ;; We retain the actual raw string settings and update these when/if the user changes a setting,
       ;; rather than parse to proper typed/sanitized values and rendering these on save - again only to
       ;; reduce diffs.
-      (g/set-property self :raw-settings raw-settings :meta-info meta-info)
+     (g/set-property self :raw-settings raw-settings :meta-info meta-info)
+     (g/connect project :resource-map self :resource-map)
       (for [[p root] roots]
         (g/set-property self (path->property p) root)))))
 
@@ -90,6 +95,69 @@
                       (gpcore/settings-with-value (:settings user-data)))
         ^String user-data-content (gpcore/settings->str settings)]
     {:resource resource :content (.getBytes user-data-content)}))
+
+(defn- resource-content [resource]
+  (IOUtils/toByteArray (io/input-stream resource)))
+
+(defn- build-custom-resource [self basis resource dep-resources user-data]
+  {:resource resource :content (resource-content (:resource resource))})
+
+(defrecord CustomResource [resource]
+  ;; Only purpose is to provide resource-type with :build-ext = :ext
+  resource/Resource
+  (children [this] (resource/children resource))
+  (resource-type [this]
+    (let [path (resource/path this)
+          ext (FilenameUtils/getExtension path)]
+      {:ext ext
+       :label "Custom Resource"
+       :build-ext ext}))
+  (source-type [this] (resource/source-type resource))
+  (exists? [this] (resource/exists? resource))
+  (read-only? [this] (resource/read-only? resource))
+  (path [this] (resource/path resource))
+  (abs-path [this] (resource/abs-path resource))
+  (proj-path [this] (resource/proj-path resource))
+  (url [this] (resource/url resource))
+  (resource-name [this] (resource/resource-name resource))
+  (workspace [this] (resource/workspace resource))
+  (resource-hash [this] (resource/resource-hash resource))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/input-stream resource))
+  (io/make-reader        [this opts] (io/reader resource))
+  (io/make-output-stream [this opts] (io/output-stream resource))
+  (io/make-writer        [this opts] (io/writer resource)))
+
+(defn- make-custom-build-target [node-id resource]
+  {:node-id node-id
+   :resource (workspace/make-build-resource (CustomResource. resource))
+   :build-fn build-custom-resource
+   ;; NOTE! Break build cache when resource content changes.
+   :user-data {:hash (murmur/hash-bytes (resource-content resource))}})
+
+(defn- with-leading-slash [path]
+  (if (string/starts-with? path "/")
+    path
+    (str "/" path)))
+
+(defn- strip-trailing-slash [path]
+  (string/replace path #"/*$" ""))
+
+(defn- file-resource? [resource]
+  (= (resource/source-type resource) :file))
+
+(defn- find-custom-resources [resource-map custom-paths]
+  (->> (flatten (keep (fn [custom-path]
+                      (when-let [base-resource (resource-map custom-path)]
+                        (resource/resource-seq base-resource)))
+                    custom-paths))
+       (distinct)
+       (filter file-resource?)))
+
+(defn- parse-custom-resource-paths [cr-setting]
+  (let [paths (remove string/blank? (map string/trim (string/split (or cr-setting "")  #",")))]
+    (map (comp strip-trailing-slash with-leading-slash) paths)))
 
 (defn- set-setting [settings {:keys [path] :as meta-setting} value]
   (gpcore/set-setting settings meta-setting path value))
@@ -206,19 +274,26 @@
   (output settings-map g/Any :cached produce-settings-map)
   (output form-data g/Any :cached produce-form-data)
 
+  (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
+
+  (output custom-build-targets g/Any :cached (g/fnk [_node-id resource-map settings-map]
+                                                    (let [custom-paths (parse-custom-resource-paths (get settings-map ["project" "custom_resources"]))]
+                                                      (map (partial make-custom-build-target _node-id)
+                                                           (find-custom-resources resource-map custom-paths)))))
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached (g/fnk [_node-id resource raw-settings meta-info dep-build-targets _declared-properties]
+  (output build-targets g/Any :cached (g/fnk [_node-id resource raw-settings custom-build-targets dep-build-targets _declared-properties]
                                              (let [ref-deps (into {} (map (fn [[k v]] [k (workspace/make-build-resource (:value v))])
                                                                           (select-keys (:properties _declared-properties) (keys property->path))))]
                                                [{:node-id _node-id
-                                                :resource (workspace/make-build-resource resource)
-                                                :build-fn build-game-project
-                                                :user-data {:settings raw-settings
-                                                            :ref-deps ref-deps}
-                                                :deps (vec (flatten dep-build-targets))}]))))
+                                                 :resource (workspace/make-build-resource resource)
+                                                 :build-fn build-game-project
+                                                 :user-data {:settings raw-settings
+                                                             :ref-deps ref-deps}
+                                                 :deps (vec (concat (flatten dep-build-targets)
+                                                                    custom-build-targets))}]))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
