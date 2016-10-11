@@ -24,8 +24,13 @@ function test_sys()
     if ret then assert(false, "expected lua error for sys.save with too long path") end
 
     -- save file
-    local data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
+    local data = { high_score = 1111, location = vmath.vector3(2,2,2), xp = 33, name = "First Save" }
     local result = sys.save(file, data)
+    assert(result)
+
+    -- resave file (checking the atomic move works)
+    data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
+    result = sys.save(file, data)
     assert(result)
 
     -- reload saved file

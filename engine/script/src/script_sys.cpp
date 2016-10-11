@@ -105,7 +105,11 @@ namespace dmScript
             result = result && (fclose(file) == 0);
             if (result)
             {
+#ifdef _WIN32
+                bool rename_result = MoveFileEx(tmp_filename, filename, MOVEFILE_REPLACE_EXISTING) != 0;
+#else
                 bool rename_result = rename(tmp_filename, filename) != -1;
+#endif
                 if (rename_result)
                 {
                     lua_pushboolean(L, result);
