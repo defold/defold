@@ -193,7 +193,7 @@
       (testing "collection ref instance"
                (is (not (build-error? coll-id)))
                (let [res (workspace/resolve-workspace-resource workspace "/collection/test.collection")]
-                 (g/transact (collection/add-collection-instance coll-id res "coll" [0 0 0] [0 0 0] [1 1 1] []))
+                 (g/transact (collection/add-collection-instance coll-id res "coll" [0 0 0] [0 0 0 1] [1 1 1] []))
                  (let [inst-id (:node-id (test-util/outline coll-id [0]))]
                    (is (nil? (test-util/prop-error inst-id :path)))
                    (test-util/with-prop [inst-id :path {:resource nil :overrides []}]

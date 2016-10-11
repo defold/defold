@@ -48,17 +48,18 @@
 
 (defn gather-requires [node-id ralias rname module-nodes]
   (let [rnode (find-module-node node-id rname module-nodes)
-        module-name (if (= ralias rname) (last (string/split rname #"\.")) ralias)
+        module-name (or ralias "")
         rcompletion-info (g/node-value rnode :completion-info)]
-    {module-name (make-completions rcompletion-info false module-name)
-     "" #{(code/create-hint module-name)}}))
-
+    (merge-with set/union
+                {module-name (make-completions rcompletion-info false ralias)}
+                (when (seq module-name) {"" #{(code/create-hint module-name)}}))))
 
 (defn combine-completions [_node-id completion-info module-nodes]
  (let [local-completions {"" (make-completions completion-info true nil)}
-       require-info (or (:requires completion-info) {})
-       require-completions (apply merge
-                                  (map (fn [[ralias rname]] (gather-requires _node-id ralias rname module-nodes)) require-info))]
+       require-completions (apply merge-with into
+                                  (map (fn [[ralias rname]]
+                                         (gather-requires _node-id ralias rname module-nodes))
+                                       (:requires completion-info)))]
    (merge-with into
                @lua/defold-docs
                @lua/lua-std-libs-docs

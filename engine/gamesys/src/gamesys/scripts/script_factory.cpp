@@ -158,7 +158,7 @@ namespace dmGameSystem
                 dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + actual_prop_buffer_size, 0);
             } else {
                 dmScript::GetInstance(L);
-                int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
                 dmGameObject::HInstance instance = dmGameObject::Spawn(collection, component->m_Resource->m_FactoryDesc->m_Prototype,
                     id, buffer, actual_prop_buffer_size, position, rotation, scale);
@@ -174,7 +174,7 @@ namespace dmGameSystem
 
                 lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
                 dmScript::SetInstance(L);
-                luaL_unref(L, LUA_REGISTRYINDEX, ref);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
             }
 
             if (success)
