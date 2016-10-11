@@ -275,7 +275,7 @@ public class RigUtil {
             this.builder = builder;
         }
     }
-    
+
     public static class PositionBuilder extends AbstractPropertyBuilder<Point3d> {
         public PositionBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
             super(builder);
@@ -368,7 +368,7 @@ public class RigUtil {
         @Override
         public Vector3d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
-            return new Vector3d(v[0], v[1], 1.0);
+            return new Vector3d(v[0], v[1], v[2]);
         }
     }
 
@@ -501,7 +501,7 @@ public class RigUtil {
             builder.add(v);
         }
     }
-    
+
     private static Quat4d sampleCurveSlerp(RigUtil.AnimationCurve curve, double cursor, double t0, Quat4d q0, double t1, Quat4d q1, double spf) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;

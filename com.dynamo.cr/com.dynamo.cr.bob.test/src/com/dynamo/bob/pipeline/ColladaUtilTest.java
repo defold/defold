@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,6 +23,8 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.rig.proto.Rig;
 
 public class ColladaUtilTest {
+
+    static double EPSILON = 0.0001;
 
     public ColladaUtilTest(){
         // Avoid hang when running unit-test on Mac OSX
@@ -122,8 +125,8 @@ public class ColladaUtilTest {
         float x = 100 * pos.get(i * 3 + 0);
         float y = 100 * pos.get(i * 3 + 1);
 
-        assertEquals(xe, x, 0.0001);
-        assertEquals(ye, y, 0.0001);
+        assertEquals(xe, x, EPSILON);
+        assertEquals(ye, y, EPSILON);
     }
 
     private void assertNrm(List<Float> nrm, int i, double xe, double ye, float ze) {
@@ -131,17 +134,17 @@ public class ColladaUtilTest {
         float y = nrm.get(i * 3 + 1);
         float z = nrm.get(i * 3 + 2);
 
-        assertEquals(xe, x, 0.0001);
-        assertEquals(ye, y, 0.0001);
-        assertEquals(ze, z, 0.0001);
+        assertEquals(xe, x, EPSILON);
+        assertEquals(ye, y, EPSILON);
+        assertEquals(ze, z, EPSILON);
     }
 
     private void assertUV(List<Float> nrm, int i, double ue, double ve) {
         float u = nrm.get(i * 2 + 0);
         float v = nrm.get(i * 2 + 1);
 
-        assertEquals(ue, u, 0.0001);
-        assertEquals(ve, v, 0.0001);
+        assertEquals(ue, u, EPSILON);
+        assertEquals(ve, v, EPSILON);
     }
 
     @Test
@@ -220,44 +223,62 @@ public class ColladaUtilTest {
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(getClass().getResourceAsStream("one_vertice_bone.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
-        assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
-        
-        Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(0);
-        assertEquals(0, track.getBoneIndex());
-        
-        for (int i = 0; i < track.getPositionsCount(); i++) {
-            assertEquals(0.0, track.getPositions(i), 0.0001);
-        }
-        
-        for (int i = 0; i < track.getScaleCount(); i++) {
-            assertEquals(1.0, track.getScale(i), 0.0001);
-        }
-        
-        // Assert that the rotation keyframes keeps increasing rotation around X
-        Point3d rot = new Point3d(0.0,0.0,0.0);
-        Quat4d rQ = new Quat4d(track.getRotations(0), track.getRotations(1), track.getRotations(2), track.getRotations(3));
-        quatToEuler(rQ, rot);
-        double lastXRot = rot.getX();
-        for (int i = 1; i < track.getRotationsCount() / 4; i++) {
-            rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
-            quatToEuler(rQ, rot);
-            
-            assertTrue(rot.getX() > lastXRot);
-            lastXRot = rot.getX();
-        }
-        
-        assertEquals(1, skeletonBuilder.getBonesCount());
-        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getX(), 0.0001);
-        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getY(), 0.0001);
-        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getZ(), 0.0001);
 
-        // File is exported with blender
-        System.out.println(skeletonBuilder.getBones(0).getRotation());
-//        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getRotation().getX(), 0.0001);
-//        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getRotation().getY(), 0.0001);
-//        assertEquals(-0.70710677, (double)skeletonBuilder.getBones(0).getRotation().getZ(), 0.0001);
-//        assertEquals( 0.70710677, (double)skeletonBuilder.getBones(0).getRotation().getW(), 0.0001);
-        
+        // The bone is animated with a matrix track in the DAE,
+        // which expands into 3 separate tracks in our format;
+        // position, rotation and scale.
+        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+
+        int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
+            assertEquals(0, track.getBoneIndex());
+
+            // The collada file does not animate either position or scale for the bones,
+            // but since the input animations are matrices we don't "know" that. But we
+            // will verify that they do not change.
+            if (track.getPositionsCount() > 0) {
+                int posCount = track.getPositionsCount();
+                for (int i = 0; i < posCount; i++) {
+                    assertEquals(0.0, track.getPositions(i), EPSILON);
+                }
+            } else if (track.getScaleCount() > 0) {
+                int scaleCount = track.getScaleCount();
+                for (int i = 0; i < scaleCount; i++) {
+                    assertEquals(1.0, track.getScale(i), EPSILON);
+                }
+            } else if (track.getRotationsCount() > 0) {
+                // Assert that the rotation keyframes keeps increasing rotation around X
+                Point3d rot = new Point3d(0.0,0.0,0.0);
+                Quat4d rQ = new Quat4d(track.getRotations(0), track.getRotations(1), track.getRotations(2), track.getRotations(3));
+                quatToEuler(rQ, rot);
+                double lastXRot = rot.getX();
+
+                int rotCount = track.getRotationsCount() / 4;
+                for (int i = 1; i < rotCount; i++) {
+                    rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
+                    quatToEuler(rQ, rot);
+                    if (rot.getX() <= lastXRot) {
+                        fail("Rotation is not increasing. Previously: " + lastXRot + ", now: " + rot.getX());
+                    }
+
+                    lastXRot = rot.getX();
+                }
+            }
+
+        }
+
+        // The bone is located in origo and rotated -90 degrees around X.
+        assertEquals(1, skeletonBuilder.getBonesCount());
+        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getX(), EPSILON);
+        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getY(), EPSILON);
+        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getZ(), EPSILON);
+        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getRotation().getX(), EPSILON);
+        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getRotation().getY(), EPSILON);
+        assertEquals(-0.70710677, (double)skeletonBuilder.getBones(0).getRotation().getZ(), EPSILON);
+        assertEquals( 0.70710677, (double)skeletonBuilder.getBones(0).getRotation().getW(), EPSILON);
+
     }
 
 }

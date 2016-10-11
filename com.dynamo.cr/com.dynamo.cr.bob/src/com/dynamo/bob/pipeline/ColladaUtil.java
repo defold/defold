@@ -22,6 +22,7 @@ import javax.vecmath.Quat4f;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector3f;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -115,10 +116,11 @@ public class ColladaUtil {
         return samplersLUT;
     }
 
-    private static AnimationKey createKey(float t, boolean stepped) {
+    private static AnimationKey createKey(float t, boolean stepped, int componentSize) {
         AnimationKey key = new AnimationKey();
         key.t = t;
         key.stepped = stepped;
+        key.value = new float[componentSize];
         return key;
     }
 
@@ -138,7 +140,7 @@ public class ColladaUtil {
         for (int key = 0; key < keyCount; ++key) {
             axisAngle.setAngle(FastMath.toRad(values[key]));
             q.set(axisAngle);
-            AnimationKey rotKey = createKey(times[key], false);
+            AnimationKey rotKey = createKey(times[key], false, 4);
             q.get(rotKey.value);
             rotTrack.keys.add(rotKey);
         }
@@ -148,7 +150,6 @@ public class ColladaUtil {
         f[0] = (float)v.getX();
         f[1] = (float)v.getY();
         f[2] = (float)v.getZ();
-        f[3] = 0.0f;
     }
 
     private static void toFloats(Tuple4d v, float[] f) {
@@ -166,18 +167,18 @@ public class ColladaUtil {
             int index = key * 16;
             Matrix4d m = MathUtil.floatToDouble(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
             m.mul(parentToLocal, m);
-            Point3d p = new Point3d();
+            Vector3d p = new Vector3d();
             Quat4d r = new Quat4d();
             Vector3d s = new Vector3d();
             MathUtil.decompose(m, p, r, s);
             float t = time[key];
-            AnimationKey posKey = createKey(t, false);
+            AnimationKey posKey = createKey(t, false, 3);
             toFloats(p, posKey.value);
             posTrack.keys.add(posKey);
-            AnimationKey rotKey = createKey(t, false);
+            AnimationKey rotKey = createKey(t, false, 4);
             toFloats(r, rotKey.value);
             rotTrack.keys.add(rotKey);
-            AnimationKey scaleKey = createKey(t, false);
+            AnimationKey scaleKey = createKey(t, false, 3);
             toFloats(s, scaleKey.value);
             scaleTrack.keys.add(scaleKey);
         }
@@ -185,9 +186,10 @@ public class ColladaUtil {
 
     private static void ExtractKeys(Bone bone, Matrix4d parentToLocal, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
         switch (animation.getType()) {
+        case TRANSLATE:
+        case SCALE:
         case ROTATE:
-            ExtractRotateKeys(bone, parentToLocal, animation, rotTrack);
-            break;
+            throw new LoaderException("Currently only collada files with matrix animations are supported.");
         case TRANSFORM:
         case MATRIX:
             ExtractMatrixKeys(bone, parentToLocal, animation, posTrack, rotTrack, scaleTrack);
@@ -206,7 +208,7 @@ public class ColladaUtil {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true, false);
+            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
@@ -215,8 +217,8 @@ public class ColladaUtil {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.RotationBuilder rotationBuilder = new RigUtil.RotationBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf, true, false);
+            RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
+            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
@@ -226,7 +228,7 @@ public class ColladaUtil {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf, true, false);
+            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
@@ -258,15 +260,15 @@ public class ColladaUtil {
                     RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
                     posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
                     RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
-                    posTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
+                    rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
                     RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
-                    posTrack.property = RigUtil.AnimationTrack.Property.SCALE;
+                    scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
                     ExtractKeys(bone, parentToLocal, animation, posTrack, rotTrack, scaleTrack);
 
                     samplePosTrack(animBuilder, bi, posTrack, duration, sampleRate, spf, true, false);
-                    sampleRotTrack(animBuilder, bi, posTrack, duration, sampleRate, spf, true, true);
-                    sampleScaleTrack(animBuilder, bi, posTrack, duration, sampleRate, spf, true, false);
+                    sampleRotTrack(animBuilder, bi, rotTrack, duration, sampleRate, spf, true, true);
+                    sampleScaleTrack(animBuilder, bi, scaleTrack, duration, sampleRate, spf, true, false);
                 }
             }
         }
@@ -618,12 +620,12 @@ public class ColladaUtil {
 
         Matrix4d matrix = MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
 
-        Point3d position = new Point3d();
+        Vector3d position = new Vector3d();
         Quat4d rotation = new Quat4d();
         Vector3d scale = new Vector3d();
         MathUtil.decompose(matrix, position, rotation, scale);
 
-        Point3 ddfpos = MathUtil.vecmathToDDF(position);
+        Point3 ddfpos = MathUtil.vecmathToDDF(new Point3d(position));
         b.setPosition(ddfpos);
 
         Quat ddfrot = MathUtil.vecmathToDDF(rotation);
