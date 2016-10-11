@@ -7,7 +7,7 @@ def configure(conf):
 def build(bld):
     script = bld.new_task_gen(features = 'cc cxx cprogram',
                               uselib = 'DLIB',
-                              source = 'launcher.cpp',
+                              source = ['launcher.cpp'],
                               target = 'launcher')
 
     if 'win32' in bld.env.BUILD_PLATFORM:
