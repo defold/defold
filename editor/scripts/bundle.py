@@ -278,6 +278,9 @@ def bundle(platform, jar_file, options):
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
     exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
 
+    if 'win32' in platform:
+        exec_command('java -cp target/classes com.defold.util.IconExe %s/Defold%s bundle-resources/logo.ico' % (exe_dir, exe_suffix))
+
     extract(jre, 'tmp')
     print 'Creating bundle'
     if is_mac:
