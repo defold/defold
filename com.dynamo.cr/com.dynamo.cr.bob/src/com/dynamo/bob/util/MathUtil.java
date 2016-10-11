@@ -137,7 +137,11 @@ public class MathUtil {
             rsColumns[2].scale(1.0 / s.getZ());
         }
 
-        r.set(rotScale);
+        // build a 3x3 rotation matrix (scale has been removed)
+        Matrix3d rotmat = new Matrix3d(rsColumns[0].getX(), rsColumns[1].getX(), rsColumns[2].getX(),
+                                       rsColumns[0].getY(), rsColumns[1].getY(), rsColumns[2].getY(),
+                                       rsColumns[0].getZ(), rsColumns[1].getZ(), rsColumns[2].getZ());
+        r.set(rotmat);
     }
 
     public static void decompose(Matrix4f m, Vector3f p, Quat4f r, Vector3f s) {
