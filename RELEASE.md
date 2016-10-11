@@ -38,13 +38,21 @@ Important: *Make sure your branches are up to date!*
 
  4. Wait for `cr-editor-beta` to finish, make sure autobuilders are green.
  5. Write release beta release notes.
- 6. Download and run beta: http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.zip
-    The SHA1 can be found in the latest `cr-editor-beta` build, or `git log` on beta branch.
+ 6. Download and run beta:
+ 
+    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.zip
+    
+    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-win32.win32.x86.zip
+    
+    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-linux.gtk.x86_64.zip
+    
+    The SHA1 can be found in the latest [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) build, or `git log` on beta branch.
 
  7. Verify new features and bug fixes.
  8. Verify dev mobile apps.
 
  9. If everything is OK, time to release beta:
+ 
     $ `git./scripts/build.py release --channel=beta --branch=beta`
 
     Important: *Make sure the SHA1 and channel is correct!*
@@ -61,7 +69,7 @@ When the beta has been released the following apps needs to be bundled and sent 
 * BBS - iOS, Android
 * Presto - iOS, Android
 
-Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that does this automatically. It uploads to [MBDL/Defold](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
+Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that does this automatically. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
 
 ### Defold Team
 The following smoke tests are currently performed by the team on each platform (OSX, Win, Linux):
@@ -82,7 +90,14 @@ The following smoke tests are currently performed by the team on each platform (
     This will trigger a build of the engines and editors for stable.
     Check hash for new release via waterfall build(cr-editor)/or latest commit to master on github.
 
- 3. Fetch editor via: http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.zip
+ 3. Fetch editor via:
+ 
+    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.zip
+    
+    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-win32.win32.x86.zip
+    
+    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-linux.gtk.x86_64.zip
+    
  4. Tag the release in git:
 
         $ git tag -a X.Y.Z (same as version produced by the bump)
