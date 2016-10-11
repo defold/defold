@@ -361,12 +361,18 @@
     tree-view))
 
 (defn- drag-detected [^MouseEvent e selection]
+  "About TransferMode
+  Previously we selected TransferMode based on the resources in question but it's probably wrong.
+  For most cases TransferMode/COPY is the correct mode but it's not possible (or known) how to
+  select/enforce mode after the fact, i.e. after drag has been initiated.
+  In concrete terms, when dragging to the Finder, Terminal, TextEditor on OS X we
+  would like to use TransferMode/COPY but when dragging within the asset-browser we would like to use TransferMode/MOVE.
+  By always supporting both modes we can support various scenarios but with the downside that the default behaviour when
+  dragging resources to Finder is TransferMode/MOVE. However, TransferMode/COPY can be enforced by holding down the ALT-key.
+  "
   (let [resources (roots selection)
         files (fileify resources)
-        mode (if (empty? (filter resource/read-only? resources))
-               TransferMode/MOVE
-               TransferMode/COPY)
-        db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
+        db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [TransferMode/COPY TransferMode/MOVE]))
         content (ClipboardContent.)]
     (when (= 1 (count resources))
       (.setDragView db (jfx/get-image (workspace/resource-icon (first resources)) 16)
