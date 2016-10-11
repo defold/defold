@@ -25,8 +25,10 @@ public class WebApplicationExceptionMapper implements ExceptionMapper<WebApplica
 
             if (exceptionResponse != null) {
                 // Do logging
-                Response.Status status = Response.Status.fromStatusCode(exceptionResponse.getStatus());
-                LOGGER.warn("{} - {}, {}", status.getStatusCode(), status.getReasonPhrase(), e.getMessage());
+                LOGGER.warn("{} - {}, {}",
+                        e.getResponse().getStatus(),
+                        Response.Status.fromStatusCode(exceptionResponse.getStatus()),
+                        e.getMessage());
 
                 MDC.put("status", Integer.toString(exceptionResponse.getStatus()));
 

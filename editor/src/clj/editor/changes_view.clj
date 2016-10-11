@@ -51,8 +51,7 @@
   (enabled? [selection]
             (pos? (count selection)))
   (run [selection git list-view workspace]
-       (doseq [status selection]
-         (git/revert git [(or (:new-path status) (:old-path status))]))
+       (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
        (refresh! git list-view)
        (workspace/resource-sync! workspace)))
 

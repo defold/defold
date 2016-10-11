@@ -225,3 +225,18 @@
       (is (= 0 @(g/node-value n :count)))
       (properties/set-values! p [1])
       (is (= 1 @(g/node-value n :count))))))
+
+(g/defnode QuatAsEuler
+  (property rotation t/Vec4
+            (dynamic edit-type (g/always (properties/quat->euler)))))
+
+(deftest value-conversion
+  (with-clean-system
+    (testing "Value conversion"
+             (let [nodes (g/tx-nodes-added (g/transact
+                                              (g/make-node world QuatAsEuler :rotation [0.0 0.0 0.0 1.0])))
+                   property (-> (coalesce-nodes nodes) :rotation)]
+               (is (= [[0.0 0.0 0.0]] (properties/values property)))
+               (properties/set-values! property [[0.0 0.0 180.0]])
+               (let [property (-> (coalesce-nodes nodes) :rotation)]
+                 (is (= [[0.0 0.0 180.0]] (properties/values property))))))))
