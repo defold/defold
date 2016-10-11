@@ -9,3 +9,6 @@ def build(bld):
                               uselib = 'DLIB',
                               source = 'launcher.cpp',
                               target = 'launcher')
+
+    if 'win32' in bld.env.BUILD_PLATFORM:
+        script.source.append('launcher.rc')
