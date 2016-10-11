@@ -106,8 +106,8 @@ static void VerifyCallback(lua_State* L)
 {
     if (g_Push.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Push.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Push.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Push.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Push.m_Self);
         g_Push.m_Callback = LUA_NOREF;
         g_Push.m_Self = LUA_NOREF;
         g_Push.m_L = 0;
@@ -122,9 +122,9 @@ int Push_Register(lua_State* L)
     // NOTE: We ignore argument one. Only for iOS
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_Push.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Push.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
-    g_Push.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Push.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     g_Push.m_L = dmScript::GetMainThread(L);
 
     JNIEnv* env = Attach();
@@ -140,18 +140,18 @@ int Push_SetListener(lua_State* L)
     Push* push = &g_Push;
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    int cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if (push->m_Listener.m_Callback != LUA_NOREF) {
-        luaL_unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Callback);
-        luaL_unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Self);
+        dmScript::Unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Callback);
+        dmScript::Unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Self);
     }
 
     push->m_Listener.m_L = dmScript::GetMainThread(L);
     push->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);
-    push->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    push->m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     return 0;
 }
@@ -531,8 +531,8 @@ void HandleRegistrationResult(const Command* cmd)
 
     dmScript::PCall(L, 3, LUA_MULTRET);
 
-    luaL_unref(L, LUA_REGISTRYINDEX, g_Push.m_Callback);
-    luaL_unref(L, LUA_REGISTRYINDEX, g_Push.m_Self);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_Push.m_Callback);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_Push.m_Self);
     g_Push.m_Callback = LUA_NOREF;
     g_Push.m_Self = LUA_NOREF;
 
@@ -733,8 +733,8 @@ dmExtension::Result InitializePush(dmExtension::Params* params)
 dmExtension::Result FinalizePush(dmExtension::Params* params)
 {
     if (params->m_L == g_Push.m_Listener.m_L && g_Push.m_Listener.m_Callback != LUA_NOREF) {
-        luaL_unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
-        luaL_unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Self);
+        dmScript::Unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
+        dmScript::Unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Self);
         g_Push.m_Listener.m_L = 0;
         g_Push.m_Listener.m_Callback = LUA_NOREF;
         g_Push.m_Listener.m_Self = LUA_NOREF;

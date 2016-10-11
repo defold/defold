@@ -167,9 +167,8 @@ namespace dmHttpService
         resp.m_Response = (uint64_t) malloc(response_length);
         memcpy((void*) resp.m_Response, response, response_length);
 
-        if (dmMessage::IsSocketValid(requester->m_Socket)) {
-            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback);
-        } else {
+        if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
+        {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
             dmLogWarning("Failed to return http-response. Requester deleted?");

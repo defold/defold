@@ -686,10 +686,11 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
 
-(g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets]
+(g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets scene-structure]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])]
+        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
+        model-pb (update model-pb :skin (fn [skin] (if (not-empty skin) skin (first (:skins scene-structure)))))]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-spine-model
@@ -737,17 +738,16 @@
                                                            :default-animation (fn [anim ids]
                                                                                 (when (not (contains? ids anim))
                                                                                   (format "animation '%s' could not be found in the specified scene" anim))) default-animation (set spine-anim-ids)))))
-            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
+            (dynamic edit-type (g/fnk [spine-anim-ids] (properties/->choicebox spine-anim-ids))))
   (property skin g/Str
-            (value (g/fnk [skin scene-structure] (or (not-empty skin) (first (:skins scene-structure)))))
             (dynamic error (g/fnk [_node-id skin scene-structure spine-scene]
                                   (when spine-scene
                                     (validation/prop-error :fatal _node-id :skin
                                                          (fn [skin skins]
-                                                           (when (not (contains? skins skin))
+                                                           (when (and (not-empty skin) (not (contains? skins skin)))
                                                              (format "skin '%s' could not be found in the specified scene" skin))) skin (set (:skins scene-structure))))))
             (dynamic edit-type (g/fnk [scene-structure]
-                                      (properties/->choicebox (:skins scene-structure)))))
+                                      (properties/->choicebox (cons "" (:skins scene-structure))))))
 
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/Resource)
@@ -799,7 +799,7 @@
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))
-                           (math/euler->quat [0 0 rotation])
+                           (math/euler-z->quat rotation)
                            (Vector3d. (double-array scale))))
 
 (g/defnode SpineBone

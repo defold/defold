@@ -1,8 +1,22 @@
-(ns editor.debug)
+(ns editor.debug
+  (:require [editor.system :as system]))
 
 (set! *warn-on-reflection* true)
 
 (defonce ^:private repl-server (agent nil))
+(defonce should-write-nrepl-port-file (atom (system/defold-dev?)))
+
+(defn ^:private write-nrepl-port-file
+  [port]
+  (when @should-write-nrepl-port-file
+    (reset! should-write-nrepl-port-file false)
+    (let [nrepl-port-file (java.io.File. ".nrepl-port")]
+      (try
+        (spit nrepl-port-file (str port))
+        (.deleteOnExit nrepl-port-file)
+        (catch Exception e
+          (println (format "Failed to write NREPL port file to `%s`" (.getAbsolutePath nrepl-port-file)))
+          (prn e))))))
 
 ;; Try/catching the requires here because the dependencies might be missing
 
@@ -21,6 +35,7 @@
                   (apply start-server (mapcat identity config))
                   (start-server))]
         (println (format "Started REPL at nrepl://127.0.0.1:%s\n" (:port srv)))
+        (write-nrepl-port-file (:port srv))
         srv)
       (catch Exception e
         (println "Failed to start NREPL server")

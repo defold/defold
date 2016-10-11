@@ -19,6 +19,9 @@
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.templateNode">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.guied.core.nodes.pieNode"
@@ -84,6 +87,9 @@
          </reference-node-type>
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.pieNode">
          </reference-node-type>
       </node-type>
       <node-type

@@ -144,17 +144,25 @@
        (recur (.read zip buf 0 (count buf)))))
     (.toByteArray os)))
 
-(defn- load-zip [url]
+(defn- outside-base-path? [base-path ^ZipEntry entry]
+  (and (seq base-path) (not (.startsWith (.getName entry) (str base-path "/")))))
+
+(defn- path-relative-base [base-path ^ZipEntry entry]
+  (if (seq base-path)
+    (.replaceFirst (.getName entry) (str base-path "/") "")
+    (.getName entry)))
+
+(defn- load-zip [url base-path]
   (when-let [stream (and url (io/input-stream url))]
     (with-open [zip (ZipInputStream. stream)]
       (loop [entries []]
         (let [e (.getNextEntry zip)]
           (if-not e
             entries
-            (recur (if (.isDirectory e)
+            (recur (if (or (.isDirectory e) (outside-base-path? base-path e))
                      entries
                      (conj entries {:name (last (string/split (.getName e) #"/"))
-                                    :path (.getName e)
+                                    :path (path-relative-base base-path e)
                                     :buffer (read-zip-entry zip e)})))))))))
 
 (defn- ->zip-resources [workspace path [key val]]
@@ -163,10 +171,13 @@
       (ZipResource. workspace (:name val) (:path val) (:buffer val) nil)
       (ZipResource. workspace key path' nil (mapv (fn [x] (->zip-resources workspace path' x)) val)))))
 
-(defn make-zip-tree [workspace file-name]
-  (let [entries (load-zip file-name)]
-    (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
-         (mapv (fn [x] (->zip-resources workspace "" x))))))
+(defn make-zip-tree
+  ([workspace file-name]
+   (make-zip-tree workspace file-name nil))
+  ([workspace file-name base-path]
+   (let [entries (load-zip file-name base-path)]
+     (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
+          (mapv (fn [x] (->zip-resources workspace "" x)))))))
 
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/always false))))

@@ -1025,6 +1025,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
 uint32_t MyAnimationCompleteCount = 0;
 void MyAnimationComplete(dmGui::HScene scene,
                          dmGui::HNode node,
+                         bool finished,
                          void* userdata1,
                          void* userdata2)
 {
@@ -1066,12 +1067,14 @@ TEST_F(dmGuiTest, AnimateComplete)
 
 void MyPingPongComplete2(dmGui::HScene scene,
                          dmGui::HNode node,
+                         bool finished,
                          void* userdata1,
                          void* userdata2);
 
 uint32_t PingPongCount = 0;
 void MyPingPongComplete1(dmGui::HScene scene,
                         dmGui::HNode node,
+                        bool finished,
                         void* userdata1,
                         void* userdata2)
 {
@@ -1082,6 +1085,7 @@ void MyPingPongComplete1(dmGui::HScene scene,
 
 void MyPingPongComplete2(dmGui::HScene scene,
                          dmGui::HNode node,
+                         bool finished,
                          void* userdata1,
                          void* userdata2)
 {
