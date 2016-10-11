@@ -12,7 +12,9 @@ import java.util.List;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Quat4f;
 import javax.vecmath.Tuple3d;
+import javax.vecmath.Vector3f;
 
 import org.eclipse.swt.widgets.Display;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
@@ -20,6 +22,8 @@ import org.junit.Test;
 
 import com.dynamo.bob.util.MurmurHash;
 
+import com.dynamo.proto.DdfMath.Point3;
+import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.rig.proto.Rig;
 
 public class ColladaUtilTest {
@@ -215,6 +219,36 @@ public class ColladaUtilTest {
         euler.y = heading * 180 / Math.PI;
         euler.z = attitude * 180 / Math.PI;
     }
+    
+    public void assertBone(Rig.Bone bone, Vector3f expectedPosition, Quat4f expectedRotation) {
+        Point3 actualPosition = bone.getPosition();
+        assertEquals(expectedPosition.getX(), actualPosition.getX(), EPSILON);
+        assertEquals(expectedPosition.getY(), actualPosition.getY(), EPSILON);
+        assertEquals(expectedPosition.getZ(), actualPosition.getZ(), EPSILON);
+        
+        Quat actualRotation = bone.getRotation();
+        assertEquals(expectedRotation.getX(), actualRotation.getX(), EPSILON);
+        assertEquals(expectedRotation.getY(), actualRotation.getY(), EPSILON);
+        assertEquals(expectedRotation.getZ(), actualRotation.getZ(), EPSILON);
+        assertEquals(expectedRotation.getW(), actualRotation.getW(), EPSILON);
+    }
+    
+    @Test
+    public void testBoneNoAnimation() throws Exception {
+        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(getClass().getResourceAsStream("one_vertice_bone_noanim.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        
+        assertEquals(0, animSetBuilder.getAnimationsCount());
+        
+        // The animation is exported from Blender and has Z as up-axis.
+        // The bone is originally in blender located in origo, rotated -90 degrees around it's local Z-axis.
+        // After the up-axis has been taken into account the final rotation of the bone is;
+        // x: -90, y: 90, z: 0
+        assertEquals(1, skeletonBuilder.getBonesCount());
+        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, 0.5f, -0.5f, 0.5f));
+    }
 
     @Test
     public void testBoneAnimation() throws Exception {
@@ -223,6 +257,10 @@ public class ColladaUtilTest {
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(getClass().getResourceAsStream("one_vertice_bone.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
+        
+        // Same bone setup as testBoneNoAnimation().
+        assertEquals(1, skeletonBuilder.getBonesCount());
+        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, 0.5f, -0.5f, 0.5f));
 
         // The bone is animated with a matrix track in the DAE,
         // which expands into 3 separate tracks in our format;
@@ -266,19 +304,28 @@ public class ColladaUtilTest {
                     lastXRot = rot.getX();
                 }
             }
-
         }
-
-        // The bone is located in origo and rotated -90 degrees around X.
-        assertEquals(1, skeletonBuilder.getBonesCount());
-        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getX(), EPSILON);
-        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getY(), EPSILON);
-        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getPosition().getZ(), EPSILON);
-        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getRotation().getX(), EPSILON);
-        assertEquals(0.0, (double)skeletonBuilder.getBones(0).getRotation().getY(), EPSILON);
-        assertEquals(-0.70710677, (double)skeletonBuilder.getBones(0).getRotation().getZ(), EPSILON);
-        assertEquals( 0.70710677, (double)skeletonBuilder.getBones(0).getRotation().getW(), EPSILON);
-
+    }
+    
+    
+    @Test
+    public void testTwoBoneAnimation() throws Exception {
+        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(getClass().getResourceAsStream("two_bone.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+        
+        // The collada file includes two bones with a matrix animation on each.
+        // Each matrix animation expands into 3 different component animations; 2*3 = 6 animation tracks. 
+        assertEquals(2, skeletonBuilder.getBonesCount());
+        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+        
+        // Bone 0 is located at origo an has no rotation (after up-axis has been applied)
+        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(0.0f, 0.0f, 0.0f, 1.0f));
+        
+        // Bone 1 is located at (0, 2, 0), without any rotation
+        assertBone(skeletonBuilder.getBones(1), new Vector3f(0.0f, 2.0f, 0.0f), new Quat4f(0.0f, 0.0f, 0.0f, 1.0f));
     }
 
 }

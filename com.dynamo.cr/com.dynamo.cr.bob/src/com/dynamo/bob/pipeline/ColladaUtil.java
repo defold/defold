@@ -246,12 +246,12 @@ public class ColladaUtil {
         for (int bi = 0; bi < boneList.size(); ++bi)
         {
             Bone bone = boneList.get(bi);
-            if (boneToAnimations.containsKey(bone.getName()))
+            if (boneToAnimations.containsKey(bone.getSourceId()))
             {
                 Matrix4d parentToLocal = getBoneParentToLocal(bone);
 
                 // search the animations for each bone
-                ArrayList<XMLAnimation> anims = boneToAnimations.get(bone.getName());
+                ArrayList<XMLAnimation> anims = boneToAnimations.get(bone.getSourceId());
                 for (XMLAnimation animation : anims) {
                     if (animation.getType() == null) {
                         continue;
@@ -346,6 +346,18 @@ public class ColladaUtil {
         loadMesh(collada, meshBuilder);
     }
 
+    public static Matrix4f createUpAxisMatrix(UpAxis upAxis) {
+        Matrix4f axisMatrix = new Matrix4f();
+        axisMatrix.setIdentity();
+        if (upAxis.equals(UpAxis.Z_UP)) {
+            axisMatrix.setRow(1, new float[]{0.0f, 0.0f, 1.0f, 0.0f});
+            axisMatrix.setRow(2, new float[]{0.0f, -1.0f, 0.0f, 0.0f});
+        } else if (upAxis.equals(UpAxis.X_UP)) {
+            axisMatrix.setRow(0, new float[]{0.0f, -1.0f, 0.0f, 0.0f});
+            axisMatrix.setRow(1, new float[]{1.0f, 0.0f, 0.0f, 0.0f});
+        }
+        return axisMatrix;
+    }
 
     public static void loadMesh(XMLCOLLADA collada, Rig.Mesh.Builder meshBuilder) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryGeometries.size() != 1) {
@@ -404,6 +416,10 @@ public class ColladaUtil {
         if (texcoord_input != null) {
             texcoords = sourcesMap.get(texcoord_input.source);
         }
+        
+        // Apply the up-axis matrix on the bind shape matrix.
+        Matrix4f axisMatrix = createUpAxisMatrix(collada.asset.upAxis);
+        bindShapeMatrix.mul(axisMatrix);
 
         float meter = collada.asset.unit.meter;
         List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
@@ -581,8 +597,8 @@ public class ColladaUtil {
                 bone.addChild(boneNameMap.get(childNode.sid));
             }
         }
-
-        toDDF(bones, boneList.get(0), 0xffff, boneIndexMap, boneIds);
+        
+        toDDF(bones, boneList.get(0), createUpAxisMatrix(collada.asset.upAxis), 0xffff, boneIndexMap, boneIds);
 
         // need to explicitly add all bones in the correct order before we create the DDF structure
         ArrayList<com.dynamo.rig.proto.Rig.Bone> reorderedBones = new ArrayList<com.dynamo.rig.proto.Rig.Bone>();
@@ -610,7 +626,7 @@ public class ColladaUtil {
         return rootNode;
     }
 
-    private static void toDDF(HashMap<String, com.dynamo.rig.proto.Rig.Bone> builderList, Bone bone, int parentIndex, HashMap<String, Integer> boneIndexMap, ArrayList<String> boneIds) {
+    private static void toDDF(HashMap<String, com.dynamo.rig.proto.Rig.Bone> builderList, Bone bone, Matrix4f upAxisMatrix, int parentIndex, HashMap<String, Integer> boneIndexMap, ArrayList<String> boneIds) {
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
         boneIds.add(bone.getSourceId());
@@ -619,7 +635,13 @@ public class ColladaUtil {
         b.setId(MurmurHash.hash64(bone.getName()));
 
         Matrix4d matrix = MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
-
+        
+        // If there is an up-axis matrix we apply it on the bone matrix
+        // before we decompose and serialize to DDF.
+        if (upAxisMatrix != null) {
+            matrix.mul(new Matrix4d(upAxisMatrix));
+        }
+        
         Vector3d position = new Vector3d();
         Quat4d rotation = new Quat4d();
         Vector3d scale = new Vector3d();
@@ -644,7 +666,7 @@ public class ColladaUtil {
 
         for(int i = 0; i < bone.numChildren(); i++) {
             Bone childBone = bone.getChild(i);
-            toDDF(builderList, childBone, parentIndex, boneIndexMap, boneIds);
+            toDDF(builderList, childBone, null, parentIndex, boneIndexMap, boneIds);
         }
     }
 
