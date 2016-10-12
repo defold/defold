@@ -3,7 +3,6 @@ package com.dynamo.bob.pipeline;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
@@ -58,12 +57,12 @@ public class ColladaUtilTest {
         assertThat(2 * 3 * 3, is(pos.size()));
         assertThat(2 * 3 * 3, is(nrm.size()));
 
-        assertVtx(pos, 0, -0.5, -0.5);
-        assertVtx(pos, 1, 0.5, -0.5);
-        assertVtx(pos, 2, -0.5, 0.5);
-        assertVtx(pos, 3, -0.5, 0.5);
-        assertVtx(pos, 4, 0.5, -0.5);
-        assertVtx(pos, 5, 0.5, 0.5);
+        assertVtx(pos, 0, -0.005, -0.005, 0);
+        assertVtx(pos, 1,  0.005, -0.005, 0);
+        assertVtx(pos, 2, -0.005,  0.005, 0);
+        assertVtx(pos, 3, -0.005,  0.005, 0);
+        assertVtx(pos, 4,  0.005, -0.005, 0);
+        assertVtx(pos, 5,  0.005,  0.005, 0);
 
         assertNrm(nrm, 0, 0, 0, 1);
         assertNrm(nrm, 1, 0, 0, 1);
@@ -93,12 +92,12 @@ public class ColladaUtilTest {
         assertThat(2 * 3 * 3, is(nrm.size()));
         assertThat(2 * 3 * 2, is(uvs.size()));
 
-        assertVtx(pos, 0, -100, -100);
-        assertVtx(pos, 1, 100, -100);
-        assertVtx(pos, 2, 100, 100);
-        assertVtx(pos, 3, -100, -100);
-        assertVtx(pos, 4, 100, 100);
-        assertVtx(pos, 5, -100, 100);
+        assertVtx(pos, 0, -1, 0,  1);
+        assertVtx(pos, 1,  1, 0,  1);
+        assertVtx(pos, 2,  1, 0, -1);
+        assertVtx(pos, 3, -1, 0,  1);
+        assertVtx(pos, 4,  1, 0, -1);
+        assertVtx(pos, 5, -1, 0, -1);
 
         assertNrm(nrm, 0, 0, 0, 1);
         assertNrm(nrm, 1, 0, 0, 1);
@@ -125,12 +124,14 @@ public class ColladaUtilTest {
         assertEquals(1, animation.getAnimationsCount());
     }
 
-    private void assertVtx(List<Float> pos, int i, double xe, double ye) {
-        float x = 100 * pos.get(i * 3 + 0);
-        float y = 100 * pos.get(i * 3 + 1);
+    private void assertVtx(List<Float> pos, int i, double xe, double ye, double ze) {
+        float x = pos.get(i * 3 + 0);
+        float y = pos.get(i * 3 + 1);
+        float z = pos.get(i * 3 + 2);
 
         assertEquals(xe, x, EPSILON);
         assertEquals(ye, y, EPSILON);
+        assertEquals(ze, z, EPSILON);
     }
 
     private void assertNrm(List<Float> nrm, int i, double xe, double ye, float ze) {
@@ -220,7 +221,10 @@ public class ColladaUtilTest {
         euler.z = attitude * 180 / Math.PI;
     }
     
-    public void assertBone(Rig.Bone bone, Vector3f expectedPosition, Quat4f expectedRotation) {
+    /*
+     * Helper to test that a bone has the expected position and rotation.
+     */
+    private void assertBone(Rig.Bone bone, Vector3f expectedPosition, Quat4f expectedRotation) {
         Point3 actualPosition = bone.getPosition();
         assertEquals(expectedPosition.getX(), actualPosition.getX(), EPSILON);
         assertEquals(expectedPosition.getY(), actualPosition.getY(), EPSILON);
@@ -231,6 +235,35 @@ public class ColladaUtilTest {
         assertEquals(expectedRotation.getY(), actualRotation.getY(), EPSILON);
         assertEquals(expectedRotation.getZ(), actualRotation.getZ(), EPSILON);
         assertEquals(expectedRotation.getW(), actualRotation.getW(), EPSILON);
+    }
+    
+    /*
+     * Helper to test that a track has a certain rotation at a specific keyframe.
+     */
+    private void assertAnimationRotation(Rig.AnimationTrack track, int keyframe, Quat4f expectedRotation) {
+        int i = keyframe * 4;
+        Quat4f actualRotation = new Quat4f(track.getRotations(i), track.getRotations(i+1), track.getRotations(i+2), track.getRotations(i+3));
+        assertEquals(expectedRotation.getX(), actualRotation.getX(), EPSILON);
+        assertEquals(expectedRotation.getY(), actualRotation.getY(), EPSILON);
+        assertEquals(expectedRotation.getZ(), actualRotation.getZ(), EPSILON);
+        assertEquals(expectedRotation.getW(), actualRotation.getW(), EPSILON);
+    }
+    
+    /*
+     * Helper to test that no animation is performed on either position or scale of a track.
+     */
+    private void assertAnimationNoPosScale(Rig.AnimationTrack track) {
+        if (track.getPositionsCount() > 0) {
+            int posCount = track.getPositionsCount();
+            for (int i = 0; i < posCount; i++) {
+                assertEquals(0.0, track.getPositions(i), EPSILON);
+            }
+        } else if (track.getScaleCount() > 0) {
+            int scaleCount = track.getScaleCount();
+            for (int i = 0; i < scaleCount; i++) {
+                assertEquals(1.0, track.getScale(i), EPSILON);
+            }
+        }
     }
     
     @Test
@@ -250,8 +283,11 @@ public class ColladaUtilTest {
         assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, 0.5f, -0.5f, 0.5f));
     }
 
+    /*
+     *  Tests a collada with only one bone with animation (matrix input track).
+     */
     @Test
-    public void testBoneAnimation() throws Exception {
+    public void testOneBoneAnimation() throws Exception {
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -262,31 +298,32 @@ public class ColladaUtilTest {
         assertEquals(1, skeletonBuilder.getBonesCount());
         assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, 0.5f, -0.5f, 0.5f));
 
-        // The bone is animated with a matrix track in the DAE,
-        // which expands into 3 separate tracks in our format;
-        // position, rotation and scale.
+        /*
+         *  The bone is animated with a matrix track in the DAE,
+         *  which expands into 3 separate tracks in our format;
+         *  position, rotation and scale.
+         */
         assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
 
+        /*
+         *  We go through all tracks and verify they behave as expected.
+         *  - Positions and scale don't change
+         *  - Rotation is only increased on X-axis
+         */
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
             assertEquals(0, track.getBoneIndex());
 
-            // The collada file does not animate either position or scale for the bones,
-            // but since the input animations are matrices we don't "know" that. But we
-            // will verify that they do not change.
-            if (track.getPositionsCount() > 0) {
-                int posCount = track.getPositionsCount();
-                for (int i = 0; i < posCount; i++) {
-                    assertEquals(0.0, track.getPositions(i), EPSILON);
-                }
-            } else if (track.getScaleCount() > 0) {
-                int scaleCount = track.getScaleCount();
-                for (int i = 0; i < scaleCount; i++) {
-                    assertEquals(1.0, track.getScale(i), EPSILON);
-                }
-            } else if (track.getRotationsCount() > 0) {
+            /*
+             *  The collada file does not animate either position or scale for the bones,
+             *  but since the input animations are matrices we don't "know" that. But we
+             *  will verify that they do not change.
+             */
+            assertAnimationNoPosScale(track);
+            
+            if (track.getRotationsCount() > 0) {
                 // Assert that the rotation keyframes keeps increasing rotation around X
                 Point3d rot = new Point3d(0.0,0.0,0.0);
                 Quat4d rQ = new Quat4d(track.getRotations(0), track.getRotations(1), track.getRotations(2), track.getRotations(3));
@@ -307,7 +344,9 @@ public class ColladaUtilTest {
         }
     }
     
-    
+    /*
+     *  Tests a collada with two connected bones, each with their own animation track.
+     */
     @Test
     public void testTwoBoneAnimation() throws Exception {
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
@@ -316,16 +355,60 @@ public class ColladaUtilTest {
         ColladaUtil.load(getClass().getResourceAsStream("two_bone.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
         
-        // The collada file includes two bones with a matrix animation on each.
-        // Each matrix animation expands into 3 different component animations; 2*3 = 6 animation tracks. 
+        /*
+         *  The file includes two bones with a matrix animation on each.
+         *  Each matrix animation expands into 3 different component animations; 2*3 = 6 animation tracks.
+         */
         assertEquals(2, skeletonBuilder.getBonesCount());
         assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
         
-        // Bone 0 is located at origo an has no rotation (after up-axis has been applied)
+        // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
         assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(0.0f, 0.0f, 0.0f, 1.0f));
         
-        // Bone 1 is located at (0, 2, 0), without any rotation
+        // Bone 1 is located at (0, 2, 0), without any rotation.
         assertBone(skeletonBuilder.getBones(1), new Vector3f(0.0f, 2.0f, 0.0f), new Quat4f(0.0f, 0.0f, 0.0f, 1.0f));
+        
+        /* 
+         * Test bone animations animations. The file has the following animations:
+         *   - No position or scale animations.
+         *   - First half of the animation consist of bone 1 animating rotation to 90 on Z-axis.
+         *   - Second half of the animation consist of bone 1 animating back rotation to 0 on Z-axis,
+         *     and bone 0 animating rotation to 90 on Z-axis.
+         */
+        Quat4f rotIdentity = new Quat4f(0.0f, 0.0f, 0.0f, 1.0f);
+        Quat4f rot90ZAxis = new Quat4f(0.0f, 0.0f, 0.707f, 0.707f);
+        
+        int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
+        float duration = animSetBuilder.getAnimations(0).getDuration();
+        float sampleRate = animSetBuilder.getAnimations(0).getSampleRate();
+        int keyframeCount = (int)Math.ceil(duration*sampleRate);
+
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+            
+            Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
+            int boneIndex = track.getBoneIndex();
+            
+            // There should be no position or scale animation.
+            assertAnimationNoPosScale(track);
+            
+            if (track.getRotationsCount() > 0) {
+                if (boneIndex == 0) {
+                    // Verify animations on root bone
+                    assertAnimationRotation(track, 0, rotIdentity);
+                    assertAnimationRotation(track, keyframeCount/2, rotIdentity);
+                    assertAnimationRotation(track, keyframeCount, rot90ZAxis);
+                    
+                } else if (boneIndex == 1) {
+                    // Verify animation on secondary bone
+                    assertAnimationRotation(track, 0, rotIdentity);
+                    assertAnimationRotation(track, keyframeCount/2, rot90ZAxis);
+                    assertAnimationRotation(track, keyframeCount, rotIdentity);
+                    
+                } else {
+                    fail("Animations on invalid bone index: " + boneIndex);
+                }
+            }
+        }
     }
 
 }
