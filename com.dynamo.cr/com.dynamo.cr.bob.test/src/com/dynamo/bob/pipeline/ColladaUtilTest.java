@@ -266,6 +266,51 @@ public class ColladaUtilTest {
         }
     }
     
+    /***
+     * Helper to test if a rotation animation increases or decreases on a certain euler angle.
+     * @param changesOnX Set to negative if the rotation is expected to decrease around X, or positive if expected to increase. 0.0 if no change is expected.
+     * @param changesOnY Set to negative if the rotation is expected to decrease around Y, or positive if expected to increase. 0.0 if no change is expected.
+     * @param changesOnZ Set to negative if the rotation is expected to decrease around Z, or positive if expected to increase. 0.0 if no change is expected.
+     */
+    private void assertAnimationRotationChanges(Rig.AnimationTrack track, float changesOnX, float changesOnY, float changesOnZ) {
+        
+        // Take first keyframe euler rotation to compare with
+        Point3d rot = new Point3d(0.0,0.0,0.0);
+        Quat4d rQ = new Quat4d(track.getRotations(0), track.getRotations(1), track.getRotations(2), track.getRotations(3));
+        quatToEuler(rQ, rot);
+        double lastXRot = rot.getX();
+        double lastYRot = rot.getY();
+        double lastZRot = rot.getZ();
+
+        int rotCount = track.getRotationsCount() / 4;
+        for (int i = 1; i < rotCount; i++) {
+            rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
+            quatToEuler(rQ, rot);
+            
+            if (changesOnX > 0.0f && rot.getX() <= lastXRot) {
+                fail("Rotation (around X) is not increasing. Previously: " + lastXRot + ", now: " + rot.getX());
+            } else if (changesOnX < 0.0f && rot.getX() >= lastXRot) {
+                fail("Rotation (around X) is not decreasing. Previously: " + lastXRot + ", now: " + rot.getX());
+            }
+            
+            if (changesOnY > 0.0f && rot.getY() <= lastYRot) {
+                fail("Rotation (around Y) is not increasing. Previously: " + lastYRot + ", now: " + rot.getY());
+            } else if (changesOnY < 0.0f && rot.getY() >= lastYRot) {
+                fail("Rotation (around Y) is not decreasing. Previously: " + lastYRot + ", now: " + rot.getY());
+            }
+            
+            if (changesOnZ > 0.0f && rot.getZ() <= lastZRot) {
+                fail("Rotation (around Z) is not increasing. Previously: " + lastZRot + ", now: " + rot.getZ());
+            } else if (changesOnZ < 0.0f && rot.getZ() >= lastZRot) {
+                fail("Rotation (around Z) is not decreasing. Previously: " + lastZRot + ", now: " + rot.getZ());
+            }
+
+            lastXRot = rot.getX();
+            lastYRot = rot.getY();
+            lastZRot = rot.getZ();
+        }
+    }
+    
     @Test
     public void testBoneNoAnimation() throws Exception {
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
@@ -325,21 +370,7 @@ public class ColladaUtilTest {
             
             if (track.getRotationsCount() > 0) {
                 // Assert that the rotation keyframes keeps increasing rotation around X
-                Point3d rot = new Point3d(0.0,0.0,0.0);
-                Quat4d rQ = new Quat4d(track.getRotations(0), track.getRotations(1), track.getRotations(2), track.getRotations(3));
-                quatToEuler(rQ, rot);
-                double lastXRot = rot.getX();
-
-                int rotCount = track.getRotationsCount() / 4;
-                for (int i = 1; i < rotCount; i++) {
-                    rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
-                    quatToEuler(rQ, rot);
-                    if (rot.getX() <= lastXRot) {
-                        fail("Rotation is not increasing. Previously: " + lastXRot + ", now: " + rot.getX());
-                    }
-
-                    lastXRot = rot.getX();
-                }
+                assertAnimationRotationChanges(track, 1.0f, 0.0f, 0.0f);
             }
         }
     }
@@ -410,5 +441,136 @@ public class ColladaUtilTest {
             }
         }
     }
+    
+    /*
+     *  Tests a collada with only one bone with animation that doesn't have a keyframe at t=0.
+     */
+    @Test
+    public void testDefaultKeyframes() throws Exception {
+        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(getClass().getResourceAsStream("one_bone_no_initial_keyframe.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+        
+        // Same bone setup as testBoneNoAnimation().
+        assertEquals(1, skeletonBuilder.getBonesCount());
+        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, 0.5f, -0.5f, 0.5f));
+
+        /*
+         *  The bone is animated with a matrix track in the DAE,
+         *  which expands into 3 separate tracks in our format;
+         *  position, rotation and scale.
+         */
+        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+
+        /*
+         *  We go through all tracks and verify they behave as expected.
+         *  - Positions and scale don't change
+         *  - Rotation is only decreased on X-axis
+         */
+        int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
+            assertEquals(0, track.getBoneIndex());
+
+            /*
+             *  The collada file does not animate either position or scale for the bones,
+             *  but since the input animations are matrices we don't "know" that. But we
+             *  will verify that they do not change.
+             */
+            assertAnimationNoPosScale(track);
+            
+            if (track.getRotationsCount() > 0) {
+                
+                // Verify that the first keyframe is not rotated.
+                assertAnimationRotation(track, 0, new Quat4f(0.0f, 0.0f, 0.0f, 1.0f));
+                
+                // Assert that the rotation keyframes keeps increasing rotation around X
+                Point3d rot = new Point3d(0.0,0.0,0.0);
+                Quat4d rQ = new Quat4d(track.getRotations(8), track.getRotations(9), track.getRotations(10), track.getRotations(11));
+                quatToEuler(rQ, rot);
+                double lastXRot = rot.getX();
+
+                int rotCount = track.getRotationsCount() / 4;
+                for (int i = 2; i < rotCount; i++) {
+                    rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
+                    quatToEuler(rQ, rot);
+                    if (rot.getX() > lastXRot) {
+                        fail("Rotation is not decreasing. Previously: " + lastXRot + ", now: " + rot.getX());
+                    }
+
+                    lastXRot = rot.getX();
+                }
+            }
+        }
+    }
+    
+    /*
+     * 
+     */
+    @Test
+    public void testMultipleBones() throws Exception {
+        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(getClass().getResourceAsStream("bone_box5.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+        
+        assertEquals(3, skeletonBuilder.getBonesCount());
+
+        /*
+         *  Each bone is animated with a matrix track in the DAE,
+         *  which expands into 3 separate tracks in our format.
+         */
+        assertEquals(9, animSetBuilder.getAnimations(0).getTracksCount());
+
+        /*
+         *  We go through all tracks and verify they behave as expected. 
+         */
+        int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
+            int boneIndex = track.getBoneIndex();
+
+            /*
+             *  The collada file does not animate either position or scale for the bones,
+             *  but since the input animations are matrices we don't "know" that. But we
+             *  will verify that they do not change.
+             */
+            assertAnimationNoPosScale(track);
+            
+            if (boneIndex == 0) {
+                // Bone 0 doesn't have any "real" rotation animation.
+                Quat4f rotIdentity = new Quat4f(0.0f, 0.0f, 0.0f, 1.0f);
+                int rotationKeys = track.getRotationsCount() / 4;
+                for (int i = 0; i < rotationKeys; i++) {
+                    assertAnimationRotation(track, i, rotIdentity);
+                }
+            
+            } else if (boneIndex == 1) {
+                if (track.getRotationsCount() > 0) {
+                    assertAnimationRotationChanges(track, 0.0f, 0.0f, 1.0f);
+                }
+            } else if (boneIndex == 2) {
+                if (track.getRotationsCount() > 0) {
+                    assertAnimationRotationChanges(track, 1.0f, 0.0f, -1.0f);                    
+                }
+                
+            } else {
+                // There should only be animation on the bones specified above.
+                fail("Animation on invalid bone index: " + boneIndex);
+            }
+        }
+    }
+    
+    /*
+     * TODO
+     * Future tests:
+     * - Position and scale animation on bones.
+     * - Tests for collada files with non-matrix animations.
+     */
 
 }
