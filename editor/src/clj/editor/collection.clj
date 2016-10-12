@@ -180,7 +180,7 @@
   (inherits InstanceNode)
 
   (input properties g/Any)
-  (input build-targets g/Any)
+  (input source-build-targets g/Any)
   (input scene g/Any)
   (input child-scenes g/Any :array)
   (input child-ids g/Str :array)
@@ -192,10 +192,13 @@
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-label g/Str (gu/passthrough id))
-  (output build-targets g/Any (g/fnk [build-targets build-error ddf-message transform] (let [target (first build-targets)]
-                                                                              [(assoc target :instance-data {:resource (:resource target)
-                                                                                                             :instance-msg ddf-message
-                                                                                                             :transform transform})])))
+  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
+  (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
+                                     (let [target (assoc (first source-build-targets)
+                                                         :resource build-resource)]
+                                       [(assoc target :instance-data {:resource (:resource target)
+                                                                      :instance-msg ddf-message
+                                                                      :transform transform})])))
   (output build-error g/Err (g/always nil))
 
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
@@ -236,7 +239,12 @@
   (display-order [:id :url scene/ScalableSceneNode])
 
   (input proto-msg g/Any)
-
+  (input source-resource resource/Resource)
+  (input source-save-data g/Any)
+  (output build-resource resource/Resource (g/fnk [source-resource source-save-data]
+                                                  (some-> source-resource
+                                                     (assoc :data (:content source-save-data))
+                                                     workspace/make-build-resource)))
   (output ddf-message g/Any :cached (g/fnk [id child-ids position rotation scale proto-msg ddf-component-properties]
                                            (gen-embed-ddf id child-ids position rotation scale proto-msg ddf-component-properties))))
 
@@ -309,7 +317,7 @@
                                                                                  [:ddf-component-properties :ddf-component-properties]]
                                                                       :when (contains? outputs from)]
                                                                   (g/connect or-node from self to)))
-                                                              (for [[from to] [[:build-targets :build-targets]]]
+                                                              (for [[from to] [[:build-targets :source-build-targets]]]
                                                                 (g/connect go-node from self to))
                                                               (for [[from to] [[:url :base-url]]]
                                                                 (g/connect self from or-node to))
@@ -662,9 +670,11 @@
         [])
       (let [tx-data (project/make-resource-node graph project resource true
                                                 {go-node [[:_node-id :source-id]
+                                                          [:resource :source-resource]
                                                           [:node-outline :source-outline]
                                                           [:proto-msg :proto-msg]
-                                                          [:build-targets :build-targets]
+                                                          [:save-data :source-save-data]
+                                                          [:build-targets :source-build-targets]
                                                           [:scene :scene]
                                                           [:ddf-component-properties :ddf-component-properties]]
                                                  self [[:_node-id :nodes]]}

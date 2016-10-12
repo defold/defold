@@ -212,18 +212,27 @@
   (ffirst (g/sources-of node label)))
 
 (deftest break-merged-targets
-  (testing "Verify equivalent game objects are not merged after being changed in memory"
-    (with-build-results "/merge/merge_embed.collection"
-      (is (= 1 (count-exts (keys content-by-target) "goc")))
-      (is (= 1 (count-exts (keys content-by-target) "spritec")))
-      (let [go-node   (first-source (first-source resource-node :child-scenes) :source-id)
-            comp-node (first-source go-node :child-scenes)]
-        (g/transact (g/delete-node comp-node))
-        (let [build-results     (project/build project resource-node {})
-              content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
-                                              build-results))]
-          (is (= 1 (count-exts (keys content-by-target) "goc")))
-          (is (= 1 (count-exts (keys content-by-target) "spritec"))))))))
+  (with-build-results "/merge/merge_embed.collection"
+    (is (= 1 (count-exts (keys content-by-target) "goc")))
+    (is (= 1 (count-exts (keys content-by-target) "spritec")))
+    (let [go-node   (first-source (first-source resource-node :child-scenes) :source-id)
+          comp-node (first-source go-node :child-scenes)]
+      (testing "Verify equivalent game objects are not merged after being changed in memory"
+               (g/transact (g/delete-node comp-node))
+               (let [build-results     (project/build project resource-node {})
+                     content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
+                                                     build-results))]
+                 (is (= 2 (count-exts (keys content-by-target) "goc")))
+                 (is (= 1 (count-exts (keys content-by-target) "spritec")))))
+      (g/undo! (g/node-id->graph-id project))
+      (testing "Verify equivalent sprites are not merged after being changed in memory"
+               (let [sprite (test-util/prop-node-id comp-node :blend-mode)]
+                 (test-util/prop! sprite :blend-mode :blend-mode-add)
+                 (let [build-results     (project/build project resource-node {})
+                       content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
+                                                       build-results))]
+                   (is (= 2 (count-exts (keys content-by-target) "goc")))
+                   (is (= 2 (count-exts (keys content-by-target) "spritec")))))))))
 
 (deftest build-cached
   (testing "Verify the build cache works as expected"
