@@ -44,6 +44,7 @@ public class ModelNodeTest extends AbstractNodeTest {
                 "material: \"/test.material\"";
         registerFile("/test.model", model);
         registerFile("/cube.dae", IOUtils.toString(getClass().getResourceAsStream("cube.dae")));
+        registerFile("/test.material", IOUtils.toString(getClass().getResourceAsStream("test.material")));
         MeshNode cubeNode = new MeshLoader().load(getLoaderContext(), getFile("/cube.dae").getContents());
         registerLoadedNode("/cube.dae", cubeNode);
 

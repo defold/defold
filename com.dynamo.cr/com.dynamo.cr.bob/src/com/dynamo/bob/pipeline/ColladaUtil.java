@@ -519,7 +519,9 @@ public class ColladaUtil {
          * when it creates GOs for bones.
          */
         int colladaBoneIndex = colladaBoneIndexMap.getOrDefault(newBone.getSourceId(), 0xffff);
-        colladaIndexToDDFIndex.put(colladaBoneIndex, boneList.size());
+        if(colladaIndexToDDFIndex != null) {
+            colladaIndexToDDFIndex.put(colladaBoneIndex, boneList.size());
+        }
         
         boneList.add(newBone);
         boneIds.add(newBone.getSourceId());

@@ -117,11 +117,28 @@ public class ModelNode extends ComponentTypeNode {
         if (!this.mesh.isEmpty()) {
             updateTexture();
 
-            IFile meshFile = getModel().getFile(this.mesh);
-            if (meshFile.exists() && meshFile.equals(file)) {
+            IFile resFile = getModel().getFile(this.mesh);
+            if (resFile.exists() && resFile.equals(file)) {
                 reload();
                 return true;
             }
+
+            if(!this.skeleton.isEmpty()) {
+                resFile = getModel().getFile(this.skeleton);
+                if (resFile.exists() && resFile.equals(file)) {
+                    reload();
+                    return true;
+                }
+            }
+
+            if(!this.animations.isEmpty()) {
+                resFile = getModel().getFile(this.animations);
+                if (resFile.exists() && resFile.equals(file)) {
+                    reload();
+                    return true;
+                }
+            }
+
         }
 
         return false;
