@@ -951,36 +951,31 @@ instructions.configure=\
                 return True # The editor has already been signed
 
         if candidate is not None:
-            root = os.path.join(self.dynamo_home, 'sign', self._git_sha1())
-            self._mkdirs(root)
-
-            filepath = os.path.join(root, 'Defold-macosx.cocoa.x86_64.zip')
-            if not os.path.isfile(filepath):
-                self._log('Downloading s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
-                candidate.get_contents_to_filename(filepath)
-                self._log('Downloaded s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
-
+            root = None
             builddir = None
             try:
+                root = tempfile.mkdtemp(prefix='defsign.')
                 builddir = os.path.join(root, 'build')
-                if os.path.isdir(builddir):
-                    if os.path.islink(os.path.join(builddir, 'Applications')):
-                        os.unlink(os.path.join(builddir, 'Applications'))
-                    shutil.rmtree(builddir)
                 self._mkdirs(builddir)
 
+                # Download the editor from S3
+                filepath = os.path.join(root, 'Defold-macosx.cocoa.x86_64.zip')
+                if not os.path.isfile(filepath):
+                    self._log('Downloading s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
+                    candidate.get_contents_to_filename(filepath)
+                    self._log('Downloaded s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
+
+                # Prepare the build directory to create a signed container
                 self._log('Signing %s' % (filepath))
                 dp_defold = os.path.join(builddir, 'Defold-macosx.cocoa.x86_64')
                 fp_defold_app = os.path.join(dp_defold, 'Defold.app')
                 fp_defold_dmg = os.path.join(root, 'Defold-macosx.cocoa.x86_64.dmg')
 
-                if os.path.isfile(fp_defold_dmg):
-                    os.remove(fp_defold_dmg)
-
                 self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold], False)
                 self.exec_command(['chmod', '-R', '755', dp_defold], False)
                 os.symlink('/Applications', os.path.join(builddir, 'Applications'))
 
+                # Create a signature for Defold.app and the container
                 # This certificate must be installed on the computer performing the operation
                 certificate = 'Developer ID Application: Midasplayer AB (YFY47KYJ6N)'
                 self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
@@ -988,14 +983,17 @@ instructions.configure=\
                 self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
                 self._log('Signed %s' % (fp_defold_dmg))
 
+                # Upload the signed container to S3
                 target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
                 self.upload_file(fp_defold_dmg, target)
                 return True
             finally:
-                if builddir is not None:
-                    if os.path.islink(os.path.join(builddir, 'Applications')):
-                        os.unlink(os.path.join(builddir, 'Applications'))
-                    shutil.rmtree(builddir)
+                self.wait_uploads()
+                if root is not None:
+                    if builddir is not None:
+                        if os.path.islink(os.path.join(builddir, 'Applications')):
+                            os.unlink(os.path.join(builddir, 'Applications'))
+                    shutil.rmtree(root)
 
         return False
 
@@ -1095,13 +1093,27 @@ instructions.configure=\
                 chunksize = 64 * 1024 * 1024 # 64 MiB
                 chunkcount = int(math.ceil(source_size / float(chunksize)))
 
+                def upload_part(filepath, part, offset, size):
+                    with open(filepath, 'r') as fhandle:
+                        fhandle.seek(offset)
+                        mp.upload_part_from_file(fp=fhandle, part_num=part, size=size)
+
+                _threads = []
                 for i in range(chunkcount):
+                    part = i + 1
                     offset = i * chunksize
                     remaining = source_size - offset
+                    size = min(chunksize, remaining)
+                    args = {'filepath': path, 'part': part, 'offset': offset, 'size': size}
+
                     self._log('Uploading #%d %s -> %s' % (i + 1, path, url))
-                    with open(path, 'r') as fp:
-                        fp.seek(offset)
-                        mp.upload_part_from_file(fp=fp, part_num=i + 1, size = min(chunksize, remaining))
+                    _thread = Thread(target=upload_part, kwargs=args)
+                    _threads.append(_thread)
+                    _thread.start()
+
+                for i in range(chunkcount):
+                    _threads[i].join()
+                    self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
 
                 if len(mp.get_all_parts()) == chunkcount:
                     mp.complete_upload()
