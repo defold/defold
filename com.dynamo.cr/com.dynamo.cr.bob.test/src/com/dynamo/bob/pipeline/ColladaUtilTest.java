@@ -327,7 +327,7 @@ public class ColladaUtilTest {
         // After the up-axis has been taken into account the final rotation of the bone is;
         // x: -90, y: 90, z: 0
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, 0.5f, -0.5f, 0.5f));
+        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, -0.5f, -0.5f, 0.5f));
     }
 
     /*
@@ -343,7 +343,7 @@ public class ColladaUtilTest {
         
         // Same bone setup as testBoneNoAnimation().
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, 0.5f, -0.5f, 0.5f));
+        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, -0.5f, -0.5f, 0.5f));
 
         /*
          *  The bone is animated with a matrix track in the DAE,
@@ -457,7 +457,7 @@ public class ColladaUtilTest {
         
         // Same bone setup as testBoneNoAnimation().
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, 0.5f, -0.5f, 0.5f));
+        assertBone(skeletonBuilder.getBones(0), new Vector3f(0.0f, 0.0f, 0.0f), new Quat4f(-0.5f, -0.5f, -0.5f, 0.5f));
 
         /*
          *  The bone is animated with a matrix track in the DAE,
