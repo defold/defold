@@ -34,13 +34,12 @@
                      [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
                      [clj-antlr                                   "0.2.2"]
 
-                     ;; Keep jna version in sync with bundle.py. See JNA_VERSION
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
-                     ;; Keep jogl version in sync with bundle.py. See JOGL_VERSION
-                     [org.jogamp.gluegen/gluegen-rt-main          "2.0.2"]
-                     [org.jogamp.jogl/jogl-all-main               "2.0.2"]]
+                     ;; Natives added manually to jogl-native
+                     [org.jogamp.gluegen/gluegen-rt               "2.0.2"]
+                     [org.jogamp.jogl/jogl-all                    "2.0.2"]]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
@@ -74,6 +73,9 @@
   :aliases           {"ci"        ["do" "test," "uberjar"]
                       "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]}
 
+  ;; used by `pack` task
+  :packing           {:pack-path                   "resources/_unpack"}
+
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"
                       :exclude                   [internal]
@@ -101,4 +103,7 @@
                                 :java-source-paths ["dev/java"]
                                 :source-paths      ["dev/clj"]
                                 :resource-paths    ["test/resources"]
-                                :jvm-opts          ["-XX:+UnlockCommercialFeatures" "-XX:+FlightRecorder" "-XX:-OmitStackTraceInFastThrow"]}})
+                                :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
+                                                    "-XX:+UnlockCommercialFeatures"
+                                                    "-XX:+FlightRecorder"
+                                                    "-XX:-OmitStackTraceInFastThrow"]}})

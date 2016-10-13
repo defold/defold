@@ -14,10 +14,6 @@ import tarfile
 import zipfile
 import ConfigParser
 
-# Keep this version in sync with project.clj
-JOGL_VERSION = "2.0.2"
-JNA_VERSION = "4.1.0"
-
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-linux': 'linux-i586',
                     'x86_64-darwin': 'macosx-x64',
@@ -29,18 +25,6 @@ platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
                       'x86_64-darwin': 'x86_64-darwin',
                       'x86-win32': 'win32',
                       'x86_64-win32': 'x86_64-win32'}
-
-platform_to_legacy_java = {'x86_64-linux': 'x86_64-linux',
-                           'x86-linux': 'linux',
-                           'x86_64-darwin': 'x86_64-darwin',
-                           'x86-win32': 'win32',
-                           'x86_64-win32': 'x86_64-win32'}
-
-platform_to_jogl = {'x86_64-linux': 'linux-amd64',
-                    'x86-linux': 'linux-i586',
-                    'x86_64-darwin': 'macosx-universal',
-                    'x86-win32': 'windows-i586',
-                    'x86_64-win32': 'windows-amd64'}
 
 def mkdirs(path):
     if not os.path.exists(path):
@@ -85,8 +69,8 @@ def download(url, use_cache = True):
     return path
 
 def exec_command(args):
-    process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = True)
-
+    print('[EXEC] %s' % args)
+    process = subprocess.Popen(args, shell = True)
     output = process.communicate()[0]
     if process.returncode != 0:
         print(output)
@@ -108,107 +92,13 @@ def ziptree(path, outfile, directory = None):
     zip.close()
     return outfile
 
-def add_native_libs(platform, in_jar_name, out_jar):
-    with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
-        for zi in in_jar.infolist():
-            if not 'META-INF' in zi.filename:
-                d = in_jar.read(zi)
-                n = 'lib/%s/%s' % (platform, zi.filename)
-                print "adding", n
-                out_jar.writestr(n, d)
 
-def download_artifacts(platforms, ext_lib_path):
-    sha1 = git_sha1()
-    base_url = 'http://d.defold.com/archive/%s/engine' % (sha1)
-
-    artifacts = {'x86_64-darwin' : {'exes' : ['dmengine', 'dmengine_release'],
-                                    'libs' : ['libparticle_shared.dylib', 'libtexc_shared.dylib'],
-                                    'ext_libs' : [] },
-                 'x86-win32' : {'exes' : ['dmengine.exe', 'dmengine_release.exe'],
-                                'libs' : ['particle_shared.dll', 'texc_shared.dll'],
-                                'ext_libs' : ['OpenAL32.dll'] },
-                 'x86-linux' : {'exes' : ['dmengine', 'dmengine_release'],
-                                'libs' : ['libparticle_shared.so', 'libtexc_shared.so'],
-                                'ext_libs' : [] },
-                 'x86_64-linux' : {'exes' : ['dmengine', 'dmengine_release'],
-                                   'libs' : ['libparticle_shared.so', 'libtexc_shared.so'],
-                                   'ext_libs' : [] }}
-
-    for p in artifacts.keys():
-        print('Downloading for %s' % (p))
-        if p in platforms:
-            def download_lib(lib):
-                url = '%s/%s/%s' % (base_url, platform_to_legacy_java[p], lib)
-                return (lib, download(url, use_cache = False))
-            artifacts[p]['libs'] = map(download_lib, artifacts[p]['libs'])
-        else:
-            artifacts[p]['libs'] = []
-
-        def download_exe(exe):
-            url = '%s/%s/%s' % (base_url, platform_to_legacy_java[p], exe)
-            return (exe, download(url, use_cache = False))
-        artifacts[p]['exes'] = map(download_exe, artifacts[p]['exes'])
-
-        def fetch_ext_lib(ext_lib):
-            return (ext_lib, '%s/%s/%s' % (ext_lib_path, platform_to_legacy[p], ext_lib))
-        artifacts[p]['ext_libs'] = map(fetch_ext_lib, artifacts[p]['ext_libs'])
-
-    return artifacts
-
-def unlink_artifacts(artifacts):
-    for p in artifacts.keys():
-        for l in artifacts[p]['libs']:
-            os.unlink(l[1])
-
-        for e in artifacts[p]['exes']:
-            os.unlink(e[1])
-
-def bundle_natives(artifacts, in_jar_name, out_jar_name):
-    with zipfile.ZipFile(out_jar_name, 'w') as out_jar:
-
-        for platform in ['x86-linux', 'x86_64-linux', 'x86_64-darwin', 'x86-win32']:
-            jogl_platform = platform_to_jogl[platform]
-            add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
-            add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
-
-        with zipfile.ZipFile(os.path.expanduser("~/.m2/repository/net/java/dev/jna/jna/%s/jna-%s.jar" % (JNA_VERSION, JNA_VERSION)), 'r') as in_jar:
-            for jna_p, p, lib in [("darwin", "x86_64-darwin", "libjnidispatch.jnilib"),
-                                  ("win32-x86", "x86-win32", "jnidispatch.dll"),
-                                  ("linux-x86", "x86-linux", "libjnidispatch.so"),
-                                  ("linux-x86-64", "x86_64-linux", "libjnidispatch.so")]:
-                d = in_jar.read('com/sun/jna/%s/%s' % (jna_p, lib))
-                n = 'lib/%s/%s' % (p, lib)
-                print "adding", n
-                out_jar.writestr(n, d)
-
-        for p in artifacts.keys():
-            for l in artifacts[p]['libs']:
-                out_jar.write(l[1], 'lib/%s/%s' % (p, l[0]))
-
-            for e in artifacts[p]['exes']:
-                out_jar.write(e[1], 'libexec/%s/%s' % (p, e[0]))
-
-            for e in artifacts[p]['ext_libs']:
-                out_jar.write(e[1], 'libexec/%s/%s' % (p, e[0]))
-
-        with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
-            for zi in in_jar.infolist():
-                if not (zi.filename.endswith('.so') or zi.filename.endswith('.dll') or zi.filename.endswith('.jnilib')):
-                    d = in_jar.read(zi)
-                    out_jar.writestr(zi, d)
-
-def git_sha1(ref = None):
-    args = 'git log --pretty=%H -n1'.split()
-    if ref:
-        args.append(ref)
-    process = subprocess.Popen(args, stdout = subprocess.PIPE)
+def git_sha1(ref = 'HEAD'):
+    process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
         sys.exit(process.returncode)
-
-    line = out.split('\n')[0].strip()
-    sha1 = line.split()[0]
-    return sha1
+    return out.strip()
 
 def bundle(platform, jar_file, options):
     if os.path.exists('tmp'):
@@ -225,12 +115,11 @@ def bundle(platform, jar_file, options):
     exe_suffix = ''
     if 'win32' in platform:
         exe_suffix = '.exe'
-    sha1 = git_sha1()
 
     if options.launcher:
         launcher = options.launcher
     else:
-        launcher_version = sha1
+        launcher_version = options.git_sha1
         launcher_url = 'http://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
         launcher = download(launcher_url, use_cache = False)
         if not launcher:
@@ -265,7 +154,7 @@ def bundle(platform, jar_file, options):
         shutil.copy('bundle-resources/%s' % icon, resources_dir)
     config = ConfigParser.ConfigParser()
     config.read('bundle-resources/config')
-    config.set('build', 'sha1', sha1)
+    config.set('build', 'sha1', options.git_sha1)
     config.set('build', 'version', options.version)
 
     with open('%s/config' % resources_dir, 'wb') as f:
@@ -305,13 +194,18 @@ if __name__ == '__main__':
                       default = None,
                       help = 'Version')
 
+    parser.add_option('--git-rev', dest='git_rev',
+                      default = 'HEAD',
+                      help = 'Specific git rev to use. Useful when testing bundling.')
+
+    parser.add_option('--pack-local', dest='pack_local',
+                      default = False,
+                      action = 'store_true',
+                      help = 'Use local artifacts when packing resources for uberjar. Useful when testing bundling.')
+
     parser.add_option('--launcher', dest='launcher',
                       default = None,
                       help = 'Specific local launcher. Useful when testing bundling.')
-
-    parser.add_option('--ext-lib-path', dest='ext_lib_path',
-                      default = None,
-                      help = 'Where to look for external libraries, e.g. $DYNAMO_HOME/ext/lib')
 
     options, all_args = parser.parse_args()
 
@@ -321,28 +215,32 @@ if __name__ == '__main__':
     if not options.version:
         parser.error('No version specified')
 
-    if not options.ext_lib_path:
-        parser.error('No ext-lib-path specified')
+    options.git_sha1 = git_sha1(options.git_rev)
+    print 'Using git rev=%s, sha1=%s' % (options.git_rev, options.git_sha1)
 
     if os.path.exists('target/editor'):
         shutil.rmtree('target/editor')
 
     print 'Building editor'
     exec_command('./scripts/lein clean')
+    if options.pack_local:
+        exec_command('./scripts/lein with-profile +release pack')
+    else:
+        exec_command('./scripts/lein with-profile +release pack %s' % options.git_sha1)
+
     exec_command('./scripts/lein with-profile +release uberjar')
 
-    sha1 = git_sha1()
-    artifacts = download_artifacts(options.target_platform, options.ext_lib_path)
+    jar_file = 'defold-%s.jar' % options.git_sha1
+
     mkdirs('target/editor/update')
-    jar_file = 'defold-%s.jar' % sha1
-    bundle_natives(artifacts, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', 'target/editor/update/%s' % jar_file)
-    unlink_artifacts(artifacts)
+    shutil.copy('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', 'target/editor/update/%s' % jar_file)
+
     for platform in options.target_platform:
         bundle(platform, jar_file, options)
 
     package_info = {'version' : options.version,
-                    'sha1' : sha1,
-                    'packages': [{'url': 'defold-%s.jar' % sha1,
+                    'sha1' : options.git_sha1,
+                    'packages': [{'url': jar_file,
                                   'platform': '*',
                                   'action': 'copy'}]}
     with open('target/editor/update/manifest.json', 'w') as f:
