@@ -972,6 +972,11 @@ instructions.configure=\
 
                 zip = zipfile.ZipFile(filepath)
                 zip.extractall(path=dp_defold)
+
+                for root, dirs, files in os.walk(dp_defold):
+                    for entry in (dirs + files):
+                        os.chmod(os.path.join(root, entry), 755)
+
                 os.symlink('/Applications', os.path.join(builddir, 'Applications'))
 
                 certificate = 'Developer ID Application: Midasplayer AB (YFY47KYJ6N)'
