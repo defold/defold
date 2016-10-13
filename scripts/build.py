@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform
+import os, sys, shutil, zipfile, re, itertools, json, platform, math
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -962,28 +962,31 @@ instructions.configure=\
 
             builddir = None
             try:
-                self._log('Signing %s' % (filepath))
                 builddir = os.path.join(root, 'build')
+                if os.path.isdir(builddir):
+                    if os.path.islink(os.path.join(builddir, 'Applications')):
+                        os.unlink(os.path.join(builddir, 'Applications'))
+                    shutil.rmtree(builddir)
                 self._mkdirs(builddir)
 
+                self._log('Signing %s' % (filepath))
                 dp_defold = os.path.join(builddir, 'Defold-macosx.cocoa.x86_64')
                 fp_defold_app = os.path.join(dp_defold, 'Defold.app')
                 fp_defold_dmg = os.path.join(root, 'Defold-macosx.cocoa.x86_64.dmg')
 
-                zip = zipfile.ZipFile(filepath)
-                zip.extractall(path=dp_defold)
+                if os.path.isfile(fp_defold_dmg):
+                    os.remove(fp_defold_dmg)
 
-                for root, dirs, files in os.walk(dp_defold):
-                    for entry in (dirs + files):
-                        os.chmod(os.path.join(root, entry), 755)
-
+                self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold], False)
+                self.exec_command(['chmod', '-R', '755', dp_defold], False)
                 os.symlink('/Applications', os.path.join(builddir, 'Applications'))
 
+                # This certificate must be installed on the computer performing the operation
                 certificate = 'Developer ID Application: Midasplayer AB (YFY47KYJ6N)'
                 self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
                 self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
                 self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
-                self._log('Signed %s' % (filepath))
+                self._log('Signed %s' % (fp_defold_dmg))
 
                 target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
                 self.upload_file(fp_defold_dmg, target)
@@ -1086,9 +1089,26 @@ instructions.configure=\
                 p += basename(path)
 
             def upload():
-                key = bucket.new_key(p)
-                key.set_contents_from_filename(path)
-                self._log('Uploaded %s -> %s' % (path, url))
+                mp = bucket.initiate_multipart_upload(p)
+
+                source_size = os.stat(path).st_size
+                chunksize = 64 * 1024 * 1024 # 64 MiB
+                chunkcount = int(math.ceil(source_size / float(chunksize)))
+
+                for i in range(chunkcount):
+                    offset = i * chunksize
+                    remaining = source_size - offset
+                    self._log('Uploading #%d %s -> %s' % (i + 1, path, url))
+                    with open(path, 'r') as fp:
+                        fp.seek(offset)
+                        mp.upload_part_from_file(fp=fp, part_num=i + 1, size = min(chunksize, remaining))
+
+                if len(mp.get_all_parts()) == chunkcount:
+                    mp.complete_upload()
+                    self._log('Uploaded %s -> %s' % (path, url))
+                else:
+                    mp.cancel_upload()
+                    self._log('Failed to upload %s -> %s' % (path, url))
 
             f = Future(self.thread_pool, upload)
             self.futures.append(f)
