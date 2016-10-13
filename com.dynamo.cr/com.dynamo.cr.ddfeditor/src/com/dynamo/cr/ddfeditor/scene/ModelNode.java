@@ -181,7 +181,7 @@ public class ModelNode extends ComponentTypeNode {
         ArrayList<String> boneIds = new ArrayList<String>();
         try {
             IFile skeletonFile = getModel().getFile(this.skeleton.isEmpty() ? this.mesh : this.skeleton);
-            ColladaUtil.loadSkeleton(skeletonFile.getContents(), skeletonBuilder, boneIds);
+            ColladaUtil.loadSkeleton(skeletonFile.getContents(), skeletonBuilder, boneIds, null);
         } catch (Exception e) {
             updateStatus();
             return;

@@ -46,8 +46,7 @@ import org.openmali.vecmath2.util.FloatUtils;
  */
 public class Bone
 {
-//    private final String id;
-
+    /** Collada node representing bone **/
     public XMLNode node;
 
     /** The source-id of this bone */
@@ -67,8 +66,6 @@ public class Bone
 
     /** The inverse bind matrix */
     public final Matrix4f invBindMatrix;
-
-    public Matrix4f invBindMatrix2;
 
     /** The rotation of this bone */
     public final Quaternion4f relativeRotation;
@@ -340,7 +337,6 @@ public class Bone
      */
     public Bone( XMLNode node, String sid, String name, Matrix4f matrix, Quaternion4f bindRotation )
     {
-//        this.id = id;
         this.node = node;
         this.sid = sid;
         this.name = name;

@@ -50,7 +50,7 @@ public class ColladaUtilTest {
     @Test
     public void testMayaQuad() throws Exception {
         Rig.Mesh.Builder mesh = Rig.Mesh.newBuilder();
-        ColladaUtil.loadMesh(getClass().getResourceAsStream("maya_quad.dae"), mesh);
+        ColladaUtil.loadMesh(getClass().getResourceAsStream("maya_quad.dae"), mesh, new HashMap<Integer, Integer>());
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
         List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
@@ -82,7 +82,7 @@ public class ColladaUtilTest {
     @Test
     public void testBlenderPolylistQuad() throws Exception {
         Rig.Mesh.Builder mesh = Rig.Mesh.newBuilder();
-        ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"), mesh);
+        ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"), mesh, new HashMap<Integer, Integer>());
 
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
@@ -117,7 +117,7 @@ public class ColladaUtilTest {
     @Test
     public void testBlenderAnimations() throws Exception {
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
-        ArrayList<Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
+        ArrayList<Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("blender_animated_cube.dae"), skeleton, new ArrayList<String>(), new HashMap<Integer, Integer>());
         Rig.AnimationSet.Builder animation = Rig.AnimationSet.newBuilder();
         ColladaUtil.loadAnimations(getClass().getResourceAsStream("blender_animated_cube.dae"), animation, bones, 16.0f, new ArrayList<String>());
         //assert(0.0, animation.getDuration());
@@ -156,13 +156,12 @@ public class ColladaUtilTest {
     public void testSkeleton() throws Exception {
         // Temp test (and temp data)
         Rig.Mesh.Builder mesh = Rig.Mesh.newBuilder();
-        ColladaUtil.loadMesh(getClass().getResourceAsStream("simple_anim.dae"), mesh);
 
         String[] boneIds   = {"root", "l_hip", "l_knee", "l_ankle", "l_null_toe", "pelvis", "spine",  "l_humerus", "l_ulna",    "l_wrist", "r_humerus", "r_ulna",    "r_wrist", "neck",  "null_head", "r_hip", "r_knee", "r_ankle", "r_null_toe"};
         String[] parentIds = {null,   "root",  "l_hip",  "l_knee",  "l_ankle",    "root",   "pelvis", "spine",     "l_humerus", "l_ulna",  "spine",     "r_humerus", "r_ulna",  "spine", "neck",      "root",  "r_hip",  "r_knee",  "r_ankle"};
 
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
-        ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
+        ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>(), new HashMap<Integer, Integer>());
         List<Rig.Bone> bones = skeleton.getBonesList();
         assertEquals(boneIds.length, bones.size());
         HashMap<String,Integer> idToIndex = new HashMap<String,Integer>();
@@ -181,7 +180,7 @@ public class ColladaUtilTest {
     @Test(expected=LoaderException.class)
     public void testAnimClip() throws Exception {
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
-        ArrayList<Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>());
+        ArrayList<Bone> bones = ColladaUtil.loadSkeleton(getClass().getResourceAsStream("simple_anim.dae"), skeleton, new ArrayList<String>(), new HashMap<Integer, Integer>());
         Rig.AnimationSet.Builder animation = Rig.AnimationSet.newBuilder();
         ArrayList<String> idList1 = new ArrayList<String>();
         ColladaUtil.loadAnimations(getClass().getResourceAsStream("simple_anim.dae"), animation, bones, 16.0f, idList1);
