@@ -282,8 +282,10 @@ public class ColladaUtilTest {
         double lastYRot = rot.getY();
         double lastZRot = rot.getZ();
 
-        int rotCount = track.getRotationsCount() / 4;
-        for (int i = 1; i < rotCount; i++) {
+        // 4 floats per keyframe due to quaternions, last keyframe is a duplicate so skip it.
+        int keyframeCount = track.getRotationsCount() / 4 - 1;
+        
+        for (int i = 1; i < keyframeCount; i++) {
             rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
             quatToEuler(rQ, rot);
             
@@ -557,6 +559,48 @@ public class ColladaUtilTest {
             } else if (boneIndex == 2) {
                 if (track.getRotationsCount() > 0) {
                     assertAnimationRotationChanges(track, 1.0f, 0.0f, -1.0f);                    
+                }
+                
+            } else {
+                // There should only be animation on the bones specified above.
+                fail("Animation on invalid bone index: " + boneIndex);
+            }
+        }
+    }
+    
+    /*
+     * 
+     */
+    @Test
+    public void testBlenderRotation() throws Exception {
+        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(getClass().getResourceAsStream("two_bone_two_triangles.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+        
+        assertEquals(2, skeletonBuilder.getBonesCount());
+        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+
+        /*
+         *  We go through all tracks and verify they behave as expected. 
+         */
+        int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
+            int boneIndex = track.getBoneIndex();
+
+            /*
+             *  The collada file does not animate either position or scale for the bones,
+             *  but since the input animations are matrices we don't "know" that. But we
+             *  will verify that they do not change.
+             */
+            assertAnimationNoPosScale(track);
+            
+            if (boneIndex == 1) {
+                if (track.getRotationsCount() > 0) {
+                    assertAnimationRotationChanges(track, 0.0f, 0.0f, 1.0f);
                 }
                 
             } else {

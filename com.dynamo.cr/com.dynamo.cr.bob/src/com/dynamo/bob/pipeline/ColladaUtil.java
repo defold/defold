@@ -419,7 +419,7 @@ public class ColladaUtil {
         
         // Apply the up-axis matrix on the bind shape matrix.
         Matrix4f axisMatrix = createUpAxisMatrix(collada.asset.upAxis);
-        bindShapeMatrix.mul(axisMatrix);
+        bindShapeMatrix.mul(axisMatrix, bindShapeMatrix);
 
         float meter = collada.asset.unit.meter;
         List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
@@ -639,7 +639,7 @@ public class ColladaUtil {
         // If there is an up-axis matrix we apply it on the bone matrix
         // before we decompose and serialize to DDF.
         if (upAxisMatrix != null) {
-            matrix.mul(new Matrix4d(upAxisMatrix));
+            matrix.mul(new Matrix4d(upAxisMatrix), matrix);
         }
         
         Vector3d position = new Vector3d();
