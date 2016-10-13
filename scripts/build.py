@@ -1086,7 +1086,12 @@ instructions.configure=\
             if p[-1] == '/':
                 p += basename(path)
 
-            def upload():
+            def upload_singlefile():
+                key = bucket.new_key(p)
+                key.set_contents_from_filename(path)
+                self._log('Uploaded %s -> %s' % (path, url))
+
+            def upload_multipart():
                 mp = bucket.initiate_multipart_upload(p)
 
                 source_size = os.stat(path).st_size
@@ -1122,7 +1127,11 @@ instructions.configure=\
                     mp.cancel_upload()
                     self._log('Failed to upload %s -> %s' % (path, url))
 
-            f = Future(self.thread_pool, upload)
+            f = None
+            if sys.platform == 'win32':
+                f = Future(self.thread_pool, upload_singlefile)
+            else:
+                f = Future(self.thread_pool, upload_multipart)
             self.futures.append(f)
 
         else:
