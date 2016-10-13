@@ -301,6 +301,9 @@ class Configuration(object):
     def install_ems(self):
         url = '%s/emsdk-%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, EMSCRIPTEN_VERSION_STR, self.host)
         dlpath = self._download(url)
+        if dlpath is None:
+            print("Error. Could not download %s" % url)
+            sys.exit(1)
         self._extract(dlpath, self.ext)
         self.activate_ems()
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
