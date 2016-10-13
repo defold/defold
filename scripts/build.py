@@ -938,6 +938,61 @@ instructions.configure=\
         prefix = os.path.join(u.path, sha1)[1:]
         return prefix
 
+    def sign_editor(self):
+        u = urlparse.urlparse(self.archive_path)
+        bucket_name = u.hostname
+        bucket = self._get_s3_bucket(bucket_name)
+        prefix = self._get_s3_archive_prefix()
+        bucket_items = bucket.list(prefix=prefix)
+
+        candidate = None
+        for entry in bucket_items:
+            if 'Defold-macosx.cocoa.x86_64.zip' in entry.key:
+                candidate = entry
+            if 'Defold-macosx.cocoa.x86_64.dmg' in entry.key:
+                return True # The editor has already been signed
+
+        if candidate is not None:
+            root = os.path.join(self.dynamo_home, 'sign', self._git_sha1())
+            self._mkdirs(root)
+
+            filepath = os.path.join(root, 'Defold-macosx.cocoa.x86_64.zip')
+            if not os.path.isfile(filepath):
+                self._log('Downloading s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
+                candidate.get_contents_to_filename(filepath)
+                self._log('Downloaded s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
+
+            builddir = None
+            try:
+                self._log('Signing %s' % (filepath))
+                builddir = os.path.join(root, 'build')
+                self._mkdirs(builddir)
+
+                dp_defold = os.path.join(builddir, 'Defold-macosx.cocoa.x86_64')
+                fp_defold_app = os.path.join(dp_defold, 'Defold.app')
+                fp_defold_dmg = os.path.join(root, 'Defold-macosx.cocoa.x86_64.dmg')
+
+                zip = zipfile.ZipFile(filepath)
+                zip.extractall(path=dp_defold)
+                os.symlink('/Applications', os.path.join(builddir, 'Applications'))
+
+                certificate = 'Developer ID Application: Midasplayer AB (YFY47KYJ6N)'
+                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
+                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
+                self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
+                self._log('Signed %s' % (filepath))
+
+                target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
+                self.upload_file(fp_defold_dmg, target)
+                return True
+            finally:
+                if builddir is not None:
+                    if os.path.islink(os.path.join(builddir, 'Applications')):
+                        os.unlink(os.path.join(builddir, 'Applications'))
+                    shutil.rmtree(builddir)
+
+        return False
+
     def _sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname
@@ -1043,8 +1098,8 @@ instructions.configure=\
             f()
         self.futures = []
 
-    def exec_command(self, args):
-        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = True)
+    def exec_command(self, args, shell = True):
+        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = shell)
 
         output = process.communicate()[0]
         if process.returncode != 0:
@@ -1126,6 +1181,7 @@ test_cr         - Test editor and server
 build_server    - Build server
 build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
+sign_editor     - Sign the editor and upload a dmg archive to S3
 archive_server  - Archive server to path specified with --archive-path
 build_bob       - Build bob with native libraries included for cross platform deployment
 archive_bob     - Archive bob to path specified with --archive-path
