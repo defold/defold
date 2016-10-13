@@ -94,7 +94,7 @@
             (value (g/fnk [base-url id] (format "%s/%s" (or base-url "") id)))
             (dynamic read-only? (g/always true)))
   (input base-url g/Str)
-  (input source-id g/Any :cascade-delete)
+  (input source-id g/NodeID :cascade-delete)
   (input id-counts g/Any))
 
 (defn- child-go-go [go-id child-id]
@@ -147,26 +147,30 @@
   (let [collection (core/scope go-id)]
     (g/node-value collection :ids)))
 
-(g/defnk produce-go-outline [_node-id id node-outline-label source-outline child-outlines]
+(defn- dispatch-attach-fn [f source-id]
+  (fn [node-id child-id]
+    (f source-id child-id)))
+
+(g/defnk produce-go-outline [_node-id source-id id node-outline-label source-outline child-outlines]
   (let [coll-id (core/scope _node-id)]
     (-> source-outline
       (merge {:node-id _node-id
               :label node-outline-label
               :icon game-object/game-object-icon
               :children (into (vec (sort-by label-sort-by-fn (:children source-outline))) child-outlines)})
-      (update :child-reqs (fn [c] (conj (if c c [])
-                                        {:node-type ReferencedGOInstanceNode
-                                         :tx-attach-fn (fn [self-id child-id]
-                                                         (concat
-                                                           (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
-                                                           (attach-coll-ref-go coll-id child-id)
-                                                           (child-go-go self-id child-id)))}
-                                        {:node-type EmbeddedGOInstanceNode
-                                         :tx-attach-fn (fn [self-id child-id]
-                                                         (concat
-                                                           (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
-                                                           (attach-coll-embedded-go coll-id child-id)
-                                                           (child-go-go self-id child-id)))}))))))
+      (update :child-reqs (fn [c] (-> (mapv (fn [req] (update req :tx-attach-fn dispatch-attach-fn source-id)) c)
+                                    (conj {:node-type ReferencedGOInstanceNode
+                                           :tx-attach-fn (fn [self-id child-id]
+                                                           (concat
+                                                             (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                                             (attach-coll-ref-go coll-id child-id)
+                                                             (child-go-go self-id child-id)))}
+                                          {:node-type EmbeddedGOInstanceNode
+                                           :tx-attach-fn (fn [self-id child-id]
+                                                           (concat
+                                                             (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                                             (attach-coll-embedded-go coll-id child-id)
+                                                             (child-go-go self-id child-id)))})))))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
