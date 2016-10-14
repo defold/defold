@@ -31,7 +31,7 @@
    [com.google.protobuf ByteString]
    [editor.types AABB]
    [javax.vecmath Point3d Matrix4d]
-   [javax.media.opengl GL GL2]
+   [com.jogamp.opengl GL GL2]
    [java.awt.image BufferedImage]
    [java.nio ByteBuffer ByteOrder FloatBuffer]))
 
