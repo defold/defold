@@ -16,6 +16,7 @@ message ModelDesc
     optional string skeleton    = 5 [(resource)=true];
     optional string animations  = 6 [(resource)=true];
     optional string default_animation  = 7;
+    optional string rig_scene   = 8 [(resource)=true];
 
     optional string name        = 10; // Deprecated
 }

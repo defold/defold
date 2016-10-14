@@ -71,6 +71,8 @@ public class ModelBuilder extends Builder<Void> {
         modelBuilder.clearTextures();
         modelBuilder.addAllTextures(newTextureList);
 
+        modelBuilder.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
+
         out = new ByteArrayOutputStream(64 * 1024);
         ModelDesc modelDesc = modelBuilder.build();
         modelDesc.writeTo(out);
