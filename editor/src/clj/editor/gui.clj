@@ -1545,14 +1545,14 @@
     (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %}) (unused-display-profiles scene))))
 
 (handler/defhandler :add :global
-  (active? [selection] (and (= 1 (count selection))
-                         (not-empty (add-handler-options (first selection)))))
+  (active? [selection] (not-empty (some->> (handler/adapt-single selection Long) add-handler-options)))
   (run [project user-data] (when user-data ((:handler-fn user-data) project user-data)))
   (options [selection user-data]
-    (if (not user-data)
-      (add-handler-options (first selection))
-      (when (:layout user-data)
-        (add-layout-options (first selection) user-data)))))
+    (let [node-id (first (handler/adapt selection g/NodeID))]
+      (if (not user-data)
+        (add-handler-options node-id)
+        (when (:layout user-data)
+          (add-layout-options node-id user-data))))))
 
 (defn- color-alpha [node-desc color-field alpha-field]
   (let [color (get node-desc color-field)]
@@ -1753,10 +1753,10 @@
         (g/set-property node-id :index index)))))
 
 (defn- single-gui-node? [selection]
-  (handler/single-selection? selection GuiNode))
+  (handler/adapt-single selection GuiNode))
 
 (defn- single-layer-node? [selection]
-  (handler/single-selection? selection LayerNode))
+  (handler/adapt-single selection LayerNode))
 
 (handler/defhandler :move-up :global
   (active? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))

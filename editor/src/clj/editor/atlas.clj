@@ -479,17 +479,9 @@
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
 
-(defn- single-selection [selection]
-  (= 1 (count selection)))
-
-(defn- get-single-selection [node-type selection]
-  (when (and (single-selection selection)
-             (g/node-instance? node-type (first selection)))
-    (first selection)))
-
-(defn- atlas-selection [selection] (get-single-selection AtlasNode selection))
-(defn- animation-selection [selection] (get-single-selection AtlasAnimation selection))
-(defn- image-selection [selection] (get-single-selection AtlasImage selection))
+(defn- atlas-selection [selection] (handler/adapt-single selection AtlasNode))
+(defn- animation-selection [selection] (handler/adapt-single selection AtlasAnimation))
+(defn- image-selection [selection] (handler/adapt-single selection AtlasImage))
 
 (def ^:private default-animation
   {:flip-horizontal false
@@ -498,7 +490,7 @@
    :playback :playback-loop-forward
    :id "New Animation"})
 
-(defn- add-animation-group-handler [[atlas-node]]
+(defn- add-animation-group-handler [atlas-node]
   (g/transact
    (concat
     (g/operation-label "Add Animation Group")
@@ -507,7 +499,7 @@
 (handler/defhandler :add :global
   (label [] "Add Animation Group")
   (active? [selection] (atlas-selection selection))
-  (run [selection] (add-animation-group-handler selection)))
+  (run [selection] (add-animation-group-handler (first selection))))
 
 (defn- add-images-handler [workspace labels parent scope-node] ; parent = new parent of images
   (when-let [images (seq (dialogs/make-resource-dialog workspace {:ext image/exts :title "Select Images" :selection :multiple}))]

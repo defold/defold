@@ -47,7 +47,7 @@
                   :icon "icons/site_backup_and_restore.png"
                   :command :revert}])
 
-(handler/defhandler :revert :asset-browser
+(handler/defhandler :revert :changes-view
   (enabled? [selection]
             (pos? (count selection)))
   (run [selection git list-view workspace]
@@ -55,7 +55,7 @@
        (refresh! git list-view)
        (workspace/resource-sync! workspace)))
 
-(handler/defhandler :diff :asset-browser
+(handler/defhandler :diff :changes-view
   (enabled? [selection]
             (and (= 1 (count selection))
                  (not= :add (:change-type (first selection)))))
@@ -83,7 +83,7 @@
         ^ListView list-view          (.lookup parent "#changes")]
     (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
                                         ; TODO: Should we really include both git and list-view in the context. Have to think about this
-    (ui/context! list-view :asset-browser {:git git :list-view list-view :workspace workspace} list-view)
+    (ui/context! list-view :changes-view {:git git :list-view list-view :workspace workspace} list-view)
     (ui/register-context-menu list-view ::changes-menu)
     (ui/cell-factory! list-view status-render)
     (ui/on-action! refresh (fn [_] (refresh! git list-view)))

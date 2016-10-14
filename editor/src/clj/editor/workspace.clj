@@ -24,9 +24,6 @@ ordinary paths."
 (defn version-on-disk-outdated? [workspace]
   (not= @version-on-disk (g/graph-version workspace)))
 
-(defprotocol SelectionProvider
-  (selection [this]))
-
 (def build-dir "/build/default/")
 
 (defn project-path [workspace]

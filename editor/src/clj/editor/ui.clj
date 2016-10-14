@@ -478,7 +478,7 @@
     (.setCellFactory this (make-list-cell-factory render-fn))))
 
 (extend-type TreeView
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] (some->> this
                       (.getSelectionModel)
                       (.getSelectedItems)
@@ -507,7 +507,7 @@
                             [(id-fn item) item]) roots))))))
 
 (extend-type ListView
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] (some->> this
                       (.getSelectionModel)
                       (.getSelectedItems)
@@ -520,8 +520,7 @@
 
 (defn make-text-input-control-context
   [control]
-  {:name :text-input-control
-   :env {:control control}})
+  (handler/->Context :text-input-control {:control control} nil {} {}))
 
 (defn- has-selection?
   [^TextInputControl control]
@@ -547,15 +546,13 @@
   (enabled? [^TextInputControl control] (.isRedoable control))
   (run [^TextInputControl control] (.redo control)))
 
-
 (defn context!
   ([^Node node name env selection-provider]
     (context! node name env selection-provider {}))
   ([^Node node name env selection-provider dynamics]
-    (user-data! node ::context {:name name
-                                :env env
-                                :selection-provider selection-provider
-                                :dynamics dynamics})))
+    (context! node name env selection-provider {} {}))
+  ([^Node node name env selection-provider dynamics adapters]
+    (user-data! node ::context (handler/->Context name env selection-provider dynamics adapters))))
 
 (defn context
   [^Node node]
@@ -572,15 +569,6 @@
     :else
     (user-data node ::context)))
 
-(defn complete-context
-  [{:keys [selection-provider dynamics] :as context}]
-  (cond-> context
-    selection-provider
-    (assoc-in [:env :selection] (workspace/selection selection-provider))
-
-    dynamics
-    (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in context [:env node]) v)]) dynamics)))))
-
 (defn- contexts []
   (let [main-scene (.getScene ^Stage @*main-stage*)
         initial-node (or (.getFocusOwner main-scene) (.getRoot main-scene))]
@@ -589,7 +577,7 @@
       (if-not node
         ctxs
         (if-let [ctx (context node)]
-          (recur (.getParent node) (conj ctxs (complete-context ctx)))
+          (recur (.getParent node) (conj ctxs ctx))
           (recur (.getParent node) ctxs))))))
 
 (defn extend-menu [id location menu]
@@ -990,24 +978,6 @@ this will create independent entities that refer to the same underlying
 command."
   [name category-id command-id label]
   `(def ^:command ~name [~label ~category-id ~command-id]))
-
-(defmacro defhandler
-  "Creates a handler and binds it to the given command.
-
-In the first form, the handler will always be enabled. Upon invocation, it
-will call the function bound to fn-var with the
-org.eclipse.core.commands.ExecutionEvent and the additional args.
-
-In the second form, enablement-fn will be checked. When it returns a truthy
-value, the handler will be enabled. Enablement-fn must have metadata to
-identify the evaluation context variables and properties that affect its
-return value."
-  [name command & body]
-  (let [enablement (if (= :enabled-when (first body)) (second body) nil)
-        body       (if (= :enabled-when (first body)) (drop 2 body) body)
-        fn-var     (first body)
-        body       (rest body)]
-    `(def ^:handler ~name [~command ~fn-var ~@body])))
 
 (defn tree-item-seq [item]
   (if item

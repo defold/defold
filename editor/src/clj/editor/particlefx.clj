@@ -718,11 +718,8 @@
   (label [user-data] (if-not user-data
                        "Add Modifier"
                        (get-in user-data [:modifier-data :label])))
-  (active? [selection] (and (= 1 (count selection))
-                            (let [node-id (first selection)
-                                  type (g/node-type (g/node-by-id node-id))]
-                              (or (emitter? node-id)
-                                  (pfx? node-id type)))))
+  (active? [selection] (or (handler/adapt-single selection EmitterNode)
+                           (handler/adapt-single selection ParticleFXNode)))
   (run [user-data]
        (let [parent-id (:_node-id user-data)
              self (if (emitter? parent-id)
@@ -789,10 +786,8 @@
   (label [user-data] (if-not user-data
                        "Add Emitter"
                        (get-in user-data [:emitter-data :label])))
-  (active? [selection] (and (= 1 (count selection))
-                            (let [node-id (first selection)
-                                  type (g/node-type (g/node-by-id node-id))]
-                              (pfx? node-id type))))
+  (active? [selection] (or (handler/adapt-single selection EmitterNode)
+                           (handler/adapt-single selection ParticleFXNode)))
   (run [user-data] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data)))
   (options [selection user-data]
            (when (not user-data)

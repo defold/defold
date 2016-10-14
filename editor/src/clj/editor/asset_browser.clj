@@ -104,29 +104,6 @@
 (defn- is-resource-file [x] (and (satisfies? resource/Resource x)
                                  (= :file (resource/source-type x))))
 
-(handler/defhandler :open :asset-browser
-  (enabled? [selection] (and (seq selection) (every? is-resource-file selection)))
-  (run [selection open-fn]
-       (doseq [resource selection]
-         (open-fn resource))))
-
-(handler/defhandler :open-as :asset-browser
-  (active? [selection] (some is-resource-file selection))
-  (enabled? [selection] (= 1 (count selection)))
-  (run [selection open-fn user-data]
-    (let [resource (first selection)]
-      (open-fn resource (when-let [view-type (:selected-view-type user-data)]
-                          {:selected-view-type view-type}))))
-  (options [workspace selection user-data]
-           (when-not user-data
-             (let [resource      (first selection)
-                   resource-type (resource/resource-type resource)]
-               (map (fn [vt]
-                      {:label     (or (:label vt) "External Editor")
-                       :command   :open-as
-                       :user-data {:selected-view-type vt}})
-                    (:view-types resource-type))))))
-
 (defn- roots [resources]
   (let [resources (into {} (map (fn [resource] [(->path (resource/proj-path resource)) resource]) resources))
         roots (loop [paths (keys resources)
@@ -354,7 +331,7 @@
 
 (g/defnk produce-tree-view [_node-id tree-view resource-tree]
   (let [selected-paths (or (ui/user-data tree-view ::pending-selection)
-                           (mapv resource/proj-path (workspace/selection tree-view)))]
+                           (mapv resource/proj-path (handler/selection tree-view)))]
     (update-tree-view tree-view resource-tree selected-paths)
     (ui/user-data! tree-view ::pending-selection nil)
     tree-view))
@@ -465,9 +442,9 @@
                           (when (= :file (resource/source-type resource))
                             (open-resource-fn resource)))))))
         over-handler (ui/event-handler e (drag-over e))
-        done-handler (ui/event-handler e (drag-done e (workspace/selection tree-view)))
+        done-handler (ui/event-handler e (drag-done e (handler/selection tree-view)))
         dropped-handler (ui/event-handler e (drag-dropped e))
-        detected-handler (ui/event-handler e (drag-detected e (workspace/selection tree-view)))
+        detected-handler (ui/event-handler e (drag-detected e (handler/selection tree-view)))
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))]
     (.setOnDragDetected tree-view detected-handler)

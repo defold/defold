@@ -356,7 +356,7 @@
       (add-component-file go-id resource))))
 
 (handler/defhandler :add-from-file :global
-  (active? [selection] (and (= 1 (count selection)) (g/node-instance? GameObjectNode (first selection))))
+  (active? [selection] (handler/adapt-single selection GameObjectNode))
   (label [] "Add Component File")
   (run [workspace selection]
        (add-component-handler workspace (first selection))))
@@ -411,7 +411,7 @@
 
 (handler/defhandler :add :global
   (label [user-data] (add-embedded-component-label user-data))
-  (active? [selection] (and (= 1 (count selection)) (g/node-instance? GameObjectNode (first selection))))
+  (active? [selection] (handler/adapt-single selection GameObjectNode))
   (run [user-data] (add-embedded-component-handler user-data))
   (options [selection user-data]
            (let [self (first selection)

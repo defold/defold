@@ -476,7 +476,7 @@
         (g/transact tx-data)))))
 
 (extend-type SourceViewer
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] this)
   cvx/TextContainer
   (text! [this s]
