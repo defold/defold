@@ -135,5 +135,6 @@ public class MathUtilTest {
 //        scale.set(10.0, -1.0, 1.0);
 //        assertDecomposeDouble(translation, rotation, scale);
     }
+    
 }
 

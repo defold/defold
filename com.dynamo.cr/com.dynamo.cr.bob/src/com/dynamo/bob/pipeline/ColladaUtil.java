@@ -22,7 +22,6 @@ import javax.vecmath.Quat4f;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
-import javax.vecmath.Vector3f;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -247,12 +246,13 @@ public class ColladaUtil {
         for (int bi = 0; bi < boneList.size(); ++bi)
         {
             Bone bone = boneList.get(bi);
-            if (boneToAnimations.containsKey(bone.getSourceId()))
+            String boneId = bone.node.id;
+            if (boneToAnimations.containsKey(boneId))
             {
                 Matrix4d parentToLocal = getBoneParentToLocal(bone);
 
                 // search the animations for each bone
-                ArrayList<XMLAnimation> anims = boneToAnimations.get(bone.getSourceId());
+                ArrayList<XMLAnimation> anims = boneToAnimations.get(boneId);
                 for (XMLAnimation animation : anims) {
                     if (animation.getType() == null) {
                         continue;
@@ -311,7 +311,9 @@ public class ColladaUtil {
         XMLLibraryAnimations libraryAnimation = collada.libraryAnimations.get(0);
 
         if(!animClips.isEmpty()) {
+
             throw new LoaderException("Anmation clips are currently not supported.");
+
         } else {
             float totalAnimationLength = 0.0f;
             HashMap<String, ArrayList<XMLAnimation>> boneToAnimations = new HashMap<String, ArrayList<XMLAnimation>>();
@@ -417,7 +419,7 @@ public class ColladaUtil {
         if (texcoord_input != null) {
             texcoords = sourcesMap.get(texcoord_input.source);
         }
-        
+
         // Apply the up-axis matrix on the bind shape matrix.
         Matrix4f axisMatrix = createUpAxisMatrix(collada.asset.upAxis);
         bindShapeMatrix.mul(axisMatrix, bindShapeMatrix);
@@ -509,28 +511,28 @@ public class ColladaUtil {
     public static ArrayList<Bone> loadSkeleton(InputStream is, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
         return loadSkeleton(loadDAE(is), skeletonBuilder, boneIds, colladaIndexToDDFIndex);
     }
-    
+
     private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, HashMap<String, Integer> colladaBoneIndexMap, HashMap<Integer, Integer> colladaIndexToDDFIndex) {
         Bone newBone = new Bone(node, node.sid, node.name, node.matrix.matrix4f, new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
-        
-        /* 
+
+        /*
          * A lookup map to convert collada bone indexes into indexes representing the final DDF bone list.
          * We need the bones to be in a depth first (and root at 0) order, currently the engine depend on this
          * when it creates GOs for bones.
          */
         int colladaBoneIndex = colladaBoneIndexMap.getOrDefault(newBone.getSourceId(), 0xffff);
         colladaIndexToDDFIndex.put(colladaBoneIndex, boneList.size());
-        
+
         boneList.add(newBone);
         boneIds.add(newBone.getSourceId());
-        
+
         for(XMLNode childNode : node.childrenList) {
             if(childNode.type == XMLNode.Type.JOINT) {
                 Bone childBone = loadBone(childNode, boneList, boneIds, colladaBoneIndexMap, colladaIndexToDDFIndex);
                 newBone.addChild(childBone);
             }
         }
-        
+
         return newBone;
     }
 
@@ -551,7 +553,7 @@ public class ColladaUtil {
 
         if (rootNode == null) {
             return null;
-        }        
+        }
 
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
@@ -562,8 +564,8 @@ public class ColladaUtil {
         }
         List<XMLSource> sources = skin.sources;
         HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
-        
-        // We don't use the supplied inverse bind matrices. This is calculated automatically in the engine, see res_rig_scene.cpp. 
+
+        // We don't use the supplied inverse bind matrices. This is calculated automatically in the engine, see res_rig_scene.cpp.
         // XMLInput invBindMatInput = findInput(skin.jointsInputs, "INV_BIND_MATRIX", true);
         // XMLSource invBindMatSource = sourcesMap.get(invBindMatInput.source);
 
@@ -585,7 +587,7 @@ public class ColladaUtil {
         } else {
             return null;
         }
-        
+
         HashMap<String, Integer> colladaBoneIndexMap = new HashMap<String, Integer>();
         for(int i = 0; i < boneRefArrayCount; i++) {
             colladaBoneIndexMap.put(boneRefArray[i], i);
@@ -596,7 +598,7 @@ public class ColladaUtil {
          */
         ArrayList<Bone> boneList = new ArrayList<Bone>();
         Bone rootBone = loadBone(rootNode, boneList, boneIds, colladaBoneIndexMap, colladaIndexToDDFIndex);
-        
+
         /*
          * Generate DDF representation of bones.
          */
@@ -630,7 +632,7 @@ public class ColladaUtil {
         b.setId(MurmurHash.hash64(bone.getName()));
 
         Matrix4d matrix = MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
-        
+
         /*
          *  If there is an up-axis matrix we apply it on the bone matrix
          *  before we decompose and serialize to DDF.
@@ -638,7 +640,7 @@ public class ColladaUtil {
         if (upAxisMatrix != null) {
             matrix.mul(new Matrix4d(upAxisMatrix), matrix);
         }
-        
+
         /*
          * Decompose pos, rot and scale from bone matrix.
          */

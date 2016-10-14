@@ -5,8 +5,8 @@
       <author>Blender User</author>
       <authoring_tool>Blender 2.73.0 commit date:2015-01-20, commit time:18:16, hash:bbf09d9</authoring_tool>
     </contributor>
-    <created>2016-10-12T17:18:29</created>
-    <modified>2016-10-12T17:18:29</modified>
+    <created>2016-10-14T13:38:27</created>
+    <modified>2016-10-14T13:38:27</modified>
     <unit name="meter" meter="1"/>
     <up_axis>Z_UP</up_axis>
   </asset>
@@ -164,7 +164,7 @@
         </technique_common>
       </source>
       <source id="Armature_Bone_002_pose_matrix-output">
-        <float_array id="Armature_Bone_002_pose_matrix-output-array" count="32">1 0 2.90955e-9 1.19209e-7 0 1 -4.65663e-10 2.617677 -2.57687e-9 -2.47772e-10 1 -1.86265e-9 0 0 0 1 0.7660444 0.6040227 -0.2198463 1.19209e-7 -0.6427876 0.7198462 -0.2620026 2.617677 1.32143e-8 0.3420201 0.9396926 -1.86265e-9 0 0 0 1</float_array>
+        <float_array id="Armature_Bone_002_pose_matrix-output-array" count="32">1 0 2.90955e-9 1.19209e-7 0 1 -4.65663e-10 2.617677 -2.57687e-9 -2.47772e-10 1 -1.86265e-9 0 0 0 1 1 -9.01513e-10 -2.47689e-9 1.19209e-7 0 0.9396926 -0.3420201 2.617677 3.12665e-9 0.3420201 0.9396926 -1.86265e-9 0 0 0 1</float_array>
         <technique_common>
           <accessor source="#Armature_Bone_002_pose_matrix-output-array" count="2" stride="16">
             <param name="TRANSFORM" type="float4x4"/>
