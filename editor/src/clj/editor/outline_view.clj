@@ -128,7 +128,9 @@
   (output tree-view TreeView :cached update-tree-view))
 
 (ui/extend-menu ::outline-menu nil
-                [{:label "Add"
+                [{:label "Open"
+                  :command :open}
+                 {:label "Add"
                   :icon "icons/plus.png"
                   :command :add}
                  {:label "Add From File"
@@ -153,7 +155,11 @@
 (defn- root-iterators [^TreeView tree-view]
   (mapv ->iterator (ui/selection-roots tree-view item->path item->id)))
 
+(defn- selection-nodes? [selection]
+  (handler/adapt-every selection Long))
+
 (handler/defhandler :delete :global
+  (active? [selection] (selection-nodes? selection))
   (enabled? [selection outline-view]
             (and (< 0 (count selection))
                  (let [tree-view (g/node-value outline-view :tree-view)
@@ -175,6 +181,7 @@
                             (DataFormat. (into-array String [json]))))))
 
 (handler/defhandler :copy :global
+  (active? [selection] (selection-nodes? selection))
   (enabled? [selection] (< 0 (count selection)))
   (run [outline-view]
        (alter-var-root #'*paste-into-parent* (constantly true))
@@ -194,6 +201,7 @@
           target-it)))))
 
 (handler/defhandler :paste :global
+  (active? [selection] (selection-nodes? selection))
   (enabled? [selection outline-view]
             (let [cb (Clipboard/getSystemClipboard)
                   tree-view (g/node-value outline-view :tree-view)
@@ -211,6 +219,7 @@
          (outline/paste! (project/graph project) target-item-it (.getContent cb data-format) (partial project/select project)))))
 
 (handler/defhandler :cut :global
+  (active? [selection] (selection-nodes? selection))
   (enabled? [selection outline-view]
             (let [tree-view (g/node-value outline-view :tree-view)
                   item-iterators (root-iterators tree-view)]

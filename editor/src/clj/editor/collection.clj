@@ -623,15 +623,11 @@
                     (child-coll-any self go-node)
                     []))))
 
-(defn- single-selection? [selection]
-  (= 1 (count selection)))
-
 (defn- selected-collection? [selection]
-  (g/node-instance? CollectionNode (first selection)))
+  (handler/adapt-single selection CollectionNode))
 
 (defn- selected-embedded-instance? [selection]
-  (let [node (first selection)]
-    (g/node-instance? EmbeddedGOInstanceNode node)))
+  (handler/adapt-single selection EmbeddedGOInstanceNode))
 
 (defn add-game-object-file [coll-node resource]
   (let [project (project/get-project coll-node)
@@ -652,9 +648,8 @@
         (project/select project [go-node])))))
 
 (handler/defhandler :add-from-file :global
-  (active? [selection] (and (single-selection? selection)
-                            (or (selected-collection? selection)
-                                (selected-embedded-instance? selection))))
+  (active? [selection] (or (selected-collection? selection)
+                           (selected-embedded-instance? selection)))
   (label [selection] (cond
                        (selected-collection? selection) "Add Game Object File"
                        (selected-embedded-instance? selection) "Add Component File"))
@@ -708,9 +703,8 @@
         (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] true true {})))))
 
 (handler/defhandler :add :global
-  (active? [selection] (and (single-selection? selection)
-                            (or (selected-collection? selection)
-                                (selected-embedded-instance? selection))))
+  (active? [selection] (or (selected-collection? selection)
+                           (selected-embedded-instance? selection)))
   (label [selection user-data] (cond
                                  (selected-collection? selection) "Add Game Object"
                                  (selected-embedded-instance? selection) (game-object/add-embedded-component-label user-data)))
@@ -731,7 +725,7 @@
                   (child-coll-any self coll-node))))
 
 (handler/defhandler :add-secondary-from-file :global
-  (active? [selection] (and (single-selection? selection) (selected-collection? selection)))
+  (active? [selection] (selected-collection? selection))
   (label [] "Add Collection File")
   (run [selection] (let [coll-node     (first selection)
                          project       (project/get-project coll-node)

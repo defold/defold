@@ -210,7 +210,7 @@
   (workspace/file-resource workspace path))
 
 (defn selection [project]
-  (workspace/selection (project/selection-provider project)))
+  (handler/selection (project/selection-provider project)))
 
 ;; Extension library server
 

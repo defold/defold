@@ -735,7 +735,7 @@
     (handle-resource-changes project-id changes render-progress!)))
 
 (deftype ProjectSelectionProvider [project-id]
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] (g/node-value project-id :selected-node-ids)))
 
 (defn selection-provider [project-id] (ProjectSelectionProvider. project-id))

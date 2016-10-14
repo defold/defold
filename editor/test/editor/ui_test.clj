@@ -2,8 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [editor.handler :as handler]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.ui :as ui])
   (:import [javafx.fxml FXMLLoader]
            [javafx.scene Scene]
            [javafx.scene.control ListView Menu MenuBar MenuItem SelectionMode]
@@ -41,7 +40,7 @@
                                                     {:label "Quit"}]}])))
 
 (defrecord TestSelectionProvider [selection]
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] selection))
 
 (deftest menu-test

@@ -4,7 +4,8 @@
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [schema.core :as s]
-            [editor.core :as core])
+            [editor.core :as core]
+            [editor.handler :as handler])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -200,3 +201,6 @@
     ""))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
+
+(defn node-id->resource [node-id]
+  (and (g/node-instance? ResourceNode node-id) (g/node-value node-id :resource)))
