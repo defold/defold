@@ -375,8 +375,6 @@
                                           basis            (g/now)
                                           cache            (g/cache)}
                                      :as opts}]
-  (reset! (g/node-value project :build-cache {:basis basis :cache cache}) {})
-  (reset! (g/node-value project :fs-build-cache {:basis basis :cache cache}) {})
   (let [files-on-disk  (file-seq (io/file (workspace/build-path
                                            (g/node-value project :workspace {:basis basis :cache cache}))))
         fs-build-cache (g/node-value project :fs-build-cache {:basis basis :cache cache})
@@ -542,6 +540,7 @@
   (input selected-node-ids g/Any :array)
   (input selected-node-properties g/Any :array)
   (input resources g/Any)
+  (input resource-map g/Any)
   (input resource-types g/Any)
   (input save-data g/Any :array :substitute (fn [save-data] (vec (remove g/error? save-data))))
   (input node-resources resource/Resource :array)
@@ -554,6 +553,7 @@
   (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
                                              (let [nids (set selected-node-ids)]
                                                (filterv (comp nids first) sub-selection))))
+  (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
@@ -748,6 +748,7 @@
               (g/make-nodes graph
                             [project [Project :workspace workspace-id :build-cache (atom {}) :fs-build-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
+                            (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
                             (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
