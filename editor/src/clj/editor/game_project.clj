@@ -134,7 +134,7 @@
    :resource (workspace/make-build-resource (CustomResource. resource))
    :build-fn build-custom-resource
    ;; NOTE! Break build cache when resource content changes.
-   :user-data {:hash (murmur/hash-bytes (resource-content resource))}})
+   :user-data {:hash (murmur/hash64-bytes (resource-content resource))}})
 
 (defn- with-leading-slash [path]
   (if (string/starts-with? path "/")
