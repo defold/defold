@@ -71,6 +71,7 @@ namespace dmGameSystem
         dmRender::HRenderContext    m_RenderContext;
         dmGui::HContext             m_GuiContext;
         dmScript::HContext          m_ScriptContext;
+        dmRig::HRigContext          m_RigContext;
     };
 
     struct SpriteContext

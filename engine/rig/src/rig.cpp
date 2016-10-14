@@ -64,7 +64,7 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration)
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
         if (anim == 0x0)
@@ -89,7 +89,7 @@ namespace dmRig
         player->m_Cursor = 0.0f;
         player->m_Playing = 1;
         player->m_Playback = playback;
-        if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmGameObject::PLAYBACK_LOOP_BACKWARD)
+        if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD)
             player->m_Backwards = 1;
         else
             player->m_Backwards = 0;
@@ -139,6 +139,7 @@ namespace dmRig
         }
     }
 
+
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id)
     {
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
@@ -180,7 +181,7 @@ namespace dmRig
         }
 
         float duration = animation->m_Duration;
-        if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG)
+        if (player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG)
         {
             duration *= 2.0f;
         }
@@ -211,7 +212,7 @@ namespace dmRig
                     event_data.m_Float = key->m_Float;
                     event_data.m_String = key->m_String;
 
-                    instance->m_EventCallback(instance->m_EventCBUserData, RIG_EVENT_TYPE_KEYFRAME, (void*)&event_data);
+                    instance->m_EventCallback(RIG_EVENT_TYPE_KEYFRAME, (void*)&event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
                 }
             }
         }
@@ -229,7 +230,7 @@ namespace dmRig
         {
             bool prev_backwards = player->m_Backwards;
             // Handle the flipping nature of ping pong
-            if (player->m_Playback == dmGameObject::PLAYBACK_LOOP_PINGPONG)
+            if (player->m_Playback == dmRig::PLAYBACK_LOOP_PINGPONG)
             {
                 prev_backwards = !player->m_Backwards;
             }
@@ -240,7 +241,7 @@ namespace dmRig
         {
             // Special handling when we reach the way back of once ping pong playback
             float half_duration = duration * 0.5f;
-            if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
+            if (player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
             {
                 // If the previous cursor was still in the forward direction, treat it as two distinct intervals: [start_cursor,half_duration) and [half_duration, end_cursor)
                 if (prev_cursor < half_duration)
@@ -268,7 +269,7 @@ namespace dmRig
 
         // Advance cursor
         float prev_cursor = player->m_Cursor;
-        if (player->m_Playback != dmGameObject::PLAYBACK_NONE)
+        if (player->m_Playback != dmRig::PLAYBACK_NONE)
         {
             player->m_Cursor += dt;
         }
@@ -281,23 +282,23 @@ namespace dmRig
         bool completed = false;
         switch (player->m_Playback)
         {
-        case dmGameObject::PLAYBACK_ONCE_FORWARD:
-        case dmGameObject::PLAYBACK_ONCE_BACKWARD:
-        case dmGameObject::PLAYBACK_ONCE_PINGPONG:
+        case dmRig::PLAYBACK_ONCE_FORWARD:
+        case dmRig::PLAYBACK_ONCE_BACKWARD:
+        case dmRig::PLAYBACK_ONCE_PINGPONG:
             if (player->m_Cursor >= duration)
             {
                 player->m_Cursor = duration;
                 completed = true;
             }
             break;
-        case dmGameObject::PLAYBACK_LOOP_FORWARD:
-        case dmGameObject::PLAYBACK_LOOP_BACKWARD:
+        case dmRig::PLAYBACK_LOOP_FORWARD:
+        case dmRig::PLAYBACK_LOOP_BACKWARD:
             while (player->m_Cursor >= duration && duration > 0.0f)
             {
                 player->m_Cursor -= duration;
             }
             break;
-        case dmGameObject::PLAYBACK_LOOP_PINGPONG:
+        case dmRig::PLAYBACK_LOOP_PINGPONG:
             while (player->m_Cursor >= duration && duration > 0.0f)
             {
                 player->m_Cursor -= duration;
@@ -323,7 +324,7 @@ namespace dmRig
                 event_data.m_AnimationId = player->m_AnimationId;
                 event_data.m_Playback = player->m_Playback;
 
-                instance->m_EventCallback(instance->m_EventCBUserData, RIG_EVENT_TYPE_COMPLETED, (void*)&event_data);
+                instance->m_EventCallback(RIG_EVENT_TYPE_COMPLETED, (void*)&event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
             }
         }
     }
@@ -658,7 +659,7 @@ namespace dmRig
 
             // Notify any listener that the pose has been recalculated
             if (instance->m_PoseCallback) {
-                instance->m_PoseCallback(instance->m_EventCBUserData);
+                instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
             }
 
             // Convert every transform into model space
@@ -687,7 +688,6 @@ namespace dmRig
     Result Update(HRigContext context, float dt)
     {
         DM_PROFILE(Rig, "Update");
-
         dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         const uint32_t count = instances.Size();
 
@@ -768,7 +768,7 @@ namespace dmRig
             return 0.0f;
         }
 
-        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG);
+        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
         if (normalized) {
             t = t / duration;
         }
@@ -911,6 +911,53 @@ namespace dmRig
         return out_buffer;
     }
 
+    SpineModelVertex* GenerateSpineVertexData(HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride)
+    {
+        DM_PROFILE(Rig, "GenerateSpineVertexData");
+
+        SpineModelVertex* write_ptr = vertex_data_out;
+        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
+        if (!instance->m_MeshEntry || !instance->m_DoRender) {
+            return write_ptr;
+        }
+        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
+        if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
+            context->m_DrawOrderToMesh.SetCapacity(mesh_count);
+
+        dmRig::UpdateMeshDrawOrder(context, instance, mesh_count);
+        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
+            uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
+            const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
+            if (!properties->m_Visible) {
+                continue;
+            }
+            uint32_t rgba = (((uint32_t) (properties->m_Color[0] * 255.0f)) << 24) | (((uint32_t) (properties->m_Color[1] * 255.0f)) << 16) |
+                    (((uint32_t) (properties->m_Color[2] * 255.0f)) << 8) | ((uint32_t) (properties->m_Color[3] * 255.0f));
+
+            float* scratch_pos = (float*)scratch_position_buffer.Begin();
+            dmRig::GeneratePositionData(instance, mesh_index, model_matrix, scratch_pos);
+
+            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
+            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
+            uint32_t index_count = mesh->m_Indices.m_Count;
+            for (uint32_t ii = 0; ii < index_count; ++ii)
+            {
+                uint32_t vi = mesh->m_Indices[ii];
+                uint32_t e = vi*3;
+                write_ptr->x = scratch_pos[e+0];
+                write_ptr->y = scratch_pos[e+1];
+                write_ptr->z = scratch_pos[e+2];
+                vi = texcoord0_indices[ii];
+                e = vi << 1;
+                write_ptr->u = (mesh->m_Texcoord0[e+0]);
+                write_ptr->v = (mesh->m_Texcoord0[e+1]);
+                write_ptr->rgba = rgba;
+                write_ptr = (SpineModelVertex*)((uintptr_t)write_ptr + vertex_stride);
+            }
+        }
+        return write_ptr;
+    }
+
     static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)
     {
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
@@ -940,6 +987,17 @@ namespace dmRig
     bool IsValid(HRigInstance instance)
     {
         return (instance->m_MeshEntry != 0x0);
+    }
+
+    void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2)
+    {
+        if (!instance) {
+            return;
+        }
+
+        instance->m_EventCallback = event_callback;
+        instance->m_EventCBUserData1 = user_data1;
+        instance->m_EventCBUserData2 = user_data2;
     }
 
     IKTarget* GetIKTarget(HRigInstance instance, dmhash_t constraint_id)
@@ -987,8 +1045,11 @@ namespace dmRig
         instance->m_MeshId = params.m_MeshId;
 
         instance->m_PoseCallback = params.m_PoseCallback;
+        instance->m_PoseCBUserData1 = params.m_PoseCBUserData1;
+        instance->m_PoseCBUserData2 = params.m_PoseCBUserData2;
         instance->m_EventCallback = params.m_EventCallback;
-        instance->m_EventCBUserData = params.m_EventCBUserData;
+        instance->m_EventCBUserData1 = params.m_EventCBUserData1;
+        instance->m_EventCBUserData2 = params.m_EventCBUserData2;
 
         instance->m_BindPose = params.m_BindPose;
         instance->m_Skeleton = params.m_Skeleton;
@@ -1008,7 +1069,7 @@ namespace dmRig
         if (params.m_DefaultAnimation != NULL_ANIMATION)
         {
             // Loop forward should be the most common for idle anims etc.
-            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f);
+            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f);
         }
 
         return dmRig::RESULT_OK;

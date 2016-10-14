@@ -17,6 +17,15 @@
 
 namespace dmRender
 {
+    /*# Rendering API documentation
+     *
+     * Rendering functions, messages and constants. The "render" namespace is
+     * accessible only from render scripts.
+     *
+     * @name Rendering
+     * @namespace render
+     */
+
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
     #define RENDER_SCRIPT "RenderScript"
 

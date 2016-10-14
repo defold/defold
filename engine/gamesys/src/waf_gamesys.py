@@ -41,6 +41,10 @@ def transform_properties(properties, out_properties):
         entry.key = property.id
         entry.id = dlib.dmHashBuffer64(property.id)
 
+def transform_spine_scene_name(task, name):
+    name = name.replace('.spinescene', '.rigscenec')
+    return name
+
 def transform_texture_name(task, name):
     name = name.replace('.png', '.texturec')
     name = name.replace('.jpg', '.texturec')
@@ -136,6 +140,7 @@ def transform_gui(task, msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
     font_names = set()
     texture_names = set()
+    spine_scenes = set()
     msg.material = msg.material.replace(".material", ".materialc")
     for f in msg.fonts:
         font_names.add(f.name)
@@ -143,6 +148,9 @@ def transform_gui(task, msg):
     for t in msg.textures:
         texture_names.add(t.name)
         t.texture = transform_texture_name(task, t.texture)
+    for s in msg.spine_scenes:
+        spine_scenes.add(s.name)
+        s.spine_scene = transform_spine_scene_name(task, s.spine_scene)
     for n in msg.nodes:
         if n.texture:
             if not n.texture in texture_names:

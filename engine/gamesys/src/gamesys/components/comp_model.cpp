@@ -93,9 +93,9 @@ namespace dmGameSystem
         return false;
     }
 
-    static void CompModelEventCallback(void* user_data, const dmRig::RigEventType event_type, const void* event_data)
+    static void CompModelEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        ModelComponent* component = (ModelComponent*)user_data;
+        ModelComponent* component = (ModelComponent*)user_data1;
 
         dmMessage::URL sender;
         dmMessage::URL receiver = component->m_Listener;
@@ -107,6 +107,12 @@ namespace dmGameSystem
         switch (event_type) {
             case dmRig::RIG_EVENT_TYPE_COMPLETED:
             {
+                if (!GetSender(component, &sender))
+                {
+                    dmLogError("Could not send animation_done to listener because of incomplete component.");
+                    return;
+                }
+
                 dmhash_t message_id = dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash;
                 const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
 
@@ -116,7 +122,7 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
                 dmMessage::ResetURL(component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
@@ -132,9 +138,9 @@ namespace dmGameSystem
 
     }
 
-    static void CompModelPoseCallback(void* user_data)
+    static void CompModelPoseCallback(void* user_data1, void* user_data2)
     {
-        ModelComponent* component = (ModelComponent*)user_data;
+        ModelComponent* component = (ModelComponent*)user_data1;
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
@@ -189,9 +195,20 @@ namespace dmGameSystem
                 return false;
             }
 
-            dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
+            uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+            if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+            {
+                dmGameObject::Delete(collection, inst);
+                component->m_NodeInstances.SetSize(i);
+                return false;
+            }
+
+            dmhash_t id = dmGameObject::ConstructInstanceId(index);
+            dmGameObject::AssignInstanceIndex(index, instance);
+
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
-            if (dmGameObject::RESULT_OK != result) {
+            if (dmGameObject::RESULT_OK != result)
+            {
                 dmGameObject::Delete(collection, inst);
                 component->m_NodeInstances.SetSize(i);
                 return false;
@@ -254,8 +271,11 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompModelEventCallback;
-        create_params.m_EventCBUserData = component;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;
@@ -648,7 +668,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmModelDDF::ModelPlayAnimation* ddf = (dmModelDDF::ModelPlayAnimation*)params.m_Message->m_Data;
-                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback, ddf->m_BlendDuration))
+                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
@@ -707,8 +727,11 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompModelEventCallback;
-        create_params.m_EventCBUserData = component;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;

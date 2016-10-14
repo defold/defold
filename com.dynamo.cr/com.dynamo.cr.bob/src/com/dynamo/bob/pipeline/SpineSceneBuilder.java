@@ -66,7 +66,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         ProtoUtil.merge(input, builder);
         BuilderUtil.checkResource(this.project, input, "spine_json", builder.getSpineJson());
         BuilderUtil.checkResource(this.project, input, "atlas", builder.getAtlas());
-        
+
         taskBuilder.addOutput(input.changeExt(".skeletonc"));
         taskBuilder.addOutput(input.changeExt(".meshsetc"));
         taskBuilder.addOutput(input.changeExt(".animationsetc"));

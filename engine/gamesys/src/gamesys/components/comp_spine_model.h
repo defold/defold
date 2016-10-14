@@ -34,16 +34,6 @@ namespace dmGameSystem
         uint8_t                     m_AddedToUpdate : 1;
     };
 
-    struct SpineModelVertex
-    {
-        float x;
-        float y;
-        float z;
-        uint16_t u;
-        uint16_t v;
-        uint32_t rgba;
-    };
-
     struct SpineModelWorld
     {
         dmRig::HRigContext                  m_RigContext;
@@ -51,7 +41,7 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject>     m_RenderObjects;
         dmGraphics::HVertexDeclaration      m_VertexDeclaration;
         dmGraphics::HVertexBuffer           m_VertexBuffer;
-        dmArray<SpineModelVertex>           m_VertexBufferData;
+        dmArray<dmRig::SpineModelVertex>    m_VertexBufferData;
         // Temporary scratch buffer used for transforming vertex buffer, used to creating primitives from indices
         dmArray<Vector3>                    m_ScratchPositionBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components

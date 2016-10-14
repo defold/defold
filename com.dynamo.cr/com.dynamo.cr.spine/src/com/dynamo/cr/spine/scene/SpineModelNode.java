@@ -369,7 +369,7 @@ public class SpineModelNode extends ComponentTypeNode {
         this.mesh.update(meshes);
     }
 
-    private static class TransformProvider implements UVTransformProvider {
+    public static class TransformProvider implements UVTransformProvider {
         RuntimeTextureSet textureSet;
 
         public TransformProvider(RuntimeTextureSet textureSet) {

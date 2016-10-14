@@ -47,6 +47,20 @@
          scene (g/node-value node-id :scene)]
      (is (= 0.25 (get-in scene [:children 0 :children 2 :children 0 :renderable :user-data :color 3]))))))
 
+(deftest gui-scene-validation
+ (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")]
+     (is (nil? (test-util/prop-error node-id :script)))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.script")]]
+       (test-util/with-prop [node-id :script v]
+         (is (g/error-fatal? (test-util/prop-error node-id :script)))))
+     (is (nil? (test-util/prop-error node-id :material)))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+       (test-util/with-prop [node-id :material v]
+         (is (g/error-fatal? (test-util/prop-error node-id :material))))))))
+
 (deftest gui-box-auto-size
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
@@ -86,6 +100,18 @@
      (is (= "png_texture" (prop png-node :texture)))
      (prop! png-tex :name "new-name")
      (is (= "new-name" (prop png-node :texture))))))
+
+(deftest gui-texture-validation
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+        atlas-tex (:node-id (test-util/outline node-id [1 1]))]
+     (test-util/with-prop [atlas-tex :name ""]
+       (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
+       (test-util/with-prop [atlas-tex :texture v]
+         (is (g/error-fatal? (test-util/prop-error atlas-tex :texture))))))))
 
 (deftest gui-atlas
   (with-clean-system
@@ -127,6 +153,17 @@
      (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
      (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
      (is (some #{new-font} (build-targets-deps gui-scene-node))))))
+
+(deftest gui-font-validation
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         gui-scene-node (test-util/resource-node project "/logic/main.gui")
+         gui-font-node (:node-id (test-util/outline gui-scene-node [2 0]))]
+     (is (nil? (test-util/prop-error gui-font-node :font)))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
+       (test-util/with-prop [gui-font-node :font v]
+         (is (g/error-fatal? (test-util/prop-error gui-font-node :font))))))))
 
 (deftest gui-text-node
   (with-clean-system

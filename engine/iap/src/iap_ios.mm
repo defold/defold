@@ -17,6 +17,14 @@ struct IAP;
     @property IAP* m_IAP;
 @end
 
+/*# In-app purchases API documentation
+ *
+ * Functions and constants for interacting with Apple's In-app purchases
+ * and Google's In-app billing.
+ *
+ * @name In-app purchases
+ * @namespace iap
+ */
 
 struct IAP
 {

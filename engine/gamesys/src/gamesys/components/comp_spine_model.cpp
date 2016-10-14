@@ -50,7 +50,7 @@ namespace dmGameSystem
         dmGraphics::VertexElement ve[] =
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, true},
                 {"color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
         };
 
@@ -97,22 +97,23 @@ namespace dmGameSystem
         return false;
     }
 
-    static void CompSpineModelEventCallback(void* user_data, dmRig::RigEventType event_type, const void* event_data)
+    static void CompSpineModelEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        SpineModelComponent* component = (SpineModelComponent*)user_data;
+        SpineModelComponent* component = (SpineModelComponent*)user_data1;
 
         dmMessage::URL sender;
         dmMessage::URL receiver = component->m_Listener;
-        if (!GetSender(component, &sender))
-        {
-            dmLogError("Could not send animation_done to listener because of incomplete component.");
-            return;
-        }
 
         switch (event_type)
         {
             case dmRig::RIG_EVENT_TYPE_COMPLETED:
             {
+                if (!GetSender(component, &sender))
+                {
+                    dmLogError("Could not send animation_done to listener because of incomplete component.");
+                    return;
+                }
+
                 dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
                 const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
 
@@ -122,7 +123,7 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
                 dmMessage::ResetURL(component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
@@ -133,10 +134,16 @@ namespace dmGameSystem
             }
             case dmRig::RIG_EVENT_TYPE_KEYFRAME:
             {
+                if (!GetSender(component, &sender))
+                {
+                    return;
+                }
+                receiver.m_Function = 0;
+
                 if (!dmMessage::IsSocketValid(receiver.m_Socket))
                 {
                     receiver = sender;
-                    receiver.m_Fragment = 0; // broadcast to sibling components
+                    receiver.m_Fragment = 0;
                 }
 
                 dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
@@ -153,7 +160,7 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &event, data_size, 0);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send spine_event to listener.");
@@ -168,9 +175,9 @@ namespace dmGameSystem
 
     }
 
-    static void CompSpineModelPoseCallback(void* user_data)
+    static void CompSpineModelPoseCallback(void* user_data1, void* user_data2)
     {
-        SpineModelComponent* component = (SpineModelComponent*)user_data;
+        SpineModelComponent* component = (SpineModelComponent*)user_data1;
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
@@ -226,9 +233,20 @@ namespace dmGameSystem
                 return false;
             }
 
-            dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
+            uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+            if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+            {
+                dmGameObject::Delete(collection, inst);
+                component->m_NodeInstances.SetSize(i);
+                return false;
+            }
+
+            dmhash_t id = dmGameObject::ConstructInstanceId(index);
+            dmGameObject::AssignInstanceIndex(index, instance);
+
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
-            if (dmGameObject::RESULT_OK != result) {
+            if (dmGameObject::RESULT_OK != result)
+            {
                 dmGameObject::Delete(collection, inst);
                 component->m_NodeInstances.SetSize(i);
                 return false;
@@ -291,8 +309,11 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompSpineModelEventCallback;
-        create_params.m_EventCBUserData = component;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;
@@ -340,54 +361,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static SpineModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, SpineModelWorld* world, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride)
-    {
-        DM_PROFILE(Rig, "GenerateVertexDataSpine");
-
-        SpineModelVertex* write_ptr = vertex_data_out;
-        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-        if (!instance->m_MeshEntry || !instance->m_DoRender) {
-            return write_ptr;
-        }
-        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
-        dmRig::HRigContext context = world->m_RigContext;
-        if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
-            context->m_DrawOrderToMesh.SetCapacity(mesh_count);
-
-        dmRig::UpdateMeshDrawOrder(context, instance, mesh_count);
-        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
-            uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
-            const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-            if (!properties->m_Visible) {
-                continue;
-            }
-            uint32_t rgba = (((uint32_t) (properties->m_Color[0] * 255.0f)) << 24) | (((uint32_t) (properties->m_Color[1] * 255.0f)) << 16) |
-                    (((uint32_t) (properties->m_Color[2] * 255.0f)) << 8) | ((uint32_t) (properties->m_Color[3] * 255.0f));
-
-            float* scratch_pos = (float*)world->m_ScratchPositionBufferData.Begin();
-            dmRig::GeneratePositionData(instance, mesh_index, model_matrix, scratch_pos);
-
-            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
-            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
-            uint32_t index_count = mesh->m_Indices.m_Count;
-            for (uint32_t ii = 0; ii < index_count; ++ii)
-            {
-                uint32_t vi = mesh->m_Indices[ii];
-                uint32_t e = vi*3;
-                write_ptr->x = scratch_pos[e+0];
-                write_ptr->y = scratch_pos[e+1];
-                write_ptr->z = scratch_pos[e+2];
-                vi = texcoord0_indices[ii];
-                e = vi << 1;
-                write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
-                write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
-                write_ptr->rgba = rgba;
-                write_ptr = (SpineModelVertex*)((uintptr_t)write_ptr + vertex_stride);
-            }
-        }
-        return write_ptr;
-    }
-
     static void RenderBatch(SpineModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(SpineModel, "RenderBatch");
@@ -406,7 +379,7 @@ namespace dmGameSystem
             max_component_vertices = dmMath::Max(max_component_vertices, count);
         }
 
-        dmArray<SpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
+        dmArray<dmRig::SpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
         if (vertex_buffer.Remaining() < vertex_count)
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
@@ -415,12 +388,13 @@ namespace dmGameSystem
             scratch_vertex_buffer_data.OffsetCapacity(max_component_vertices - scratch_vertex_buffer_data.Capacity());
 
         // Fill in vertex buffer
-        SpineModelVertex *vb_begin = vertex_buffer.End();
-        SpineModelVertex *vb_end = vb_begin;
+        dmRig::SpineModelVertex *vb_begin = vertex_buffer.End();
+        dmRig::SpineModelVertex *vb_end = vb_begin;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-            vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, vb_end, sizeof(SpineModelVertex));
+            vb_end = dmRig::GenerateSpineVertexData(world->m_RigContext, c->m_RigInstance, scratch_vertex_buffer_data, c->m_World, vb_end, sizeof(dmRig::SpineModelVertex));
+            // vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, vb_end, sizeof(SpineModelVertex));
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -555,7 +529,7 @@ namespace dmGameSystem
             {
                 dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
                 world->m_RenderObjects.SetSize(0);
-                dmArray<SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
+                dmArray<dmRig::SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
                 vertex_buffer.SetSize(0);
                 break;
             }
@@ -566,9 +540,9 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpineModelVertex) * world->m_VertexBufferData.Size(),
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(dmRig::SpineModelVertex) * world->m_VertexBufferData.Size(),
                                                 world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(SpineModelVertex));
+                DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(dmRig::SpineModelVertex));
                 break;
             }
             default:
@@ -685,7 +659,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
-                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback, ddf->m_BlendDuration))
+                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
@@ -745,8 +719,11 @@ namespace dmGameSystem
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
         create_params.m_EventCallback = CompSpineModelEventCallback;
-        create_params.m_EventCBUserData = component;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;
