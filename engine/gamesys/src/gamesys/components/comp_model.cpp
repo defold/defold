@@ -785,7 +785,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             ModelComponent* component = components[i];
-            if (component->m_Resource != 0x0 && component->m_Resource->m_RigScene == params.m_Resource->m_Resource)
+            if (component->m_Resource != 0x0 && component->m_Resource == params.m_Resource->m_Resource)
                 OnResourceReloaded(world, component);
         }
     }
