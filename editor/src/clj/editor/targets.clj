@@ -70,54 +70,68 @@
                          (-> xs
                            (conj message)
                            (subvec discard)))
-                       xs))))
+                       xs)))
+  nil)
 
-(defn- update-targets! [devices]
-  (let [res (reduce (fn [{:keys [blacklist targets] :as acc} ^DeviceInfo device]
-                      (let [loc                 (.get (.headers device) "LOCATION")
-                            ^URL url            (try (URL. loc)
-                                                     (catch Exception _
-                                                       (log (format "[%s] not a valid URL" loc))))
-                            ^String description (and url (not (contains? blacklist (.getHost url)))
-                                                     (or (get @descriptions loc)
-                                                         (try (http-get url)
-                                                              (catch Exception _
-                                                                (log (format "[%s] error getting XML description" loc))))))
-                            desc                (try (xml/parse (ByteArrayInputStream. (.getBytes description)))
-                                                     (catch Exception _
-                                                       (log (format "[%s] error parsing XML description" loc))))
-                            target              (desc->target desc (.localAddress device))]
+(defn- process-devices [{:keys [fetch-url-fn log-fn]} devices old-descriptions]
+  (reduce (fn [{:keys [blacklist targets descriptions]} ^DeviceInfo device]
+            (let [loc                 (.get (.headers device) "LOCATION")
+                  ^URL url            (try (URL. loc)
+                                           (catch Exception _
+                                             (log-fn (format "[%s] not a valid URL" loc))))
+                  ^String description (and url
+                                           (not (contains? blacklist (.getHost url)))
+                                           (or (get descriptions loc)
+                                               (try (fetch-url-fn url)
+                                                    (catch Exception _
+                                                      (log-fn (format "[%s] error getting XML description" loc))))))
+                  desc                (and description
+                                           (try (xml/parse (ByteArrayInputStream. (.getBytes description)))
+                                                (catch Exception _
+                                                  (log-fn (format "[%s] error parsing XML description" loc)))))
+                  target              (and desc
+                                           (desc->target desc (.localAddress device)))]
 
-                        (when-not target
-                          (log (format "[%s] not a Defold target" url)))
+              (when-not target
+                (log-fn (format "[%s] not a Defold target" loc)))
 
-                        (when desc
-                          (swap! descriptions assoc loc description))
+              {:targets      (if target
+                               (conj targets target)
+                               targets)
+               :blacklist    (if (and url (not desc))
+                               (conj blacklist (.getHost url))
+                               blacklist)
+               :descriptions (if desc
+                               (assoc descriptions loc description)
+                               descriptions)}))
+          {:blacklist #{} :targets #{} :descriptions old-descriptions}
+          devices))
 
-                        {:targets   (if target
-                                      (conj targets target)
-                                      targets)
-                         :blacklist (if (and url (not desc))
-                                      (conj blacklist (.getHost url))
-                                      blacklist)}))
-                    {:blacklist #{} :targets #{}}
-                    devices)]
-    (let [found-targets (:targets res)]
-      (when (not-empty found-targets)
-        (log (format "Found engine(s) [%s]" (str/join "," (mapv (fn [t] (let [url (URL. (:url t))]
-                                                                          (format "%s (%s)" (:name t) (.getHost url)))) found-targets)))))
+(def ^:private update-targets-context
+  {:targets-atom targets
+   :descriptions-atom descriptions
+   :log-fn log
+   :fetch-url-fn http-get
+   :invalidate-menus-fn ui/invalidate-menus!})
 
+(defn update-targets! [{:keys [targets-atom descriptions-atom log-fn invalidate-menus-fn] :as context} devices]
+  (let [{found-targets :targets
+         updated-descriptions :descriptions} (process-devices context devices @descriptions-atom)]
+    (when (not-empty found-targets)
+      (log-fn (format "Found engine(s) [%s]" (str/join "," (mapv (fn [t] (let [url (URL. (:url t))]
+                                                                        (format "%s (%s)" (:name t) (.getHost url)))) found-targets)))))
+    (let [old-targets @targets-atom]
+      (reset! descriptions-atom updated-descriptions)
+      (reset! targets-atom (or (not-empty found-targets) #{local-target}))
       (when (or
-             ;; We found new/different engines
-             (and (not-empty found-targets)
-                  (not= found-targets @targets))
+              ;; We found new/different engines
+              (and (not-empty found-targets)
+                   (not= found-targets old-targets))
 
-             ;; We didn't find any engines (but we had atleast one in the list)
-             (and (empty? found-targets)
-                  (not= @targets #{local-target})))
-        (ui/invalidate-menus!))
-
-      (reset! targets (or (not-empty found-targets) #{local-target})))))
+              ;; We didn't find any engines (but we had atleast one in the list)
+              (and (empty? found-targets)
+                   (not= old-targets #{local-target})))
+        (invalidate-menus-fn)))))
 
 (defn- search-interval [^SSDP ssdp]
   (if (.isConnected ssdp)
@@ -139,7 +153,7 @@
               (when search?
                 (reset! last-search now))
               (when (or search? changed?)
-                (update-targets! (.getDevices ssdp-service'))))))
+                (update-targets! update-targets-context (.getDevices ssdp-service'))))))
         (do
           (reset! running false)))
       (catch Exception e
@@ -150,7 +164,7 @@
 
 (defn update! []
   (when-let [^SSDP ss @ssdp-service]
-    (update-targets! (.getDevices ss))
+    (update-targets! update-targets-context (.getDevices ss))
     (reset! last-search (System/currentTimeMillis))))
 
 (defn start []

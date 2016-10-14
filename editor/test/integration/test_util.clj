@@ -254,3 +254,24 @@
        (g/set-property! ~node-id# ~property# ~value#)
        ~@forms
        (g/set-property! ~node-id# ~property# old-value#))))
+
+(defn make-call-logger
+  "Returns a function that keeps track of its invocations. Every
+  time it is called, the call and its arguments are stored in the
+  metadata associated with the returned function. If fn f is
+  supplied, it will be invoked after the call is logged."
+  ([]
+   (make-call-logger (constantly nil)))
+  ([f]
+   (let [calls (atom [])]
+     (with-meta (fn [& args]
+                  (swap! calls conj args)
+                  (apply f args))
+                {::calls calls}))))
+
+(defn call-logger-calls
+  "Given a function obtained from make-call-logger, returns a
+  vector of vectors containing the arguments for every time it
+  was called."
+  [call-logger]
+  (-> call-logger meta ::calls deref))
