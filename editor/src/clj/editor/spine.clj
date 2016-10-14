@@ -30,8 +30,8 @@
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -203,10 +203,12 @@
   (let [tracks-by-bone (reduce-kv (fn [m bone-name timeline]
                                     (let [bone-index (bone-id->index (murmur/hash64 bone-name))]
                                       (reduce-kv (fn [m type keys]
-                                                   (let [field (timeline-type->pb-field type)
-                                                         pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
-                                                                   :bone-index bone-index}]
-                                                   (update-in m [bone-index] merge pb-track))) m timeline)))
+                                                   (if-let [field (timeline-type->pb-field type)]
+                                                     (let [pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
+                                                                     :bone-index bone-index}]
+                                                       (update-in m [bone-index] merge pb-track))
+                                                     m))
+                                                 m timeline)))
                                   {} timelines)]
     (sort-by :bone-index (vals tracks-by-bone))))
 
@@ -275,12 +277,14 @@
                              0 weights)]
     (mapv (fn [w] (update w :weight #(/ % total-weight))) weights)))
 
+(def ^:private ^TextureSetGenerator$UVTransform uv-identity (TextureSetGenerator$UVTransform.))
+
 (defn- attachment->mesh [attachment att-name slot-data anim-data bones-remap bone-index->world]
   (when anim-data
     (let [type (get attachment "type" "region")
           world ^SpineScene$Transform (:bone-world slot-data)
           anim-id (get attachment "name" att-name)
-          uv-trans ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms]))
+          uv-trans (or ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms])) uv-identity)
           mesh (case type
                  "region"
                  (let [local (doto (SpineScene$Transform.)

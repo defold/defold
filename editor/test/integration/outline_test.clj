@@ -107,12 +107,23 @@
   (with-clean-system
     (let [[workspace project] (setup world)
           root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
-      ; 1 go instance
+      ; 2 go instance
       (is (= 2 (child-count root)))
       (copy! root [0])
       (paste! project root)
-      ; 2 go instances
+      ; 3 go instances
       (is (= 3 (child-count root))))))
+
+(deftest copy-paste-component-onto-go-instance
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
+      ; 1 comp instance
+      (is (= 1 (child-count root [0])))
+      (copy! root [0 0])
+      (paste! project root [0])
+      ; 2 comp instances
+      (is (= 2 (child-count root [0]))))))
 
 (deftest copy-paste-game-object
   (with-clean-system

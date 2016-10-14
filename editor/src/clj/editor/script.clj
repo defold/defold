@@ -23,14 +23,14 @@
            [com.google.protobuf ByteString]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private lua-code-opts {:code lua/lua})
-(def ^:private go-prop-type->property-types
+(def go-prop-type->property-types
   {:property-type-number  g/Num
    :property-type-hash    g/Str
    :property-type-url     g/Str
