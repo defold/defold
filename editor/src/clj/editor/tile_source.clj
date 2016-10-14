@@ -851,7 +851,7 @@
       (make-collision-group-node self project true collision-group))))
 
 (handler/defhandler :add :global
-  (active? [selection] (handler/single-selection? selection TileSourceNode))
+  (active? [selection] (handler/adapt-single selection TileSourceNode))
   (label [selection user-data]
          (if-not user-data
            "Add"

@@ -962,8 +962,8 @@
 
 (defn tile-map-node
   [selection]
-  (or (handler/get-single-selection selection TileMapNode)
-      (when-let [layer-node (handler/get-single-selection selection LayerNode)]
+  (or (handler/adapt-single selection TileMapNode)
+      (when-let [layer-node (handler/adapt-single selection LayerNode)]
         (core/scope layer-node))))
 
 (defn- gen-unique-name
@@ -991,7 +991,7 @@
 
 (handler/defhandler :add :global
   (label [user-data] "Add layer")
-  (active? [selection] (some->> (first selection) (g/node-instance? TileMapNode)))
+  (active? [selection] (handler/adapt-single selection TileMapNode))
   (run [selection user-data] (add-layer-handler (first selection))))
 
 
@@ -1003,7 +1003,7 @@
 
 (handler/defhandler :erase-tool :global
   (label [user-data] "Select Eraser")
-  (enabled? [selection] (some->> (single selection) (g/node-instance? LayerNode)))
+  (enabled? [selection] (handler/adapt-single selection LayerNode))
   (run [selection] (erase-tool-handler (tile-map-node selection))))
 
 
@@ -1014,6 +1014,7 @@
      (g/update-property tool-controller :mode (toggler :palette :editor)))))
 
 (handler/defhandler :tile-map-palette :global
+  (active? [selection] (handler/adapt-single selection TileMapNode))
   (enabled? [selection] (when-let [node (tile-map-node selection)]
                           (g/node-value node :tile-source-resource)))
   (run [selection] (tile-map-palette-handler (tile-map-node selection))))

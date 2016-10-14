@@ -685,7 +685,7 @@
          (if-not user-data
            "Add Shape"
            (shape-type-label (:shape-type user-data))))
-  (active? [selection] (some->> (first selection) (g/node-instance? CollisionObjectNode)))
+  (active? [selection] (handler/adapt-single selection CollisionObjectNode))
   (run [selection user-data] (add-shape-handler (first selection) (:shape-type user-data)))
   (options [selection user-data]
            (let [self (first selection)]

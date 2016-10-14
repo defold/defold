@@ -117,8 +117,9 @@
 
 (handler/defhandler :quit :global
   (enabled? [] true)
-  (run [project ^Stage main-stage]
-    (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST))))
+  (run []
+    (let [^Stage main-stage (ui/main-stage)]
+      (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
 
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x      (.getX stage)
@@ -155,7 +156,7 @@
 (handler/defhandler :new :global
   (run [] (prn "NEW NOW!")))
 
-(handler/defhandler :open :global
+(handler/defhandler :open-project :global
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
@@ -348,7 +349,7 @@
                   :command :close-all}])
 
 (defrecord DummySelectionProvider []
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] []))
 
 (defn- make-title
@@ -458,6 +459,38 @@
            (.open (Desktop/getDesktop) (File. path))
            (catch Exception _
              (dialogs/make-alert-dialog (str "Unable to open external editor for " path)))))))))
+
+(defn- selection->files [selection]
+  (when-let [resources (handler/adapt-every selection resource/Resource)]
+    (vec (keep (fn [r] (and r (= :file (resource/source-type r)) r)) resources))))
+
+(defn- selection->single-file [selection]
+  (when-let [r (handler/adapt-single selection resource/Resource)]
+    (when (and r (= :file (resource/source-type r)) r)
+      r)))
+
+(handler/defhandler :open :global
+  (active? [selection] (selection->files selection))
+  (run [selection app-view workspace project]
+       (doseq [resource (selection->files selection)]
+         (open-resource app-view workspace project resource))))
+
+(handler/defhandler :open-as :global
+  (active? [selection] (selection->single-file selection))
+  (enabled? [selection] (selection->single-file selection))
+  (run [selection app-view workspace project user-data]
+       (let [resource (selection->single-file selection)]
+         (open-resource app-view workspace project resource (when-let [view-type (:selected-view-type user-data)]
+                                                              {:selected-view-type view-type}))))
+  (options [workspace selection user-data]
+           (when-not user-data
+             (let [resource (selection->single-file selection)
+                   resource-type (resource/resource-type resource)]
+               (map (fn [vt]
+                      {:label     (or (:label vt) "External Editor")
+                       :command   :open-as
+                       :user-data {:selected-view-type vt}})
+                    (:view-types resource-type))))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)

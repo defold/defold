@@ -89,3 +89,6 @@ Outputs:
                 :node-ref (g/node-id this)
                 :commands outline-commands
                 :children outline-children})))
+
+(defprotocol Adaptable
+  (adapt [this t]))
