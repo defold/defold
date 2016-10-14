@@ -29,7 +29,7 @@
     Physics$CollisionShape
     Physics$CollisionShape$Shape
     Physics$CollisionShape$Type]
-   [javax.media.opengl GL GL2]
+   [com.jogamp.opengl GL GL2]
    [javax.vecmath Point3d Matrix4d Quat4d Vector3d]
    [editor.types AABB]))
 

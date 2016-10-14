@@ -4,7 +4,7 @@
             [editor.gl :as gl]
             [editor.colors :as colors]
             [editor.gl.pass :as p])
-  (:import [javax.media.opengl GL2]))
+  (:import [com.jogamp.opengl GL2]))
 
 (set! *warn-on-reflection* true)
 
