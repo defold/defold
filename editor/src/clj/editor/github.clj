@@ -12,7 +12,8 @@
 (defn issue-body
   []
   (string/join "\n"
-               ["### Expected behaviour"
+               ["<!-- NOTE! The information you specify will be publicly accessible. -->"
+                "### Expected behaviour"
                 ""
                 "### Actual behaviour"
                 ""
@@ -31,4 +32,4 @@
 
 (defn new-praise-link
   []
-  (URI. (str issue-repo "/issues/new?title=" (URLEncoder/encode "[PRAISE] "))))
+  (URI. (format "%s/issues/new?title=%s&body=%s" issue-repo (URLEncoder/encode "[PRAISE] ") (URLEncoder/encode "<!-- NOTE! The information you specify will be publicly accessible. -->"))))

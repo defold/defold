@@ -667,8 +667,8 @@ public class SpineSceneUtil {
                         mesh.slot = slot;
                         mesh.visible = attName.equals(slot.attachment);
 
-                        if ((spineVersion != null) && (spineVersion.compareTo("3.4.02") >= 0)) {
-                            // spineVersion >= 3.4.02
+                        if ((spineVersion != null) && (spineVersion.compareTo("3.3.07") >= 0)) {
+                            // spineVersion >= 3.3.07
                             if (type.equals("region")) {
                                 scene.loadRegion(attNode, mesh, bone);
                             } else if (type.equals("mesh")) {

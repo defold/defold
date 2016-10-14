@@ -25,7 +25,8 @@
             [editor.ui :as ui]
             [editor.rulers :as rulers]
             [service.log :as log]
-            [editor.graph-util :as gu])
+            [editor.graph-util :as gu]
+            [editor.properties :as properties])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -46,8 +47,8 @@
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
            [java.util.concurrent Executors]
@@ -160,8 +161,10 @@
                   (.setOnscreen false)
                   (.setPBuffer true)
                   (.setDoubleBuffered false)
-                  (.setStencilBits 8))]
-    ^GLOffscreenAutoDrawable (.createOffscreenAutoDrawable factory nil caps nil w h nil)))
+                  (.setStencilBits 8))
+        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)]
+    (doto drawable
+      (.setContext (.createContext drawable nil) true))))
 
 (defn make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
   (let [context ^GLContext (make-current drawable)
@@ -627,7 +630,7 @@
                        (if-let [view-id (ui/user-data image-view ::view-id)]
                          (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                            (doto drawable
-                             (.setSize w h))
+                             (.setSurfaceSize w h))
                            (let [context (make-current drawable)]
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize ^GL2 (.getGL context) w h))
@@ -640,11 +643,11 @@
                                                 (fn [dt]
                                                   (when (.isSelected tab)
                                                     (update-image-view! image-view dt))))]
-                             (ui/on-close tab
-                                          (fn [e]
-                                            (ui/timer-stop! repainter)
-                                            (scene-view-dispose view-id)
-                                            (scene-cache/drop-context! nil true)))
+                             (ui/on-closed! tab
+                                            (fn [e]
+                                              (ui/timer-stop! repainter)
+                                              (scene-view-dispose view-id)
+                                              (scene-cache/drop-context! nil true)))
                              (ui/timer-start! repainter))
                            (let [drawable (make-drawable w h)]
                              (g/transact
@@ -798,12 +801,14 @@
                                 :label "Scene"
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview))
+
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))
-  (property rotation types/Vec3 (default [0.0 0.0 0.0]))
+  (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
+            (dynamic edit-type (g/always (properties/quat->euler))))
 
   (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
-  (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
+  (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec4 rotation] (doto (Quat4d.) (math/clj->vecmath rotation))))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (math/->mat4-uniform position-v3 rotation-q4 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/always (geom/null-aabb))))
@@ -814,9 +819,11 @@
     (g/set-property node-id :position [(.x p) (.y p) (.z p)])))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [basis node-id delta]
-  (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (g/node-value node-id :rotation {:basis basis}))) (.mul delta))
-        new-euler (math/quat->euler new-rotation)]
-    (g/set-property node-id :rotation new-euler)))
+  (let [new-rotation (math/vecmath->clj
+                       (doto (Quat4d.)
+                         (math/clj->vecmath (g/node-value node-id :rotation {:basis basis}))
+                         (.mul delta)))]
+    (g/set-property node-id :rotation new-rotation)))
 
 (g/defnk produce-transform [^Vector3d position-v3 ^Quat4d rotation-q4 ^Vector3d scale-v3]
   (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3))

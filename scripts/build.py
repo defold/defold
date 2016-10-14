@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform
+import os, sys, shutil, zipfile, re, itertools, json, platform, math
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -224,10 +224,13 @@ class Configuration(object):
         return path
 
     def _install_go(self):
-        urls = {'darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
-                'linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
-                'x86_64-linux' : 'http://go.googlecode.com/files/go1.1.linux-amd64.tar.gz',
-                'win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
+        urls = {
+            'darwin'       : 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
+            'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
+            'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
+            'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
+        }
+
         url = urls[self.host]
         path = self._download(url)
         self._extract(path, self.ext)
@@ -477,11 +480,16 @@ class Configuration(object):
             self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def build_go(self):
-        # TODO: shell=True is required only on windows
-        # otherwise it fails. WHY?
+        # TODO: shell=True is required only on windows otherwise it fails. WHY?
+
+        self.exec_env_command('go clean -i github.com/...', shell=True)
+        self.exec_env_command('go install github.com/...', shell=True)
+
+        self.exec_env_command('go clean -i defold/...', shell=True)
         if not self.skip_tests:
             self.exec_env_command('go test defold/...', shell=True)
         self.exec_env_command('go install defold/...', shell=True)
+
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
 
@@ -928,6 +936,67 @@ instructions.configure=\
         prefix = os.path.join(u.path, sha1)[1:]
         return prefix
 
+    def sign_editor(self):
+        u = urlparse.urlparse(self.archive_path)
+        bucket_name = u.hostname
+        bucket = self._get_s3_bucket(bucket_name)
+        prefix = self._get_s3_archive_prefix()
+        bucket_items = bucket.list(prefix=prefix)
+
+        candidate = None
+        for entry in bucket_items:
+            if 'Defold-macosx.cocoa.x86_64.zip' in entry.key:
+                candidate = entry
+            if 'Defold-macosx.cocoa.x86_64.dmg' in entry.key:
+                return True # The editor has already been signed
+
+        if candidate is not None:
+            root = None
+            builddir = None
+            try:
+                root = tempfile.mkdtemp(prefix='defsign.')
+                builddir = os.path.join(root, 'build')
+                self._mkdirs(builddir)
+
+                # Download the editor from S3
+                filepath = os.path.join(root, 'Defold-macosx.cocoa.x86_64.zip')
+                if not os.path.isfile(filepath):
+                    self._log('Downloading s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
+                    candidate.get_contents_to_filename(filepath)
+                    self._log('Downloaded s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
+
+                # Prepare the build directory to create a signed container
+                self._log('Signing %s' % (filepath))
+                dp_defold = os.path.join(builddir, 'Defold-macosx.cocoa.x86_64')
+                fp_defold_app = os.path.join(dp_defold, 'Defold.app')
+                fp_defold_dmg = os.path.join(root, 'Defold-macosx.cocoa.x86_64.dmg')
+
+                self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold], False)
+                self.exec_command(['chmod', '-R', '755', dp_defold], False)
+                os.symlink('/Applications', os.path.join(builddir, 'Applications'))
+
+                # Create a signature for Defold.app and the container
+                # This certificate must be installed on the computer performing the operation
+                certificate = 'Developer ID Application: Midasplayer AB (YFY47KYJ6N)'
+                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
+                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
+                self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
+                self._log('Signed %s' % (fp_defold_dmg))
+
+                # Upload the signed container to S3
+                target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
+                self.upload_file(fp_defold_dmg, target)
+                return True
+            finally:
+                self.wait_uploads()
+                if root is not None:
+                    if builddir is not None:
+                        if os.path.islink(os.path.join(builddir, 'Applications')):
+                            os.unlink(os.path.join(builddir, 'Applications'))
+                    shutil.rmtree(root)
+
+        return False
+
     def _sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname
@@ -1017,12 +1086,52 @@ instructions.configure=\
             if p[-1] == '/':
                 p += basename(path)
 
-            def upload():
+            def upload_singlefile():
                 key = bucket.new_key(p)
                 key.set_contents_from_filename(path)
                 self._log('Uploaded %s -> %s' % (path, url))
 
-            f = Future(self.thread_pool, upload)
+            def upload_multipart():
+                mp = bucket.initiate_multipart_upload(p)
+
+                source_size = os.stat(path).st_size
+                chunksize = 64 * 1024 * 1024 # 64 MiB
+                chunkcount = int(math.ceil(source_size / float(chunksize)))
+
+                def upload_part(filepath, part, offset, size):
+                    with open(filepath, 'r') as fhandle:
+                        fhandle.seek(offset)
+                        mp.upload_part_from_file(fp=fhandle, part_num=part, size=size)
+
+                _threads = []
+                for i in range(chunkcount):
+                    part = i + 1
+                    offset = i * chunksize
+                    remaining = source_size - offset
+                    size = min(chunksize, remaining)
+                    args = {'filepath': path, 'part': part, 'offset': offset, 'size': size}
+
+                    self._log('Uploading #%d %s -> %s' % (i + 1, path, url))
+                    _thread = Thread(target=upload_part, kwargs=args)
+                    _threads.append(_thread)
+                    _thread.start()
+
+                for i in range(chunkcount):
+                    _threads[i].join()
+                    self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
+
+                if len(mp.get_all_parts()) == chunkcount:
+                    mp.complete_upload()
+                    self._log('Uploaded %s -> %s' % (path, url))
+                else:
+                    mp.cancel_upload()
+                    self._log('Failed to upload %s -> %s' % (path, url))
+
+            f = None
+            if sys.platform == 'win32':
+                f = Future(self.thread_pool, upload_singlefile)
+            else:
+                f = Future(self.thread_pool, upload_multipart)
             self.futures.append(f)
 
         else:
@@ -1033,8 +1142,8 @@ instructions.configure=\
             f()
         self.futures = []
 
-    def exec_command(self, args):
-        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = True)
+    def exec_command(self, args, shell = True):
+        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = shell)
 
         output = process.communicate()[0]
         if process.returncode != 0:
@@ -1116,6 +1225,7 @@ test_cr         - Test editor and server
 build_server    - Build server
 build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
+sign_editor     - Sign the editor and upload a dmg archive to S3
 archive_server  - Archive server to path specified with --archive-path
 build_bob       - Build bob with native libraries included for cross platform deployment
 archive_bob     - Archive bob to path specified with --archive-path

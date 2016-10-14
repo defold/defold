@@ -95,7 +95,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.defold-project :as project]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
-         [javax.media.opengl GL GL2 GLContext]
+         [com.jogamp.opengl GL GL2 GLContext]
          [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)

@@ -212,8 +212,8 @@ namespace dmGameSystem
 
     static bool CreateGOBones(SpineModelWorld* world, SpineModelComponent* component)
     {
-        dmGameObject::HInstance instance = component->m_Instance;
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        dmGameObject::HInstance spine_instance = component->m_Instance;
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(spine_instance);
 
         const dmArray<dmRig::RigBone>& bind_pose = component->m_Resource->m_RigScene->m_BindPose;
         const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
@@ -227,8 +227,8 @@ namespace dmGameSystem
         world->m_ScratchInstances.SetSize(0);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            dmGameObject::HInstance inst = dmGameObject::New(collection, 0x0);
-            if (inst == 0x0) {
+            dmGameObject::HInstance bone_instance = dmGameObject::New(collection, 0x0);
+            if (bone_instance == 0x0) {
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }
@@ -236,45 +236,45 @@ namespace dmGameSystem
             uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
             if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
             {
-                dmGameObject::Delete(collection, inst);
+                dmGameObject::Delete(collection, bone_instance);
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }
 
             dmhash_t id = dmGameObject::ConstructInstanceId(index);
-            dmGameObject::AssignInstanceIndex(index, instance);
+            dmGameObject::AssignInstanceIndex(index, bone_instance);
 
-            dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
+            dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_instance, id);
             if (dmGameObject::RESULT_OK != result)
             {
-                dmGameObject::Delete(collection, inst);
+                dmGameObject::Delete(collection, bone_instance);
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }
 
-            dmGameObject::SetBone(inst, true);
+            dmGameObject::SetBone(bone_instance, true);
             dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
             if (i == 0)
             {
                 transform = dmTransform::Mul(component->m_Transform, transform);
             }
-            dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
-            dmGameObject::SetRotation(inst, transform.GetRotation());
-            dmGameObject::SetScale(inst, transform.GetScale());
-            component->m_NodeInstances[i] = inst;
-            world->m_ScratchInstances.Push(inst);
+            dmGameObject::SetPosition(bone_instance, Point3(transform.GetTranslation()));
+            dmGameObject::SetRotation(bone_instance, transform.GetRotation());
+            dmGameObject::SetScale(bone_instance, transform.GetScale());
+            component->m_NodeInstances[i] = bone_instance;
+            world->m_ScratchInstances.Push(bone_instance);
         }
         // Set parents in reverse to account for child-prepending
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             uint32_t index = bone_count - 1 - i;
-            dmGameObject::HInstance inst = world->m_ScratchInstances[index];
-            dmGameObject::HInstance parent = instance;
+            dmGameObject::HInstance bone_instance = world->m_ScratchInstances[index];
+            dmGameObject::HInstance parent = spine_instance;
             if (index > 0)
             {
                 parent = world->m_ScratchInstances[skeleton->m_Bones[index].m_Parent];
             }
-            dmGameObject::SetParent(inst, parent);
+            dmGameObject::SetParent(bone_instance, parent);
         }
 
         return true;
@@ -692,9 +692,8 @@ namespace dmGameSystem
                 {
                     if( constants[i].m_NameHash == ddf->m_NameHash)
                     {
-                        constants[i] = constants[size - 1];
-                        component->m_PrevRenderConstants[i] = component->m_PrevRenderConstants[size - 1];
-                        constants.Pop();
+                        constants.EraseSwap(i);
+                        component->m_PrevRenderConstants.EraseSwap(i);
                         ReHash(component);
                         break;
                     }

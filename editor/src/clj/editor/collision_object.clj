@@ -29,7 +29,7 @@
     Physics$CollisionShape
     Physics$CollisionShape$Shape
     Physics$CollisionShape$Type]
-   [javax.media.opengl GL GL2]
+   [com.jogamp.opengl GL GL2]
    [javax.vecmath Point3d Matrix4d Quat4d Vector3d]
    [editor.types AABB]))
 
@@ -68,10 +68,10 @@
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
 
-  (output shape g/Any (g/fnk [shape-type position rotation-q4 shape-data]
+  (output shape g/Any (g/fnk [shape-type position rotation shape-data]
                         {:shape-type shape-type
                          :position position
-                         :rotation (math/vecmath->clj rotation-q4)
+                         :rotation rotation
                          :data shape-data}))
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type]
@@ -470,9 +470,7 @@
                     :type-sphere SphereShape
                     :type-box BoxShape
                     :type-capsule CapsuleShape)
-        node-props (-> shape
-                       (update :rotation v4->euler)
-                       (dissoc :index :count))]
+        node-props (dissoc shape :index :count)]
     (g/make-nodes
      graph-id
      [shape-node [node-type node-props]]

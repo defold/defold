@@ -29,7 +29,7 @@
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType]
-           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.defold.libs ParticleLibrary]
            [com.sun.jna Pointer]
@@ -121,7 +121,7 @@
                            :modifier-type-vortex [:modifier-key-magnitude :modifier-key-max-distance]})
 
 (g/defnk produce-modifier-pb
-  [position ^Quat4d rotation-q4 type magnitude max-distance]
+  [position rotation type magnitude max-distance use-direction]
   (let [values {:modifier-key-magnitude magnitude
                 :modifier-key-max-distance max-distance}
         properties (->> (mod-type->properties type)
@@ -131,9 +131,10 @@
                                 :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals p))
                                 :spread (:spread p)})))]
     {:position position
-     :rotation (math/vecmath->clj rotation-q4)
+     :rotation rotation
      :type type
-     :properties properties}))
+     :properties properties
+     :use-direction (if use-direction 1 0)}))
 
 (def ^:private type->vcount
   {:emitter-type-2dcone 6
@@ -276,6 +277,8 @@
   (inherits outline/OutlineNode)
 
   (property type g/Keyword (dynamic visible (g/always false)))
+  (property use-direction g/Bool (default false)
+            (dynamic visible (g/always false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
@@ -389,10 +392,10 @@
       v)))
 
 (g/defnk produce-emitter-pb
-  [position ^Quat4d rotation-q4 _declared-properties modifier-msgs]
+  [position rotation _declared-properties modifier-msgs]
   (let [properties (:properties _declared-properties)]
     (into {:position position
-           :rotation (math/vecmath->clj rotation-q4)
+           :rotation rotation
            :modifiers modifier-msgs}
           (concat
             (map (fn [kw] [kw (get-property properties kw)])
@@ -686,11 +689,12 @@
   ([self parent-id modifier select?]
     (let [graph-id (g/node-id->graph-id self)]
       (g/make-nodes graph-id
-                    [mod-node [ModifierNode :position (:position modifier) :rotation (v4->euler (:rotation modifier))
+                    [mod-node [ModifierNode :position (:position modifier) :rotation (:rotation modifier)
                                :type (:type modifier)]]
                     (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
                                                        (:properties modifier)))]
                       (concat
+                        (g/set-property mod-node :use-direction (= 1 (:use-direction mod-properties)))
                         (g/set-property mod-node :magnitude (if-let [prop (:modifier-key-magnitude mod-properties)]
                                                               (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)) (:spread prop))
                                                               props/default-curve-spread))
@@ -746,7 +750,7 @@
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
-                    [emitter-node [EmitterNode :position (:position emitter) :rotation (v4->euler (:rotation emitter))
+                    [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration (:duration emitter) :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)

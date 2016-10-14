@@ -1,0 +1,4 @@
+mesh: "/assets/defold_logo.dae"
+material: "/main/test.material"
+textures: "/assets/images/logo.png"
+name: "name"

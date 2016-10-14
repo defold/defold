@@ -20,8 +20,8 @@
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -29,8 +29,9 @@
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
-(g/defnk produce-pb-msg [mesh material textures]
-  {:mesh (resource/resource->proj-path mesh)
+(g/defnk produce-pb-msg [name mesh material textures]
+  {:name name
+   :mesh (resource/resource->proj-path mesh)
    :material (resource/resource->proj-path material)
    :textures (mapv resource/proj-path textures)})
 
@@ -89,6 +90,7 @@
 (g/defnode ModelNode
   (inherits project/ResourceNode)
 
+  (property name g/Str (dynamic visible (g/always false)))
   (property mesh resource/Resource
             (value (gu/passthrough mesh-resource))
             (set (fn [basis self old-value new-value]
@@ -170,13 +172,15 @@
 
 (defn load-model [project self resource]
   (let [pb (protobuf/read-text Model$ModelDesc resource)]
-    (for [res [:mesh :material [:textures]]]
-      (if (vector? res)
-        (let [res (first res)]
-          (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
-        (->> (get pb res)
-         (workspace/resolve-resource resource)
-         (g/set-property self res))))))
+    (concat
+      (g/set-property self :name (:name pb))
+      (for [res [:mesh :material [:textures]]]
+        (if (vector? res)
+          (let [res (first res)]
+            (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
+          (->> (get pb res)
+            (workspace/resolve-resource resource)
+            (g/set-property self res)))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
