@@ -47,8 +47,8 @@
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
            [java.util.concurrent Executors]
@@ -161,8 +161,10 @@
                   (.setOnscreen false)
                   (.setPBuffer true)
                   (.setDoubleBuffered false)
-                  (.setStencilBits 8))]
-    ^GLOffscreenAutoDrawable (.createOffscreenAutoDrawable factory nil caps nil w h nil)))
+                  (.setStencilBits 8))
+        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)]
+    (doto drawable
+      (.setContext (.createContext drawable nil) true))))
 
 (defn make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
   (let [context ^GLContext (make-current drawable)
@@ -628,7 +630,7 @@
                        (if-let [view-id (ui/user-data image-view ::view-id)]
                          (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                            (doto drawable
-                             (.setSize w h))
+                             (.setSurfaceSize w h))
                            (let [context (make-current drawable)]
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize ^GL2 (.getGL context) w h))

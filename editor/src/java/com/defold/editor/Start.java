@@ -193,7 +193,7 @@ public class Start extends Application {
                 Thread.sleep(200);
                 NativeArtifacts.extractNatives();
                 ClassLoader parent = ClassLoader.getSystemClassLoader();
-                Class<?> glprofile = parent.loadClass("javax.media.opengl.GLProfile");
+                Class<?> glprofile = parent.loadClass("com.jogamp.opengl.GLProfile");
                 Method init = glprofile.getMethod("initSingleton");
                 init.invoke(null);
             } catch (Exception e) {
