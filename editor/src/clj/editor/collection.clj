@@ -13,6 +13,7 @@
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
+            [editor.script :as script]
             [editor.outline :as outline]
             [editor.types :as types]
             [editor.workspace :as workspace]
@@ -31,8 +32,8 @@
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
@@ -93,7 +94,7 @@
             (value (g/fnk [base-url id] (format "%s/%s" (or base-url "") id)))
             (dynamic read-only? (g/always true)))
   (input base-url g/Str)
-  (input source-id g/Any :cascade-delete)
+  (input source-id g/NodeID :cascade-delete)
   (input id-counts g/Any))
 
 (defn- child-go-go [go-id child-id]
@@ -146,26 +147,30 @@
   (let [collection (core/scope go-id)]
     (g/node-value collection :ids)))
 
-(g/defnk produce-go-outline [_node-id id node-outline-label source-outline child-outlines]
+(defn- dispatch-attach-fn [f source-id]
+  (fn [node-id child-id]
+    (f source-id child-id)))
+
+(g/defnk produce-go-outline [_node-id source-id id node-outline-label source-outline child-outlines]
   (let [coll-id (core/scope _node-id)]
     (-> source-outline
       (merge {:node-id _node-id
               :label node-outline-label
               :icon game-object/game-object-icon
               :children (into (vec (sort-by label-sort-by-fn (:children source-outline))) child-outlines)})
-      (update :child-reqs (fn [c] (conj (if c c [])
-                                        {:node-type ReferencedGOInstanceNode
-                                         :tx-attach-fn (fn [self-id child-id]
-                                                         (concat
-                                                           (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
-                                                           (attach-coll-ref-go coll-id child-id)
-                                                           (child-go-go self-id child-id)))}
-                                        {:node-type EmbeddedGOInstanceNode
-                                         :tx-attach-fn (fn [self-id child-id]
-                                                         (concat
-                                                           (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
-                                                           (attach-coll-embedded-go coll-id child-id)
-                                                           (child-go-go self-id child-id)))}))))))
+      (update :child-reqs (fn [c] (-> (mapv (fn [req] (update req :tx-attach-fn dispatch-attach-fn source-id)) c)
+                                    (conj {:node-type ReferencedGOInstanceNode
+                                           :tx-attach-fn (fn [self-id child-id]
+                                                           (concat
+                                                             (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                                             (attach-coll-ref-go coll-id child-id)
+                                                             (child-go-go self-id child-id)))}
+                                          {:node-type EmbeddedGOInstanceNode
+                                           :tx-attach-fn (fn [self-id child-id]
+                                                           (concat
+                                                             (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                                             (attach-coll-embedded-go coll-id child-id)
+                                                             (child-go-go self-id child-id)))})))))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -179,7 +184,7 @@
   (inherits InstanceNode)
 
   (input properties g/Any)
-  (input build-targets g/Any)
+  (input source-build-targets g/Any)
   (input scene g/Any)
   (input child-scenes g/Any :array)
   (input child-ids g/Str :array)
@@ -191,10 +196,13 @@
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-label g/Str (gu/passthrough id))
-  (output build-targets g/Any (g/fnk [build-targets build-error ddf-message transform] (let [target (first build-targets)]
-                                                                              [(assoc target :instance-data {:resource (:resource target)
-                                                                                                             :instance-msg ddf-message
-                                                                                                             :transform transform})])))
+  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
+  (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
+                                     (let [target (assoc (first source-build-targets)
+                                                         :resource build-resource)]
+                                       [(assoc target :instance-data {:resource (:resource target)
+                                                                      :instance-msg ddf-message
+                                                                      :transform transform})])))
   (output build-error g/Err (g/always nil))
 
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
@@ -224,13 +232,23 @@
                                             component-ids
                                             (g/node-value :source-id {:basis basis}))
                                    key (properties/user-name->key (:id p))
-                                   val (properties/str->go-prop (:value p) (:type p))]
+                                   type (:type p)
+                                   val (properties/str->go-prop (:value p) type)]
                              :when src-id]
-                         (g/set-property src-id key val))))))
+                         (let [comp-props (:properties (g/node-value src-id :_properties {:basis basis}))
+                               original-type (get-in comp-props [key :type])
+                               override-type (script/go-prop-type->property-types type)]
+                           (when (= original-type override-type)
+                             (g/set-property src-id key val))))))))
   (display-order [:id :url scene/ScalableSceneNode])
 
   (input proto-msg g/Any)
-
+  (input source-resource resource/Resource)
+  (input source-save-data g/Any)
+  (output build-resource resource/Resource (g/fnk [source-resource source-save-data]
+                                                  (some-> source-resource
+                                                     (assoc :data (:content source-save-data))
+                                                     workspace/make-build-resource)))
   (output ddf-message g/Any :cached (g/fnk [id child-ids position rotation scale proto-msg ddf-component-properties]
                                            (gen-embed-ddf id child-ids position rotation scale proto-msg ddf-component-properties))))
 
@@ -281,7 +299,7 @@
                          (project/connect-resource-node project new-resource self []
                                                         (fn [go-node]
                                                           (let [component-overrides (into {} (map (fn [m]
-                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
+                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                                                                                            (:properties m)))])
                                                                                                   (:overrides new-value)))
                                                                 override (g/override basis go-node {:traverse? or-go-traverse?})
@@ -303,14 +321,19 @@
                                                                                  [:ddf-component-properties :ddf-component-properties]]
                                                                       :when (contains? outputs from)]
                                                                   (g/connect or-node from self to)))
-                                                              (for [[from to] [[:build-targets :build-targets]]]
+                                                              (for [[from to] [[:build-targets :source-build-targets]]]
                                                                 (g/connect go-node from self to))
                                                               (for [[from to] [[:url :base-url]]]
                                                                 (g/connect self from or-node to))
                                                               (for [[id p] component-overrides
-                                                                    [label value] p
+                                                                    [key [type value]] p
                                                                     :let [comp-id (id-mapping id)]]
-                                                                (g/set-property comp-id label value)))))))))))
+                                                                (let [refd-component (component-ids id)
+                                                                      refd-component-props (:properties (g/node-value refd-component :_properties {:basis basis}))
+                                                                      original-type (get-in refd-component-props [key :type])
+                                                                      override-type (script/go-prop-type->property-types type)]
+                                                                  (when (= original-type override-type)
+                                                                    (g/set-property comp-id key value)))))))))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
@@ -651,9 +674,11 @@
         [])
       (let [tx-data (project/make-resource-node graph project resource true
                                                 {go-node [[:_node-id :source-id]
+                                                          [:resource :source-resource]
                                                           [:node-outline :source-outline]
                                                           [:proto-msg :proto-msg]
-                                                          [:build-targets :build-targets]
+                                                          [:save-data :source-save-data]
+                                                          [:build-targets :source-build-targets]
                                                           [:scene :scene]
                                                           [:ddf-component-properties :ddf-component-properties]]
                                                  self [[:_node-id :nodes]]}

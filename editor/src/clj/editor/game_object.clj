@@ -14,6 +14,7 @@
             [editor.scene :as scene]
             [editor.types :as types]
             [editor.sound :as sound]
+            [editor.script :as script]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
@@ -28,8 +29,8 @@
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
 
@@ -101,7 +102,7 @@
   (input source-resource resource/Resource)
   (input source-properties g/Properties :substitute {:properties {}})
   (input scene g/Any)
-  (input build-targets g/Any)
+  (input source-build-targets g/Any)
   (input base-url g/Str)
   (input id-counts g/Any)
 
@@ -123,9 +124,11 @@
                                               :transform transform
                                               :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
                                        (update :node-path (partial cons _node-id)))))
-  (output build-targets g/Any :cached (g/fnk [_node-id build-targets rt-ddf-message transform]
-                                             (if-let [target (first build-targets)]
-                                               (let [target (wrap-if-raw-sound _node-id target)]
+  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
+  (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
+                                             (if-let [target (first source-build-targets)]
+                                               (let [target (->> (assoc target :resource build-resource)
+                                                              (wrap-if-raw-sound _node-id))]
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                 :instance-msg rt-ddf-message
                                                                                 :transform transform})])
@@ -138,7 +141,11 @@
 
   (input save-data g/Any :cascade-delete)
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
-                                              (gen-embed-ddf id position rotation save-data))))
+                                              (gen-embed-ddf id position rotation save-data)))
+  (output build-resource resource/Resource (g/fnk [source-resource save-data]
+                                                  (some-> source-resource
+                                                     (assoc :data (:content save-data))
+                                                     workspace/make-build-resource))))
 
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
@@ -151,7 +158,7 @@
                                        :from-type (fn [r] {:resource r :overrides {}})}))
             (value (g/fnk [source-resource ddf-properties]
                           {:resource source-resource
-                           :overrides (into {} (map (fn [p] [(properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
+                           :overrides (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                     ddf-properties))}))
             (set (fn [basis self old-value new-value]
                    (concat
@@ -167,7 +174,8 @@
                                                           (fn [comp-node]
                                                             (let [override (g/override basis comp-node {:traverse? (constantly true)})
                                                                   id-mapping (:id-mapping override)
-                                                                  or-node (get id-mapping comp-node)]
+                                                                  or-node (get id-mapping comp-node)
+                                                                  comp-props (:properties (g/node-value comp-node :_properties {:basis basis}))]
                                                               (concat
                                                                 (:tx-data override)
                                                                 (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
@@ -176,17 +184,20 @@
                                                                                    [:node-outline :source-outline]
                                                                                    [:_properties :source-properties]
                                                                                    [:scene :scene]
-                                                                                   [:build-targets :build-targets]]
+                                                                                   [:build-targets :source-build-targets]]
                                                                         :when (contains? outputs from)]
                                                                     (g/connect or-node from self to)))
-                                                                (for [[label value] (:overrides new-value)]
-                                                                  (g/set-property or-node label value)))))))
+                                                                (for [[label [type value]] (:overrides new-value)]
+                                                                  (let [original-type (get-in comp-props [label :type])
+                                                                        override-type (script/go-prop-type->property-types type)]
+                                                                    (when (= original-type override-type)
+                                                                      (g/set-property or-node label value)))))))))
                          (project/resource-setter basis self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
                                                   [:user-properties :user-properties]
                                                   [:scene :scene]
-                                                  [:build-targets :build-targets]))))))
+                                                  [:build-targets :source-build-targets]))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (or (validation/prop-error :info _node-id :path validation/prop-nil? source-resource "Path")
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
@@ -363,7 +374,7 @@
                                                                                         [:node-outline :source-outline]
                                                                                         [:save-data :save-data]
                                                                                         [:scene :scene]
-                                                                                        [:build-targets :build-targets]]
+                                                                                        [:build-targets :source-build-targets]]
                                                                              self [[:_node-id :nodes]]})]
         (concat
           tx-data
@@ -413,7 +424,7 @@
     (concat
       (for [component (:components prototype)
             :let [source-resource (workspace/resolve-resource resource (:component component))
-                  properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))]) (:properties component)))]]
+                  properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
         (add-component self project source-resource (:id component) (:position component) (:rotation component) properties))
       (for [embedded (:embedded-components prototype)]
         (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (:rotation embedded) false)))))

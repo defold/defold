@@ -33,7 +33,7 @@
   (:import
    (com.dynamo.tile.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer)
    (editor.gl.shader ShaderLifecycle)
-   (javax.media.opengl GL GL2)
+   (com.jogamp.opengl GL GL2)
    (javax.vecmath Point3d Matrix4d Quat4d Vector3d Vector4d)))
 
 (set! *warn-on-reflection* true)

@@ -12,7 +12,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-text :as scene-text]
             [editor.types :as types])
-  (:import  [javax.media.opengl GL GL2]
+  (:import  [com.jogamp.opengl GL GL2]
             [javax.vecmath Matrix4d Point3d]
             [editor.types Camera]))
 
