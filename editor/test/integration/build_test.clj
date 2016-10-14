@@ -1,5 +1,6 @@
 (ns integration.build-test
   (:require [clojure.test :refer :all]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
@@ -256,6 +257,35 @@
           (is (> (count build-results) 0))
           (is (not-any? :cached first-build-results)))))))
 
+(defn- build-path [workspace proj-path]
+  (str (workspace/build-path workspace) proj-path))
+
+(defn- abs-project-path [workspace proj-path]
+  (str (workspace/project-path workspace) proj-path))
+
+(defn mtime [path]
+  (.lastModified (File. path)))
+
+(deftest build-and-write-cached
+  (testing "Verify the build cache works when building to disk"
+    (with-clean-system
+      (let [workspace (test-util/setup-scratch-workspace! world project-path)
+            project (test-util/setup-project! workspace)
+            path "/game.project"
+            game-project (test-util/resource-node project "/game.project")
+            main-collection (test-util/resource-node project "/main/main.collection")]
+        (project/build-and-write project game-project {})
+        (let [first-mtime (mtime (build-path workspace "/main/main.collectionc"))]
+          (Thread/sleep 1000)
+          (project/build-and-write project game-project {})
+          (let [test-mtime (mtime (build-path workspace "/main/main.collectionc"))]
+            (is (= first-mtime test-mtime)))
+          (g/transact (g/set-property main-collection :name "my-test-name"))
+          (Thread/sleep 1000)
+          (project/build-and-write project game-project {})
+          (let [test-mtime (mtime (build-path workspace "/main/main.collectionc"))]
+            (is (not (= first-mtime test-mtime)))))))))
+
 (deftest prune-build-cache
   (testing "Verify the build cache works as expected"
     (with-clean-system
@@ -430,3 +460,80 @@
                                                                     :render-error!    #(reset! build-error %)})]
       (is (nil? build-results))
       (is (instance? internal.graph.error_values.ErrorValue @build-error)))))
+
+(defmacro with-setting [path value & body]
+  ;; assumes game-project in scope
+  (let [path-list (string/split path #"/")]
+    `(let [initial-settings# (g/node-value ~'game-project :raw-settings)]
+           (g/transact (g/update-property ~'game-project :raw-settings conj {:path ~path-list :value ~value}))
+           (try
+             ~@body
+             (finally
+               (g/set-property ~'game-project :raw-settings initial-settings#))))))
+
+(defn- check-file-contents [workspace specs]
+  (doseq [[path content] specs]
+    (let [file (File. (build-path workspace path))]
+      (is (true? (.exists file)))
+      (is (= (slurp file) content)))))
+
+(deftest build-with-custom-resources
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+          project (test-util/setup-project! workspace)
+          game-project (test-util/resource-node project "/game.project")]
+      (with-setting "project/custom_resources" "root.stuff"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace [["root.stuff" "root.stuff"]])
+      (with-setting "project/custom_resources" "/root.stuff"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace [["root.stuff" "root.stuff"]])
+      (with-setting "project/custom_resources" "assets"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace
+                             [["/assets/some.stuff" "some.stuff"]
+                              ["/assets/some2.stuff" "some2.stuff"]]))
+      (with-setting "project/custom_resources" "/assets"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace
+                             [["/assets/some.stuff" "some.stuff"]
+                              ["/assets/some2.stuff" "some2.stuff"]]))
+      (with-setting "project/custom_resources" "/assets, root.stuff"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace
+                             [["/assets/some.stuff" "some.stuff"]
+                              ["/assets/some2.stuff" "some2.stuff"]
+                              ["/root.stuff" "root.stuff"]]))
+      (with-setting "project/custom_resources" "assets, root.stuff, /more_assets/"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace
+                             [["/assets/some.stuff" "some.stuff"]
+                              ["/assets/some2.stuff" "some2.stuff"]
+                              ["/root.stuff" "root.stuff"]
+                              ["/more_assets/some_more.stuff" "some_more.stuff"]
+                              ["/more_assets/some_more2.stuff" "some_more2.stuff"]]))
+      (with-setting "project/custom_resources" "nonexistent_path"
+        (project/build-and-write project game-project {})
+        (doseq [path ["/assets/some.stuff" "/assets/some2.stuff"
+                      "/root.stuff"
+                      "/more_assets/some_more.stuff" "/more_assets/some_more2.stuff"]]
+          (is (false? (.exists (File. (build-path workspace path))))))))))))
+
+(deftest custom-resources-cached
+  (testing "Check custom resources are only rebuilt when source has changed"
+    (with-clean-system
+      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+            project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (with-setting "project/custom_resources" "assets"
+          (project/build-and-write project game-project {})
+          (let [initial-some-mtime (mtime (build-path workspace "/assets/some.stuff"))
+                initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))]
+            (Thread/sleep 1000)
+            (spit (File. (abs-project-path workspace "/assets/some.stuff")) "new stuff")
+            (workspace/resource-sync! workspace)
+            (project/build-and-write project game-project {})
+            (is (not (= initial-some-mtime (mtime (build-path workspace "/assets/some.stuff")))))
+            (is (= initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))))))))))
+
+                               
