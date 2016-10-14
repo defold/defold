@@ -7,7 +7,7 @@
             [dynamo.graph :as g])
   (:import [java.awt.image BufferedImage DataBuffer DataBufferByte]
            [java.nio IntBuffer ByteBuffer]
-           [javax.media.opengl GL GL2 GL3 GLContext GLProfile]
+           [com.jogamp.opengl GL GL2 GL3 GLContext GLProfile]
            [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl.util.texture Texture TextureIO TextureData]
            [com.jogamp.opengl.util.texture.awt AWTTextureIO]))

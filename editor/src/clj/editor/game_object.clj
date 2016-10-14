@@ -29,8 +29,8 @@
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
 

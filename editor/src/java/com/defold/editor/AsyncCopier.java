@@ -10,7 +10,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import javax.media.opengl.GL2;
+import com.jogamp.opengl.GL2;
 
 import com.defold.util.Profiler;
 import com.defold.util.Profiler.Sample;

@@ -2,7 +2,7 @@
   (:require [editor.jfx :as jfx]
             [editor.ui :as ui])
   (:import [com.defold.editor Start]
-           [com.jogamp.opengl.util.awt Screenshot]
+           
            [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
@@ -21,7 +21,7 @@
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
 (set! *warn-on-reflection* true)
 
