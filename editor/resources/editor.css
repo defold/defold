@@ -54,9 +54,21 @@ Defold Turquoise    #00e6e1             Guides, (also new update color together 
 Defold Green        #00df64             Success, guides etc
 Defold Orange       #fd6623             Guides etc
 */
+
+/* Dejavu Sans Mono */
 @font-face {
-  font-family: 'Inconsolata';
-  src: url("Inconsolata-Regular.ttf"); }
+  font-family: 'Dejavu Sans Mono Book';
+  src: url("DejaVuSansMono.ttf"); }
+
+@font-face {
+  font-family: 'Dejavu Sans Mono Oblique';
+  src: url("DejaVuSansMono-Oblique.ttf"); }
+
+@font-face {
+  font-family: 'Dejavu Sans Mono Bold';
+  src: url("DejaVuSansMono-Bold.ttf"); }
+
+/* Open Sans */
 @font-face {
   font-family: 'Open Sans';
   src: url("OpenSans-Regular.ttf"); }
@@ -234,8 +246,8 @@ Defold Orange       #fd6623             Guides etc
   -fx-hover-base: #c80000; }
 
 .text-area {
-  -fx-font-size: 11pt;
-  -fx-font-family: "Inconsolata"; }
+  -fx-font-size: 9pt;
+  -fx-font-family: "Dejavu Sans Mono"; }
 
 /* by default AnchorPane has a padding of 0.8em. Don't know if we're abusing
    JavaFX by removing padding for AnchorPane */
@@ -924,8 +936,8 @@ Defold Orange       #fd6623             Guides etc
 /* Code view */
 
 .styled-text-area, .styled-text-area .source-segment, .styled-text-area .plain-source-segment {
-  -fx-font-family: "Inconsolata";
-  -fx-font-size: 14;
+  -fx-font-family: "Dejavu Sans Mono"; 
+  -fx-font-size: 9pt;
 }
 
 .lua.styled-text-area .comment,
@@ -933,6 +945,7 @@ Defold Orange       #fd6623             Guides etc
 .glsl.styled-text-area .comment,
 .glsl.styled-text-area .comment-multi {
     -styled-text-color: #8f9296;
+    -fx-font-style: italic;
 }
 
 .lua.styled-text-area .keyword,
@@ -956,6 +969,7 @@ Defold Orange       #fd6623             Guides etc
 .glsl.styled-text-area .control-flow-keyword
  {
     -styled-text-color: #fd6623;
+    -fx-font-weight: bold;
 }
 
 .lua.styled-text-area .constant {
@@ -979,6 +993,7 @@ Defold Orange       #fd6623             Guides etc
 .lua.styled-text-area .string,
 .glsl.styled-text-area .string {
     -styled-text-color: #fbce2f;
+    -fx-font-style: italic;
 }
 
 .lua.styled-text-area,
