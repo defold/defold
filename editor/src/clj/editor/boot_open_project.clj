@@ -142,7 +142,7 @@
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage      (Stage.)
+        stage      (ui/make-stage)
         scene      (Scene. root)]
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
