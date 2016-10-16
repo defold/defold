@@ -12,7 +12,7 @@
 
 (defn- make-fake-stage []
   (let [root (VBox.)
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)]
     (.setScene stage scene)
     stage))

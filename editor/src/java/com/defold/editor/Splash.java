@@ -15,6 +15,7 @@ import javafx.stage.StageStyle;
 import javafx.stage.WindowEvent;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
+import javafx.scene.image.Image;
 
 public class Splash {
 
@@ -32,6 +33,7 @@ public class Splash {
         scene = new Scene((Parent) root);
         stage = new Stage();
         stage.initStyle(StageStyle.UNDECORATED);
+        stage.getIcons().add(new Image(Start.class.getResourceAsStream("/logo_blue.png")));
         stage.setScene(scene);
 
         Label launchErrorLabel = (Label) scene.lookup("#launchError");
