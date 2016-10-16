@@ -11,4 +11,5 @@ def build(bld):
                               target = 'launcher')
 
     if 'win32' in bld.env.BUILD_PLATFORM:
+        script.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']
         script.source.append('launcher.rc')
