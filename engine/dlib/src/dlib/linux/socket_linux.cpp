@@ -65,19 +65,34 @@ namespace dmSocket
                 memcpy(IPv6(&a->m_Address), &ia->sin6_addr, sizeof(struct in6_addr));
             }
 
+            unsigned char physical_adr[6] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+            
             if(ioctl(s, SIOCGIFHWADDR, r) < 0)
+            {
+#ifdef ANDROID
+                // Android 6 and higher does not support getting HW adr programmatically. 
+                // Return const value of 02:00:00:00:00:00 instead (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
+                physical_adr[0] = 0x02;
+#else
                 continue;
-            unsigned char* p = (unsigned char*) &r->ifr_hwaddr.sa_data[0];
+#endif
+            }
+            else
+            {
+                memcpy(&physical_adr, &r->ifr_hwaddr.sa_data[0], sizeof(unsigned char) * 6);
+            }
+
             a->m_Flags |= FLAGS_LINK;
-            a->m_MacAddress[0] = p[0];
-            a->m_MacAddress[1] = p[1];
-            a->m_MacAddress[2] = p[2];
-            a->m_MacAddress[3] = p[3];
-            a->m_MacAddress[4] = p[4];
-            a->m_MacAddress[5] = p[5];
+            a->m_MacAddress[0] = physical_adr[0];
+            a->m_MacAddress[1] = physical_adr[1];
+            a->m_MacAddress[2] = physical_adr[2];
+            a->m_MacAddress[3] = physical_adr[3];
+            a->m_MacAddress[4] = physical_adr[4];
+            a->m_MacAddress[5] = physical_adr[5];
 
             if(ioctl(s, SIOCGIFFLAGS, r) < 0)
                 continue;
+            
             if (r->ifr_ifru.ifru_flags & IFF_UP) {
                 a->m_Flags |= FLAGS_UP;
             }
