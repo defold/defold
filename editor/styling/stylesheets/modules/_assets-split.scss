@@ -1,0 +1,42 @@
+#assets-split {
+    -fx-padding: 10 0 0 0;
+    /*.titled-pane {
+        -fx-background-color: red;
+    }*/
+    
+    /*.content {
+        -fx-background-color: red;
+    }*/
+    .tree-view {
+        -fx-background-color: $dark-grey-light;
+    }
+
+    .tree-cell {
+        -fx-background-color: $dark-grey-light;
+        &:filled {
+            -fx-border-width: 0 2 0 0;
+            &:selected {
+                -fx-border-width: 0 2 0 0;
+            }
+        }
+    }
+
+    .scroll-bar {
+        -fx-background-color: $dark-grey-light;
+
+        .thumb {
+            -fx-background-color: $mid-grey;
+
+            &:hover {
+                -fx-background-color: $bright-grey;
+            }
+            &:pressed {
+                -fx-background-color: $defold-white;
+            }
+        }
+    }
+
+    .split-pane-divider {
+        //-fx-background-color: red;
+    }
+}

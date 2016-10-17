@@ -22,7 +22,7 @@
                 -fx-background-insets: 0;
                 -fx-background-color: $mid-black;
             }
-            &:selected {
+            &:selected { 
                 /*-fx-background-insets: 0, 0;*/
                 -fx-border-width: 0 0 2 0;
                 -fx-border-color: $defold-orange;
@@ -35,10 +35,6 @@
                     -fx-border-width: 0; 
                 }
             }
-
-            /*&.first-tab {
-                -fx-border-width: 1 1 0 0;
-            }*/
 
             .tab-label {
                 -fx-text-fill: $bright-grey;
@@ -94,7 +90,7 @@
 }
 
 .tab-content-area {
-    -fx-border-width: 1;
+    -fx-border-width: 0;
     -fx-border-color: $mid-grey;
     -fx-padding: 0;
     .text-area {

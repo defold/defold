@@ -16,16 +16,9 @@
 <VBox prefHeight="774.0" prefWidth="1205.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <MenuBar id="menu-bar" />
-      <HBox id="topbar" alignment="CENTER_LEFT" spacing="16.0">
+      <HBox id="topbar" alignment="CENTER_LEFT" spacing="0.0">
          <children>
-            <ImageView fitHeight="40.0" pickOnBounds="true" preserveRatio="true">
-               <image>
-                  <Image url="@logo_small.png" />
-               </image>
-               <HBox.margin>
-                  <Insets left="6.0" right="6.0" />
-               </HBox.margin>
-            </ImageView>
+            <Pane HBox.hgrow="ALWAYS" />
             <BorderPane id="toolbar-status" maxHeight="35.0" prefHeight="35.0" prefWidth="234.0">
                <bottom>
                   <ProgressBar maxHeight="7.0" maxWidth="1.7976931348623157E308" minHeight="7.0" prefHeight="7.0" progress="0.25" BorderPane.alignment="CENTER" />
@@ -60,29 +53,6 @@
                   </Pane>
                </left>
             </BorderPane>
-            <HBox id="toolbar" alignment="CENTER_LEFT" maxHeight="35.0" prefHeight="35.0" spacing="1.0">
-               <children>
-                  <ToggleButton mnemonicParsing="false">
-                     <graphic>
-                        <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
-                           <image>
-                              <Image url="@icons/45/Icons_T_01_Select.png" />
-                           </image>
-                        </ImageView>
-                     </graphic>
-                  </ToggleButton>
-                  <ToggleButton mnemonicParsing="false">
-                     <graphic>
-                        <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
-                           <image>
-                              <Image url="@icons/45/Icons_T_02_Move.png" />
-                           </image>
-                        </ImageView>
-                     </graphic>
-                  </ToggleButton>
-               </children></HBox>
-            <Pane prefWidth="16.0" />
-            <BorderPane prefWidth="200.0" />
             <Pane HBox.hgrow="ALWAYS" />
          </children>
          <VBox.margin>
@@ -264,7 +234,32 @@
             </AnchorPane>
           <AnchorPane prefHeight="160.0" prefWidth="100.0">
                <children>
-                  <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                  <!--<HBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                    <Label text="Jag är en label"></Label>
+                  </HBox>-->
+                  <HBox id="toolbar" alignment="TOP_LEFT" maxHeight="35.0" prefHeight="35.0" spacing="1.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="38.0">
+                    <children>
+                        <ToggleButton mnemonicParsing="false">
+                          <graphic>
+                              <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
+                                <image>
+                                    <Image url="@icons/45/Icons_T_01_Select.png" />
+                                </image>
+                              </ImageView>
+                          </graphic>
+                        </ToggleButton>
+                        <ToggleButton mnemonicParsing="false">
+                          <graphic>
+                              <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
+                                <image>
+                                    <Image url="@icons/45/Icons_T_02_Move.png" />
+                                </image>
+                              </ImageView>
+                          </graphic>
+                        </ToggleButton>
+                    </children>
+                  </HBox>
+                  <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="71.0">
                     <items>
                         <AnchorPane prefHeight="100.0" prefWidth="160.0">
                            <children>
