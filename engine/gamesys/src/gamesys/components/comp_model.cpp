@@ -174,6 +174,9 @@ namespace dmGameSystem
 
     static bool CreateGOBones(ModelWorld* world, ModelComponent* component)
     {
+        if(!component->m_Resource->m_RigScene->m_SkeletonRes)
+            return true;
+
         dmGameObject::HInstance instance = component->m_Instance;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
 
@@ -279,10 +282,10 @@ namespace dmGameSystem
 
         RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
         create_params.m_BindPose         = &rig_resource->m_BindPose;
-        create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
+        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
+        create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
-        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_MeshId           = 0; //dmHashString64(component->m_Resource->m_Model->m_Skin);
+        create_params.m_MeshId           = 0; // not implemented for models
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);

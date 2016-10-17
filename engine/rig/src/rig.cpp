@@ -729,6 +729,9 @@ namespace dmRig
 
     static dmRig::Result CreatePose(HRigContext context, HRigInstance instance)
     {
+        if(!instance->m_Skeleton)
+            return dmRig::RESULT_OK;
+
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
         const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
