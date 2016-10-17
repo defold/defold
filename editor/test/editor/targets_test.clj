@@ -134,22 +134,28 @@
         {:keys [targets-atom
                 descriptions-atom] :as context} (make-context)]
     (targets/update-targets! context [(make-local-device-info) malformed-device-info])
-    (is (= [local-hostname] (targets-hostnames @targets-atom)))
-    (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))))
+    (testing "Target is rejected"
+      (is (= [local-hostname] (targets-hostnames @targets-atom))))
+    (testing "Descriptions cache is unaltered"
+      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-returns-nil
   (let [{:keys [targets-atom
                 descriptions-atom] :as context} (update (make-context) :fetch-url-fn dissoc iphone-url)]
     (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
-    (is (= [local-hostname] (targets-hostnames @targets-atom)))
-    (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))))
+    (testing "Target is rejected"
+      (is (= [local-hostname] (targets-hostnames @targets-atom))))
+    (testing "Descriptions cache is unaltered"
+      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-returns-malformed-xml
   (let [{:keys [targets-atom
                 descriptions-atom] :as context} (assoc-in (make-context) [:fetch-url-fn iphone-url] "<malformed-xml></")]
     (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
-    (is (= [local-hostname] (targets-hostnames @targets-atom)))
-    (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))))
+    (testing "Target is rejected"
+      (is (= [local-hostname] (targets-hostnames @targets-atom))))
+    (testing "Malformed description is cached"
+      (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-returns-xml-missing-required-data
   (doseq [device-tag required-device-desc-device-tags]
@@ -158,8 +164,10 @@
           {:keys [targets-atom
                   descriptions-atom] :as context} (assoc-in (make-context) [:fetch-url-fn iphone-url] invalid-device-desc)]
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
-      (is (= [local-hostname] (targets-hostnames @targets-atom)))
-      (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom))))))
+      (testing "Target is rejected"
+        (is (= [local-hostname] (targets-hostnames @targets-atom))))
+      (testing "Incomplete description is cached"
+        (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom)))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-throws-exception
   (let [{:keys [targets-atom
@@ -171,6 +179,9 @@
     (is (= 1 (call-count invalidate-menus-fn)))
     (let [throwing-context (assoc context :fetch-url-fn #(throw (SocketTimeoutException.)))]
       (targets/update-targets! throwing-context [(make-local-device-info) (make-iphone-device-info)])
-      (is (= [local-hostname] (targets-hostnames @targets-atom)))
-      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))
-      (is (= 1 (call-count invalidate-menus-fn))))))
+      (testing "Target is rejected"
+        (is (= [local-hostname] (targets-hostnames @targets-atom))))
+      (testing "Descriptions cache is unaltered"
+        (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))
+      (testing "Menus are not invalidated"
+        (is (= 1 (call-count invalidate-menus-fn)))))))

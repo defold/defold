@@ -103,7 +103,7 @@
                :blacklist    (if (and url (not desc))
                                (conj blacklist (.getHost url))
                                blacklist)
-               :descriptions (if desc
+               :descriptions (if description
                                (assoc descriptions loc description)
                                descriptions)}))
           {:blacklist #{} :targets #{} :descriptions old-descriptions}
@@ -121,7 +121,7 @@
          updated-descriptions :descriptions} (process-devices context devices @descriptions-atom)]
     (when (not-empty found-targets)
       (log-fn (format "Found engine(s) [%s]" (str/join "," (mapv (fn [t] (let [url (URL. (:url t))]
-                                                                        (format "%s (%s)" (:name t) (.getHost url)))) found-targets)))))
+                                                                           (format "%s (%s)" (:name t) (.getHost url)))) found-targets)))))
     (let [old-targets @targets-atom]
       (reset! descriptions-atom updated-descriptions)
       (reset! targets-atom (or (not-empty found-targets) #{local-target}))
