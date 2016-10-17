@@ -55,13 +55,15 @@
   (when-let [tags (and (= {:xmlns:defold "urn:schemas-defold-com:DEFOLD-1-0", :xmlns "urn:schemas-upnp-org:device-1-0"}
                           (:attrs desc))
                        (->> desc :content (filter #(= :device (:tag %))) first :content))]
-    (when (= "defold" (str/lower-case (tag->val :manufacturer tags)))
-      {:name     (tag->val :friendlyName tags)
-       :model    (tag->val :modelName tags)
-       :udn      (tag->val :UDN tags)
-       :url      (tag->val :defold:url tags)
-       :log-port (tag->val :defold:logPort tags)
-       :local-address local-address})))
+    (when (some->> tags (tag->val :manufacturer) str/lower-case (= "defold"))
+      (let [target {:name     (tag->val :friendlyName tags)
+                    :model    (tag->val :modelName tags)
+                    :udn      (tag->val :UDN tags)
+                    :url      (tag->val :defold:url tags)
+                    :log-port (tag->val :defold:logPort tags)
+                    :local-address local-address}]
+        (when (not-any? nil? (vals target))
+          target)))))
 
 (defn- log [message]
   (swap! event-log (fn [xs]
