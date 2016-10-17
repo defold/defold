@@ -70,8 +70,7 @@ namespace dmSocket
             if(ioctl(s, SIOCGIFHWADDR, r) < 0)
             {
 #ifdef ANDROID
-                // Android 6 and higher does not support getting HW adr programmatically. 
-                // Return const value of 02:00:00:00:00:00 instead (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
+                // Android 6 and higher does not support getting HW adr programmatically. Return const value of 02:00:00:00:00:00 instead (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
                 physical_adr[0] = 0x02;
 #else
                 continue;
