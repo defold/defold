@@ -394,7 +394,6 @@ namespace dmGameSystem
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
         dmArray<Vector3> &scratch_vertex_buffer_data = world->m_ScratchPositionBufferData;
-        dmArray<Vector3> &scratch_normal_buffer_data = world->m_ScratchNormalBufferData;
         if (scratch_vertex_buffer_data.Capacity() < max_component_vertices) {
             int offste_capacity = max_component_vertices - scratch_vertex_buffer_data.Capacity();
             scratch_vertex_buffer_data.OffsetCapacity(offste_capacity);
