@@ -19,7 +19,7 @@ import com.dynamo.cr.ddfeditor.scene.ModelLoader;
 import com.dynamo.cr.ddfeditor.scene.ModelNode;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
-import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.model.proto.ModelProto.ModelDesc;
 
 public class ModelNodeTest extends AbstractNodeTest {
 

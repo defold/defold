@@ -314,7 +314,7 @@
             file-extension="model"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Model"
             name="Model"
-            proto-message-class="com.dynamo.model.proto.Model$ModelDesc"
+            proto-message-class="com.dynamo.model.proto.ModelProto$ModelDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.ModelRefactorParticipant"
             template-data="name: &apos;unnamed&apos; mesh: &apos;&apos; material: &apos;&apos;"
             type-class="component">

@@ -4,7 +4,7 @@ import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.model.proto";
-option java_outer_classname = "Model";
+option java_outer_classname = "ModelProto";
 
 // TODO: Add documentation for messages, see spine_ddf.proto
 
@@ -18,6 +18,14 @@ message ModelDesc
     optional string default_animation  = 7;
 
     optional string name        = 10; // Deprecated
+}
+
+message Model
+{
+    required string rig_scene   = 1 [(resource)=true];
+    required string material    = 2 [(resource)=true];
+    repeated string textures    = 3 [(resource)=true];
+    optional string default_animation  = 4;
 }
 
 message ResetConstant
