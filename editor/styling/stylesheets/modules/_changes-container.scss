@@ -4,4 +4,14 @@
         -fx-border-width: 0 0 1 0;
         -fx-border-color: $dark-grey;
     }
+
+    .list-view {
+        -fx-background-color: $dark-grey-light;
+    }
+
+    .flat-list-view {
+        .cell, .list-cell {
+            -fx-background-color: $dark-grey-light;
+        }
+    }
 }

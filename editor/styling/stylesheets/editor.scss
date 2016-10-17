@@ -133,14 +133,3 @@ Links:
 #console {
     -fx-highlight-fill: $selected-blue;
 }
-
-#assets-split {
-    .tree-cell {
-      &:filled {
-        -fx-border-width: 0 2 0 0;
-        &:selected {
-          -fx-border-width: 0 2 0 0;
-        }
-      }
-    }
-}

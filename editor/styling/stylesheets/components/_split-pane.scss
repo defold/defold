@@ -1,11 +1,12 @@
 .split-pane {
-  -fx-padding: 0.0em; }
+  -fx-padding: 0.0em;
+}
 
 .split-pane:horizontal > .split-pane-divider {
-  -fx-padding: 2; }
+  -fx-padding: 1; }
 
 .split-pane:vertical > .split-pane-divider {
-  -fx-padding: 2; }
+  -fx-padding: 1; }
 
 .split-pane:horizontal > .split-pane-divider {
   -fx-background-color: $dark-grey; }
