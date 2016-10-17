@@ -46,16 +46,12 @@ public class ModelBuilder extends Builder<Void> {
         BuilderUtil.checkResource(this.project, resource, "model", modelBuilder.getMesh());
         modelBuilder.setMesh(BuilderUtil.replaceExt(modelBuilder.getMesh(), ".dae", ".meshsetc"));
 
-        if(modelBuilder.getSkeleton().isEmpty()) {
-            modelBuilder.setSkeleton(BuilderUtil.replaceExt(modelBuilder.getMesh(), ".meshsetc", ".skeletonc"));
-        } else {
+        if(!modelBuilder.getSkeleton().isEmpty()) {
             BuilderUtil.checkResource(this.project, resource, "skeleton", modelBuilder.getSkeleton());
             modelBuilder.setSkeleton(BuilderUtil.replaceExt(modelBuilder.getSkeleton(), ".dae", ".skeletonc"));
         }
 
-        if(modelBuilder.getAnimations().isEmpty()) {
-            modelBuilder.setAnimations(BuilderUtil.replaceExt(modelBuilder.getMesh(), ".meshsetc", ".animationsetc"));
-        } else {
+        if(!modelBuilder.getAnimations().isEmpty()) {
             BuilderUtil.checkResource(this.project, resource, "animations", modelBuilder.getAnimations());
             modelBuilder.setAnimations(BuilderUtil.replaceExt(modelBuilder.getAnimations(), ".dae", ".animationsetc"));
         }

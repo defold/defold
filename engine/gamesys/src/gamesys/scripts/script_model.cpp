@@ -114,6 +114,10 @@ namespace dmGameSystem
         ModelWorld* world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, &user_data, &receiver, (void**) &world);
         ModelComponent* component = world->m_Components.Get(user_data);
+        if (!component || !component->m_Resource->m_RigScene->m_SkeletonRes)
+        {
+            return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
+        }
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
