@@ -1,5 +1,8 @@
 #right-split {
-  -fx-background: $dark-black;
+  -fx-padding: 2 0 0 0;
+  AnchorPane {
+    -fx-background-color: $dark-black;
+  }
   .tree-view, .tree-cell {
     -fx-background-color: $dark-black;
   }
