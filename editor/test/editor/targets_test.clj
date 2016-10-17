@@ -23,6 +23,22 @@
     </device>\n
 </root>\n")
 
+(def ^:private required-device-desc-device-tags
+  ["defold:logPort"
+   "defold:url"
+   "friendlyName"
+   "manufacturer"
+   "modelName"
+   "UDN"])
+
+(defn- ^:private device-desc-template-without
+  "Returns the device desc template with the specified device tag removed."
+  [device-tag]
+  (->> device-desc-template
+       string/split-lines
+       (remove (fn [line] (string/includes? line (str "<" device-tag ">"))))
+       (string/join "\n")))
+
 (def ^:private defold-port (.getPort (URL. (:url targets/local-target))))
 (def ^:private defold-log-port 12345)
 
@@ -35,8 +51,8 @@
   (URL. (str "http://" hostname ":" defold-port "/" id)))
 
 (defn- make-device-desc
-  [name device-model hostname]
-  (-> device-desc-template
+  [template name device-model hostname]
+  (-> template
       (string/replace "${NAME}" name)
       (string/replace "${UDN}" (make-udn hostname device-model))
       (string/replace "${HOSTNAME}" hostname)
@@ -54,9 +70,9 @@
 (def ^:private tablet-url (make-device-url tablet-hostname tablet-id))
 
 (def ^:private fetch-url
-  {local-url (make-device-desc (:name targets/local-target) "osx" local-hostname)
-   iphone-url (make-device-desc "iPhone" "ios" iphone-hostname)
-   tablet-url (make-device-desc "Tablet" "android" tablet-hostname)})
+  {local-url (make-device-desc device-desc-template (:name targets/local-target) "osx" local-hostname)
+   iphone-url (make-device-desc device-desc-template "iPhone" "ios" iphone-hostname)
+   tablet-url (make-device-desc device-desc-template "Tablet" "android" tablet-hostname)})
 
 (defn- make-context
   []
@@ -134,6 +150,16 @@
     (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
     (is (= [local-hostname] (targets-hostnames @targets-atom)))
     (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))))
+
+(deftest update-targets-rejects-new-target-if-fetch-url-returns-xml-missing-required-data
+  (doseq [device-tag required-device-desc-device-tags]
+    (let [invalid-device-desc-template (device-desc-template-without device-tag)
+          invalid-device-desc (make-device-desc invalid-device-desc-template "iPhone" "ios" iphone-hostname)
+          {:keys [targets-atom
+                  descriptions-atom] :as context} (assoc-in (make-context) [:fetch-url-fn iphone-url] invalid-device-desc)]
+      (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
+      (is (= [local-hostname] (targets-hostnames @targets-atom)))
+      (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-throws-exception
   (let [{:keys [targets-atom
