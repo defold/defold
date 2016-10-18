@@ -22,6 +22,7 @@ import javax.vecmath.Quat4f;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector3f;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -435,13 +436,31 @@ public class ColladaUtil {
             position_list.add(p.getZ());
         }
 
+        // Create a normal matrix which is the transposed inverse of
+        // the bind shape matrix (which already include the up axis matrix).
+        Matrix4f normalMatrix = new Matrix4f(bindShapeMatrix);
+        normalMatrix.invert();
+        normalMatrix.transpose();
+
         List<Float> normal_list;
         if(normals == null) {
-            normal_list = new ArrayList<Float>(Arrays.asList(0f, 0f, 1f));
+            Vector3f n = new Vector3f(0.0f, 0.0f, 1.0f);
+            normalMatrix.transform(n);
+            if (n.lengthSquared() > 0.0) {
+                n.normalize();
+            }
+            normal_list = new ArrayList<Float>(Arrays.asList(n.getX(), n.getY(), n.getZ()));
         } else {
             normal_list = new ArrayList<Float>(normals.floatArray.count);
-            for (int i = 0; i < normals.floatArray.count; ++i) {
-                normal_list.add(normals.floatArray.floats[i]);
+            for (int i = 0; i < normals.floatArray.count / 3; ++i) {
+                Vector3f n = new Vector3f(normals.floatArray.floats[i*3], normals.floatArray.floats[i*3+1], normals.floatArray.floats[i*3+2]);
+                normalMatrix.transform(n);
+                if (n.lengthSquared() > 0.0) {
+                    n.normalize();
+                }
+                normal_list.add(n.getX());
+                normal_list.add(n.getY());
+                normal_list.add(n.getZ());
             }
         }
 

@@ -325,7 +325,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static ModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, ModelWorld* world, const Matrix4& model_matrix, ModelVertex* write_ptr, const size_t vertex_stride)
+    static ModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, ModelWorld* world, const Matrix4& model_matrix, const Matrix4& normal_matrix, ModelVertex* write_ptr, const size_t vertex_stride)
     {
         DM_PROFILE(Rig, "GenerateModelVertexData");
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
@@ -340,10 +340,11 @@ namespace dmGameSystem
             }
             float* scratch_pos = (float*)world->m_ScratchPositionBufferData.Begin();
             dmRig::GeneratePositionData(instance, i, model_matrix, scratch_pos);
+            float* scratch_norm = (float*)world->m_ScratchNormalBufferData.Begin();
+            dmRig::GenerateNormalData(instance, i, normal_matrix, scratch_norm);
 
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[i];
             const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
-            const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Count ? mesh->m_NormalsIndices.m_Data : mesh->m_Indices.m_Data;
             uint32_t index_count = mesh->m_Indices.m_Count;
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -356,11 +357,9 @@ namespace dmGameSystem
                 e = vi << 1;
                 write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
                 write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
-                vi = normal_indices[ii];
-                e = vi*3;
-                write_ptr->nx = mesh->m_Normals[e+0];
-                write_ptr->ny = mesh->m_Normals[e+1];
-                write_ptr->nz = mesh->m_Normals[e+2];
+                write_ptr->nx = scratch_norm[ii*3+0];
+                write_ptr->ny = scratch_norm[ii*3+1];
+                write_ptr->nz = scratch_norm[ii*3+2];
                 write_ptr = (ModelVertex*)((uintptr_t)write_ptr + vertex_stride);
             }
         }
@@ -391,8 +390,12 @@ namespace dmGameSystem
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
         dmArray<Vector3> &scratch_vertex_buffer_data = world->m_ScratchPositionBufferData;
-        if (scratch_vertex_buffer_data.Capacity() < max_component_vertices)
-            scratch_vertex_buffer_data.OffsetCapacity(max_component_vertices - scratch_vertex_buffer_data.Capacity());
+        dmArray<Vector3> &scratch_normal_buffer_data = world->m_ScratchNormalBufferData;
+        if (scratch_vertex_buffer_data.Capacity() < max_component_vertices) {
+            int offset_capacity = max_component_vertices - scratch_vertex_buffer_data.Capacity();
+            scratch_vertex_buffer_data.OffsetCapacity(offset_capacity);
+            scratch_normal_buffer_data.OffsetCapacity(offset_capacity);
+        }
 
         // Fill in vertex buffer
         ModelVertex *vb_begin = vertex_buffer.End();
@@ -400,7 +403,9 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, vb_end, sizeof(ModelVertex));
+            Matrix4 normal_matrix = inverse(c->m_World);
+            normal_matrix = transpose(normal_matrix);
+            vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, normal_matrix, vb_end, sizeof(ModelVertex));
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 

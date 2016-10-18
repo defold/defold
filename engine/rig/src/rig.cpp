@@ -856,6 +856,79 @@ namespace dmRig
         return vertex_count;
     }
 
+    float* GenerateNormalData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& normal_matrix, float* out_buffer)
+    {
+        const dmRigDDF::Mesh& mesh = instance->m_MeshEntry->m_Meshes[mesh_index];
+        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
+        const float* normals_in = mesh.m_Normals.m_Data;
+        const uint32_t* normal_indices = mesh.m_NormalsIndices.m_Data;
+        uint32_t index_count = mesh.m_Indices.m_Count;
+        Vector4 v;
+
+        if (!mesh.m_BoneIndices.m_Count)
+        {
+            for (uint32_t ii = 0; ii < index_count; ++ii)
+            {
+                uint32_t ni = normal_indices[ii];
+                Vector3 normal_in(normals_in[ni*3+0], normals_in[ni*3+1], normals_in[ni*3+2]);
+                v = normal_matrix * normal_in;
+                if (lengthSqr(v) > 0.0f) {
+                    normalize(v);
+                }
+                *out_buffer++ = v[0];
+                *out_buffer++ = v[1];
+                *out_buffer++ = v[2];
+            }
+            return out_buffer;
+        }
+
+        // Premultiply the pose transforms with their bind_pose matrices.
+        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+        for (int i = 0; i < pose.Size(); ++i) {
+            pose[i] = dmTransform::Mul(pose[i], bind_pose[i].m_ModelToLocal);
+        }
+
+        const uint32_t* vertex_indices = mesh.m_Indices.m_Data;
+        for (uint32_t ii = 0; ii < index_count; ++ii)
+        {
+            uint32_t vi = vertex_indices[ii];
+            uint32_t ni = normal_indices[ii];
+
+            Vector3 normal_out(0.0f, 0.0f, 0.0f);
+            Vector3 normal_in(normals_in[ni*3+0], normals_in[ni*3+1], normals_in[ni*3+2]);
+
+            const uint32_t bi_offset = vi << 2;
+            const uint32_t* bone_indices = &mesh.m_BoneIndices[bi_offset];
+            const float* bone_weights = &mesh.m_Weights[bi_offset];
+            for (uint32_t bi = 0; bi < 4; ++bi)
+            {
+                if (bone_weights[bi] > 0.0f)
+                {
+                    uint32_t bone_index = bone_indices[bi];
+                    if(bone_index < pose.Size())
+                    {
+                        normal_out += Vector3(dmTransform::Apply(pose[bone_index], normal_in)) * bone_weights[bi];
+                    }
+                    else
+                    {
+                        normal_out = normal_in;
+                        break;
+                    }
+                }
+            }
+
+            v = normal_matrix * normal_out;
+            if (lengthSqr(v) > 0.0f) {
+                normalize(v);
+            }
+            *out_buffer++ = v[0];
+            *out_buffer++ = v[1];
+            *out_buffer++ = v[2];
+        }
+
+        return out_buffer;
+    }
+
     float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& model_matrix, float* out_buffer)
     {
         const dmRigDDF::Mesh& mesh = instance->m_MeshEntry->m_Meshes[mesh_index];

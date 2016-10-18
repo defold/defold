@@ -54,8 +54,9 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmArray<ModelVertex>            m_VertexBufferData;
-        // Temporary scratch buffer used for transforming vertex buffer, used to creating primitives from indices
+        // Temporary scratch buffer used for transforming position and normal buffers, used to creating primitives from indices
         dmArray<Vector3>                m_ScratchPositionBufferData;
+        dmArray<Vector3>                m_ScratchNormalBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
     };
