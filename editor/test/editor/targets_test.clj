@@ -102,7 +102,7 @@
 
 (defn- descriptions-hostnames
   [descriptions]
-  (->> descriptions keys (map #(.getHost (URL. %))) sort vec))
+  (->> descriptions keys (map #(.getHost %)) sort vec))
 
 (def ^:private call-count (comp count test-util/call-logger-calls))
 
