@@ -15,15 +15,11 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-/*
- * TODO: Finish documentation, see script_spine_model.cpp
- */
-
 namespace dmGameSystem
 {
     /*# Model API documentation
      *
-     * Functions and messages for interacting with the models.
+     * Functions and messages for interacting with model components.
      *
      * @name Model
      * @namespace model
@@ -102,6 +98,29 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# retrieve the game object corresponding to a model skeleton bone
+     * The returned game object can be used for parenting and transform queries.
+     * This function has complexity O(n), where n is the number of bones in the model skeleton.
+     * Game objects corresponding to a model skeleton bone can not be individually deleted.
+     * Only available from .script files.
+     *
+     * @name model.get_go
+     * @param url the model to query (url)
+     * @param bone_id id of the corresponding bone (string|hash)
+     * @return id of the game object
+     * @examples
+     * <p>
+     * The following examples assumes that the model component has id "model".
+     * <p>
+     * How to parent the game object of the calling script to the "right_hand" bone of the model in a player game object:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     local parent = model.get_go("player#model", "right_hand")
+     *     msg.post(".", "set_parent", {parent_id = parent})
+     * end
+     * </pre>
+     */
     int LuaModelComp_GetGO(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -152,6 +171,30 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# set a shader constant for a model component
+     * The constant must be defined in the material assigned to the model.
+     * Setting a constant through this function will override the value set for that constant in the material.
+     * The value will be overridden until model.reset_constant is called.
+     * Which model to set a constant for is identified by the URL.
+     *
+     * @name model.set_constant
+     * @param url the model that should have a constant set (url)
+     * @param name of the constant (string|hash)
+     * @param value of the constant (vec4)
+     * @examples
+     * <p>
+     * The following examples assumes that the model has id "model" and that the default-material in builtins is used.
+     * If you assign a custom material to the model, you can set the constants defined there in the same manner.
+     * </p>
+     * <p>
+     * How to tint a model to red:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     model.set_constant("#model", "tint", vmath.vector4(1, 0, 0, 1))
+     * end
+     * </pre>
+     */
     int LuaModelComp_SetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -174,6 +217,28 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# reset a shader constant for a model
+     * The constant must be defined in the material assigned to the model.
+     * Resetting a constant through this function implies that the value defined in the material will be used.
+     * Which model to reset a constant for is identified by the URL.
+     *
+     * @name model.reset_constant
+     * @param url the model that should have a constant reset (url)
+     * @param name of the constant (string|hash)
+     * @examples
+     * <p>
+     * The following examples assumes that the model has id "model" and that the default-material in builtins is used.
+     * If you assign a custom material to the model, you can reset the constants defined there in the same manner.
+     * </p>
+     * <p>
+     * How to reset the tinting of a model:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     model.reset_constant("#model", "tint")
+     * end
+     * </pre>
+     */
     int LuaModelComp_ResetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
