@@ -82,16 +82,15 @@
                   ^URL url            (try (URL. loc)
                                            (catch Exception _
                                              (log-fn (format "[%s] not a valid URL" loc))))
-                  ^String description (and url
+                  desc                (and url
                                            (not (contains? blacklist url))
-                                           (or (get descriptions loc)
-                                               (try (fetch-url-fn url)
-                                                    (catch Exception _
-                                                      (log-fn (format "[%s] error getting XML description" loc))))))
-                  desc                (and description
-                                           (try (xml/parse (ByteArrayInputStream. (.getBytes description)))
-                                                (catch Exception _
-                                                  (log-fn (format "[%s] error parsing XML description" loc)))))
+                                           (or (get descriptions url)
+                                               (when-let [^String document (try (fetch-url-fn url)
+                                                                                (catch Exception _
+                                                                                  (log-fn (format "[%s] error getting XML description" loc))))]
+                                                 (try (xml/parse (ByteArrayInputStream. (.getBytes document)))
+                                                      (catch Exception _
+                                                        (log-fn (format "[%s] error parsing XML description" loc)))))))
                   target              (and desc
                                            (desc->target desc (.localAddress device)))]
 
@@ -105,7 +104,7 @@
                                (conj blacklist url)
                                blacklist)
                :descriptions (if desc
-                               (assoc descriptions loc description)
+                               (assoc descriptions url desc)
                                descriptions)}))
           {:targets #{}
            :blacklist @blacklist-atom
