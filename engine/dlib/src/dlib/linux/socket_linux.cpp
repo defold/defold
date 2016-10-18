@@ -66,22 +66,13 @@ namespace dmSocket
             }
 
             unsigned char physical_adr[6] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            
-            if(ioctl(s, SIOCGIFHWADDR, r) < 0)
-            {
-#ifdef ANDROID
-                // Android 6 and higher does not support getting HW adr programmatically. Return const value of 02:00:00:00:00:00 instead (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
-                physical_adr[0] = 0x02;
-#else
-                continue;
-#endif
-            }
-            else
+
+            if(ioctl(s, SIOCGIFHWADDR, r) >= 0) // success
             {
                 memcpy(&physical_adr, &r->ifr_hwaddr.sa_data[0], sizeof(unsigned char) * 6);
+                a->m_Flags |= FLAGS_LINK;
             }
 
-            a->m_Flags |= FLAGS_LINK;
             a->m_MacAddress[0] = physical_adr[0];
             a->m_MacAddress[1] = physical_adr[1];
             a->m_MacAddress[2] = physical_adr[2];

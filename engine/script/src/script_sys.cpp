@@ -434,15 +434,32 @@ namespace dmScript
      */
     int Sys_GetIfaddrs(lua_State* L)
     {
+        const long android_marshmallow_api_level = 23;
         int top = lua_gettop(L);
         const uint32_t max_count = 16;
         dmSocket::IfAddr addresses[max_count];
+        bool is_android = false;
+        bool hw_adr_support_android = false;
+        long android_api_level = 0;
+
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+
+        // Android version 6 (API 23) and up does not support getting hw adr programmatically (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
+        is_android = strcmp("Android", info.m_SystemName) == 0;
+        if (is_android)
+        {
+            android_api_level = strtol(info.m_ApiVersion, 0, 10);
+            hw_adr_support_android = (android_api_level < android_marshmallow_api_level); // if Api version is lower than 23 there is hw adr support
+        }
 
         uint32_t count = 0;
         dmSocket::GetIfAddresses(addresses, max_count, &count);
         lua_createtable(L, count, 0);
-        for (uint32_t i = 0; i < count; ++i) {
+        for (uint32_t i = 0; i < count; ++i) 
+        {
             dmSocket::IfAddr* ifa = &addresses[i];
+            
             lua_newtable(L);
 
             lua_pushliteral(L, "name");
@@ -450,17 +467,22 @@ namespace dmScript
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "address");
-            if (ifa->m_Flags & dmSocket::FLAGS_INET) {
+            if (ifa->m_Flags & dmSocket::FLAGS_INET) 
+            {
                 char* ip = dmSocket::AddressToIPString(ifa->m_Address);
                 lua_pushstring(L, ip);
                 free(ip);
-            } else {
+            } 
+            else 
+            {
                 lua_pushnil(L);
             }
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "mac");
-            if (ifa->m_Flags & dmSocket::FLAGS_LINK) {
+
+            if (ifa->m_Flags & dmSocket::FLAGS_LINK)
+            {
                 char tmp[64];
                 DM_SNPRINTF(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
                         ifa->m_MacAddress[0],
@@ -470,7 +492,21 @@ namespace dmScript
                         ifa->m_MacAddress[4],
                         ifa->m_MacAddress[5]);
                 lua_pushstring(L, tmp);
-            } else {
+            } 
+            else if (is_android && !hw_adr_support_android)
+            {
+                char tmp[64];
+                DM_SNPRINTF(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
+                        0x02,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00);
+                lua_pushstring(L, tmp);
+            }
+            else 
+            {
                 lua_pushnil(L);
             }
             lua_rawset(L, -3);
