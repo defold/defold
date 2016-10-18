@@ -15,6 +15,10 @@ namespace dmGameSystem
             if (result != dmResource::RESULT_OK)
                 return result;
         }
+        else
+        {
+            resource->m_TextureSet = 0x0;
+        }
         if(resource->m_RigScene->m_Skeleton[0])
         {
             result = dmResource::Get(factory, resource->m_RigScene->m_Skeleton, (void**) &resource->m_SkeletonRes);
