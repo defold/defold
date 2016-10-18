@@ -345,7 +345,6 @@ namespace dmGameSystem
 
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[i];
             const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
-            // const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Count ? mesh->m_NormalsIndices.m_Data : mesh->m_Indices.m_Data;
             uint32_t index_count = mesh->m_Indices.m_Count;
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -354,16 +353,13 @@ namespace dmGameSystem
                 write_ptr->x = scratch_pos[e+0];
                 write_ptr->y = scratch_pos[e+1];
                 write_ptr->z = scratch_pos[e+2];
-
-                write_ptr->nx = scratch_norm[ii*3+0];
-                write_ptr->ny = scratch_norm[ii*3+1];
-                write_ptr->nz = scratch_norm[ii*3+2];
-
                 vi = texcoord0_indices[ii];
                 e = vi << 1;
                 write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
                 write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
-
+                write_ptr->nx = scratch_norm[ii*3+0];
+                write_ptr->ny = scratch_norm[ii*3+1];
+                write_ptr->nz = scratch_norm[ii*3+2];
                 write_ptr = (ModelVertex*)((uintptr_t)write_ptr + vertex_stride);
             }
         }
@@ -409,7 +405,6 @@ namespace dmGameSystem
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
             Matrix4 normal_matrix = inverse(c->m_World);
             normal_matrix = transpose(normal_matrix);
-
             vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, normal_matrix, vb_end, sizeof(ModelVertex));
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());

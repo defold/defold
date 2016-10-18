@@ -671,9 +671,6 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     // sample 0
     ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
     dmRig::GenerateNormalData(m_Instance, 0, Matrix4::identity(), (float*) normal_data);
-    // normal_data[0] = dmRig::GenerateNormal(m_Instance, 0, 0, 0, Matrix4::identity());
-    // normal_data[1] = dmRig::GenerateNormal(m_Instance, 0, 1, 1, Matrix4::identity());
-    // normal_data[2] = dmRig::GenerateNormal(m_Instance, 0, 2, 2, Matrix4::identity());
     ASSERT_VEC3(n_up, Vector3(normal_data[0][0], normal_data[0][1], normal_data[0][2])); // v0
     ASSERT_VEC3(n_up, Vector3(normal_data[1][0], normal_data[1][1], normal_data[1][2])); // v1
     ASSERT_VEC3(n_up, Vector3(normal_data[2][0], normal_data[2][1], normal_data[2][2])); // v2
@@ -682,9 +679,6 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
     dmRig::GenerateNormalData(m_Instance, 0, Matrix4::identity(), (float*) normal_data);
-    // normal_data[0] = dmRig::GenerateNormal(m_Instance, 0, 0, 0, Matrix4::identity());
-    // normal_data[1] = dmRig::GenerateNormal(m_Instance, 0, 1, 1, Matrix4::identity());
-    // normal_data[2] = dmRig::GenerateNormal(m_Instance, 0, 2, 2, Matrix4::identity());
     ASSERT_VEC3(n_up, Vector3(normal_data[0][0], normal_data[0][1], normal_data[0][2])); // v0
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[1][0], normal_data[1][1], normal_data[1][2])); // v1
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[2][0], normal_data[2][1], normal_data[2][2])); // v2
@@ -693,9 +687,6 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, Matrix4::identity(), (float*) data));
     dmRig::GenerateNormalData(m_Instance, 0, Matrix4::identity(), (float*) normal_data);
-    // normal_data[0] = dmRig::GenerateNormal(m_Instance, 0, 0, 0, Matrix4::identity());
-    // normal_data[1] = dmRig::GenerateNormal(m_Instance, 0, 1, 1, Matrix4::identity());
-    // normal_data[2] = dmRig::GenerateNormal(m_Instance, 0, 2, 2, Matrix4::identity());
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[0][0], normal_data[0][1], normal_data[0][2])); // v0
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[1][0], normal_data[1][1], normal_data[1][2])); // v1
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[2][0], normal_data[2][1], normal_data[2][2])); // v2
