@@ -67,6 +67,7 @@ public class SSDP implements ISSDP {
         private List<DatagramSocket> sockets;
     }
 
+    public static final String SSDP_SERVER_IDENTIFIER = "Defold SSDP 1.0";
     private static final String SSDP_MCAST_ADDR_IP = "239.255.255.250";
     private static final int SSDP_MCAST_PORT = 1900;
     private static final int SSDP_MCAST_TTL = 4;
@@ -261,21 +262,24 @@ public class SSDP implements ISSDP {
         }
 
         if (request.method.equals("NOTIFY")) {
-            String usn = request.headers.get("USN");
-            if (usn != null || !request.headers.containsKey("NTS")) {
-                DeviceInfo device = DeviceInfo.create(request.headers, address, localAddress);
-                // alive vs byebye in NTS field?
-                String nts = request.headers.get("NTS");
-                if (nts.equals("ssdp:alive")) {
-                    registerDevice(usn, device);
-                } else if (nts.equals("ssdp:byebye")) {
-                    ++changeCount;
-                    discoveredDevices.remove(usn);
+            String server = request.headers.get("SERVER");
+            if (SSDP_SERVER_IDENTIFIER.equals(server)) {
+                String usn = request.headers.get("USN");
+                if (usn != null || !request.headers.containsKey("NTS")) {
+                    DeviceInfo device = DeviceInfo.create(request.headers, address, localAddress);
+                    // alive vs byebye in NTS field?
+                    String nts = request.headers.get("NTS");
+                    if (nts.equals("ssdp:alive")) {
+                        registerDevice(usn, device);
+                    } else if (nts.equals("ssdp:byebye")) {
+                        ++changeCount;
+                        discoveredDevices.remove(usn);
+                    } else {
+                        log(String.format("[%s] Unsupported NOTIFY response: %s", address, nts));
+                    }
                 } else {
-                    log(String.format("[%s] Unsupported NOTIFY response: %s", address, nts));
+                    log(String.format("[%s] Malformed NOTIFY response: %s", address, data));
                 }
-            } else {
-                log(String.format("[%s] Malformed NOTIFY response: %s", address, data));
             }
         }
         // We ignore M-SEARCH requests
