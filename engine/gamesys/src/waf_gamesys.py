@@ -7,7 +7,7 @@ from waf_dynamo import new_copy_task
 stderr_lock = Lock()
 
 def configure(conf):
-    conf.find_file('meshc.py', var='MESHC', mandatory = True)
+    pass
 
 def transform_properties(properties, out_properties):
     for property in properties:
