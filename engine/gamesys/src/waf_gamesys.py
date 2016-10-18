@@ -147,7 +147,7 @@ def compile_model(task):
             out_f.write(msg_out.SerializeToString())
 
         msg_out = model_ddf_pb2.Model()
-        msg_out.rig_scene = os.path.normpath("/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root))
+        msg_out.rig_scene = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
         for i,n in enumerate(msg.textures):
             msg_out.textures.append(transform_texture_name(task, msg.textures[i]))
         msg_out.material = msg.material.replace(".material", ".materialc")
