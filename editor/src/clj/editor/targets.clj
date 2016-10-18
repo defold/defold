@@ -177,6 +177,8 @@
 (defn start []
   (when (not @running)
     (reset! running true)
+    (reset! blacklist #{})
+    (reset! descriptions {})
     (reset! worker (future (targets-worker)))))
 
 (defn stop []
