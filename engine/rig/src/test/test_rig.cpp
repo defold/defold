@@ -663,7 +663,6 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     float data[3][3];
     float* data_end = (float*)data + 3*3;
     float normal_data[3][3];
-    // Vector3 normal_data[3];
 
     Vector3 n_up(0.0f, 1.0f, 0.0f);
     Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);

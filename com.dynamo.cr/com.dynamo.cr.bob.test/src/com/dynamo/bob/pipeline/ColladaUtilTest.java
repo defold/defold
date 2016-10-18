@@ -218,9 +218,9 @@ public class ColladaUtilTest {
         assertUV(uvs, 4, 0, 0);
         assertUV(uvs, 5, 0, 0);
     }
-    
+
     /*
-     * Verify that up-axis are applied on normals. 
+     * Verify that up-axis are applied on normals.
      */
     @Test
     public void testBlenderTriangleNormals() throws Exception {
@@ -228,10 +228,10 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(getClass().getResourceAsStream("quad_normals.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
-        
+
         List<Float> pos = bake(meshBuilder.getIndicesList(), meshBuilder.getPositionsList(), 3);
         List<Float> nrm = bake(meshBuilder.getNormalsIndicesList(), meshBuilder.getNormalsList(), 3);
-        
+
         // face 0:
         assertVtx(pos, 0, -1,  0, -1);
         assertVtx(pos, 1, -1,  0,  1);

@@ -435,9 +435,9 @@ public class ColladaUtil {
             position_list.add(p.getY());
             position_list.add(p.getZ());
         }
-        
+
         // Create a normal matrix which is the transposed inverse of
-        // the bind shape matrix (which already include the up axis matrix).  
+        // the bind shape matrix (which already include the up axis matrix).
         Matrix4f normalMatrix = new Matrix4f(bindShapeMatrix);
         normalMatrix.invert();
         normalMatrix.transpose();
@@ -447,7 +447,7 @@ public class ColladaUtil {
             Vector3f n = new Vector3f(0.0f, 0.0f, 1.0f);
             normalMatrix.transform(n);
             if (n.lengthSquared() > 0.0) {
-                n.normalize();                
+                n.normalize();
             }
             normal_list = new ArrayList<Float>(Arrays.asList(n.getX(), n.getY(), n.getZ()));
         } else {
@@ -456,7 +456,7 @@ public class ColladaUtil {
                 Vector3f n = new Vector3f(normals.floatArray.floats[i*3], normals.floatArray.floats[i*3+1], normals.floatArray.floats[i*3+2]);
                 normalMatrix.transform(n);
                 if (n.lengthSquared() > 0.0) {
-                    n.normalize();                
+                    n.normalize();
                 }
                 normal_list.add(n.getX());
                 normal_list.add(n.getY());
