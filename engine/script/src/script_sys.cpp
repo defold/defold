@@ -440,7 +440,7 @@ namespace dmScript
         dmSocket::IfAddr addresses[max_count];
         bool is_android = false;
         bool hw_adr_support_android = false;
-        long android_api_level = 0;
+        long api_level_android = 0;
 
         dmSys::SystemInfo info;
         dmSys::GetSystemInfo(&info);
@@ -449,8 +449,8 @@ namespace dmScript
         is_android = strcmp("Android", info.m_SystemName) == 0;
         if (is_android)
         {
-            android_api_level = strtol(info.m_ApiVersion, 0, 10);
-            hw_adr_support_android = (android_api_level < android_marshmallow_api_level); // if Api version is lower than 23 there is hw adr support
+            api_level_android = strtol(info.m_ApiVersion, 0, 10);
+            hw_adr_support_android = (api_level_android < android_marshmallow_api_level); // if Api version is lower than 23 there is hw adr support
         }
 
         uint32_t count = 0;
