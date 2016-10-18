@@ -425,6 +425,27 @@ namespace dmScript
         return 1;
     }
 
+    // Android version 6 Marshmallow (API level 23) and up does not support getting hw adr programmatically (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
+    bool IsAndroidMarshmallowOrAbove()
+    {
+        const long android_marshmallow_api_level = 23;
+        bool is_android = false;
+        bool marshmallow_or_higher = false;
+        long api_level_android = 0;
+
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+
+        is_android = strcmp("Android", info.m_SystemName) == 0;
+        if (is_android)
+        {
+            api_level_android = strtol(info.m_ApiVersion, 0, 10);
+            marshmallow_or_higher = (api_level_android >= android_marshmallow_api_level);
+        }
+
+        return is_android && marshmallow_or_higher;
+    }
+
     /*# enumerate network cards
      * returns an array of tables with the following members:
      * name, address (ip-string), mac (hardware address, colon separated string), up (bool), running (bool). NOTE: ip and mac might be nil if not available
@@ -434,24 +455,9 @@ namespace dmScript
      */
     int Sys_GetIfaddrs(lua_State* L)
     {
-        const long android_marshmallow_api_level = 23;
         int top = lua_gettop(L);
         const uint32_t max_count = 16;
         dmSocket::IfAddr addresses[max_count];
-        bool is_android = false;
-        bool hw_adr_support_android = false;
-        long api_level_android = 0;
-
-        dmSys::SystemInfo info;
-        dmSys::GetSystemInfo(&info);
-
-        // Android version 6 (API 23) and up does not support getting hw adr programmatically (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
-        is_android = strcmp("Android", info.m_SystemName) == 0;
-        if (is_android)
-        {
-            api_level_android = strtol(info.m_ApiVersion, 0, 10);
-            hw_adr_support_android = (api_level_android < android_marshmallow_api_level); // if Api version is lower than 23 there is hw adr support
-        }
 
         uint32_t count = 0;
         dmSocket::GetIfAddresses(addresses, max_count, &count);
@@ -493,17 +499,9 @@ namespace dmScript
                         ifa->m_MacAddress[5]);
                 lua_pushstring(L, tmp);
             } 
-            else if (is_android && !hw_adr_support_android)
+            else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
             {
-                char tmp[64];
-                DM_SNPRINTF(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
-                        0x02,
-                        0x00,
-                        0x00,
-                        0x00,
-                        0x00,
-                        0x00);
-                lua_pushstring(L, tmp);
+                lua_pushstring(L, "02:00:00:00:00:00");
             }
             else 
             {

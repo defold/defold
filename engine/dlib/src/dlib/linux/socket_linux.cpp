@@ -65,20 +65,15 @@ namespace dmSocket
                 memcpy(IPv6(&a->m_Address), &ia->sin6_addr, sizeof(struct in6_addr));
             }
 
-            unsigned char physical_adr[6] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-
-            if(ioctl(s, SIOCGIFHWADDR, r) >= 0) // success
+            if(ioctl(s, SIOCGIFHWADDR, r) >= 0)
             {
-                memcpy(&physical_adr, &r->ifr_hwaddr.sa_data[0], sizeof(unsigned char) * 6);
+                memcpy(a->m_MacAddress, &r->ifr_hwaddr.sa_data[0], sizeof(unsigned char) * 6);
                 a->m_Flags |= FLAGS_LINK;
             }
-
-            a->m_MacAddress[0] = physical_adr[0];
-            a->m_MacAddress[1] = physical_adr[1];
-            a->m_MacAddress[2] = physical_adr[2];
-            a->m_MacAddress[3] = physical_adr[3];
-            a->m_MacAddress[4] = physical_adr[4];
-            a->m_MacAddress[5] = physical_adr[5];
+            else
+            {
+                memset(a->m_MacAddress, 0x00, sizeof(unsigned char) * 6);
+            }
 
             if(ioctl(s, SIOCGIFFLAGS, r) < 0)
                 continue;
