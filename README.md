@@ -196,21 +196,6 @@ If eclipse doesn’t get the JDK setup automatically:
 
 * Run `./scripts/build.py install_ext`
 
-    If during install_ext you get an error about downloading go, you might have to update `scripts/build.py` and retry:
-    - Open `build.py`
-    - Find `_install_go`
-    - Replace the url for win32 with a newer from [GOLANG](https://golang.org/dl/), for instance:
-
-        https://storage.googleapis.com/golang/go1.2.2.windows-386.zip
-
-    If using plain old notepad, note that it doesn't understand unix line endings so before the above steps do:
-
-        unix2dos scripts/build.py
-
-    And after, do:
-
-        dos2unix scripts/build.py
-
 * Now, you should be able to build the engine
 
         ./scripts/build.py build_engine --skip-tests -- --skip-build-tests
