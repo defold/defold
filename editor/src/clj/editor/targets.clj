@@ -5,8 +5,8 @@
             [editor.ui :as ui]
             [editor.dialogs :as dialogs])
   (:import [com.dynamo.upnp DeviceInfo SSDP SSDP$Logger]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]
-           [java.net URL URLConnection]
+           [java.io ByteArrayInputStream ByteArrayOutputStream IOException]
+           [java.net MalformedURLException SocketTimeoutException URL URLConnection]
            [javafx.scene Parent Scene]
            [javafx.scene.control TextArea]
            [javafx.scene.input KeyCode KeyEvent]
@@ -30,7 +30,7 @@
 
 (def ^:const search-interval-disconnected (* 5 1000))
 (def ^:const search-interval-connected (* 30 1000))
-(def ^:const timeout 2000)
+(def ^:const timeout 200)
 (def ^:const max-log-entries 512)
 
 (defn- http-get [^URL url]
@@ -78,33 +78,41 @@
 
 (defn- process-devices [{:keys [blacklist-atom descriptions-atom fetch-url-fn log-fn]} devices]
   (reduce (fn [{:keys [targets blacklist descriptions]} ^DeviceInfo device]
-            (let [loc                 (.get (.headers device) "LOCATION")
-                  ^URL url            (try (URL. loc)
-                                           (catch Exception _
-                                             (log-fn (format "[%s] not a valid URL" loc))))
-                  desc                (and url
-                                           (not (contains? blacklist url))
-                                           (or (get descriptions url)
-                                               (when-let [^String document (try (fetch-url-fn url)
-                                                                                (catch Exception _
-                                                                                  (log-fn (format "[%s] error getting XML description" loc))))]
-                                                 (try (xml/parse (ByteArrayInputStream. (.getBytes document)))
-                                                      (catch Exception _
-                                                        (log-fn (format "[%s] error parsing XML description" loc)))))))
-                  target              (and desc
-                                           (desc->target desc (.localAddress device)))]
+            (let [loc        (.get (.headers device) "LOCATION")
+                  ^URL url   (try (URL. loc)
+                                  (catch MalformedURLException _
+                                    (log-fn (format "[%s] not a valid URL" loc))))
+                  maybe-desc (and url
+                                  (not (contains? blacklist url))
+                                  (or (get descriptions url)
+                                      (let [fetch-result (try (or (fetch-url-fn url)
+                                                                  (throw (NullPointerException. (format "The supplied fetch-url-fn broke the contract by returning nil for %s" url))))
+                                                              (catch SocketTimeoutException _
+                                                                (log-fn (format "[%s] timed out getting XML description" loc))
+                                                                ::socket-timeout)
+                                                              (catch IOException _
+                                                                (log-fn (format "[%s] error getting XML description" loc))
+                                                                ::fetch-error))]
+                                        (if-not (string? fetch-result)
+                                          fetch-result
+                                          (try (xml/parse (ByteArrayInputStream. (.getBytes ^String fetch-result)))
+                                               (catch Exception _
+                                                 (log-fn (format "[%s] error parsing XML description" loc))
+                                                 ::parse-error))))))
+                  target     (and (map? maybe-desc)
+                                  (desc->target maybe-desc (.localAddress device)))]
 
-              (when-not target
+              (when (and (not target) (not= ::socket-timeout maybe-desc))
                 (log-fn (format "[%s] not a Defold target" loc)))
 
               {:targets      (if target
                                (conj targets target)
                                targets)
-               :blacklist    (if (and url (not target))
+               :blacklist    (if (and url (not target) (not= ::socket-timeout maybe-desc))
                                (conj blacklist url)
                                blacklist)
-               :descriptions (if desc
-                               (assoc descriptions url desc)
+               :descriptions (if (map? maybe-desc)
+                               (assoc descriptions url maybe-desc)
                                descriptions)}))
           {:targets #{}
            :blacklist @blacklist-atom

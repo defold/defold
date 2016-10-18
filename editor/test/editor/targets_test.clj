@@ -3,7 +3,8 @@
             [clojure.test :refer :all]
             [editor.targets :as targets]
             [integration.test-util :as test-util])
-  (:import (com.dynamo.upnp DeviceInfo)
+  (:import (com.dynamo.upnp DeviceInfo SSDP)
+           (java.io IOException)
            (java.net SocketTimeoutException URL)))
 
 (def ^:private device-desc-template "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n
@@ -86,7 +87,8 @@
 (defn- make-device-info
   [hostname id]
   (let [address (str (make-device-url hostname id))]
-    (DeviceInfo/create {"LOCATION" address} address hostname)))
+    (DeviceInfo/create {"LOCATION" address
+                        "SERVER" SSDP/SSDP_SERVER_IDENTIFIER} address hostname)))
 
 (def ^:private make-local-device-info (partial make-device-info local-hostname local-id))
 (def ^:private make-iphone-device-info (partial make-device-info iphone-hostname iphone-id))
@@ -137,9 +139,10 @@
       (is (= [] (blacklist-hostnames @blacklist-atom)))
       (is (= 1 (call-count invalidate-menus-fn))))))
 
-(deftest update-targets-rejects-new-target-if-device-info-location-is-malformed-url
+(deftest update-targets-temporarily-rejects-new-target-if-device-info-location-is-malformed-url
   (let [address (str (make-device-url iphone-hostname iphone-id))
-        malformed-headers {"LOCATION" "malformed-url"}
+        malformed-headers {"LOCATION" "malformed-url"
+                           "SERVER" SSDP/SSDP_SERVER_IDENTIFIER}
         malformed-device-info (DeviceInfo/create malformed-headers address iphone-hostname)
         {:keys [targets-atom
                 descriptions-atom
@@ -152,19 +155,7 @@
     (testing "Blacklist is unaltered"
       (is (= [] (blacklist-hostnames @blacklist-atom))))))
 
-(deftest update-targets-rejects-new-target-if-fetch-url-returns-nil
-  (let [{:keys [targets-atom
-                descriptions-atom
-                blacklist-atom] :as context} (update (make-context) :fetch-url-fn dissoc iphone-url)]
-    (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
-    (testing "Target is rejected"
-      (is (= [local-hostname] (targets-hostnames @targets-atom))))
-    (testing "Descriptions cache is unaltered"
-      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))
-    (testing "Host is blacklisted"
-      (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom))))))
-
-(deftest update-targets-rejects-new-target-if-fetch-url-returns-malformed-xml
+(deftest update-targets-permanently-rejects-new-target-if-fetch-url-returns-malformed-xml
   (let [{:keys [targets-atom
                 descriptions-atom
                 blacklist-atom] :as context} (assoc-in (make-context) [:fetch-url-fn iphone-url] "<malformed-xml></")]
@@ -176,7 +167,7 @@
     (testing "Host is blacklisted"
       (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom))))))
 
-(deftest update-targets-rejects-new-target-if-fetch-url-returns-xml-missing-required-data
+(deftest update-targets-permanently-rejects-new-target-if-fetch-url-returns-xml-missing-required-data
   (doseq [device-tag required-device-desc-device-tags]
     (let [invalid-device-desc-template (device-desc-template-without device-tag)
           invalid-device-desc (make-device-desc invalid-device-desc-template "iPhone" "ios" iphone-hostname)
@@ -191,7 +182,7 @@
       (testing "Host is blacklisted"
         (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom)))))))
 
-(deftest update-targets-rejects-new-target-if-fetch-url-throws-exception
+(deftest update-targets-temporarily-rejects-new-target-if-fetch-url-throws-socket-timeout-exception
   (let [{:keys [targets-atom
                 descriptions-atom
                 blacklist-atom
@@ -200,7 +191,27 @@
     (is (= [local-hostname] (targets-hostnames @targets-atom)))
     (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))
     (is (= 1 (call-count invalidate-menus-fn)))
-    (let [throwing-context (assoc context :fetch-url-fn #(throw (SocketTimeoutException.)))]
+    (let [throwing-context (assoc context :fetch-url-fn (fn [_] (throw (SocketTimeoutException.))))]
+      (targets/update-targets! throwing-context [(make-local-device-info) (make-iphone-device-info)])
+      (testing "Target is rejected"
+        (is (= [local-hostname] (targets-hostnames @targets-atom))))
+      (testing "Descriptions cache is unaltered"
+        (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))
+      (testing "Blacklist is unaltered"
+        (is (= [] (blacklist-hostnames @blacklist-atom))))
+      (testing "Menus are not invalidated"
+        (is (= 1 (call-count invalidate-menus-fn)))))))
+
+(deftest update-targets-permanently-rejects-new-target-if-fetch-url-throws-io-exception
+  (let [{:keys [targets-atom
+                descriptions-atom
+                blacklist-atom
+                invalidate-menus-fn] :as context} (make-context)]
+    (targets/update-targets! context [(make-local-device-info)])
+    (is (= [local-hostname] (targets-hostnames @targets-atom)))
+    (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))
+    (is (= 1 (call-count invalidate-menus-fn)))
+    (let [throwing-context (assoc context :fetch-url-fn (fn [_] (throw (IOException.))))]
       (targets/update-targets! throwing-context [(make-local-device-info) (make-iphone-device-info)])
       (testing "Target is rejected"
         (is (= [local-hostname] (targets-hostnames @targets-atom))))
@@ -210,3 +221,15 @@
         (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom))))
       (testing "Menus are not invalidated"
         (is (= 1 (call-count invalidate-menus-fn)))))))
+
+(deftest update-targets-throws-if-fetch-url-returns-nil
+  (let [context (assoc (make-context) :fetch-url-fn (fn [_] nil))]
+    (is (thrown? NullPointerException (targets/update-targets! context [(make-local-device-info)])))))
+
+(deftest update-targets-throws-if-fetch-url-throws-non-io-exception
+  (let [devices [(make-local-device-info)]
+        make-throwing-context (fn [exception]
+                                (assoc (make-context) :fetch-url-fn (fn [_] (throw exception))))]
+    (is (thrown? Exception (targets/update-targets! (make-throwing-context (Exception.)) devices)))
+    (is (thrown? NullPointerException (targets/update-targets! (make-throwing-context (NullPointerException.)) devices)))
+    (is (thrown? IllegalArgumentException (targets/update-targets! (make-throwing-context (IllegalArgumentException.)) devices)))))
