@@ -33,7 +33,7 @@ public class Splash {
         scene = new Scene((Parent) root);
         stage = new Stage();
         stage.initStyle(StageStyle.UNDECORATED);
-        stage.getIcons().add(new Image(Start.class.getResourceAsStream("/logo_blue.png")));
+        stage.getIcons().add(new Image(Splash.class.getResourceAsStream("/logo_blue.png")));
         stage.setScene(scene);
 
         Label launchErrorLabel = (Label) scene.lookup("#launchError");
