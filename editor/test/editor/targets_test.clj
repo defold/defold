@@ -98,7 +98,7 @@
 
 (defn- blacklist-hostnames
   [blacklist]
-  (->> blacklist sort vec))
+  (->> blacklist (map #(.getHost %)) sort vec))
 
 (defn- descriptions-hostnames
   [descriptions]

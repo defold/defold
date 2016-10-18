@@ -83,7 +83,7 @@
                                            (catch Exception _
                                              (log-fn (format "[%s] not a valid URL" loc))))
                   ^String description (and url
-                                           (not (contains? blacklist (.getHost url)))
+                                           (not (contains? blacklist url))
                                            (or (get descriptions loc)
                                                (try (fetch-url-fn url)
                                                     (catch Exception _
@@ -102,7 +102,7 @@
                                (conj targets target)
                                targets)
                :blacklist    (if (and url (not target))
-                               (conj blacklist (.getHost url))
+                               (conj blacklist url)
                                blacklist)
                :descriptions (if desc
                                (assoc descriptions loc description)
