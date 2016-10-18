@@ -340,10 +340,12 @@ namespace dmGameSystem
             }
             float* scratch_pos = (float*)world->m_ScratchPositionBufferData.Begin();
             dmRig::GeneratePositionData(instance, i, model_matrix, scratch_pos);
+            float* scratch_norm = (float*)world->m_ScratchNormalBufferData.Begin();
+            dmRig::GenerateNormalData(instance, i, normal_matrix, scratch_norm);
 
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[i];
             const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
-            const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Count ? mesh->m_NormalsIndices.m_Data : mesh->m_Indices.m_Data;
+            // const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Count ? mesh->m_NormalsIndices.m_Data : mesh->m_Indices.m_Data;
             uint32_t index_count = mesh->m_Indices.m_Count;
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -352,12 +354,10 @@ namespace dmGameSystem
                 write_ptr->x = scratch_pos[e+0];
                 write_ptr->y = scratch_pos[e+1];
                 write_ptr->z = scratch_pos[e+2];
-                vi = normal_indices[ii];
 
-                Vector3 norm_out = dmRig::GenerateNormal(instance, i, mesh->m_Indices[ii], vi, normal_matrix);
-                write_ptr->nx = norm_out[0];
-                write_ptr->ny = norm_out[1];
-                write_ptr->nz = norm_out[2];
+                write_ptr->nx = scratch_norm[ii*3+0];
+                write_ptr->ny = scratch_norm[ii*3+1];
+                write_ptr->nz = scratch_norm[ii*3+2];
 
                 vi = texcoord0_indices[ii];
                 e = vi << 1;
@@ -394,10 +394,11 @@ namespace dmGameSystem
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
         dmArray<Vector3> &scratch_vertex_buffer_data = world->m_ScratchPositionBufferData;
+        dmArray<Vector3> &scratch_normal_buffer_data = world->m_ScratchNormalBufferData;
         if (scratch_vertex_buffer_data.Capacity() < max_component_vertices) {
-            int offste_capacity = max_component_vertices - scratch_vertex_buffer_data.Capacity();
-            scratch_vertex_buffer_data.OffsetCapacity(offste_capacity);
-            scratch_normal_buffer_data.OffsetCapacity(offste_capacity);
+            int offset_capacity = max_component_vertices - scratch_vertex_buffer_data.Capacity();
+            scratch_vertex_buffer_data.OffsetCapacity(offset_capacity);
+            scratch_normal_buffer_data.OffsetCapacity(offset_capacity);
         }
 
         // Fill in vertex buffer

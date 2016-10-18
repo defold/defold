@@ -446,12 +446,18 @@ public class ColladaUtil {
         if(normals == null) {
             Vector3f n = new Vector3f(0.0f, 0.0f, 1.0f);
             normalMatrix.transform(n);
+            if (n.lengthSquared() > 0.0) {
+                n.normalize();                
+            }
             normal_list = new ArrayList<Float>(Arrays.asList(n.getX(), n.getY(), n.getZ()));
         } else {
             normal_list = new ArrayList<Float>(normals.floatArray.count);
             for (int i = 0; i < normals.floatArray.count / 3; ++i) {
                 Vector3f n = new Vector3f(normals.floatArray.floats[i*3], normals.floatArray.floats[i*3+1], normals.floatArray.floats[i*3+2]);
                 normalMatrix.transform(n);
+                if (n.lengthSquared() > 0.0) {
+                    n.normalize();                
+                }
                 normal_list.add(n.getX());
                 normal_list.add(n.getY());
                 normal_list.add(n.getZ());
