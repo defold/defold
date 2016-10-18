@@ -220,7 +220,7 @@
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["version" "sha1"])]
     (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
