@@ -77,6 +77,7 @@
 (defn- make-context
   []
   {:targets-atom (atom #{targets/local-target})
+   :blacklist-atom (atom #{})
    :descriptions-atom (atom {})
    :log-fn (test-util/make-call-logger)
    :fetch-url-fn fetch-url
