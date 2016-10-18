@@ -96,6 +96,10 @@
   [targets]
   (->> targets (map :local-address) sort vec))
 
+(defn- blacklist-hostnames
+  [blacklist]
+  (->> blacklist sort vec))
+
 (defn- descriptions-hostnames
   [descriptions]
   (->> descriptions keys (map #(.getHost (URL. %))) sort vec))
@@ -105,27 +109,32 @@
 (deftest update-targets-with-new-devices
   (let [{:keys [targets-atom
                 descriptions-atom
+                blacklist-atom
                 invalidate-menus-fn] :as context} (make-context)]
     (testing "iPhone joins"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
       (is (= [iphone-hostname local-hostname] (targets-hostnames @targets-atom)))
       (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom)))
+      (is (= [] (blacklist-hostnames @blacklist-atom)))
       (is (= 1 (call-count invalidate-menus-fn))))
     (testing "iPhone remains, tablet joins"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info) (make-tablet-device-info)])
       (is (= [iphone-hostname local-hostname tablet-hostname] (targets-hostnames @targets-atom)))
       (is (= [iphone-hostname local-hostname tablet-hostname] (descriptions-hostnames @descriptions-atom)))
+      (is (= [] (blacklist-hostnames @blacklist-atom)))
       (is (= 2 (call-count invalidate-menus-fn))))))
 
 (deftest update-targets-with-known-devices
   (let [{:keys [targets-atom
                 descriptions-atom
+                blacklist-atom
                 invalidate-menus-fn] :as context} (make-context)]
     (testing "iPhone joins, then remains"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
       (is (= [iphone-hostname local-hostname] (targets-hostnames @targets-atom)))
       (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom)))
+      (is (= [] (blacklist-hostnames @blacklist-atom)))
       (is (= 1 (call-count invalidate-menus-fn))))))
 
 (deftest update-targets-rejects-new-target-if-device-info-location-is-malformed-url
@@ -133,46 +142,59 @@
         malformed-headers {"LOCATION" "malformed-url"}
         malformed-device-info (DeviceInfo/create malformed-headers address iphone-hostname)
         {:keys [targets-atom
-                descriptions-atom] :as context} (make-context)]
+                descriptions-atom
+                blacklist-atom] :as context} (make-context)]
     (targets/update-targets! context [(make-local-device-info) malformed-device-info])
     (testing "Target is rejected"
       (is (= [local-hostname] (targets-hostnames @targets-atom))))
     (testing "Descriptions cache is unaltered"
-      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))))
+      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))
+    (testing "Blacklist is unaltered"
+      (is (= [] (blacklist-hostnames @blacklist-atom))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-returns-nil
   (let [{:keys [targets-atom
-                descriptions-atom] :as context} (update (make-context) :fetch-url-fn dissoc iphone-url)]
+                descriptions-atom
+                blacklist-atom] :as context} (update (make-context) :fetch-url-fn dissoc iphone-url)]
     (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
     (testing "Target is rejected"
       (is (= [local-hostname] (targets-hostnames @targets-atom))))
     (testing "Descriptions cache is unaltered"
-      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))))
+      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))
+    (testing "Host is blacklisted"
+      (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-returns-malformed-xml
   (let [{:keys [targets-atom
-                descriptions-atom] :as context} (assoc-in (make-context) [:fetch-url-fn iphone-url] "<malformed-xml></")]
+                descriptions-atom
+                blacklist-atom] :as context} (assoc-in (make-context) [:fetch-url-fn iphone-url] "<malformed-xml></")]
     (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
     (testing "Target is rejected"
       (is (= [local-hostname] (targets-hostnames @targets-atom))))
-    (testing "Malformed description is cached"
-      (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom))))))
+    (testing "Descriptions cache is unaltered"
+      (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))
+    (testing "Host is blacklisted"
+      (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-returns-xml-missing-required-data
   (doseq [device-tag required-device-desc-device-tags]
     (let [invalid-device-desc-template (device-desc-template-without device-tag)
           invalid-device-desc (make-device-desc invalid-device-desc-template "iPhone" "ios" iphone-hostname)
           {:keys [targets-atom
-                  descriptions-atom] :as context} (assoc-in (make-context) [:fetch-url-fn iphone-url] invalid-device-desc)]
+                  descriptions-atom
+                  blacklist-atom] :as context} (assoc-in (make-context) [:fetch-url-fn iphone-url] invalid-device-desc)]
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
       (testing "Target is rejected"
         (is (= [local-hostname] (targets-hostnames @targets-atom))))
       (testing "Incomplete description is cached"
-        (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom)))))))
+        (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom))))
+      (testing "Host is blacklisted"
+        (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom)))))))
 
 (deftest update-targets-rejects-new-target-if-fetch-url-throws-exception
   (let [{:keys [targets-atom
                 descriptions-atom
+                blacklist-atom
                 invalidate-menus-fn] :as context} (make-context)]
     (targets/update-targets! context [(make-local-device-info)])
     (is (= [local-hostname] (targets-hostnames @targets-atom)))
@@ -184,5 +206,7 @@
         (is (= [local-hostname] (targets-hostnames @targets-atom))))
       (testing "Descriptions cache is unaltered"
         (is (= [local-hostname] (descriptions-hostnames @descriptions-atom))))
+      (testing "Host is blacklisted"
+        (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom))))
       (testing "Menus are not invalidated"
         (is (= 1 (call-count invalidate-menus-fn)))))))

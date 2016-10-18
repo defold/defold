@@ -101,10 +101,10 @@
               {:targets      (if target
                                (conj targets target)
                                targets)
-               :blacklist    (if (and url (not desc))
+               :blacklist    (if (and url (not target))
                                (conj blacklist (.getHost url))
                                blacklist)
-               :descriptions (if description
+               :descriptions (if desc
                                (assoc descriptions loc description)
                                descriptions)}))
           {:targets #{}
