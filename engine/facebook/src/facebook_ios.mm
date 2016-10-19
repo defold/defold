@@ -337,42 +337,6 @@ static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* err
     }
 }
 
-static void RunCallback(lua_State*L, NSError* error)
-{
-    if (g_Facebook.m_Callback != LUA_NOREF) {
-        int top = lua_gettop(L);
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        // Setup self
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
-
-        if (!dmScript::IsInstanceValid(L))
-        {
-            dmLogError("Could not run facebook callback because the instance has been deleted.");
-            lua_pop(L, 2);
-            assert(top == lua_gettop(L));
-            return;
-        }
-
-        PushError(L, error);
-
-        int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
-        if (ret != 0) {
-            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-        }
-        assert(top == lua_gettop(L));
-        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
-        g_Facebook.m_Callback = LUA_NOREF;
-        g_Facebook.m_Self = LUA_NOREF;
-    } else {
-        dmLogError("No callback set");
-    }
-}
-
 static void ObjCToLua(lua_State*L, id obj)
 {
     if ([obj isKindOfClass:[NSString class]]) {
@@ -542,6 +506,25 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
     }
 }
 
+static void PrepareCallback(lua_State* thread, FBSDKLoginManagerLoginResult* result, NSError* error)
+{
+    if (error)
+    {
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            [error.localizedDescription UTF8String], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+    }
+    else if (result.isCancelled)
+    {
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            "Login was cancelled", dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+    }
+    else
+    {
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            nil, dmFacebook::STATE_OPEN);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Lua API
 //
@@ -555,6 +538,58 @@ namespace dmFacebook {
  * @name Facebook
  * @namespace facebook
  */
+
+void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int callback, int context, lua_State* thread)
+{
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    NSMutableArray* ns_permissions = [[NSMutableArray alloc] init];
+    for (uint32_t i = 0; i < permission_count; ++i)
+    {
+        const char* permission = permissions[i];
+        [ns_permissions addObject: [NSString stringWithUTF8String: permission]];
+    }
+
+    @try {
+        [g_Facebook.m_Login logInWithReadPermissions: ns_permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error)
+        {
+            PrepareCallback(thread, result, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request read permissions: %@", exception.reason];
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            [errorMessage cStringUsingEncoding:NSASCIIStringEncoding], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+    }
+}
+
+void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
+{
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    NSMutableArray* ns_permissions = [[NSMutableArray alloc] init];
+    for (uint32_t i = 0; i < permission_count; ++i)
+    {
+        const char* permission = permissions[i];
+        [ns_permissions addObject: [NSString stringWithUTF8String: permission]];
+    }
+
+    @try {
+        [g_Facebook.m_Login setDefaultAudience: audience];
+        [g_Facebook.m_Login logInWithPublishPermissions: ns_permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+            PrepareCallback(thread, result, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request publish permissions: %@", exception.reason];
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            [errorMessage cStringUsingEncoding:NSASCIIStringEncoding], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+    }
+}
 
  /*# initiate a Facebook login
  *

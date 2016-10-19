@@ -5,6 +5,10 @@
 
 #include <script/script.h>
 
+
+void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, int status);
+uint32_t luaTableToCArray(lua_State* L, int index, char** buffer, uint32_t buffer_size);
+
 namespace dmFacebook {
 
     const char* const GRAPH_API_VERSION = "v2.6";
@@ -103,6 +107,14 @@ namespace dmFacebook {
     int Facebook_EnableEventUsage(lua_State* L);
     int Facebook_DisableEventUsage(lua_State* L);
     int Facebook_ShowDialog(lua_State* L);
+
+    int Facebook_LoginWithPublishPermissions(lua_State* L);
+    int Facebook_LoginWithReadPermissions(lua_State* L);
+
+    void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
+        uint32_t permission_count, int callback, int context, lua_State* thread);
+    void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
+        uint32_t permission_count, int audience, int callback, int context, lua_State* thread);
 }
 
 #endif // #ifndef DM_FACEBOOK_H
