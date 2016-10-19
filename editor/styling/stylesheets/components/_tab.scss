@@ -20,7 +20,13 @@
             
             &:hover {
                 -fx-background-insets: 0;
-                -fx-background-color: $mid-black;
+                /*-fx-background-color: $mid-black;*/
+                .tab-label {
+                    -fx-text-fill: $defold-white;
+                    .image-view {
+                        @include effect-lighten();
+                    }
+                }
             }
             &:selected { 
                 /*-fx-background-insets: 0, 0;*/
@@ -30,6 +36,9 @@
 
                 .tab-label {
                     -fx-text-fill: $defold-white;
+                    .image-view {
+                        @include effect-lighten();
+                    }
                 }
                 .focus-indicator {
                     -fx-border-width: 0; 

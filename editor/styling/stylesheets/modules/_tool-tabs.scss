@@ -1,0 +1,135 @@
+#tool-tabs {
+    -fx-tab-min-width: 40px;
+
+    .console-buttons-base {
+        -fx-background-color: $button-grey;
+        -fx-background-position: center;
+        -fx-background-repeat: no-repeat;
+        -fx-background-size: 9 14;
+        -fx-border-width: 0;
+        -fx-border-color: transparent;
+        -fx-width: 50px;
+        &:hover {
+            -fx-background-color: $mid-black;    
+        }
+        &:armed {
+            -fx-background-color: $bright-grey;
+            -fx-border-color: $defold-white;
+        }
+    }
+    #prev-console {
+        @extend .console-buttons-base;
+        -fx-border-radius: 10 0 0 10;
+        -fx-background-radius: 10 0 0 10;
+        -fx-background-image: url('icons/left-arrow.png');
+        -fx-border-width: 0 1 0 0;
+        -fx-border-color: $dark-grey-light;
+        &:hover {
+            -fx-background-image: url('icons/left-arrow-on.png');
+        }
+        
+    }
+    #next-console {
+        @extend .console-buttons-base;
+        -fx-border-radius: 0 10 10 0;
+        -fx-background-radius: 0 10 10 0;
+        -fx-background-image: url('icons/right-arrow.png');
+        &:hover {
+            -fx-background-image: url('icons/right-arrow-on.png');
+        }
+    }
+    .list-view {
+        -fx-background-insets: 0;
+        -fx-border-width: 0;
+    }
+
+    .tab-header-area {
+        .tab-label {
+            .image-view {
+                /*-fx-background-color: red;
+                -fx-height: 50%;
+                -fx-width: 50%;*/
+            }
+        }
+    }
+
+    .tab-content-area {
+        -fx-background-color: $dark-grey-light;
+        -fx-padding: 5px;
+
+        .label {
+            -fx-font-size: 14px;
+            -fx-text-fill: $defold-white;
+        }
+
+        .text-input {
+            -fx-background-radius: 12;
+            -fx-border-radius: 12;
+            -fx-background-color: $dark-grey;
+            -fx-border-width: 0;
+        }
+
+        .content {//.text-area, .text-input {
+            -fx-background-color: $dark-grey-light;
+            -fx-background-insets: 0;
+            -fx-padding: 0;
+            -fx-border-color: red;
+            -fx-border-radius: 0;
+            -fx-border-width: 0;
+            -fx-border-insets: 0;
+        }
+
+        .text-area, .scroll-pane, .viewport {
+            -fx-background-insets: 0;
+            -fx-padding: 0;
+        }
+    }
+
+    GridPane {
+        -fx-padding: 10;
+    }
+}
+
+.console-tab-base {
+    -fx-background-position: center;
+    -fx-background-repeat: no-repeat;
+    -fx-background-size: 26 20;
+}
+
+#console-tab {
+    @extend .console-tab-base;
+    -fx-background-image: url("icons/tabs/console-icon-off.png");
+    &:selected {
+        -fx-background-image: url("icons/tabs/console-icon-on.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/console-icon-on.png");
+    }
+}
+
+#curve-editor-tab {
+    @extend .console-tab-base;
+    -fx-background-image: url("icons/tabs/curve-editor-icon-off.png");
+    -fx-background-position: center 5px;
+    &:selected {
+        -fx-background-image: url("icons/tabs/curve-editor-icon-on.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/curve-editor-icon-on.png");
+    }
+}
+
+#build-errors-tab {
+    @extend .console-tab-base;
+    -fx-background-image: url("icons/tabs/build-problems-off.png");
+    &:selected {
+        -fx-background-image: url("icons/tabs/build-problems-on.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/build-problems-on.png");
+    }
+    
+    .label {
+        -fx-padding: 5;
+    }
+}

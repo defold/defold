@@ -1,20 +1,20 @@
 .button {
-  -fx-background-radius: 4;
-  -fx-border-radius: 4;
+  -fx-background-radius: 12;
+  -fx-border-radius: 12;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: $defold-blue;
+  -fx-background-color: $mid-grey;//$defold-blue;
   -fx-background-insets: 0;
-  -fx-border-color: $dark-black;
+  -fx-border-color: $dark-grey;
   -fx-border-width: 1;
   -fx-text-fill: $defold-white;
-  -fx-font-weight: bold; 
+  -fx-font-size: 14px;
   &:hover {
-    -fx-background-color: $selected-blue;
+    -fx-background-color: $mid-black;//$selected-blue;
   }
   &:armed {
-    -fx-background-color: $selected-blue;
-    -fx-border-color: $defold-light-blue;
+    -fx-background-color: $bright-grey;
+    -fx-border-color: $defold-white;
   }
   &.low-prio {
     -fx-background-color: $dark-grey;
@@ -34,7 +34,7 @@
 
 .button-small {
 	@extend .button;
-	-fx-padding: 4px;
+	-fx-padding: 4px 6px;
 	-fx-min-width: 0px;
 }
 
@@ -70,7 +70,7 @@
 
 .toggle-button,
 .color-picker.split-button > .color-picker-label {
-  -fx-background-color: $defold-blue;
+  -fx-background-color: $mid-grey;//$defold-blue;
   -fx-background-insets: 0;
   -fx-background-radius: 4;
   -fx-border-width: 1;
@@ -81,7 +81,7 @@
 .toggle-button:hover,
 .color-picker.split-button > .arrow-button:hover,
 .color-picker.split-button > .color-picker-label:hover {
-  -fx-background-color: $selected-blue;
+  -fx-background-color: $mid-grey;//$selected-blue;
   -fx-text-fill: -fx-text-base-color; }
 
 .toggle-button:armed {
