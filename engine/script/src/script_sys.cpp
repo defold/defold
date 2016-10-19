@@ -425,6 +425,27 @@ namespace dmScript
         return 1;
     }
 
+    // Android version 6 Marshmallow (API level 23) and up does not support getting hw adr programmatically (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
+    bool IsAndroidMarshmallowOrAbove()
+    {
+        const long android_marshmallow_api_level = 23;
+        bool is_android = false;
+        bool marshmallow_or_higher = false;
+        long api_level_android = 0;
+
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+
+        is_android = strcmp("Android", info.m_SystemName) == 0;
+        if (is_android)
+        {
+            api_level_android = strtol(info.m_ApiVersion, 0, 10);
+            marshmallow_or_higher = (api_level_android >= android_marshmallow_api_level);
+        }
+
+        return is_android && marshmallow_or_higher;
+    }
+
     /*# enumerate network cards
      * returns an array of tables with the following members:
      * name, address (ip-string), mac (hardware address, colon separated string), up (bool), running (bool). NOTE: ip and mac might be nil if not available
@@ -441,8 +462,10 @@ namespace dmScript
         uint32_t count = 0;
         dmSocket::GetIfAddresses(addresses, max_count, &count);
         lua_createtable(L, count, 0);
-        for (uint32_t i = 0; i < count; ++i) {
+        for (uint32_t i = 0; i < count; ++i) 
+        {
             dmSocket::IfAddr* ifa = &addresses[i];
+            
             lua_newtable(L);
 
             lua_pushliteral(L, "name");
@@ -450,17 +473,22 @@ namespace dmScript
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "address");
-            if (ifa->m_Flags & dmSocket::FLAGS_INET) {
+            if (ifa->m_Flags & dmSocket::FLAGS_INET) 
+            {
                 char* ip = dmSocket::AddressToIPString(ifa->m_Address);
                 lua_pushstring(L, ip);
                 free(ip);
-            } else {
+            } 
+            else 
+            {
                 lua_pushnil(L);
             }
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "mac");
-            if (ifa->m_Flags & dmSocket::FLAGS_LINK) {
+
+            if (ifa->m_Flags & dmSocket::FLAGS_LINK)
+            {
                 char tmp[64];
                 DM_SNPRINTF(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
                         ifa->m_MacAddress[0],
@@ -470,7 +498,13 @@ namespace dmScript
                         ifa->m_MacAddress[4],
                         ifa->m_MacAddress[5]);
                 lua_pushstring(L, tmp);
-            } else {
+            } 
+            else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
+            {
+                lua_pushstring(L, "02:00:00:00:00:00");
+            }
+            else 
+            {
                 lua_pushnil(L);
             }
             lua_rawset(L, -3);
