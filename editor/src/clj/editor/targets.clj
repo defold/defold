@@ -10,7 +10,7 @@
            [javafx.scene Parent Scene]
            [javafx.scene.control TextArea]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.stage Modality Stage]
+           [javafx.stage Modality]
            org.apache.commons.io.IOUtils))
 
 (set! *warn-on-reflection* true)
@@ -81,7 +81,8 @@
             (let [loc        (.get (.headers device) "LOCATION")
                   ^URL url   (try (URL. loc)
                                   (catch MalformedURLException _
-                                    (log-fn (format "[%s] not a valid URL" loc))))
+                                    (log-fn (format "[%s] not a valid URL" loc))
+                                    nil))
                   maybe-desc (and url
                                   (not (contains? blacklist url))
                                   (or (get descriptions url)
@@ -125,9 +126,9 @@
    :descriptions-atom descriptions
    :log-fn log
    :fetch-url-fn http-get
-   :invalidate-menus-fn ui/invalidate-menus!})
+   :on-targets-changed-fn ui/invalidate-menus!})
 
-(defn update-targets! [{:keys [targets-atom descriptions-atom blacklist-atom log-fn invalidate-menus-fn] :as context} devices]
+(defn update-targets! [{:keys [targets-atom descriptions-atom blacklist-atom log-fn on-targets-changed-fn] :as context} devices]
   (let [{found-targets :targets
          updated-blacklist :blacklist
          updated-descriptions :descriptions} (process-devices context devices)]
@@ -146,7 +147,7 @@
               ;; We didn't find any engines (but we had at least one in the list)
               (and (empty? found-targets)
                    (not= old-targets #{local-target})))
-        (invalidate-menus-fn)))))
+        (on-targets-changed-fn)))))
 
 (defn- search-interval [^SSDP ssdp]
   (if (.isConnected ssdp)
