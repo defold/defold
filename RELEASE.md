@@ -7,7 +7,7 @@
 * Stable - git branch: master
 
 ## Alpha
-Alpha channel is automatically released when `cr-editor-dev` is built on build bot.
+Alpha channel is automatically released when [cr-editor-dev](http://ci.defold.com/builders/cr-editor-dev) is built on build bot.
 
 ## Beta
 Important: *Make sure your branches are up to date!*
@@ -36,7 +36,7 @@ Important: *Make sure your branches are up to date!*
  
     This will trigger the beta channel to be built on build bot.
 
- 4. Wait for `cr-editor-beta` to finish, make sure autobuilders are green.
+ 4. Wait for [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) to finish, make sure autobuilders are green.
  5. Write release beta release notes.
  6. Download and run beta:
  
@@ -69,7 +69,9 @@ When the beta has been released the following apps needs to be bundled and sent 
 * BBS - iOS, Android
 * Presto - iOS, Android
 
-Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that does this automatically. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
+Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
+
+You can also download desktop and html5 versions from the artifacts on that page.
 
 ### Defold Team
 The following smoke tests are currently performed by the team on each platform (OSX, Win, Linux):
@@ -85,10 +87,10 @@ The following smoke tests are currently performed by the team on each platform (
 
  2. Push master!
 
-    $ git push
+        $ git push
 
     This will trigger a build of the engines and editors for stable.
-    Check hash for new release via waterfall build(cr-editor)/or latest commit to master on github.
+    Check hash for new release via waterfall build([cr-editor](http://ci.defold.com/builders/cr-editor))/or latest commit to master on github.
 
  3. Fetch editor via:
  
