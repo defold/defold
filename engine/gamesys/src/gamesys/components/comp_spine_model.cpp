@@ -394,7 +394,6 @@ namespace dmGameSystem
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
             vb_end = dmRig::GenerateSpineVertexData(world->m_RigContext, c->m_RigInstance, scratch_vertex_buffer_data, c->m_World, vb_end, sizeof(dmRig::SpineModelVertex));
-            // vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, vb_end, sizeof(SpineModelVertex));
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
