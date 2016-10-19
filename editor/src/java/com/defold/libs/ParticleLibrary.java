@@ -22,9 +22,9 @@ public class ParticleLibrary {
 
     static {
         try {
-            NativeArtifacts.extractNatives();
+            ResourceUnpacker.unpackResources();
             Native.register("particle_shared");
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("Failed to extract/register particle_shared", e);
         }
     }

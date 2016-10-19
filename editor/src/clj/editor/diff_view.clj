@@ -119,7 +119,7 @@
 
 (defn make-diff-viewer [left-name str-left right-name str-right]
   (let [root ^Parent (ui/load-fxml "diff.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         lines-left (split-lines str-left)
         lines-right (split-lines str-right)

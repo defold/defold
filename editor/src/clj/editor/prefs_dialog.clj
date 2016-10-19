@@ -97,7 +97,7 @@
 
 (defn open-prefs [prefs]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)]
 
     (doseq [p (vals @*pages*)]
