@@ -733,14 +733,12 @@ namespace dmRig
             return dmRig::RESULT_OK;
 
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
-        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         instance->m_Pose.SetCapacity(bone_count);
         instance->m_Pose.SetSize(bone_count);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            instance->m_Pose[i] = bind_pose[i].m_ModelToLocal;
-            // instance->m_Pose[i].SetIdentity();
+            instance->m_Pose[i].SetIdentity();
         }
 
         instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
@@ -1007,8 +1005,8 @@ namespace dmRig
             if (!properties->m_Visible) {
                 continue;
             }
-            uint32_t rgba = (((uint32_t) (properties->m_Color[0] * 255.0f)) << 24) | (((uint32_t) (properties->m_Color[1] * 255.0f)) << 16) |
-                    (((uint32_t) (properties->m_Color[2] * 255.0f)) << 8) | ((uint32_t) (properties->m_Color[3] * 255.0f));
+            uint32_t rgba = (((uint32_t) (properties->m_Color[3] * 255.0f)) << 24) | (((uint32_t) (properties->m_Color[2] * 255.0f)) << 16) |
+                    (((uint32_t) (properties->m_Color[1] * 255.0f)) << 8) | ((uint32_t) (properties->m_Color[0] * 255.0f));
 
             float* scratch_pos = (float*)scratch_position_buffer.Begin();
             dmRig::GeneratePositionData(instance, mesh_index, model_matrix, scratch_pos);
