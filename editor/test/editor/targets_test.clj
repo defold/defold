@@ -82,7 +82,7 @@
    :descriptions-atom (atom {})
    :log-fn (test-util/make-call-logger)
    :fetch-url-fn fetch-url
-   :invalidate-menus-fn (test-util/make-call-logger)})
+   :on-targets-changed-fn (test-util/make-call-logger)})
 
 (defn- make-device-info
   [hostname id]
@@ -112,32 +112,32 @@
   (let [{:keys [targets-atom
                 descriptions-atom
                 blacklist-atom
-                invalidate-menus-fn] :as context} (make-context)]
+                on-targets-changed-fn] :as context} (make-context)]
     (testing "iPhone joins"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
       (is (= [iphone-hostname local-hostname] (targets-hostnames @targets-atom)))
       (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom)))
       (is (= [] (blacklist-hostnames @blacklist-atom)))
-      (is (= 1 (call-count invalidate-menus-fn))))
+      (is (= 1 (call-count on-targets-changed-fn))))
     (testing "iPhone remains, tablet joins"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info) (make-tablet-device-info)])
       (is (= [iphone-hostname local-hostname tablet-hostname] (targets-hostnames @targets-atom)))
       (is (= [iphone-hostname local-hostname tablet-hostname] (descriptions-hostnames @descriptions-atom)))
       (is (= [] (blacklist-hostnames @blacklist-atom)))
-      (is (= 2 (call-count invalidate-menus-fn))))))
+      (is (= 2 (call-count on-targets-changed-fn))))))
 
 (deftest update-targets-with-known-devices
   (let [{:keys [targets-atom
                 descriptions-atom
                 blacklist-atom
-                invalidate-menus-fn] :as context} (make-context)]
+                on-targets-changed-fn] :as context} (make-context)]
     (testing "iPhone joins, then remains"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
       (is (= [iphone-hostname local-hostname] (targets-hostnames @targets-atom)))
       (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom)))
       (is (= [] (blacklist-hostnames @blacklist-atom)))
-      (is (= 1 (call-count invalidate-menus-fn))))))
+      (is (= 1 (call-count on-targets-changed-fn))))))
 
 (deftest update-targets-temporarily-rejects-new-target-if-device-info-location-is-malformed-url
   (let [address (str (make-device-url iphone-hostname iphone-id))
@@ -186,11 +186,11 @@
   (let [{:keys [targets-atom
                 descriptions-atom
                 blacklist-atom
-                invalidate-menus-fn] :as context} (make-context)]
+                on-targets-changed-fn] :as context} (make-context)]
     (targets/update-targets! context [(make-local-device-info)])
     (is (= [local-hostname] (targets-hostnames @targets-atom)))
     (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))
-    (is (= 1 (call-count invalidate-menus-fn)))
+    (is (= 1 (call-count on-targets-changed-fn)))
     (let [throwing-context (assoc context :fetch-url-fn (fn [_] (throw (SocketTimeoutException.))))]
       (targets/update-targets! throwing-context [(make-local-device-info) (make-iphone-device-info)])
       (testing "Target is rejected"
@@ -200,17 +200,17 @@
       (testing "Blacklist is unaltered"
         (is (= [] (blacklist-hostnames @blacklist-atom))))
       (testing "Menus are not invalidated"
-        (is (= 1 (call-count invalidate-menus-fn)))))))
+        (is (= 1 (call-count on-targets-changed-fn)))))))
 
 (deftest update-targets-permanently-rejects-new-target-if-fetch-url-throws-io-exception
   (let [{:keys [targets-atom
                 descriptions-atom
                 blacklist-atom
-                invalidate-menus-fn] :as context} (make-context)]
+                on-targets-changed-fn] :as context} (make-context)]
     (targets/update-targets! context [(make-local-device-info)])
     (is (= [local-hostname] (targets-hostnames @targets-atom)))
     (is (= [local-hostname] (descriptions-hostnames @descriptions-atom)))
-    (is (= 1 (call-count invalidate-menus-fn)))
+    (is (= 1 (call-count on-targets-changed-fn)))
     (let [throwing-context (assoc context :fetch-url-fn (fn [_] (throw (IOException.))))]
       (targets/update-targets! throwing-context [(make-local-device-info) (make-iphone-device-info)])
       (testing "Target is rejected"
@@ -220,7 +220,7 @@
       (testing "Host is blacklisted"
         (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom))))
       (testing "Menus are not invalidated"
-        (is (= 1 (call-count invalidate-menus-fn)))))))
+        (is (= 1 (call-count on-targets-changed-fn)))))))
 
 (deftest update-targets-throws-if-fetch-url-returns-nil
   (let [context (assoc (make-context) :fetch-url-fn (fn [_] nil))]
