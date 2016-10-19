@@ -207,22 +207,22 @@ public class UserService {
                 .getResultList();
 
         // Filter out matching token
-        results.stream().filter(t -> (PasswordHashGenerator.validatePassword(token, t.getTokenHash())));
+        Optional<PasswordResetToken> passwordResetTokenOptional = results.stream()
+                .filter(t -> (PasswordHashGenerator.validatePassword(token, t.getTokenHash())))
+                .findAny();
 
         // Ensure that token was found.
-        if (results.size() == 0) {
+        if (!passwordResetTokenOptional.isPresent()) {
             LOGGER.warn("Failed to reset password. Password reset token {} not found.", token);
             throw new ServerException("Invalid password reset token.", Response.Status.BAD_REQUEST);
         }
-
-        PasswordResetToken passwordResetToken = results.get(0);
 
         // Reset user's password.
         User user = findByEmail(email).orElseThrow(() -> new ServerException("Failed to find user matching password reset token."));
         user.setPassword(newPassword);
 
         // Delete password reset token.
-        entityManager.remove(passwordResetToken);
+        entityManager.remove(passwordResetTokenOptional.get());
 
         LOGGER.info("Password reset for user {}", user.getEmail());
     }
