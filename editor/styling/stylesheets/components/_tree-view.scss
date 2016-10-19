@@ -30,9 +30,13 @@
             /*-fx-background-color: rgba(38, 74, 139, 0.5);*/
             -fx-border-width: 0 0 0 2;
             -fx-border-color: $defold-orange;
+            -fx-text-fill: $defold-white;
             &:hover {
                 -fx-background-color: $selected-blue;
                 -fx-text-fill: $defold-white; 
+            }
+            .image-view {
+                @include effect-lighten-blue();
             }
         }
         &.first-tree-item {

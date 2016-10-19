@@ -4,9 +4,10 @@
     -fx-border-radius: 0px;
     -fx-padding: 5px 8px;
     -fx-background-color: $dark-black;
-    -fx-border-width: 1;
-    -fx-border-color: transparent;
-    -fx-text-fill: $bright-grey;
+    -fx-border-width: 0 0 1 0;
+    -fx-border-color: $bright-grey-light;
+    -fx-text-fill: $defold-white;
+    -fx-prompt-text-fill: $bright-grey-light;
     &:hover {
         -fx-border-color: $mid-grey;
     }
