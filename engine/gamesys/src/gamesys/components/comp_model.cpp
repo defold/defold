@@ -758,6 +758,7 @@ namespace dmGameSystem
         ReHash(component);
 
         // Create GO<->bone representation
+        dmGameObject::DeleteBones(component->m_Instance);
         CreateGOBones(world, component);
         return true;
     }

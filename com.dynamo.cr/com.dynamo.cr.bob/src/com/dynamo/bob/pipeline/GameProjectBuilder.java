@@ -117,7 +117,6 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".fpc");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
-        leafResourceTypes.add(".meshc");
     }
 
 
