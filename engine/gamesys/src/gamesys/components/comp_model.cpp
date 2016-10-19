@@ -20,6 +20,7 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 
+#include "gamesys_ddf.h"
 #include "model_ddf.h"
 #include "sprite_ddf.h"
 #include "tile_ddf.h"
@@ -685,9 +686,9 @@ namespace dmGameSystem
             {
                 dmRig::CancelAnimation(component->m_RigInstance);
             }
-            else if (params.m_Message->m_Id == dmModelDDF::SetConstantModel::m_DDFDescriptor->m_NameHash)
+            else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
             {
-                dmModelDDF::SetConstantModel* ddf = (dmModelDDF::SetConstantModel*)params.m_Message->m_Data;
+                dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
                 dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
                         dmGameObject::PropertyVar(ddf->m_Value), CompModelSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
@@ -700,9 +701,9 @@ namespace dmGameSystem
                             (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
                 }
             }
-            else if (params.m_Message->m_Id == dmModelDDF::ResetConstantModel::m_DDFDescriptor->m_NameHash)
+            else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
-                dmModelDDF::ResetConstantModel* ddf = (dmModelDDF::ResetConstantModel*)params.m_Message->m_Data;
+                dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
                 dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
                 uint32_t size = constants.Size();
                 for (uint32_t i = 0; i < size; ++i)
