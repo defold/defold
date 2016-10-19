@@ -656,7 +656,22 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertTrue("Didn't find password reset token in e-mail.", matcher.find());
         String token = matcher.group(1);
 
-        // Reset password
+        // Reset password with wrong token should not work
+        try {
+            PasswordResetRequest passwordResetRequestFail = PasswordResetRequest.newBuilder()
+                    .setEmail(JOE_EMAIL)
+                    .setToken(token + "wrong")
+                    .setNewPassword("I will never forget.")
+                    .build();
+            anonymousResource
+                    .path("users/password/reset")
+                    .post(passwordResetRequestFail);
+            fail();
+        } catch (UniformInterfaceException e) {
+            assertEquals(Status.BAD_REQUEST, e.getResponse().getClientResponseStatus());
+        }
+
+        // Reset password with correct token should work
         PasswordResetRequest passwordResetRequest = PasswordResetRequest.newBuilder()
                 .setEmail(JOE_EMAIL)
                 .setToken(token)
