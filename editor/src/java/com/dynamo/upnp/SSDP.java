@@ -149,6 +149,12 @@ public class SSDP implements ISSDP {
         discoveredDevices.put(usn, device);
     }
 
+    private void unregisterDevice(String usn) {
+        if (discoveredDevices.remove(usn) != null) {
+            ++changeCount;
+        }
+    }
+
     private void refreshNetworks() throws IOException {
         List<NetworkInterface> newInterfaces = getMCastInterfaces();
         if (!newInterfaces.equals(this.interfaces)) {
@@ -205,8 +211,7 @@ public class SSDP implements ISSDP {
             }
         }
         for (String id : toExpire) {
-            ++changeCount;
-            discoveredDevices.remove(id);
+            unregisterDevice(id);
         }
     }
 
@@ -264,16 +269,15 @@ public class SSDP implements ISSDP {
         if (request.method.equals("NOTIFY")) {
             String server = request.headers.get("SERVER");
             if (SSDP_SERVER_IDENTIFIER.equals(server)) {
+                String nts = request.headers.get("NTS");
                 String usn = request.headers.get("USN");
-                if (usn != null || !request.headers.containsKey("NTS")) {
+                if (nts != null && usn != null) {
                     DeviceInfo device = DeviceInfo.create(request.headers, address, localAddress);
                     // alive vs byebye in NTS field?
-                    String nts = request.headers.get("NTS");
                     if (nts.equals("ssdp:alive")) {
                         registerDevice(usn, device);
                     } else if (nts.equals("ssdp:byebye")) {
-                        ++changeCount;
-                        discoveredDevices.remove(usn);
+                        unregisterDevice(usn);
                     } else {
                         log(String.format("[%s] Unsupported NOTIFY response: %s", address, nts));
                     }
@@ -321,7 +325,10 @@ public class SSDP implements ISSDP {
 
     @Override
     public void clearDiscovered() {
-        discoveredDevices.clear();
+        if (!discoveredDevices.isEmpty()) {
+            ++changeCount;
+            discoveredDevices.clear();
+        }
     }
 
     @Override
