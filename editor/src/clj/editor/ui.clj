@@ -25,6 +25,7 @@
    [javafx.scene Parent Node Scene Group]
    [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem CheckMenuItem ProgressBar TabPane Tab TextField Tooltip]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
+   [javafx.scene.image Image]
    [javafx.scene.layout Region]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
@@ -58,6 +59,13 @@
   (editable [this])
   (editable! [this val])
   (on-edit! [this fn]))
+
+(def application-icon-image (Image. (io/input-stream (io/resource "logo_blue.png"))))
+
+(defn make-stage
+  ^Stage []
+  (doto (Stage.)
+    (.. getIcons (add application-icon-image))))
 
 ; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
@@ -870,7 +878,7 @@
 (defn modal-progress [title total-work worker-fn]
   (run-now
    (let [root             ^Parent (load-fxml "progress.fxml")
-         stage            (Stage.)
+         stage            (make-stage)
          scene            (Scene. root)
          title-control    ^Label (.lookup root "#title")
          progress-control ^ProgressBar (.lookup root "#progress")

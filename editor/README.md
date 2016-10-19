@@ -43,6 +43,7 @@ Consider putting it in an alias in your bash profile.
   from the `defold` directory
 * From the `defold/editor` directory, run `lein protobuf`
 * From the `defold/editor` directory, run `lein builtins`
+* From the `defold/editor` directory, run `lein pack`
 
 ## Running Tests
 `lein test` will run all the tests including the integration tests.
