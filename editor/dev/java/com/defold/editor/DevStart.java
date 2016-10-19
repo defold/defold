@@ -1,6 +1,6 @@
 package com.defold.editor;
 
-import com.defold.libs.NativeArtifacts;
+import com.defold.libs.ResourceUnpacker;
 import javafx.application.Application;
 import javafx.stage.Stage;
 import clojure.lang.RT;
@@ -10,7 +10,7 @@ public class DevStart extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        NativeArtifacts.extractNatives();
+        ResourceUnpacker.unpackResources();
         Var boot = RT.var("editor.boot", "main");
         boot.invoke(new String[0]);
     }

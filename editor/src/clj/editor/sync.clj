@@ -222,7 +222,7 @@
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
-        stage           (Stage.)
+        stage           (ui/make-stage)
         old-stage       (ui/main-stage)
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root [ "ok" "push" "cancel" "dialog-area" "progress-bar"])

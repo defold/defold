@@ -996,8 +996,10 @@
                                :index index}))
   (output layer-id IDMap (g/fnk [_node-id name] {name _node-id})))
 
+(def ^:private non-overridable-fields #{:template :id :parent})
+
 (defn- extract-overrides [node-desc]
-  (select-keys node-desc (map prop-index->prop-key (:overridden-fields node-desc))))
+  (select-keys node-desc (remove non-overridable-fields (map prop-index->prop-key (:overridden-fields node-desc)))))
 
 (defn- layout-pb-msg [name node-msgs]
   (let [node-msgs (filter (comp not-empty :overridden-fields) node-msgs)]
