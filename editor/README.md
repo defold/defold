@@ -9,7 +9,7 @@
 First of all, follow the Windows instructions in [Defold Readme](../README.md)
 
 * Start `msys.bat` as described
-* Download the lein _script_ from [Leiningen.org](leiningen.org) Put it somewhere in your (msys) path - if you're lazy, put it in `C:\MinGW\msys\1.0\bin`
+* Download the [lein.sh script](https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein) from [Leiningen.org](http://leiningen.org) Put it somewhere in your (msys) path - if you're lazy, put it in `C:\MinGW\msys\1.0\bin`. You might need to `chmod a+x lein.sh`.
 * Run `lein` in the `editor` subdirectory
   This will attempt to download leiningen and dependencies to your home directory.
 
