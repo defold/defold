@@ -21,17 +21,17 @@ namespace dmGameSystem
         }
         if(resource->m_RigScene->m_Skeleton[0])
         {
+            result = dmResource::RESULT_INVAL;
             if(reload)
             {
                 result = dmResource::ReloadResource(factory, resource->m_RigScene->m_Skeleton, 0);
             }
-            else
+            if (result != dmResource::RESULT_OK)
             {
                 result = dmResource::Get(factory, resource->m_RigScene->m_Skeleton, (void**) &resource->m_SkeletonRes);
+                if (result != dmResource::RESULT_OK)
+                    return result;
             }
-
-            if (result != dmResource::RESULT_OK)
-                return result;
         }
         else
         {
@@ -39,31 +39,33 @@ namespace dmGameSystem
         }
         if(resource->m_RigScene->m_AnimationSet[0])
         {
+            result = dmResource::RESULT_INVAL;
             if(reload)
             {
                 result = dmResource::ReloadResource(factory, resource->m_RigScene->m_AnimationSet, 0);
             }
-            else
+            if (result != dmResource::RESULT_OK)
             {
                 result = dmResource::Get(factory, resource->m_RigScene->m_AnimationSet, (void**) &resource->m_AnimationSetRes);
+                if (result != dmResource::RESULT_OK)
+                    return result;
             }
-            if (result != dmResource::RESULT_OK)
-                return result;
         }
         else
         {
             resource->m_AnimationSetRes = 0x0;
         }
+        result = dmResource::RESULT_INVAL;
         if(reload)
         {
             result = dmResource::ReloadResource(factory, resource->m_RigScene->m_MeshSet, 0);
         }
-        else
+        if (result != dmResource::RESULT_OK)
         {
             result = dmResource::Get(factory, resource->m_RigScene->m_MeshSet, (void**) &resource->m_MeshSetRes);
+            if (result != dmResource::RESULT_OK)
+                return result;
         }
-        if (result != dmResource::RESULT_OK)
-            return result;
 
         if (result == dmResource::RESULT_OK && resource->m_SkeletonRes)
         {
