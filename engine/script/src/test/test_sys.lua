@@ -15,9 +15,22 @@ function test_sys()
     local ret, msg = pcall(function() sys.save(file, data) end)
     if ret then assert(false, "expected lua error for sys.save with data table exceeding max size " .. max_table_size .. " bytes") end
 
+    -- save file with too long path (>1024 chars long), expected to fail
+    local valid_data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
+    local long_filename = "dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy.save"
+    local long_file = sys.get_save_file("my_game", long_filename)
+
+    ret, msg = pcall(function() sys.save(long_file, valid_data) end)
+    if ret then assert(false, "expected lua error for sys.save with too long path") end
+
     -- save file
-    local data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
+    local data = { high_score = 1111, location = vmath.vector3(2,2,2), xp = 33, name = "First Save" }
     local result = sys.save(file, data)
+    assert(result)
+
+    -- resave file (checking the atomic move works)
+    data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
+    result = sys.save(file, data)
     assert(result)
 
     -- reload saved file
