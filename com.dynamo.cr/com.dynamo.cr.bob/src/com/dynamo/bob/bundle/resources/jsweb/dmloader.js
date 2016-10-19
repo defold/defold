@@ -550,9 +550,6 @@ var Module = {
 
             // Patch FS.close so it will try to sync MEM->IDB
             var _close = FS.close; FS.close = function(stream) { var r = _close(stream); Module.persistentSync(); return r; }
-            // Also patch rename to make it sync MEM->IDB
-            // NOTE: We recreate the oldpath file as a way to make the FS.syncfs work without throwing a ENOENT error
-            var _rename = FS.rename; FS.rename = function(oldpath, newpath) { var r = _rename(oldpath, newpath); var f = FS.open(oldpath, "w"); FS.close(f); Module.persistentSync(); return r; }
 
             // Sync IDB->MEM before calling main()
             Module.preSync(function() {

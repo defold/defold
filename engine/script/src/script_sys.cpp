@@ -7,6 +7,8 @@
 #  include <sys/errno.h>
 #elif defined(_WIN32)
 #  include <errno.h>
+#elif defined(__EMSCRIPTEN__)
+#  include <unistd.h>
 #endif
 
 #ifdef _WIN32
@@ -79,6 +81,8 @@ namespace dmScript
      * end
      * </pre>
      */
+
+#if !defined(__EMSCRIPTEN__)
     int Sys_Save(lua_State* L)
     {
         char buffer[MAX_BUFFER_SIZE];
@@ -86,14 +90,13 @@ namespace dmScript
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
         
         const char* filename = luaL_checkstring(L, 1);
-        const char* tmp_filename_ext = ".tmp";
         char tmp_filename[DMPATH_MAX_PATH];
-
-        bool path_truncated;
-        path_truncated = dmStrlCpy(tmp_filename, filename, DMPATH_MAX_PATH) >= DMPATH_MAX_PATH;
-        path_truncated = path_truncated || (dmStrlCat(tmp_filename, tmp_filename_ext, DMPATH_MAX_PATH) >= DMPATH_MAX_PATH);
-
-        if (path_truncated)
+        // The counter and hash are there to make the files unique enough to avoid that the user
+        // accidentally writes to it.
+        static int save_counter = 0;
+        uint32_t hash = dmHashString32(filename);
+        int res = DM_SNPRINTF(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
+        if (res == -1)
         {
             return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
         }
@@ -102,10 +105,10 @@ namespace dmScript
         if (file != 0x0)
         {
             bool result = fwrite(buffer, 1, n_used, file) == n_used;
-            result = result && (fclose(file) == 0);
+            result = (fclose(file) == 0) && result;
             if (result)
             {
-#ifdef _WIN32
+#ifdef defined(_WIN32)
                 bool rename_result = MoveFileEx(tmp_filename, filename, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
                 bool rename_result = rename(tmp_filename, filename) != -1;
@@ -116,9 +119,37 @@ namespace dmScript
                     return 1;
                 }
             }
+            
+            dmSys::Unlink(tmp_filename);
         }
         return luaL_error(L, "Could not write to the file %s.", filename);
     }
+
+#else // __EMSCRIPTEN__
+
+    int Sys_Save(lua_State* L)
+    {
+        char buffer[MAX_BUFFER_SIZE];
+        const char* filename = luaL_checkstring(L, 1);
+        luaL_checktype(L, 2, LUA_TTABLE);
+        uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
+        FILE* file = fopen(filename, "wb");
+        if (file != 0x0)
+        {
+            bool result = fwrite(buffer, 1, n_used, file) == n_used;
+            result = (fclose(file) == 0) && result;
+            if (result)
+            {
+                lua_pushboolean(L, result);
+                return 1;
+            }
+
+            dmSys::Unlink(filename);
+        }
+        return luaL_error(L, "Could not write to the file %s.", filename);
+    }
+
+#endif
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
