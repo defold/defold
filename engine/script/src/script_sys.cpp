@@ -108,7 +108,7 @@ namespace dmScript
             result = (fclose(file) == 0) && result;
             if (result)
             {
-#ifdef defined(_WIN32)
+#if defined(_WIN32)
                 bool rename_result = MoveFileEx(tmp_filename, filename, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
                 bool rename_result = rename(tmp_filename, filename) != -1;
@@ -119,7 +119,7 @@ namespace dmScript
                     return 1;
                 }
             }
-            
+
             dmSys::Unlink(tmp_filename);
         }
         return luaL_error(L, "Could not write to the file %s.", filename);
