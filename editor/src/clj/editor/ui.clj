@@ -268,6 +268,27 @@
 (defn show-and-wait! [^Stage stage]
   (.showAndWait stage))
 
+(defn show-and-wait-throwing!
+  "Like show-and wait!, but will immediately close the stage if an
+  exception is thrown from the nested event loop. The exception can
+  then be caught at the call site."
+  [^Stage stage]
+  (when (nil? stage)
+    (throw (IllegalArgumentException. "stage cannot be nil")))
+  (let [prev-exception-handler (Thread/getDefaultUncaughtExceptionHandler)
+        thrown-exception (volatile! nil)]
+    (Thread/setDefaultUncaughtExceptionHandler (reify Thread$UncaughtExceptionHandler
+                                                 (uncaughtException [_ _ exception]
+                                                   (vreset! thrown-exception exception)
+                                                   (close! stage))))
+    (let [result (try
+                   (.showAndWait stage)
+                   (finally
+                     (Thread/setDefaultUncaughtExceptionHandler prev-exception-handler)))]
+      (if-let [exception @thrown-exception]
+        (throw exception)
+        result))))
+
 (defn request-focus! [^Node node]
   (.requestFocus node))
 
