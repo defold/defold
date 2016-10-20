@@ -20,10 +20,11 @@
 
 extern struct android_app* g_AndroidApp;
 
-#define CMD_LOGIN 1
-#define CMD_REQUEST_READ 2
-#define CMD_REQUEST_PUBLISH 3
-#define CMD_DIALOG_COMPLETE 4
+#define CMD_LOGIN                  (1)
+#define CMD_REQUEST_READ           (2)
+#define CMD_REQUEST_PUBLISH        (3)
+#define CMD_DIALOG_COMPLETE        (4)
+#define CMD_LOGIN_WITH_PERMISSIONS (5)
 
 struct Command
 {
@@ -56,6 +57,8 @@ struct Facebook
     jmethodID m_RequestReadPermissions;
     jmethodID m_RequestPublishPermissions;
     jmethodID m_ShowDialog;
+    jmethodID m_LoginWithPublishPermissions;
+    jmethodID m_LoginWithReadPermissions;
 
     jmethodID m_PostEvent;
     jmethodID m_EnableEventUsage;
@@ -254,6 +257,19 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLogin
     QueueCommand(&cmd);
 }
 
+JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLoginWithPermissions
+  (JNIEnv* env, jobject, jlong userData, jint state, jstring error)
+{
+    Command cmd;
+
+    cmd.m_Type  = CMD_LOGIN_WITH_PERMISSIONS;
+    cmd.m_State = (int) state;
+    cmd.m_L     = (lua_State*) userData;
+    cmd.m_Error = StrDup(env, error);
+
+    QueueCommand(&cmd);
+}
+
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestRead
   (JNIEnv* env, jobject, jlong userData, jstring error)
 {
@@ -407,6 +423,71 @@ int Facebook_Logout(lua_State* L)
 
     assert(top == lua_gettop(L));
     return 0;
+}
+
+bool PlatformFacebookInitialized()
+{
+    return !!g_Facebook.m_FBApp;
+}
+
+void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
+{
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    char cstr_permissions[2048] = { 0 };
+    for (uint32_t i = 0; i < permission_count; ++i)
+    {
+        const char* permission = permissions[i];
+        if (i > 0)
+        {
+            dmStrlCat(cstr_permissions, ",", sizeof(cstr_permissions));
+        }
+        dmStrlCat(cstr_permissions, permission, sizeof(cstr_permissions));
+    }
+
+    JNIEnv* environment = Attach();
+    jstring jstr_permissions = environment->NewStringUTF(cstr_permissions);
+    environment->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_LoginWithPublishPermissions,
+        (jlong) thread, (jint) audience, jstr_permissions);
+    environment->DeleteLocalRef(jstr_permissions);
+
+    if (!Detach(environment))
+    {
+        luaL_error(L, "An unexpected error occurred during Facebook JNI interaction.");
+    }
+}
+
+void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int callback, int context, lua_State* thread)
+{
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    char cstr_permissions[2048] = { 0 };
+    for (uint32_t i = 0; i < permission_count; ++i)
+    {
+        const char* permission = permissions[i];
+        if (i > 0)
+        {
+            dmStrlCat(cstr_permissions, ",", sizeof(cstr_permissions));
+        }
+        dmStrlCat(cstr_permissions, permission, sizeof(cstr_permissions));
+    }
+
+    JNIEnv* environment = Attach();
+    jstring jstr_permissions = environment->NewStringUTF(cstr_permissions);
+    environment->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_LoginWithReadPermissions,
+        (jlong) thread, jstr_permissions);
+    environment->DeleteLocalRef(jstr_permissions);
+
+    if (!Detach(environment))
+    {
+        luaL_error(L, "An unexpected error occurred during Facebook JNI interaction.");
+    }
 }
 
 int Facebook_RequestReadPermissions(lua_State* L)
@@ -716,6 +797,10 @@ static dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         g_Facebook.m_RequestReadPermissions = env->GetMethodID(fb_class, "requestReadPermissions", "(JLjava/lang/String;)V");
         g_Facebook.m_RequestPublishPermissions = env->GetMethodID(fb_class, "requestPublishPermissions", "(JILjava/lang/String;)V");
         g_Facebook.m_ShowDialog = env->GetMethodID(fb_class, "showDialog", "(JLjava/lang/String;Ljava/lang/String;)V");
+
+        g_Facebook.m_LoginWithPublishPermissions = env->GetMethodID(fb_class, "loginWithPublishPermissions", "(JILjava/lang/String;)V");
+        g_Facebook.m_LoginWithReadPermissions = env->GetMethodID(fb_class, "loginWithReadPermissions", "(JLjava/lang/String;)V");
+
         g_Facebook.m_PostEvent = env->GetMethodID(fb_class, "postEvent", "(Ljava/lang/String;D[Ljava/lang/String;[Ljava/lang/String;)V");
         g_Facebook.m_EnableEventUsage = env->GetMethodID(fb_class, "enableEventUsage", "()V");
         g_Facebook.m_DisableEventUsage = env->GetMethodID(fb_class, "disableEventUsage", "()V");
@@ -762,6 +847,9 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
                 case CMD_REQUEST_READ:
                 case CMD_REQUEST_PUBLISH:
                     RunCallback(&cmd);
+                    break;
+                case CMD_LOGIN_WITH_PERMISSIONS:
+                    RunCallback(cmd.m_L, &g_Facebook.m_Self, &g_Facebook.m_Callback, cmd.m_Error, cmd.m_State);
                     break;
                 case CMD_DIALOG_COMPLETE:
                     RunDialogResultCallback(&cmd);
