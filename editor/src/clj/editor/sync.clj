@@ -347,5 +347,11 @@
 
     (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
-    (ui/show-and-wait! stage)
-    (ui/set-main-stage old-stage)))
+
+    (try
+      (ui/show-and-wait-throwing! stage)
+      (catch Exception e
+        (cancel-flow @!flow)
+        (throw e))
+      (finally
+        (ui/set-main-stage old-stage)))))
