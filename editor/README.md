@@ -41,9 +41,7 @@ Consider putting it in an alias in your bash profile.
 ## Setup
 * Build the engine with `scripts/build.py build_engine --skip-tests`
   from the `defold` directory
-* From the `defold/editor` directory, run `lein protobuf`
-* From the `defold/editor` directory, run `lein builtins`
-* From the `defold/editor` directory, run `lein pack`
+* From the `defold/editor` directory, run `lein init`
 
 ## Running Tests
 `lein test` will run all the tests including the integration tests.
@@ -69,6 +67,30 @@ Please note that Lein will introduce a nREPL dependency automagically, but its a
 for you to jack into
 
 **PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
+
+## Buildling the Editor
+
+Use `scripts/bundle.py` to produce a bundled version of the editor.
+
+There are a few different scenarios in which you might want to build
+the editor locally:
+
+- Local editor sources, archived engine artifacts based on HEAD:
+  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4`
+    - This will fetch engine and launcher artifacts using the `HEAD`
+      revision.
+- Local editor sources, archived engine artifacts based on a different revision:
+  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4 --git-rev dev`
+    - This will fetch engine and launcher artifacts using the `dev`
+      revision and is handy if you are on a branch where no engine
+      artifacts have been archived.
+- Local editor sources, local engine artifacts, archived launcher from `dev`:
+  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4 --git-rev dev --pack-local`
+    - This will use local engine artifacts from `$DYNAMO_HOME`, with
+      the exception of the launcher.
+- Local editor sources, local engine artifacts, local launcher:
+  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4--pack-local --launcher ../tmp/dynamo_home/bin/x86_64-darwin/launcher`
+
 
 ## Jacking into a REPL
 
