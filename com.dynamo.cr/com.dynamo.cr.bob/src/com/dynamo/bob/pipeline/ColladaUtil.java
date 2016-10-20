@@ -469,16 +469,9 @@ public class ColladaUtil {
             texcoord_list = new ArrayList<Float>(Arrays.asList(0f, 0f));
         } else {
             texcoord_list = new ArrayList<Float>(texcoords.floatArray.count);
-            if(collada.asset.upAxis.equals(UpAxis.Y_UP)) {
-                for (int i = 0; i < texcoords.floatArray.count; i += 2 ) {
-                    texcoord_list.add(texcoords.floatArray.floats[i]);
-                    texcoord_list.add(1-texcoords.floatArray.floats[i+1]);
-                }
-            } else {
-                for (int i = 0; i < texcoords.floatArray.count; i += 2 ) {
-                    texcoord_list.add(texcoords.floatArray.floats[i]);
-                    texcoord_list.add(texcoords.floatArray.floats[i+1]);
-                }
+            for (int i = 0; i < texcoords.floatArray.count; i += 2 ) {
+                texcoord_list.add(texcoords.floatArray.floats[i]);
+                texcoord_list.add(1-texcoords.floatArray.floats[i+1]);
             }
         }
 
