@@ -17,6 +17,7 @@
 #include <render/render_ddf.h>
 
 #include "comp_gui.h"
+#include "comp_spine_model.h"
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
@@ -798,7 +799,7 @@ namespace dmGameSystem
 
 
             // vb_end = (BoxVertex *)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, params);
-            vb_end = (BoxVertex *)dmRig::GenerateSpineVertexData(gui_world->m_RigContext, rig_instance, scratch_vertex_buffer_data, node_transforms[i], (dmRig::SpineModelVertex*)vb_end, sizeof(BoxVertex));
+            vb_end = (BoxVertex *)dmGameSystem::CompSpineModelGenerateVertexData(gui_world->m_RigContext, rig_instance, scratch_vertex_buffer_data, node_transforms[i], (dmGameSystem::SpineModelVertex*)vb_end, sizeof(BoxVertex));
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
@@ -863,7 +864,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
-        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
@@ -1081,7 +1082,7 @@ namespace dmGameSystem
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
-        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);

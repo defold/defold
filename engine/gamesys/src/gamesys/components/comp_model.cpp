@@ -342,27 +342,52 @@ namespace dmGameSystem
             float* scratch_pos = (float*)world->m_ScratchPositionBufferData.Begin();
             dmRig::GeneratePositionData(instance, i, model_matrix, scratch_pos);
             float* scratch_norm = (float*)world->m_ScratchNormalBufferData.Begin();
-            dmRig::GenerateNormalData(instance, i, normal_matrix, scratch_norm);
 
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[i];
-            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
+            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Data;
             uint32_t index_count = mesh->m_Indices.m_Count;
-            for (uint32_t ii = 0; ii < index_count; ++ii)
+
+            if(mesh->m_NormalsIndices.m_Count)
             {
-                uint32_t vi = mesh->m_Indices[ii];
-                uint32_t e = vi * 3;
-                write_ptr->x = scratch_pos[e+0];
-                write_ptr->y = scratch_pos[e+1];
-                write_ptr->z = scratch_pos[e+2];
-                vi = texcoord0_indices[ii];
-                e = vi << 1;
-                write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
-                write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
-                write_ptr->nx = scratch_norm[ii*3+0];
-                write_ptr->ny = scratch_norm[ii*3+1];
-                write_ptr->nz = scratch_norm[ii*3+2];
-                write_ptr = (ModelVertex*)((uintptr_t)write_ptr + vertex_stride);
+                dmRig::GenerateNormalData(instance, i, normal_matrix, scratch_norm);
+                for (uint32_t ii = 0; ii < index_count; ++ii)
+                {
+                    uint32_t vi = mesh->m_Indices[ii];
+                    uint32_t e = vi * 3;
+                    write_ptr->x = scratch_pos[e];
+                    write_ptr->y = scratch_pos[++e];
+                    write_ptr->z = scratch_pos[++e];
+                    vi = texcoord0_indices[ii];
+                    e = vi << 1;
+                    write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
+                    write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
+                    e = ii * 3;
+                    write_ptr->nx = scratch_norm[e];
+                    write_ptr->ny = scratch_norm[++e];
+                    write_ptr->nz = scratch_norm[++e];
+                    write_ptr = (ModelVertex*)((uintptr_t)write_ptr + vertex_stride);
+                }
             }
+            else
+            {
+                for (uint32_t ii = 0; ii < index_count; ++ii)
+                {
+                    uint32_t vi = mesh->m_Indices[ii];
+                    uint32_t e = vi * 3;
+                    write_ptr->x = scratch_pos[e];
+                    write_ptr->y = scratch_pos[++e];
+                    write_ptr->z = scratch_pos[++e];
+                    vi = texcoord0_indices[ii];
+                    e = vi << 1;
+                    write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
+                    write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
+                    write_ptr->nx = 0.0f;
+                    write_ptr->ny = 0.0f;
+                    write_ptr->nz = 1.0f;
+                    write_ptr = (ModelVertex*)((uintptr_t)write_ptr + vertex_stride);
+                }
+            }
+
         }
         return write_ptr;
     }
