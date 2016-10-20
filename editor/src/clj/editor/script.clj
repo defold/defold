@@ -118,7 +118,8 @@
     {:resource resource :content (protobuf/map->bytes Lua$LuaModule
                                                       {:source {:script (ByteString/copyFromUtf8 (:content user-data))
                                                                 :filename (resource/proj-path (:resource resource))
-                                                                :bytecode (ByteString/copyFrom ^bytes bytecode)}
+                                                                :bytecode (when-not (g/error? bytecode)
+                                                                            (ByteString/copyFrom ^bytes bytecode))}
                                                       :modules modules
                                                       :resources (mapv lua/lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))
