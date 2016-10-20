@@ -70,7 +70,8 @@
   :protobuf-exclude  ["../engine/ddf/src/test"]
 
   :aliases           {"ci"        ["do" "test," "uberjar"]
-                      "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]}
+                      "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
+                      "init"      ["do" "clean," "builtins," "protobuf," "pack"]}
 
   ;; used by `pack` task
   :packing           {:pack-path                   "resources/_unpack"}
