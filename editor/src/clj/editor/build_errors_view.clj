@@ -35,9 +35,9 @@
   (->> errors
        (map (fn [{:keys [_node-id] :as error}]
               {:node-id _node-id
-               :resource (when-let [node (and _node-id (g/node-by-id _node-id))]
-                           (and (g/node-instance*? resource/ResourceNode node)
-                                (g/node-value node :resource)))}))
+               :resource (and _node-id
+                              (g/node-instance? resource/ResourceNode _node-id)
+                              (g/node-value _node-id :resource))}))
        (filter (fn [{:keys [resource]}]
                  (instance? FileResource resource)))
        (first)))
@@ -52,7 +52,7 @@
                    (reduce-kv (fn [ret resource errors]
                                 (conj ret {:type :resource
                                            :value resource
-                                           :children (set errors)}))
+                                           :children (vec (distinct errors))}))
                               []))]
     {:label "root"
      :children items}))
