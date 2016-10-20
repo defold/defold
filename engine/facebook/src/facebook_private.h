@@ -111,6 +111,7 @@ namespace dmFacebook {
     int Facebook_LoginWithPublishPermissions(lua_State* L);
     int Facebook_LoginWithReadPermissions(lua_State* L);
 
+    bool PlatformFacebookInitialized();
     void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
         uint32_t permission_count, int callback, int context, lua_State* thread);
     void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,

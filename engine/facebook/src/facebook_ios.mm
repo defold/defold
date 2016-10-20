@@ -539,6 +539,11 @@ namespace dmFacebook {
  * @namespace facebook
  */
 
+bool PlatformFacebookInitialized()
+{
+    return !!g_Facebook.m_Login;
+}
+
 void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int callback, int context, lua_State* thread)
 {
@@ -716,13 +721,13 @@ int Facebook_RequestReadPermissions(lua_State* L)
 
     @try {
         [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-            RunCallback(main_thread, error);
+            // RunCallback(main_thread, error);
         }];
     } @catch (NSException* exception) {
         NSString* errorMessage = [NSString stringWithFormat:@"Unable to request read permissions: %@", exception.reason];
         NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
-        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+        // RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
     }
 
     assert(top == lua_gettop(L));
@@ -780,13 +785,13 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     @try {
         [g_Facebook.m_Login setDefaultAudience: audience];
         [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-            RunCallback(main_thread, error);
+            // RunCallback(main_thread, error);
         }];
     } @catch (NSException* exception) {
         NSString* errorMessage = [NSString stringWithFormat:@"Unable to request publish permissions: %@", exception.reason];
         NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
-        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+        // RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
     }
 
     assert(top == lua_gettop(L));

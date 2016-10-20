@@ -2,6 +2,7 @@
 #include "facebook_private.h"
 #include "facebook_analytics.h"
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 
 void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, int status)
 {
@@ -56,7 +57,7 @@ void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, in
 uint32_t luaTableToCArray(lua_State* L, int index, char** buffer, uint32_t buffer_size)
 {
     uint32_t entries = 0;
-    memset(buffer, 0x0, n);
+    memset(buffer, 0x0, buffer_size);
 
     lua_pushnil(L);
     while (lua_next(L, index))
@@ -104,6 +105,8 @@ static const luaL_reg Facebook_methods[] =
     {"enable_event_usage", Facebook_EnableEventUsage},
     {"disable_event_usage", Facebook_DisableEventUsage},
     {"show_dialog", Facebook_ShowDialog},
+    {"login_with_read_permissions", Facebook_LoginWithReadPermissions},
+    {"login_with_publish_permissions", Facebook_LoginWithPublishPermissions},
     {0, 0}
 };
 
@@ -117,10 +120,10 @@ int Facebook_LoginWithPublishPermissions(lua_State* L)
     int top = lua_gettop(L);
 
     luaL_checktype(L, 1, LUA_TTABLE);
-    luaL_checktype(L, 2, LUA_INTEGER);
+    luaL_checktype(L, 2, LUA_TNUMBER);
     luaL_checktype(L, 3, LUA_TFUNCTION);
 
-    char** permissions[128] = { 0 };
+    char* permissions[128] = { 0 };
     uint32_t permission_count = luaTableToCArray(L, 1, permissions, sizeof(permissions));
 
     int audience = luaL_checkinteger(L, 2);
@@ -134,7 +137,7 @@ int Facebook_LoginWithPublishPermissions(lua_State* L)
     lua_State* thread = dmScript::GetMainThread(L);
 
     PlatformFacebookLoginWithPublishPermissions(
-        L, permissions, permission_count, audience, callback, context, thread);
+        L, (const char**) permissions, permission_count, audience, callback, context, thread);
 
     for (uint32_t i = 0; i < permission_count; ++i)
     {
@@ -157,8 +160,8 @@ int Facebook_LoginWithReadPermissions(lua_State* L)
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
 
-    char* permissions[2048] = { 0 };
-    helperLuaTableToCString(L, 1, permissions, sizeof(permissions));
+    char* permissions[128] = { 0 };
+    uint32_t permission_count = luaTableToCArray(L, 1, permissions, sizeof(permissions));
 
     lua_pushvalue(L, 2);
     int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
@@ -169,7 +172,12 @@ int Facebook_LoginWithReadPermissions(lua_State* L)
     lua_State* thread = dmScript::GetMainThread(L);
 
     PlatformFacebookLoginWithReadPermissions(
-        permissions, sizeof(permissions), callback, context, thread);
+        L, (const char**) permissions, permission_count, callback, context, thread);
+
+    for (uint32_t i = 0; i < permission_count; ++i)
+    {
+        free(permissions[i]);
+    }
 
     assert(top == lua_gettop(L));
     return 0;
