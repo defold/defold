@@ -337,6 +337,42 @@ static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* err
     }
 }
 
+static void RunCallback(lua_State*L, NSError* error)
+{
+    if (g_Facebook.m_Callback != LUA_NOREF) {
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        // Setup self
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+
+        PushError(L, error);
+
+        int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
+        if (ret != 0) {
+            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+        }
+        assert(top == lua_gettop(L));
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        g_Facebook.m_Callback = LUA_NOREF;
+        g_Facebook.m_Self = LUA_NOREF;
+    } else {
+        dmLogError("No callback set");
+    }
+}
+
 static void ObjCToLua(lua_State*L, id obj)
 {
     if ([obj isKindOfClass:[NSString class]]) {
@@ -721,13 +757,13 @@ int Facebook_RequestReadPermissions(lua_State* L)
 
     @try {
         [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-            // RunCallback(main_thread, error);
+            RunCallback(main_thread, error);
         }];
     } @catch (NSException* exception) {
         NSString* errorMessage = [NSString stringWithFormat:@"Unable to request read permissions: %@", exception.reason];
         NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
-        // RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
     }
 
     assert(top == lua_gettop(L));
@@ -785,13 +821,13 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     @try {
         [g_Facebook.m_Login setDefaultAudience: audience];
         [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-            // RunCallback(main_thread, error);
+            RunCallback(main_thread, error);
         }];
     } @catch (NSException* exception) {
         NSString* errorMessage = [NSString stringWithFormat:@"Unable to request publish permissions: %@", exception.reason];
         NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
-        // RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
     }
 
     assert(top == lua_gettop(L));
