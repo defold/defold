@@ -985,53 +985,6 @@ namespace dmRig
         return out_buffer;
     }
 
-    SpineModelVertex* GenerateSpineVertexData(HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride)
-    {
-        DM_PROFILE(Rig, "GenerateSpineVertexData");
-
-        SpineModelVertex* write_ptr = vertex_data_out;
-        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-        if (!instance->m_MeshEntry || !instance->m_DoRender) {
-            return write_ptr;
-        }
-        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
-        if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
-            context->m_DrawOrderToMesh.SetCapacity(mesh_count);
-
-        dmRig::UpdateMeshDrawOrder(context, instance, mesh_count);
-        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
-            uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
-            const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-            if (!properties->m_Visible) {
-                continue;
-            }
-            uint32_t rgba = (((uint32_t) (properties->m_Color[3] * 255.0f)) << 24) | (((uint32_t) (properties->m_Color[2] * 255.0f)) << 16) |
-                    (((uint32_t) (properties->m_Color[1] * 255.0f)) << 8) | ((uint32_t) (properties->m_Color[0] * 255.0f));
-
-            float* scratch_pos = (float*)scratch_position_buffer.Begin();
-            dmRig::GeneratePositionData(instance, mesh_index, model_matrix, scratch_pos);
-
-            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
-            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
-            uint32_t index_count = mesh->m_Indices.m_Count;
-            for (uint32_t ii = 0; ii < index_count; ++ii)
-            {
-                uint32_t vi = mesh->m_Indices[ii];
-                uint32_t e = vi*3;
-                write_ptr->x = scratch_pos[e+0];
-                write_ptr->y = scratch_pos[e+1];
-                write_ptr->z = scratch_pos[e+2];
-                vi = texcoord0_indices[ii];
-                e = vi << 1;
-                write_ptr->u = (mesh->m_Texcoord0[e+0]);
-                write_ptr->v = (mesh->m_Texcoord0[e+1]);
-                write_ptr->rgba = rgba;
-                write_ptr = (SpineModelVertex*)((uintptr_t)write_ptr + vertex_stride);
-            }
-        }
-        return write_ptr;
-    }
-
     static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)
     {
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;

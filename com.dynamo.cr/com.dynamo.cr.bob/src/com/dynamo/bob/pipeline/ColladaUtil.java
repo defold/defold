@@ -442,15 +442,8 @@ public class ColladaUtil {
         normalMatrix.invert();
         normalMatrix.transpose();
 
-        List<Float> normal_list;
-        if(normals == null) {
-            Vector3f n = new Vector3f(0.0f, 0.0f, 1.0f);
-            normalMatrix.transform(n);
-            if (n.lengthSquared() > 0.0) {
-                n.normalize();
-            }
-            normal_list = new ArrayList<Float>(Arrays.asList(n.getX(), n.getY(), n.getZ()));
-        } else {
+        List<Float> normal_list = null;
+        if(normals != null) {
             normal_list = new ArrayList<Float>(normals.floatArray.count);
             for (int i = 0; i < normals.floatArray.count / 3; ++i) {
                 Vector3f n = new Vector3f(normals.floatArray.floats[i*3], normals.floatArray.floats[i*3+1], normals.floatArray.floats[i*3+2]);
@@ -485,9 +478,7 @@ public class ColladaUtil {
                 int vert_idx = mesh.triangles.p[idx + stride * j];
                 position_indices_list.add(vert_idx);
 
-                if (normals == null) {
-                    normal_indices_list.add(0);
-                } else {
+                if (normals != null) {
                     idx = i * stride * 3 + normalOffset;
                     vert_idx = mesh.triangles.p[idx + stride * j];
                     normal_indices_list.add(vert_idx);
@@ -509,11 +500,13 @@ public class ColladaUtil {
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
         loadVertexWeights(collada, position_indices_list, bone_weights_list, bone_indices_list, colladaIndexToDDFIndex);
 
+        if(normals != null) {
+            meshBuilder.addAllNormals(normal_list);
+            meshBuilder.addAllNormalsIndices(normal_indices_list);
+        }
         meshBuilder.addAllPositions(position_list);
-        meshBuilder.addAllNormals(normal_list);
         meshBuilder.addAllTexcoord0(texcoord_list);
         meshBuilder.addAllIndices(position_indices_list);
-        meshBuilder.addAllNormalsIndices(normal_indices_list);
         meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
         meshBuilder.addAllWeights(bone_weights_list);
         meshBuilder.addAllBoneIndices(bone_indices_list);

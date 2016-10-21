@@ -34,6 +34,16 @@ namespace dmGameSystem
         uint8_t                     m_AddedToUpdate : 1;
     };
 
+    struct SpineModelVertex
+    {
+        float x;
+        float y;
+        float z;
+        float u;
+        float v;
+        uint32_t rgba;
+    };
+
     struct SpineModelWorld
     {
         dmRig::HRigContext                  m_RigContext;
@@ -41,7 +51,7 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject>     m_RenderObjects;
         dmGraphics::HVertexDeclaration      m_VertexDeclaration;
         dmGraphics::HVertexBuffer           m_VertexBuffer;
-        dmArray<dmRig::SpineModelVertex>    m_VertexBufferData;
+        dmArray<SpineModelVertex>           m_VertexBufferData;
         // Temporary scratch buffer used for transforming vertex buffer, used to creating primitives from indices
         dmArray<Vector3>                    m_ScratchPositionBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
@@ -72,6 +82,9 @@ namespace dmGameSystem
 
     bool CompSpineModelSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
     bool CompSpineModelSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position);
+
+    SpineModelVertex* CompSpineModelGenerateVertexData(dmRig::HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride);
+
 }
 
 #endif // DM_GAMESYS_COMP_SPINE_MODEL_H
