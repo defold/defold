@@ -580,6 +580,43 @@ bool PlatformFacebookInitialized()
     return !!g_Facebook.m_Login;
 }
 
+/*# Login to Facebook and request a set of read permissions
+ *
+ * Login to Facebook and request a set of read permissions. The user is
+ * prompted to authorize the application using the login dialog of the specific
+ * platform. Even if the user is already logged in to Facebook this function
+ * can still be used to request additional read permissions.
+ *
+ * <b>NOTE</b> that this function cannot be used to request publish permissions.
+ * If the application requires both read and publish permissions, individual
+ * calls to both login_with_read_permissions and login_with_publish_permissions
+ * has to be made.
+ *
+ * A comprehensive list of permissions can be found in the <a href="https://developers.facebook.com/docs/facebook-login/permissions">Facebook documentation</a>,
+ * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
+ *
+ * @name facebook.login_with_read_permissions
+ * @param permissions (table) Table with the requested read permission strings.
+ * @param callback (function) Callback function that takes the arguments (self, data), the callback is executed when the permission request dialog is closed.
+ * <ul>
+ *     <li><code>self</code> The context of the calling script
+ *     <li><code>data</code> A table that contains the response
+ * </ul>
+ *
+ * @examples
+ * <pre>
+ * local permissions = {"public_profile", "email", "user_friends"}
+ * facebook.login_with_read_permissions(permissions, function(self, data)
+ *     if (data.status == facebook.STATE_OPEN and data.error == nil) then
+ *         print("Successfully logged into Facebook")
+ *         pprint(facebook.permissions())
+ *     else
+ *         print("Failed to get permissions (" .. data.status .. ")")
+ *         pprint(data)
+ *     end
+ * end)
+ * </pre>
+ */
 void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int callback, int context, lua_State* thread)
 {
@@ -606,6 +643,50 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
     }
 }
 
+/*# Login to Facebook and request a set of publish permissions
+ *
+ * Login to Facebook and request a set of publish permissions. The user is
+ * prompted to authorize the application using the login dialog of the specific
+ * platform. Even if the user is already logged in to Facebook this function
+ * can still be used to request additional publish permissions.
+ *
+ * <b>NOTE</b> that this function cannot be used to request read permissions.
+ * If the application requires both publish and read permissions, individual
+ * calls to both login_with_publish_permissions and login_with_read_permissions
+ * has to be made.
+ *
+ * A comprehensive list of permissions can be found in the <a href="https://developers.facebook.com/docs/facebook-login/permissions">Facebook documentation</a>,
+ * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
+ *
+ * @name facebook.login_with_publish_permissions
+ * @param permissions (table) Table with the requested publish permission strings.
+ * @param audience (constant|number) The audience that should be able to see the publications.
+ * <ul>
+ *     <li>facebook.AUDIENCE_NONE</li>
+ *     <li>facebook.AUDIENCE_ONLYME</li>
+ *     <li>facebook.AUDIENCE_FRIENDS</li>
+ *     <li>facebook.AUDIENCE_EVERYONE</li>
+ * </ul>
+ * @param callback (function) Callback function that takes the arguments (self, data), the callback is executed when the permission request dialog is closed.
+ * <ul>
+ *     <li><code>self</code> The context of the calling script
+ *     <li><code>data</code> A table that contains the response
+ * </ul>
+ *
+ * @examples
+ * <pre>
+ * local permissions = {"publish_actions"}
+ * facebook.login_with_publish_permissions(permissions, facebook.AUDIENCE_FRIENDS, function(self, data)
+ *     if (data.status == facebook.STATE_OPEN and data.error == nil) then
+ *         print("Successfully logged into Facebook")
+ *         pprint(facebook.permissions())
+ *     else
+ *         print("Failed to get permissions (" .. data.status .. ")")
+ *         pprint(data)
+ *     end
+ * end)
+ * </pre>
+ */
 void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
 {
@@ -632,29 +713,7 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
     }
 }
 
- /*# initiate a Facebook login
- *
- * This function opens a Facebook login dialog allowing the user to log into Facebook
- * with his/her account. This performs a login requesting read permission for:
- * <ul>
- *   <li><code>"public_profile"</code></li>
- *   <li><code>"email"</code></li>
- *   <li><code>"user_friends"</code></li>
- * </ul>
- * The actual permission that the user grants can be retrieved with <code>facebook.permissions()</code>.
- *
- * @name facebook.login
- * @param callback callback function with parameters (self, status, error), when the login attempt is done. (function)
- * @examples
- * <pre>
- * facebook.login(function (self, status, error)
- *     if error or status ~= facebook.STATE_OPEN then
- *         print("Facebook log in error: " .. status)
- *         return
- *     end
- * end)
- * </pre>
- */
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_Login(lua_State* L)
 {
     if(!g_Facebook.m_Login)
@@ -709,31 +768,7 @@ int Facebook_Logout(lua_State* L)
     return 0;
 }
 
-/*# logs the user in with the requested read permissions
- *
- * Log in the user on Facebook with the specified read permissions. Check the permissions the user
- * actually granted with <code>facebook.permissions()</code>.
- *
- * @name facebook.request_read_permissions
- * @param permissions a table with the requested read permission strings (table)
- * The following strings are valid permission identifiers and are requested by default on login:
- * <ul>
- *   <li><code>"public_profile"</code></li>
- *   <li><code>"email"</code></li>
- *   <li><code>"user_friends"</code></li>
- * </ul>
- * A comprehensive list of permissions can be found at <a href='https://developers.facebook.com/docs/facebook-login/permissions/v2.6'>https://developers.facebook.com/docs/facebook-login/permissions/v2.6</a>
- * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
- * @examples
- * <pre>
- * facebook.request_read_permissions({ "user_friends", "email" }, function (self, error)
- *     if error then
- *         -- Something bad happened
- *         return
- *     end
- * end)
- * </pre>
- */
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_RequestReadPermissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
@@ -770,32 +805,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
     return 0;
 }
 
-/*# logs the user in with the requested publish permissions
- *
- *  Log in the user on Facebook with the specified publish permissions. Check the permissions the user
- *  actually granted with <code>facebook.permissions()</code>.
- *
- * @name facebook.request_publish_permissions
- * @param permissions a table with the requested publish permission strings (table)
- * @param audience (constant|number)
- * <ul>
- *     <li>facebook.AUDIENCE_NONE</li>
- *     <li>facebook.AUDIENCE_ONLYME</li>
- *     <li>facebook.AUDIENCE_FRIENDS</li>
- *     <li>facebook.AUDIENCE_EVERYONE</li>
- * </ul>
- * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
- * @examples
- * <pre>
- * facebook.request_publish_permissions({ "publish_actions" }, facebook.AUDIENCE_FRIENDS, function (self, error)
- *     if error then
- *         -- Something bad happened
- *         return
- *     end
- * end)
- * </pre>
- */
-
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
@@ -889,28 +899,7 @@ int Facebook_Permissions(lua_State* L)
     return 1;
 }
 
-/*# return a table with "me" user data
- *
- * This function returns a table of user data as requested from the Facebook Graph API
- * "me" path. The user data is fetched during facebook.login().
- *
- * The table contains the following fields:
- *
- * <ul>
- *   <li><code>"name"</code></li>
- *   <li><code>"last_name"</code></li>
- *   <li><code>"first_name"</code></li>
- *   <li><code>"id"</code></li>
- *   <li><code>"email"</code></li>
- *   <li><code>"link"</code></li>
- *   <li><code>"gender"</code></li>
- *   <li><code>"locale"</code></li>
- *   <li><code>"updated_time"</code></li>
- * </ul>
- *
- * @name facebook.me
- * @return table with user data fields (table)
- */
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_Me(lua_State* L)
 {
     if(!g_Facebook.m_Login)
