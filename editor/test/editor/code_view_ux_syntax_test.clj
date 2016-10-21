@@ -18,37 +18,40 @@
 ;; ----------------------------------------
 ;; Simulate commands
 
+(defn- ->context [source-viewer]
+  {:name :code-view :env {:source-viewer source-viewer}})
+
 (defn- enter! [source-viewer]
-  (cvx/handler-run :enter [{:name :code-view :env {:selection source-viewer}}] {}))
+  (cvx/handler-run :enter [(->context source-viewer)] {}))
 
 (defn- tab! [source-viewer]
-  (cvx/handler-run :tab [{:name :code-view :env {:selection source-viewer}}] {}))
+  (cvx/handler-run :tab [(->context source-viewer)] {}))
 
 (defn- shift-tab! [source-viewer]
-  (cvx/handler-run :backwards-tab-trigger [{:name :code-view :env {:selection source-viewer}}] {}))
+  (cvx/handler-run :backwards-tab-trigger [(->context source-viewer)] {}))
 
 (defn- key-typed! [source-viewer key-typed]
-  (cvx/handler-run :key-typed [{:name :code-view
-                                :env {:selection source-viewer :key-typed key-typed :key-event (KeyEvent. KeyEvent/KEY_TYPED
-                                                                                                          key-typed
-                                                                                                          ""
-                                                                                                          (KeyCode/getKeyCode key-typed)
-                                                                                                          false
-                                                                                                          false
-                                                                                                          false
-                                                                                                          false)}}] {}))
+  (cvx/handler-run :key-typed [(->context source-viewer)] {:key-typed key-typed
+                                                           :key-event (KeyEvent. KeyEvent/KEY_TYPED
+                                                                                 key-typed
+                                                                                 ""
+                                                                                 (KeyCode/getKeyCode key-typed)
+                                                                                 false
+                                                                                 false
+                                                                                 false
+                                                                                 false)}))
 
 (defn- toggle-comment! [source-viewer]
-  (cvx/handler-run :toggle-comment [{:name :code-view :env {:selection source-viewer}}] {}))
+  (cvx/handler-run :toggle-comment [(->context source-viewer)] {}))
 
 (defn- propose! [source-viewer]
-  (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}] {}))
+  (cvx/handler-run :proposals [(->context source-viewer)] {}))
 
 (defn- accept-proposal! [source-viewer insert-str]
   (do-proposal-replacement source-viewer {:insert-string insert-str}))
 
 (defn- indent! [source-viewer]
-  (cvx/handler-run :indent [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :indent [(->context source-viewer)]{}))
 
 
 ;; ----------------------------------------

@@ -355,7 +355,7 @@
     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource))))
 
-(handler/defhandler :add-from-file :global
+(handler/defhandler :add-from-file :workbench
   (active? [selection] (handler/adapt-single selection GameObjectNode))
   (label [] "Add Component File")
   (run [workspace selection]
@@ -409,7 +409,7 @@
          (sort-by :label)
          vec)))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data] (add-embedded-component-label user-data))
   (active? [selection] (handler/adapt-single selection GameObjectNode))
   (run [user-data] (add-embedded-component-handler user-data))

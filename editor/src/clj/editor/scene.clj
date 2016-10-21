@@ -541,6 +541,7 @@
                     (frame-selection view true))))
 
 (handler/defhandler :realign-camera :global
+  (enabled? [app-view] (active-scene-view app-view))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
@@ -559,7 +560,9 @@
                               :command :scene-play}
                              {:label "Stop"
                               :acc "Shortcut+T"
-                              :command :scene-stop}]}])
+                              :command :scene-stop}
+                             {:label :separator
+                              :id ::scene-end}]}])
 
 (defn- update-image-view! [^ImageView image-view dt]
   (profiler/begin-frame)

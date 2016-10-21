@@ -162,12 +162,13 @@
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
-          ^Tab assets          (.lookup root "#assets")
+          ^TreeView assets     (.lookup root "#assets")
           console              (.lookup root "#console")
           prev-console         (.lookup root "#prev-console")
           next-console         (.lookup root "#next-console")
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
+          workbench            (.lookup root "#workbench")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
@@ -201,7 +202,7 @@
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
 
-      (app-view/restore-split-positions stage prefs)
+      (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
                               (or (not (workspace/version-on-disk-outdated? workspace))
@@ -209,7 +210,7 @@
     
       (ui/on-closed! stage (fn [_]
                              (app-view/store-window-dimensions stage prefs)
-                             (app-view/store-split-positions stage prefs)
+                             (app-view/store-split-positions! stage prefs)
                              (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console
@@ -228,8 +229,10 @@
                          :web-server        web-server
                          :build-errors-view build-errors-view
                          :changes-view      changes-view
-                         :main-stage        stage}]
-        (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
+                         :main-stage        stage}
+            dynamics {:active-resource [:app-view :active-resource]}]
+        (ui/context! root :global context-env assets dynamics)
+        (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
       (g/transact
         (concat
           (g/connect project :selected-node-ids outline-view :selection)

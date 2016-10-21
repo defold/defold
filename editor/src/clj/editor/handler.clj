@@ -57,22 +57,10 @@
                 handler)))
           (vals @*handlers*))))
 
-(defn- context-selection [context]
-  (get-in context [:env :selection] (some-> (:selection-provider context) selection)))
-
 (defn- get-active [command command-contexts user-data]
-  (loop [command-contexts command-contexts
-         sub-contexts []
-         selections []]
-    (when-let [ctx (some-> (first command-contexts)
-                     (assoc-in [:env :user-data] user-data))]
-      (let [selection (context-selection ctx)
-            selections (conj selections selection)
-            contexts (mapv (fn [s] (assoc-in ctx [:env :selection] s)) selections)]
-        (if-let [handler-context (some (fn [ctx] (when-let [handler (get-active-handler command ctx)]
-                                                   [handler ctx])) contexts)]
-          handler-context
-          (recur (rest command-contexts) (conj sub-contexts ctx) selections))))))
+  (let [command-contexts (mapv (fn [ctx] (assoc-in ctx [:env :user-data] user-data)) command-contexts)]
+    (some (fn [ctx] (when-let [handler (get-active-handler command ctx)]
+                      [handler ctx])) command-contexts)))
 
 (defn run [[handler command-context]]
   (invoke-fnk handler :run command-context nil))
@@ -95,9 +83,26 @@
     (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in context [:env node]) v)]) (:dynamics context))))))
 
 (defn active [command command-contexts user-data]
-  (let [command-contexts (mapv eval-dynamics command-contexts)]
-    (when-let [[handler active-command-context] (get-active command command-contexts user-data)]
-      [handler active-command-context])))
+  (get-active command command-contexts user-data))
+
+(defn- context-selection [context]
+  (get-in context [:env :selection] (some-> (:selection-provider context) selection)))
+
+(defn- eval-context [context]
+  (let [selection (context-selection context)]
+    (-> context
+      eval-dynamics
+      (assoc-in [:env :selection] selection))))
+
+(defn eval-contexts [contexts]
+  (loop [command-contexts (mapv eval-context contexts)
+         result []]
+    (if-let [ctx (first command-contexts)]
+      (let [result (if-let [selection (get-in ctx [:env :selection])]
+                     (into result (map (fn [ctx] (assoc-in ctx [:env :selection] selection)) command-contexts))
+                     (conj result ctx))]
+        (recur (rest command-contexts) result))
+      result)))
 
 (defn adapt [selection t]
   (if (empty? selection)
