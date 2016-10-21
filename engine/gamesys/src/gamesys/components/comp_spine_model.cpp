@@ -361,8 +361,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-//    SpineModelVertex* GenerateSpineVertexData(HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride);
-
     SpineModelVertex* CompSpineModelGenerateVertexData(dmRig::HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride)
     {
         DM_PROFILE(Rig, "GenerateSpineVertexData");
