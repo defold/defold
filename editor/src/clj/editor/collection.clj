@@ -647,7 +647,7 @@
         (g/operation-label "Add Game Object")
         (project/select project [go-node])))))
 
-(handler/defhandler :add-from-file :global
+(handler/defhandler :add-from-file :workbench
   (active? [selection] (or (selected-collection? selection)
                            (selected-embedded-instance? selection)))
   (label [selection] (cond
@@ -702,7 +702,7 @@
         (g/operation-label "Add Game Object")
         (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] true true {})))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (active? [selection] (or (selected-collection? selection)
                            (selected-embedded-instance? selection)))
   (label [selection user-data] (cond
@@ -724,7 +724,7 @@
                   (attach-coll-coll self coll-node)
                   (child-coll-any self coll-node))))
 
-(handler/defhandler :add-secondary-from-file :global
+(handler/defhandler :add-secondary-from-file :workbench
   (active? [selection] (selected-collection? selection))
   (label [] "Add Collection File")
   (run [selection] (let [coll-node     (first selection)

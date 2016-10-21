@@ -850,7 +850,7 @@
     (g/transact
       (make-collision-group-node self project true collision-group))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (active? [selection] (handler/adapt-single selection TileSourceNode))
   (label [selection user-data]
          (if-not user-data

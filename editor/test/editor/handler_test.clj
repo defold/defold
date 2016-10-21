@@ -15,12 +15,14 @@
 (use-fixtures :each fixture)
 
 (defn- enabled? [command command-contexts user-data]
-  (some-> (handler/active command command-contexts user-data)
-    handler/enabled?))
+  (let [command-contexts (handler/eval-contexts command-contexts)]
+    (some-> (handler/active command command-contexts user-data)
+      handler/enabled?)))
 
 (defn- run [command command-contexts user-data]
-  (some-> (handler/active command command-contexts user-data)
-    handler/run))
+  (let [command-contexts (handler/eval-contexts command-contexts)]
+    (some-> (handler/active command command-contexts user-data)
+      handler/run)))
 
 (deftest run-test
   (handler/defhandler :open :global
@@ -162,3 +164,28 @@
              true :int-command
              false :string-node-command
              false :other-command)))))
+
+(deftest dynamics
+  (handler/defhandler :string-command :global
+      (active? [string] string)
+      (enabled? [string] string)
+      (run [string] string))
+  (with-clean-system
+    (let [[s] (tx-nodes (g/make-nodes world
+                                      [s [StringNode :string "test"]]))]
+      (let [global (handler/->context :global {:string-node s} nil {:string [:string-node :string]} {})]
+        (is (enabled? :string-command [global] {}))))))
+
+(defn- eval-selection [ctxs]
+  (get-in (first (handler/eval-contexts ctxs)) [:env :selection]))
+
+(defn- eval-selections [ctxs]
+  (mapv (fn [ctx] (get-in ctx [:env :selection])) (handler/eval-contexts ctxs)))
+
+(deftest contexts
+  (let [global (handler/->context :global {:selection [0]} nil {} {})]
+    (is (= [0] (eval-selection [global]))))
+  (let [global (handler/->context :global {} (StaticSelection. [0]) {} {})]
+    (is (= [0] (eval-selection [global])))
+    (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
+      (is (= [[1] [1] [0]] (eval-selections [local global]))))))

@@ -27,7 +27,7 @@
 
 (set! *warn-on-reflection* true)
 
-(ui/extend-menu ::text-edit :editor.app-view/edit
+(ui/extend-menu ::text-edit :editor.app-view/edit-end
                 (cvx/create-menu-data))
 
 (defn- code-node [text-area]
@@ -477,7 +477,9 @@
 
 (extend-type SourceViewer
   handler/SelectionProvider
-  (selection [this] this)
+  (selection [this] (if-let [selected-text (cvx/text-selection this)]
+                      [selected-text]
+                      []))
   cvx/TextContainer
   (text! [this s]
     (.set (.getDocument this) s))
@@ -658,7 +660,7 @@
         repainter (ui/->timer 10 "refresh-code-view" (fn [dt] (g/node-value view-id :new-content)))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
-    (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard)} source-viewer)
+    (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer} source-viewer)
     (ui/observe (.selectedProperty ^Tab (:tab opts)) (fn [this old new]
                                                        (when (= true new)
                                                          (ui/run-later (cvx/refresh! source-viewer)))))

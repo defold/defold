@@ -7,6 +7,7 @@
    [editor.jfx :as jfx]
    [editor.progress :as progress]
    [editor.workspace :as workspace]
+   [editor.menu :as menu]
    [internal.util :as util]
    [service.log :as log]
    [util.profiler :as profiler])
@@ -39,7 +40,6 @@
 (import com.sun.javafx.application.PlatformImpl)
 (PlatformImpl/startup (constantly nil))
 
-(defonce ^:dynamic *menus* (atom {}))
 (defonce ^:dynamic *menu-key-combos* (atom #{}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
@@ -550,7 +550,7 @@
   ([^Node node name env selection-provider]
     (context! node name env selection-provider {}))
   ([^Node node name env selection-provider dynamics]
-    (context! node name env selection-provider {} {}))
+    (context! node name env selection-provider dynamics {}))
   ([^Node node name env selection-provider dynamics adapters]
     (user-data! node ::context (handler/->Context name env selection-provider dynamics adapters))))
 
@@ -575,32 +575,13 @@
     (loop [^Node node initial-node
            ctxs []]
       (if-not node
-        ctxs
+        (handler/eval-contexts ctxs)
         (if-let [ctx (context node)]
           (recur (.getParent node) (conj ctxs ctx))
           (recur (.getParent node) ctxs))))))
 
 (defn extend-menu [id location menu]
-  (swap! *menus* update id (comp distinct concat) (list {:location location :menu menu})))
-
-(defn- collect-menu-extensions []
-  (->>
-    (flatten (vals @*menus*))
-    (filter :location)
-    (reduce (fn [acc x] (update-in acc [(:location x)] concat (:menu x))) {})))
-
-(defn- do-realize-menu [menu exts]
-  (->> menu
-     (map (fn [x] (if (:children x)
-                    (update-in x [:children] do-realize-menu exts)
-                    x)))
-     (mapcat (fn [x] (concat [x] (get exts (:id x)))))))
-
-(defn- realize-menu [id]
-  (let [exts (collect-menu-extensions)
-        ;; *menus* is a map from id to a list of extensions, extension with location nil effectively root menu
-        menu (:menu (first (filter (comp nil? :location) (get @*menus* id))))]
-    (do-realize-menu menu exts)))
+  (menu/extend-menu id location menu))
 
 (defn- make-desc [control menu-id]
   {:control control
@@ -676,7 +657,7 @@
   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
     (event-handler event
                    (when-not (.isConsumed event)
-                     (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
+                     (let [cm (make-context-menu (make-menu-items (menu/realize-menu menu-id) (contexts)))]
                        ;; Required for autohide to work when the event originates from the anchor/source control
                        ;; See RT-15160 and Control.java
                        (.setImpl_showRelativeToWindow cm true)
@@ -684,7 +665,7 @@
                        (.consume event))))))
 
 (defn register-tab-context-menu [^Tab tab menu-id]
-  (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
+  (let [cm (make-context-menu (make-menu-items (menu/realize-menu menu-id) (contexts)))]
     (.setImpl_showRelativeToWindow cm true)
     (.setContextMenu tab cm)))
 
@@ -706,7 +687,7 @@
   (reset! invalidate-menus? true))
 
 (defn- refresh-menubar [md command-contexts]
- (let [menu (realize-menu (:menu-id md))
+ (let [menu (menu/realize-menu (:menu-id md))
        control ^MenuBar (:control md)]
    (when (or
           @invalidate-menus?
@@ -753,7 +734,7 @@
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
 
 (defn- refresh-toolbar [td command-contexts]
- (let [menu (realize-menu (:menu-id td))
+ (let [menu (menu/realize-menu (:menu-id td))
        ^Pane control (:control td)]
    (when-not (and (= menu (user-data control ::menu))
                   (= command-contexts (user-data control ::command-contexts)))
@@ -820,8 +801,17 @@
               state (handler/state handler-ctx)
               ^ChoiceBox cb (.get (.getChildren box) 1)]
           (when (not (.isShowing cb))
-            (-> (.getSelectionModel cb)
-              (.select state))))))))
+            (let [items (.getItems cb)
+                  opts (mapv identity items)
+                  new-opts (vec (handler/options handler-ctx))]
+              (when (not= opts new-opts)
+                (.clear items)
+                (doseq [opt new-opts]
+                  (.add items opt))))
+            (let [selection-model (.getSelectionModel cb)
+                  item (.getSelectedItem selection-model)]
+              (when (not= item state)
+                (.select selection-model state)))))))))
 
 (defn refresh
   ([^Scene scene] (refresh scene (contexts)))
