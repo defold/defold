@@ -37,8 +37,18 @@
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
-                     [org.jogamp.gluegen/gluegen-rt-main          "2.3.2"]
-                     [org.jogamp.jogl/jogl-all-main               "2.3.2"]]
+                     [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
+                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-i586"]
+                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-macosx-universal"]
+                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-windows-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-windows-i586"]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2"]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-amd64"]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-i586"]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
@@ -58,7 +68,7 @@
                       "../engine/particle/proto/particle"
                       "../engine/render/proto/render"
                       "../engine/resource/proto"
-                      "../engine/rig/proto"                      
+                      "../engine/rig/proto"
                       "../engine/script/src"
                       "../engine/vscript/proto"]
 
@@ -74,7 +84,7 @@
                       "init"      ["do" "clean," "builtins," "protobuf," "pack"]}
 
   ;; used by `pack` task
-  :packing           {:pack-path                   "resources/_unpack"}
+  :packing           {:pack-path "resources/_unpack"}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"
@@ -86,6 +96,8 @@
   :jvm-opts          ["-Djava.net.preferIPv4Stack=true"]
   :main ^:skip-aot   com.defold.editor.Start
 
+  :uberjar-exclusions [#"^natives/"]
+  
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]
                                 :resource-paths ["test/resources"]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" "javac" ["run" "-m" "aot"]]
