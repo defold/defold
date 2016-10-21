@@ -639,7 +639,7 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
     } @catch (NSException* exception) {
         NSString* errorMessage = [NSString stringWithFormat:@"Unable to request read permissions: %@", exception.reason];
         RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
-            [errorMessage cStringUsingEncoding:NSASCIIStringEncoding], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+            [errorMessage UTF8String], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
     }
 }
 
@@ -709,7 +709,7 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
     } @catch (NSException* exception) {
         NSString* errorMessage = [NSString stringWithFormat:@"Unable to request publish permissions: %@", exception.reason];
         RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
-            [errorMessage cStringUsingEncoding:NSASCIIStringEncoding], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+            [errorMessage UTF8String], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
     }
 }
 
