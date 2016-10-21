@@ -49,6 +49,10 @@ public class ResourceUnpacker {
         System.setProperty("java.library.path", libDir);
         System.setProperty("jna.library.path", libDir);
 
+        // Disable JOGL automatic library loading as it caused JVM
+        // crashes on Linux. See DEFEDIT-494 for more details.
+        System.setProperty("jogamp.gluegen.UseTempJarCache", "false");
+
         System.setProperty(DEFOLD_UNPACK_PATH_KEY, unpackPath.toAbsolutePath().toString());
         logger.info("defold.unpack.path={}", System.getProperty(DEFOLD_UNPACK_PATH_KEY));
     }

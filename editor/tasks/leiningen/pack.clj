@@ -5,6 +5,7 @@
    [clojure.string :as str])
   (:import
    (java.io File)
+   (java.util.zip ZipFile ZipEntry)
    (org.apache.commons.io FileUtils)))
 
 (defn sha1
@@ -76,6 +77,51 @@
   (into {} (for [[src dest] dynamo-home-artifacts]
              [(io/file (dynamo-home) src) (io/file dest)])))
 
+
+;; Manually re-pack JOGL natives, so we can avoid JOGLs automatic
+;; library loading, see DEFEDIT-494.
+
+(def java-platform->platform
+  {"linux-amd64"      "x86_64-linux"
+   "linux-i586"       "x86-linux"
+   "macosx-universal" "x86_64-darwin"
+   "windows-amd64"    "x86_64-win32"
+   "windows-i586"     "x86-win32"})
+
+(defn jar-file
+  [[artifact version & {:keys [classifier]} :as dependency]]
+  (io/file (str (System/getProperty "user.home")
+                "/.m2/repository/"
+                (str/replace (namespace artifact) "." "/")
+                "/" (name artifact)
+                "/" version
+                "/" (name artifact) "-" version
+                (some->> classifier name (str "-")) ".jar")))
+
+(defn jogl-native-dep?
+  [[artifact version & {:keys [classifier]}]]
+  (and (#{'org.jogamp.gluegen/gluegen-rt
+          'org.jogamp.jogl/jogl-all} artifact)
+       classifier))
+
+(defn extract-jogl-native-dep
+  [[artifact version & {:keys [classifier]} :as dependency] pack-path]
+  (let [java-platform (str/replace-first classifier "natives-" "")
+        natives-path (str "natives/" java-platform)]
+    (with-open [zip-file (ZipFile. (jar-file dependency))]
+      (doseq [entry (enumeration-seq (.entries zip-file))]
+        (when (.startsWith (.getName entry) natives-path)
+          (let [libname (.getName (io/file (.getName entry)))
+                dest (io/file pack-path (java-platform->platform java-platform) "lib" libname)]
+            (println (format "extracting '%s'/'%s' to '%s'" (.getName zip-file) (.getName entry) dest))
+            (io/make-parents dest)
+            (io/copy (.getInputStream zip-file entry) dest)))))))
+
+(defn pack-jogl-natives
+  [pack-path dependencies]
+  (doseq [jogl-native-dep (filter jogl-native-dep? dependencies)]
+    (extract-jogl-native-dep jogl-native-dep pack-path)))
+
 (defn copy-artifacts
   [pack-path git-sha]
   (let [files (merge (engine-artifact-files git-sha)
@@ -97,7 +143,8 @@
     - git-sha [optional]: If supplied, download and use archived engine artifacts
                           for the given sha. Otherwise use local engine artifacts
                           when they exist."
-  [{:keys [packing] :as project} & [git-sha]]
+  [{:keys [dependencies packing] :as project} & [git-sha]]
   (let [{:keys [pack-path]} packing]
     (FileUtils/deleteQuietly (io/file pack-path))
-    (copy-artifacts pack-path git-sha)))
+    (copy-artifacts pack-path git-sha)
+    (pack-jogl-natives pack-path dependencies)))
