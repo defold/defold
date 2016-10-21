@@ -158,7 +158,7 @@
 (defn- selection-nodes? [selection]
   (handler/adapt-every selection Long))
 
-(handler/defhandler :delete :global
+(handler/defhandler :delete :workbench
   (active? [selection] (selection-nodes? selection))
   (enabled? [selection outline-view]
             (and (< 0 (count selection))
@@ -180,7 +180,7 @@
                         (or (DataFormat/lookupMimeType json)
                             (DataFormat. (into-array String [json]))))))
 
-(handler/defhandler :copy :global
+(handler/defhandler :copy :workbench
   (active? [selection] (selection-nodes? selection))
   (enabled? [selection] (< 0 (count selection)))
   (run [outline-view]
@@ -200,7 +200,7 @@
           (outline/parent target-it)
           target-it)))))
 
-(handler/defhandler :paste :global
+(handler/defhandler :paste :workbench
   (active? [selection] (selection-nodes? selection))
   (enabled? [selection outline-view]
             (let [cb (Clipboard/getSystemClipboard)
@@ -218,7 +218,7 @@
              data-format (data-format-fn)]
          (outline/paste! (project/graph project) target-item-it (.getContent cb data-format) (partial project/select project)))))
 
-(handler/defhandler :cut :global
+(handler/defhandler :cut :workbench
   (active? [selection] (selection-nodes? selection))
   (enabled? [selection outline-view]
             (let [tree-view (g/node-value outline-view :tree-view)

@@ -1544,11 +1544,11 @@
                  node)]
     (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %}) (unused-display-profiles scene))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (active? [selection] (not-empty (some->> (handler/adapt-single selection Long) add-handler-options)))
   (run [project user-data] (when user-data ((:handler-fn user-data) project user-data)))
   (options [selection user-data]
-    (let [node-id (first (handler/adapt selection g/NodeID))]
+    (let [node-id (handler/adapt-single selection Long)]
       (if (not user-data)
         (add-handler-options node-id)
         (when (:layout user-data)
@@ -1758,13 +1758,13 @@
 (defn- single-layer-node? [selection]
   (handler/adapt-single selection LayerNode))
 
-(handler/defhandler :move-up :global
+(handler/defhandler :move-up :workbench
   (active? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
   (run [selection] (let [selected (first selection)
                          [target input] (outline-parent selected)]
                      (outline-move! (g/node-value target input) selected -1))))
 
-(handler/defhandler :move-down :global
+(handler/defhandler :move-down :workbench
   (active? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
   (run [selection] (let [selected (first selection)
                          [target input] (outline-parent selected)]
@@ -1776,7 +1776,7 @@
     (when (and res-node (g/node-instance? GuiSceneNode res-node))
       res-node)))
 
-(handler/defhandler :set-gui-layout :global
+(handler/defhandler :set-gui-layout :workbench
   (active? [project active-resource] (boolean (resource->gui-scene project active-resource)))
   (run [project active-resource user-data] (when user-data
                                              (when-let [scene (resource->gui-scene project active-resource)]

@@ -989,7 +989,7 @@
       (g/operation-label "Add layer")
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data] "Add layer")
   (active? [selection] (handler/adapt-single selection TileMapNode))
   (run [selection user-data] (add-layer-handler (first selection))))
@@ -1001,7 +1001,7 @@
     (g/transact
      (g/set-property tool-controller :brush erase-brush)))  )
 
-(handler/defhandler :erase-tool :global
+(handler/defhandler :erase-tool :workbench
   (label [user-data] "Select Eraser")
   (enabled? [selection] (handler/adapt-single selection LayerNode))
   (run [selection] (erase-tool-handler (tile-map-node selection))))
@@ -1013,19 +1013,16 @@
     (g/transact
      (g/update-property tool-controller :mode (toggler :palette :editor)))))
 
-(handler/defhandler :tile-map-palette :global
+(handler/defhandler :tile-map-palette :workbench
   (active? [selection] (handler/adapt-single selection TileMapNode))
   (enabled? [selection] (when-let [node (tile-map-node selection)]
                           (g/node-value node :tile-source-resource)))
   (run [selection] (tile-map-palette-handler (tile-map-node selection))))
 
-(ui/extend-menu ::menubar :editor.app-view/edit
+(ui/extend-menu ::menubar :editor.scene/scene-end
                 [{:label    "Tile Map"
                   :id       ::tile-map
-                  :children [{:label   "Add Layer"
-                              :acc     "Shortcut+I"
-                              :command :add}
-                             {:label   "Select Eraser"
+                  :children [{:label   "Select Eraser"
                               :acc     "Shortcut+E"
                               :command :erase-tool}
                              {:label   "Show Palette"

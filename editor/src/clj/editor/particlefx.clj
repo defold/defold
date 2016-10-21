@@ -714,7 +714,7 @@
         (g/operation-label "Add Modifier")
         (make-modifier self parent-id modifier true)))))
 
-(handler/defhandler :add-secondary :global
+(handler/defhandler :add-secondary :workbench
   (label [user-data] (if-not user-data
                        "Add Modifier"
                        (get-in user-data [:modifier-data :label])))
@@ -782,7 +782,7 @@
             (g/operation-label "Add Emitter")
             (make-emitter self (assoc emitter :type type) true))))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data] (if-not user-data
                        "Add Emitter"
                        (get-in user-data [:emitter-data :label])))

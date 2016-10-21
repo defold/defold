@@ -496,7 +496,7 @@
     (g/operation-label "Add Animation Group")
     (attach-atlas-animation atlas-node default-animation))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [] "Add Animation Group")
   (active? [selection] (atlas-selection selection))
   (run [selection] (add-animation-group-handler (first selection))))
@@ -508,7 +508,7 @@
       (g/operation-label "Add Images")
       (attach-image-nodes parent labels images scope-node)))))
 
-(handler/defhandler :add-from-file :global
+(handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
   (active? [selection] (or (atlas-selection selection) (animation-selection selection)))
   (run [project selection] (let [workspace (project/workspace project)]
@@ -554,12 +554,12 @@
         parent (image-parent image)]
     (move-image parent image direction)))
 
-(handler/defhandler :move-up :global
+(handler/defhandler :move-up :workbench
   (enabled? [selection] (move-enabled? selection))
   (active? [selection] (move-active? selection))
   (run [selection] (run-move selection :move-up)))
 
-(handler/defhandler :move-down :global
+(handler/defhandler :move-down :workbench
   (enabled? [selection] (move-enabled? selection))
   (active? [selection] (move-active? selection))
   (run [selection] (run-move selection :move-down)))

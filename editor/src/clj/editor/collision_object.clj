@@ -680,7 +680,7 @@
     (g/operation-label "Add Shape")
     (make-shape-node collision-object-node (default-shape shape-type)))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data]
          (if-not user-data
            "Add Shape"

@@ -83,17 +83,17 @@
 (defn- on-tabs-changed [app-view]
   (invalidate app-view :open-resources))
 
-(handler/defhandler :move-tool :global
+(handler/defhandler :move-tool :workbench
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
   (state [app-view] (= (g/node-value app-view :active-tool) :move)))
 
-(handler/defhandler :scale-tool :global
+(handler/defhandler :scale-tool :workbench
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :scale)))
 
-(handler/defhandler :rotate-tool :global
+(handler/defhandler :rotate-tool :workbench
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
@@ -135,23 +135,34 @@
     (.setWidth stage (:width dims))
     (.setHeight stage (:height dims))))
 
-(defn- splits [^Stage stage]
-  (let [root (.getRoot (.getScene stage))]
-    [(.lookup root "#main-split")
-     (.lookup root "#center-split")
-     (.lookup root "#right-split")
-     (.lookup root "#assets-split")]))
+(def ^:private legacy-split-ids ["main-split"
+                                 "center-split"
+                                 "right-split"
+                                 "assets-split"])
 
-(defn store-split-positions [^Stage stage prefs]
-  (let [div-pos (map (fn [^SplitPane sp] (.getDividerPositions sp)) (splits stage))]
+(def ^:private split-ids ["main-split"
+                          "workbench-split"
+                          "center-split"
+                          "right-split"
+                          "assets-split"])
+
+(defn store-split-positions! [^Stage stage prefs]
+  (let [^Node root (.getRoot (.getScene stage))
+        controls (ui/collect-controls root split-ids)
+        div-pos (into {} (map (fn [[id ^SplitPane sp]] [id (.getDividerPositions sp)]) controls))]
     (prefs/set-prefs prefs prefs-split-positions div-pos)))
 
-(defn restore-split-positions [^Stage stage prefs]
+(defn restore-split-positions! [^Stage stage prefs]
   (when-let [div-pos (prefs/get-prefs prefs prefs-split-positions nil)]
-    (doall (map (fn [^SplitPane sp pos]
-                  (when (and sp pos)
-                    (.setDividerPositions sp (into-array Double/TYPE pos))))
-                (splits stage) div-pos))))
+    (let [^Node root (.getRoot (.getScene stage))
+          controls (ui/collect-controls root split-ids)
+          div-pos (if (vector? div-pos)
+                    (zipmap (map keyword legacy-split-ids) div-pos)
+                    div-pos)]
+      (doseq [[k pos] div-pos
+              :let [^SplitPane sp (get controls k)]
+              :when sp]
+        (.setDividerPositions sp (into-array Double/TYPE pos))))))
 
 (handler/defhandler :new :global
   (run [] (prn "NEW NOW!")))
@@ -314,7 +325,9 @@
                               :command :move-up}
                              {:label "Move Down"
                               :acc "Alt+DOWN"
-                              :command :move-down}]}
+                              :command :move-down}
+                             {:label :separator
+                              :id ::edit-end}]}
                  {:label "Help"
                   :children [{:label "Profiler"
                               :children [{:label "Measure"
