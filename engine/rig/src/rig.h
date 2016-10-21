@@ -231,16 +231,6 @@ namespace dmRig
         HRigInstance m_Instance;
     };
 
-    struct SpineModelVertex
-    {
-        float x;
-        float y;
-        float z;
-        float u;
-        float v;
-        uint32_t rgba;
-    };
-
     Result NewContext(const NewContextParams& params);
     void DeleteContext(HRigContext context);
     Result Update(HRigContext context, float dt);
@@ -255,7 +245,6 @@ namespace dmRig
 
     float* GenerateNormalData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& normal_matrix, float* out_buffer);
     float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& model_matrix, float* out_buffer);
-    SpineModelVertex* GenerateSpineVertexData(HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride);
 
     void UpdateMeshDrawOrder(HRigContext context, const HRigInstance instance, uint32_t mesh_count);
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
