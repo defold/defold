@@ -45,6 +45,7 @@ typedef void (*OnShowDialogCallback)(void* L, const char* url, const char* error
 typedef void (*OnLoginCallback)(void* L, int state, const char* error, const char* me_json, const char* permissions_json);
 typedef void (*OnRequestReadPermissionsCallback)(void *L, const char* error);
 typedef void (*OnRequestPublishPermissionsCallback)(void *L, const char* error);
+typedef void (*OnLoginWithPermissionsCallback)(void* L, int status, const char* error, const char* permissions_json);
 
 extern "C" {
     // Implementation in library_facebook.js
@@ -55,6 +56,8 @@ extern "C" {
     void dmFacebookShowDialog(const char* params, const char* method, OnShowDialogCallback callback, lua_State* L);
     void dmFacebookDoLogin(int state_open, int state_closed, int state_failed, OnLoginCallback callback, lua_State* L);
     void dmFacebookDoLogout();
+    void dmFacebookLoginWithPermissions(int state_open, int state_closed, int state_failed,
+        const char* permissions, OnLoginWithPermissionsCallback callback, lua_State* thread);
     void dmFacebookRequestReadPermissions(const char* permissions, OnRequestReadPermissionsCallback callback, lua_State* L);
     void dmFacebookRequestPublishPermissions(const char* permissions, int audience, OnRequestPublishPermissionsCallback callback, lua_State* L);
     void dmFacebookPostEvent(const char* event, double valueToSum, const char* keys, const char* values);
@@ -323,6 +326,59 @@ static void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int id
         lua_pop(L, 1);
     }
 }
+
+
+bool PlatformFacebookInitialized()
+{
+    return !!g_Facebook.m_appId;
+}
+
+static void OnLoginWithPermissions(
+    void* L, int status, const char* error, const char* permissions_json)
+{
+    if (permissions_json != 0x0)
+    {
+        g_Facebook.m_PermissionsJson = permissions_json;
+    }
+
+    RunCallback((lua_State*) L, &g_Facebook.m_Self, &g_Facebook.m_Callback, error, status);
+}
+
+void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int callback, int context, lua_State* thread)
+{
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    char cstr_permissions[2048] = { 0 };
+    for (uint32_t i = 0; i < permission_count; ++i)
+    {
+        const char* permission = permissions[i];
+        if (i > 0)
+        {
+            dmStrlCat(cstr_permissions, ",", sizeof(cstr_permissions));
+        }
+        dmStrlCat(cstr_permissions, permission, sizeof(cstr_permissions));
+    }
+
+    dmFacebookLoginWithPermissions(
+        dmFacebook::STATE_OPEN, dmFacebook::STATE_CLOSED, dmFacebook::STATE_CLOSED_LOGIN_FAILED,
+        cstr_permissions, (OnLoginWithPermissionsCallback) OnLoginWithPermissions, thread);
+}
+
+void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
+{
+    // On HTML5 both loginWithPublishPermissions and loginWithReadPermissions are
+    // regular logins with the permissions as the scope. We're not respecting
+    // audience either, which means both of these functions has the exact same
+    // functionality.
+    (void) audience;
+    PlatformFacebookLoginWithReadPermissions(
+        L, permissions, permission_count, callback, context, thread);
+}
+
 
 
 static void OnRequestReadPermissionsComplete(void* L, const char* error, const char* permissions_json)
