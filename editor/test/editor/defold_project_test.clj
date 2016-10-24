@@ -83,7 +83,9 @@
                                              (g/make-node world ANode)
                                              (g/make-node world ANode))]
         (g/transact (project/select project [node-2 node-3 node-1]))
-        (is (= [node-2 node-3 node-1] (g/node-value project :selected-node-ids))))))
+        (is (= [node-2 node-3 node-1] (g/node-value project :selected-node-ids)))
+        (g/transact (project/select project [node-3 node-1 node-2]))
+        (is (= [node-3 node-1 node-2] (g/node-value project :selected-node-ids))))))
   (testing "ensures selected nodes are distinct, preserving order"
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
@@ -92,4 +94,6 @@
                                              (g/make-node world ANode)
                                              (g/make-node world ANode))]
         (g/transact (project/select project [node-2 node-3 node-2 node-1 node-3 node-3 node-1]))
-        (is (= [node-2 node-3 node-1] (g/node-value project :selected-node-ids)))))))
+        (is (= [node-2 node-3 node-1] (g/node-value project :selected-node-ids)))
+        (g/transact (project/select project [node-1 node-3 node-2 node-1 node-3 node-2 node-2]))
+        (is (= [node-1 node-3 node-2] (g/node-value project :selected-node-ids)))))))
