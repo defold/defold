@@ -1,7 +1,7 @@
 @mixin effect-lighten() {
-	-fx-effect: innershadow(gaussian, $defold-white, 10, 0.5, 1, 1);
+	-fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0);
 }
 
 @mixin effect-lighten-blue() {
-	-fx-effect: innershadow(gaussian, $defold-light-blue, 10, 0.5, 1, 1);
+	-fx-effect: innershadow(gaussian, $defold-light-blue, 20, 0.3, 0, 0);
 }

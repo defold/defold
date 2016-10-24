@@ -11,4 +11,9 @@
       -fx-background-color: $dark-black;
     }
   }
+
+  .button, .arrow-button {
+    -fx-border-width: 0;
+    -fx-background-color: $dark-black;
+  }
 }

@@ -11,7 +11,11 @@
 
     .flat-list-view {
         .cell, .list-cell {
-            -fx-background-color: $dark-grey-light;
+            -fx-background-color: $dark-grey-light !important;
+
+            /*.text {
+                -fx-fill: red !important;
+            }*/
         }
     }
 }

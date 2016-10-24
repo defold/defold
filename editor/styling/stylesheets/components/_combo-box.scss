@@ -35,7 +35,11 @@
     }
     .list-cell {
         -fx-background-color: $dark-black;
-        -fx-color: $bright-grey; 
+        -fx-color: $bright-grey;
+        &:hover {
+            -fx-cursor: hand;
+            -fx-text-fill: $defold-white;
+        }
     }
     .arrow-button {
         -fx-background-radius: 0px;
@@ -60,4 +64,12 @@
         -fx-border-color: transparent;
         -fx-text-fill: $bright-grey;
     }
+    .text-field, .text-input {
+        -fx-background-insets: 0;
+        -fx-border-width: 0 0 1 0;
+        -fx-border-color: $mid-grey;
+    }
+}
+.combo-box-base {
+    -fx-border-width: 0;
 }
