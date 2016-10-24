@@ -125,6 +125,7 @@ The following smoke tests are currently performed by the team on each platform (
 4. Merge master into dev
 
         $ git checkout dev
+        $ git pull
         $ git merge master
         $ git push
 
