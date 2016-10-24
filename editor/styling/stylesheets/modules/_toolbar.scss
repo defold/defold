@@ -10,30 +10,16 @@
     -fx-border-width: 0;//1 1;
     -fx-padding: 0;
     -fx-spacing: 0; 
-    /*.separator {
-        -fx-background-color: red;//$mid-grey;
-        -fx-border-width: 0 1;
-        -fx-padding: 2;
-        -fx-spacing: 1; 
 
-        .line {
-            -fx-background-color: red;//$mid-grey;
-            -fx-border-color: $mid-grey; 
-        }
-    }*/
-
-    >.cell {
-        -fx-alignment: center;
-    }
-
-    >.toggle-button, >.cell {
+    >.toggle-button {
         -fx-background-color: $dark-black;
         -fx-background-insets: 0, 0 0 0 0;
         -fx-background-radius: 0;
         -fx-border-radius: 0;
-        -fx-border-width: 0;
-        -fx-padding: 5px;
-        -fx-spacing: 5px; 
+        -fx-border-width: 0 0 2 0;
+        -fx-border-color: $dark-black;
+        -fx-alignment: center;
+        -fx-padding: 4px 5px 4px 5px;
     }
 
     >.toggle-button {
@@ -43,8 +29,12 @@
         &:armed {
             -fx-background-color: $mid-black;
         }
-        &:selected {
-            -fx-background-color: $mid-grey//$defold-white;//$mid-grey;            
+        &:selected {     
+            -fx-border-color: $defold-orange;
+            -fx-border-width: 0 0 2 0;
+            .image-view {
+                @include effect-lighten();
+            } 
         }
     }
 }

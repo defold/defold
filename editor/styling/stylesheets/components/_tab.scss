@@ -68,6 +68,7 @@
 
 .tab-label {
     -fx-padding: 0;
+    -fx-font-weight: bold;
 }
 
 .tab-close-button {
@@ -88,7 +89,7 @@
     -fx-background-insets: 0;
     -fx-background-color: $dark-black;
     -fx-border-color: $mid-grey;
-    -fx-border-width: 0 1 0 1;
+    -fx-border-width: 0 0 0 0;
     -fx-padding: 5px 10px;
     &:hover {
         -fx-text-fill: $defold-white;

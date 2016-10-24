@@ -17,6 +17,7 @@
 
 .tree-cell {
     -fx-background-color: $bright-black;
+    -fx-font-weight: bold;
     &:filled {
         -fx-padding: 5;
         -fx-border-width: 0 0 0 2;
