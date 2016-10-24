@@ -620,6 +620,170 @@ TEST_F(FBTest, DialogTableConversionEmscripten)
     ASSERT_EQ(to_index, lua_gettop(L));
 }
 
+TEST_F(FBTest, JoinCStringArray_NullArray)
+{
+    char buffer[1] = { 0 };
+
+    dmFacebook::JoinCStringArray(NULL, 0, buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
+    // If it doesn't crash it works
+}
+
+TEST_F(FBTest, JoinCStringArray_NullBuffer)
+{
+    char* array[1] = { 0 };
+
+    dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), NULL, 0, ",");
+    // If it doesn't crash it works
+}
+
+TEST_F(FBTest, JoinCStringArray_LargerBuffer)
+{
+    char* array[1] = { 0 };
+    char buffer[9] = { 0 };
+
+    char* e1 = "one";
+    array[0] = e1;
+
+    dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
+    ASSERT_STRCASEEQ("one", buffer);
+}
+
+TEST_F(FBTest, JoinCStringArray_SmallerBuffer)
+{
+    char* array[3] = { 0 };
+    char buffer[6] = { 0 };
+
+    char* e1 = "one";
+    char* e2 = "two";
+    char* e3 = "three";
+
+    array[0] = e1;
+    array[1] = e2;
+    array[2] = e3;
+
+    dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
+    ASSERT_STRCASEEQ("one,t", buffer);
+}
+
+TEST_F(FBTest, JoinCStringArray_SingleElement)
+{
+    char* array[1] = { 0 };
+    char buffer[4] = { 0 };
+
+    char* e1 = "one";
+    array[0] = e1;
+
+    dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
+    ASSERT_STRCASEEQ("one", buffer);
+}
+
+TEST_F(FBTest, JoinCStringArray_MultipleElement)
+{
+    char* array[3] = { 0 };
+    char buffer[14] = { 0 };
+
+    char* e1 = "one";
+    char* e2 = "two";
+    char* e3 = "three";
+
+    array[0] = e1;
+    array[1] = e2;
+    array[2] = e3;
+
+    dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
+    ASSERT_STRCASEEQ("one,two,three", buffer);
+}
+
+TEST_F(FBTest, luaTableToCArray_NullBuffer)
+{
+    lua_createtable(L, 1, 0);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "one");
+    lua_rawset(L, -3);
+
+    dmFacebook::luaTableToCArray(L, -1, NULL, 0);
+}
+
+TEST_F(FBTest, luaTableToCArray_SmallerBuffer)
+{
+    lua_createtable(L, 1, 0);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "one");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 2);
+    lua_pushstring(L, "two");
+    lua_rawset(L, -3);
+
+    char* buffer[1] = { 0 };
+    uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
+
+    ASSERT_EQ(1, result);
+    ASSERT_STRCASEEQ("one", buffer[0]);
+}
+
+TEST_F(FBTest, luaTableToCArray_EmptyTable)
+{
+    lua_createtable(L, 1, 0);
+
+    char* buffer[1] = { 0 };
+    uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
+
+    ASSERT_EQ(0, result);
+}
+
+TEST_F(FBTest, luaTableToCArray_SingleElement)
+{
+    lua_createtable(L, 1, 0);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "one");
+    lua_rawset(L, -3);
+
+    char* buffer[1] = { 0 };
+    uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
+
+    ASSERT_EQ(1, result);
+    ASSERT_STRCASEEQ("one", buffer[0]);
+}
+
+TEST_F(FBTest, luaTableToCArray_MultipleElement)
+{
+    lua_createtable(L, 1, 0);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "one");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 2);
+    lua_pushstring(L, "two");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 3);
+    lua_pushstring(L, "three");
+    lua_rawset(L, -3);
+
+    char* buffer[3] = { 0 };
+    uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
+
+    ASSERT_EQ(3, result);
+    ASSERT_STRCASEEQ("one", buffer[0]);
+    ASSERT_STRCASEEQ("two", buffer[1]);
+    ASSERT_STRCASEEQ("three", buffer[2]);
+}
+
+TEST_F(FBTest, luaTableTOCArray_InvalidType)
+{
+    lua_createtable(L, 1, 0);
+    lua_pushnumber(L, 1);
+        lua_newtable(L);
+        lua_pushnumber(L, 1);
+        lua_pushstring(L, "complex-type");
+        lua_rawset(L, -3);
+    lua_rawset(L, -3);
+
+    char* buffer[1] = { 0 };
+    uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
+
+    ASSERT_EQ(-1, result);
+}
+
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

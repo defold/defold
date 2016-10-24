@@ -4,11 +4,10 @@
 #define LIB_NAME "facebook"
 
 #include <script/script.h>
+#include "facebook_util.h"
 
 
 void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, int status);
-uint32_t luaTableToCArray(lua_State* L, int index, char** buffer, uint32_t buffer_size);
-void JoinCStringArray(const char** array, uint32_t arrlen, char* buffer, uint32_t buflen, const char* delimiter);
 
 namespace dmFacebook {
 

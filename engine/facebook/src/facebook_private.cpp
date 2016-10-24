@@ -52,55 +52,6 @@ void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, in
     }
 }
 
-uint32_t luaTableToCArray(lua_State* L, int index, char** buffer, uint32_t buffer_size)
-{
-    uint32_t entries = 0;
-
-    lua_pushnil(L);
-    while (lua_next(L, index))
-    {
-        if (lua_isstring(L, -1))
-        {
-            if (entries < buffer_size)
-            {
-                const char* permission = lua_tostring(L, -1);
-
-                uint32_t permission_buffer_len = strlen(permission) + 1;
-                char* permission_buffer = (char*) malloc(permission_buffer_len);
-                DM_SNPRINTF(permission_buffer, permission_buffer_len, "%s", permission);
-
-                buffer[entries++] = permission_buffer;
-            }
-        }
-        else
-        {
-            for (uint32_t i = 0; i < entries; ++i)
-            {
-                free(buffer[i]);
-            }
-            return luaL_error(L, "Facebook permissions must be strings, got '%s'", lua_typename(L, lua_type(L, -1)));
-        }
-
-        lua_pop(L, 1);
-    }
-
-    return entries;
-}
-
-void JoinCStringArray(const char** array, uint32_t arrlen,
-    char* buffer, uint32_t buflen, const char* delimiter)
-{
-    for (uint32_t i = 0; i < arrlen; ++i)
-    {
-        if (i > 0)
-        {
-            (void) dmStrlCat(buffer, delimiter, buflen);
-        }
-
-        (void) dmStrlCat(buffer, array[i], buflen);
-    }
-}
-
 namespace dmFacebook {
 
 static const luaL_reg Facebook_methods[] =
@@ -128,15 +79,18 @@ int Facebook_LoginWithPublishPermissions(lua_State* L)
         return luaL_error(L, "Facebook module has not been initialized, is facebook.appid set in game.project?");
     }
 
-    int top = lua_gettop(L);
-
+    DM_LUA_STACK_CHECK(L);
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TNUMBER);
     luaL_checktype(L, 3, LUA_TFUNCTION);
 
     char* permissions[128] = { 0 };
-    uint32_t permission_count = luaTableToCArray(L, 1, permissions,
+    int permission_count = luaTableToCArray(L, 1, permissions,
         sizeof(permissions) / sizeof(permissions[0]));
+    if (permission_count == -1)
+    {
+        return luaL_error(L, "Facebook permissions must be strings");
+    }
 
     int audience = luaL_checkinteger(L, 2);
 
@@ -151,12 +105,11 @@ int Facebook_LoginWithPublishPermissions(lua_State* L)
     PlatformFacebookLoginWithPublishPermissions(
         L, (const char**) permissions, permission_count, audience, callback, context, thread);
 
-    for (uint32_t i = 0; i < permission_count; ++i)
+    for (int i = 0; i < permission_count; ++i)
     {
         free(permissions[i]);
     }
 
-    assert(top == lua_gettop(L));
     return 0;
 }
 
@@ -167,13 +120,17 @@ int Facebook_LoginWithReadPermissions(lua_State* L)
         return luaL_error(L, "Facebook module has not been initialized, is facebook.appid set in game.project?");
     }
 
-    int top = lua_gettop(L);
-
+    DM_LUA_STACK_CHECK(L);
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
 
     char* permissions[128] = { 0 };
-    uint32_t permission_count = luaTableToCArray(L, 1, permissions, sizeof(permissions));
+    int permission_count = luaTableToCArray(L, 1, permissions,
+        sizeof(permissions) / sizeof(permissions[0]));
+    if (permission_count == -1)
+    {
+        return luaL_error(L, "Facebook permissions must be strings");
+    }
 
     lua_pushvalue(L, 2);
     int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
@@ -186,12 +143,11 @@ int Facebook_LoginWithReadPermissions(lua_State* L)
     PlatformFacebookLoginWithReadPermissions(
         L, (const char**) permissions, permission_count, callback, context, thread);
 
-    for (uint32_t i = 0; i < permission_count; ++i)
+    for (int i = 0; i < permission_count; ++i)
     {
         free(permissions[i]);
     }
 
-    assert(top == lua_gettop(L));
     return 0;
 }
 
