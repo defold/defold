@@ -620,6 +620,7 @@ bool PlatformFacebookInitialized()
 void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int callback, int context, lua_State* thread)
 {
+    // This function must always return so memory for `permissions` can be free'd.
     VerifyCallback(L);
     g_Facebook.m_Callback = callback;
     g_Facebook.m_Self = context;
@@ -690,6 +691,7 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
 void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
 {
+    // This function must always return so memory for `permissions` can be free'd.
     VerifyCallback(L);
     g_Facebook.m_Callback = callback;
     g_Facebook.m_Self = context;

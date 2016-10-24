@@ -8,7 +8,7 @@ void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, in
 {
     if (*_callback != LUA_NOREF)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, *_callback);
         lua_rawgeti(L, LUA_REGISTRYINDEX, *_self);
@@ -35,7 +35,6 @@ void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, in
                 lua_pop(L, 1);
             }
 
-            assert(top == lua_gettop(L));
             dmScript::Unref(L, LUA_REGISTRYINDEX, *_callback);
             dmScript::Unref(L, LUA_REGISTRYINDEX, *_self);
             *_callback = LUA_NOREF;
@@ -45,7 +44,6 @@ void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, in
         {
             dmLogError("Could not run facebook callback because the instance has been deleted.");
             lua_pop(L, 2);
-            assert(top == lua_gettop(L));
         }
     }
     else
@@ -57,7 +55,6 @@ void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, in
 uint32_t luaTableToCArray(lua_State* L, int index, char** buffer, uint32_t buffer_size)
 {
     uint32_t entries = 0;
-    memset(buffer, 0x0, buffer_size);
 
     lua_pushnil(L);
     while (lua_next(L, index))
@@ -88,6 +85,20 @@ uint32_t luaTableToCArray(lua_State* L, int index, char** buffer, uint32_t buffe
     }
 
     return entries;
+}
+
+void JoinCStringArray(const char** array, uint32_t arrlen,
+    char* buffer, uint32_t buflen, const char* delimiter)
+{
+    for (uint32_t i = 0; i < arrlen; ++i)
+    {
+        if (i > 0)
+        {
+            (void) dmStrlCat(buffer, delimiter, buflen);
+        }
+
+        (void) dmStrlCat(buffer, array[i], buflen);
+    }
 }
 
 namespace dmFacebook {
@@ -124,7 +135,8 @@ int Facebook_LoginWithPublishPermissions(lua_State* L)
     luaL_checktype(L, 3, LUA_TFUNCTION);
 
     char* permissions[128] = { 0 };
-    uint32_t permission_count = luaTableToCArray(L, 1, permissions, sizeof(permissions));
+    uint32_t permission_count = luaTableToCArray(L, 1, permissions,
+        sizeof(permissions) / sizeof(permissions[0]));
 
     int audience = luaL_checkinteger(L, 2);
 

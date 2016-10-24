@@ -433,20 +433,14 @@ bool PlatformFacebookInitialized()
 void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
 {
+    // This function must always return so memory for `permissions` can be free'd.
     VerifyCallback(L);
     g_Facebook.m_Callback = callback;
     g_Facebook.m_Self = context;
 
     char cstr_permissions[2048] = { 0 };
-    for (uint32_t i = 0; i < permission_count; ++i)
-    {
-        const char* permission = permissions[i];
-        if (i > 0)
-        {
-            dmStrlCat(cstr_permissions, ",", sizeof(cstr_permissions));
-        }
-        dmStrlCat(cstr_permissions, permission, sizeof(cstr_permissions));
-    }
+    JoinCStringArray(permissions, permission_count, cstr_permissions,
+        sizeof(cstr_permissions) / sizeof(cstr_permissions[0]), ",");
 
     JNIEnv* environment = Attach();
     jstring jstr_permissions = environment->NewStringUTF(cstr_permissions);
@@ -456,27 +450,21 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
 
     if (!Detach(environment))
     {
-        luaL_error(L, "An unexpected error occurred during Facebook JNI interaction.");
+        dmLogError("An unexpected error occurred during Facebook JNI interaction.");
     }
 }
 
 void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int callback, int context, lua_State* thread)
 {
+    // This function must always return so memory for `permissions` can be free'd.
     VerifyCallback(L);
     g_Facebook.m_Callback = callback;
     g_Facebook.m_Self = context;
 
     char cstr_permissions[2048] = { 0 };
-    for (uint32_t i = 0; i < permission_count; ++i)
-    {
-        const char* permission = permissions[i];
-        if (i > 0)
-        {
-            dmStrlCat(cstr_permissions, ",", sizeof(cstr_permissions));
-        }
-        dmStrlCat(cstr_permissions, permission, sizeof(cstr_permissions));
-    }
+    JoinCStringArray(permissions, permission_count, cstr_permissions,
+        sizeof(cstr_permissions) / sizeof(cstr_permissions[0]), ",");
 
     JNIEnv* environment = Attach();
     jstring jstr_permissions = environment->NewStringUTF(cstr_permissions);
@@ -486,7 +474,7 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
 
     if (!Detach(environment))
     {
-        luaL_error(L, "An unexpected error occurred during Facebook JNI interaction.");
+        dmLogError("An unexpected error occurred during Facebook JNI interaction.");
     }
 }
 

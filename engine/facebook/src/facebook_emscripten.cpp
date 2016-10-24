@@ -347,20 +347,14 @@ static void OnLoginWithPermissions(
 void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int callback, int context, lua_State* thread)
 {
+    // This function must always return so memory for `permissions` can be free'd.
     VerifyCallback(L);
     g_Facebook.m_Callback = callback;
     g_Facebook.m_Self = context;
 
     char cstr_permissions[2048] = { 0 };
-    for (uint32_t i = 0; i < permission_count; ++i)
-    {
-        const char* permission = permissions[i];
-        if (i > 0)
-        {
-            dmStrlCat(cstr_permissions, ",", sizeof(cstr_permissions));
-        }
-        dmStrlCat(cstr_permissions, permission, sizeof(cstr_permissions));
-    }
+    JoinCStringArray(permissions, permission_count, cstr_permissions,
+        sizeof(cstr_permissions) / sizeof(cstr_permissions[0]), ",");
 
     dmFacebookLoginWithPermissions(
         dmFacebook::STATE_OPEN, dmFacebook::STATE_CLOSED, dmFacebook::STATE_CLOSED_LOGIN_FAILED,
@@ -370,6 +364,8 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
 void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
 {
+    // This function must always return so memory for `permissions` can be free'd.
+
     // On HTML5 both loginWithPublishPermissions and loginWithReadPermissions are
     // regular logins with the permissions as the scope. We're not respecting
     // audience either, which means both of these functions has the exact same
