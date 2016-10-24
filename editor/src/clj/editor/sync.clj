@@ -298,7 +298,6 @@
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
         stage           (ui/make-stage)
-        old-stage       (ui/main-stage)
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root [ "ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
@@ -357,7 +356,7 @@
 
                              nil)))]
     (dialogs/observe-focus stage)
-    (ui/set-main-stage stage)
+    (.initOwner stage (ui/main-stage))
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
@@ -424,6 +423,4 @@
       (ui/show-and-wait-throwing! stage)
       (catch Exception e
         (cancel-flow! !flow)
-        (throw e))
-      (finally
-        (ui/set-main-stage old-stage)))))
+        (throw e)))))
