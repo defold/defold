@@ -64,7 +64,7 @@
       (sync/finish-flow! !flow)
       (is (false? (sync/flow-in-progress? git))))))
 
-(deftest advance-flow-and-write-journal-test
+(deftest advance-flow-test
   (testing ":pull/done"
     (with-git [git       (new-git)
                local-git (clone git)
