@@ -61,19 +61,27 @@
       (update :start-ref deserialize-ref git)
       (update :stash-ref deserialize-ref git)))
 
-(defn- make-flow! [^Git git creds]
-  (let [start-ref (git/get-current-commit-ref git)
-        stash-ref (git/stash git)]
-    {:state     :pull/start
-     :git       git
-     :creds     creds
-     :start-ref start-ref
-     :stash-ref stash-ref
-     :progress  (progress/make "pull" 4)
-     :conflicts {}
-     :resolved  {}
-     :staged    #{}
-     :modified  #{}}))
+(defn- make-flow [^Git git creds start-ref stash-ref]
+  {:state     :pull/start
+   :git       git
+   :creds     creds
+   :start-ref start-ref
+   :stash-ref stash-ref
+   :progress  (progress/make "pull" 4)
+   :conflicts {}
+   :resolved  {}
+   :staged    #{}
+   :modified  #{}})
+
+(defn- should-update-journal? [old-flow new-flow]
+  (let [simple-keys [:state :start-ref :stash-ref :conflicts :resolved :staged :modified]]
+    (or (not= (select-keys old-flow simple-keys)
+              (select-keys new-flow simple-keys))
+        (let [old-progress (:progress old-flow)
+              new-progress (:progress new-flow)]
+          (or (not= (:message old-progress) (:message new-progress))
+              (and (= (:pos new-progress) (:size new-progress))
+                   (not= (:pos old-progress) (:size old-progress))))))))
 
 (defn- flow-journal-file ^java.io.File [^Git git]
   (io/file (.. git getRepository getWorkTree) ".internal/.sync-in-progress"))
@@ -81,9 +89,12 @@
 (defn- write-flow-journal! [{:keys [git] :as flow}]
   (let [file (flow-journal-file git)
         data (serialize-flow flow)]
-    (println "Writing journal:" (:state flow) (str file))
     (io/make-parents file)
     (spit file (pr-str data))))
+
+(defn- on-flow-changed [_ _ old-flow new-flow]
+  (when (should-update-journal? old-flow new-flow)
+    (write-flow-journal! new-flow)))
 
 (defn flow-in-progress? [^Git git]
   (.exists (flow-journal-file git)))
@@ -92,9 +103,13 @@
   (when *login*
     (login/login prefs))
   (let [creds (git/credentials prefs)
-        flow  (make-flow! git creds)]
+        start-ref (git/get-current-commit-ref git)
+        stash-ref (git/stash git)
+        flow  (make-flow git creds start-ref stash-ref)
+        !flow (atom flow)]
     (write-flow-journal! flow)
-    flow))
+    (add-watch !flow ::on-flow-changed on-flow-changed)
+    !flow))
 
 (defn resume-flow [^Git git prefs]
   (when *login*
@@ -102,18 +117,31 @@
   (let [creds (git/credentials prefs)
         file  (flow-journal-file git)
         data  (with-open [reader (java.io.PushbackReader. (io/reader file))]
-                (edn/read reader))]
-    (deserialize-flow data git creds)))
+                (edn/read reader))
+        flow  (deserialize-flow data git creds)
+        !flow (atom flow)]
+    (add-watch !flow ::on-flow-changed on-flow-changed)
+    !flow))
 
-(defn cancel-flow! [{:keys [git start-ref stash-ref] :as flow}]
-  (let [file (flow-journal-file git)]
+(defn cancel-flow! [!flow]
+  (remove-watch !flow ::on-flow-changed)
+  (let [{:keys [git start-ref stash-ref]} @!flow
+        file (flow-journal-file git)]
     (when (.exists file)
-      (println "Deleting journal:" (:state flow) (str file))
-      (io/delete-file file :silently)))
-  (git/hard-reset git start-ref)
-  (when stash-ref
-    (git/stash-apply git stash-ref)
-    (git/stash-drop git stash-ref)))
+      (io/delete-file file :silently))
+    (git/hard-reset git start-ref)
+    (when stash-ref
+      (git/stash-apply git stash-ref)
+      (git/stash-drop git stash-ref))))
+
+(defn finish-flow! [!flow]
+  (remove-watch !flow ::on-flow-changed)
+  (let [{:keys [git stash-ref]} @!flow
+        file (flow-journal-file git)]
+    (when (.exists file)
+      (io/delete-file file :silently))
+    (when stash-ref
+      (git/stash-drop git stash-ref))))
 
 (defn- tick
   ([flow new-state]
@@ -123,28 +151,15 @@
        (assoc :state new-state)
        (update :progress #(progress/advance % n)))))
 
-(defn- should-update-journal? [old-flow new-flow]
-  (or (not= (:state old-flow) (:state new-flow))
-      (not= (:staged old-flow) (:staged new-flow))
-      (not= (:modified old-flow) (:modified new-flow))
-      (let [old-progress (:progress old-flow)
-            new-progress (:progress new-flow)]
-        (not= (:message old-progress) (:message new-progress))
-        (and (= (:pos new-progress) (:size new-progress))
-             (not= (:pos old-progress) (:size old-progress))))))
-
 (defn refresh-git-state [{:keys [git] :as old-flow}]
-  (let [st (git/status git)
-        new-flow (merge old-flow
-                        {:staged   (set/union (:added st)
-                                              (:deleted st)
-                                              (set/difference (:uncommited-changes st)
-                                                              (:modified st)))
-                         :modified (set/union (:modified st)
-                                              (:untracked st))})]
-    (when (should-update-journal? old-flow new-flow)
-      (write-flow-journal! new-flow))
-    new-flow))
+  (let [st (git/status git)]
+    (merge old-flow
+           {:staged   (set/union (:added st)
+                                 (:deleted st)
+                                 (set/difference (:uncommited-changes st)
+                                                 (:modified st)))
+            :modified (set/union (:modified st)
+                                 (:untracked st))})))
 
 (defn advance-flow [{:keys [git state progress creds conflicts stash-ref message] :as flow} render-progress]
   (render-progress progress)
@@ -164,13 +179,13 @@
                                              (println e))))
                           status    (git/status git)]
                       (cond
-                        (nil? stash-ref)        (advance-flow (tick flow :pull/done 2) render-progress)
+                        (nil? stash-ref) (advance-flow (tick flow :pull/done 2) render-progress)
                         (= :conflict stash-res) (advance-flow (-> flow
                                                                   (tick :pull/conflicts)
                                                                   (assoc :conflicts (:conflicting-stage-state status)))
                                                               render-progress)
-                        stash-res               (advance-flow (tick flow :pull/done 2) render-progress)
-                        :else                   (advance-flow (tick flow :pull/error) render-progress)))
+                        stash-res (advance-flow (tick flow :pull/done 2) render-progress)
+                        :else (advance-flow (tick flow :pull/error) render-progress)))
     :pull/conflicts (if (empty? conflicts)
                       (advance-flow (tick flow :pull/done) render-progress)
                       flow)
@@ -190,12 +205,6 @@
                           (println e)
                           (advance-flow (tick flow :pull/start) render-progress))))
     :push/done      flow))
-
-(defn advance-flow-and-write-journal! [flow render-progress!]
-  (let [updated-flow (advance-flow flow render-progress!)]
-    (when (should-update-journal? flow updated-flow)
-      (write-flow-journal! updated-flow))
-    updated-flow))
 
 (ui/extend-menu ::conflicts-menu nil
                 [{:label "Show diff"
@@ -224,14 +233,13 @@
   (when stash-ref
     (String. ^bytes (git/show-file git file (.name stash-ref)))))
 
-(defn resolve-file [!flow file]
+(defn resolve-file! [!flow file]
   (when-let [entry (get (:conflicts @!flow) file)]
     (git/stage-file (:git @!flow) file)
     (git/unstage-file (:git @!flow) file)
     (swap! !flow #(-> %
                       (update :conflicts dissoc file)
-                      (update :resolved assoc file entry)))
-    (write-flow-journal! @!flow)))
+                      (update :resolved assoc file entry)))))
 
 (handler/defhandler :show-diff :sync
   (enabled? [selection] (= 1 (count selection)))
@@ -259,7 +267,7 @@
     (doseq [f selection]
       (when-let [ours (get-ours @!flow f)]
         (spit (io/file (git/worktree (:git @!flow)) f) ours)
-        (resolve-file !flow f)))))
+        (resolve-file! !flow f)))))
 
 (handler/defhandler :use-theirs :sync
   (enabled? [selection] (pos? (count selection)))
@@ -267,7 +275,7 @@
     (doseq [f selection]
       (when-let [theirs (get-theirs @!flow f)]
         (spit (io/file (git/worktree (:git @!flow)) f) theirs)
-        (resolve-file !flow f)))))
+        (resolve-file! !flow f)))))
 
 (handler/defhandler :stage-file :sync
   (enabled? [selection] (pos? (count selection)))
@@ -285,7 +293,7 @@
 
 ;; =================================================================================
 
-(defn open-sync-dialog [flow]
+(defn open-sync-dialog [!flow]
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
@@ -295,7 +303,6 @@
         dialog-controls (ui/collect-controls root [ "ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
         push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label"])
-        !flow           (atom flow)
         render-progress (fn [progress]
                           (ui/run-later
                            (ui/update-progress-controls! progress (:progress-bar dialog-controls) nil)))
@@ -349,7 +356,6 @@
                                              (ui/text! (:ok dialog-controls) "Done"))
 
                              nil)))]
-    (def flw !flow)
     (dialogs/observe-focus stage)
     (ui/set-main-stage stage)
     (update-controls @!flow)
@@ -357,30 +363,29 @@
                                 (update-controls flow)))
 
     (ui/on-action! (:cancel dialog-controls) (fn [_]
-                                               (cancel-flow! @!flow)
+                                               (cancel-flow! !flow)
                                                (.close stage)))
     (ui/on-action! (:ok dialog-controls) (fn [_]
                                            (cond
                                              (= "done" (name (:state @!flow)))
                                              (do
-                                               (when-let [stash-ref (:stash-ref @!flow)]
-                                                 (git/stash-drop (:git @!flow) stash-ref))
+                                               (finish-flow! !flow)
                                                (.close stage))
 
                                              (= :push/staging (:state @!flow))
-                                             (swap! !flow #(advance-flow-and-write-journal!
+                                             (swap! !flow #(advance-flow
                                                             (merge %
-                                                                   {:state :push/comitting
+                                                                   {:state   :push/comitting
                                                                     :message (ui/text (:message push-controls))})
                                                             render-progress))
 
                                              :else
-                                             (swap! !flow advance-flow-and-write-journal! render-progress))))
+                                             (swap! !flow advance-flow render-progress))))
     (ui/on-action! (:push dialog-controls) (fn [_]
                                              (swap! !flow #(merge %
                                                                   {:state    :push/start
                                                                    :progress (progress/make "push" 4)}))
-                                             (swap! !flow advance-flow-and-write-journal! render-progress)))
+                                             (swap! !flow advance-flow render-progress)))
 
     (ui/observe (.textProperty ^TextArea (:message push-controls))
                 (fn [_ _ _]
@@ -409,7 +414,7 @@
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
                                          (when (= code KeyCode/ESCAPE) true
-                                               (cancel-flow! @!flow)
+                                               (cancel-flow! !flow)
                                                (.close stage)))))
 
     (.initModality stage Modality/APPLICATION_MODAL)
@@ -418,7 +423,7 @@
     (try
       (ui/show-and-wait-throwing! stage)
       (catch Exception e
-        (cancel-flow! @!flow)
+        (cancel-flow! !flow)
         (throw e))
       (finally
         (ui/set-main-stage old-stage)))))
