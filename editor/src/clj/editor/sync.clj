@@ -151,9 +151,9 @@
        (assoc :state new-state)
        (update :progress #(progress/advance % n)))))
 
-(defn refresh-git-state [{:keys [git] :as old-flow}]
+(defn refresh-git-state [{:keys [git] :as flow}]
   (let [st (git/status git)]
-    (merge old-flow
+    (merge flow
            {:staged   (set/union (:added st)
                                  (:deleted st)
                                  (set/difference (:uncommited-changes st)
@@ -179,13 +179,13 @@
                                              (println e))))
                           status    (git/status git)]
                       (cond
-                        (nil? stash-ref) (advance-flow (tick flow :pull/done 2) render-progress)
+                        (nil? stash-ref)        (advance-flow (tick flow :pull/done 2) render-progress)
                         (= :conflict stash-res) (advance-flow (-> flow
                                                                   (tick :pull/conflicts)
                                                                   (assoc :conflicts (:conflicting-stage-state status)))
                                                               render-progress)
-                        stash-res (advance-flow (tick flow :pull/done 2) render-progress)
-                        :else (advance-flow (tick flow :pull/error) render-progress)))
+                        stash-res               (advance-flow (tick flow :pull/done 2) render-progress)
+                        :else                   (advance-flow (tick flow :pull/error) render-progress)))
     :pull/conflicts (if (empty? conflicts)
                       (advance-flow (tick flow :pull/done) render-progress)
                       flow)
