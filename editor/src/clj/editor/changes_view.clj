@@ -92,7 +92,7 @@
     (refresh! git list-view)))
 
 (ui/extend-menu ::menubar :editor.app-view/open
-                [{:label "Synchronize"
+                [{:label "Synchronize..."
                   :id ::synchronize
                   :acc "Shortcut+U"
                   :command :synchronize}])
