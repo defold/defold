@@ -19,11 +19,18 @@
         }
     }
     .text-field {
-        -fx-padding: 5px 9px 5px 8px;
-        -fx-border-width: 1 0 1 1;
+        -fx-padding: 5px 8px 5px 8px;
+        -fx-border-width: 0 0 1 0;
+        -fx-border-color: $bright-grey-light;
         &:focused {
+            -fx-border-color: $bright-grey;
+            -fx-border-width: 1px;
+            -fx-text-fill: $defold-white;
             -fx-padding: 5px 8px;
-            -fx-border-width: 1;
+        }
+        &:hover {
+            -fx-border-color: $mid-grey;
+            -fx-border-width: 0 0 1 0;
         }
     }
 }
