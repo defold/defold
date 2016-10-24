@@ -942,6 +942,7 @@ instructions.configure=\
         prefix = os.path.join(u.path, sha1)[1:]
         return prefix
 
+    # TODO: Fix upload of .dmg (currently aborts if it finds it in the beta branch)
     def sign_editor(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname
