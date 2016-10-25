@@ -74,7 +74,7 @@
   (run [changes-view]
     (let [git   (g/node-value changes-view :git)
           prefs (g/node-value changes-view :prefs)]
-      (sync/open-sync-dialog (sync/make-flow git prefs)))))
+      (sync/open-sync-dialog (sync/begin-flow! git prefs)))))
 
 (defn changes-view-post-create
   [this basis event]
@@ -92,7 +92,7 @@
     (refresh! git list-view)))
 
 (ui/extend-menu ::menubar :editor.app-view/open
-                [{:label "Synchronize"
+                [{:label "Synchronize..."
                   :id ::synchronize
                   :acc "Shortcut+U"
                   :command :synchronize}])

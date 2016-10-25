@@ -16,7 +16,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- get-commit [^Repository repository revision]
+(defn get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
     (.setRetainBody walk true)
     (.parseCommit walk (.resolve repository revision))))
