@@ -268,6 +268,27 @@
 (defn show-and-wait! [^Stage stage]
   (.showAndWait stage))
 
+(defn show-and-wait-throwing!
+  "Like show-and wait!, but will immediately close the stage if an
+  exception is thrown from the nested event loop. The exception can
+  then be caught at the call site."
+  [^Stage stage]
+  (when (nil? stage)
+    (throw (IllegalArgumentException. "stage cannot be nil")))
+  (let [prev-exception-handler (Thread/getDefaultUncaughtExceptionHandler)
+        thrown-exception (volatile! nil)]
+    (Thread/setDefaultUncaughtExceptionHandler (reify Thread$UncaughtExceptionHandler
+                                                 (uncaughtException [_ _ exception]
+                                                   (vreset! thrown-exception exception)
+                                                   (close! stage))))
+    (let [result (try
+                   (.showAndWait stage)
+                   (finally
+                     (Thread/setDefaultUncaughtExceptionHandler prev-exception-handler)))]
+      (if-let [exception @thrown-exception]
+        (throw exception)
+        result))))
+
 (defn request-focus! [^Node node]
   (.requestFocus node))
 
@@ -581,9 +602,8 @@
     dynamics
     (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in context [:env node]) v)]) dynamics)))))
 
-(defn- contexts []
-  (let [main-scene (.getScene ^Stage @*main-stage*)
-        initial-node (or (.getFocusOwner main-scene) (.getRoot main-scene))]
+(defn- contexts [^Scene scene]
+  (let [initial-node (or (.getFocusOwner scene) (.getRoot scene))]
     (loop [^Node node initial-node
            ctxs []]
       (if-not node
@@ -688,7 +708,7 @@
   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
     (event-handler event
                    (when-not (.isConsumed event)
-                     (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
+                     (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts (.getScene control))))]
                        ;; Required for autohide to work when the event originates from the anchor/source control
                        ;; See RT-15160 and Control.java
                        (.setImpl_showRelativeToWindow cm true)
@@ -696,7 +716,7 @@
                        (.consume event))))))
 
 (defn register-tab-context-menu [^Tab tab menu-id]
-  (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
+  (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts (.getScene (.getTabPane tab)))))]
     (.setImpl_showRelativeToWindow cm true)
     (.setContextMenu tab cm)))
 
@@ -836,7 +856,7 @@
               (.select state))))))))
 
 (defn refresh
-  ([^Scene scene] (refresh scene (contexts)))
+  ([^Scene scene] (refresh scene (contexts scene)))
   ([^Scene scene command-contexts]
    (let [root (.getRoot scene)
          toolbar-descs (vals (user-data root ::toolbars))]
