@@ -4,6 +4,7 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [editor.system :as system]
+   [schema.utils :as su]
    [service.log :as log]
    [util.http-client :as http])
   (:import
@@ -46,6 +47,30 @@
     :crashed (= (.getState thread) Thread$State/TERMINATED)
     :name (.getName thread)}])
 
+(defn to-safe-json-value
+  [value]
+  (cond
+    (set? value)
+    (into [] (sort (map to-safe-json-value value)))
+
+    (instance? java.util.Map value)
+    (into {} (map (fn [[k v]] [k (to-safe-json-value v)])) value)
+
+    (instance? java.util.Collection value)
+    (into [] (map to-safe-json-value) value)
+
+    (class? value)
+    (str value)
+
+    (fn? value)
+    (str value)
+
+    (instance? schema.utils.ValidationError value)
+    (su/validation-error-explain value)
+
+    :else
+    value))
+
 (defn make-event
   [^Exception ex ^Thread thread]
   (let [environment (if (system/defold-version) "release" "dev")]
@@ -67,7 +92,7 @@
                    :java-version (system/java-runtime-version)}
      :environment environment
      :extra       (merge {:java-home (system/java-home)}
-                         (ex-data ex))
+                         (to-safe-json-value (ex-data ex)))
      :fingerprint ["{{ default }}" environment]
      :exception   (exception-data ex thread)
      :threads     (thread-data thread ex)}))
@@ -81,18 +106,34 @@
   java.time.LocalDateTime
   (-write [object out] (json/-write (str object) out)))
 
+(defn make-request-data
+  [{:keys [project-id key secret]} event]
+  {:request-method :post
+   :scheme         "https"
+   :server-name    "sentry.io"
+   :uri            (format "/api/%s/store/" project-id)
+   :content-type   "application/json"
+   :headers        {"X-Sentry-Auth" (x-sentry-auth (:timestamp event) key secret)
+                    "User-Agent"    user-agent
+                    "Accept"        "application/json"}
+   :body           (try
+                     (json/write-str event)
+                     (catch Exception e
+                       ;; The :extra field in the event data returned by make-event can potentially
+                       ;; contain anything, since it includes ex-data from the exception.
+                       ;; We attempt to convert unrepresentable values into an appropriate json value
+                       ;; using the to-safe-json-value function above, but new types might appear.
+                       ;; In case conversion fails, we replace the :extra data with safe data that
+                       ;; will convert successfully, and include info about the conversion failure
+                       ;; so we can add conversions to the to-safe-json-value function as needed.
+                       (json/write-str (assoc event :extra {:java-home (system/java-home)
+                                                            :conversion-failure (exception-data e (Thread/currentThread))}))))})
+
 (defn report-exception
-  [{:keys [project-id key secret] :as options} ^Exception ex ^Thread thread]
-  (let [event (make-event ex thread)]
-    (http/request {:request-method :post
-                   :scheme         "https"
-                   :server-name    "sentry.io"
-                   :uri            (format "/api/%s/store/" project-id)
-                   :content-type   "application/json"
-                   :headers        {"X-Sentry-Auth" (x-sentry-auth (:timestamp event) key secret)
-                                    "User-Agent"    user-agent
-                                    "Accept"        "application/json"}
-                   :body           (json/write-str event)})))
+  [options exception thread]
+  (let [event (make-event exception thread)
+        request (make-request-data options event)]
+    (http/request request)))
 
 
 ;; report exceptions on separate thread

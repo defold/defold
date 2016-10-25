@@ -2,8 +2,8 @@
   (:require [dynamo.graph :as g]
             [schema.core :as s]
             [editor.types :as types])
-  (:import [javax.media.opengl GL GL2]
-           [javax.media.opengl.glu GLU]))
+  (:import [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl.glu GLU]))
 
 (set! *warn-on-reflection* true)
 

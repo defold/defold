@@ -1,5 +1,5 @@
 context:
-    dynamo_home: '/Users/chmu/tmp/dynamo-home'
+    dynamo_home: '/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home'
     frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
     symbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"]
@@ -34,7 +34,7 @@ main: |
 platforms:
   x86-osx:
     context:
-        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx"]
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx"]
         libPaths: ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin"]
 
     exeExt: ''

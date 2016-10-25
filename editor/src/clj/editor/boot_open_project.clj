@@ -142,7 +142,7 @@
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage      (Stage.)
+        stage      (ui/make-stage)
         scene      (Scene. root)]
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
@@ -152,20 +152,11 @@
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
-    (when-let [dims (prefs/get-prefs prefs app-view/prefs-window-dimensions nil)]
-      (.setX stage (:x dims))
-      (.setY stage (:y dims))
-      (.setWidth stage (:width dims))
-      (.setHeight stage (:height dims)))
+    (app-view/restore-window-dimensions stage prefs)
 
     (ui/init-progress!)
     (ui/show! stage)
     (targets/start)
-
-    (ui/on-close-request! stage
-                          (fn [_]
-                            (g/transact
-                              (g/delete-node project))))
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
@@ -177,10 +168,6 @@
           next-console         (.lookup root "#next-console")
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
-          splits               [(.lookup root "#main-split")
-                                (.lookup root "#center-split")
-                                (.lookup root "#right-split")
-                                (.lookup root "#assets-split")]
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
@@ -214,11 +201,16 @@
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
 
-      (when-let [div-pos (prefs/get-prefs prefs app-view/prefs-split-positions nil)]
-        (doall (map (fn [^SplitPane sp pos]
-                      (when (and sp pos)
-                        (.setDividerPositions sp (into-array Double/TYPE pos))))
-                    splits div-pos)))
+      (app-view/restore-split-positions stage prefs)
+
+      (ui/on-closing! stage (fn [_]
+                              (or (not (workspace/version-on-disk-outdated? workspace))
+                                  (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))))
+    
+      (ui/on-closed! stage (fn [_]
+                             (app-view/store-window-dimensions stage prefs)
+                             (app-view/store-split-positions stage prefs)
+                             (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console
                                :search search-console
@@ -236,8 +228,7 @@
                          :web-server        web-server
                          :build-errors-view build-errors-view
                          :changes-view      changes-view
-                         :main-stage        stage
-                         :splits            splits}]
+                         :main-stage        stage}]
         (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
       (g/transact
         (concat

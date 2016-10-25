@@ -7,6 +7,7 @@
    [editor.jfx :as jfx]
    [editor.progress :as progress]
    [editor.workspace :as workspace]
+   [internal.util :as util]
    [service.log :as log]
    [util.profiler :as profiler])
   (:import
@@ -18,12 +19,13 @@
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections ObservableList ListChangeListener ListChangeListener$Change]
    [javafx.css Styleable]
-   [javafx.event ActionEvent EventHandler WeakEventHandler]
+   [javafx.event ActionEvent EventHandler WeakEventHandler Event]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
    [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem CheckMenuItem ProgressBar TabPane Tab TextField Tooltip]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
+   [javafx.scene.image Image]
    [javafx.scene.layout Region]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
@@ -57,6 +59,13 @@
   (editable [this])
   (editable! [this val])
   (on-edit! [this fn]))
+
+(def application-icon-image (Image. (io/input-stream (io/resource "logo_blue.png"))))
+
+(defn make-stage
+  ^Stage []
+  (doto (Stage.)
+    (.. getIcons (add application-icon-image))))
 
 ; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
@@ -488,7 +497,7 @@
           roots (loop [paths (keys items)
                        roots []]
                   (if-let [path (first paths)]
-                    (let [ancestors (filter #(= (subvec path 0 (count %)) %) roots)
+                    (let [ancestors (filter #(util/seq-starts-with? path %) roots)
                           roots (if (empty? ancestors)
                                   (conj roots path)
                                   roots)]
@@ -697,7 +706,11 @@
    (if-let [menubar (.lookup root menubar-id)]
      (let [desc (make-desc menubar menu-id)]
        (user-data! root ::menubar desc))
-     (log/warn :message (format "menubar %s not found" menubar-id)))))
+     (log/warn :message (format "menubar %s not found" menubar-id))))
+  (.addEventFilter scene KeyEvent/KEY_PRESSED
+    (event-handler event
+      (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
+        (.consume event)))))
 
 (def ^:private invalidate-menus? (atom false))
 
@@ -865,7 +878,7 @@
 (defn modal-progress [title total-work worker-fn]
   (run-now
    (let [root             ^Parent (load-fxml "progress.fxml")
-         stage            (Stage.)
+         stage            (make-stage)
          scene            (Scene. root)
          title-control    ^Label (.lookup root "#title")
          progress-control ^ProgressBar (.lookup root "#progress")
@@ -1077,54 +1090,44 @@ return value."
 (defn anim-stop! [^AnimationTimer anim]
   (.stop anim))
 
+(defn- chain-handler [new-handler-fn ^EventHandler existing-handler]
+  (event-handler e
+                 (new-handler-fn e)
+                 (when existing-handler
+                   (.handle existing-handler e))))
+
+(defprotocol CloseRequestable
+  (on-closing [this])
+  (on-closing! [this f]))
+
+(extend-type javafx.stage.Stage
+  CloseRequestable
+  (on-closing [this] (.getOnCloseRequest this))
+  (on-closing! [this f]
+    (.setOnCloseRequest this (chain-handler
+                              (fn [^Event e]
+                                (when-not (f e)
+                                  (.consume e)))
+                              (on-closing this)))))
+
 (defprotocol Closeable
-  (on-close-request [this])
-  (on-close-request! [this f]))
+  (on-closed [this])
+  (on-closed! [this f]))
 
 (extend-protocol Closeable
   javafx.scene.control.Tab
-  (on-close-request [this] (.getOnCloseRequest this))
-  (on-close-request! [this f] (.setOnCloseRequest this (event-handler e (f e))))
+  (on-closed [this] (.getOnClosed this))
+  (on-closed! [this f] (.setOnClosed this (chain-handler f (on-closed this))))
 
   javafx.stage.Stage
-  (on-close-request [this] (.getOnCloseRequest this))
-  (on-close-request! [this f] (.setOnCloseRequest this (event-handler e (f e)))))
+  (on-closed [this] (.getOnHidden this))
+  (on-closed! [this f] (.setOnHidden this (chain-handler f (on-closed this)))))
 
-(defprotocol Hideable
-  (on-hiding [this])
-  (on-hiding! [this f]))
-
-(extend-protocol Hideable
-  javafx.stage.Window
-  (on-hiding [this] (.getOnHiding this))
-  (on-hiding! [this f] (.setOnHiding this (event-handler e (f e)))))
-
-(defn timer-stop-on-close!
+(defn timer-stop-on-closed!
   [closeable timer]
-  (let [existing-handler (on-close-request closeable)]
-    (on-close-request!
-     closeable
-     (fn [event]
-       (timer-stop! timer)
-       (when existing-handler
-         (.handle ^EventHandler existing-handler event))))))
-
-(defprotocol CloseHandler
-  (on-close [this fn]))
-
-(extend-type Tab
-  CloseHandler
-  (on-close [this fn]
-    (let [existing-handler (.getOnClosed this)]
-      ; TODO - reflection
-      (.setOnClosed
-        this
-        (event-handler e
-                       (fn e)
-                       (when existing-handler
-                         ; TODO - reflection
-                         (.handle existing-handler e)))))))
-
+  (on-closed! closeable (fn [_]
+                         (timer-stop! timer))))
+                         
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
 

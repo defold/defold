@@ -1,0 +1,424 @@
+script: "/editor1/test.gui_script"
+fonts {
+  name: "test"
+  font: "/editor1/test.font"
+}
+textures {
+  name: "test"
+  texture: "/editor1/test.atlas"
+}
+textures {
+  name: "test1"
+  texture: "/editor1/test.tileset"
+}
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 1.0
+}
+nodes {
+  position {
+    x: 218.95712
+    y: 232.05879
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: -1.2071809
+    y: 66.08339
+    z: -18.330853
+    w: 1.0
+  }
+  scale {
+    x: 2.0
+    y: 2.0
+    z: 2.0
+    w: 1.0
+  }
+  size {
+    x: 38.0
+    y: 38.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 0.0
+    y: 0.17254902
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ADD_ALPHA
+  texture: "test/particle_blob"
+  id: "box"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NE
+  adjust_mode: ADJUST_MODE_ZOOM
+  layer: "test2"
+  inherit_alpha: false
+  slice9 {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  position {
+    x: 640.0
+    y: 360.0
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: 16.966736
+    y: -66.33059
+    z: -12.735352
+    w: 1.0
+  }
+  scale {
+    x: 1.2
+    y: 1.2
+    z: 1.2
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 1.0
+    y: 0.49803925
+    z: 0.46274513
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_ALPHA
+  text: "ABCDE"
+  font: "test"
+  id: "text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_E
+  outline {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  shadow {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  adjust_mode: ADJUST_MODE_FIT
+  line_break: true
+  parent: "box"
+  layer: "test"
+  inherit_alpha: false
+  alpha: 1.0
+  outline_alpha: 1.0
+  shadow_alpha: 1.0
+  template_node_child: false
+  text_leading: 2.0
+  text_tracking: 1.0
+}
+nodes {
+  position {
+    x: 335.2673
+    y: 20.374252
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEMPLATE
+  id: "template_test"
+  parent: "box"
+  layer: ""
+  inherit_alpha: true
+  alpha: 1.0
+  template: "/editor1/template_test.gui"
+  template_node_child: false
+}
+nodes {
+  position {
+    x: 100.0
+    y: 100.0
+    z: 1.0
+    w: 1.0
+  }
+  rotation {
+    x: -7.6495366
+    y: -41.09756
+    z: -32.771122
+    w: 1.0
+  }
+  scale {
+    x: 2.0
+    y: 3.0
+    z: 4.0
+    w: 1.0
+  }
+  size {
+    x: 76.0
+    y: 76.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 0.06666667
+    y: 1.0
+    z: 0.45882356
+    w: 1.0
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ADD_ALPHA
+  texture: "test/test"
+  id: "template_test/box"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_ZOOM
+  parent: "template_test"
+  layer: "test2"
+  inherit_alpha: true
+  slice9 {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: true
+  clipping_inverted: false
+  alpha: 1.0
+  overridden_fields: 1
+  overridden_fields: 5
+  overridden_fields: 7
+  overridden_fields: 12
+  overridden_fields: 14
+  overridden_fields: 20
+  overridden_fields: 21
+  overridden_fields: 28
+  overridden_fields: 29
+  overridden_fields: 30
+  overridden_fields: 38
+  template_node_child: true
+  size_mode: SIZE_MODE_MANUAL
+}
+nodes {
+  position {
+    x: -53.276108
+    y: 78.4107
+    z: -17.197472
+    w: 1.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 0.35686275
+    y: 1.0
+    z: 0.9960785
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_MULT
+  text: "XYZ"
+  font: "test"
+  id: "template_test/text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NE
+  outline {
+    x: 1.0
+    y: 0.15294118
+    z: 0.0
+    w: 1.0
+  }
+  shadow {
+    x: 0.0
+    y: 0.2509804
+    z: 1.0
+    w: 1.0
+  }
+  adjust_mode: ADJUST_MODE_ZOOM
+  line_break: true
+  parent: "template_test/box"
+  layer: "test2"
+  inherit_alpha: true
+  alpha: 0.6
+  outline_alpha: 0.9
+  shadow_alpha: 0.3
+  overridden_fields: 5
+  overridden_fields: 8
+  overridden_fields: 17
+  overridden_fields: 20
+  overridden_fields: 21
+  template_node_child: true
+  text_leading: 2.0
+  text_tracking: 1.0
+}
+nodes {
+  position {
+    x: 436.99472
+    y: 283.6402
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: -4.650592
+    y: -67.30523
+    z: -42.304806
+    w: 1.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 0.46274513
+    y: 0.42352945
+    z: 0.14509805
+    w: 1.0
+  }
+  type: TYPE_PIE
+  blend_mode: BLEND_MODE_ADD
+  texture: "test/logo"
+  id: "template_test/pie"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_NE
+  adjust_mode: ADJUST_MODE_ZOOM
+  parent: "template_test"
+  layer: "test"
+  inherit_alpha: false
+  outerBounds: PIEBOUNDS_RECTANGLE
+  innerRadius: 1.0
+  perimeterVertices: 32
+  pieFillAngle: 45.0
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.8
+  template_node_child: true
+  size_mode: SIZE_MODE_MANUAL
+}
+nodes {
+  position {
+    x: 342.2459
+    y: 490.26743
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: -0.4566758
+    y: -67.47876
+    z: 17.101849
+    w: 1.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  type: TYPE_PIE
+  blend_mode: BLEND_MODE_ALPHA
+  texture: ""
+  id: "pie"
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_FIT
+  layer: ""
+  inherit_alpha: true
+  outerBounds: PIEBOUNDS_ELLIPSE
+  innerRadius: 0.0
+  perimeterVertices: 10
+  pieFillAngle: 360.0
+  clipping_mode: CLIPPING_MODE_NONE
+  clipping_visible: true
+  clipping_inverted: false
+  alpha: 1.0
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+}
+layers {
+  name: "test"
+}
+layers {
+  name: "test2"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_DISABLED
+max_nodes: 128

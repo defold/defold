@@ -10,7 +10,6 @@
             [editor.dialogs :as dialogs])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
-           [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
@@ -31,7 +30,7 @@
            [java.io File]
            [java.nio.file Path Paths Files attribute.FileAttribute]
            [java.util.prefs Preferences]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [org.apache.commons.io FileUtils FilenameUtils IOUtils]
            [com.defold.control TreeCell]))
 
@@ -106,12 +105,13 @@
                                  (= :file (resource/source-type x))))
 
 (handler/defhandler :open :asset-browser
-  (enabled? [selection] (every? is-resource-file selection))
+  (enabled? [selection] (and (seq selection) (every? is-resource-file selection)))
   (run [selection open-fn]
        (doseq [resource selection]
          (open-fn resource))))
 
 (handler/defhandler :open-as :asset-browser
+  (active? [selection] (some is-resource-file selection))
   (enabled? [selection] (= 1 (count selection)))
   (run [selection open-fn user-data]
     (let [resource (first selection)]
@@ -193,7 +193,7 @@
        (copy (-> selection roots fileify))))
 
 (handler/defhandler :cut :asset-browser
-  (enabled? [selection] (every? is-deletable-resource selection))
+  (enabled? [selection] (and (seq selection) (every? is-deletable-resource selection)))
   (run [selection on-delete-resource-fn]
        (let [tmp (doto (-> (Files/createTempDirectory "asset-cut" (into-array FileAttribute []))
                          (.toFile))
@@ -261,7 +261,7 @@
       (rename resource new-name))))
 
 (handler/defhandler :delete :asset-browser
-  (enabled? [selection] (every? is-deletable-resource selection))
+  (enabled? [selection] (and (seq selection) (every? is-deletable-resource selection)))
   (run [selection on-delete-resource-fn]
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))]
       (and (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
@@ -460,10 +460,10 @@
   (let [handler (reify EventHandler
                   (handle [this e]
                     (when (= 2 (.getClickCount ^MouseEvent e))
-                      (let [item (-> tree-view (.getSelectionModel) (.getSelectedItem))
-                            resource (.getValue ^TreeItem item)]
-                        (when (= :file (resource/source-type resource))
-                          (open-resource-fn resource))))))
+                      (if-let [item (-> tree-view (.getSelectionModel) (.getSelectedItem))]
+                        (let [resource (.getValue ^TreeItem item)]
+                          (when (= :file (resource/source-type resource))
+                            (open-resource-fn resource)))))))
         over-handler (ui/event-handler e (drag-over e))
         done-handler (ui/event-handler e (drag-done e (workspace/selection tree-view)))
         dropped-handler (ui/event-handler e (drag-dropped e))

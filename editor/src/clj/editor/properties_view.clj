@@ -16,7 +16,7 @@
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
-           [com.jogamp.opengl.util.awt Screenshot]
+           
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList]
@@ -35,7 +35,7 @@
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [com.google.protobuf ProtocolMessageEnum]
            [editor.properties CurveSpread Curve]))
 
@@ -139,45 +139,41 @@
                         ctrls))
     box))
 
-(defn- create-multi-textfield!
-  ([labels property-fn]
-    (create-multi-textfield! labels property-fn identity identity))
-  ([labels property-fn from-type-fn to-type-fn]
-    (let [text-fields  (mapv (fn [l] (doto (TextField.)
-                                       (.setPrefWidth 5000)
-                                       (GridPane/setFillWidth true)))
-                             labels)
-          box          (doto (GridPane.)
-                         (.setPrefWidth Double/MAX_VALUE))
-          update-ui-fn (fn [values message read-only?]
-                         (let [values (mapv from-type-fn values)]
-                           (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
-                                                                          [t (str (properties/unify-values
-                                                                                    (map #(nth % i) values)))])
-                                                                        text-fields)]
-                             (ui/text! t v)
-                             (ui/editable! t (not read-only?))))
-                         (update-field-message text-fields message))]
-      (doseq [[t f] (map-indexed (fn [i t]
-                                   [t (fn [_]
-                                        (let [v            (to-double (.getText ^TextField t))
-                                              current-vals (properties/values (property-fn))]
-                                          (if v
-                                            (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
-                                            (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                          (properties/read-only? (property-fn))))))])
-                                 text-fields)]
-        (ui/on-action! ^TextField t f)
-        (auto-commit! t f))
-      (doall (map-indexed (fn [idx [t label]]
-                            (let [comp (create-property-component [(doto (Label. label)
-                                                                     (.setMinWidth 25))
-                                                                   t])]
-                              (ui/add-child! box comp)
-                              (GridPane/setConstraints comp idx 0)
-                              (GridPane/setFillWidth comp true)))
-                          (map vector text-fields labels)))
-      [box update-ui-fn])))
+(defn- create-multi-textfield! [labels property-fn]
+  (let [text-fields  (mapv (fn [l] (doto (TextField.)
+                                     (.setPrefWidth 5000)
+                                     (GridPane/setFillWidth true)))
+                           labels)
+        box          (doto (GridPane.)
+                       (.setPrefWidth Double/MAX_VALUE))
+        update-ui-fn (fn [values message read-only?]
+                       (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
+                                                                      [t (str (properties/unify-values
+                                                                                (map #(nth % i) values)))])
+                                                                    text-fields)]
+                         (ui/text! t v)
+                         (ui/editable! t (not read-only?)))
+                       (update-field-message text-fields message))]
+    (doseq [[t f] (map-indexed (fn [i t]
+                                 [t (fn [_]
+                                      (let [v            (to-double (.getText ^TextField t))
+                                            current-vals (properties/values (property-fn))]
+                                        (if v
+                                          (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
+                                          (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                                        (properties/read-only? (property-fn))))))])
+                               text-fields)]
+      (ui/on-action! ^TextField t f)
+      (auto-commit! t f))
+    (doall (map-indexed (fn [idx [t label]]
+                          (let [comp (create-property-component [(doto (Label. label)
+                                                                   (.setMinWidth 25))
+                                                                 t])]
+                            (ui/add-child! box comp)
+                            (GridPane/setConstraints comp idx 0)
+                            (GridPane/setFillWidth comp true)))
+                        (map vector text-fields labels)))
+    [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec2 [edit-type _ property-fn]
   (let [{:keys [labels]
@@ -281,7 +277,7 @@
                            (ui/disable! text-field curved?)))]
     [box update-ui-fn]))
 
-(defmethod create-property-control! types/Color [_ _ property-fn]
+(defmethod create-property-control! types/Color [edit-type _ property-fn]
   (let [color-picker (doto (ColorPicker.)
                        (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn  (fn [values message read-only?]
@@ -294,8 +290,11 @@
                         (ui/editable! color-picker (not read-only?)))]
 
     (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
-                                              v        [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
-                                          (properties/set-values! (property-fn) (repeat v)))))
+                                              v        [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]
+                                              values (if (:ignore-alpha? edit-type)
+                                                       (map #(assoc %1 3 %2) (repeat v) (map last (properties/values (property-fn))))
+                                                       (repeat v))]
+                                          (properties/set-values! (property-fn) values))))
     [color-picker update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [edit-type _ property-fn]
@@ -336,21 +335,19 @@
                        (ui/add-style! "small-button"))
         text         (doto (TextField.)
                        (GridPane/setFillWidth true))
-        from-type    (or (:from-type edit-type) identity)
-        to-type      (or (:to-type edit-type) identity)
         dialog-opts  (if (:ext edit-type) {:ext (:ext edit-type)} {})
         update-ui-fn (fn [values message read-only?]
-                       (let [val (properties/unify-values (map to-type values))]
+                       (let [val (properties/unify-values values)]
                          (ui/text! text (when val (resource/proj-path val))))
                        (update-field-message [text] message)
                        (ui/editable! text (not read-only?))
                        (ui/editable! button (not read-only?)))]
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace dialog-opts))]
-                                     (properties/set-values! (property-fn) (repeat (from-type resource))))))
+                                     (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! text (fn [_] (let [path     (ui/text text)
                                       resource (workspace/resolve-workspace-resource workspace path)]
-                                  (properties/set-values! (property-fn) (repeat (from-type resource))))))
+                                  (properties/set-values! (property-fn) (repeat resource)))))
     (ui/children! box [text button])
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints button 1 0)

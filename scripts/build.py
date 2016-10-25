@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform
+import os, sys, shutil, zipfile, re, itertools, json, platform, math
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -21,8 +21,9 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1".split()
-PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0".split()
+PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1 luajit-2.0.3".split()
+PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3".split()
+PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -224,10 +225,13 @@ class Configuration(object):
         return path
 
     def _install_go(self):
-        urls = {'darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
-                'linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
-                'x86_64-linux' : 'http://go.googlecode.com/files/go1.1.linux-amd64.tar.gz',
-                'win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
+        urls = {
+            'darwin'       : 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
+            'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
+            'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
+            'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
+        }
+
         url = urls[self.host]
         path = self._download(url)
         self._extract(path, self.ext)
@@ -255,6 +259,9 @@ class Configuration(object):
 
         for p in PACKAGES_LINUX:
                 self._extract_tgz(make_path('linux'), self.ext)
+
+        for p in PACKAGES_LINUX_64:
+                self._extract_tgz(make_path('x86_64-linux'), self.ext)
 
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
@@ -298,6 +305,9 @@ class Configuration(object):
     def install_ems(self):
         url = '%s/emsdk-%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, EMSCRIPTEN_VERSION_STR, self.host)
         dlpath = self._download(url)
+        if dlpath is None:
+            print("Error. Could not download %s" % url)
+            sys.exit(1)
         self._extract(dlpath, self.ext)
         self.activate_ems()
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
@@ -477,11 +487,16 @@ class Configuration(object):
             self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def build_go(self):
-        # TODO: shell=True is required only on windows
-        # otherwise it fails. WHY?
+        # TODO: shell=True is required only on windows otherwise it fails. WHY?
+
+        self.exec_env_command('go clean -i github.com/...', shell=True)
+        self.exec_env_command('go install github.com/...', shell=True)
+
+        self.exec_env_command('go clean -i defold/...', shell=True)
         if not self.skip_tests:
             self.exec_env_command('go test defold/...', shell=True)
         self.exec_env_command('go install defold/...', shell=True)
+
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
 
@@ -638,11 +653,10 @@ instructions.configure=\
         self.exec_env_command(['./scripts/lein', 'clean'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'protobuf'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'builtins'], cwd = cwd)
+        self.exec_env_command(['./scripts/lein', 'pack'], cwd = cwd)
         self.check_editor2_reflections()
         self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
-
-        ext_lib_path = join(self.dynamo_home, 'ext', 'lib')
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version, '--ext-lib-path=%s' % ext_lib_path], cwd = cwd)
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version], cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -885,7 +899,7 @@ instructions.configure=\
             if response[0] != 'y':
                 return
 
-        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.zip' % self.channel),
+        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.dmg' % self.channel),
                                        dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
                                        dict(name='Linux (64-bit)', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel),
                                        dict(name='Linux (32-bit)', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
@@ -905,7 +919,7 @@ instructions.configure=\
                                                  'sha1' : release_sha1}))
 
         # Create redirection keys for editor
-        for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
+        for name in ['Defold-macosx.cocoa.x86_64.dmg', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
             key_name = '%s/%s' % (self.channel, name)
             redirect = '/archive/%s/%s/editor/%s' % (release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
@@ -927,6 +941,68 @@ instructions.configure=\
         sha1 = self._git_sha1()
         prefix = os.path.join(u.path, sha1)[1:]
         return prefix
+
+    # TODO: Fix upload of .dmg (currently aborts if it finds it in the beta branch)
+    def sign_editor(self):
+        u = urlparse.urlparse(self.archive_path)
+        bucket_name = u.hostname
+        bucket = self._get_s3_bucket(bucket_name)
+        prefix = self._get_s3_archive_prefix()
+        bucket_items = bucket.list(prefix=prefix)
+
+        candidate = None
+        for entry in bucket_items:
+            if 'Defold-macosx.cocoa.x86_64.zip' in entry.key:
+                candidate = entry
+            if 'Defold-macosx.cocoa.x86_64.dmg' in entry.key:
+                return True # The editor has already been signed
+
+        if candidate is not None:
+            root = None
+            builddir = None
+            try:
+                root = tempfile.mkdtemp(prefix='defsign.')
+                builddir = os.path.join(root, 'build')
+                self._mkdirs(builddir)
+
+                # Download the editor from S3
+                filepath = os.path.join(root, 'Defold-macosx.cocoa.x86_64.zip')
+                if not os.path.isfile(filepath):
+                    self._log('Downloading s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
+                    candidate.get_contents_to_filename(filepath)
+                    self._log('Downloaded s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
+
+                # Prepare the build directory to create a signed container
+                self._log('Signing %s' % (filepath))
+                dp_defold = os.path.join(builddir, 'Defold-macosx.cocoa.x86_64')
+                fp_defold_app = os.path.join(dp_defold, 'Defold.app')
+                fp_defold_dmg = os.path.join(root, 'Defold-macosx.cocoa.x86_64.dmg')
+
+                self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold], False)
+                self.exec_command(['chmod', '-R', '755', dp_defold], False)
+                os.symlink('/Applications', os.path.join(builddir, 'Applications'))
+
+                # Create a signature for Defold.app and the container
+                # This certificate must be installed on the computer performing the operation
+                certificate = 'Developer ID Application: Midasplayer AB (YFY47KYJ6N)'
+                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
+                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
+                self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
+                self._log('Signed %s' % (fp_defold_dmg))
+
+                # Upload the signed container to S3
+                target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
+                self.upload_file(fp_defold_dmg, target)
+                return True
+            finally:
+                self.wait_uploads()
+                if root is not None:
+                    if builddir is not None:
+                        if os.path.islink(os.path.join(builddir, 'Applications')):
+                            os.unlink(os.path.join(builddir, 'Applications'))
+                    shutil.rmtree(root)
+
+        return False
 
     def _sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
@@ -1017,12 +1093,52 @@ instructions.configure=\
             if p[-1] == '/':
                 p += basename(path)
 
-            def upload():
+            def upload_singlefile():
                 key = bucket.new_key(p)
                 key.set_contents_from_filename(path)
                 self._log('Uploaded %s -> %s' % (path, url))
 
-            f = Future(self.thread_pool, upload)
+            def upload_multipart():
+                mp = bucket.initiate_multipart_upload(p)
+
+                source_size = os.stat(path).st_size
+                chunksize = 64 * 1024 * 1024 # 64 MiB
+                chunkcount = int(math.ceil(source_size / float(chunksize)))
+
+                def upload_part(filepath, part, offset, size):
+                    with open(filepath, 'r') as fhandle:
+                        fhandle.seek(offset)
+                        mp.upload_part_from_file(fp=fhandle, part_num=part, size=size)
+
+                _threads = []
+                for i in range(chunkcount):
+                    part = i + 1
+                    offset = i * chunksize
+                    remaining = source_size - offset
+                    size = min(chunksize, remaining)
+                    args = {'filepath': path, 'part': part, 'offset': offset, 'size': size}
+
+                    self._log('Uploading #%d %s -> %s' % (i + 1, path, url))
+                    _thread = Thread(target=upload_part, kwargs=args)
+                    _threads.append(_thread)
+                    _thread.start()
+
+                for i in range(chunkcount):
+                    _threads[i].join()
+                    self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
+
+                if len(mp.get_all_parts()) == chunkcount:
+                    mp.complete_upload()
+                    self._log('Uploaded %s -> %s' % (path, url))
+                else:
+                    mp.cancel_upload()
+                    self._log('Failed to upload %s -> %s' % (path, url))
+
+            f = None
+            if sys.platform == 'win32':
+                f = Future(self.thread_pool, upload_singlefile)
+            else:
+                f = Future(self.thread_pool, upload_multipart)
             self.futures.append(f)
 
         else:
@@ -1033,8 +1149,8 @@ instructions.configure=\
             f()
         self.futures = []
 
-    def exec_command(self, args):
-        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = True)
+    def exec_command(self, args, shell = True):
+        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = shell)
 
         output = process.communicate()[0]
         if process.returncode != 0:
@@ -1116,6 +1232,7 @@ test_cr         - Test editor and server
 build_server    - Build server
 build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
+sign_editor     - Sign the editor and upload a dmg archive to S3
 archive_server  - Archive server to path specified with --archive-path
 build_bob       - Build bob with native libraries included for cross platform deployment
 archive_bob     - Archive bob to path specified with --archive-path
