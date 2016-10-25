@@ -3,6 +3,10 @@
 #include "../gamesys.h"
 #include <script/script.h>
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
+
 #include "script_window.h"
 
 namespace dmGameSystem
@@ -81,7 +85,8 @@ static void RunCallback(CallbackInfo* cbinfo)
     }
 
     lua_State* L = listener->m_L;
-    int top = lua_gettop(L);
+
+    DM_LUA_STACK_CHECK(L);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, listener->m_Callback);
     // Setup self
@@ -94,7 +99,6 @@ static void RunCallback(CallbackInfo* cbinfo)
     {
         dmLogError("Could not run Window callback because the instance has been deleted.");
         lua_pop(L, 2);
-        assert(top == lua_gettop(L));
         return;
     }
 
@@ -110,7 +114,6 @@ static void RunCallback(CallbackInfo* cbinfo)
         dmLogError("Error running Window callback: %s", lua_tostring(L,-1));
         lua_pop(L, 1);
     }
-    assert(top == lua_gettop(L));
 }
 
 /*# Sets a window event listener
@@ -154,6 +157,8 @@ static void RunCallback(CallbackInfo* cbinfo)
  */
 static int SetListener(lua_State* L)
 {
+    DM_LUA_STACK_CHECK(L);
+
     WindowInfo* window_info = &g_Window;
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
@@ -200,7 +205,7 @@ static int SetListener(lua_State* L)
   */
 static int SetDimMode(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L);
 
     DimMode mode = (DimMode) luaL_checkint(L, 1);
     if (mode == DIMMING_ON)
@@ -213,11 +218,9 @@ static int SetDimMode(lua_State* L)
     }
     else
     {
-        assert(top == lua_gettop(L));
         return luaL_error(L, "The dim mode specified is not supported.");
     }
 
-    assert(top == lua_gettop(L));
     return 0;
 }
 
@@ -243,11 +246,42 @@ static int GetDimMode(lua_State* L)
     return 1;
 }
 
+/** Shows the mouse cursor
+ * Shows the mouse cursor 
+ * @name window.show_mouse_cursor
+ */
+static int ShowMouseCursor(lua_State* L)
+{
+#if defined(__EMSCRIPTEN__)
+    EM_ASM( Module.canvas.style.cursor = "default"; );
+#else
+    glfwEnable(GLFW_MOUSE_CURSOR);
+#endif
+    return 1;
+}
+
+/** Hides the mouse cursor
+ * Hides the mouse cursor. The subsequent mouse positions are not bound to the screen coordinates.
+ * @name window.hide_mouse_cursor
+ */
+static int HideMouseCursor(lua_State* L)
+{
+#if defined(__EMSCRIPTEN__)
+    EM_ASM( Module.canvas.style.cursor = "none"; );
+#else
+    glfwDisable(GLFW_MOUSE_CURSOR);
+#endif
+    return 1;
+}
+
+
 static const luaL_reg Module_methods[] =
 {
     {"set_listener", SetListener},
     {"set_dim_mode", SetDimMode},
     {"get_dim_mode", GetDimMode},
+    {"show_mouse_cursor", ShowMouseCursor},
+    {"hide_mouse_cursor", HideMouseCursor},
     {0, 0}
 };
 
