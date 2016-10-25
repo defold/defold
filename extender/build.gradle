@@ -1,0 +1,55 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:1.3.3.RELEASE")
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+apply plugin: 'spring-boot'
+
+jar {
+    baseName = 'extender'
+    version =  '0.1.0'
+}
+
+repositories {
+    mavenCentral()
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+dependencies {
+	// TODO lock version to 4.2.5.RELEASE?
+
+    // tag::jetty[]
+    compile("org.springframework.boot:spring-boot-starter-web") {
+        exclude module: "spring-boot-starter-tomcat"
+    }
+    compile("org.springframework.boot:spring-boot-starter-jetty")
+    testCompile('org.springframework:spring-test')
+
+    //compile("org.springframework.boot:spring-boot-starter-mustache")
+    compile('com.samskivert:jmustache:1.12')
+    compile('com.google.guava:guava:19.0')
+    compile('org.apache.httpcomponents:httpclient:4.5.2')
+    compile('org.apache.httpcomponents:httpmime:4.5.2')
+
+
+    // end::jetty[]
+    compile('commons-io:commons-io:2.4')
+    // tag::actuator[]
+    compile("org.springframework.boot:spring-boot-starter-actuator")
+    // end::actuator[]
+    testCompile("junit:junit")
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.13'
+}
+

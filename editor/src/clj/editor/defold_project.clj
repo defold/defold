@@ -30,7 +30,16 @@
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.lang Process ProcessBuilder]
            [editor.resource FileResource]
-           [com.defold.editor Platform]))
+           [java.net URI]
+           [org.apache.commons.io IOUtils FileUtils]
+           [com.defold.editor Platform]
+           [javax.ws.rs.core MediaType]
+           [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
+           [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
+           [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.impl MultiPartWriter]
+           [com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider]
+           [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]))
 
 (set! *warn-on-reflection* true)
 
@@ -360,15 +369,60 @@
             (console/append-console-message! msg)
             (recur)))))))
 
-(defn- launch-engine [launch-dir]
+(defn- parent-resource [r]
+  (let [workspace (resource/workspace r)
+        path (resource/proj-path r)
+        parent-path (subs path 0 (dec (- (count path) (count (resource/resource-name r)))))
+        parent (workspace/resolve-workspace-resource workspace parent-path)]
+    parent))
+
+(defn- do-launch-engine [path launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)
+        ; TODO: Need to fix this path issue
+        _path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)
         pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
     (let [p  (.start pb)
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-engine-output is)))))))
+
+(defn- launch-engine [workspace launch-dir]
+  (let [server-url "http://localhost:9000"
+        cc (DefaultClientConfig.)
+        ; TODO: Random errors wihtout this... Don't understand why random!
+        ; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
+        _ (.add (.getClasses cc) MultiPartWriter)
+        _ (.add (.getClasses cc) InputStreamProvider)
+        _ (.add (.getClasses cc) StringProvider)
+        client (Client/create cc)
+        platform "x86-osx"
+        ^WebResource resource (.resource ^Client client (URI. server-url))
+        ^WebResource build-resource (.path resource (format "/build/%s" platform))
+        ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
+        form (FormDataMultiPart.)
+
+        resources (g/node-value workspace :resource-list)
+        manifests (filter #(= "ext.manifest" (resource/resource-name %)) resources)
+        all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
+
+    ; TODO: potential leak with io/input-stream below?
+    ; TODO: This try/catch shouldn't be necessary. Caught somewhere else and discarded?
+    (try
+      (doseq [r all-resources]
+        (prn (resource/proj-path r))
+        (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
+
+      ; NOTE: We need at least one part..
+      (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
+      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
+            f (io/file "/tmp/e")]
+        (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
+        (.setExecutable f true)
+
+        (do-launch-engine (.getPath f) launch-dir))
+      (catch Throwable e
+        (prn e)))))
 
 (defn build-and-write [project node {:keys [render-progress! basis cache]
                                      :or {render-progress! progress/null-render-progress!
@@ -612,7 +666,7 @@
         (or (when-let [target (get-selected-target prefs)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]
                 (engine/reboot (:url target) local-url)))
-            (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+            (launch-engine (workspace project) (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :target :global
   (run [user-data prefs]
