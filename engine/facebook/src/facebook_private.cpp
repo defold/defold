@@ -84,7 +84,7 @@ int Facebook_LoginWithPublishPermissions(lua_State* L)
     luaL_checktype(L, 2, LUA_TNUMBER);
     luaL_checktype(L, 3, LUA_TFUNCTION);
 
-    char* permissions[128] = { 0 };
+    char* permissions[128];
     int permission_count = luaTableToCArray(L, 1, permissions,
         sizeof(permissions) / sizeof(permissions[0]));
     if (permission_count == -1)
@@ -124,7 +124,7 @@ int Facebook_LoginWithReadPermissions(lua_State* L)
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
 
-    char* permissions[128] = { 0 };
+    char* permissions[128];
     int permission_count = luaTableToCArray(L, 1, permissions,
         sizeof(permissions) / sizeof(permissions[0]));
     if (permission_count == -1)

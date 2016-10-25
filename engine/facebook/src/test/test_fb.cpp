@@ -701,7 +701,8 @@ TEST_F(FBTest, luaTableToCArray_NullBuffer)
     lua_pushstring(L, "one");
     lua_rawset(L, -3);
 
-    dmFacebook::luaTableToCArray(L, -1, NULL, 0);
+    uint32_t result = dmFacebook::luaTableToCArray(L, -1, NULL, 0);
+    ASSERT_EQ(0, result);
 }
 
 TEST_F(FBTest, luaTableToCArray_SmallerBuffer)
@@ -719,6 +720,11 @@ TEST_F(FBTest, luaTableToCArray_SmallerBuffer)
 
     ASSERT_EQ(1, result);
     ASSERT_STRCASEEQ("one", buffer[0]);
+
+    for (unsigned int i = 0; i < result; ++i)
+    {
+        free(buffer[i]);
+    }
 }
 
 TEST_F(FBTest, luaTableToCArray_EmptyTable)
@@ -743,6 +749,11 @@ TEST_F(FBTest, luaTableToCArray_SingleElement)
 
     ASSERT_EQ(1, result);
     ASSERT_STRCASEEQ("one", buffer[0]);
+
+    for (unsigned int i = 0; i < result; ++i)
+    {
+        free(buffer[i]);
+    }
 }
 
 TEST_F(FBTest, luaTableToCArray_MultipleElement)
@@ -765,6 +776,11 @@ TEST_F(FBTest, luaTableToCArray_MultipleElement)
     ASSERT_STRCASEEQ("one", buffer[0]);
     ASSERT_STRCASEEQ("two", buffer[1]);
     ASSERT_STRCASEEQ("three", buffer[2]);
+
+    for (unsigned int i = 0; i < result; ++i)
+    {
+        free(buffer[i]);
+    }
 }
 
 TEST_F(FBTest, luaTableTOCArray_InvalidType)

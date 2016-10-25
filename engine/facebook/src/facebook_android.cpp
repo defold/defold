@@ -438,7 +438,8 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
     g_Facebook.m_Callback = callback;
     g_Facebook.m_Self = context;
 
-    char cstr_permissions[2048] = { 0 };
+    char cstr_permissions[2048];
+    cstr_permissions[0] = 0x0;
     JoinCStringArray(permissions, permission_count, cstr_permissions,
         sizeof(cstr_permissions) / sizeof(cstr_permissions[0]), ",");
 
@@ -462,7 +463,8 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
     g_Facebook.m_Callback = callback;
     g_Facebook.m_Self = context;
 
-    char cstr_permissions[2048] = { 0 };
+    char cstr_permissions[2048];
+    cstr_permissions[0] = 0x0;
     JoinCStringArray(permissions, permission_count, cstr_permissions,
         sizeof(cstr_permissions) / sizeof(cstr_permissions[0]), ",");
 
