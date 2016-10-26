@@ -9,29 +9,9 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
            [javafx.scene.web WebView]
-           [javafx.stage Stage Modality]
-           [javax.net.ssl HttpsURLConnection SSLContext X509TrustManager]
-           [java.security.cert X509Certificate]))
+           [javafx.stage Stage Modality]))
 
 (set! *warn-on-reflection* true)
-
-(defn- create-gullible-ssl-socket-factory []
-  (let [gullible-manager (reify X509TrustManager
-                           (getAcceptedIssuers [this] nil)
-                           (checkClientTrusted [this certs auth-type])
-                           (checkServerTrusted [this certs auth-type]))
-        ssl-context (SSLContext/getInstance "SSL")]
-    (.init ssl-context nil (into-array X509TrustManager [gullible-manager]) nil)
-    (.getSocketFactory ssl-context)))
-
-(defmacro with-gullible-ssl-socket-factory
-  [& body]
-  `(let [orig# (HttpsURLConnection/getDefaultSSLSocketFactory)]
-     (HttpsURLConnection/setDefaultSSLSocketFactory (create-gullible-ssl-socket-factory))
-     (try
-       ~@body
-       (finally
-         (HttpsURLConnection/setDefaultSSLSocketFactory orig#)))))
 
 (defn- logged-in? [prefs client]
   (when-let [email (prefs/get-prefs prefs "email" nil)]
@@ -75,17 +55,16 @@
                        (log/error :exception e)))
                    (ui/run-later (ui/close! stage))
                    (NanoHTTPD$Response. "")))]
-    (with-gullible-ssl-socket-factory
-      (.initModality stage Modality/APPLICATION_MODAL)
-      (.setTitle stage "Login")
-      (.start server)
-      (.setOnHidden stage (ui/event-handler event (.stop server)))
-      (.load engine (format "http://cr.defold.com/login/oauth/google?redirect_to=http://localhost:%d/{token}/{action}" (.getListeningPort server)))
-      (.setScene stage scene)
-      (.showAndWait stage)
-      (if (instance? Throwable @return)
-        (throw @return)
-        @return))))
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setTitle stage "Login")
+    (.start server)
+    (.setOnHidden stage (ui/event-handler event (.stop server)))
+    (.load engine (format "http://cr.defold.com/login/oauth/google?redirect_to=http://localhost:%d/{token}/{action}" (.getListeningPort server)))
+    (.setScene stage scene)
+    (.showAndWait stage)
+    (if (instance? Throwable @return)
+      (throw @return)
+      @return)))
 
 (defn login [prefs]
   (let [client (client/make-client prefs)]
