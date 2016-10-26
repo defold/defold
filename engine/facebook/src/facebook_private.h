@@ -4,6 +4,10 @@
 #define LIB_NAME "facebook"
 
 #include <script/script.h>
+#include "facebook_util.h"
+
+
+void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, int status);
 
 namespace dmFacebook {
 
@@ -103,6 +107,15 @@ namespace dmFacebook {
     int Facebook_EnableEventUsage(lua_State* L);
     int Facebook_DisableEventUsage(lua_State* L);
     int Facebook_ShowDialog(lua_State* L);
+
+    int Facebook_LoginWithPublishPermissions(lua_State* L);
+    int Facebook_LoginWithReadPermissions(lua_State* L);
+
+    bool PlatformFacebookInitialized();
+    void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
+        uint32_t permission_count, int callback, int context, lua_State* thread);
+    void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
+        uint32_t permission_count, int audience, int callback, int context, lua_State* thread);
 }
 
 #endif // #ifndef DM_FACEBOOK_H
