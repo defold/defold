@@ -109,20 +109,20 @@
 
 (deftest adapt-nodes
   (handler/defhandler :string-command :global
-      (enabled? [selection] (handler/adapt-every selection String))
-      (run [selection] (handler/adapt-every selection String)))
+    (enabled? [selection] (handler/adapt-every selection String))
+    (run [selection] (handler/adapt-every selection String)))
   (handler/defhandler :single-string-command :global
-      (enabled? [selection] (handler/adapt-single selection String))
-      (run [selection] (handler/adapt-single selection String)))
+    (enabled? [selection] (handler/adapt-single selection String))
+    (run [selection] (handler/adapt-single selection String)))
   (handler/defhandler :int-command :global
-      (enabled? [selection] (handler/adapt-every selection Integer))
-      (run [selection] (handler/adapt-every selection Integer)))
+    (enabled? [selection] (handler/adapt-every selection Integer))
+    (run [selection] (handler/adapt-every selection Integer)))
   (handler/defhandler :string-node-command :global
-      (enabled? [selection] (handler/adapt-every selection StringNode))
-      (run [selection] (handler/adapt-every selection StringNode)))
+    (enabled? [selection] (handler/adapt-every selection StringNode))
+    (run [selection] (handler/adapt-every selection StringNode)))
   (handler/defhandler :other-command :global
-      (enabled? [selection] (handler/adapt-every selection OtherType))
-      (run [selection] (handler/adapt-every selection OtherType)))
+    (enabled? [selection] (handler/adapt-every selection OtherType))
+    (run [selection] (handler/adapt-every selection OtherType)))
   (with-clean-system
     (let [[s i] (tx-nodes (g/make-nodes world
                                         [s [StringNode :string "test"]

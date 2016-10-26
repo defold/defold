@@ -203,4 +203,4 @@
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
 
 (defn node-id->resource [node-id]
-  (and (g/node-instance? ResourceNode node-id) (g/node-value node-id :resource)))
+  (when (g/node-instance? ResourceNode node-id) (g/node-value node-id :resource)))

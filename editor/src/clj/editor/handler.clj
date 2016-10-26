@@ -41,7 +41,7 @@
 
 (defn- invoke-fnk [handler fsym command-context default]
   (if-let [f (get-in handler [:fns fsym])]
-    (with-bindings {#'*adapters* (:adapters command-context)}
+    (binding [*adapters* (:adapters command-context)]
       (try (f (:env command-context))
         (catch Exception e
           (log/error :exception e :msg (format "handler %s in context %s failed at %s with message [%s]"
@@ -127,7 +127,7 @@
 
 (defn adapt-every [selection t]
   (if (empty? selection)
-    false
+    nil
     (let [s' (adapt selection t)]
       (if (every? some? s')
         s'
