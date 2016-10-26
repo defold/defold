@@ -212,6 +212,44 @@ public class FacebookActivity implements PseudoActivity {
 
     }
 
+    private void actionLoginWithPermissions(final String action, final Bundle extras) {
+        final String[] permissions = extras.getStringArray(Facebook.INTENT_EXTRA_PERMISSIONS);
+        LoginManager.getInstance().registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
+
+            @Override
+            public void onSuccess(LoginResult result) {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
+                respond(action, data);
+            }
+
+            @Override
+            public void onCancel() {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                data.putString(Facebook.MSG_KEY_ERROR, "Login was cancelled");
+                respond(action, data);
+            }
+
+            @Override
+            public void onError(FacebookException error) {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                data.putString(Facebook.MSG_KEY_ERROR, error.toString());
+                respond(action, data);
+            }
+
+        });
+
+        if (action.equals(Facebook.ACTION_LOGIN_WITH_PUBLISH_PERMISSIONS)) {
+            int audience = extras.getInt(Facebook.INTENT_EXTRA_AUDIENCE);
+            LoginManager.getInstance().setDefaultAudience(convertDefaultAudience(audience));
+            LoginManager.getInstance().logInWithPublishPermissions(parent, Arrays.asList(permissions));
+        } else if (action.equals(Facebook.ACTION_LOGIN_WITH_READ_PERMISSIONS)) {
+            LoginManager.getInstance().logInWithReadPermissions(parent, Arrays.asList(permissions));
+        }
+    }
+
     private void actionRequestPermissions( final String action, final Bundle extras ) {
         final String[] permissions = extras.getStringArray(Facebook.INTENT_EXTRA_PERMISSIONS);
         LoginManager.getInstance().registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
@@ -431,6 +469,9 @@ public class FacebookActivity implements PseudoActivity {
             } else if (action.equals(Facebook.ACTION_REQ_READ_PERMS) ||
                        action.equals(Facebook.ACTION_REQ_PUB_PERMS)) {
                 actionRequestPermissions( action, extras );
+            } else if (action.equals(Facebook.ACTION_LOGIN_WITH_PUBLISH_PERMISSIONS)
+                || action.equals(Facebook.ACTION_LOGIN_WITH_READ_PERMISSIONS)) {
+                actionLoginWithPermissions(action, extras);
             } else if (action.equals(Facebook.ACTION_SHOW_DIALOG)) {
                 actionShowDialog( extras );
             }
