@@ -395,6 +395,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
             List<Integer> boneIndexRemap = toDDF(scene.bones, scene.iks, skeletonBuilder);
             out = new ByteArrayOutputStream(64 * 1024);
+            skeletonBuilder.setLocalBoneScaling(scene.localBoneScaling);
             skeletonBuilder.build().writeTo(out);
             out.close();
             task.output(1).setContent(out.toByteArray());

@@ -65,6 +65,7 @@ public class SpineSceneUtil {
     public Map<String, Animation> animations = new HashMap<String, Animation>();
     public Map<String, Slot> slots = new HashMap<String, Slot>();
     public Map<String, Event> events = new HashMap<String, Event>();
+    public boolean localBoneScaling = true;
 
     public Bone getBone(String name) {
         return nameToBones.get(name);
@@ -634,6 +635,14 @@ public class SpineSceneUtil {
 
             JsonNode skeleton = node.get("skeleton");
             String spineVersion = (skeleton != null) ? JsonUtil.get(skeleton, "spine", (String) null) : null;
+            
+            // If Spine version is 3 and above it uses a different scaling model than 2.x.
+            if (spineVersion != null) {
+                String[] versionParts = spineVersion.split("\\.");
+                if (versionParts != null && Integer.parseInt(versionParts[0]) >= 3) {
+                    scene.localBoneScaling = false;
+                }
+            }
 
             Iterator<Map.Entry<String, JsonNode>> skinIt = node.get("skins").getFields();
             while (skinIt.hasNext()) {

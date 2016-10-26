@@ -654,6 +654,7 @@ namespace dmRig
             RigInstance* instance = instances[i];
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
             dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+            dmArray<Matrix4>& pose_matrix = instance->m_PoseMatrix;
             if (pose.Empty())
                 continue;
 
@@ -663,22 +664,52 @@ namespace dmRig
             }
 
             // Convert every transform into model space
-            for (uint32_t bi = 0; bi < pose.Size(); ++bi)
-            {
-                dmTransform::Transform& transform = pose[bi];
-                if (bi > 0) {
-                    const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
-                    if (bone->m_InheritScale)
-                    {
-                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+            if (skeleton->m_LocalBoneScaling) {
+                for (uint32_t bi = 0; bi < pose.Size(); ++bi)
+                {
+                    dmTransform::Transform& transform = pose[bi];
+                    if (bi > 0) {
+                        const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
+                        if (bone->m_InheritScale)
+                        {
+                            transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                        }
+                        else
+                        {
+                            Vector3 scale = transform.GetScale();
+                            transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                            transform.SetScale(scale);
+                        }
                     }
-                    else
-                    {
-                        Vector3 scale = transform.GetScale();
-                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
-                        transform.SetScale(scale);
+                    pose_matrix[bi] = dmTransform::ToMatrix4(transform);
+                }
+            } else {
+                for (uint32_t bi = 0; bi < pose.Size(); ++bi)
+                {
+                    dmTransform::Transform& transform = pose[bi];
+                    Matrix4& transform_matrix = pose_matrix[bi];
+                    transform_matrix = dmTransform::ToMatrix4(transform);
+                    if (bi > 0) {
+                        const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
+                        if (bone->m_InheritScale)
+                        {
+                            transform_matrix = pose_matrix[bone->m_Parent] * transform_matrix;
+                        }
+                        else
+                        {
+                            Vector3 scale = dmTransform::ExtractScale(pose_matrix[bone->m_Parent]);
+                            transform_matrix.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * transform_matrix.getUpper3x3());
+                            transform_matrix = pose_matrix[bone->m_Parent] * transform_matrix;
+                        }
                     }
                 }
+            }
+
+            const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
+            for (uint32_t bi = 0; bi < pose.Size(); ++bi)
+            {
+                Matrix4& transform_matrix = pose_matrix[bi];
+                transform_matrix = transform_matrix * bind_pose[bi].m_ModelToLocal;
             }
         }
 
@@ -736,9 +767,12 @@ namespace dmRig
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         instance->m_Pose.SetCapacity(bone_count);
         instance->m_Pose.SetSize(bone_count);
+        instance->m_PoseMatrix.SetCapacity(bone_count);
+        instance->m_PoseMatrix.SetSize(bone_count);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             instance->m_Pose[i].SetIdentity();
+            instance->m_PoseMatrix[i] = Matrix4::identity();
         }
 
         instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
@@ -880,12 +914,7 @@ namespace dmRig
             return out_buffer;
         }
 
-        // Premultiply the pose transforms with their bind_pose matrices.
-        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-        for (int i = 0; i < pose.Size(); ++i) {
-            pose[i] = dmTransform::Mul(pose[i], bind_pose[i].m_ModelToLocal);
-        }
-
+        const dmArray<Matrix4>& pose_matrix = instance->m_PoseMatrix;
         const uint32_t* vertex_indices = mesh.m_Indices.m_Data;
         for (uint32_t ii = 0; ii < index_count; ++ii)
         {
@@ -903,9 +932,10 @@ namespace dmRig
                 if (bone_weights[bi] > 0.0f)
                 {
                     uint32_t bone_index = bone_indices[bi];
-                    if(bone_index < pose.Size())
+                    if(bone_index < pose_matrix.Size())
                     {
-                        normal_out += Vector3(dmTransform::Apply(pose[bone_index], normal_in)) * bone_weights[bi];
+                        Vector4 t_n = pose_matrix[bone_index] * Vector4(normal_in.getX(), normal_in.getY(), normal_in.getZ(), 0.0f);
+                        normal_out += Vector3(t_n.getX(), t_n.getY(), t_n.getZ()) * bone_weights[bi];
                     }
                     else
                     {
@@ -949,8 +979,7 @@ namespace dmRig
             return out_buffer;
         }
 
-        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
-        const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+        const dmArray<Matrix4>& pose_matrix = instance->m_PoseMatrix;
         for (uint32_t i = 0; i < vertex_count; ++i)
         {
             in_p[0] = *positions++;
@@ -966,9 +995,10 @@ namespace dmRig
                 {
                     uint32_t bone_index = bone_indices[bi];
                     // TODO: Check for this in the pipeline stage if we can find a good way of doing that.. happens as any skeleton can be set to any mesh
-                    if(bone_index < pose.Size())
+                    if(bone_index < pose_matrix.Size())
                     {
-                        out_p += Vector3(dmTransform::Apply(pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
+                        Vector4 t_p = pose_matrix[bone_index] * Vector4(in_p.getX(), in_p.getY(), in_p.getZ(), 1.0f);
+                        out_p += Vector3(t_p.getX(), t_p.getY(), t_p.getZ()) * bone_weights[bi];
                     }
                     else
                     {
@@ -1046,6 +1076,7 @@ namespace dmRig
         RigInstance* instance = context->m_Instances.Get(index);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
+        instance->m_PoseMatrix.SetCapacity(0);
         instance->m_IKTargets.SetCapacity(0);
         instance->m_MeshProperties.SetCapacity(0);
         delete instance;
