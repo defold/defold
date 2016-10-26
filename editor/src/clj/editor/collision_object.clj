@@ -63,7 +63,7 @@
   (input color g/Any)
   
   (property shape-type g/Any
-            (dynamic visible (g/always false)))
+            (dynamic visible (g/constantly false)))
 
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
@@ -393,7 +393,7 @@
                                                       (fn [d _] (when (some #(<= % 0.0) d)
                                                                   "All dimensions must be greater than zero"))
                                                       dimensions))
-            (dynamic edit-type (g/always {:type types/Vec3 :labels ["W" "H" "D"]})))
+            (dynamic edit-type (g/constantly {:type types/Vec3 :labels ["W" "H" "D"]})))
 
   (display-order [Shape :dimensions])
 
@@ -608,13 +608,13 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :collision-shape-resource]
                                             [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "tilemap"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilemap"}))
             (dynamic error (g/fnk [_node-id collision-shape]
                                   (when collision-shape
                                     (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")))))
 
   (property type g/Any
-            (dynamic edit-type (g/always (properties/->pb-choicebox Physics$CollisionObjectType))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Physics$CollisionObjectType))))
 
   (property mass g/Num
             (value (g/fnk [mass type]
