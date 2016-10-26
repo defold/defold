@@ -541,7 +541,7 @@
 
 (defn make-text-input-control-context
   [control]
-  (handler/->Context :text-input-control {:control control} nil {} {}))
+  (handler/->context :text-input-control {:control control}))
 
 (defn- has-selection?
   [^TextInputControl control]
@@ -573,7 +573,7 @@
   ([^Node node name env selection-provider dynamics]
     (context! node name env selection-provider dynamics {}))
   ([^Node node name env selection-provider dynamics adapters]
-    (user-data! node ::context (handler/->Context name env selection-provider dynamics adapters))))
+    (user-data! node ::context (handler/->context name env selection-provider dynamics adapters))))
 
 (defn context
   [^Node node]
@@ -825,12 +825,10 @@
               ^ChoiceBox cb (.get (.getChildren box) 1)]
           (when (not (.isShowing cb))
             (let [items (.getItems cb)
-                  opts (mapv identity items)
+                  opts (vec items)
                   new-opts (vec (handler/options handler-ctx))]
               (when (not= opts new-opts)
-                (.clear items)
-                (doseq [opt new-opts]
-                  (.add items opt))))
+                (.setAll items ^java.util.Collection new-opts)))
             (let [selection-model (.getSelectionModel cb)
                   item (.getSelectedItem selection-model)]
               (when (not= item state)

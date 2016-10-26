@@ -1014,7 +1014,8 @@
      (g/update-property tool-controller :mode (toggler :palette :editor)))))
 
 (handler/defhandler :tile-map-palette :workbench
-  (active? [selection] (handler/adapt-single selection TileMapNode))
+  (active? [selection] (or (handler/adapt-single selection TileMapNode)
+                           (handler/adapt-single selection LayerNode)))
   (enabled? [selection] (when-let [node (tile-map-node selection)]
                           (g/node-value node :tile-source-resource)))
   (run [selection] (tile-map-palette-handler (tile-map-node selection))))

@@ -786,8 +786,7 @@
   (label [user-data] (if-not user-data
                        "Add Emitter"
                        (get-in user-data [:emitter-data :label])))
-  (active? [selection] (or (handler/adapt-single selection EmitterNode)
-                           (handler/adapt-single selection ParticleFXNode)))
+  (active? [selection] (or (handler/adapt-single selection ParticleFXNode)))
   (run [user-data] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data)))
   (options [selection user-data]
            (when (not user-data)
