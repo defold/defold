@@ -19,7 +19,7 @@
 
 (g/defnode StrPropReadOnly
   (property my-prop g/Str
-            (dynamic read-only? (g/always true))))
+            (dynamic read-only? (g/constantly true))))
 
 (g/defnode LinkedProps
   (property multi-properties g/Any
@@ -228,7 +228,7 @@
 
 (g/defnode QuatAsEuler
   (property rotation t/Vec4
-            (dynamic edit-type (g/always (properties/quat->euler)))))
+            (dynamic edit-type (g/constantly (properties/quat->euler)))))
 
 (deftest value-conversion
   (with-clean-system
