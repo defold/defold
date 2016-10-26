@@ -361,7 +361,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    SpineModelVertex* CompSpineModelGenerateVertexData(dmRig::HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, const dmArray<Matrix4>& scratch_pose_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride)
+    SpineModelVertex* CompSpineModelGenerateVertexData(dmRig::HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, dmArray<Matrix4>& scratch_pose_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride)
     {
         DM_PROFILE(Rig, "GenerateSpineVertexData");
 
@@ -374,6 +374,7 @@ namespace dmGameSystem
         if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
             context->m_DrawOrderToMesh.SetCapacity(mesh_count);
 
+        dmRig::PoseToMatrix4(instance, scratch_pose_buffer);
         dmRig::UpdateMeshDrawOrder(context, instance, mesh_count);
         for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
             uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
@@ -441,13 +442,13 @@ namespace dmGameSystem
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
 
-            int bone_count = c->m_Resource->m_SkeletonRes->m_Skeleton->m_Bones.m_Count;
+            int bone_count = dmRig::GetBoneCount(c->m_RigInstance);
             dmArray<Matrix4>& scratch_pose_buffer = world->m_ScratchPoseBufferData;
             if (scratch_pose_buffer.Capacity() < bone_count) {
                 scratch_pose_buffer.OffsetCapacity(bone_count - scratch_pose_buffer.Capacity());
             }
 
-            vb_end = CompSpineModelGenerateVertexData(world->m_RigContext, c->m_RigInstance, scratch_vertex_buffer_data, c->m_World, vb_end, sizeof(dmGameSystem::SpineModelVertex));
+            vb_end = CompSpineModelGenerateVertexData(world->m_RigContext, c->m_RigInstance, scratch_vertex_buffer_data, scratch_pose_buffer, c->m_World, vb_end, sizeof(dmGameSystem::SpineModelVertex));
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 

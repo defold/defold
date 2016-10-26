@@ -669,6 +669,11 @@ namespace dmRig
 
     bool PoseToMatrix4(const HRigInstance instance, dmArray<Matrix4>& pose_matrix_buffer)
     {
+        // No need to calculate pose if there are no bones
+        if (GetBoneCount(instance) == 0) {
+            return true;
+        }
+
         dmArray<dmTransform::Transform>& pose = instance->m_Pose;
         if (pose_matrix_buffer.Capacity() < pose.Size()) {
             return false;
@@ -901,7 +906,6 @@ namespace dmRig
     float* GenerateNormalData(const HRigInstance instance, const uint32_t mesh_index, const dmArray<Matrix4>& pose_matrices, const Matrix4& normal_matrix, float* out_buffer)
     {
         const dmRigDDF::Mesh& mesh = instance->m_MeshEntry->m_Meshes[mesh_index];
-        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
         const float* normals_in = mesh.m_Normals.m_Data;
         const uint32_t* normal_indices = mesh.m_NormalsIndices.m_Data;
         uint32_t index_count = mesh.m_Indices.m_Count;
@@ -1052,6 +1056,15 @@ namespace dmRig
     bool IsValid(HRigInstance instance)
     {
         return (instance->m_MeshEntry != 0x0);
+    }
+
+    uint32_t GetBoneCount(HRigInstance instance)
+    {
+        if (instance == 0x0 || instance->m_Skeleton == 0x0) {
+            return 0;
+        }
+
+        return instance->m_Skeleton->m_Bones.m_Count;
     }
 
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2)

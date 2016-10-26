@@ -128,6 +128,7 @@ public:
     dmRigDDF::Skeleton*     m_Skeleton;
     dmRigDDF::MeshSet*      m_MeshSet;
     dmRigDDF::AnimationSet* m_AnimationSet;
+    dmArray<Matrix4>        m_PoseMatrixBuffer;
 
 private:
     void SetUpSimpleSpine() {
@@ -488,6 +489,8 @@ protected:
         if (dmRig::RESULT_OK != dmRig::InstanceCreate(create_params)) {
             dmLogError("Could not create rig instance!");
         }
+
+        m_PoseMatrixBuffer.SetCapacity(dmRig::GetBoneCount(m_Instance));
     }
 
     virtual void TearDown() {
@@ -647,8 +650,6 @@ TEST_F(RigInstanceTest, PoseAnim)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
-    dmArray<Matrix4> pose_matrices;
-    pose_matrices.SetCapacity(m_Skeleton->m_Bones.m_Count);
 
     // sample 0
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -657,7 +658,7 @@ TEST_F(RigInstanceTest, PoseAnim)
     ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
 
     // sample 1
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -666,7 +667,7 @@ TEST_F(RigInstanceTest, PoseAnim)
     ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
 
     // sample 2
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -676,7 +677,7 @@ TEST_F(RigInstanceTest, PoseAnim)
 
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
 
     // sample 0 (looped)
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
@@ -721,28 +722,26 @@ TEST_F(RigInstanceTest, GenerateVertexData)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
     float data[3][3];
     float* data_end = (float*)data + 3*3;
-    dmArray<Matrix4> pose_matrices;
-    pose_matrices.SetCapacity(m_Skeleton->m_Bones.m_Count);
 
     // sample 0
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
     ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
     ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     // sample 2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
     ASSERT_VEC3(Vector3(0.0f, 2.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
@@ -755,34 +754,32 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     float data[3][3];
     float* data_end = (float*)data + 3*3;
     float normal_data[3][3];
-    dmArray<Matrix4> pose_matrices;
-    pose_matrices.SetCapacity(m_Skeleton->m_Bones.m_Count);
 
     Vector3 n_up(0.0f, 1.0f, 0.0f);
     Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);
 
     // sample 0
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
-    dmRig::GenerateNormalData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) normal_data);
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
+    dmRig::GenerateNormalData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) normal_data);
     ASSERT_VEC3(n_up, Vector3(normal_data[0][0], normal_data[0][1], normal_data[0][2])); // v0
     ASSERT_VEC3(n_up, Vector3(normal_data[1][0], normal_data[1][1], normal_data[1][2])); // v1
     ASSERT_VEC3(n_up, Vector3(normal_data[2][0], normal_data[2][1], normal_data[2][2])); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
-    dmRig::GenerateNormalData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) normal_data);
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
+    dmRig::GenerateNormalData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) normal_data);
     ASSERT_VEC3(n_up, Vector3(normal_data[0][0], normal_data[0][1], normal_data[0][2])); // v0
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[1][0], normal_data[1][1], normal_data[1][2])); // v1
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[2][0], normal_data[2][1], normal_data[2][2])); // v2
 
     // sample 2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
-    dmRig::GenerateNormalData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) normal_data);
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
+    dmRig::GenerateNormalData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) normal_data);
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[0][0], normal_data[0][1], normal_data[0][2])); // v0
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[1][0], normal_data[1][1], normal_data[1][2])); // v1
     ASSERT_VEC3(n_neg_right, Vector3(normal_data[2][0], normal_data[2][1], normal_data[2][2])); // v2
@@ -797,20 +794,18 @@ TEST_F(RigInstanceTest, LocalBoneScaling)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
     float data[3][3];
     float* data_end = (float*)data + 3*3;
-    dmArray<Matrix4> pose_matrices;
-    pose_matrices.SetCapacity(m_Skeleton->m_Bones.m_Count);
 
     // sample 0
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
     ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(0.0f, 2.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
     ASSERT_VEC3(Vector3(2.0f, 2.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
@@ -824,20 +819,18 @@ TEST_F(RigInstanceTest, BoneScaling)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
     float data[3][3];
     float* data_end = (float*)data + 3*3;
-    dmArray<Matrix4> pose_matrices;
-    pose_matrices.SetCapacity(m_Skeleton->m_Bones.m_Count);
 
     // sample 0
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
     ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(0.0f, 2.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
 
@@ -852,12 +845,10 @@ TEST_F(RigInstanceTest, SetMeshInvalid)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
     float data[3][3];
     float* data_end = (float*)data + 3*3;
-    dmArray<Matrix4> pose_matrices;
-    pose_matrices.SetCapacity(m_Skeleton->m_Bones.m_Count);
 
     dmhash_t new_mesh = dmHashString64("not_a_valid_skin");
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(dmHashString64("test"), dmRig::GetMesh(m_Instance));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
@@ -865,8 +856,8 @@ TEST_F(RigInstanceTest, SetMeshInvalid)
     ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
     ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
@@ -879,12 +870,10 @@ TEST_F(RigInstanceTest, SetMeshValid)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
     float data[3][3];
     float* data_end = (float*)data + 3*3;
-    dmArray<Matrix4> pose_matrices;
-    pose_matrices.SetCapacity(m_Skeleton->m_Bones.m_Count);
 
     dmhash_t new_mesh = dmHashString64("secondary_skin");
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(new_mesh, dmRig::GetMesh(m_Instance));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
@@ -892,8 +881,8 @@ TEST_F(RigInstanceTest, SetMeshValid)
     ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
-    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, pose_matrices, Matrix4::identity(), (float*) data));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
+    ASSERT_EQ(data_end, dmRig::GeneratePositionData(m_Instance, 0, m_PoseMatrixBuffer, Matrix4::identity(), (float*) data));
     ASSERT_VEC3(Vector3(0.0f), Vector3(data[0][0], data[0][1], data[0][2]));            // v0
     ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1][0], data[1][1], data[1][2])); // v1
     ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2][0], data[2][1], data[2][2])); // v2
@@ -1013,8 +1002,6 @@ TEST_F(RigInstanceTest, IKTarget)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("ik"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
 
-    dmArray<Matrix4> pose_matrices;
-    pose_matrices.SetCapacity(m_Skeleton->m_Bones.m_Count);
 
     dmRig::IKTarget* target = dmRig::GetIKTarget(m_Instance, dmHashString64("test_ik"));
     ASSERT_NE((dmRig::IKTarget*)0x0, target);
@@ -1023,7 +1010,7 @@ TEST_F(RigInstanceTest, IKTarget)
     target->m_Position = Vector3(0.0f, 100.0f, 0.0f);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
@@ -1039,7 +1026,7 @@ TEST_F(RigInstanceTest, IKTarget)
     target->m_Position.setY(1.0f);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
-    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, pose_matrices));
+    ASSERT_TRUE(dmRig::PoseToMatrix4(m_Instance, m_PoseMatrixBuffer));
 
     ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());

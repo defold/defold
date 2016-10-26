@@ -326,13 +326,15 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static ModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, ModelWorld* world, const Matrix4& model_matrix, const Matrix4& normal_matrix, const dmArray<Matrix4>& scratch_pose_buffer, ModelVertex* write_ptr, const size_t vertex_stride)
+    static ModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, ModelWorld* world, const Matrix4& model_matrix, const Matrix4& normal_matrix, dmArray<Matrix4>& scratch_pose_buffer, ModelVertex* write_ptr, const size_t vertex_stride)
     {
         DM_PROFILE(Rig, "GenerateModelVertexData");
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
         if (!instance->m_MeshEntry || !instance->m_DoRender) {
             return write_ptr;
         }
+
+        dmRig::PoseToMatrix4(instance, scratch_pose_buffer);
         for (uint32_t i = 0; i < mesh_entry->m_Meshes.m_Count; ++i)
         {
             const dmRig::MeshProperties* properties = &instance->m_MeshProperties[i];
@@ -431,7 +433,14 @@ namespace dmGameSystem
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
             Matrix4 normal_matrix = inverse(c->m_World);
             normal_matrix = transpose(normal_matrix);
-            vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, normal_matrix, vb_end, sizeof(ModelVertex));
+
+            int bone_count = dmRig::GetBoneCount(c->m_RigInstance);
+            dmArray<Matrix4>& scratch_pose_buffer = world->m_ScratchPoseBufferData;
+            if (scratch_pose_buffer.Capacity() < bone_count) {
+                scratch_pose_buffer.OffsetCapacity(bone_count - scratch_pose_buffer.Capacity());
+            }
+
+            vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, normal_matrix, scratch_pose_buffer, vb_end, sizeof(ModelVertex));
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 

@@ -257,6 +257,7 @@ namespace dmRig
     void SetEnabled(HRigInstance instance, bool enabled);
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);
+    uint32_t GetBoneCount(HRigInstance instance);
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
 }

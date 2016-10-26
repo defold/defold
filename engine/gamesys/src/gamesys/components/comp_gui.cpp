@@ -791,15 +791,14 @@ namespace dmGameSystem
 
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            // const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-            // params.m_ModelMatrix = node_transforms[i];
-            // params.m_VertexData = (void**)&vb_end;
-            // params.m_VertexStride = sizeof(BoxVertex);
-            // params.m_Color = Vector4(color.getXYZ() * node_opacities[i], node_opacities[i]); // Pre-multiplied alpha
 
+            int bone_count = dmRig::GetBoneCount(rig_instance);
+            dmArray<Matrix4>& scratch_pose_buffer = gui_world->m_ScratchPoseBufferData;
+            if (scratch_pose_buffer.Capacity() < bone_count) {
+                scratch_pose_buffer.OffsetCapacity(bone_count - scratch_pose_buffer.Capacity());
+            }
 
-            // vb_end = (BoxVertex *)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, params);
-            vb_end = (BoxVertex *)dmGameSystem::CompSpineModelGenerateVertexData(gui_world->m_RigContext, rig_instance, scratch_vertex_buffer_data, node_transforms[i], (dmGameSystem::SpineModelVertex*)vb_end, sizeof(BoxVertex));
+            vb_end = (BoxVertex *)dmGameSystem::CompSpineModelGenerateVertexData(gui_world->m_RigContext, rig_instance, scratch_vertex_buffer_data, scratch_pose_buffer, node_transforms[i], (dmGameSystem::SpineModelVertex*)vb_end, sizeof(BoxVertex));
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
