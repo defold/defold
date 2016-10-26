@@ -240,7 +240,7 @@
   (input blend-mode g/Any)
 
   (property cell-map g/Any
-            (dynamic visible (g/always false)))
+            (dynamic visible (g/constantly false)))
 
   (property id g/Str)
   (property z g/Num
@@ -354,7 +354,7 @@
 
   ;; TODO: better way?
   (property tool-controller g/Any
-            (dynamic visible (g/always false)))
+            (dynamic visible (g/constantly false)))
 
   (input layer-ids g/Any :array)
   (input layer-msgs g/Any :array)
@@ -379,7 +379,7 @@
                                             [:gpu-texture :gpu-texture])))
             (dynamic error (g/fnk [_node-id tile-source]
                                   (prop-resource-error :info _node-id :tile-source tile-source "Tile Source")))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "tilesource"})))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
 
   ;; material
   (property material resource/Resource
@@ -391,10 +391,10 @@
                                             [:shader :material-shader])))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error :fatal _node-id :material material "Material")))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "material"})))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
 
   (property blend-mode g/Any
-            (dynamic edit-type (g/always (properties/->pb-choicebox Tile$TileGrid$BlendMode))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$TileGrid$BlendMode))))
 
 
   (output tile-source-attributes g/Any (gu/passthrough tile-source-attributes))
@@ -945,7 +945,7 @@
   (output editor-renderables pass/RenderData produce-editor-renderables)
   (output palette-renderables pass/RenderData produce-palette-renderables)
   (output renderables pass/RenderData :cached produce-tool-renderables)
-  (output input-handler Runnable :cached (g/always (make-input-handler))))
+  (output input-handler Runnable :cached (g/constantly (make-input-handler))))
 
 (defmethod scene/attach-tool-controller ::TileMapController
   [_ tool-id view-id resource-id]
