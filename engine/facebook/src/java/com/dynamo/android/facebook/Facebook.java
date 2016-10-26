@@ -51,10 +51,14 @@ public class Facebook implements Handler.Callback {
     public static final String ACTION_SHOW_DIALOG       = "defold.fb.intent.action.SHOW_DIALOG";
     public static final String ACTION_UPDATE_METABLE    = "defold.fb.intent.action.UPDATE_METABLE";
 
+    public static final String ACTION_LOGIN_WITH_PUBLISH_PERMISSIONS    = "defold.fb.intent.action.LOGIN_WITH_PUBLISH";
+    public static final String ACTION_LOGIN_WITH_READ_PERMISSIONS       = "defold.fb.intent.action.LOGIN_WITH_READ";
+
     private Handler handler;
     private Messenger messenger;
     private String appId;
     private Callback callback;
+    private LoginCallback loginCallback;
     private StateCallback stateCallback;
     private DialogCallback dialogCallback;
     private Map<String, String> me;
@@ -64,6 +68,10 @@ public class Facebook implements Handler.Callback {
 
     public interface Callback {
         void onDone(String error);
+    }
+
+    public interface LoginCallback {
+        void onDone(int state, String error);
     }
 
     public interface StateCallback {
@@ -136,6 +144,25 @@ public class Facebook implements Handler.Callback {
         }
 
         return Collections.<String> emptyList();
+    }
+
+    public void loginWithPublishPermissions(String[] permissions, int audience, LoginCallback callback) {
+        this.loginCallback = callback;
+
+        Bundle extras = new Bundle();
+        extras.putInt(INTENT_EXTRA_AUDIENCE, audience);
+        extras.putStringArray(INTENT_EXTRA_PERMISSIONS, permissions);
+
+        startActivity(ACTION_LOGIN_WITH_PUBLISH_PERMISSIONS, extras);
+    }
+
+    public void loginWithReadPermissions(String[] permissions, LoginCallback callback) {
+        this.loginCallback = callback;
+
+        Bundle extras = new Bundle();
+        extras.putStringArray(INTENT_EXTRA_PERMISSIONS, permissions);
+
+        startActivity(ACTION_LOGIN_WITH_READ_PERMISSIONS, extras);
     }
 
     public void requestReadPermissions(String[] permissions, Callback cb) {
@@ -226,6 +253,9 @@ public class Facebook implements Handler.Callback {
             if (action.equals(ACTION_LOGIN)) {
                 this.stateCallback.onDone(data.getInt(MSG_KEY_STATE), error);
             }
+        } else if (action.equals(ACTION_LOGIN_WITH_READ_PERMISSIONS)
+            || action.equals(ACTION_LOGIN_WITH_PUBLISH_PERMISSIONS)) {
+            this.loginCallback.onDone(data.getInt(MSG_KEY_STATE), error);
         } else if (action.equals(ACTION_REQ_READ_PERMS) || action.equals(ACTION_REQ_PUB_PERMS)) {
             this.callback.onDone(error);
 
