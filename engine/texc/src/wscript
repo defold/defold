@@ -1,21 +1,25 @@
 #! /usr/bin/env python
-import os
+from waf_dynamo import copy_file_task
 
 def configure(conf):
     pass
 
 def build(bld):
     texc = bld.new_task_gen(features = 'cxx cstaticlib',
-                                includes = ['.'],
-                                target = 'texc',
-                                uselib = 'PVRTEXLIB WEBP DLIB',
-                                source = ['texc.cpp', 'texc_webp.cpp'])
+                            includes = ['.'],
+                            target = 'texc',
+                            uselib = 'PVRTEXLIB WEBP DLIB',
+                            source = ['texc.cpp', 'texc_webp.cpp'])
+
+    platform = bld.env['PLATFORM']
 
     texc_shared = bld.new_task_gen(features = 'cxx cshlib',
-                                       includes = ['.'],
-                                       target = 'texc_shared',
-                                       uselib = 'PVRTEXLIB WEBP DLIB',
-                                       source = ['texc.cpp', 'texc_webp.cpp'])
+                                   includes = ['.'],
+                                   target = 'texc_shared',
+                                   uselib = 'PVRTEXLIB WEBP DLIB',
+                                   source = ['texc.cpp', 'texc_webp.cpp'])
+
+    platform = bld.env['PLATFORM']
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 

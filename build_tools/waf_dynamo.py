@@ -1,4 +1,5 @@
 import os, sys, subprocess, shutil, re, stat, glob
+import platform as platformlib
 import Build, Options, Utils, Task, Logs
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
@@ -41,6 +42,16 @@ def new_copy_task(name, input_ext, output_ext):
         task.set_inputs(node)
         out = node.change_ext(output_ext)
         task.set_outputs(out)
+
+def copy_file_task(bld, src, name=None):
+    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
+    parts = src.split('/')
+    filename = parts[-1]
+    src_path = src.replace('/', os.sep)
+    return bld.new_task_gen(rule = '%s %s ${TGT}' % (copy, src_path),
+                            target = filename,
+                            name = name,
+                            shell = True)
 
 IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
@@ -1030,6 +1041,91 @@ def create_clang_wrapper(conf, exe):
     os.chmod(clang_wrapper_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     return clang_wrapper_path
 
+
+# Find VS2013 without waf builtin helper functions.
+# (waf 1.5 cant find VS2013 since it's scanning for echo-traces in
+#  the vsvars32.bat output, which the latests version don't have.)
+# Both _find_specific_msvc and _find_msvc are modified methods from
+# msvc.py in waf 1.5.9.
+def _find_specific_msvc(conf,compiler,version,target,vcvars):
+    batfile=os.path.join(conf.blddir,'waf-print-msvc.bat')
+    f=open(batfile,'w')
+    f.write("""@echo off
+set INCLUDE=
+set LIB=
+call "%s" %s
+echo PATH=%%PATH%%
+echo INCLUDE=%%INCLUDE%%
+echo LIB=%%LIB%%
+"""%(vcvars,target))
+    f.close()
+    sout=Utils.cmd_output(['cmd','/E:on','/V:on','/C',batfile])
+    lines=sout.splitlines()
+    for line in lines[0:]:
+        if line.startswith('PATH='):
+            path=line[5:]
+            paths = [p for p in path.split(';') if "MinGW" not in p]
+            MSVC_PATH=paths
+        elif line.startswith('INCLUDE='):
+            MSVC_INCDIR=[i for i in line[8:].split(';')if i]
+        elif line.startswith('LIB='):
+            MSVC_LIBDIR=[i for i in line[4:].split(';')if i]
+    return(MSVC_PATH,MSVC_INCDIR,MSVC_LIBDIR)
+
+# Check the registry for VisualStudio entries
+def _find_msvc(conf,versions):
+    import _winreg
+    version_pattern=re.compile('^..?\...?')
+    for vcver,vcvar in[('VCExpress','exp'),('VisualStudio','')]:
+        try:
+            all_versions=_winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE,'SOFTWARE\\Wow6432node\\Microsoft\\'+vcver)
+        except WindowsError:
+            try:
+                all_versions=_winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE,'SOFTWARE\\Microsoft\\'+vcver)
+            except WindowsError:
+                continue
+        index=0
+        while 1:
+            try:
+                version=_winreg.EnumKey(all_versions,index)
+            except WindowsError:
+                break
+            index=index+1
+            if not version_pattern.match(version):
+                continue
+            try:
+                msvc_version=_winreg.OpenKey(all_versions,version+"\\Setup\\VS")
+                path,type=_winreg.QueryValueEx(msvc_version,'ProductDir')
+                path=str(path)
+                targets=[]
+
+                if os.path.isfile(os.path.join(path,'VC','vcvarsall.bat')):
+                    target = 'x86'
+                    realtarget = 'x86'
+                    try:
+                        targets.append((target,(realtarget,_find_specific_msvc(conf, 'msvc',version,target,os.path.join(path,'VC','vcvarsall.bat')))))
+                    except:
+                        pass
+                elif os.path.isfile(os.path.join(path,'Common7','Tools','vsvars32.bat')):
+                    try:
+                        targets.append(('x86',('x86',_find_specific_msvc(conf, 'msvc',version,'x86',os.path.join(path,'Common7','Tools','vsvars32.bat')))))
+                    except Configure.ConfigurationError:
+                        pass
+                    
+                vcvars64_path = os.path.join(path,'VC','bin','amd64','vcvars64.bat')
+
+                if os.path.isfile(vcvars64_path):
+                    target = 'x64'
+                    realtarget = 'amd64'
+                    try:
+                        targets.append((target,(realtarget,_find_specific_msvc(conf, 'msvc', version, target, vcvars64_path))))
+                    except:
+                        pass
+
+                versions.append(('msvc '+version,targets))
+            except WindowsError:
+                continue
+
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
@@ -1046,7 +1142,14 @@ def detect(conf):
     elif sys.platform == "linux2":
         build_platform = "linux"
     elif sys.platform == "win32":
-        build_platform = "win32"
+        if platformlib.machine().endswith("64"):
+            build_platform = "x86_64-win32"
+        else:
+            build_platform = "win32"
+
+        versions = []
+        _find_msvc(conf, versions)
+        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
     else:
         conf.fatal("Unable to determine host platform")
 

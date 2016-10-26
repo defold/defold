@@ -1,6 +1,10 @@
 #ifndef DM_HID_H
 #define DM_HID_H
 
+// Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT
+// https://msdn.microsoft.com/en-us/library/windows/desktop/hh802879(v=vs.85).aspx
+#undef MAX_TOUCH_COUNT
+
 #include <stdint.h>
 
 // Let glfw decide the constants
