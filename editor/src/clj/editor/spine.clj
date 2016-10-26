@@ -628,7 +628,7 @@
                                                 [:content :spine-scene]
                                                 [:structure :scene-structure]
                                                 [:node-outline :source-outline])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "json"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "json"}))
             (dynamic error (g/fnk [_node-id spine-json]
                                   (prop-resource-error _node-id :spine-json spine-json "Spine Json"))))
 
@@ -640,7 +640,7 @@
                                                 [:anim-data :anim-data]
                                                 [:gpu-texture :gpu-texture]
                                                 [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "atlas"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "atlas"}))
             (dynamic error (g/fnk [_node-id atlas]
                                   (prop-resource-error _node-id :atlas atlas "Atlas"))))
 
@@ -717,12 +717,12 @@
                                                   [:node-outline :source-outline]
                                                   [:anim-data :anim-data]
                                                   [:scene-structure :scene-structure])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "spinescene"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "spinescene"}))
             (dynamic error (g/fnk [_node-id spine-scene]
                                   (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
-            (dynamic edit-type (g/always (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
@@ -731,7 +731,7 @@
                                                 [:shader :material-shader]
                                                 [:sampler-data :sampler-data]
                                                 [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "material"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"}))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error _node-id :material material "Material"))))
   (property default-animation g/Str
@@ -808,14 +808,14 @@
 
 (g/defnode SpineBone
   (inherits outline/OutlineNode)
-  (property name g/Str (dynamic read-only? (g/always true)))
+  (property name g/Str (dynamic read-only? (g/constantly true)))
   (property position types/Vec3
-            (dynamic edit-type (g/always (properties/vec3->vec2 0.0)))
-            (dynamic read-only? (g/always true)))
-  (property rotation g/Num (dynamic read-only? (g/always true)))
+            (dynamic edit-type (g/constantly (properties/vec3->vec2 0.0)))
+            (dynamic read-only? (g/constantly true)))
+  (property rotation g/Num (dynamic read-only? (g/constantly true)))
   (property scale types/Vec3
-            (dynamic edit-type (g/always (properties/vec3->vec2 1.0)))
-            (dynamic read-only? (g/always true)))
+            (dynamic edit-type (g/constantly (properties/vec3->vec2 1.0)))
+            (dynamic read-only? (g/constantly true)))
 
   (input child-bones g/Any :array)
 

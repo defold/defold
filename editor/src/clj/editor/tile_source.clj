@@ -188,7 +188,7 @@
                                   (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
   (property playback types/AnimationPlayback
             (default :playback-once-forward)
-            (dynamic edit-type (g/always
+            (dynamic edit-type (g/constantly
                                 (let [options (protobuf/enum-values Tile$Playback)]
                                   {:type :choicebox
                                    :options (zipmap (map first options)
@@ -197,7 +197,7 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
   (property flip-horizontal g/Bool (default false))
   (property flip-vertical g/Bool (default false))
-  (property cues g/Any (dynamic visible (g/always false)))
+  (property cues g/Any (dynamic visible (g/constantly false)))
 
   (input tile-count g/Int)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
@@ -522,9 +522,9 @@
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
                                   (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
 
-  (property material-tag g/Str (default "tile") (dynamic visible (g/always false)))
-  (property original-convex-hulls g/Any (dynamic visible (g/always false)))
-  (property tile->collision-group-node g/Any (dynamic visible (g/always false)))
+  (property material-tag g/Str (default "tile") (dynamic visible (g/constantly false)))
+  (property original-convex-hulls g/Any (dynamic visible (g/constantly false)))
+  (property tile->collision-group-node g/Any (dynamic visible (g/constantly false)))
 
   (input collision-groups g/Any :array)
   (input animation-ddfs g/Any :array)
@@ -743,7 +743,7 @@
   (output active-tile-idx g/Any :cached produce-active-tile-idx)
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
-  (output input-handler Runnable :cached (g/always handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defmethod scene/attach-tool-controller ::ToolController
   [_ tool-id view-id resource-id]

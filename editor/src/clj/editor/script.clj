@@ -138,12 +138,12 @@
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
-  (property code g/Str (dynamic visible (g/always false)))
-  (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
-  (property prefer-offset g/Int (dynamic visible (g/always false)) (default 0))
-  (property tab-triggers g/Any (dynamic visible (g/always false)) (default nil))
-  (property selection-offset g/Int (dynamic visible (g/always false)) (default 0))
-  (property selection-length g/Int (dynamic visible (g/always false)) (default 0))
+  (property code g/Str (dynamic visible (g/constantly false)))
+  (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
+  (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
   (input module-nodes g/Any :array)
 

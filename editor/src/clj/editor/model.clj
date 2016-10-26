@@ -90,7 +90,7 @@
 (g/defnode ModelNode
   (inherits project/ResourceNode)
 
-  (property name g/Str (dynamic visible (g/always false)))
+  (property name g/Str (dynamic visible (g/constantly false)))
   (property mesh resource/Resource
             (value (gu/passthrough mesh-resource))
             (set (fn [basis self old-value new-value]
@@ -102,7 +102,7 @@
                                             [:scene :scene])))
             (dynamic error (g/fnk [_node-id mesh]
                                   (prop-resource-error :info _node-id :mesh mesh "Mesh")))
-            (dynamic edit-type (g/always {:type resource/Resource
+            (dynamic edit-type (g/constantly {:type resource/Resource
                                           :ext "dae"})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
@@ -114,7 +114,7 @@
                                             [:shader :shader])))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error :fatal _node-id :material material "Material")))
-            (dynamic edit-type (g/always {:type resource/Resource
+            (dynamic edit-type (g/constantly {:type resource/Resource
                                           :ext "material"})))
   (property textures resource/ResourceVec
             (value (gu/passthrough texture-resources))
@@ -132,7 +132,7 @@
                          (if r
                            (project/connect-resource-node project r self connections)
                            (g/connect project :nil-resource self :texture-resources)))))))
-            (dynamic visible (g/always false)))
+            (dynamic visible (g/constantly false)))
 
   (input mesh-resource resource/Resource)
   (input mesh-pb g/Any)
