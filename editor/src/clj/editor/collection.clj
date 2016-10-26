@@ -92,7 +92,7 @@
                                   (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s/%s" (or base-url "") id)))
-            (dynamic read-only? (g/always true)))
+            (dynamic read-only? (g/constantly true)))
   (input base-url g/Str)
   (input source-id g/NodeID :cascade-delete)
   (input id-counts g/Any))
@@ -203,7 +203,7 @@
                                        [(assoc target :instance-data {:resource (:resource target)
                                                                       :instance-msg ddf-message
                                                                       :transform transform})])))
-  (output build-error g/Err (g/always nil))
+  (output build-error g/Err (g/constantly nil))
 
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
@@ -221,7 +221,7 @@
   (inherits GameObjectInstanceNode)
 
   (property overrides g/Any
-              (dynamic visible (g/always false))
+              (dynamic visible (g/constantly false))
               (value (gu/passthrough ddf-component-properties))
               (set (fn [basis self old-value new-value]
                      (let [go (g/node-value self :source-id {:basis basis})
@@ -447,7 +447,7 @@
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
   (property scale-along-z g/Bool
-            (dynamic visible (g/always false)))
+            (dynamic visible (g/constantly false)))
 
   (input ref-inst-ddf g/Any :array)
   (input embed-inst-ddf g/Any :array)

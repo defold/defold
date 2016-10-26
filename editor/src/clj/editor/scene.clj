@@ -408,7 +408,7 @@
   (inherits SceneRenderer)
 
   (property image-view ImageView)
-  (property viewport Region (default (g/always (types/->Region 0 0 0 0))))
+  (property viewport Region (default (g/constantly (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
@@ -808,13 +808,13 @@
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))
   (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
-            (dynamic edit-type (g/always (properties/quat->euler))))
+            (dynamic edit-type (g/constantly (properties/quat->euler))))
 
   (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
   (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec4 rotation] (doto (Quat4d.) (math/clj->vecmath rotation))))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (math/->mat4-uniform position-v3 rotation-q4 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
-  (output aabb AABB :cached (g/always (geom/null-aabb))))
+  (output aabb AABB :cached (g/constantly (geom/null-aabb))))
 
 (defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position {:basis basis})))
