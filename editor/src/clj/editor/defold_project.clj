@@ -46,7 +46,7 @@
   (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets g/Any (g/always []))
+  (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id resource source-outline child-outlines]
            (let [rt (resource/resource-type resource)
@@ -558,7 +558,7 @@
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
-  (output nil-resource resource/Resource (g/always nil))
+  (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data))
 
 (defn get-resource-type [resource-node]
