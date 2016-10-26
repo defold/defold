@@ -590,15 +590,18 @@
     :else
     (user-data node ::context)))
 
-(defn- contexts [^Scene scene]
-  (let [initial-node (or (.getFocusOwner scene) (.getRoot scene))]
-    (loop [^Node node initial-node
-           ctxs []]
-      (if-not node
-        (handler/eval-contexts ctxs)
-        (if-let [ctx (context node)]
-          (recur (.getParent node) (conj ctxs ctx))
-          (recur (.getParent node) ctxs))))))
+(defn- contexts
+  ([^Scene scene]
+    (contexts scene true))
+  ([^Scene scene all-selections?]
+    (let [initial-node (or (.getFocusOwner scene) (.getRoot scene))]
+      (loop [^Node node initial-node
+             ctxs []]
+        (if-not node
+          (handler/eval-contexts ctxs all-selections?)
+          (if-let [ctx (context node)]
+            (recur (.getParent node) (conj ctxs ctx))
+            (recur (.getParent node) ctxs)))))))
 
 (defn extend-menu [id location menu]
   (menu/extend-menu id location menu))
@@ -677,7 +680,7 @@
   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
     (event-handler event
                    (when-not (.isConsumed event)
-                     (let [cm (make-context-menu (make-menu-items (menu/realize-menu menu-id) (contexts (.getScene control))))]
+                     (let [cm (make-context-menu (make-menu-items (menu/realize-menu menu-id) (contexts (.getScene control) false)))]
                        ;; Required for autohide to work when the event originates from the anchor/source control
                        ;; See RT-15160 and Control.java
                        (.setImpl_showRelativeToWindow cm true)
