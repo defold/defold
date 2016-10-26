@@ -205,6 +205,35 @@ var LibraryFacebook = {
             }
         },
 
+        dmFacebookLoginWithPermissions: function(
+            state_open, state_closed, state_failed, permissions, callback, thread) {
+            try {
+                FB.login(function(response) {
+                    var error = response && response.error ? response.error.message : 0;
+                    if (error == 0 && response.authResponse) {
+                        window._dmFacebookUpdatePermissions(function (_error, _permissions) {
+                            if (_error == 0) {
+                                var permissionsbuf = allocate(intArrayFromString(_permissions), 'i8', ALLOC_STACK);
+                                Runtime.dynCall('viiii', callback, [thread, state_open, 0, permissionsbuf]);
+                            } else {
+                                var errbuf = allocate(intArrayFromString(_error), 'i8', ALLOC_STACK);
+                                Runtime.dynCall('viiii', callback, [thread, state_failed, errbuf, 0]);
+                            }
+                        });
+                    } else if (error != 0) {
+                        var errbuf = allocate(intArrayFromString(error), 'i8', ALLOC_STACK);
+                        Runtime.dynCall('viiii', callback, [thread, state_closed, errbuf, 0]);
+                    } else {
+                        var errmsg = "Login was cancelled";
+                        var errbuf = allocate(intArrayFromString(errmsg), 'i8', ALLOC_STACK);
+                        Runtime.dynCall('viiii', callback, [thread, state_failed, errbuf, 0]);
+                    }
+                }, {scope: Pointer_stringify(permissions)});
+            } catch (error) {
+                console.error("An unexpected error occurred during Facebook JavaScript interaction: " + error);
+            }
+        },
+
         // https://developers.facebook.com/docs/reference/javascript/FB.login/v2.0
         // https://developers.facebook.com/docs/facebook-login/permissions/v2.0
         dmFacebookRequestReadPermissions: function(permissions, callback, lua_state) {
