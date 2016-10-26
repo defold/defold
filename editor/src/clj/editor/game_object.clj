@@ -95,7 +95,7 @@
                                       (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id)))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
-            (dynamic read-only? (g/always true)))
+            (dynamic read-only? (g/constantly true)))
 
   (display-order [:id :url :path scene/SceneNode])
 
