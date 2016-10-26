@@ -490,7 +490,6 @@
 
 (handler/defhandler :open-as :global
   (active? [selection] (selection->single-file selection))
-  (enabled? [selection] (selection->single-file selection))
   (run [selection app-view workspace project user-data]
        (let [resource (selection->single-file selection)]
          (open-resource app-view workspace project resource (when-let [view-type (:selected-view-type user-data)]
