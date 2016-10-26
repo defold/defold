@@ -25,6 +25,9 @@
 #define WEBP_INLINE
 #endif
 #else
+#ifdef _MSC_VER
+#include <stdint.h>
+#else
 typedef signed   char int8_t;
 typedef unsigned char uint8_t;
 typedef signed   short int16_t;
@@ -33,6 +36,7 @@ typedef signed   int int32_t;
 typedef unsigned int uint32_t;
 typedef unsigned long long int uint64_t;
 typedef long long int int64_t;
+#endif
 #define WEBP_INLINE __forceinline
 #endif  /* _MSC_VER */
 

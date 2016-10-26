@@ -9,7 +9,12 @@ import com.sun.jna.Pointer;
 public class TexcLibrary {
     static {
         try {
-            File lib = new File(Bob.getLib(Platform.getJavaPlatform(), "texc_shared"));
+            Platform platform = Platform.getJavaPlatform();
+            File lib = new File(Bob.getLib(platform, "texc_shared"));
+            if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
+                // TODO: sad with a platform specific hack and placing dependency knowledge here but...
+                Bob.getLib(platform, "PVRTexLib");
+            }
             System.setProperty("jna.library.path", lib.getParent());
             Bob.verbose("Added '%s' to 'jna.library.path'", lib.getParent());
             Native.register("texc_shared");
