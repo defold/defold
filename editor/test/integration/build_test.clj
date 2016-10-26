@@ -23,6 +23,7 @@
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.lua.proto Lua$LuaModule]
+           [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
            [editor.types Region]
@@ -359,6 +360,19 @@
             desc    (Model$ModelDesc/parseFrom content)]
         (is (= "/model/book_of_defold.meshc" (-> desc (.getMesh))))))))
 
+(deftest build-script
+  (testing "Buildling a valid script succeeds"
+    (with-build-results "/script/good.script"
+      (let [content (get content-by-source "/script/good.script")
+            module    (Lua$LuaModule/parseFrom content)
+            source (.getSource module)]
+        (is (pos? (.size (.getBytecode source))))
+        (is (= "/script/good.script" (.getFilename source))))))
+  (testing "Building a broken script fails"
+    (with-build-results "/script/bad.script"
+      (let [content (get content-by-source "/script/bad.script")]
+        (is (nil? content))))))
+
 (deftest build-script-properties
   (with-build-results "/script/props.collection"
     (doseq [[res-path pb decl-path] [["/script/props.script" Lua$LuaModule [:properties]]
@@ -535,5 +549,3 @@
             (project/build-and-write project game-project {})
             (is (not (= initial-some-mtime (mtime (build-path workspace "/assets/some.stuff")))))
             (is (= initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))))))))))
-
-                               
