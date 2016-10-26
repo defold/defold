@@ -94,14 +94,16 @@
       eval-dynamics
       (assoc-in [:env :selection] selection))))
 
-(defn eval-contexts [contexts]
+(defn eval-contexts [contexts all-selections?]
   (loop [command-contexts (mapv eval-context contexts)
          result []]
     (if-let [ctx (first command-contexts)]
       (let [result (if-let [selection (get-in ctx [:env :selection])]
                      (into result (map (fn [ctx] (assoc-in ctx [:env :selection] selection)) command-contexts))
                      (conj result ctx))]
-        (recur (rest command-contexts) result))
+        (if all-selections?
+          (recur (rest command-contexts) result)
+          result))
       result)))
 
 (defn adapt [selection t]

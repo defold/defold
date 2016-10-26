@@ -267,7 +267,7 @@
   (handler/->context :code-view {:source-viewer source-viewer :clipboard (Clipboard/getSystemClipboard)}))
 
 (defn handler-run [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts)
+  (let [command-contexts (handler/eval-contexts command-contexts true)
         handler-context (handler/active command command-contexts user-data)]
     (when (handler/enabled? handler-context)
       (handler/run handler-context)

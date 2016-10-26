@@ -475,15 +475,15 @@
 
 (defn- selection->files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
-    (vec (keep (fn [r] (and r (= :file (resource/source-type r)) r)) resources))))
+    (vec (keep (fn [r] (when (= :file (resource/source-type r)) r)) resources))))
 
 (defn- selection->single-file [selection]
   (when-let [r (handler/adapt-single selection resource/Resource)]
-    (when (and r (= :file (resource/source-type r)) r)
+    (when (= :file (resource/source-type r))
       r)))
 
 (handler/defhandler :open :global
-  (active? [selection] (selection->files selection))
+  (active? [selection] (not-empty (selection->files selection)))
   (run [selection app-view workspace project]
        (doseq [resource (selection->files selection)]
          (open-resource app-view workspace project resource))))

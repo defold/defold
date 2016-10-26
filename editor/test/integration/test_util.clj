@@ -245,17 +245,17 @@
   (format "%s/lib/%s" (http-server/local-url server) lib))
 
 (defn handler-run [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts)]
+  (let [command-contexts (handler/eval-contexts command-contexts true)]
     (-> (handler/active command command-contexts user-data)
       handler/run)))
 
 (defn handler-options [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts)]
+  (let [command-contexts (handler/eval-contexts command-contexts true)]
     (-> (handler/active command command-contexts user-data)
       handler/options)))
 
 (defn handler-state [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts)]
+  (let [command-contexts (handler/eval-contexts command-contexts true)]
     (-> (handler/active command command-contexts user-data)
       handler/state)))
 
