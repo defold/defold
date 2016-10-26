@@ -326,7 +326,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static ModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, ModelWorld* world, const Matrix4& model_matrix, const Matrix4& normal_matrix, ModelVertex* write_ptr, const size_t vertex_stride)
+    static ModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, ModelWorld* world, const Matrix4& model_matrix, const Matrix4& normal_matrix, const dmArray<Matrix4>& scratch_pose_buffer, ModelVertex* write_ptr, const size_t vertex_stride)
     {
         DM_PROFILE(Rig, "GenerateModelVertexData");
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
@@ -340,7 +340,7 @@ namespace dmGameSystem
                 continue;
             }
             float* scratch_pos = (float*)world->m_ScratchPositionBufferData.Begin();
-            dmRig::GeneratePositionData(instance, i, model_matrix, scratch_pos);
+            dmRig::GeneratePositionData(instance, i, scratch_pose_buffer, model_matrix, scratch_pos);
             float* scratch_norm = (float*)world->m_ScratchNormalBufferData.Begin();
 
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[i];
@@ -349,7 +349,7 @@ namespace dmGameSystem
 
             if(mesh->m_NormalsIndices.m_Count)
             {
-                dmRig::GenerateNormalData(instance, i, normal_matrix, scratch_norm);
+                dmRig::GenerateNormalData(instance, i, scratch_pose_buffer, normal_matrix, scratch_norm);
                 for (uint32_t ii = 0; ii < index_count; ++ii)
                 {
                     uint32_t vi = mesh->m_Indices[ii];

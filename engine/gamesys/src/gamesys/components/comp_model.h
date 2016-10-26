@@ -57,6 +57,7 @@ namespace dmGameSystem
         // Temporary scratch buffer used for transforming position and normal buffers, used to creating primitives from indices
         dmArray<Vector3>                m_ScratchPositionBufferData;
         dmArray<Vector3>                m_ScratchNormalBufferData;
+        dmArray<Matrix4>                m_ScratchPoseBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
     };

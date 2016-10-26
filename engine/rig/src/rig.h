@@ -183,7 +183,6 @@ namespace dmRig
         void*                         m_EventCBUserData2;
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
-        dmArray<Vectormath::Aos::Matrix4> m_PoseMatrix;
         /// Animated IK
         dmArray<IKAnimation>          m_IKAnimation;
         /// User IK constraint targets
@@ -244,8 +243,9 @@ namespace dmRig
     dmhash_t GetAnimation(HRigInstance instance);
     uint32_t GetVertexCount(HRigInstance instance);
 
-    float* GenerateNormalData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& normal_matrix, float* out_buffer);
-    float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& model_matrix, float* out_buffer);
+    bool PoseToMatrix4(const HRigInstance instance, dmArray<Matrix4>& pose_matrix_buffer);
+    float* GenerateNormalData(const HRigInstance instance, const uint32_t mesh_index, const dmArray<Matrix4>& pose_matrix_buffer, const Matrix4& normal_matrix, float* out_buffer);
+    float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const dmArray<Matrix4>& pose_matrix_buffer, const Matrix4& model_matrix, float* out_buffer);
 
     void UpdateMeshDrawOrder(HRigContext context, const HRigInstance instance, uint32_t mesh_count);
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
