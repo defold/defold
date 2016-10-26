@@ -91,7 +91,7 @@
   (input prototype-resource resource/Resource)
 
   (property factory-type g/Any
-            (dynamic visible (g/always false)))
+            (dynamic visible (g/constantly false)))
 
   (property prototype resource/Resource
             (value (gu/passthrough prototype-resource))

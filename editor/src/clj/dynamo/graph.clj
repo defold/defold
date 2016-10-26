@@ -1,6 +1,6 @@
 (ns dynamo.graph
   "Main api for graph and node"
-  (:refer-clojure :exclude [deftype])
+  (:refer-clojure :exclude [deftype constantly])
   (:require [clojure.set :as set]
             [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
@@ -222,7 +222,7 @@
     (assert (symbol? name) (str "Name for defnk is not a symbol:" name))
     `(def ~name (fnk ~@args))))
 
-(defmacro always [v] `(dynamo.graph/fnk [] ~v))
+(defmacro constantly [v] `(let [ret# ~v] (dynamo.graph/fnk [] ret#)))
 
 (defmacro deftype
   [symb & body]
@@ -581,7 +581,7 @@
   (assert node-id)
   (mapcat
    (fn [[p v]]
-     (it/update-property node-id p (constantly v) []))
+     (it/update-property node-id p (clojure.core/constantly v) []))
    (partition-all 2 kvs)))
 
 (defn set-property!
@@ -691,7 +691,7 @@
      (list
       (set-property node-id :_output-jammers
                     (zipmap (remove externs outputs)
-                            (repeat (constantly defective-value))))
+                            (repeat (clojure.core/constantly defective-value))))
       (invalidate node-id)))))
 
 (defn mark-defective!
@@ -990,7 +990,7 @@
                      :serializer (some-fn custom-serializer default-node-serializer %)})"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (constantly false) serializer default-node-serializer} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer} :as opts}]
     (s/validate opts-schema opts)
    (let [serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
          original-ids   (input-traverse basis traverse? root-ids)
@@ -1060,7 +1060,7 @@
     (override root-id {}))
   ([root-id opts]
     (override (now) root-id opts))
-  ([basis root-id {:keys [traverse?] :or {traverse? (constantly true)}}]
+  ([basis root-id {:keys [traverse?] :or {traverse? (clojure.core/constantly true)}}]
     (let [graph-id (node-id->graph-id root-id)
           preds [traverse-cascade-delete traverse?]
           traverse-fn (partial predecessors preds)
