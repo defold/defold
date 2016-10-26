@@ -13,6 +13,8 @@ function usage() {
     echo " * i586-mingw32msvc"
     echo " * js-web"
     echo " * as3-web"
+    echo " * win32 ... partly"
+    echo " * x86_64-win32 ... partly"
     exit $1
 }
 

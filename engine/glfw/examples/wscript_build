@@ -2,7 +2,7 @@ import sys, re
 
 platform = bld.env.PLATFORM
 local_libs = 'dmglfw'
-if platform == 'win32':
+if 'win32' in platform:
     local_libs = 'dmglfw dmglfw_getopt'
     bld.new_task_gen(features = 'cc cstaticlib',
                      includes = '.',
