@@ -72,6 +72,7 @@
                   :command :open}
                  {:label "Open As"
                   :command :open-as}
+                 {:label :separator}
                  {:label "Copy"
                   :command :copy
                   :acc "Shortcut+C"}
