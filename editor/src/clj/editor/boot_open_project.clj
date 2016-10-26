@@ -50,6 +50,7 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.sync :as sync]
             [editor.system :as system]
             [util.http-server :as http-server])
   (:import  [java.io File]
@@ -243,7 +244,15 @@
           (g/update-property app-view :auto-pulls conj [properties-view :pane])))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
-        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"])))))
+        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
+
+      ; If project sync was in progress when we shut down the editor, re-open the sync dialog at startup.
+      (let [git   (g/node-value changes-view :git)
+            prefs (g/node-value changes-view :prefs)]
+        (when (sync/flow-in-progress? git)
+          (ui/run-later
+            (sync/open-sync-dialog (sync/resume-flow git prefs))))))
+
     (reset! the-root root)
     root))
 

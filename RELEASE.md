@@ -22,7 +22,7 @@ Important: *Make sure your branches are up to date!*
 
     (The merge changed to a specific SHA1 commit of dev.)
 
- 2. Bump version:
+ 1. Bump version:
 
         $ ./scripts/build.py bump
         $ git diff
@@ -30,15 +30,16 @@ Important: *Make sure your branches are up to date!*
         $ git commit
         > Message: "Bumped version to 1.2.xx"
 
- 3. Push to beta
+ 1. Push to beta
  
         $ git push
  
     This will trigger the beta channel to be built on build bot.
 
- 4. Wait for [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) to finish, make sure autobuilders are green.
- 5. Write release beta release notes.
- 6. Download and run beta:
+ 1. Wait for [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) to finish, make sure autobuilders are green.
+ 1. Sign the editor (creates the .dmg) [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta)
+ 1. Write release beta release notes.
+ 1. Download and run beta:
  
     http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.zip
     
@@ -48,16 +49,16 @@ Important: *Make sure your branches are up to date!*
     
     The SHA1 can be found in the latest [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) build, or `git log` on beta branch.
 
- 7. Verify new features and bug fixes.
- 8. Verify dev mobile apps.
+ 1. Verify new features and bug fixes.
+ 1. Verify dev mobile apps.
 
- 9. If everything is OK, time to release beta:
+ 1. If everything is OK, time to release beta:
  
     $ `git./scripts/build.py release --channel=beta --branch=beta`
 
     Important: *Make sure the SHA1 and channel is correct!*
 
- 10. Verify release by updating an old editor, OSX, Win and Linux.
+ 1. Verify release by updating an old editor, OSX, Win and Linux.
 
 ## Smoke Tests of Beta
 
@@ -85,14 +86,18 @@ The following smoke tests are currently performed by the team on each platform (
         $ git pull
         $ git merge beta
 
- 2. Push master!
+ 1. Push master!
 
         $ git push
 
     This will trigger a build of the engines and editors for stable.
-    Check hash for new release via waterfall build([cr-editor](http://ci.defold.com/builders/cr-editor))/or latest commit to master on github.
+    
+ 1. Wait for the editor build: [cr-editor](http://ci.defold.com/builders/cr-editor)
+    Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
+ 
+ 1. Sign the editor: [sign-editor-master](http://ci.defold.com/builders/sign-editor-master)
 
- 3. Fetch editor via:
+ 1. Fetch editor via:
  
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.zip
     
@@ -100,7 +105,7 @@ The following smoke tests are currently performed by the team on each platform (
     
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-linux.gtk.x86_64.zip
     
- 4. Tag the release in git:
+ 1. Tag the release in git:
 
         $ git tag -a X.Y.Z (same as version produced by the bump)
     Use tag message: Release X.Y.Z
@@ -120,6 +125,7 @@ The following smoke tests are currently performed by the team on each platform (
 4. Merge master into dev
 
         $ git checkout dev
+        $ git pull
         $ git merge master
         $ git push
 
