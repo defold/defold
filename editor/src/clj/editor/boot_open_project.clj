@@ -179,10 +179,7 @@
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {})))
-                                                                 (fn [_]
-                                                                   ; Nothing.
-                                                                   ))
+                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
