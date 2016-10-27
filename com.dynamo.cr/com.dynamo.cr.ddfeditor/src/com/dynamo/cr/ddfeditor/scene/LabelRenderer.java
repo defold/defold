@@ -1,4 +1,4 @@
-package com.dynamo.cr.guied.ui;
+package com.dynamo.cr.ddfeditor.scene;
 
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -15,26 +15,35 @@ import org.eclipse.swt.graphics.RGB;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.font.Fontc.InputFontFormat;
+
+/*
 import com.dynamo.cr.guied.core.ClippingNode;
 import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
-import com.dynamo.cr.guied.core.TextNode;
+import com.dynamo.cr.guied.core.LabelNode;
 import com.dynamo.cr.guied.util.Clipping;
+import com.dynamo.cr.guied.util.TextUtil;
+import com.dynamo.cr.guied.util.TextUtil.TextMetric;
+*/
+
+
+import com.dynamo.cr.sceneed.core.TextUtil;
+import com.dynamo.cr.sceneed.core.TextUtil.TextLine;
+import com.dynamo.cr.sceneed.core.TextUtil.TextMetric;
+
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.FontRendererHandle;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
-import com.dynamo.cr.sceneed.core.TextUtil;
-import com.dynamo.cr.sceneed.core.TextUtil.TextLine;
-import com.dynamo.cr.sceneed.core.TextUtil.TextMetric;
 import com.dynamo.cr.sceneed.ui.util.Shader;
-import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
+import com.dynamo.label.proto.Label.LabelDesc.BlendMode;
+import com.dynamo.label.proto.Label.LabelDesc.Pivot;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontTextureFormat;
 import com.jogamp.opengl.util.texture.Texture;
 
-public class TextNodeRenderer implements INodeRenderer<TextNode> {
+public class LabelRenderer implements INodeRenderer<LabelNode> {
 
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
 
@@ -44,8 +53,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     private Shader shaderDF;
     private Shader shaderBMFont;
 
-
-    public TextNodeRenderer() {
+    public LabelRenderer() {
         BufferedImage image = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
         graphics = (Graphics2D) image.getGraphics();
         graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -69,7 +77,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     private static Shader loadShader(GL2 gl, String path) {
         Shader shader = new Shader(gl);
         try {
-            shader.load(gl, FrameworkUtil.getBundle(TextNodeRenderer.class), path);
+            shader.load(gl, FrameworkUtil.getBundle(LabelRenderer.class), path);
         } catch (IOException e) {
             shader.dispose(gl);
             throw new IllegalStateException(e);
@@ -88,33 +96,27 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     }
 
     @Override
-    public void setup(RenderContext renderContext, TextNode node) {
+    public void setup(RenderContext renderContext, LabelNode node) {
         GL2 gl = renderContext.getGL();
 
         if (this.shaderPlain == null) {
-            this.shaderPlain = loadShader(gl, "/content/font_plain");
+            this.shaderPlain = loadShader(gl, "/content/label_plain");
         }
 
         if (this.shaderDF == null) {
-            this.shaderDF = loadShader(gl, "/content/font_df");
+            this.shaderDF = loadShader(gl, "/content/label_df");
         }
 
         if (this.shaderBMFont == null) {
-            this.shaderBMFont = loadShader(gl, "/content/font_bmfont");
+            this.shaderBMFont = loadShader(gl, "/content/label_bmfont");
         }
 
         if (passes.contains(renderContext.getPass())) {
-            ClippingState state = null;
-            ClippingNode clipper = node.getClosestParentClippingNode();
-            if (clipper != null) {
-                state = clipper.getChildClippingState();
-            }
-            RenderData<TextNode> data = renderContext.add(this, node, new Point3d(), state);
-            data.setIndex(node.getRenderKey());
+            renderContext.add(this, node, new Point3d(), null);
         }
     }
 
-    private double pivotOffsetX(TextNode node, double width) {
+    private double pivotOffsetX(LabelNode node, double width) {
         Pivot p = node.getPivot();
 
         switch (p) {
@@ -138,7 +140,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         return Double.MAX_VALUE;
     }
 
-    private double[] lineOffsets(TextNode node, List<TextLine> lines, double width) {
+    private double[] lineOffsets(LabelNode node, List<TextLine> lines, double width) {
         double[] result = new double[lines.size()];
         for (int i = 0; i < result.length; ++i) {
             result[i] = pivotOffsetX(node, width - lines.get(i).width);
@@ -151,7 +153,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     // north/top position of the actual text within the node. If the pivot is
     // placed north, the offset will be the ascent of the text (The recommended
     // distance above the baseline for singled spaced text).
-    private double pivotTextOffsetY(TextNode node, double ascent, double descent, double leading, int lineCount) {
+    private double pivotTextOffsetY(LabelNode node, double ascent, double descent, double leading, int lineCount) {
         Pivot p = node.getPivot();
 
         double lineHeight = ascent + descent;
@@ -177,9 +179,9 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     }
 
     // This function will calculate the vertical offset of the pivot for the
-    // south/bottom position of the textnode. If the pivot is placed south, the
+    // south/bottom position of the LabelNode. If the pivot is placed south, the
     // offset will be 0.
-    private double pivotNodeOffsetY(TextNode node, double height) {
+    private double pivotNodeOffsetY(LabelNode node, double height) {
         Pivot p = node.getPivot();
 
         switch(p) {
@@ -204,7 +206,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     }
 
     @Override
-    public void render(RenderContext renderContext, TextNode node, RenderData<TextNode> renderData) {
+    public void render(RenderContext renderContext, LabelNode node, RenderData<LabelNode> renderData) {
         GL2 gl = renderContext.getGL();
         String actualText = node.getText();
 
@@ -219,13 +221,6 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         if (textRenderHandle == null || !textRenderHandle.isValid()) {
             // Failed to load default font renderer
             return;
-        }
-
-        boolean clipping = renderData.getUserData() != null;
-        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
-            Clipping.beginClipping(gl);
-            ClippingState state = (ClippingState)renderData.getUserData();
-            Clipping.setupClipping(gl, state);
         }
 
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
@@ -252,7 +247,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         float lineHeight = ascent + descent;
         float tracking = lineHeight * (float)node.getTracking();
 
-        List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderHandle, tracking), actualText, node.getSize().x, node.isLineBreak());
+        List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderHandle, tracking), actualText, node.getSize().x, node.getLineBreak());
         double width = 0;
         for (TextLine l : lines) {
             width = Math.max(width, l.width);
@@ -363,12 +358,12 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                 textTexture.disable(gl);
             }
         } else {
-            // Render the outline of the actual textnode.
+            // Render the outline of the actual LabelNode.
             float[] nodeDefaultColor = renderContext.selectColor(node, color);
             float[] nodeOutlineColor = {
-            		Math.min(1.0f, nodeDefaultColor[0] * 1.3f),
-            		Math.min(1.0f, nodeDefaultColor[1] * 1.3f),
-            		Math.min(1.0f, nodeDefaultColor[2] * 1.3f)
+                    Math.min(1.0f, nodeDefaultColor[0] * 1.3f),
+                    Math.min(1.0f, nodeDefaultColor[1] * 1.3f),
+                    Math.min(1.0f, nodeDefaultColor[2] * 1.3f)
             };
 
             double nodeX0 = -pivotOffsetX(node, node.getSize().x);
@@ -394,7 +389,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             gl.glEnd();
 
             // Render the outline of the actual text contained within the
-            // textnode. This outline can overflow the outline of the textnode.
+            // LabelNode. This outline can overflow the outline of the LabelNode.
             double h = 0;
             double w = 0;
             for (TextLine t : lines) {
@@ -433,10 +428,6 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
 
         if (transparent) {
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-        }
-
-        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
-            Clipping.endClipping(gl);
         }
     }
 

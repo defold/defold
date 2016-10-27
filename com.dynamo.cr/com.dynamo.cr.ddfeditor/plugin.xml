@@ -579,6 +579,15 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.OggSound"
             name="Ogg sound">
       </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="label"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Label"
+            name="Label"
+            proto-message-class="com.dynamo.label.proto.Label$LabelDesc"
+            template-data="text: &apos;Label&apos; font: &apos;/builtins/fonts/system_font.font&apos; material: &apos;/builtins/fonts/label.material&apos; size { x: 128 y: 32 z: 0 } color { x: 1 y: 1 z: 1 w: 1 } outline { x: 0 y: 0 z: 0 w: 1 } shadow { x: 0 y: 0 z: 0 w: 1 }  leading: 1.0 tracking: 0.0 pivot: PIVOT_CENTER blend_mode: BLEND_MODE_ALPHA line_break: false"
+            type-class="component">
+      </resource-type>
     </extension>
    <extension
          point="org.eclipse.ui.perspectiveExtensions">
@@ -669,6 +678,13 @@
             node="com.dynamo.cr.ddfeditor.scene.CameraNode"
             renderer="com.dynamo.cr.ddfeditor.scene.CameraRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.labelNode"
+            loader="com.dynamo.cr.ddfeditor.scene.LabelLoader"
+            node="com.dynamo.cr.ddfeditor.scene.LabelNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.LabelRenderer"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Label">
       </node-type>
       <node-type
             id="com.dynamo.cr.ddfeditor.scene.lightNode"
