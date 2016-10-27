@@ -179,7 +179,7 @@
             (FileUtils/deleteDirectory f)
             (.delete (File. (resource/abs-path resource))))))
       (on-delete-resource-fn resources)
-      (workspace/resource-sync! workspace false))))
+      (workspace/resource-sync! workspace))))
 
 (defn- copy [files]
   (let [cb (Clipboard/getSystemClipboard)
