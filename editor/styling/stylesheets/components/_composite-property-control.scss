@@ -5,7 +5,7 @@
         -fx-background-insets: 0;
         -fx-background-color: $dark-grey;
         -fx-border-width: 1;
-        -fx-border-color: $mid-grey;
+        -fx-border-color: $dark-grey-border;
         -fx-padding: 5 7;
         -fx-min-width: 0;
         -fx-text-fill: $bright-grey;
@@ -21,7 +21,7 @@
     .text-field {
         -fx-padding: 5px 8px 5px 8px;
         -fx-border-width: 0 0 1 0;
-        -fx-border-color: $bright-grey-light;
+        -fx-border-color: $dark-grey-border;
         &:focused {
             -fx-border-color: $bright-grey;
             -fx-border-width: 1px;
@@ -29,7 +29,7 @@
             -fx-padding: 5px 8px;
         }
         &:hover {
-            -fx-border-color: $mid-grey;
+            -fx-border-color: $dark-grey-border;
             -fx-border-width: 0 0 1 0;
         }
     }

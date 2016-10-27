@@ -24,10 +24,9 @@
 
     >.toggle-button {
         &:hover {
-            -fx-background-color: $mid-black;
-        }
-        &:armed {
-            -fx-background-color: $mid-black;
+            .image-view {
+                @include effect-lighten();
+            }
         }
         &:selected {     
             -fx-border-color: $defold-orange;

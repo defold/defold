@@ -5,11 +5,11 @@
     -fx-padding: 5px 8px;
     -fx-background-color: $dark-black;
     -fx-border-width: 0 0 1 0;
-    -fx-border-color: $dark-grey-light;
+    -fx-border-color: $dark-grey-border;
     -fx-text-fill: $defold-white;
     -fx-prompt-text-fill: $bright-grey-light;
     &:hover {
-        -fx-border-color: $mid-grey;
+        -fx-border-color: $dark-grey-border;
     }
     &:focused {
         -fx-border-color: $bright-grey;
