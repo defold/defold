@@ -9,12 +9,8 @@
         -fx-border-width: 0;
         -fx-border-color: transparent;
         -fx-width: 50px;
-        &:hover {
-            -fx-background-color: $mid-black;    
-        }
         &:armed {
             -fx-background-color: $bright-grey;
-            -fx-border-color: $defold-white;
         }
     }
     #prev-console {
@@ -23,7 +19,7 @@
         -fx-background-radius: 10 0 0 10;
         -fx-background-image: url('icons/left-arrow.png');
         -fx-border-width: 0 1 0 0;
-        -fx-border-color: $dark-grey-light;
+        -fx-border-color: $dark-grey-border;
         &:hover {
             -fx-background-image: url('icons/left-arrow-on.png');
         }
