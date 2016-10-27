@@ -33,7 +33,6 @@
             -fx-border-color: $defold-orange;
             -fx-text-fill: $defold-white;
             &:hover {
-                -fx-background-color: $selected-blue;
                 -fx-text-fill: $defold-white; 
             }
             .image-view {
