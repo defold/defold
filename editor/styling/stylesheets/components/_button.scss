@@ -1,9 +1,9 @@
 .button {
-  -fx-background-radius: 12;
-  -fx-border-radius: 12;
+  -fx-background-radius: 15;
+  -fx-border-radius: 15;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: $mid-grey;//$defold-blue;
+  -fx-background-color: $mid-grey;
   -fx-background-insets: 0;
   -fx-border-color: $dark-grey;
   -fx-border-width: 1;
@@ -34,7 +34,7 @@
 
 .button-small {
 	@extend .button;
-	-fx-padding: 4px 6px;
+	-fx-padding: 4px 22px;
 	-fx-min-width: 0px;
 }
 

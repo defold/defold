@@ -128,7 +128,7 @@
                                                   <GridPane maxHeight="Infinity" maxWidth="Infinity" vgap="0.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                                       <columnConstraints>
                                                           <ColumnConstraints hgrow="ALWAYS" maxWidth="Infinity" minWidth="10.0" prefWidth="150.0" />
-                                                          <ColumnConstraints hgrow="NEVER" minWidth="97.0" prefWidth="97.0" />
+                                                          <ColumnConstraints hgrow="SOMETIMES" minWidth="125.0" prefWidth="125.0" />
                                                           <ColumnConstraints halignment="RIGHT" hgrow="NEVER" maxWidth="104.0" minWidth="20.0" prefWidth="41.0" />
                                                           <ColumnConstraints halignment="LEFT" hgrow="NEVER" maxWidth="81.0" minWidth="20.0" prefWidth="40.0" />
                                                           <ColumnConstraints hgrow="NEVER" maxWidth="120.0" minWidth="39.0" prefWidth="102.0" />
@@ -155,7 +155,8 @@
                                     <content>
                                       <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0">
                                              <children>
-                                                <SplitPane dividerPositions="0.25" layoutX="151.0" layoutY="66.0" prefHeight="160.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                <Label alignment="TOP_LEFT" text="Curve editor" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="2.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                                <SplitPane dividerPositions="0.25" layoutX="151.0" layoutY="66.0" prefHeight="160.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="30.0">
                                                   <items>
                                                     <AnchorPane id="curve-editor-list-anchor" prefHeight="206.0" prefWidth="119.0">
                                                          <children>
@@ -172,7 +173,7 @@
                                     <content>
                                       <AnchorPane id="build-errors-container" prefHeight="180.0" prefWidth="200.0">
                                         <children>
-                                          <Label alignment="TOP_LEFT" text="Build errors" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="2.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="2.0" />
+                                          <Label alignment="TOP_LEFT" text="Build errors" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="2.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                           <TreeView id="build-errors-tree" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="30.0" />
                                         </children>
                                       </AnchorPane>
