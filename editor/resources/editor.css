@@ -469,7 +469,7 @@ Links:
     .menu-item:focused .label {
       -fx-text-fill: #f0f2f6; }
     .menu-item:focused:hover {
-      -fx-background-color: #264a8b; }
+      /*-fx-background-color: $selected-blue;*/ }
       .menu-item:focused:hover .label {
         -fx-text-fill: #f0f2f6; }
   .menu-item .label {
@@ -785,7 +785,6 @@ Links:
       -fx-border-color: #fa6731;
       -fx-text-fill: #f0f2f6; }
       .tree-cell:filled:selected:hover {
-        -fx-background-color: #264a8b;
         -fx-text-fill: #f0f2f6; }
       .tree-cell:filled:selected .image-view {
         -fx-effect: innershadow(gaussian, #60C1FF, 20, 0.3, 0, 0); }

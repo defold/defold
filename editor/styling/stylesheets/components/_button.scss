@@ -10,7 +10,7 @@
   -fx-text-fill: $defold-white;
   -fx-font-size: 14px;
   &:hover {
-    -fx-background-color: $mid-black;//$selected-blue;
+    -fx-background-color: $mid-black;
   }
   &:armed {
     -fx-background-color: $bright-grey;
@@ -81,7 +81,7 @@
 .toggle-button:hover,
 .color-picker.split-button > .arrow-button:hover,
 .color-picker.split-button > .color-picker-label:hover {
-  -fx-background-color: $mid-grey;//$selected-blue;
+  -fx-background-color: $mid-grey;
   -fx-text-fill: -fx-text-base-color; }
 
 .toggle-button:armed {

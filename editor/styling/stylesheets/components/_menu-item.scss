@@ -10,7 +10,7 @@
             -fx-text-fill: $defold-white;
         }
         &:hover {
-            -fx-background-color: $selected-blue;
+            /*-fx-background-color: $selected-blue;*/
             .label {
                 -fx-text-fill: $defold-white;
             }
