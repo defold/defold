@@ -53,10 +53,3 @@ message LabelDesc
 }
 
 
-/* Function wrapper documented in gamesys_script.cpp */
-message SetScale
-{
-    required dmMath.Vector3 scale  = 1 [(field_align)=true];
-}
-
-
