@@ -34,18 +34,6 @@ namespace dmGameSystem
         uint8_t                     m_AddedToUpdate : 1;
     };
 
-    struct ModelVertex
-    {
-        float x;
-        float y;
-        float z;
-        uint16_t u;
-        uint16_t v;
-        float nx;
-        float ny;
-        float nz;
-    };
-
     struct ModelWorld
     {
         dmRig::HRigContext              m_RigContext;
@@ -53,11 +41,7 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
-        dmArray<ModelVertex>            m_VertexBufferData;
-        // Temporary scratch buffer used for transforming position and normal buffers, used to creating primitives from indices
-        dmArray<Vector3>                m_ScratchPositionBufferData;
-        dmArray<Vector3>                m_ScratchNormalBufferData;
-        dmArray<Matrix4>                m_ScratchPoseBufferData;
+        dmArray<dmRig::RigModelVertex>  m_VertexBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
     };

@@ -151,10 +151,45 @@ namespace dmRig
         uint64_t  m_String;
     };
 
+    // NOTE: We expose two different vertex format that GenerateVertexData can output.
+    // This is a temporary fix until we have better support for custom vertex formats.
+    enum RigVertexFormat
+    {
+        RIG_VERTEX_FORMAT_SPINE = 0,
+        RIG_VERTEX_FORMAT_MODEL = 1
+    };
+
+    struct RigSpineModelVertex
+    {
+        float x;
+        float y;
+        float z;
+        float u;
+        float v;
+        uint32_t rgba;
+    };
+
+    struct RigModelVertex
+    {
+        float x;
+        float y;
+        float z;
+        uint16_t u;
+        uint16_t v;
+        float nx;
+        float ny;
+        float nz;
+    };
+
     struct RigContext
     {
         dmObjectPool<HRigInstance> m_Instances;
         dmArray<uint32_t>          m_DrawOrderToMesh;
+        // Temporary scratch buffers used for store pose as matrices, and transforming vertex buffer,
+        // used to creating primitives from indices.
+        dmArray<Matrix4>           m_ScratchPoseMatrixBuffer;
+        dmArray<Vector3>           m_ScratchPositionBuffer;
+        dmArray<Vector3>           m_ScratchNormalBuffer;
     };
 
     struct NewContextParams {
@@ -241,13 +276,12 @@ namespace dmRig
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration);
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
+
+    // NOTE: GenerateVertexData will change the internal pose transforms data,
+    // if you need the pose transforms use RigInstance::m_PoseCallback instead.
+    void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, RigVertexFormat vertex_format, void* vertex_data_out);
     uint32_t GetVertexCount(HRigInstance instance);
 
-    bool PoseToMatrix4(const HRigInstance instance, dmArray<Matrix4>& pose_matrix_buffer);
-    float* GenerateNormalData(const HRigInstance instance, const uint32_t mesh_index, const dmArray<Matrix4>& pose_matrix_buffer, const Matrix4& normal_matrix, float* out_buffer);
-    float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const dmArray<Matrix4>& pose_matrix_buffer, const Matrix4& model_matrix, float* out_buffer);
-
-    void UpdateMeshDrawOrder(HRigContext context, const HRigInstance instance, uint32_t mesh_count);
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
     dmhash_t GetMesh(HRigInstance instance);
     float GetCursor(HRigInstance instance, bool normalized);

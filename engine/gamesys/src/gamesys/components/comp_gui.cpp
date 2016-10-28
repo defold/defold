@@ -777,28 +777,14 @@ namespace dmGameSystem
             gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
         }
 
-        dmArray<Vector3> &scratch_vertex_buffer_data = gui_world->m_ScratchPositionBufferData;
-        if (scratch_vertex_buffer_data.Capacity() < max_component_vertices)
-            scratch_vertex_buffer_data.OffsetCapacity(max_component_vertices - scratch_vertex_buffer_data.Capacity());
-
         // Fill in vertex buffer
         BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
         BoxVertex *vb_end = vb_begin;
-
-        // dmRig::RigGenVertexDataParams params;
         for (uint32_t i = 0; i < node_count; ++i)
         {
-
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-
-            int bone_count = dmRig::GetBoneCount(rig_instance);
-            dmArray<Matrix4>& scratch_pose_buffer = gui_world->m_ScratchPoseBufferData;
-            if (scratch_pose_buffer.Capacity() < bone_count) {
-                scratch_pose_buffer.OffsetCapacity(bone_count - scratch_pose_buffer.Capacity());
-            }
-
-            vb_end = (BoxVertex *)dmGameSystem::CompSpineModelGenerateVertexData(gui_world->m_RigContext, rig_instance, scratch_vertex_buffer_data, scratch_pose_buffer, node_transforms[i], (dmGameSystem::SpineModelVertex*)vb_end, sizeof(BoxVertex));
+            vb_end = (BoxVertex*)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, node_transforms[i], Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }

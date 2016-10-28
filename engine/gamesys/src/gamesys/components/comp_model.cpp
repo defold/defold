@@ -326,74 +326,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static ModelVertex* GenerateVertexData(const dmRig::HRigInstance instance, ModelWorld* world, const Matrix4& model_matrix, const Matrix4& normal_matrix, dmArray<Matrix4>& scratch_pose_buffer, ModelVertex* write_ptr, const size_t vertex_stride)
-    {
-        DM_PROFILE(Rig, "GenerateModelVertexData");
-        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-        if (!instance->m_MeshEntry || !instance->m_DoRender) {
-            return write_ptr;
-        }
-
-        dmRig::PoseToMatrix4(instance, scratch_pose_buffer);
-        for (uint32_t i = 0; i < mesh_entry->m_Meshes.m_Count; ++i)
-        {
-            const dmRig::MeshProperties* properties = &instance->m_MeshProperties[i];
-            if (!properties->m_Visible) {
-                continue;
-            }
-            float* scratch_pos = (float*)world->m_ScratchPositionBufferData.Begin();
-            dmRig::GeneratePositionData(instance, i, scratch_pose_buffer, model_matrix, scratch_pos);
-            float* scratch_norm = (float*)world->m_ScratchNormalBufferData.Begin();
-
-            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[i];
-            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Data;
-            uint32_t index_count = mesh->m_Indices.m_Count;
-
-            if(mesh->m_NormalsIndices.m_Count)
-            {
-                dmRig::GenerateNormalData(instance, i, scratch_pose_buffer, normal_matrix, scratch_norm);
-                for (uint32_t ii = 0; ii < index_count; ++ii)
-                {
-                    uint32_t vi = mesh->m_Indices[ii];
-                    uint32_t e = vi * 3;
-                    write_ptr->x = scratch_pos[e];
-                    write_ptr->y = scratch_pos[++e];
-                    write_ptr->z = scratch_pos[++e];
-                    vi = texcoord0_indices[ii];
-                    e = vi << 1;
-                    write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
-                    write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
-                    e = ii * 3;
-                    write_ptr->nx = scratch_norm[e];
-                    write_ptr->ny = scratch_norm[++e];
-                    write_ptr->nz = scratch_norm[++e];
-                    write_ptr = (ModelVertex*)((uintptr_t)write_ptr + vertex_stride);
-                }
-            }
-            else
-            {
-                for (uint32_t ii = 0; ii < index_count; ++ii)
-                {
-                    uint32_t vi = mesh->m_Indices[ii];
-                    uint32_t e = vi * 3;
-                    write_ptr->x = scratch_pos[e];
-                    write_ptr->y = scratch_pos[++e];
-                    write_ptr->z = scratch_pos[++e];
-                    vi = texcoord0_indices[ii];
-                    e = vi << 1;
-                    write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
-                    write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
-                    write_ptr->nx = 0.0f;
-                    write_ptr->ny = 0.0f;
-                    write_ptr->nz = 1.0f;
-                    write_ptr = (ModelVertex*)((uintptr_t)write_ptr + vertex_stride);
-                }
-            }
-
-        }
-        return write_ptr;
-    }
-
     static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Model, "RenderBatch");
@@ -413,34 +345,19 @@ namespace dmGameSystem
         }
         assert(vertex_count > 0);
 
-        dmArray<ModelVertex> &vertex_buffer = world->m_VertexBufferData;
+        dmArray<dmRig::RigModelVertex> &vertex_buffer = world->m_VertexBufferData;
         if (vertex_buffer.Remaining() < vertex_count)
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
-        dmArray<Vector3> &scratch_vertex_buffer_data = world->m_ScratchPositionBufferData;
-        dmArray<Vector3> &scratch_normal_buffer_data = world->m_ScratchNormalBufferData;
-        if (scratch_vertex_buffer_data.Capacity() < max_component_vertices) {
-            int offset_capacity = max_component_vertices - scratch_vertex_buffer_data.Capacity();
-            scratch_vertex_buffer_data.OffsetCapacity(offset_capacity);
-            scratch_normal_buffer_data.OffsetCapacity(offset_capacity);
-        }
-
         // Fill in vertex buffer
-        ModelVertex *vb_begin = vertex_buffer.End();
-        ModelVertex *vb_end = vb_begin;
+        dmRig::RigModelVertex *vb_begin = vertex_buffer.End();
+        dmRig::RigModelVertex *vb_end = vb_begin;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
             Matrix4 normal_matrix = inverse(c->m_World);
             normal_matrix = transpose(normal_matrix);
-
-            int bone_count = dmRig::GetBoneCount(c->m_RigInstance);
-            dmArray<Matrix4>& scratch_pose_buffer = world->m_ScratchPoseBufferData;
-            if (scratch_pose_buffer.Capacity() < bone_count) {
-                scratch_pose_buffer.OffsetCapacity(bone_count - scratch_pose_buffer.Capacity());
-            }
-
-            vb_end = GenerateVertexData(c->m_RigInstance, world, c->m_World, normal_matrix, scratch_pose_buffer, vb_end, sizeof(ModelVertex));
+            vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, normal_matrix, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -581,7 +498,7 @@ namespace dmGameSystem
             {
                 dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
                 world->m_RenderObjects.SetSize(0);
-                dmArray<ModelVertex>& vertex_buffer = world->m_VertexBufferData;
+                dmArray<dmRig::RigModelVertex>& vertex_buffer = world->m_VertexBufferData;
                 vertex_buffer.SetSize(0);
                 break;
             }
@@ -592,9 +509,9 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(ModelVertex) * world->m_VertexBufferData.Size(),
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(dmRig::RigModelVertex) * world->m_VertexBufferData.Size(),
                                                 world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                DM_COUNTER("ModelVertexBuffer", world->m_VertexBufferData.Size() * sizeof(ModelVertex));
+                DM_COUNTER("ModelVertexBuffer", world->m_VertexBufferData.Size() * sizeof(dmRig::RigModelVertex));
                 break;
             }
             default:

@@ -361,54 +361,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    SpineModelVertex* CompSpineModelGenerateVertexData(dmRig::HRigContext context, const dmRig::HRigInstance instance, dmArray<Vector3>& scratch_position_buffer, dmArray<Matrix4>& scratch_pose_buffer, const Matrix4& model_matrix, SpineModelVertex* vertex_data_out, const size_t vertex_stride)
-    {
-        DM_PROFILE(Rig, "GenerateSpineVertexData");
-
-        SpineModelVertex* write_ptr = vertex_data_out;
-        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-        if (!instance->m_MeshEntry || !instance->m_DoRender) {
-            return write_ptr;
-        }
-        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
-        if (context->m_DrawOrderToMesh.Capacity() < mesh_count)
-            context->m_DrawOrderToMesh.SetCapacity(mesh_count);
-
-        dmRig::PoseToMatrix4(instance, scratch_pose_buffer);
-        dmRig::UpdateMeshDrawOrder(context, instance, mesh_count);
-        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
-            uint32_t mesh_index = context->m_DrawOrderToMesh[draw_index];
-            const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-            if (!properties->m_Visible) {
-                continue;
-            }
-            uint32_t rgba = (((uint32_t) (properties->m_Color[3] * 255.0f)) << 24) | (((uint32_t) (properties->m_Color[2] * 255.0f)) << 16) |
-                    (((uint32_t) (properties->m_Color[1] * 255.0f)) << 8) | ((uint32_t) (properties->m_Color[0] * 255.0f));
-
-            float* scratch_pos = (float*)scratch_position_buffer.Begin();
-            dmRig::GeneratePositionData(instance, mesh_index, scratch_pose_buffer, model_matrix, scratch_pos);
-
-            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
-            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
-            uint32_t index_count = mesh->m_Indices.m_Count;
-            for (uint32_t ii = 0; ii < index_count; ++ii)
-            {
-                uint32_t vi = mesh->m_Indices[ii];
-                uint32_t e = vi*3;
-                write_ptr->x = scratch_pos[e+0];
-                write_ptr->y = scratch_pos[e+1];
-                write_ptr->z = scratch_pos[e+2];
-                vi = texcoord0_indices[ii];
-                e = vi << 1;
-                write_ptr->u = (mesh->m_Texcoord0[e+0]);
-                write_ptr->v = (mesh->m_Texcoord0[e+1]);
-                write_ptr->rgba = rgba;
-                write_ptr = (SpineModelVertex*)((uintptr_t)write_ptr + vertex_stride);
-            }
-        }
-        return write_ptr;
-    }
-
     static void RenderBatch(SpineModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(SpineModel, "RenderBatch");
@@ -427,28 +379,17 @@ namespace dmGameSystem
             max_component_vertices = dmMath::Max(max_component_vertices, count);
         }
 
-        dmArray<dmGameSystem::SpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
+        dmArray<dmRig::RigSpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
         if (vertex_buffer.Remaining() < vertex_count)
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
-        dmArray<Vector3> &scratch_vertex_buffer_data = world->m_ScratchPositionBufferData;
-        if (scratch_vertex_buffer_data.Capacity() < max_component_vertices)
-            scratch_vertex_buffer_data.OffsetCapacity(max_component_vertices - scratch_vertex_buffer_data.Capacity());
-
         // Fill in vertex buffer
-        dmGameSystem::SpineModelVertex *vb_begin = vertex_buffer.End();
-        dmGameSystem::SpineModelVertex *vb_end = vb_begin;
+        dmRig::RigSpineModelVertex *vb_begin = vertex_buffer.End();
+        dmRig::RigSpineModelVertex *vb_end = vb_begin;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-
-            int bone_count = dmRig::GetBoneCount(c->m_RigInstance);
-            dmArray<Matrix4>& scratch_pose_buffer = world->m_ScratchPoseBufferData;
-            if (scratch_pose_buffer.Capacity() < bone_count) {
-                scratch_pose_buffer.OffsetCapacity(bone_count - scratch_pose_buffer.Capacity());
-            }
-
-            vb_end = CompSpineModelGenerateVertexData(world->m_RigContext, c->m_RigInstance, scratch_vertex_buffer_data, scratch_pose_buffer, c->m_World, vb_end, sizeof(dmGameSystem::SpineModelVertex));
+            vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -583,7 +524,7 @@ namespace dmGameSystem
             {
                 dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
                 world->m_RenderObjects.SetSize(0);
-                dmArray<dmGameSystem::SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
+                dmArray<dmRig::RigSpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
                 vertex_buffer.SetSize(0);
                 break;
             }
@@ -594,9 +535,9 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(dmGameSystem::SpineModelVertex) * world->m_VertexBufferData.Size(),
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(dmRig::RigSpineModelVertex) * world->m_VertexBufferData.Size(),
                                                 world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(dmGameSystem::SpineModelVertex));
+                DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(dmRig::RigSpineModelVertex));
                 break;
             }
             default:

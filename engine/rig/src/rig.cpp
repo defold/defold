@@ -21,6 +21,7 @@ namespace dmRig
         }
 
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
+        context->m_ScratchPoseMatrixBuffer.SetCapacity(2);
 
         return dmRig::RESULT_OK;
     }
@@ -661,77 +662,10 @@ namespace dmRig
                 instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
             }
 
-            
+
         }
 
         return dmRig::RESULT_OK;
-    }
-
-    bool PoseToMatrix4(const HRigInstance instance, dmArray<Matrix4>& pose_matrix_buffer)
-    {
-        // No need to calculate pose if there are no bones
-        if (GetBoneCount(instance) == 0) {
-            return true;
-        }
-
-        dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-        if (pose_matrix_buffer.Capacity() < pose.Size()) {
-            return false;
-        }
-
-        const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
-        pose_matrix_buffer.SetSize(pose.Size());
-
-        // Convert every transform into model space
-        if (skeleton->m_LocalBoneScaling) {
-            for (uint32_t bi = 0; bi < pose.Size(); ++bi)
-            {
-                dmTransform::Transform& transform = pose[bi];
-                if (bi > 0) {
-                    const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
-                    if (bone->m_InheritScale)
-                    {
-                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
-                    }
-                    else
-                    {
-                        Vector3 scale = transform.GetScale();
-                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
-                        transform.SetScale(scale);
-                    }
-                }
-                pose_matrix_buffer[bi] = dmTransform::ToMatrix4(transform);
-            }
-        } else {
-            for (uint32_t bi = 0; bi < pose.Size(); ++bi)
-            {
-                dmTransform::Transform& transform = pose[bi];
-                Matrix4& transform_matrix = pose_matrix_buffer[bi];
-                transform_matrix = dmTransform::ToMatrix4(transform);
-                if (bi > 0) {
-                    const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
-                    if (bone->m_InheritScale)
-                    {
-                        transform_matrix = pose_matrix_buffer[bone->m_Parent] * transform_matrix;
-                    }
-                    else
-                    {
-                        Vector3 scale = dmTransform::ExtractScale(pose_matrix_buffer[bone->m_Parent]);
-                        transform_matrix.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * transform_matrix.getUpper3x3());
-                        transform_matrix = pose_matrix_buffer[bone->m_Parent] * transform_matrix;
-                    }
-                }
-            }
-        }
-
-        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
-        for (uint32_t bi = 0; bi < pose.Size(); ++bi)
-        {
-            Matrix4& transform_matrix = pose_matrix_buffer[bi];
-            transform_matrix = transform_matrix * bind_pose[bi].m_ModelToLocal;
-        }
-
-        return true;
     }
 
     Result Update(HRigContext context, float dt)
@@ -850,7 +784,7 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-    void UpdateMeshDrawOrder(HRigContext context, const HRigInstance instance, uint32_t mesh_count) {
+    static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& order_to_mesh) {
         // Spine's approach to update draw order is to:
         // * Initialize with default draw order (integer sequence)
         // * Add entries with changed draw order
@@ -859,16 +793,20 @@ namespace dmRig
         // Init: [0, 1, 2]
         // Changed: 1 => 0, results in [1, 1, 2]
         // Unchanged: 0 => 0, 2 => 2, results in [1, 0, 2] (indices 1 and 2 were untouched and filled)
-        context->m_DrawOrderToMesh.SetSize(mesh_count);
+        order_to_mesh.SetSize(mesh_count);
         // Intialize
         for (uint32_t i = 0; i < mesh_count; ++i) {
-            context->m_DrawOrderToMesh[i] = i;
+            order_to_mesh[i] = i;
+        }
+        // No need to reorder instances with only one, or none, meshes.
+        if (mesh_count <= 1) {
+            return;
         }
         // Update changed
         for (uint32_t i = 0; i < mesh_count; ++i) {
             uint32_t order = instance->m_MeshProperties[i].m_Order;
             if (order != i) {
-                context->m_DrawOrderToMesh[order] = i;
+                order_to_mesh[order] = i;
             }
         }
         // Fill with unchanged
@@ -877,10 +815,10 @@ namespace dmRig
             uint32_t order = instance->m_MeshProperties[i].m_Order;
             if (order == i) {
                 // Find free slot
-                while (context->m_DrawOrderToMesh[draw_order] != draw_order) {
+                while (order_to_mesh[draw_order] != draw_order) {
                     ++draw_order;
                 }
-                context->m_DrawOrderToMesh[draw_order] = i;
+                order_to_mesh[draw_order] = i;
                 ++draw_order;
             }
         }
@@ -903,15 +841,14 @@ namespace dmRig
         return vertex_count;
     }
 
-    float* GenerateNormalData(const HRigInstance instance, const uint32_t mesh_index, const dmArray<Matrix4>& pose_matrices, const Matrix4& normal_matrix, float* out_buffer)
+    static float* GenerateNormalData(const dmRigDDF::Mesh* mesh, const Matrix4& normal_matrix, float* out_buffer, const dmArray<Matrix4>& pose_matrices)
     {
-        const dmRigDDF::Mesh& mesh = instance->m_MeshEntry->m_Meshes[mesh_index];
-        const float* normals_in = mesh.m_Normals.m_Data;
-        const uint32_t* normal_indices = mesh.m_NormalsIndices.m_Data;
-        uint32_t index_count = mesh.m_Indices.m_Count;
+        const float* normals_in = mesh->m_Normals.m_Data;
+        const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Data;
+        uint32_t index_count = mesh->m_Indices.m_Count;
         Vector4 v;
 
-        if (!mesh.m_BoneIndices.m_Count)
+        if (!mesh->m_BoneIndices.m_Count)
         {
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -928,7 +865,7 @@ namespace dmRig
             return out_buffer;
         }
 
-        const uint32_t* vertex_indices = mesh.m_Indices.m_Data;
+        const uint32_t* vertex_indices = mesh->m_Indices.m_Data;
         for (uint32_t ii = 0; ii < index_count; ++ii)
         {
             uint32_t vi = vertex_indices[ii];
@@ -938,8 +875,8 @@ namespace dmRig
             Vector3 normal_in(normals_in[ni*3+0], normals_in[ni*3+1], normals_in[ni*3+2]);
 
             const uint32_t bi_offset = vi << 2;
-            const uint32_t* bone_indices = &mesh.m_BoneIndices[bi_offset];
-            const float* bone_weights = &mesh.m_Weights[bi_offset];
+            const uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
+            const float* bone_weights = &mesh->m_Weights[bi_offset];
             for (uint32_t bi = 0; bi < 4; ++bi)
             {
                 if (bone_weights[bi] > 0.0f)
@@ -970,14 +907,13 @@ namespace dmRig
         return out_buffer;
     }
 
-    float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const dmArray<Matrix4>& pose_matrices, const Matrix4& model_matrix, float* out_buffer)
+    static float* GeneratePositionData(const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, float* out_buffer, const dmArray<Matrix4>& pose_matrices)
     {
-        const dmRigDDF::Mesh& mesh = instance->m_MeshEntry->m_Meshes[mesh_index];
-        const float *positions = mesh.m_Positions.m_Data;
-        const size_t vertex_count = mesh.m_Positions.m_Count / 3;
+        const float *positions = mesh->m_Positions.m_Data;
+        const size_t vertex_count = mesh->m_Positions.m_Count / 3;
         Point3 in_p;
         Vector4 v;
-        if(!mesh.m_BoneIndices.m_Count)
+        if(!mesh->m_BoneIndices.m_Count)
         {
             for (uint32_t i = 0; i < vertex_count; ++i)
             {
@@ -999,8 +935,8 @@ namespace dmRig
             in_p[2] = *positions++;
             Point3 out_p(0.0f, 0.0f, 0.0f);
             const uint32_t bi_offset = i << 2;
-            const uint32_t* bone_indices = &mesh.m_BoneIndices[bi_offset];
-            const float* bone_weights = &mesh.m_Weights[bi_offset];
+            const uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
+            const float* bone_weights = &mesh->m_Weights[bi_offset];
             for (uint32_t bi = 0; bi < 4; ++bi)
             {
                 if (bone_weights[bi] > 0.0f)
@@ -1025,6 +961,207 @@ namespace dmRig
             *out_buffer++ = v[2];
         }
         return out_buffer;
+    }
+
+    // NOTE:
+    // Both PoseAsMatrices and PoseAsMatricesLocalBoneScaling modify the pose transforms,
+    // and by extension so will GenerateVertexData. To read the pose at the correct/valid
+    // time, use m_PoseCallback on the RigInstance instead.
+    static void PoseAsMatricesLocalBoneScaling(const dmRigDDF::Skeleton* skeleton, dmArray<dmTransform::Transform>& pose_transforms, dmArray<Matrix4>& pose_matrices)
+    {
+        int bone_count = skeleton->m_Bones.m_Count;
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            dmTransform::Transform& transform = pose_transforms[bi];
+            if (bi > 0) {
+                const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
+                if (bone->m_InheritScale)
+                {
+                    transform = dmTransform::Mul(pose_transforms[bone->m_Parent], transform);
+                }
+                else
+                {
+                    Vector3 scale = transform.GetScale();
+                    transform = dmTransform::Mul(pose_transforms[bone->m_Parent], transform);
+                    transform.SetScale(scale);
+                }
+            }
+            pose_matrices[bi] = dmTransform::ToMatrix4(transform);
+        }
+    }
+
+    static void PoseAsMatrices(const dmRigDDF::Skeleton* skeleton, dmArray<dmTransform::Transform>& pose_transforms, dmArray<Matrix4>& pose_matrices)
+    {
+        int bone_count = skeleton->m_Bones.m_Count;
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            dmTransform::Transform& transform = pose_transforms[bi];
+            Matrix4& transform_matrix = pose_matrices[bi];
+            transform_matrix = dmTransform::ToMatrix4(transform);
+            if (bi > 0) {
+                const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
+                if (bone->m_InheritScale)
+                {
+                    transform_matrix = pose_matrices[bone->m_Parent] * transform_matrix;
+                }
+                else
+                {
+                    Vector3 scale = dmTransform::ExtractScale(pose_matrices[bone->m_Parent]);
+                    transform_matrix.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * transform_matrix.getUpper3x3());
+                    transform_matrix = pose_matrices[bone->m_Parent] * transform_matrix;
+                }
+            }
+        }
+    }
+
+    void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, RigVertexFormat vertex_format, void* vertex_data_out)
+    {
+        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
+        if (!instance->m_MeshEntry || !instance->m_DoRender) {
+            return vertex_data_out;
+        }
+
+        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
+        dmArray<uint32_t>& draw_order = context->m_DrawOrderToMesh;
+        if (draw_order.Capacity() < mesh_count)
+            draw_order.SetCapacity(mesh_count);
+
+        // Early exit for rigs that has no mesh or only one mesh that is not visible.
+        if (mesh_count == 0 || (mesh_count == 1 && !instance->m_MeshProperties[0].m_Visible)) {
+            return vertex_data_out;
+        }
+
+        dmArray<dmTransform::Transform>& pose_transforms = instance->m_Pose;
+        dmArray<Matrix4>& pose_matrices = context->m_ScratchPoseMatrixBuffer;
+        dmArray<Vector3>& positions     = context->m_ScratchPositionBuffer;
+        dmArray<Vector3>& normals       = context->m_ScratchNormalBuffer;
+
+        // If the rig has bones, update the pose to be local-to-model
+        int bone_count = GetBoneCount(instance);
+        if (bone_count) {
+            if (pose_matrices.Capacity() < bone_count) {
+                pose_matrices.OffsetCapacity(bone_count - pose_matrices.Capacity());
+            }
+            pose_matrices.SetSize(bone_count);
+
+            const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+            if (skeleton->m_LocalBoneScaling) {
+                PoseAsMatricesLocalBoneScaling(skeleton, pose_transforms, pose_matrices);
+            } else {
+                PoseAsMatrices(skeleton, pose_transforms, pose_matrices);
+            }
+
+            // Premultiply pose matrices with the bind pose inverse so they
+            // can be directly be used to transform each vertex.
+            const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
+            for (uint32_t bi = 0; bi < pose_matrices.Size(); ++bi)
+            {
+                Matrix4& transform_matrix = pose_matrices[bi];
+                transform_matrix = transform_matrix * bind_pose[bi].m_ModelToLocal;
+            }
+        }
+
+        dmRig::UpdateMeshDrawOrder(instance, mesh_count, draw_order);
+        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
+            uint32_t mesh_index = draw_order[draw_index];
+            const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
+            if (!properties->m_Visible) {
+                continue;
+            }
+            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
+
+            // Bump scratch buffer capacity to handle current vertex count
+            uint32_t index_count = mesh->m_Indices.m_Count;
+            if (positions.Capacity() < index_count) {
+                int offset_capacity = index_count - positions.Capacity();
+                positions.OffsetCapacity(offset_capacity);
+                if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh->m_NormalsIndices.m_Count) {
+                    normals.OffsetCapacity(offset_capacity);
+                }
+            }
+
+            // Fill scratch buffers for positions, and normals if applicable, using pose matrices.
+            float* positions_buffer = (float*)positions.Begin();
+            float* normals_buffer = (float*)normals.Begin();
+            dmRig::GeneratePositionData(mesh, model_matrix, positions_buffer, pose_matrices);
+            if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh->m_NormalsIndices.m_Count) {
+                dmRig::GenerateNormalData(mesh, normal_matrix, normals_buffer, pose_matrices);
+            }
+
+            const uint32_t* texcoord0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
+
+            // NOTE: We expose two different vertex format that GenerateVertexData can output.
+            // This is a temporary fix until we have better support for custom vertex formats.
+            if (vertex_format == RIG_VERTEX_FORMAT_MODEL) {
+                RigModelVertex* write_ptr = (RigModelVertex*)vertex_data_out;
+
+                if(mesh->m_NormalsIndices.m_Count)
+                {
+                    for (uint32_t i = 0; i < index_count; ++i)
+                    {
+                        uint32_t vi = mesh->m_Indices[i];
+                        uint32_t e = vi * 3;
+                        write_ptr->x = positions_buffer[e];
+                        write_ptr->y = positions_buffer[++e];
+                        write_ptr->z = positions_buffer[++e];
+                        vi = texcoord0_indices[i];
+                        e = vi << 1;
+                        write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
+                        write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
+                        e = i * 3;
+                        write_ptr->nx = normals_buffer[e];
+                        write_ptr->ny = normals_buffer[++e];
+                        write_ptr->nz = normals_buffer[++e];
+                        write_ptr++;
+                    }
+                }
+                else
+                {
+                    for (uint32_t i = 0; i < index_count; ++i)
+                    {
+                        uint32_t vi = mesh->m_Indices[i];
+                        uint32_t e = vi * 3;
+                        write_ptr->x = positions_buffer[e];
+                        write_ptr->y = positions_buffer[++e];
+                        write_ptr->z = positions_buffer[++e];
+                        vi = texcoord0_indices[i];
+                        e = vi << 1;
+                        write_ptr->u = (uint16_t)((mesh->m_Texcoord0[e+0]) * 65535.0f);
+                        write_ptr->v = (uint16_t)((mesh->m_Texcoord0[e+1]) * 65535.0f);
+                        write_ptr->nx = 0.0f;
+                        write_ptr->ny = 0.0f;
+                        write_ptr->nz = 1.0f;
+                        write_ptr++;
+                    }
+                }
+                vertex_data_out = (void*)write_ptr;
+
+            } else {
+                RigSpineModelVertex* write_ptr = (RigSpineModelVertex*)vertex_data_out;
+
+                uint32_t rgba = (((uint32_t) (properties->m_Color[3] * 255.0f)) << 24) | (((uint32_t) (properties->m_Color[2] * 255.0f)) << 16) |
+                        (((uint32_t) (properties->m_Color[1] * 255.0f)) << 8) | ((uint32_t) (properties->m_Color[0] * 255.0f));
+
+                for (uint32_t i = 0; i < index_count; ++i)
+                {
+                    uint32_t vi = mesh->m_Indices[i];
+                    uint32_t e = vi*3;
+                    write_ptr->x = positions_buffer[e+0];
+                    write_ptr->y = positions_buffer[e+1];
+                    write_ptr->z = positions_buffer[e+2];
+                    vi = texcoord0_indices[i];
+                    e = vi << 1;
+                    write_ptr->u = (mesh->m_Texcoord0[e+0]);
+                    write_ptr->v = (mesh->m_Texcoord0[e+1]);
+                    write_ptr->rgba = rgba;
+                    write_ptr++;
+                }
+
+                vertex_data_out = (void*)write_ptr;
+            }
+        }
+
+        return vertex_data_out;
     }
 
     static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)
