@@ -275,28 +275,7 @@ private:
         ik_target.m_Mix      = 1.0f;
 
         // Calculate bind pose
-        // (code from res_rig_scene.h)
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmRig::RigBone* bind_bone = &m_BindPose[i];
-            dmRigDDF::Bone* bone = &m_Skeleton->m_Bones[i];
-            bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-            if (i > 0)
-            {
-                bind_bone->m_LocalToModel = dmTransform::Mul(m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-                if (!bone->m_InheritScale)
-                {
-                    bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-                }
-            }
-            else
-            {
-                bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-            }
-            bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(dmTransform::Inv(bind_bone->m_LocalToModel));
-            bind_bone->m_ParentIndex = bone->m_Parent;
-            bind_bone->m_Length = bone->m_Length;
-        }
+        dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
 
         // Bone animations
         uint32_t animation_count = 3;

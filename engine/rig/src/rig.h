@@ -294,6 +294,9 @@ namespace dmRig
     uint32_t GetBoneCount(HRigInstance instance);
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
+    // Util function used to fill a bind pose array from skeleton data
+    // used in rig tests and loading rig resources.
+    void CreateBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose);
 }
 
 #endif // DM_RIG_H

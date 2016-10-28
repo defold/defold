@@ -4122,36 +4122,6 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
 
 }
 
-static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton* skeleton)
-{
-    // Calculate bind pose
-    // (code from res_rig_scene.h)
-    uint32_t bone_count = skeleton->m_Bones.m_Count;
-    bind_pose->SetCapacity(bone_count);
-    bind_pose->SetSize(bone_count);
-    for (uint32_t i = 0; i < bone_count; ++i)
-    {
-        dmRig::RigBone* bind_bone = &(*bind_pose)[i];
-        dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
-        bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-        if (i > 0)
-        {
-            bind_bone->m_LocalToModel = dmTransform::Mul((*bind_pose)[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-            if (!bone->m_InheritScale)
-            {
-                bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-            }
-        }
-        else
-        {
-            bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-        }
-        bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(dmTransform::Inv(bind_bone->m_LocalToModel));
-        bind_bone->m_ParentIndex = bone->m_Parent;
-        bind_bone->m_Length = bone->m_Length;
-    }
-}
-
 static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
 {
     dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
@@ -4187,7 +4157,7 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
     dummy_data->m_MeshSet = mesh_set;
     dummy_data->m_AnimationSet = animation_set;
 
-    BuildBindPose(dummy_data->m_BindPose, skeleton);
+    dmRig::CreateBindPose(*skeleton, *dummy_data->m_BindPose);
 }
 
 static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)

@@ -69,30 +69,7 @@ namespace dmGameSystem
 
         if (result == dmResource::RESULT_OK && resource->m_SkeletonRes)
         {
-            uint32_t bone_count = resource->m_SkeletonRes->m_Skeleton->m_Bones.m_Count;
-            resource->m_BindPose.SetCapacity(bone_count);
-            resource->m_BindPose.SetSize(bone_count);
-            for (uint32_t i = 0; i < bone_count; ++i)
-            {
-                dmRig::RigBone* bind_bone = &resource->m_BindPose[i];
-                dmRigDDF::Bone* bone = &resource->m_SkeletonRes->m_Skeleton->m_Bones[i];
-                bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-                if (i > 0)
-                {
-                    bind_bone->m_LocalToModel = dmTransform::Mul(resource->m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-                    if (!bone->m_InheritScale)
-                    {
-                        bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-                    }
-                }
-                else
-                {
-                    bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-                }
-                bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(dmTransform::Inv(bind_bone->m_LocalToModel));
-                bind_bone->m_ParentIndex = bone->m_Parent;
-                bind_bone->m_Length = bone->m_Length;
-            }
+            dmRig::CreateBindPose(*resource->m_SkeletonRes->m_Skeleton, resource->m_BindPose);
         }
         return result;
     }
