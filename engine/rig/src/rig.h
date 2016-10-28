@@ -183,13 +183,16 @@ namespace dmRig
 
     struct RigContext
     {
-        dmObjectPool<HRigInstance> m_Instances;
-        dmArray<uint32_t>          m_DrawOrderToMesh;
-        // Temporary scratch buffers used for store pose as matrices, and transforming vertex buffer,
+        dmObjectPool<HRigInstance>      m_Instances;
+        dmArray<uint32_t>               m_DrawOrderToMesh;
+        // Temporary scratch buffers used for store pose as transform and matrices
+        // (avoids modifying the real pose transform data during rendering).
+        dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
+        dmArray<Matrix4>                m_ScratchPoseMatrixBuffer;
+        // Temporary scratch buffers used when transforming the vertex buffer,
         // used to creating primitives from indices.
-        dmArray<Matrix4>           m_ScratchPoseMatrixBuffer;
-        dmArray<Vector3>           m_ScratchPositionBuffer;
-        dmArray<Vector3>           m_ScratchNormalBuffer;
+        dmArray<Vector3>                m_ScratchPositionBuffer;
+        dmArray<Vector3>                m_ScratchNormalBuffer;
     };
 
     struct NewContextParams {
@@ -277,8 +280,6 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
-    // NOTE: GenerateVertexData will change the internal pose transforms data,
-    // if you need the pose transforms use RigInstance::m_PoseCallback instead.
     void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, RigVertexFormat vertex_format, void* vertex_data_out);
     uint32_t GetVertexCount(HRigInstance instance);
 
