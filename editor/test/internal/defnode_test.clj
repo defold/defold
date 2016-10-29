@@ -803,7 +803,7 @@
   (input input-three g/Any)
 
   (property a-property g/Any
-            (default  (g/always false))
+            (default  (g/constantly false))
             (validate (g/fnk [input-three] (nil? input-three)))
             (value    (g/fnk [input-two] (inc input-two))))
 

@@ -46,7 +46,7 @@
   (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets g/Any (g/always []))
+  (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id resource source-outline child-outlines]
            (let [rt (resource/resource-type resource)
@@ -558,7 +558,7 @@
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
-  (output nil-resource resource/Resource (g/always nil))
+  (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data))
 
 (defn get-resource-type [resource-node]
@@ -692,20 +692,16 @@
 
 (defn select
   [project-id node-ids]
-    (let [nil-node-ids (filter nil? node-ids)
-          node-ids (if (not (empty? nil-node-ids))
-                     (filter some? node-ids)
-                     node-ids)]
-      (assert (empty? nil-node-ids) "Attempting to select nil values")
+  (assert (not-any? nil? node-ids) "Attempting to select nil values")
+  (concat
+    (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
+      (g/disconnect node-id label project-id :selected-node-ids))
+    (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
+      (g/disconnect node-id label project-id :selected-node-properties))
+    (for [node-id (distinct node-ids)]
       (concat
-        (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
-          (g/disconnect node-id label project-id :selected-node-ids))
-        (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
-          (g/disconnect node-id label project-id :selected-node-properties))
-        (for [node-id node-ids]
-          (concat
-            (g/connect node-id :_node-id    project-id :selected-node-ids)
-            (g/connect node-id :_properties project-id :selected-node-properties))))))
+        (g/connect node-id :_node-id    project-id :selected-node-ids)
+        (g/connect node-id :_properties project-id :selected-node-properties)))))
 
 (defn select!
   ([project node-ids]
