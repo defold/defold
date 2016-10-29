@@ -254,6 +254,7 @@
 (defrecord MatchContextResource [parent-resource line caret-position match]
   resource/Resource
   (children [this]      [])
+  (ext [this] (resource/ext parent-resource))
   (resource-name [this] (format "%d: %s" line match))
   (resource-type [this] (resource/resource-type parent-resource))
   (source-type [this]   (resource/source-type parent-resource))
