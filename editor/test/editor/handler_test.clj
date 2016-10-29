@@ -179,7 +179,11 @@
         (select! [])
         (is (not (enabled? :string-node-command [global] {})))
         (select! [{:node-id s}])
-        (is (enabled? :string-node-command [global] {}))))))
+        (is (enabled? :string-node-command [global] {}))
+        (select! ["other-type"])
+        (is (not (enabled? :string-node-command [global] {})))
+        (select! [nil])
+        (is (not (enabled? :string-node-command [global] {})))))))
 
 (deftest dynamics
   (handler/defhandler :string-command :global
