@@ -704,6 +704,19 @@
       (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
         (.consume event)))))
 
+(defn bind-double-click!
+  ([^Node node command]
+    (bind-double-click! node command {}))
+  ([^Node node command user-data]
+    (.addEventFilter node MouseEvent/MOUSE_CLICKED
+      (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
+                         (let [user-data (or user-data {})
+                               command-contexts (contexts (.getScene node) false)]
+                           (when-let [handler-ctx (handler/active command command-contexts user-data)]
+                             (when (handler/enabled? handler-ctx)
+                               (.consume e)
+                               (handler/run handler-ctx)))))))))
+
 (def ^:private invalidate-menus? (atom false))
 
 (defn invalidate-menus! []
