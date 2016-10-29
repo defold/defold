@@ -714,12 +714,18 @@
         (g/operation-label "Add Modifier")
         (make-modifier self parent-id modifier true)))))
 
+(defn- selection->emitter [selection]
+  (handler/adapt-single selection EmitterNode))
+
+(defn- selection->particlefx [selection]
+  (handler/adapt-single selection ParticleFXNode))
+
 (handler/defhandler :add-secondary :workbench
   (label [user-data] (if-not user-data
                        "Add Modifier"
                        (get-in user-data [:modifier-data :label])))
-  (active? [selection] (or (handler/adapt-single selection EmitterNode)
-                           (handler/adapt-single selection ParticleFXNode)))
+  (active? [selection] (or (selection->emitter selection)
+                           (selection->particlefx selection)))
   (run [user-data]
        (let [parent-id (:_node-id user-data)
              self (if (emitter? parent-id)
@@ -728,7 +734,7 @@
          (add-modifier-handler self parent-id (:modifier-type user-data))))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (let [node-id (first selection)
+             (let [self (let [node-id (handler/selection->node-id selection)
                               type (g/node-type (g/node-by-id node-id))]
                           (or (emitter? node-id)
                               (pfx? node-id type)))]
@@ -786,11 +792,11 @@
   (label [user-data] (if-not user-data
                        "Add Emitter"
                        (get-in user-data [:emitter-data :label])))
-  (active? [selection] (or (handler/adapt-single selection ParticleFXNode)))
+  (active? [selection] (selection->particlefx selection))
   (run [user-data] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data)))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (let [node-id (first selection)
+             (let [self (let [node-id (selection->particlefx selection)
                               type (g/node-type (g/node-by-id node-id))]
                           (pfx? node-id type))]
                (mapv (fn [[type data]] {:label (:label data)

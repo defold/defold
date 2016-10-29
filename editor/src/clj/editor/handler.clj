@@ -99,7 +99,11 @@
          result []]
     (if-let [ctx (first command-contexts)]
       (let [result (if-let [selection (get-in ctx [:env :selection])]
-                     (into result (map (fn [ctx] (assoc-in ctx [:env :selection] selection)) command-contexts))
+                     (let [adapters (:adapters ctx)]
+                       (into result (map (fn [ctx] (-> ctx
+                                                     (assoc-in [:env :selection] selection)
+                                                     (assoc :adapters adapters)))
+                                         command-contexts)))
                      (conj result ctx))]
         (if all-selections?
           (recur (rest command-contexts) result)
@@ -109,7 +113,10 @@
 (defn adapt [selection t]
   (if (empty? selection)
     selection
-    (let [adapters *adapters*
+    (let [selection (if (g/isa-node-type? t)
+                      (adapt selection Long)
+                      selection)
+          adapters *adapters*
           v (first selection)
           adapter (get adapters t)
           f (cond
@@ -136,3 +143,9 @@
 (defn adapt-single [selection t]
   (when (and (nil? (next selection)) (first selection))
     (first (adapt selection t))))
+
+(defn selection->node-ids [selection]
+  (adapt-every selection Long))
+
+(defn selection->node-id [selection]
+  (adapt-single selection Long))

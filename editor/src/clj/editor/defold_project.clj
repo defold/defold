@@ -36,7 +36,7 @@
 
 (def ^:dynamic *load-cache* nil)
 
-(def ^:private unknown-icon "icons/32/Icons_29-AT-Unkown.png")
+(def ^:private unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (def ^:const hot-reload-url-prefix "/build")
 

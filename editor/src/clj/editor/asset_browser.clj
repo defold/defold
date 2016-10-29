@@ -69,9 +69,14 @@
 
 (ui/extend-menu ::resource-menu nil
                 [{:label "Open"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open}
                  {:label "Open As"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open-as}
+                 {:label "Show in Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}
                  {:label :separator}
                  {:label "Copy"
                   :command :copy
@@ -86,14 +91,12 @@
                   :command :rename}
                  {:label "Delete"
                   :command :delete
-                  :icon "icons/cross.png"
+                  :icon "icons/32/Icons_M_06_trash.png"
                   :acc "Shortcut+BACKSPACE"}
-                 {:label "Show in Desktop"
-                  :command :show-in-desktop}
                  {:label :separator}
                  {:label "New"
                   :command :new-file
-                  :icon "icons/32/Icons_29-AT-Unkown.png"}
+                  :icon "icons/64/Icons_29-AT-Unknown.png"}
                  {:label "New Folder"
                   :command :new-folder
                   :icon "icons/32/Icons_01-Folder-closed.png"}])
@@ -244,11 +247,6 @@
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))]
       (and (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
            (delete selection on-delete-resource-fn)))))
-
-(handler/defhandler :show-in-desktop :asset-browser
-  (enabled? [selection] (and (= 1 (count selection)) (not= nil (resource/abs-path (first selection)))) )
-  (run [selection] (let [f (File. (resource/abs-path (first selection)))]
-                     (.open (Desktop/getDesktop) (to-folder f)))))
 
 (def update-tree-view nil)
 
@@ -435,14 +433,7 @@
 
 (defn- setup-asset-browser [workspace ^TreeView tree-view open-resource-fn]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
-  (let [handler (reify EventHandler
-                  (handle [this e]
-                    (when (= 2 (.getClickCount ^MouseEvent e))
-                      (if-let [item (-> tree-view (.getSelectionModel) (.getSelectedItem))]
-                        (let [resource (.getValue ^TreeItem item)]
-                          (when (= :file (resource/source-type resource))
-                            (open-resource-fn resource)))))))
-        over-handler (ui/event-handler e (drag-over e))
+  (let [over-handler (ui/event-handler e (drag-over e))
         done-handler (ui/event-handler e (drag-done e (handler/selection tree-view)))
         dropped-handler (ui/event-handler e (drag-dropped e))
         detected-handler (ui/event-handler e (drag-detected e (handler/selection tree-view)))
@@ -450,7 +441,7 @@
         exited-handler (ui/event-handler e (drag-exited e))]
     (.setOnDragDetected tree-view detected-handler)
     (.setOnDragDone tree-view done-handler)
-    (.setOnMouseClicked tree-view handler)
+    (ui/bind-double-click! tree-view :open)
     (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                  (let [cell (proxy [TreeCell] []
                                                             (updateItem [resource empty]

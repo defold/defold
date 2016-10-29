@@ -436,7 +436,7 @@
                            :tab       tab})
         view       (make-view-fn view-graph parent resource-node opts)]
     (ui/user-data! tab ::view view)
-    (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
+    (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (ui/register-tab-context-menu tab ::tab-menu)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
@@ -475,7 +475,7 @@
 
 (defn- selection->files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
-    (vec (keep (fn [r] (when (= :file (resource/source-type r)) r)) resources))))
+    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
 
 (defn- selection->single-file [selection]
   (when-let [r (handler/adapt-single selection resource/Resource)]
@@ -503,6 +503,17 @@
                        :command   :open-as
                        :user-data {:selected-view-type vt}})
                     (:view-types resource-type))))))
+
+(defn- to-folder ^File [^File file]
+  (if (.isFile file) (.getParentFile file) file))
+
+(handler/defhandler :show-in-desktop :global
+  (active? [selection] (selection->single-file selection))
+  (enabled? [selection] (when-let [r (selection->single-file selection)]
+                          (resource/abs-path r)))
+  (run [selection] (when-let [r (selection->single-file selection)]
+                     (let [f (File. (resource/abs-path r))]
+                       (.open (Desktop/getDesktop) (to-folder f))))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
