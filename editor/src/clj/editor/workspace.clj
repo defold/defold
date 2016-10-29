@@ -35,10 +35,11 @@ ordinary paths."
 (defrecord BuildResource [resource prefix]
   resource/Resource
   (children [this] nil)
+  (ext [this] (:build-ext (resource/resource-type this) "unknown"))
   (resource-type [this] (resource/resource-type resource))
   (source-type [this] (resource/source-type resource))
   (read-only? [this] false)
-  (path [this] (let [ext (:build-ext (resource/resource-type this) "unknown")
+  (path [this] (let [ext (resource/ext this)
                      suffix (format "%x" (resource/resource-hash this))]
                  (if-let [path (resource/path resource)]
                    (str (FilenameUtils/removeExtension path) "." ext)

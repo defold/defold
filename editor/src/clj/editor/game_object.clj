@@ -31,8 +31,7 @@
            [java.io PushbackReader]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
-           [org.apache.commons.io FilenameUtils]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -59,8 +58,9 @@
    :data (or (:content save-data) "")})
 
 (defn- wrap-if-raw-sound [_node-id target]
-  (let [source-path (resource/proj-path (:resource (:resource target)))
-        ext (FilenameUtils/getExtension source-path)]
+  (let [resource (:resource (:resource target))
+        source-path (resource/proj-path resource)
+        ext (resource/ext resource)]
     (if (sound/supported-audio-formats ext)
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")

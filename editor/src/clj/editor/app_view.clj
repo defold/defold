@@ -467,7 +467,8 @@
          (when-let [focus (:focus-fn view-type)]
            (focus (ui/user-data tab ::view) opts))
          (project/select! project [resource-node]))
-       (let [path (resource/abs-path resource)]
+       (let [^String path (or (resource/abs-path resource)
+                              (resource/temp-path resource))]
          (try
            (.open (Desktop/getDesktop) (File. path))
            (catch Exception _
