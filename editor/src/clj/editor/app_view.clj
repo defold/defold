@@ -483,9 +483,9 @@
       r)))
 
 (handler/defhandler :open :global
-  (active? [selection] (not-empty (selection->files selection)))
-  (run [selection app-view workspace project]
-       (doseq [resource (selection->files selection)]
+  (active? [selection user-data] (:resources user-data (not-empty (selection->files selection))))
+  (run [selection app-view workspace project user-data]
+       (doseq [resource (:resources user-data (selection->files selection))]
          (open-resource app-view workspace project resource))))
 
 (handler/defhandler :open-as :global
