@@ -445,6 +445,7 @@ typedef void (GLFWCALL * GLFWwindowrefreshfun)(void);
 typedef void (GLFWCALL * GLFWmousebuttonfun)(int,int);
 typedef void (GLFWCALL * GLFWmouseposfun)(int,int);
 typedef void (GLFWCALL * GLFWmousewheelfun)(int);
+typedef void (GLFWCALL * GLFWcursorenterfun)(int);
 typedef void (GLFWCALL * GLFWkeyfun)(int,int);
 typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
@@ -556,7 +557,7 @@ GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 // Trying to mimic somewhat the features of glfw 3.0
 typedef void (GLFWCALL * GLFWwindowfocusfun)(int);
 GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );
-
+GLFWAPI void GLFWAPIENTRY glfwSetCursorEnterCallback( GLFWcursorenterfun cbfun );
 #ifdef __cplusplus
 }
 #endif

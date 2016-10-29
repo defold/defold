@@ -322,6 +322,12 @@ var LibraryGLFW = {
       }
     },
 
+    onCursorEnterChanged: function(enter) {
+      if (GLFW.cursorEnterFunc) {
+        Runtime.dynCall('vi', GLFW.cursorEnterFunc, [enter]);
+      }
+    },
+
     onFullScreenEventChange: function(event) {
       var width;
       var height;
@@ -564,6 +570,10 @@ var LibraryGLFW = {
 
   glfwSetWindowFocusCallback: function(cbfun) {
     GLFW.focusFunc = cbfun;
+  },
+
+  glfwSetCursorEnterCallback: function(cbfun) {
+    GLFW.cursorEnterFunc = cbfun;
   },
 
   /* Video mode functions */

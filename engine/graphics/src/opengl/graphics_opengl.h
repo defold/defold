@@ -10,12 +10,15 @@ namespace dmGraphics
     {
         Context(const ContextParams& params);
 
-        WindowResizeCallback    m_WindowResizeCallback;
-        void*                   m_WindowResizeCallbackUserData;
-        WindowCloseCallback     m_WindowCloseCallback;
-        void*                   m_WindowCloseCallbackUserData;
-        WindowFocusCallback     m_WindowFocusCallback;
-        void*                   m_WindowFocusCallbackUserData;
+        WindowResizeCallback        m_WindowResizeCallback;
+        void*                       m_WindowResizeCallbackUserData;
+        WindowCloseCallback         m_WindowCloseCallback;
+        void*                       m_WindowCloseCallbackUserData;
+        WindowFocusCallback         m_WindowFocusCallback;
+        void*                       m_WindowFocusCallbackUserData;
+        WindowCursorEnterCallback   m_CursorEnterCallback;
+        void*                       m_CursorEnterCallbackUserData;
+
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;

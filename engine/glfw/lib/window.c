@@ -1057,3 +1057,25 @@ GLFWAPI void GLFWAPIENTRY glfwWaitEvents( void )
     _glfwPlatformWaitEvents();
 }
 
+// DEFOLD addition / GLFW 3
+
+
+//========================================================================
+// Set callback function for window focus events
+//========================================================================
+GLFWAPI void GLFWAPIENTRY glfwSetCursorEnterCallback( GLFWcursorenterfun cbfun )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return;
+    }
+
+    // Set callback function
+    _glfwWin.cursorEnterCallback = cbfun;
+}
+
+void _glfwInputCursorEnter(int entered)
+{
+    if (_glfwWin.cursorEnterCallback)
+        _glfwWin.cursorEnterCallback(entered);   
+}

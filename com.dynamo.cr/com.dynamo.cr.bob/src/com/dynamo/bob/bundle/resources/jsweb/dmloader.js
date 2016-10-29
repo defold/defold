@@ -357,6 +357,14 @@ var Module = {
         GLFW.onFocusChanged(document[Module.hiddenProperty] ? 0 : 1);
     },
 
+    cursorEnterFunc: function() {
+        GLFW.onCursorEnterChanged(1);
+    },
+
+    cursorLeaveFunc: function() {
+        GLFW.onCursorEnterChanged(0);
+    },
+
     getHiddenProperty: function () {
         if ('hidden' in document) return 'hidden';
         var prefixes = ['webkit','moz','ms','o'];
@@ -433,6 +441,9 @@ var Module = {
             CanvasInput.addToCanvas(Module.canvas);
 
             Module.setupVisibilityChangeListener();
+
+            Module.canvas.addEventListener("mouseover", Module.cursorEnterFunc);
+            Module.canvas.addEventListener("mouseout", Module.cursorLeaveFunc);
 
             // Load Facebook API
             var fb = document.createElement('script');

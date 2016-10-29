@@ -311,6 +311,7 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
+    GLFWcursorenterfun   cursorEnterCallback;
     GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
@@ -386,6 +387,8 @@ struct _GLFWwin_struct {
     int       oldMouseLockValid;
     int       desiredRefreshRate; // Desired vertical monitor refresh rate
 
+    // GLFW3
+    int       cursorTracked;
 };
 
 GLFWGLOBAL _GLFWwin _glfwWin;

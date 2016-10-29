@@ -25,6 +25,8 @@ enum WindowEvent
     WINDOW_EVENT_FOCUS_LOST = 0,
     WINDOW_EVENT_FOCUS_GAINED = 1,
     WINDOW_EVENT_RESIZED = 2,
+    WINDOW_EVENT_MOUSE_ENTER = 3,
+    WINDOW_EVENT_MOUSE_LEAVE = 4,
 };
 
 
@@ -130,6 +132,8 @@ static void RunCallback(CallbackInfo* cbinfo)
  *         <li>window.WINDOW_EVENT_FOCUS_LOST</li>
  *         <li>window.WINDOW_EVENT_FOCUS_GAINED</li>
  *         <li>window.WINDOW_EVENT_RESIZED</li>
+ *         <li>window.WINDOW_EVENT_MOUSE_ENTER</li>
+ *         <li>window.WINDOW_EVENT_MOUSE_LEAVE</li>
  *     </ul>
  *     <li>data (table) The callback value ''data'' is a table which currently holds these values</li>
  *     <ul>
@@ -140,13 +144,17 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @examples
  * <pre>
- * function window_callback(self, event, data)
+ * local function window_callback(self, event, data)
  *     if event == window.WINDOW_EVENT_FOCUS_LOST then
  *         print("window.WINDOW_EVENT_FOCUS_LOST")
  *     elseif event == window.WINDOW_EVENT_FOCUS_GAINED then
  *         print("window.WINDOW_EVENT_FOCUS_GAINED")
  *     elseif event == window.WINDOW_EVENT_RESIZED then
  *         print("Window resized: ", data.width, data.height)
+ *     elseif event == window.WINDOW_EVENT_MOUSE_ENTER then
+ *         print("The mouse entered the window!")
+ *     elseif event == window.WINDOW_EVENT_MOUSE_LEAVE then
+ *         print("The mouse left the window!")
  *     end
  * end
  *
@@ -155,6 +163,31 @@ static void RunCallback(CallbackInfo* cbinfo)
  * end
  * </pre>
  */
+ /*# window focus lost
+  * Window focus is lost
+  * @name window.WINDOW_EVENT_FOCUS_LOST
+  * @variable
+  */
+ /*# window focus gained
+  * Window focus has been gained
+  * @name window.WINDOW_EVENT_FOCUS_GAINED
+  * @variable
+  */
+ /*# window was resized
+  * The window has been resized. The event data table is of the form { width: 800, height: 600 }
+  * @name window.WINDOW_EVENT_RESIZED
+  * @variable
+  */
+ /*# mouse cursor entered window
+  * The mouse cursor has entered the window
+  * @name window.WINDOW_EVENT_MOUSE_ENTER
+  * @variable
+  */
+ /*# mouse cursor left the window
+  * The mouse cursor has left the window
+  * @name window.WINDOW_EVENT_MOUSE_LEAVE
+  * @variable
+  */
 static int SetListener(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L);
@@ -176,7 +209,7 @@ static int SetListener(lua_State* L)
 
 /*# Set the mode for screen dimming
  * The dimming mode specifies whether or not a mobile device should dim the screen after a period without user interaction. The dimming mode will only affect the mobile device while the game is in focus on the device, but not when the game is running in the background.
- *
+ * @note Supported platforms: Android, iOS
  * @name window.set_dim_mode
  * @param mode (constant) The mode for screen dimming
  * <ul>
@@ -226,7 +259,7 @@ static int SetDimMode(lua_State* L)
 
 /*# Get the mode for screen dimming
  * The dimming mode specifies whether or not a mobile device should dim the screen after a period without user interaction.
- *
+ * @note Supported platforms: Android, iOS
  * @name window.get_dim_mode
  * @return mode (constant) The mode for screen dimming
  * <ul>
@@ -247,7 +280,8 @@ static int GetDimMode(lua_State* L)
 }
 
 /** Shows the mouse cursor
- * Shows the mouse cursor 
+ * Shows the mouse cursor
+ * @note Supported platforms: macOS, Windows, Linux, HTML5
  * @name window.show_mouse_cursor
  */
 static int ShowMouseCursor(lua_State* L)
@@ -261,7 +295,10 @@ static int ShowMouseCursor(lua_State* L)
 }
 
 /** Hides the mouse cursor
- * Hides the mouse cursor. The subsequent mouse positions are not bound to the screen coordinates.
+ * Hides the mouse cursor.
+ * @note Supported platforms: macOS, Windows, Linux, HTML5
+ * @note On macOS, Windows and Linux, the subsequent mouse positions are not bound to the screen coordinates.
+ * Also note that no mouse enter/leave events will be sent when the mouse is hidden.
  * @name window.hide_mouse_cursor
  */
 static int HideMouseCursor(lua_State* L)
@@ -275,6 +312,30 @@ static int HideMouseCursor(lua_State* L)
 }
 
 
+/** Sets the window title
+* Sets the window/document title.
+* @note Supported platforms: macOS, Windows, Linux, HTML5
+* @name window.set_title
+* @param title the window title
+* @examples
+* <pre>
+* function init(self)
+*     window.set_title("Defold")
+* end
+* </pre>
+*/
+static int SetTitle(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L);
+    const char* title = luaL_checkstring(L, 1);
+#if defined(__EMSCRIPTEN__)
+    EM_ASM_({ document.title = Pointer_stringify($0); }, title);
+#else
+    glfwSetWindowTitle(title);
+#endif
+    return 1;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set_listener", SetListener},
@@ -282,6 +343,7 @@ static const luaL_reg Module_methods[] =
     {"get_dim_mode", GetDimMode},
     {"show_mouse_cursor", ShowMouseCursor},
     {"hide_mouse_cursor", HideMouseCursor},
+    {"set_title", SetTitle},
     {0, 0}
 };
 
@@ -297,6 +359,8 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(WINDOW_EVENT_FOCUS_LOST)
     SETCONSTANT(WINDOW_EVENT_FOCUS_GAINED)
     SETCONSTANT(WINDOW_EVENT_RESIZED)
+    SETCONSTANT(WINDOW_EVENT_MOUSE_ENTER)
+    SETCONSTANT(WINDOW_EVENT_MOUSE_LEAVE)
 
     SETCONSTANT(DIMMING_UNKNOWN)
     SETCONSTANT(DIMMING_ON)
@@ -336,6 +400,13 @@ void ScriptWindowOnWindowResized(int width, int height)
     RunCallback(&cbinfo);
 }
 
+void ScriptWindowOnWindowCursorEnter(bool enter)
+{
+    CallbackInfo cbinfo;
+    cbinfo.m_Info = &g_Window;
+    cbinfo.m_Event = enter ? WINDOW_EVENT_MOUSE_ENTER : WINDOW_EVENT_MOUSE_LEAVE;
+    RunCallback(&cbinfo);
+}
 
 } // namespace
 

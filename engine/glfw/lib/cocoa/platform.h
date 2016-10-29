@@ -78,6 +78,7 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
+    GLFWcursorenterfun   cursorEnterCallback;
     GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;

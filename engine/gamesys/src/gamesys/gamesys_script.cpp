@@ -85,4 +85,9 @@ namespace dmGameSystem
     {
         ScriptWindowOnWindowResized(width, height);
     }
+    
+    void OnWindowCursorEnter(bool entered)
+    {
+        ScriptWindowOnWindowCursorEnter(entered);
+    }
 }

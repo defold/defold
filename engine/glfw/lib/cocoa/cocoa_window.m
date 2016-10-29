@@ -275,9 +275,18 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 //========================================================================
 
 @interface GLFWContentView : NSView
+{
+    NSTrackingArea* trackingArea;
+}
 @end
 
 @implementation GLFWContentView
+
+- (void)dealloc
+{
+    [trackingArea release];
+    [super dealloc];
+}
 
 - (BOOL)isOpaque
 {
@@ -334,6 +343,17 @@ static int convertMacKeyCode( unsigned int macKeyCode )
     {
         _glfwWin.mousePosCallback( _glfwInput.MousePosX, _glfwInput.MousePosY );
     }
+}
+
+// DEFOLD / GLFW3
+- (void)mouseExited:(NSEvent *)event
+{
+    _glfwInputCursorEnter(0);
+}
+// DEFOLD / GLFW3
+- (void)mouseEntered:(NSEvent *)event
+{
+    _glfwInputCursorEnter(1);
 }
 
 - (void)rightMouseDown:(NSEvent *)event
@@ -443,6 +463,34 @@ static int convertMacKeyCode( unsigned int macKeyCode )
     {
         _glfwWin.mouseWheelCallback( _glfwInput.WheelPos );
     }
+}
+
+- (void)resetTrackingArea
+{
+    trackingArea = nil;
+}
+
+- (void)updateTrackingAreas
+{
+    if (trackingArea != nil)
+    {
+        [self removeTrackingArea:trackingArea];
+        [trackingArea release];
+    }
+
+    const NSTrackingAreaOptions options = NSTrackingMouseEnteredAndExited |
+                                          NSTrackingActiveAlways |
+                                          NSTrackingEnabledDuringMouseDrag |
+                                          NSTrackingCursorUpdate |
+                                          NSTrackingInVisibleRect;
+
+    trackingArea = [[NSTrackingArea alloc] initWithRect:[self bounds]
+                                                options:options
+                                                  owner:self
+                                               userInfo:nil];
+
+    [self addTrackingArea:trackingArea];
+    [super updateTrackingAreas];
 }
 
 @end
@@ -571,6 +619,9 @@ int  _glfwPlatformOpenWindow( int width, int height,
     [_glfwWin.window setDelegate:_glfwWin.delegate];
     [_glfwWin.window setAcceptsMouseMovedEvents:YES];
     [_glfwWin.window center];
+
+    [[_glfwWin.window contentView] resetTrackingArea];
+    [[_glfwWin.window contentView] updateTrackingAreas];
 
     if( wndconfig->mode == GLFW_FULLSCREEN )
     {

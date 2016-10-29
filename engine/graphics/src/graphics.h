@@ -26,6 +26,8 @@ namespace dmGraphics
 
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
 
+    typedef void (*WindowCursorEnterCallback)(void* user_data, uint32_t entered);
+
     /**
      * Callback function called when the window is requested to close.
      * @param user_data user data that was supplied when opening the window
@@ -335,6 +337,10 @@ namespace dmGraphics
         WindowFocusCallback     m_FocusCallback;
         /// User data supplied to the callback function
         void*                   m_FocusCallbackUserData;
+        /// Callback when mouse cursor enters/leaves the window area
+        WindowCursorEnterCallback m_CursorEnterCallback;
+        /// User data supplied to the callback function
+        void*                   m_CursorEnterCallbackUserData;
         /// Window width, 640 by default
         uint32_t                m_Width;
         /// Window height, 480 by default

@@ -893,6 +893,29 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
                                                _glfwInput.MousePosY );
                 }
             }
+
+            // DEFOLD added from glfw 3.x
+            if (!_glfwWin.cursorTracked)
+            {
+                TRACKMOUSEEVENT tme;
+                ZeroMemory(&tme, sizeof(tme));
+                tme.cbSize = sizeof(tme);
+                tme.dwFlags = TME_LEAVE;
+                tme.hwndTrack = _glfwWin.window;
+                TrackMouseEvent(&tme);
+
+                _glfwWin.cursorTracked = GLFW_TRUE;
+                _glfwInputCursorEnter(window, GLFW_TRUE);
+            }
+
+            return 0;
+        }
+        
+        // DEFOLD added from glfw 3.x
+        case WM_MOUSELEAVE: // This event is triggered due to the TrackMouseEvent
+        {
+            _glfwWin.cursorTracked = GLFW_FALSE;
+            _glfwInputCursorEnter(window, GLFW_FALSE);
             return 0;
         }
 
@@ -1150,6 +1173,7 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
     _glfwWin.DC  = NULL;
     _glfwWin.context = NULL;
     _glfwWin.window = NULL;
+    _glfwWin.cursorTracked = FALSE; // GLFW3
 
     // Set common window styles
     dwStyle   = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE;

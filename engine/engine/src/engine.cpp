@@ -135,6 +135,11 @@ namespace dmEngine
         dmGameSystem::OnWindowFocus(focus != 0);
     }
 
+    static void OnWindowCursorEnter(void* user_data, uint32_t entered)
+    {
+        dmGameSystem::OnWindowCursorEnter(entered != 0);
+    }
+
     Stats::Stats()
     : m_FrameCount(0)
     {
@@ -501,6 +506,8 @@ namespace dmEngine
         window_params.m_CloseCallbackUserData = engine;
         window_params.m_FocusCallback = OnWindowFocus;
         window_params.m_FocusCallbackUserData = engine;
+        window_params.m_CursorEnterCallback = OnWindowCursorEnter;
+        window_params.m_CursorEnterCallbackUserData = engine;
         window_params.m_Width = engine->m_Width;
         window_params.m_Height = engine->m_Height;
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
