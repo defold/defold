@@ -165,6 +165,22 @@
              false :string-node-command
              false :other-command)))))
 
+(deftest adapt-nested
+  (handler/defhandler :string-node-command :global
+    (enabled? [selection] (handler/adapt-every selection StringNode))
+    (run [selection] (handler/adapt-every selection StringNode)))
+  (with-clean-system
+    (let [[s] (tx-nodes (g/make-nodes world
+                                      [s [StringNode :string "test"]]))
+          selection (atom [])
+          select! (fn [s] (reset! selection s))]
+      (let [global (handler/->context :global {} (->DynamicSelection selection) {}
+                              {Long :node-id})]
+        (select! [])
+        (is (not (enabled? :string-node-command [global] {})))
+        (select! [{:node-id s}])
+        (is (enabled? :string-node-command [global] {}))))))
+
 (deftest dynamics
   (handler/defhandler :string-command :global
       (active? [string] string)

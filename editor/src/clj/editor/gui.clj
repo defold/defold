@@ -1545,10 +1545,10 @@
     (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %}) (unused-display-profiles scene))))
 
 (handler/defhandler :add :workbench
-  (active? [selection] (not-empty (some->> (handler/adapt-single selection Long) add-handler-options)))
+  (active? [selection] (not-empty (some->> (handler/selection->node-id selection) add-handler-options)))
   (run [project user-data] (when user-data ((:handler-fn user-data) project user-data)))
   (options [selection user-data]
-    (let [node-id (handler/adapt-single selection Long)]
+    (let [node-id (handler/selection->node-id selection)]
       (if (not user-data)
         (add-handler-options node-id)
         (when (:layout user-data)
@@ -1752,21 +1752,21 @@
       (for [[node-id index] packed-order]
         (g/set-property node-id :index index)))))
 
-(defn- single-gui-node? [selection]
+(defn- selection->gui-node [selection]
   (handler/adapt-single selection GuiNode))
 
-(defn- single-layer-node? [selection]
+(defn- selection->layer-node [selection]
   (handler/adapt-single selection LayerNode))
 
 (handler/defhandler :move-up :workbench
-  (active? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
-  (run [selection] (let [selected (first selection)
+  (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
+  (run [selection] (let [selected (handler/selection->node-id selection)
                          [target input] (outline-parent selected)]
                      (outline-move! (g/node-value target input) selected -1))))
 
 (handler/defhandler :move-down :workbench
-  (active? [selection] (or (single-gui-node? selection) (single-layer-node? selection)))
-  (run [selection] (let [selected (first selection)
+  (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
+  (run [selection] (let [selected (handler/selection->node-id selection)
                          [target input] (outline-parent selected)]
                      (outline-move! (g/node-value target input) selected 1))))
 
