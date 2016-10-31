@@ -318,29 +318,62 @@
       (git/revert git ["src/main.cpp"])
       (is (= #{} (all-files (git/status git))))))
 
-  (testing "renamed and staged"
+  (testing "deleted"
     (with-git [git (new-git)]
       (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/other.cpp" "void other() {}")
+      (commit-src git)
+
+      (delete-file git "src/main.cpp")
+      (delete-file git "src/other.cpp")
+
+      (is (= #{"src/main.cpp" "src/other.cpp"} (:missing (git/status git))))
+      (git/revert git ["src/other.cpp"])
+      (is (= #{"src/main.cpp"} (:missing (git/status git))))))
+
+  (testing "deleted and staged"
+    (with-git [git (new-git)]
+      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/other.cpp" "void other() {}")
+      (commit-src git)
+
+      (delete-file git "src/main.cpp")
+      (delete-file git "src/other.cpp")
+      (autostage git)
+
+      (is (= #{"src/main.cpp" "src/other.cpp"} (:removed (git/status git))))
+      (git/revert git ["src/other.cpp"])
+      (is (= #{"src/main.cpp"} (:removed (git/status git))))))
+
+  (testing "renamed"
+    (with-git [git (new-git)]
+      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/other.cpp" "void other() {}")
       (commit-src git)
 
       (create-file git "/src/foo.cpp" "void main() {}")
       (delete-file git "src/main.cpp")
+      (delete-file git "src/other.cpp")
 
-      (is (= #{"src/main.cpp"} (:missing (git/status git))))
+      (is (= #{"src/main.cpp" "src/other.cpp"} (:missing (git/status git))))
       (is (= #{"src/foo.cpp"} (:untracked (git/status git))))
-                                        ;(git/autostage git)
+
       (git/revert git ["src/foo.cpp"])
-      (is (= #{} (all-files (git/status git))))))
+      (is (= #{"src/other.cpp"} (all-files (git/status git))))))
 
-  (with-git [git (new-git)]
-    (create-file git "/src/main.cpp" "void main() {}")
-    (commit-src git)
+  (testing "renamed and staged"
+    (with-git [git (new-git)]
+      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/other.cpp" "void other() {}")
+      (commit-src git)
 
-    (create-file git "/src/foo.cpp" "void main() {}")
-    (delete-file git "src/main.cpp")
+      (create-file git "/src/foo.cpp" "void main() {}")
+      (delete-file git "src/main.cpp")
+      (delete-file git "src/other.cpp")
+      (autostage git)
 
-    (is (= #{"src/main.cpp"} (:missing (git/status git))))
-    (is (= #{"src/foo.cpp"} (:untracked (git/status git))))
-    (autostage git)
-    (git/revert git ["src/foo.cpp"])
-    (is (= #{} (all-files (git/status git))))))
+      (is (= #{"src/main.cpp" "src/other.cpp"} (:removed (git/status git))))
+      (is (= #{"src/foo.cpp"} (:added (git/status git))))
+
+      (git/revert git ["src/foo.cpp"])
+      (is (= #{"src/other.cpp"} (all-files (git/status git)))))))
