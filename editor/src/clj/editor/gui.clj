@@ -168,13 +168,12 @@
 
       (contains? user-data :text-data)
       (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
-                              (map (fn [r] (let [alpha (get-in r [:user-data :color 3])
-                                                 text-data (get-in r [:user-data :text-data])]
+                              (map (fn [r] (let [text-data (get-in r [:user-data :text-data])
+                                                 alpha (get-in text-data [:color 3])]
                                              (-> text-data
-                                               (assoc :world-transform (:world-transform r)
-                                                      :color (get-in r [:user-data :color]))
-                                               (update-in [:outline 3] * alpha)
-                                               (update-in [:shadow 3] * alpha))))
+                                                 (assoc :world-transform (:world-transform r))
+                                                 (update-in [:outline 3] * alpha)
+                                                 (update-in [:shadow 3] * alpha))))
                                    renderables)))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
@@ -738,17 +737,17 @@
                        offset (pivot-offset pivot size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
                    {:line-data lines
-                    :line-color [1.0 0.0 0.0 1.0]
-                    :color [1.0 0.0 0.0 1.0]
                     :text-data text-data})))
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break text-leading text-tracking]
                                            (font/layout-text font-map text line-break (first size) text-tracking text-leading)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break outline shadow aabb-size pivot text-leading text-tracking]
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot text-leading text-tracking]
                                         (cond-> {:text-layout text-layout
                                                  :font-data font-data
-                                                 :outline outline :shadow shadow
+                                                 :color (assoc color 3 alpha)
+                                                 :outline (assoc outline 3 outline-alpha)
+                                                 :shadow (assoc shadow 3 shadow-alpha)
                                                  :align (pivot->h-align pivot)}
                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                          h (second aabb-size)]
