@@ -222,7 +222,7 @@ public class ProtoBuilders {
             BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             BuilderUtil.checkResource(this.project, resource, "font", messageBuilder.getFont());
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
-            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getFont(), "font", "fontc"));
+            messageBuilder.setFont(BuilderUtil.replaceExt(messageBuilder.getFont(), "font", "fontc"));
             return messageBuilder;
         }
     }

@@ -37,6 +37,7 @@ public class LabelLoader implements INodeLoader<LabelNode> {
         node.setShadow(LoaderUtil.toRGB(ddf.getShadow()));
         node.setShadowAlpha(ddf.getShadow().getW());
 
+        node.setScale(LoaderUtil.toVector3(ddf.getScale()));
         node.setSize(LoaderUtil.toVector3(ddf.getSize()));
         node.setLineBreak(ddf.getLineBreak());
         node.setLeading(ddf.getLeading());
@@ -61,6 +62,7 @@ public class LabelLoader implements INodeLoader<LabelNode> {
         builder.setOutline(LoaderUtil.toVector4(node.getOutline(), (float)node.getOutlineAlpha()));
         builder.setShadow(LoaderUtil.toVector4(node.getShadow(), (float)node.getShadowAlpha()));
 
+        builder.setScale(LoaderUtil.toVector4(node.getScale()));
         builder.setSize(LoaderUtil.toVector4(node.getSize()));
         builder.setLineBreak(node.getLineBreak());
         builder.setLeading((float)node.getLeading());

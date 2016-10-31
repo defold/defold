@@ -230,7 +230,6 @@ public class LabelRenderer implements INodeRenderer<LabelNode> {
                 gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
                 break;
             case BLEND_MODE_ADD:
-            case BLEND_MODE_ADD_ALPHA:
                 gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE);
                 break;
             case BLEND_MODE_MULT:

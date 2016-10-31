@@ -18,7 +18,6 @@ message LabelDesc
     {
         BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
         BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
-        BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha (Deprecated)"];
         BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
     }
 
@@ -37,19 +36,26 @@ message LabelDesc
 
 
     required dmMath.Vector4 size        = 1;
-    required dmMath.Vector4 color       = 2;
-    required dmMath.Vector4 outline     = 3;
-    required dmMath.Vector4 shadow      = 4;
+    required dmMath.Vector4 scale       = 2;
+    required dmMath.Vector4 color       = 3;
+    required dmMath.Vector4 outline     = 4;
+    required dmMath.Vector4 shadow      = 5;
 
-    required float          leading     = 5;
-    required float          tracking    = 6;
-    required Pivot          pivot       = 7;
-    required BlendMode      blend_mode  = 8;
-    required bool           line_break  = 9;
+    required float          leading     = 6;
+    required float          tracking    = 7;
+    required Pivot          pivot       = 8;
+    required BlendMode      blend_mode  = 9;
+    required bool           line_break  = 10;
 
-    required string         text        = 10;
-    required string         font        = 11;
-    required string         material    = 12;
+    required string         text        = 11;
+    required string         font        = 12;
+    required string         material    = 13;
+}
+
+
+message SetText
+{
+    required string text  = 1;
 }
 
 
