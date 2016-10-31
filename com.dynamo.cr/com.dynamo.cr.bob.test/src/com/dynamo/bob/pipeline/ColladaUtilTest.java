@@ -286,17 +286,40 @@ public class ColladaUtilTest {
         List<Integer>boneIndices = meshBuilder.getBoneIndicesList();
         List<Float>boneWeights = meshBuilder.getWeightsList();
 
-        // V0 has only one influence in DAE, with zero weight
+        /*
+         * The DAE has the following bones and weights for each vertex:
+         *
+         * -------------------------
+         * | Vert | (Bone, Weight) |
+         * -------------------------
+         * |  v0  |     0: 0.25    |
+         * -------------------------
+         * |  v1  |     0: 0.5     |
+         * |      |     1: 0.1     |
+         * |      |     2: 0.2     |
+         * |      |     3: 0.3     |
+         * |      |     4: 0.4     |
+         * -------------------------
+         * |  v2  |     0: 0.1     |
+         * |      |     1: 0.2     |
+         * |      |     2: 0.3     |
+         * |      |     3: 0.4     |
+         * |      |     4: 0.5     |
+         * -------------------------
+         *
+         * Influences for v0 will be expanded into 3 more with zero weights.
+         * Influences for v1 will be reordered, influence of bone 1 (lowest weight) will be skipped.
+         * Influences for v2 will be reordered, influence of bone 0 (lowest weight) will be skipped.
+         */
+
         assertVertBone(new Point4i(0, 0, 0, 0), boneIndices.subList(0, 4));
-        assertVertWeight(new Vector4f(0.0f, 0.0f, 0.0f, 0.0f), boneWeights.subList(0, 4));
+        assertVertWeight(new Vector4f(0.25f, 0.0f, 0.0f, 0.0f), boneWeights.subList(0, 4));
 
-        // V1 has 5 influences in DAE
-        assertVertBone(new Point4i(0, 1, 2, 3), boneIndices.subList(4, 8));
-        assertVertWeight(new Vector4f(0.5f, 0.1f, 0.1f, 0.1f), boneWeights.subList(4, 8));
+        assertVertBone(new Point4i(0, 4, 3, 2), boneIndices.subList(4, 8));
+        assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(4, 8));
 
-        // V2 has 5 influences in DAE, with the most significant last (i.e. should be sorted)
-        assertVertBone(new Point4i(4, 0, 1, 2), boneIndices.subList(8, 12));
-        assertVertWeight(new Vector4f(0.5f, 0.1f, 0.1f, 0.1f), boneWeights.subList(8, 12));
+        assertVertBone(new Point4i(4, 3, 2, 1), boneIndices.subList(8, 12));
+        assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(8, 12));
     }
 
     @Test

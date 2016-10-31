@@ -696,7 +696,7 @@ public class ColladaUtil {
     }
 
 
-    private static void loadVertexWeights(XMLCOLLADA collada, List<Integer> position_indices_list, List<Float> bone_weights_list, List<Integer> bone_indices_list, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
+    private static void loadVertexWeights(XMLCOLLADA collada, List<Integer> positionIndicesList, List<Float> boneWeightsList, List<Integer> boneIndicesList, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
 
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
@@ -748,8 +748,8 @@ public class ColladaUtil {
             }
 
             for (Weight w : weights) {
-                bone_indices_list.add(w.boneIndex);
-                bone_weights_list.add(w.weight);
+                boneIndicesList.add(w.boneIndex);
+                boneWeightsList.add(w.weight);
             }
         }
     }

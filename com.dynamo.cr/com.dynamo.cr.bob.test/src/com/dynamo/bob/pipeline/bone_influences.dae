@@ -263,9 +263,9 @@
         </source>
         <source id="Armature_Cube-skin-weights">
           <float_array id="Armature_Cube-skin-weights-array" count="14">
-          0 0 0 1
-          0.5 0.1 0.1 0.1 0.1
-          0.1 0.1 0.1 0.1 0.5</float_array>
+          0.25 0 0 1
+          0.5 0.1 0.2 0.3 0.4
+          0.1 0.2 0.3 0.4 0.5</float_array>
           <technique_common>
             <accessor source="#Armature_Cube-skin-weights-array" count="14" stride="1">
               <param name="WEIGHT" type="float"/>
