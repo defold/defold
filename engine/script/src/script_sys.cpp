@@ -160,8 +160,6 @@ namespace dmScript
      */
     int Sys_Load(lua_State* L)
     {
-        //Char arrays function stack are not guaranteed to be 4byte aligned in linux. An union with an int add this guarantee.
-        union {uint32_t dummy_align; char buffer[MAX_BUFFER_SIZE];};
         const char* filename = luaL_checkstring(L, 1);
         FILE* file = fopen(filename, "rb");
         if (file == 0x0)
@@ -169,13 +167,13 @@ namespace dmScript
             lua_newtable(L);
             return 1;
         }
-        fread(buffer, 1, sizeof(buffer), file);
+        fread(g_saveload_buffer, 1, sizeof(g_saveload_buffer), file);
         bool file_size_ok = feof(file) != 0;
         bool result = ferror(file) == 0 && file_size_ok;
         fclose(file);
         if (result)
         {
-            PushTable(L, buffer);
+            PushTable(L, g_saveload_buffer);
             return 1;
         }
         else
