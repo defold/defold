@@ -479,17 +479,9 @@
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
 
-(defn- single-selection [selection]
-  (= 1 (count selection)))
-
-(defn- get-single-selection [node-type selection]
-  (when (and (single-selection selection)
-             (g/node-instance? node-type (first selection)))
-    (first selection)))
-
-(defn- atlas-selection [selection] (get-single-selection AtlasNode selection))
-(defn- animation-selection [selection] (get-single-selection AtlasAnimation selection))
-(defn- image-selection [selection] (get-single-selection AtlasImage selection))
+(defn- selection->atlas [selection] (handler/adapt-single selection AtlasNode))
+(defn- selection->animation [selection] (handler/adapt-single selection AtlasAnimation))
+(defn- selection->image [selection] (handler/adapt-single selection AtlasImage))
 
 (def ^:private default-animation
   {:flip-horizontal false
@@ -498,16 +490,16 @@
    :playback :playback-loop-forward
    :id "New Animation"})
 
-(defn- add-animation-group-handler [[atlas-node]]
+(defn- add-animation-group-handler [atlas-node]
   (g/transact
    (concat
     (g/operation-label "Add Animation Group")
     (attach-atlas-animation atlas-node default-animation))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [] "Add Animation Group")
-  (active? [selection] (atlas-selection selection))
-  (run [selection] (add-animation-group-handler selection)))
+  (active? [selection] (selection->atlas selection))
+  (run [selection] (add-animation-group-handler (selection->atlas selection))))
 
 (defn- add-images-handler [workspace labels parent scope-node] ; parent = new parent of images
   (when-let [images (seq (dialogs/make-resource-dialog workspace {:ext image/exts :title "Select Images" :selection :multiple}))]
@@ -516,16 +508,16 @@
       (g/operation-label "Add Images")
       (attach-image-nodes parent labels images scope-node)))))
 
-(handler/defhandler :add-from-file :global
+(handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
-  (active? [selection] (or (atlas-selection selection) (animation-selection selection)))
+  (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
   (run [project selection] (let [workspace (project/workspace project)]
-                             (if-let [atlas-node (atlas-selection selection)]
+                             (if-let [atlas-node (selection->atlas selection)]
                                (add-images-handler workspace
                                                    [[:animation :animations]
                                                     [:id :animation-ids]]
                                                    atlas-node atlas-node))
-                             (when-let [animation-node (animation-selection selection)]
+                             (when-let [animation-node (selection->animation selection)]
                                (add-images-handler workspace [[:image :frames]] animation-node (core/scope animation-node))))))
 
 (defn- targets-of [node label]
@@ -538,36 +530,26 @@
 (defn- image-parent [node]
   (first (first (targets-of node :image-order))))
 
-(defn- move-enabled? [selection]
-  (image-selection selection))
-
-(defn- move-active? [selection]
-  (when-let [image (image-selection selection)]
-    (g/node-instance? AtlasAnimation (image-parent image))))
-
-(defn- move-image [parent image direction]
-  (let [order-delta (if (= direction :move-up) -1 1)
-        new-image-order (->> (g/node-value parent :image-order) ; original image order
-                             (sort-by second) ; sort by order
-                             (map-indexed (fn [ix [node _]] [node (* 2 ix)])) ; compact order + make space
-                             (map (fn [[node ix]] [node (if (= image node) (+ ix (* 3 order-delta)) ix)])) ; move image to space before previous or after successor
-                             (sort-by second))] ; sort according to new order
-    (g/transact
-     (map (fn [[image order]]
-            (g/set-property image :order order))
-          new-image-order))))
-
 (defn- run-move [selection direction]
-  (let [image (image-selection selection)
-        parent (image-parent image)]
-    (move-image parent image direction)))
+  (let [image (selection->image selection)
+        parent (image-parent image)
+        order-delta (if (= direction :move-up) -1 1)
+        new-image-order (->> (g/node-value parent :image-order) ; original image order
+                          (sort-by second) ; sort by order
+                          (map-indexed (fn [ix [node _]] [node (* 2 ix)])) ; compact order + make space
+                          (map (fn [[node ix]] [node (if (= image node) (+ ix (* 3 order-delta)) ix)])) ; move image to space before previous or after successor
+                          (sort-by second))]
+    (g/transact
+      (map (fn [[image order]]
+             (g/set-property image :order order))
+           new-image-order))))
 
-(handler/defhandler :move-up :global
-  (enabled? [selection] (move-enabled? selection))
-  (active? [selection] (move-active? selection))
+(handler/defhandler :move-up :workbench
+  (active? [selection] (when-let [image (selection->image selection)]
+                         (g/node-instance? AtlasAnimation (image-parent image))))
   (run [selection] (run-move selection :move-up)))
 
-(handler/defhandler :move-down :global
-  (enabled? [selection] (move-enabled? selection))
-  (active? [selection] (move-active? selection))
+(handler/defhandler :move-down :workbench
+  (active? [selection] (when-let [image (selection->image selection)]
+                         (g/node-instance? AtlasAnimation (image-parent image))))
   (run [selection] (run-move selection :move-down)))

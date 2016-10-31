@@ -31,13 +31,12 @@
            [java.io PushbackReader]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
-           [org.apache.commons.io FilenameUtils]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
-(def unknown-icon "icons/32/Icons_29-AT-Unkown.png") ; spelling...
+(def unknown-icon "icons/32/Icons_29-AT-Unknown.png") ; spelling...
 
 (defn- gen-ref-ddf
   ([id position rotation path]
@@ -59,8 +58,9 @@
    :data (or (:content save-data) "")})
 
 (defn- wrap-if-raw-sound [_node-id target]
-  (let [source-path (resource/proj-path (:resource (:resource target)))
-        ext (FilenameUtils/getExtension source-path)]
+  (let [resource (:resource (:resource target))
+        source-path (resource/proj-path resource)
+        ext (resource/ext resource)]
     (if (sound/supported-audio-formats ext)
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
@@ -110,11 +110,15 @@
 
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id node-outline-label id source-outline source-properties]
+    (g/fnk [_node-id node-outline-label id source-outline source-properties source-resource]
       (let [source-outline (or source-outline {:icon unknown-icon})
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
-        (assoc source-outline :node-id _node-id :label node-outline-label
-               :outline-overridden? overridden?))))
+        (-> source-outline
+          (assoc :node-id _node-id
+                 :label node-outline-label
+                 :outline-overridden? overridden?)
+          (cond->
+            (and source-resource (resource/path source-resource)) (assoc :link source-resource))))))
   (output node-outline-label g/Str (gu/passthrough id))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
@@ -355,11 +359,14 @@
     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource))))
 
-(handler/defhandler :add-from-file :global
-  (active? [selection] (and (= 1 (count selection)) (g/node-instance? GameObjectNode (first selection))))
+(defn- selection->game-object [selection]
+  (handler/adapt-single selection GameObjectNode))
+
+(handler/defhandler :add-from-file :workbench
+  (active? [selection] (selection->game-object selection))
   (label [] "Add Component File")
   (run [workspace selection]
-       (add-component-handler workspace (first selection))))
+       (add-component-handler workspace (selection->game-object selection))))
 
 (defn- add-embedded-component [self project type data id position rotation select?]
   (let [graph (g/node-id->graph-id self)
@@ -409,12 +416,12 @@
          (sort-by :label)
          vec)))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data] (add-embedded-component-label user-data))
-  (active? [selection] (and (= 1 (count selection)) (g/node-instance? GameObjectNode (first selection))))
+  (active? [selection] (selection->game-object selection))
   (run [user-data] (add-embedded-component-handler user-data))
   (options [selection user-data]
-           (let [self (first selection)
+           (let [self (selection->game-object selection)
                  workspace (:workspace (g/node-value self :resource))]
              (add-embedded-component-options self workspace user-data))))
 
