@@ -1,5 +1,6 @@
 (ns editor.app-view
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
@@ -164,9 +165,6 @@
               :when sp]
         (.setDividerPositions sp (into-array Double/TYPE pos))))))
 
-(handler/defhandler :new :global
-  (run [] (prn "NEW NOW!")))
-
 (handler/defhandler :open-project :global
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
@@ -259,10 +257,10 @@
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
-                  :children [{:label "New"
+                  :children [{:label "New..."
                               :id ::new
                               :acc "Shortcut+N"
-                              :command :new}
+                              :command :new-file}
                              {:label "Open..."
                               :id ::open
                               :acc "Shortcut+O"
@@ -483,6 +481,42 @@
     (when (= :file (resource/source-type r))
       r)))
 
+(defn- to-folder ^File [^File file]
+  (if (.isFile file) (.getParentFile file) file))
+
+(handler/defhandler :new-file :global
+  (label [user-data] (if-not user-data
+                       "New..."
+                       (let [rt (:resource-type user-data)]
+                         (or (:label rt) (:ext rt)))))
+  (active? [selection selection-context] (or (= :global selection-context) (and (= :asset-browser selection-context)
+                                                                                (= (count selection) 1)
+                                                                                (not= nil (some-> (handler/adapt-single selection resource/Resource)
+                                                                                            resource/abs-path)))))
+  (run [selection user-data app-view workspace project]
+       (let [base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
+                                   first
+                                   resource/abs-path
+                                   (File.))
+                                 (workspace/project-path workspace))
+                           to-folder)
+             rt (:resource-type user-data)
+             project-path (workspace/project-path workspace)]
+         (when-let [new-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
+           (spit new-file (workspace/template rt))
+           (workspace/resource-sync! workspace)
+           (let [resource-map (g/node-value workspace :resource-map)
+                 new-resource-path (resource/file->proj-path project-path new-file)
+                 resource (resource-map new-resource-path)]
+             (open-resource app-view workspace project resource)))))
+  (options [workspace selection user-data]
+           (when (not user-data)
+             (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
+               (sort-by (fn [rt] (string/lower-case (:label rt))) (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
+                                                                                       :icon (:icon res-type)
+                                                                                       :command :new-file
+                                                                                       :user-data {:resource-type res-type}}) resource-types))))))
+
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->files selection))))
   (run [selection app-view workspace project user-data]
@@ -504,9 +538,6 @@
                        :command   :open-as
                        :user-data {:selected-view-type vt}})
                     (:view-types resource-type))))))
-
-(defn- to-folder ^File [^File file]
-  (if (.isFile file) (.getParentFile file) file))
 
 (handler/defhandler :show-in-desktop :global
   (active? [selection] (selection->single-file selection))
@@ -546,6 +577,9 @@
 (defn- make-resource-dialog [workspace project app-view]
   (when-let [resource (first (dialogs/make-resource-dialog workspace {:tooltip-gen (partial gen-tooltip workspace project app-view)}))]
     (open-resource app-view workspace project resource)))
+
+(handler/defhandler :select-items :global
+  (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
 (handler/defhandler :open-asset :global
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))

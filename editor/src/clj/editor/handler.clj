@@ -92,16 +92,17 @@
   (let [selection (context-selection context)]
     (-> context
       eval-dynamics
-      (assoc-in [:env :selection] selection))))
+      (update :env #(assoc % :selection selection :selection-context (:name context))))))
 
 (defn eval-contexts [contexts all-selections?]
   (loop [command-contexts (mapv eval-context contexts)
          result []]
     (if-let [ctx (first command-contexts)]
       (let [result (if-let [selection (get-in ctx [:env :selection])]
-                     (let [adapters (:adapters ctx)]
+                     (let [adapters (:adapters ctx)
+                           name (:name ctx)]
                        (into result (map (fn [ctx] (-> ctx
-                                                     (assoc-in [:env :selection] selection)
+                                                     (update :env #(assoc % :selection selection :selection-context name))
                                                      (assoc :adapters adapters)))
                                          command-contexts)))
                      (conj result ctx))]

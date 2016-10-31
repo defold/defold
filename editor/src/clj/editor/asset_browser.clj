@@ -250,33 +250,6 @@
 
 (def update-tree-view nil)
 
-(handler/defhandler :new-file :asset-browser
-  (label [user-data] (if-not user-data
-                       "New"
-                       (let [rt (:resource-type user-data)]
-                         (or (:label rt) (:ext rt)))))
-  (enabled? [selection] (and (= (count selection) 1) (not= nil (resource/abs-path (first selection)))))
-  (run [selection user-data workspace tree-view open-fn]
-       (let [resource (first selection)
-             base-folder (to-folder (File. (resource/abs-path resource)))
-             rt (:resource-type user-data)
-             project-path (workspace/project-path workspace)]
-         (when-let [new-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
-           (spit new-file (workspace/template rt))
-           (workspace/resource-sync! workspace)
-           (let [resource-map (g/node-value workspace :resource-map)
-                 new-resource-path (resource/file->proj-path project-path new-file)
-                 resource (resource-map new-resource-path)]
-             (update-tree-view tree-view (g/node-value workspace :resource-tree) (filter some? [resource]))
-             (open-fn resource)))))
-  (options [workspace selection user-data]
-           (when (not user-data)
-             (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
-               (sort-by (fn [rt] (string/lower-case (:label rt))) (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                                                                                       :icon (:icon res-type)
-                                                                                       :command :new-file
-                                                                                       :user-data {:resource-type res-type}}) resource-types))))))
-
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))
 

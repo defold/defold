@@ -81,6 +81,16 @@
                                                                             (->StaticSelection local-selection)) [])]
         (is (= expected-selection (run :c1 [local global] {})))))))
 
+(deftest selection-context
+  (let [[global local] (mapv #(handler/->context % {} (->StaticSelection [:a]) {}) [:global :local])]
+    (handler/defhandler :c1 :global
+      (active? [selection selection-context] (and (= :global selection-context) selection))
+      (run [selection]
+           nil))
+    (is (enabled? :c1 [global] {}))
+    (is (not (enabled? :c1 [local] {})))
+    (is (enabled? :c1 [local global] {}))))
+
 (deftest erroneous-handler
   (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
     (handler/defhandler :c1 :global
