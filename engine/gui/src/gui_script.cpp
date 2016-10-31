@@ -1278,11 +1278,37 @@ namespace dmGui
     }
 
     /*# sets the node texture
-     * Set the texture on a box or pie node. The texture must be mapped to the gui scene in the gui editor.
+     * Set the texture on a box or pie node. The texture must be mapped to 
+     * the gui scene in the gui editor. The function points out which texture
+     * the node should render from. If the texture is an atlas, further
+     * information is needed to select which image/animation in the atlas
+     * to render. In such cases, use <code>gui.play_flipbook()</code> in
+     * addition to this function.
      *
      * @name gui.set_texture
      * @param node node to set texture for (node)
      * @param texture texture id (string|hash)
+     * @examples
+     * <p>To set a texture (or animation) from an atlas:</p>
+     * <pre>
+     * local node = gui.get_node("box_node")
+     * gui.set_texture(node, "my_atlas")
+     * gui.play_flipbook(node, "image")
+     * </pre>
+     * <p>Set a dynamically created texture to a node. Note that there is only
+     * one texture image in this case so <code>gui.set_texture()</code> is
+     * sufficient.</p>
+     * <pre>
+     * local w = 200
+     * local h = 300
+     * -- A nice orange. String with the RGB values.
+     * local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+     * -- Create the texture. Repeat the color string for each pixel.
+     * if gui.new_texture("orange_tx", w, h, "rgb", string.rep(orange, w * h)) then
+     *     local node = gui.get_node("box_node")
+     *     gui.set_texture(node, "orange_tx")
+     * end
+     * </pre>
      */
     static int LuaSetTexture(lua_State* L)
     {
@@ -1348,6 +1374,13 @@ namespace dmGui
      * @param node node to set animation for (node)
      * @param animation animation id (string|hash)
      * @param [complete_function] function to call when the animation has completed (function)
+     * @examples
+     * <pre>
+     * -- Create a new node and set the 
+     * local node = gui.get_node("box_node")
+     * gui.cancel_flipbook(node)
+     * </pre>
+     *
      */
     static int LuaPlayFlipbook(lua_State* L)
     {
@@ -4047,7 +4080,14 @@ namespace dmGui
      * </p>
      * <p>
      * For an instance to obtain user input, it must first acquire input focuse through the message <code>acquire_input_focus</code>.
-     * See the documentation of that message for more information.
+     *
+     * Any instance that has obtained input will be put on top of an 
+     * input stack. Input is sent to all listeners on the stack until the 
+     * end of stack is reached, or a listener returns <code>true</code> 
+     * to signal that it wants input to be consumed.
+     *
+     * See the documentation of <code>acquire_input_focus</code> for more
+     * information.
      * </p>
      * <p>
      * The <code>action</code> parameter is a table containing data about the input mapped to the <code>action_id</code>.
@@ -4101,6 +4141,7 @@ namespace dmGui
      * @param self reference to the script state to be used for storing data (script_ref)
      * @param action_id id of the received input action, as mapped in the input_binding-file (hash)
      * @param action a table containing the input data, see above for a description (table)
+     * @return optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false (boolean)
      * @examples
      * <pre>
      * function on_input(self, action_id, action)
@@ -4109,6 +4150,8 @@ namespace dmGui
      *         -- take appropritate action
      *         self.my_value = action.value
      *     end
+     *     -- consume input
+     *     return true
      * end
      * </pre>
      */
