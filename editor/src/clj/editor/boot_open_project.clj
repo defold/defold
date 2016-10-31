@@ -37,6 +37,7 @@
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.protobuf-types :as protobuf-types]
+            [editor.resource :as resource]
             [editor.rig :as rig]
             [editor.scene :as scene]
             [editor.script :as script]
@@ -141,6 +142,10 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
+(defn- handle-resource-changes! [changes editor-tabs]
+  (doseq [resource (:removed changes)]
+    (app-view/remove-resource-tab editor-tabs resource)))
+
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
@@ -174,16 +179,7 @@
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {})))
-                                                                 (fn [resources]
-                                                                   (doseq [resource resources]
-                                                                     (app-view/remove-resource-tab editor-tabs resource))
-                                                                   (let [nodes (keep #(project/get-resource-node project %) resources)]
-                                                                     (when (not-empty nodes)
-                                                                       (g/transact
-                                                                         (for [n nodes]
-                                                                           (g/delete-node n)))
-                                                                       (g/reset-undo! (g/node-id->graph-id project))))))
+                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             project/hot-reload-url-prefix (partial hotload/build-handler project)})
                                    http-server/start!)
@@ -201,6 +197,9 @@
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
+      (workspace/add-resource-listener! workspace (reify resource/ResourceListener
+                                                    (handle-changes [_ changes _]
+                                                      (handle-resource-changes! changes editor-tabs))))
 
       (app-view/restore-split-positions stage prefs)
 
