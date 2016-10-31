@@ -501,7 +501,7 @@ public class ColladaUtil {
 
         List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
-        loadVertexWeights(collada, position_indices_list, bone_weights_list, bone_indices_list, colladaIndexToDDFIndex);
+        loadVertexWeights(collada, bone_weights_list, bone_indices_list, colladaIndexToDDFIndex);
 
         if(normals != null) {
             meshBuilder.addAllNormals(normal_list);
@@ -696,7 +696,7 @@ public class ColladaUtil {
     }
 
 
-    private static void loadVertexWeights(XMLCOLLADA collada, List<Integer> positionIndicesList, List<Float> boneWeightsList, List<Integer> boneIndicesList, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
+    private static void loadVertexWeights(XMLCOLLADA collada, List<Float> boneWeightsList, List<Integer> boneIndicesList, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
 
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
