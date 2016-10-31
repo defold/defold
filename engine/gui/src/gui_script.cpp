@@ -4079,7 +4079,8 @@ namespace dmGui
      * It can be used to take action on the input, e.g. modify the gui according to the input.
      * </p>
      * <p>
-     * For an instance to obtain user input, it must first acquire input focuse through the message <code>acquire_input_focus</code>.
+     * For an instance to obtain user input, it must first acquire input
+     * focus through the message <code>acquire_input_focus</code>.
      *
      * Any instance that has obtained input will be put on top of an 
      * input stack. Input is sent to all listeners on the stack until the 
