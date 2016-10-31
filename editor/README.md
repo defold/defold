@@ -1,10 +1,37 @@
-## JavaFX Clojure Editor
+# JavaFX Clojure Editor
 
-### Requirements
+## Requirements
 * Java 1.8
 * Leiningen
 
-### Environment Setup
+## Windows
+
+First of all, follow the Windows instructions in [Defold Readme](../README.md)
+
+* Start `msys.bat` as described
+* Download the [lein.sh script](https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein) from [Leiningen.org](http://leiningen.org) Put it somewhere in your (msys) path - if you're lazy, put it in `C:\MinGW\msys\1.0\bin`. You might need to `chmod a+x lein.sh`.
+* Run `lein` in the `editor` subdirectory
+  This will attempt to download leiningen and dependencies to your home directory.
+
+  - If this fails with message
+
+          Could not find or load main class clojure.main
+
+    Try pointing your `HOME` environment variable to your “windows home”. For instance change it from `/home/Erik.Angelin` (msys) to `/c/Users/erik.angelin`:
+
+        export HOME="/c/Users/erik.angelin"
+
+    The problem seems to be that the (windows) java class path points to an invalid home directory.
+  
+  - If this fails because the github certificate cannot be verified, a hacky workaround is as follows:
+    - open `lein.sh` with notepad
+    - search for `wget`, you should get a hit near `HTTP_CLIENT` definition
+    - stick in a `--no-check-certificate` flag
+    - save, retry
+* Follow the OS X/Linux instructions!
+
+## OS X/Linux
+
 * `cd` to the `defold` directory
 * run `./scripts/build.py shell`
 
@@ -14,8 +41,7 @@ Consider putting it in an alias in your bash profile.
 ## Setup
 * Build the engine with `scripts/build.py build_engine --skip-tests`
   from the `defold` directory
-* From the `defold/editor` directory, run `lein protobuf`
-* From the `defold/editor` directory, run `lein builtins`
+* From the `defold/editor` directory, run `lein init`
 
 ## Running Tests
 `lein test` will run all the tests including the integration tests.
@@ -41,6 +67,30 @@ Please note that Lein will introduce a nREPL dependency automagically, but its a
 for you to jack into
 
 **PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
+
+## Buildling the Editor
+
+Use `scripts/bundle.py` to produce a bundled version of the editor.
+
+There are a few different scenarios in which you might want to build
+the editor locally:
+
+- Local editor sources, archived engine artifacts based on HEAD:
+  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4`
+    - This will fetch engine and launcher artifacts using the `HEAD`
+      revision.
+- Local editor sources, archived engine artifacts based on a different revision:
+  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4 --git-rev dev`
+    - This will fetch engine and launcher artifacts using the `dev`
+      revision and is handy if you are on a branch where no engine
+      artifacts have been archived.
+- Local editor sources, local engine artifacts, archived launcher from `dev`:
+  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4 --git-rev dev --pack-local`
+    - This will use local engine artifacts from `$DYNAMO_HOME`, with
+      the exception of the launcher.
+- Local editor sources, local engine artifacts, local launcher:
+  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4--pack-local --launcher ../tmp/dynamo_home/bin/x86_64-darwin/launcher`
+
 
 ## Jacking into a REPL
 

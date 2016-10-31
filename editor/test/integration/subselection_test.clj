@@ -69,7 +69,7 @@
     (p3-> max)))
 
 (defn- render-geom-cloud [basis view node-id property]
-  (let [render-data (-> (g/node-value node-id property :basis basis)
+  (let [render-data (-> (g/node-value node-id property {:basis basis})
                       (types/geom-aabbs nil))]
     (reduce (fn [view [id aabb]] (view-render view (centroid aabb) {:node-id node-id
                                                                     :property property
@@ -121,7 +121,7 @@
   (output position g/Any (g/fnk [selection basis]
                                 (let [positions (->> (for [[nid props] selection
                                                            [k ids] props]
-                                                       (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k :basis basis)
+                                                       (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k {:basis basis})
                                                                                                     (types/geom-aabbs ids))))
                                                   (reduce into [])
                                                   (map second))
@@ -145,7 +145,7 @@
     (g/transact
       (for [[nid props] selection
             [k ids] props
-            :let [v (g/node-value nid k :basis basis)]]
+            :let [v (g/node-value nid k {:basis basis})]]
         (g/set-property nid k (types/geom-transform v ids transform))))))
 
 ;; Tests

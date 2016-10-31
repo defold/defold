@@ -1,13 +1,13 @@
 package com.dynamo.cr.server.mail;
 
+import com.dynamo.cr.proto.Config.EMailTemplate;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Map.Entry;
-
-import com.dynamo.cr.proto.Config.EMailTemplate;
 
 public class EMail implements Serializable {
 
@@ -27,10 +27,12 @@ public class EMail implements Serializable {
     public static EMail format(EMailTemplate template, String to, Map<String, String> params) {
         String subject = template.getSubject();
         String msg = template.getMessage();
-        for (Entry<String, String> e : params.entrySet()) {
-            String key = String.format("${%s}", e.getKey());
-            msg = msg.replace(key, e.getValue());
-            subject = subject.replace(key, e.getValue());
+        if (params != null) {
+            for (Entry<String, String> e : params.entrySet()) {
+                String key = String.format("${%s}", e.getKey());
+                msg = msg.replace(key, e.getValue());
+                subject = subject.replace(key, e.getValue());
+            }
         }
         return new EMail(template.getFrom(), to, subject, msg);
     }

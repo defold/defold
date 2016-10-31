@@ -27,8 +27,8 @@
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [java.nio ByteBuffer]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Vector3d]
            [com.jogamp.opengl.util.texture Texture TextureData]
            [com.google.protobuf ByteString]))
@@ -76,7 +76,7 @@
 
 (defn- font-type [font output-format]
   (if (= output-format :type-bitmap)
-    (if (= "fnt" (:ext (resource/resource-type font)))
+    (if (and font (= "fnt" (:ext (resource/resource-type font))))
       :bitmap
       :defold)
     :distance-field))
@@ -164,6 +164,27 @@
       (assoc glyph :x x :y y))
     (assoc glyph :width 0)))
 
+(defn layout-text [font-map text line-break? max-width text-tracking text-leading]
+  (let [text-layout {:width max-width
+                     :height 0
+                     :lines []
+                     :line-widths []
+                     :text-tracking text-tracking
+                     :text-leading text-leading}]
+    (if (or (nil? font-map) (nil? text) (nil? text))
+      text-layout
+      (let [glyphs (font-map->glyphs font-map)
+            line-height (+ (:max-descent font-map) (:max-ascent font-map))
+            text-tracking (* line-height text-tracking)
+            lines (split-text glyphs text line-break? max-width text-tracking)
+            line-widths (mapv (partial measure-line glyphs text-tracking) lines)
+            max-width (reduce max 0 line-widths)]
+        (assoc text-layout
+               :width max-width
+               :height (* line-height (+ 1 (* text-leading (dec (count lines)))))
+               :lines lines
+               :line-widths line-widths)))))
+
 (defn gen-vertex-buffer [^GL2 gl {:keys [type font-map texture]} text-entries]
   (let [cache (scene-cache/request-object! ::glyph-caches texture gl [font-map])
         w (:cache-width font-map)
@@ -178,23 +199,25 @@
              (if-let [entry (first text-entries)]
                (let [colors (repeat (cond->> (into (:color entry) (concat (:outline entry) (:shadow entry)))
                                       (= type :distance-field) (into sdf-params)))
-                     text-tracking (* line-height (:text-tracking entry 0))
-                     text-leading (:text-leading entry 0)
+                     text-layout (:text-layout entry)
+                     text-tracking (* line-height (:text-tracking text-layout 0))
+                     text-leading (:text-leading text-layout 0)
                      offset (:offset entry)
                      xform (doto (Matrix4d.)
                              (.set (let [[x y] offset]
                                      (Vector3d. x y 0.0))))
                      _ (.mul xform ^Matrix4d (:world-transform entry) xform)
-                     lines (split-text glyphs (:text entry) (:line-break entry) (:max-width entry) text-tracking)
-                     line-widths (map (partial measure-line glyphs text-tracking) lines)
-                     max-width (reduce max 0 line-widths)
-                     lines (map vector lines line-widths)
+                     lines (:lines text-layout)
+                     line-widths (:line-widths text-layout)
+                     max-width (:width text-layout)
                      align (:align entry :center)
                      vs (loop [vs vs
                                lines lines
+                               line-widths line-widths
                                line-no 0]
-                          (if-let [[line line-width] (first lines)]
-                            (let [y (* line-no (- (* line-height text-leading)))
+                          (if-let [line (first lines)]
+                            (let [line-width (first line-widths)
+                                  y (* line-no (- (* line-height text-leading)))
                                   vs (loop [vs vs
                                             glyphs (map char->glyph line)
                                             x (case align
@@ -208,7 +231,7 @@
                                                vs (reduce conj! vs (map into (glyph-fn cursor glyph) colors))]
                                            (recur vs (rest glyphs) (+ x (:advance glyph) text-tracking)))
                                          vs))]
-                              (recur vs (rest lines) (inc line-no)))
+                              (recur vs (rest lines) (rest line-widths) (inc line-no)))
                             vs))]
                  (recur vs (rest text-entries)))
                (persistent! vs)))]
@@ -244,25 +267,29 @@
                             :text preview-text}
                 :passes [pass/transparent]}})
 
-(g/defnk produce-pb-msg [font material size antialias alpha outline-alpha outline-width
+(g/defnk produce-pb-msg [pb font material size antialias alpha outline-alpha outline-width
                          shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
                          all-chars cache-width cache-height]
-  {:font (resource/resource->proj-path font)
-   :material (resource/resource->proj-path material)
-   :size size
-   :antialias size
-   :alpha alpha
-   :outline-alpha outline-alpha
-   :outline-width outline-width
-   :shadow-alpha shadow-alpha
-   :shadow-blur shadow-blur
-   :shadow-x shadow-x
-   :shadow-y shadow-y
-   :extra-characters extra-characters
-   :output-format output-format
-   :all-chars all-chars
-   :cache-width cache-width
-   :cache-height cache-height})
+  ;; The reason we use the originally loaded pb is to retain any default values
+  ;; This is important for the saved file to not contain more data than it would
+  ;; have when saved with Editor1
+  (merge pb
+         {:font (resource/resource->proj-path font)
+          :material (resource/resource->proj-path material)
+          :size size
+          :antialias antialias
+          :alpha alpha
+          :outline-alpha outline-alpha
+          :outline-width outline-width
+          :shadow-alpha shadow-alpha
+          :shadow-blur shadow-blur
+          :shadow-x shadow-x
+          :shadow-y shadow-y
+          :extra-characters extra-characters
+          :output-format output-format
+          :all-chars all-chars
+          :cache-width cache-width
+          :cache-height cache-height}))
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
@@ -326,7 +353,9 @@
     (set (fn [basis self old-value new-value]
            (project/resource-setter basis self old-value new-value
                                     [:resource :font-resource])))
-    (validate (validation/validate-resource font)))
+    (dynamic error (g/fnk [_node-id font-resource]
+                          (or (validation/prop-error :info _node-id :font validation/prop-nil? font-resource "Font")
+                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font")))))
 
   (property material resource/Resource
     (value (gu/passthrough material-resource))
@@ -336,33 +365,53 @@
                                     [:build-targets :dep-build-targets]
                                     [:samplers :material-samplers]
                                     [:shader :material-shader])))
-    (validate (validation/validate-resource material)))
+    (dynamic error (g/fnk [_node-id material-resource]
+                          (or (validation/prop-error :fatal _node-id :font validation/prop-nil? material-resource "Material")
+                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? material-resource "Material")))))
 
-  (property size g/Int (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                      (or (= type :defold) (= type :distance-field))))))
-  (property antialias g/Int (dynamic visible (g/always false)))
-  (property alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                       (= type :defold)))))
-  (property outline-alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                               (= type :defold)))))
-  (property outline-width g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                               (or (= type :defold) (= type :distance-field))))))
-  (property shadow-alpha g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                              (= type :defold)))))
-  (property shadow-blur g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                             (= type :defold)))))
-  (property shadow-x g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                          (= type :defold)))))
-  (property shadow-y g/Num (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                          (= type :defold)))))
+  (property size g/Int
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (or (= type :defold) (= type :distance-field)))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? size)))
+  (property antialias g/Int (dynamic visible (g/constantly false)))
+  (property alpha g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha)))
+  (property outline-alpha g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-alpha)))
+  (property outline-width g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (or (= type :defold) (= type :distance-field)))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-width)))
+  (property shadow-alpha g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha)))
+  (property shadow-blur g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-blur)))
+  (property shadow-x g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold)))))
+  (property shadow-y g/Num
+            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
+                                                           (= type :defold)))))
   (property extra-characters g/Str (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                                   (or (= type :defold) (= type :distance-field))))))
   (property output-format g/Keyword
-    (dynamic edit-type (g/always (properties/->pb-choicebox Font$FontTextureFormat))))
+    (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
 
   (property all-chars g/Bool)
-  (property cache-width g/Int)
-  (property cache-height g/Int)
+  (property cache-width g/Int
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width)))
+  (property cache-height g/Int
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height)))
+
+  (property pb g/Any (dynamic visible (g/constantly false)))
 
   (input dep-build-targets g/Any :array)
   (input font-resource resource/Resource)
@@ -401,10 +450,12 @@
 (defn load-font [project self resource]
   (let [font (protobuf/read-text Font$FontDesc resource)
         props (keys font)]
-    (for [prop props
-          :let [value (cond->> (get font prop)
-                        (resource-fields prop) (workspace/resolve-resource resource))]]
-      (g/set-property self prop value))))
+    (concat
+      (g/set-property self :pb font)
+      (for [prop props
+            :let [value (cond->> (get font prop)
+                          (resource-fields prop) (workspace/resolve-resource resource))]]
+        (g/set-property self prop value)))))
 
 (defn register-resource-types [workspace]
   (concat

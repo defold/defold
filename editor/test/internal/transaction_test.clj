@@ -314,18 +314,18 @@
   (property target g/Keyword
             (value (g/fnk [label] (println :target :value-fn label) label))
             (set (fn [basis self _ new-value]
-                   (when-let [src (g/node-value self :source-id :basis basis)]
+                   (when-let [src (g/node-value self :source-id {:basis basis})]
                      (println :target :connecting src new-value :to self :label)
                      (g/connect src new-value self :label)))))
   (property second g/Keyword
             (set (fn [basis self old-value new-value]
                    (println :second :new-value new-value)
-                   (when-let [t (g/node-value self :target :basis basis)]
+                   (when-let [t (g/node-value self :target {:basis basis})]
                      (println :second :t t)
                      (g/set-property self :second t)))))
   (property third g/Keyword
             (set (fn [basis self old-value new-value]
-                   (when-let [t (g/node-value self :implicit-target :basis basis)]
+                   (when-let [t (g/node-value self :implicit-target {:basis basis})]
                      (g/set-property self :third t)))))
   (input source-id g/NodeID)
   (input label g/Keyword)

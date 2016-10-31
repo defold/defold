@@ -7,6 +7,8 @@
 #  include <sys/errno.h>
 #elif defined(_WIN32)
 #  include <errno.h>
+#elif defined(__EMSCRIPTEN__)
+#  include <unistd.h>
 #endif
 
 #ifdef _WIN32
@@ -17,6 +19,7 @@
 #include <dlib/sys.h>
 #include <dlib/log.h>
 #include <dlib/socket.h>
+#include <dlib/path.h>
 #include <resource/resource.h>
 #include "script.h"
 
@@ -32,6 +35,15 @@ extern "C"
 namespace dmScript
 {
 #define LIB_NAME "sys"
+    
+    /*# System API documentation
+     *
+     * Functions and messages for using system resources, controlling the engine
+     * and for debugging.
+     *
+     * @name System
+     * @namespace sys
+     */
 
     const uint32_t MAX_BUFFER_SIZE =  128 * 1024;
 
@@ -69,6 +81,52 @@ namespace dmScript
      * end
      * </pre>
      */
+
+#if !defined(__EMSCRIPTEN__)
+    int Sys_Save(lua_State* L)
+    {
+        char buffer[MAX_BUFFER_SIZE];
+        luaL_checktype(L, 2, LUA_TTABLE);
+        uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
+        
+        const char* filename = luaL_checkstring(L, 1);
+        char tmp_filename[DMPATH_MAX_PATH];
+        // The counter and hash are there to make the files unique enough to avoid that the user
+        // accidentally writes to it.
+        static int save_counter = 0;
+        uint32_t hash = dmHashString32(filename);
+        int res = DM_SNPRINTF(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
+        if (res == -1)
+        {
+            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
+        }
+
+        FILE* file = fopen(tmp_filename, "wb");
+        if (file != 0x0)
+        {
+            bool result = fwrite(buffer, 1, n_used, file) == n_used;
+            result = (fclose(file) == 0) && result;
+            if (result)
+            {
+#if defined(_WIN32)
+                bool rename_result = MoveFileEx(tmp_filename, filename, MOVEFILE_REPLACE_EXISTING) != 0;
+#else
+                bool rename_result = rename(tmp_filename, filename) != -1;
+#endif
+                if (rename_result)
+                {
+                    lua_pushboolean(L, result);
+                    return 1;
+                }
+            }
+
+            dmSys::Unlink(tmp_filename);
+        }
+        return luaL_error(L, "Could not write to the file %s.", filename);
+    }
+
+#else // __EMSCRIPTEN__
+
     int Sys_Save(lua_State* L)
     {
         char buffer[MAX_BUFFER_SIZE];
@@ -79,15 +137,19 @@ namespace dmScript
         if (file != 0x0)
         {
             bool result = fwrite(buffer, 1, n_used, file) == n_used;
-            fclose(file);
+            result = (fclose(file) == 0) && result;
             if (result)
             {
                 lua_pushboolean(L, result);
                 return 1;
             }
+
+            dmSys::Unlink(filename);
         }
         return luaL_error(L, "Could not write to the file %s.", filename);
     }
+
+#endif
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
@@ -416,6 +478,27 @@ namespace dmScript
         return 1;
     }
 
+    // Android version 6 Marshmallow (API level 23) and up does not support getting hw adr programmatically (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
+    bool IsAndroidMarshmallowOrAbove()
+    {
+        const long android_marshmallow_api_level = 23;
+        bool is_android = false;
+        bool marshmallow_or_higher = false;
+        long api_level_android = 0;
+
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+
+        is_android = strcmp("Android", info.m_SystemName) == 0;
+        if (is_android)
+        {
+            api_level_android = strtol(info.m_ApiVersion, 0, 10);
+            marshmallow_or_higher = (api_level_android >= android_marshmallow_api_level);
+        }
+
+        return is_android && marshmallow_or_higher;
+    }
+
     /*# enumerate network cards
      * returns an array of tables with the following members:
      * name, address (ip-string), mac (hardware address, colon separated string), up (bool), running (bool). NOTE: ip and mac might be nil if not available
@@ -432,8 +515,10 @@ namespace dmScript
         uint32_t count = 0;
         dmSocket::GetIfAddresses(addresses, max_count, &count);
         lua_createtable(L, count, 0);
-        for (uint32_t i = 0; i < count; ++i) {
+        for (uint32_t i = 0; i < count; ++i) 
+        {
             dmSocket::IfAddr* ifa = &addresses[i];
+            
             lua_newtable(L);
 
             lua_pushliteral(L, "name");
@@ -441,17 +526,22 @@ namespace dmScript
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "address");
-            if (ifa->m_Flags & dmSocket::FLAGS_INET) {
+            if (ifa->m_Flags & dmSocket::FLAGS_INET) 
+            {
                 char* ip = dmSocket::AddressToIPString(ifa->m_Address);
                 lua_pushstring(L, ip);
                 free(ip);
-            } else {
+            } 
+            else 
+            {
                 lua_pushnil(L);
             }
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "mac");
-            if (ifa->m_Flags & dmSocket::FLAGS_LINK) {
+
+            if (ifa->m_Flags & dmSocket::FLAGS_LINK)
+            {
                 char tmp[64];
                 DM_SNPRINTF(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
                         ifa->m_MacAddress[0],
@@ -461,7 +551,13 @@ namespace dmScript
                         ifa->m_MacAddress[4],
                         ifa->m_MacAddress[5]);
                 lua_pushstring(L, tmp);
-            } else {
+            } 
+            else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
+            {
+                lua_pushstring(L, "02:00:00:00:00:00");
+            }
+            else 
+            {
                 lua_pushnil(L);
             }
             lua_rawset(L, -3);

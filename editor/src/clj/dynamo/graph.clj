@@ -1,6 +1,6 @@
 (ns dynamo.graph
   "Main api for graph and node"
-  (:refer-clojure :exclude [deftype])
+  (:refer-clojure :exclude [deftype constantly])
   (:require [clojure.set :as set]
             [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
@@ -21,11 +21,9 @@
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [plumbing.core defnk fnk])
-
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
-(namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
+(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate worse-than])
 
 (namespaces/import-vars [internal.node value-type-schema value-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
@@ -191,7 +189,40 @@
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
-(defmacro always [v] `(dynamo.graph/fnk [] ~v))
+(defn strip-alias
+  "If the list ends with :as _something_, return _something_ and the
+  list without the last two elements"
+  [argv]
+  (if (and
+       (<= 2 (count argv))
+       (= :as (nth argv (- (count argv) 2))))
+    [(last argv) (take (- (count argv) 2) argv)]
+    [nil argv]))
+
+(defmacro fnk
+  [argv & tail]
+  (let [param        (gensym "m")
+        [alias argv] (strip-alias (vec argv))
+        arglist      (interleave argv (map #(list `get param (keyword %)) argv))]
+    (if alias
+      `(with-meta
+         (fn [~param]
+           (let [~alias ~param
+                 ~@(vec arglist)]
+             ~@tail))
+         {:arguments (quote ~(mapv keyword argv))})
+      `(with-meta
+         (fn [~param]
+           (let ~(vec arglist) ~@tail))
+         {:arguments (quote ~(mapv keyword argv))}))))
+
+(defmacro defnk
+  [symb & body]
+  (let [[name args]  (ctm/name-with-attributes symb body)]
+    (assert (symbol? name) (str "Name for defnk is not a symbol:" name))
+    `(def ~name (fnk ~@args))))
+
+(defmacro constantly [v] `(let [ret# ~v] (dynamo.graph/fnk [] ret#)))
 
 (defmacro deftype
   [symb & body]
@@ -218,6 +249,7 @@
                              :type                                 s/Any
                              s/Keyword                             s/Any}}
      (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
+(deftype Err ErrorValue)
 
 
 
@@ -549,7 +581,7 @@
   (assert node-id)
   (mapcat
    (fn [[p v]]
-     (it/update-property node-id p (constantly v) []))
+     (it/update-property node-id p (clojure.core/constantly v) []))
    (partition-all 2 kvs)))
 
 (defn set-property!
@@ -648,7 +680,7 @@
 
   Example:
 
-  `(transact (mark-defective node-id (g/severe \"Resource Not Found\")))`"
+  `(transact (mark-defective node-id (g/error-fatal \"Resource Not Found\")))`"
   ([node-id defective-value]
    (assert node-id)
    (mark-defective node-id (node-type* node-id) defective-value))
@@ -659,7 +691,7 @@
      (list
       (set-property node-id :_output-jammers
                     (zipmap (remove externs outputs)
-                            (repeat (constantly defective-value))))
+                            (repeat (clojure.core/constantly defective-value))))
       (invalidate node-id)))))
 
 (defn mark-defective!
@@ -669,7 +701,7 @@
 
   Example:
 
-  `(mark-defective! node-id (g/severe \"Resource Not Found\"))`"
+  `(mark-defective! node-id (g/error-fatal \"Resource Not Found\"))`"
   [node-id defective-value]
   (assert node-id)
   (transact (mark-defective node-id defective-value)))
@@ -693,14 +725,20 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (node-value node-id label :cache (cache) :basis (now)))
-  ([node-id label & {:as options}]
-    (let [options (cond-> options
-                    true (assoc :in-transaction? (it/in-transaction?))
-                    (not (:cache options))
-                    (assoc :cache (cache))
-                    (not (:basis options))
-                    (assoc :basis (now)))]
+   (node-value node-id label {:cache (cache) :basis (now)}))
+  ([node-id label options]
+   (let [options (cond-> options
+                   (it/in-transaction?)
+                   (assoc :in-transaction? true)
+
+                   (not (:cache options))
+                   (assoc :cache (cache))
+
+                   (not (:basis options))
+                   (assoc :basis (now))
+
+                   (:no-cache options)
+                   (dissoc :cache))]
       (in/node-value node-id label options))))
 
 (defn graph-value
@@ -952,7 +990,7 @@
                      :serializer (some-fn custom-serializer default-node-serializer %)})"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (constantly false) serializer default-node-serializer} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer} :as opts}]
     (s/validate opts-schema opts)
    (let [serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
          original-ids   (input-traverse basis traverse? root-ids)
@@ -1022,7 +1060,7 @@
     (override root-id {}))
   ([root-id opts]
     (override (now) root-id opts))
-  ([basis root-id {:keys [traverse?] :or {traverse? (constantly true)}}]
+  ([basis root-id {:keys [traverse?] :or {traverse? (clojure.core/constantly true)}}]
     (let [graph-id (node-id->graph-id root-id)
           preds [traverse-cascade-delete traverse?]
           traverse-fn (partial predecessors preds)

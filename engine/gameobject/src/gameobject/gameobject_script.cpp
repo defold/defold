@@ -34,6 +34,105 @@ extern "C"
 
 namespace dmGameObject
 {
+    /*# Game object API documentation
+     *
+     * Functions, core hooks, messages and constants for manipulation of
+     * game objects. The "go" namespace is accessible from game object script 
+     * files.
+     *
+     * @name Game object
+     * @namespace go
+     */
+
+    /*# game object position (vector3)
+     *
+     * The position of the game object.
+     * The type of the property is vector3.
+     *
+     * @name position
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to query a game object's position, either as a vector3 or selecting a specific dimension:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- get position from "player"
+     *   local pos = go.get("player", "position")
+     *   local posx = go.get("player", "position.x")
+     *   -- do something useful
+     *   assert(pos.x == posx)
+     * end
+     * </pre>
+     */
+
+    /*# game object rotation (quaternion)
+     *
+     * The rotation of the game object.
+     * The type of the property is quaternion.
+     *
+     * @name rotation
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to set a game object's rotation:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- set "player" rotation to 45 degrees around z.
+     *   local rotz = vmath.quat_rotation_z(3.141592 / 4)
+     *   go.set("player", "rotation", rotz)
+     * end
+     * </pre>
+     */
+
+    /*# game object euler rotation (vector3)
+     *
+     * The rotation of the game object expressed in euler angles.
+     * Euler angles are specified in degrees.
+     * The type of the property is vector3.
+     *
+     * @name euler
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to set a game object's rotation with euler angles, either as a vector3 or selecting a specific dimension:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- set "player" euler z rotation component to 45 degrees around z.
+     *   local rotz = 45
+     *   go.set("player", "euler.z", rotz)
+     *   local rot = go.get("player", "euler")
+     *   -- do something useful
+     *   assert(rot.z == rotz)
+     * end
+     * </pre>
+     */
+
+    /*# game object scale (vector3)
+     *
+     * The non-uniform scale of the game object. The type of the property is vector3.
+     *
+     * @name scale
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to scale a game object independently along the X and Y axis:
+     * </p>
+     * <pre>
+     * function init(self)
+     *   -- Double the y-axis scaling on "player"
+     *   local yscale = go.get("player", "scale.y")
+     *   go.set("player", "scale.y", yscale * 2)
+     * end
+     * </pre>
+     */
+
 #define SCRIPTINSTANCE "GOScriptInstance"
 #define SCRIPT "GOScript"
 
@@ -438,7 +537,16 @@ namespace dmGameObject
             dmGameObject::LuaPushVar(L, property_desc.m_Variant);
             return 1;
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
-            return luaL_error(L, "'%s' does not have any property called '%s'", lua_tostring(L, 1), (const char*)dmHashReverse64(property_id, 0x0));
+            {
+                // The supplied URL parameter don't need to be a string,
+                // we let Lua handle the "conversion" to string using concatenation.
+                lua_pushliteral(L, "");
+                lua_pushvalue(L, 1);
+                lua_concat(L, 2);
+                const char* name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+            }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
         default:
@@ -522,6 +630,8 @@ namespace dmGameObject
             return 0;
         case PROPERTY_RESULT_NOT_FOUND:
             {
+                // The supplied URL parameter don't need to be a string,
+                // we let Lua handle the "conversion" to string using concatenation.
                 lua_pushliteral(L, "");
                 lua_pushvalue(L, 1);
                 lua_concat(L, 2);
@@ -858,7 +968,7 @@ namespace dmGameObject
         (void) top;
 
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
-        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
 
         curve->release_callback = 0x0;
         curve->userdata1 = 0x0;
@@ -899,7 +1009,7 @@ namespace dmGameObject
             dmScript::SetInstance(L);
         }
 
-        lua_unref(L, ref);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
 
         assert(top == lua_gettop(L));
     }
@@ -1017,7 +1127,7 @@ namespace dmGameObject
             lua_pushvalue(L, 5);
             curve.release_callback = LuaCurveRelease;
             curve.userdata1 = i;
-            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+            curve.userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
         }
         else
         {
@@ -1037,7 +1147,7 @@ namespace dmGameObject
             {
                 stopped = LuaAnimationStopped;
                 lua_pushvalue(L, 8);
-                userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+                userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
             }
         }
 
@@ -1266,12 +1376,13 @@ namespace dmGameObject
 
     /*# constructs a ray in world space from a position in screen space
      *
-     * NOTE! Don't use this function, WIP!
+     * @note Do not use this function, WIP!
      *
      * @name go.screen_ray
      * @param x x-coordinate of the screen space position (number)
      * @param y y-coordinate of the screen space position (number)
-     * @return position and direction of the ray in world space (vector3, vector3)
+     * @return position of the ray in world-space (vector3)
+     * @return direction of the ray in world space (vector3)
      */
     int Script_ScreenRay(lua_State* L)
     {
@@ -1496,7 +1607,7 @@ namespace dmGameObject
                     {
                         if (lua_type(L, -1) == LUA_TFUNCTION)
                         {
-                            script->m_FunctionReferences[i] = luaL_ref(L, LUA_REGISTRYINDEX);
+                            script->m_FunctionReferences[i] = dmScript::Ref(L, LUA_REGISTRYINDEX);
                         }
                         else
                         {
@@ -1546,7 +1657,7 @@ bail:
         script->m_LuaState = L;
 
         lua_pushvalue(L, -1);
-        script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        script->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         script->m_PropertySet.m_UserData = (uintptr_t)script;
         script->m_PropertySet.m_GetPropertyCallback = GetPropertyDefault;
@@ -1576,11 +1687,11 @@ bail:
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (script->m_FunctionReferences[i] != LUA_NOREF) {
-                luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
             }
         }
 
-        luaL_unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         script->~Script();
         ResetScript(script);
     }
@@ -1706,10 +1817,10 @@ bail:
         i->m_Script = script;
 
         lua_pushvalue(L, -1);
-        i->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         lua_newtable(L);
-        i->m_ScriptDataReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        i->m_ScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         i->m_Instance = instance;
         i->m_ComponentIndex = component_index;
@@ -1739,8 +1850,8 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
-        luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-        luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
         DeleteProperties(script_instance->m_Properties);
         script_instance->~ScriptInstance();

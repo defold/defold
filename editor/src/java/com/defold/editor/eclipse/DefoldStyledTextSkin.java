@@ -109,15 +109,31 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			@Override
 			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
 				int lineIndex = getSkinnable().getContent().getLineAtOffset(newValue.intValue());
-                                if (lineIndex < 0){
-                                    return;
-                                 }
+				if (lineIndex < 0){
+					return;
+				}
 				Line lineObject = DefoldStyledTextSkin.this.lineList.get(lineIndex);
-                                if (lineObject == null){
-                                    return;
-                                }
+				if (lineObject == null){
+					return;
+				}
+				
+				int oldLineIndex = getSkinnable().getContent().getLineAtOffset(oldValue.intValue());
+				if (lineIndex < 0){
+					return;
+				}
+				Line oldLineObject = DefoldStyledTextSkin.this.lineList.get(oldLineIndex);
+				
 
-                                getFlow().show(lineIndex);
+				for (LineCell c : lineInfoMap.keySet()) {
+					if (c.domainElement == oldLineObject) {
+						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
+						if (p != null){
+							p.setCaretIndex(-1);
+						}
+					}
+				}
+                  //getFlow().show(lineIndex);
+               
 
 				for (LineCell c : lineInfoMap.keySet()) {
 					if (c.domainElement == lineObject) {
@@ -128,9 +144,14 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						}
 
 						DefoldStyledTextLayoutContainer p = (DefoldStyledTextLayoutContainer) c.getGraphic();
+						if (p == null){
+							return;
+						}
 						p.setCaretIndex(newValue.intValue() - p.getStartOffset());
-						Point2D careLocation = p.getCareLocation(newValue.intValue() - p.getStartOffset());
-						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(careLocation));
+						Point2D caretLocation = p.getCaretLocation(newValue.intValue() - p.getStartOffset());
+						if (caretLocation == null) {return;}
+						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(caretLocation));
+                                                if (tmp == null) {return;}
 						double prevCaretX = 0;
 						Point2D prevLoc = getCaretLocation(newValue.intValue() - 1);
 						if (prevLoc != null){
@@ -143,16 +164,16 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						boolean forward = newValue.intValue() > oldValue.intValue();
 						boolean backward = !forward;
 
-                                                double bufferSize = getFlow().getViewportWidth() / 5; 
-                                                double moveSize = 20;
+                        double bufferSize = getFlow().getViewportWidth() / 5;
+                        double moveSize = 20;
 
-                                                ////NOTE: The following section is a start of implementing horizontal scrolling as you type
-                                                /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
-                                                /// This whole area should be revisited once it get's sorted out
+                        ////NOTE: The following section is a start of implementing horizontal scrolling as you type
+                        /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
+                        /// This whole area should be revisited once it get's sorted out
 						///Need to do layout to get the scroll bar's current positioning about the new document change
                                                 sb.layout();
 
-						if (forward && careLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
+						if (forward && caretLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
 							//entering a new char - the x is not calculated yet
 							// bump the bar
 							int newCharCount = newValue.intValue() - oldValue.intValue();
@@ -208,6 +229,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						p.applyCss();
 						p.layoutChildren();
 						getFlow().requestLayout();
+						immediateRefresh();
 
 						return;
 					}
@@ -245,11 +267,13 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 								}
 							} else {
 								block.setSelection(new TextSelection(0, 0));
+								block.applyCss();
+								block.layoutChildren();
 							}
-							block.applyCss();
-							block.layoutChildren();
+							
 						}
 						getFlow().requestLayout();
+						immediateRefresh();
 					}
 				}
 			}
@@ -259,7 +283,11 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 	public ListView<Line> getListView(){
 		return contentView;
 	}
-	
+
+	public LineRuler getLineRuler() {
+	    return lineRuler;
+	}
+
 	DefoldStyledTextBehavior getBehavior() {
 		return this.behavior;
 	}
@@ -317,7 +345,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			}
 		});
 	}
-
+	
 	private DefoldStyledTextLayoutContainer currentActiveNode;
 
 	void updateCurrentCursorNode(DefoldStyledTextLayoutContainer node) {
@@ -329,6 +357,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			this.currentActiveNode = node;
 		}
 	}
+	
 
 	/**
 	 * Refresh the line ruler
@@ -337,7 +366,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		this.lineRuler.refresh();
 	}
 
-	MyVirtualFlow getFlow() {
+	public MyVirtualFlow getFlow() {
 		if (this.contentView == null || this.contentView.getSkin() == null) {
 			return null;
 		}
@@ -380,8 +409,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		for (LineCell c : getCurrentVisibleCells()) {
 			if (c.domainElement == lineObject) {
 				DefoldStyledTextLayoutContainer b = (DefoldStyledTextLayoutContainer) c.getGraphic();
-				Point2D careLocation = b.getCareLocation(caretPosition - b.getStartOffset());
-				Point2D tmp = getSkinnable().sceneToLocal(b.localToScene(careLocation));
+				Point2D caretLocation = b.getCaretLocation(caretPosition - b.getStartOffset());
+				Point2D tmp = getSkinnable().sceneToLocal(b.localToScene(caretLocation));
 				return new Point2D(tmp.getX(), getSkinnable().sceneToLocal(b.localToScene(0, b.getHeight())).getY());
 			}
 		}
@@ -448,6 +477,39 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		}
 		return ((MyListViewSkin) this.contentView.getSkin()).getFlow().getCells();
 	}
+	
+	public void pageDown(){
+		getFlow().pageDown();
+	}
+	
+	public void pageUp(){
+		getFlow().pageUp();
+	}
+	
+	public int getLastVisibleRowNumber(){
+		return getFlow().getLastVisibleRowNumber();
+	}
+	
+	public int getFirstVisibleRowNumber(){
+		return getFlow().getFirstVisibleRowNumber();
+	}
+	
+	public void showLine(int lineIndex) {
+            if (getFlow() != null){
+                getFlow().show(lineIndex);
+            }
+	}
+	
+	public void immediateRefresh(){
+		Platform.runLater(new Runnable() {
+			
+			@Override
+				public void run() {
+					DefoldStyledTextSkin.this.lineRuler.requestLayout();
+				}
+			});
+	}
+	
 
 	/**
 	 * A line cell
@@ -492,6 +554,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 		@Override
 		protected void updateItem(Line arg0, boolean arg1) {
+			super.updateItem(arg0, arg1);
+
 			if (arg0 != null && !arg1) {
 				this.domainElement = arg0;
 				LineInfo lineInfo = DefoldStyledTextSkin.this.lineInfoMap.get(this);
@@ -500,18 +564,19 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 					lineInfo.setDomainElement(this.domainElement);
 					DefoldStyledTextSkin.this.lineInfoMap.put(this, lineInfo);
 					DefoldStyledTextSkin.this.lineRuler.getChildren().add(lineInfo);
-					DefoldStyledTextSkin.this.lineRuler.requestLayout();
+					//DefoldStyledTextSkin.this.lineRuler.requestLayout();
 				} else {
 					lineInfo.setDomainElement(this.domainElement);
-					DefoldStyledTextSkin.this.lineRuler.requestLayout();
+					//DefoldStyledTextSkin.this.lineRuler.requestLayout();
 				}
 				lineInfo.setLayoutY(getLayoutY());
 
 				DefoldStyledTextLayoutContainer block = (DefoldStyledTextLayoutContainer) getGraphic();
+		
 
 				if (block == null) {
 					// System.err.println("CREATING NEW GRAPHIC BLOCK: " + this
-					// + " => " + this.domainElement);
+					//+ " => " + this.domainElement);
 					block = new DefoldStyledTextLayoutContainer(getSkinnable().focusedProperty());
 					block.getStyleClass().add("source-segment-container"); //$NON-NLS-1$
 					setGraphic(block);
@@ -582,6 +647,8 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				} else {
 					block.setCaretIndex(-1);
 				}
+				immediateRefresh();
+				
 			} else {
 				// FIND OUT WHY WE CLEAR SO OFTEN
 				// System.err.println("CLEARING GRAPHICS: " + this + " => " +
@@ -596,7 +663,6 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				}
 			}
 
-			super.updateItem(arg0, arg1);
 		}
 	}
 
@@ -919,7 +985,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 	}
 
-	class MyVirtualFlow extends VirtualFlow<LineCell> {
+	public class MyVirtualFlow extends VirtualFlow<LineCell> {
 		public MyVirtualFlow() {
 		}
 
@@ -939,6 +1005,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 		}
 		
+
 		public double getViewportWidth(){
 			return super.getViewportBreadth();
 		}
@@ -959,11 +1026,40 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		public List<LineCell> getCells() {
 			return super.getCells();
 		}
-		
+
 		public VirtualScrollBar getHScrollBar(){
 			return this.getHbar();
 		}
+		  
+		public int getLastVisibleRowNumber(){
+			LineCell cell = this.getLastVisibleCellWithinViewPort();
+			return this.getCellIndex(cell);
+		}
 		
+		public int getFirstVisibleRowNumber(){
+			LineCell cell = this.getFirstVisibleCellWithinViewPort();
+			return this.getCellIndex(cell);
+		}
+				
+		public void pageDown(){
+			this.showAsFirst(this.getLastVisibleCellWithinViewPort());
+		}
+		
+		public void pageUp(){
+			this.showAsLast(this.getFirstVisibleCellWithinViewPort());
+		}
+		
+		
+		@Override
+		public double adjustPixels(final double delta) {
+			double val = super.adjustPixels(delta);
+			//this is when the scrolling happens
+			immediateRefresh();
+			return val;
+		}
+		
+		
+
 		@Override
 		public void rebuildCells() {
 			super.rebuildCells();

@@ -31,7 +31,7 @@ public class Project {
     private Date lastUpdated = new Date();
 
     @OneToMany
-    private Set<User> members = new HashSet<User>();
+    private Set<User> members = new HashSet<>();
 
     @PreRemove
     private void preRemove() {

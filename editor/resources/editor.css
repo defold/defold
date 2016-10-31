@@ -54,9 +54,24 @@ Defold Turquoise    #00e6e1             Guides, (also new update color together 
 Defold Green        #00df64             Success, guides etc
 Defold Orange       #fd6623             Guides etc
 */
+
+/* Dejavu Sans Mono */
 @font-face {
-  font-family: 'Inconsolata';
-  src: url("Inconsolata.otf"); }
+  font-family: 'Dejavu Sans Mono Book';
+  src: url("DejaVuSansMono.ttf"); }
+
+@font-face {
+  font-family: 'Dejavu Sans Mono Oblique';
+  src: url("DejaVuSansMono-Oblique.ttf"); }
+
+@font-face {
+  font-family: 'Dejavu Sans Mono Bold';
+  src: url("DejaVuSansMono-Bold.ttf"); }
+
+/* Open Sans */
+@font-face {
+  font-family: 'Open Sans';
+  src: url("OpenSans-Regular.ttf"); }
 
 .root {
   -fx-base: #272b30;
@@ -86,8 +101,7 @@ Defold Orange       #fd6623             Guides etc
   -fx-hover-base: #484d54;
   -fx-pressed-base: #b0b0b0;
   -fx-accent_: red;
-  /*-fx-font: 14px 'Avenir Medium' bold;*/
-  -fx-font-family: "Avenir Heavy";
+  -fx-font-family: "Open Sans";
   -fx-font-size: 12px;
   -fx-font-weight: normal;
 
@@ -232,8 +246,8 @@ Defold Orange       #fd6623             Guides etc
   -fx-hover-base: #c80000; }
 
 .text-area {
-  -fx-font-size: 11pt;
-  -fx-font-family: "Inconsolata"; }
+  -fx-font-size: 9pt;
+  -fx-font-family: "Dejavu Sans Mono"; }
 
 /* by default AnchorPane has a padding of 0.8em. Don't know if we're abusing
    JavaFX by removing padding for AnchorPane */
@@ -505,12 +519,17 @@ Defold Orange       #fd6623             Guides etc
 
 .field-error {
   -fx-border-width: 1 !important;
-  -fx-border-color: #ff4646 !important;
+  -fx-border-color: -defold-red !important;
   -fx-effect: none !important; }
 
 .field-warning {
   -fx-border-width: 1 !important;
-  -fx-border-color: #fbce2f !important;
+  -fx-border-color: -defold-yellow !important;
+  -fx-effect: none !important; }
+
+.field-info {
+  -fx-border-width: 1 !important;
+  -fx-border-color: -defold-light-blue !important;
   -fx-effect: none !important; }
 
 .menu-button {
@@ -914,11 +933,19 @@ Defold Orange       #fd6623             Guides etc
 #toolbar > .toggle-button:selected {
   -fx-background-color: #484d54; }
 
+/* Code view */
+
+.styled-text-area, .styled-text-area .source-segment, .styled-text-area .plain-source-segment {
+  -fx-font-family: "Dejavu Sans Mono"; 
+  -fx-font-size: 9pt;
+}
+
 .lua.styled-text-area .comment,
 .lua.styled-text-area .comment-multi,
 .glsl.styled-text-area .comment,
 .glsl.styled-text-area .comment-multi {
     -styled-text-color: #8f9296;
+    -fx-font-style: italic;
 }
 
 .lua.styled-text-area .keyword,
@@ -942,6 +969,7 @@ Defold Orange       #fd6623             Guides etc
 .glsl.styled-text-area .control-flow-keyword
  {
     -styled-text-color: #fd6623;
+    -fx-font-weight: bold;
 }
 
 .lua.styled-text-area .constant {
@@ -965,6 +993,7 @@ Defold Orange       #fd6623             Guides etc
 .lua.styled-text-area .string,
 .glsl.styled-text-area .string {
     -styled-text-color: #fbce2f;
+    -fx-font-style: italic;
 }
 
 .lua.styled-text-area,
@@ -1087,3 +1116,12 @@ Line numbers:
   -fx-border-color: #4a4b4f;
   -fx-border-width: 0 1 0 0;
   -fx-padding: 0.0em; }
+
+.copyable-label, .copyable-label:focused {
+  -fx-background-color: transparent;
+  -fx-border-width: 0px;
+  -fx-text-fill: #b0b0b0;
+}
+
+
+    

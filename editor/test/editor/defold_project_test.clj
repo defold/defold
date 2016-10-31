@@ -5,7 +5,7 @@
              [defold-project :as project]
              [workspace :as workspace]]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (def ^:private load-counter (atom 0))
 
@@ -14,7 +14,7 @@
   (property value-piece g/Str)
   (property value g/Str
             (set (fn [basis self old-value new-value]
-                   (let [input (g/node-value self :value-input :basis basis)]
+                   (let [input (g/node-value self :value-input {:basis basis})]
                      (g/set-property self :value-piece (str (first input)))))))
   (input value-input g/Str))
 
@@ -42,7 +42,7 @@
 (deftest loading
   (reset! load-counter 0)
   (with-clean-system
-    (let [workspace (workspace/make-workspace world "resources/load_project")]
+    (let [workspace (workspace/make-workspace world "test/resources/load_project")]
       (g/transact
        (register-resource-types workspace [{:ext "type_a"
                                             :node-type ANode
@@ -66,3 +66,34 @@
     (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar[]().$^")))))
   (testing "case insensitive search strings"
     (is (= "^(.*)(fooo)(.*)$" (str (project/compile-find-in-files-regex "fOoO"))))))
+
+(deftest select-test
+  (testing "asserts that all node-ids are non-nil"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world)
+            project   (test-util/setup-project! workspace)
+            [node-1 node-2] (tx-nodes (g/make-node world ANode)
+                                      (g/make-node world ANode))]
+        (is (thrown? java.lang.AssertionError (project/select project [node-1 nil node-2]))))))
+  (testing "preserves selection order"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world)
+            project   (test-util/setup-project! workspace)
+            [node-1 node-2 node-3] (tx-nodes (g/make-node world ANode)
+                                             (g/make-node world ANode)
+                                             (g/make-node world ANode))]
+        (g/transact (project/select project [node-2 node-3 node-1]))
+        (is (= [node-2 node-3 node-1] (g/node-value project :selected-node-ids)))
+        (g/transact (project/select project [node-3 node-1 node-2]))
+        (is (= [node-3 node-1 node-2] (g/node-value project :selected-node-ids))))))
+  (testing "ensures selected nodes are distinct, preserving order"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world)
+            project   (test-util/setup-project! workspace)
+            [node-1 node-2 node-3] (tx-nodes (g/make-node world ANode)
+                                             (g/make-node world ANode)
+                                             (g/make-node world ANode))]
+        (g/transact (project/select project [node-2 node-3 node-2 node-1 node-3 node-3 node-1]))
+        (is (= [node-2 node-3 node-1] (g/node-value project :selected-node-ids)))
+        (g/transact (project/select project [node-1 node-3 node-2 node-1 node-3 node-2 node-2]))
+        (is (= [node-1 node-3 node-2] (g/node-value project :selected-node-ids)))))))

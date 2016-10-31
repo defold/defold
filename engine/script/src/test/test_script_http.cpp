@@ -139,7 +139,7 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 
     int ref = message->m_Receiver.m_Function - 2;
     lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-    luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
     lua_gc(L, LUA_GCCOLLECT, 0);
 
     dmScript::PushDDF(L, descriptor, (const char*)&message->m_Data[0]);
@@ -305,11 +305,10 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
         ASSERT_EQ(0, result);
     }
     lua_pop(L, 1);
-
     dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
     m_DefaultURL.m_Socket = 0;
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 100; ++i) {
         dmSys::PumpMessageQueue();
         dmTime::Sleep(10 * 1000);
     }

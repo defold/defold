@@ -4,9 +4,9 @@ import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
 import com.dynamo.cr.server.auth.OAuthAuthenticator;
-import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.providers.ProtobufProviders;
+import com.dynamo.cr.server.services.UserService;
 import com.dynamo.inject.persist.Transactional;
 
 import javax.inject.Inject;
@@ -26,6 +26,9 @@ public class LoginResource extends BaseResource {
     @Inject
     private AccessTokenAuthenticator accessTokenAuthenticator;
 
+    @Inject
+    private UserService userService;
+
     @GET
     @Transactional
     public Response login(@Context HttpHeaders headers, @Context HttpServletRequest request) {
@@ -37,8 +40,10 @@ public class LoginResource extends BaseResource {
             throw new ServerException(Status.BAD_REQUEST.toString(), Status.BAD_REQUEST);
         }
 
-        User user = ModelUtil.findUserByEmail(em, email);
-        if (user != null && user.authenticate(password)) {
+        User user = userService.findByEmail(email)
+                .orElseThrow(() -> new ServerException(Status.UNAUTHORIZED.toString(), Status.UNAUTHORIZED));
+
+        if (user.authenticate(password)) {
 
             String accessToken = accessTokenAuthenticator.createSessionToken(user, request.getRemoteAddr());
 

@@ -7,6 +7,7 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
+            [editor.github :as github]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
@@ -18,7 +19,6 @@
             [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
-           [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -33,13 +33,13 @@
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
-           [javafx.stage Stage FileChooser]
+           [javafx.stage Stage FileChooser WindowEvent]
            [javafx.util Callback]
            [java.io File ByteArrayOutputStream]
            [java.net URI]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
 (set! *warn-on-reflection* true)
 
@@ -100,16 +100,16 @@
 
 (ui/extend-menu :toolbar nil
                 [{:id :select
-                  :icon "icons/Icons_T_01_Select.png"
+                  :icon "icons/45/Icons_T_01_Select.png"
                   :command :select-tool}
                  {:id :move
-                  :icon "icons/Icons_T_02_Move.png"
+                  :icon "icons/45/Icons_T_02_Move.png"
                   :command :move-tool}
                  {:id :rotate
-                  :icon "icons/Icons_T_03_Rotate.png"
+                  :icon "icons/45/Icons_T_03_Rotate.png"
                   :command :rotate-tool}
                  {:id :scale
-                  :icon "icons/Icons_T_04_Scale.png"
+                  :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
@@ -117,17 +117,40 @@
 
 (handler/defhandler :quit :global
   (enabled? [] true)
-  (run [project ^Stage main-stage prefs splits]
-    (let [dims    {:x      (.getX main-stage)
-                   :y      (.getY main-stage)
-                   :width  (.getWidth main-stage)
-                   :height (.getHeight main-stage)}
-          div-pos (map (fn [^SplitPane sp] (.getDividerPositions sp)) splits)]
-      (prefs/set-prefs prefs prefs-window-dimensions dims)
-      (prefs/set-prefs prefs prefs-split-positions div-pos))
-    (when (or (not (workspace/version-on-disk-outdated? (project/workspace project)))
-              (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))
-      (Platform/exit))))
+  (run [project ^Stage main-stage]
+    (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST))))
+
+(defn store-window-dimensions [^Stage stage prefs]
+  (let [dims    {:x      (.getX stage)
+                 :y      (.getY stage)
+                 :width  (.getWidth stage)
+                 :height (.getHeight stage)}]
+    (prefs/set-prefs prefs prefs-window-dimensions dims)))
+  
+(defn restore-window-dimensions [^Stage stage prefs]
+  (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
+    (.setX stage (:x dims))
+    (.setY stage (:y dims))
+    (.setWidth stage (:width dims))
+    (.setHeight stage (:height dims))))
+
+(defn- splits [^Stage stage]
+  (let [root (.getRoot (.getScene stage))]
+    [(.lookup root "#main-split")
+     (.lookup root "#center-split")
+     (.lookup root "#right-split")
+     (.lookup root "#assets-split")]))
+
+(defn store-split-positions [^Stage stage prefs]
+  (let [div-pos (map (fn [^SplitPane sp] (.getDividerPositions sp)) (splits stage))]
+    (prefs/set-prefs prefs prefs-split-positions div-pos)))
+
+(defn restore-split-positions [^Stage stage prefs]
+  (when-let [div-pos (prefs/get-prefs prefs prefs-split-positions nil)]
+    (doall (map (fn [^SplitPane sp pos]
+                  (when (and sp pos)
+                    (.setDividerPositions sp (into-array Double/TYPE pos))))
+                (splits stage) div-pos))))
 
 (handler/defhandler :new :global
   (run [] (prn "NEW NOW!")))
@@ -166,9 +189,9 @@
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
             (g/node-value app-view :active-resource))
-  (run [project app-view prefs]
+  (run [project app-view prefs build-errors-view]
     (when-let [resource (g/node-value app-view :active-resource)]
-      (let [build (project/build-and-save-project project)]
+      (let [build (project/build-and-save-project project build-errors-view)]
         (when (and (future? build) @build)
             (engine/reload-resource (:url (project/get-selected-target prefs)) resource))))))
 
@@ -197,7 +220,7 @@
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["version" "sha1"])]
     (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
@@ -208,6 +231,12 @@
 
 (handler/defhandler :documentation :global
   (run [] (.browse (Desktop/getDesktop) (URI. "http://www.defold.com/learn/"))))
+
+(handler/defhandler :report-issue :global
+  (run [] (.browse (Desktop/getDesktop) (github/new-issue-link))))
+
+(handler/defhandler :report-praise :global
+  (run [] (.browse (Desktop/getDesktop) (github/new-praise-link))))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
@@ -298,6 +327,10 @@
                               :command :reload-stylesheet}
                              {:label "Documentation"
                               :command :documentation}
+                             {:label "Report Issue"
+                              :command :report-issue}
+                             {:label "Report Praise"
+                              :command :report-praise}
                              {:label "About"
                               :command :about}]}])
 
@@ -336,9 +369,15 @@
       (profiler/profile "view" (:name @(g/node-type* node))
                         (g/node-value node label)))))
 
+;; Here only because reports indicate that isDesktopSupported does
+;; some kind of initialization behind the scenes on Linux:
+;; http://stackoverflow.com/questions/23176624/javafx-freeze-on-desktop-openfile-desktop-browseuri
+(def desktop-supported? (delay (Desktop/isDesktopSupported)))
+
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
+  (force desktop-supported?)
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
     (-> tab-pane
       (.getSelectionModel)
@@ -361,7 +400,7 @@
     (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
                           (ui/->timer 13 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
       (doseq [timer refresh-timers]
-        (ui/timer-stop-on-close! stage timer)
+        (ui/timer-stop-on-closed! stage timer)
         (ui/timer-start! timer)))
     app-view))
 
@@ -466,12 +505,11 @@
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
 (defn- fetch-libraries [workspace project prefs]
-  (workspace/set-project-dependencies! workspace (project/project-dependencies project))
   (future
     (ui/with-disabled-ui
       (ui/with-progress [render-fn ui/default-render-progress!]
-        (workspace/update-dependencies! workspace render-fn (partial login/login prefs))
-        (workspace/resource-sync! workspace true [] render-fn)))))
+        (let [library-urls (project/project-dependencies project)]
+          (workspace/fetch-libraries! workspace library-urls render-fn (partial login/login prefs)))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))

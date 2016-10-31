@@ -271,18 +271,19 @@ message SetParent
 
 /*# enables the receiving component
  * <p>
- * This message enables the receiving component. All components are enabled by default, which means they will receive updates
- * and be a part of the simulation. A component is disabled when it receives the <code>disable</code> message. For more details
- * about the effects on each component, see the <it>User Guide</it>.
+ * This message enables the receiving component. All components are enabled by default, which means they will receive input, updates
+ * and be a part of the simulation. A component is disabled when it receives the <code>disable</code> message.
  * </p>
  *
  * <P>
- * <b>Note!</b> Not all components support this message yet. Supported components are:
+ * <b>Note!</b> Components that currently supports this message are:
  * <ul>
  *   <li>Collection Proxy</li>
  *   <li>Collision Object</li>
  *   <li>Gui</li>
+ *   <li>Spine Model</li>
  *   <li>Sprite</li>
+ *   <li>Tile Grid</li>
  * </ul>
  * </p>
  *
@@ -302,16 +303,19 @@ message Enable
 
 /*# disables the receiving component
  * <p>
- * This message disables the receiving component. For more information what this actually means, please see the message <code>enable</code>.
+ * This message disables the receiving component. All components are enabled by default, which means they will receive input, updates
+ * and be a part of the simulation. A component is disabled when it receives the <code>disable</code> message.
  * </p>
  *
  * <P>
- * <b>Note!</b> Not all components support this message yet. Supported components are:
+ * <b>Note!</b> Components that currently supports this message are:
  * <ul>
  *   <li>Collection Proxy</li>
  *   <li>Collision Object</li>
  *   <li>Gui</li>
+ *   <li>Spine Model</li>
  *   <li>Sprite</li>
+ *   <li>Tile Grid</li>
  * </ul>
  * </p>
  *

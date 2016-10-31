@@ -1,0 +1,21 @@
+name: "default"
+embedded_instances {
+  id: "go"
+  data: ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale3: {
+    x: 1.2
+    y: -2.3
+    z: 4711
+  }
+}

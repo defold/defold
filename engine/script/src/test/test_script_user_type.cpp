@@ -59,7 +59,7 @@ UserType* NewUserType(lua_State* L)
     UserType* object = (UserType*)lua_newuserdata(L, sizeof(UserType));
 
     lua_pushvalue(L, -1);
-    object->m_Reference = luaL_ref(L, LUA_REGISTRYINDEX);
+    object->m_Reference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     luaL_getmetatable(L, USERTYPE);
     lua_setmetatable(L, -2);
@@ -76,7 +76,7 @@ void DeleteUserType(lua_State* L, UserType* object)
     int top = lua_gettop(L);
     (void) top;
 
-    luaL_unref(L, LUA_REGISTRYINDEX, object->m_Reference);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, object->m_Reference);
 
     assert(top == lua_gettop(L));
 }

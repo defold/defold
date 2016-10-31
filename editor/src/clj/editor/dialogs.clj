@@ -73,7 +73,7 @@
 
 (defn make-alert-dialog [message]
   (let [root     ^Parent (ui/load-fxml "alert.fxml")
-        stage    (Stage.)
+        stage    (ui/make-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "ok"])]
     (observe-focus stage)
@@ -87,7 +87,7 @@
 
 (defn make-confirm-dialog [message]
   (let [root     ^Parent (ui/load-fxml "confirm.fxml")
-        stage    (Stage.)
+        stage    (ui/make-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "ok" "cancel"])
         result   (atom false)]
@@ -108,7 +108,7 @@
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
         dialog-root ^Parent (ui/load-fxml dialog-fxml)
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["error" "ok" "dialog-area" "error-group" "progress-bar"])
 
@@ -158,7 +158,7 @@
 
 (defn make-resource-dialog [workspace options]
   (let [root         ^Parent (ui/load-fxml "resource-dialog.fxml")
-        stage        (Stage.)
+        stage        (ui/make-stage)
         scene        (Scene. root)
         controls     (ui/collect-controls root ["resources" "ok" "search"])
         return       (atom nil)
@@ -230,7 +230,7 @@
       (doto (FXCollections/observableArrayList)
         (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
 
-(defn- tree-item [parent]
+(defn tree-item [parent]
   (let [cached (atom false)]
     (proxy [TreeItem] [parent]
       (isLeaf []
@@ -288,7 +288,7 @@
 
 (defn make-search-in-files-dialog [workspace search-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
-        stage     (Stage.)
+        stage     (ui/make-stage)
         scene     (Scene. root)
         controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
         return    (atom nil)
@@ -346,7 +346,7 @@
 
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "ok"])
         return (atom nil)
@@ -374,7 +374,7 @@
 
 (defn make-target-ip-dialog []
   (let [root     ^Parent (ui/load-fxml "target-ip-dialog.fxml")
-        stage    (Stage.)
+        stage    (ui/make-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["add" "cancel" "ip"])
         return   (atom nil)]
@@ -406,7 +406,7 @@
 
 (defn make-rename-dialog [title label placeholder typ]
   (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
-        stage    (Stage.)
+        stage    (ui/make-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
         return   (atom nil)
@@ -462,7 +462,7 @@
 
 (defn make-new-file-dialog [^File base-dir ^File location type ext]
   (let [root ^Parent (ui/load-fxml "new-file-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "location" "browse" "path" "ok"])
         return (atom nil)
@@ -503,7 +503,7 @@
 
 (defn make-goto-line-dialog [result]
   (let [root ^Parent (ui/load-fxml "goto-line-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["line"])
         close (fn [v] (do (deliver result v) (.close stage)))]
@@ -524,7 +524,7 @@
 
 (defn make-find-text-dialog [result]
   (let [root ^Parent (ui/load-fxml "find-text-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["text"])
         close (fn [v] (do (deliver result v) (.close stage)))]
@@ -545,7 +545,7 @@
 
 (defn make-replace-text-dialog [result]
   (let [root ^Parent (ui/load-fxml "replace-text-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["find-text" "replace-text"])
         close (fn [v] (do (deliver result v) (.close stage)))]
@@ -567,7 +567,7 @@
 
 (defn make-proposal-dialog [result screen-point proposals target text-area]
   (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["proposals" "proposals-box"])
         close (fn [v] (do (deliver result v) (.close stage)))
@@ -603,6 +603,7 @@
                                            (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
                                            (= code (KeyCode/ENTER)) (close (ui/selection list-view))
                                            (= code (KeyCode/TAB)) (close (ui/selection list-view))
+                                           (= code (KeyCode/ESCAPE)) (close nil)
 
                                            (or (= code (KeyCode/LEFT)) (= code (KeyCode/RIGHT)))
                                            (do
@@ -623,7 +624,7 @@
                                       (let [key-typed (.getCharacter ^KeyEvent event)]
                                         (cond
 
-                                          (and (not-empty key-typed) (code/not-ascii-or-delete key-typed))
+                                          (and (not-empty key-typed) (not (code/control-char-or-delete key-typed)))
                                           (do
                                             (swap! filter-text str key-typed)
                                             (update-items)

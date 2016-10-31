@@ -95,6 +95,15 @@
                (g/transact (g/delete-node main))
                (doseq [nid [main sub or-main or-sub or2-main or2-sub]]
                  (is (nil? (g/node-by-id nid))))
+               (is (empty? (g/overrides main)))))
+    (let [[[main sub] [or-main or-sub]] (setup world 1)
+          [stray] (tx-nodes (g/make-nodes world
+                                          [stray BaseNode]
+                                          (g/connect stray :_node-id or-main :sub-nodes)))]
+      (testing "Delete stray node attached to override :cascade-delete"
+               (g/transact (g/delete-node main))
+               (doseq [nid [main sub or-main or-sub stray]]
+                 (is (nil? (g/node-by-id nid))))
                (is (empty? (g/overrides main)))))))
 
 (deftest override-property
@@ -244,14 +253,14 @@
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective base"
-               (let [error (g/error-severe {:type :some-error :message "Something went wrong"})]
+               (let [error (g/error-fatal "Something went wrong" {:type :some-error})]
                  (g/transact
                    (g/mark-defective main error))
                  (is (g/error? (g/node-value or-main :a-property))))))
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective override, which throws exception"
-               (let [error (g/error-severe {:type :some-error :message "Something went wrong"})]
+               (let [error (g/error-fatal "Something went wrong" {:type :some-error})]
                  (is (thrown? Exception (g/transact
                                           (g/mark-defective or-main error)))))))))
 
@@ -376,10 +385,10 @@
                        (let [gid (g/node-id->graph-id self)
                              path (:path new-value)]
                          (if-let [scene (scene-by-path basis gid path)]
-                           (let [tmpl-path (g/node-value self :template-path :basis basis)
+                           (let [tmpl-path (g/node-value self :template-path {:basis basis})
                                  {:keys [id-mapping tx-data]} (g/override basis scene {})
                                  mapping (comp id-mapping (into {} (map (fn [[k v]] [(str tmpl-path k) v])
-                                                                        (g/node-value scene :node-ids :basis basis))))
+                                                                        (g/node-value scene :node-ids {:basis basis}))))
                                  set-prop-data (for [[id props] (:overrides new-value)
                                                      :let [node-id (mapping id)]
                                                      :when node-id
@@ -600,7 +609,7 @@
   (property component g/Any
             (set (fn [basis self old-value new-value]
                    (concat
-                     (if-let [instance (g/node-value self :instance :basis basis)]
+                     (if-let [instance (g/node-value self :instance {:basis basis})]
                        (g/delete-node instance)
                        [])
                      (let [gid (g/node-id->graph-id self)
@@ -608,7 +617,7 @@
                        (if-let [script (get (g/graph-value basis gid :resources) path)]
                          (let [{:keys [id-mapping tx-data]} (g/override basis script {})
                                or-script (id-mapping script)
-                               script-props (g/node-value script :_properties :basis basis)
+                               script-props (g/node-value script :_properties {:basis basis})
                                set-prop-data (for [[key value] (:overrides new-value)]
                                                (g/set-property or-script key value))
                                conn-data (for [[src tgt] [[:_node-id :instance]
@@ -778,6 +787,35 @@
 
 (g/defnode Collection
   (input instances g/NodeID :array :cascade-delete))
+
+(deftest override-created-on-connect
+  (with-clean-system
+    (let [[script] (tx-nodes (g/make-nodes world [script Script]))
+          [go comp or-script] (tx-nodes (g/make-nodes world [go GameObject
+                                                             comp Component]
+                                                      (let [o (g/override script {:traverse? (constantly true)})
+                                                            or-script ((:id-mapping o) script)]
+                                                        (concat
+                                                          (g/connect comp :_node-id go :components)
+                                                          (:tx-data o)
+                                                          (g/connect or-script :_node-id comp :instance)))))
+          [coll inst or-go] (tx-nodes (g/make-nodes world [coll Collection
+                                                           inst GameObjectInstance]
+                                                    (let [o (g/override go {:traverse? (constantly true)})
+                                                          or-go ((:id-mapping o) go)]
+                                                      (concat
+                                                        (g/connect inst :_node-id coll :instances)
+                                                        (:tx-data o)
+                                                        (g/connect or-go :_node-id inst :source)))))
+          [comp-2 or-script-2] (tx-nodes (g/make-nodes world [comp Component]
+                                                       (let [o (g/override script {:traverse? (constantly true)})
+                                                             or-script ((:id-mapping o) script)]
+                                                         (concat
+                                                           (:tx-data o)
+                                                           (g/connect or-script :_node-id comp :instance)))))
+          nodes-on-connect (tx-nodes (g/connect comp-2 :_node-id go :components))]
+      ;; 1 override for the component node and one for the script, w.r.t the collection
+      (is (= 2 (count nodes-on-connect))))))
 
 (deftest cascade-delete-avoided
   (with-clean-system

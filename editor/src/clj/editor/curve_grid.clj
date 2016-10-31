@@ -8,7 +8,7 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass])
   (:import [editor.types AABB Camera]
-           [javax.media.opengl GL GL2]
+           [com.jogamp.opengl GL GL2]
            [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -85,7 +85,7 @@
       (render-grid-sizes dir grids)
       (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
-(g/defnk grid-renderable :- pass/RenderData
+(g/defnk grid-renderable
   [camera grids]
   {pass/transparent
    [{:world-transform geom/Identity4d
@@ -147,7 +147,7 @@
                       (grid-snap-up   (-> aabb types/max-p .y) grid-size)
                       (grid-snap-up   (-> aabb types/max-p .z) grid-size))))
 
-(g/defnk update-grids :- g/Any
+(g/defnk update-grids
   [camera]
   (let [frustum-planes   (c/viewproj-frustum-planes camera)
         far-z-plane      (nth frustum-planes 5)
@@ -166,7 +166,6 @@
   (property grid-color types/Color)
   (property auto-grid  g/Bool)
   (property fixed-grid-size g/Int
-            (default 0)
-            (validate (validation/validate-positive fixed-grid-size "Grid size must be positive")))
+            (default 0))
   (output grids      g/Any :cached update-grids)
   (output renderable pass/RenderData :cached grid-renderable))

@@ -4,10 +4,10 @@
             [cognitect.transit :as transit]
             [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
+            [util.murmur :as murmur]
             [editor.types :as t]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
-            [editor.validation :as validation]
             [editor.core :as core]
             [schema.core :as s]
             [util.id-vec :as iv])
@@ -229,13 +229,13 @@
             value (str->go-prop (:value prop) type)
             value (case type
                     (:property-type-number :property-type-url) [value]
-                    :property-type-hash [(protobuf/hash64 value)]
+                    :property-type-hash [(murmur/hash64 value)]
                     :property-type-boolean [(if value 1.0 0.0)]
                     :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
                     value)
             [entry-key values-key] (type->entry-keys type)
             entry {:key (:id prop)
-                   :id (protobuf/hash64 (:id prop))
+                   :id (murmur/hash64 (:id prop))
                    :index (count (get decl values-key))}]
         (recur (rest properties)
                (-> decl
@@ -342,7 +342,7 @@
                                   (let [prop {:key k
                                               :node-ids (mapv :node-id v)
                                               :values (mapv :value v)
-                                              :validation-problems (mapv :validation-problems v)
+                                              :errors (mapv :error v)
                                               :edit-type (property-edit-type (first v))
                                               :label (:label (first v))
                                               :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}
@@ -354,22 +354,23 @@
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))}))
 
 (defn values [property]
-  (mapv (fn [value default-value validation-problem]
-          (if-not (nil? validation-problem)
-            (:value validation-problem)
-            (if-not (nil? value)
-              value
-              default-value)))
-        (:values property)
-        (:original-values property (repeat nil))
-        (:validation-problems property)))
+  (let [f (get-in property [:edit-type :to-type] identity)]
+    (mapv (fn [value default-value]
+            (f (if-not (nil? value)
+                 value
+                 default-value)))
+          (:values property)
+          (:original-values property (repeat nil)))))
 
-(defn- set-values [property values]
-  (let [key (:key property)]
-    (for [[node-id value] (map vector (:node-ids property) values)]
-      (if (vector? key)
-        (g/update-property node-id (first key) assoc-in (rest key) value)
-        (g/set-property node-id (:key property) value)))))
+(defn- set-values [basis property values]
+  (let [key (:key property)
+        set-fn (get-in property [:edit-type :set-fn])
+        from-fn (get-in property [:edit-type :from-type] identity)]
+    (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) (map from-fn values))]
+      (cond
+        set-fn (set-fn basis node-id old-value new-value)
+        (vector? key) (g/update-property node-id (first key) assoc-in (rest key) new-value)
+        true (g/set-property node-id key new-value)))))
 
 (defn keyword->name [kw]
   (-> kw
@@ -392,11 +393,12 @@
     (set-values! property values (gensym)))
   ([property values op-seq]
     (when (not (read-only? property))
-      (g/transact
-        (concat
-          (g/operation-label (str "Set " (label property)))
-          (g/operation-sequence op-seq)
-          (set-values property values))))))
+      (let [basis (g/now)]
+        (g/transact
+          (concat
+            (g/operation-label (str "Set " (label property)))
+            (g/operation-sequence op-seq)
+            (set-values basis property values)))))))
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
@@ -425,9 +427,22 @@
 (defn overridden? [property]
   (and (contains? property :original-values) (not-every? nil? (:values property))))
 
+(defn- error-seq [e]
+  (tree-seq :causes :causes e))
+
+(defn- error-messages [e]
+  (distinct (keep :message (error-seq e))))
+
+(defn error-message [e]
+  (str/join "\n" (error-messages e)))
+
+(defn error-aggregate [vals]
+  (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
+    (g/error-aggregate errors)))
+
 (defn validation-message [property]
-  (when-let [err (validation/error-aggregate (:validation-problems property))]
-    {:severity (:severity err) :message (validation/error-message err)}))
+  (when-let [err (error-aggregate (:errors property))]
+    {:severity (:severity err) :message (error-message err)}))
 
 (defn clear-override! [property]
   (when (overridden? property)
@@ -447,3 +462,13 @@
     {:type :choicebox
      :options (zipmap (map first options)
                       (map (comp :display-name second) options))}))
+
+(defn vec3->vec2 [default-z]
+  {:type t/Vec2
+   :from-type (fn [[x y _]] [x y])
+   :to-type (fn [[x y]] [x y default-z])})
+
+(defn quat->euler []
+  {:type t/Vec3
+   :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
+   :to-type (fn [v] (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))})

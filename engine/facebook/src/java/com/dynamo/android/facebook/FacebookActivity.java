@@ -144,24 +144,29 @@ public class FacebookActivity implements PseudoActivity {
     }
 
     // Do a graph request to get latest user data (i.e. "me" table)
-    private void UpdateUserData() {
+    private void UpdateUserData(final Boolean triggerLoginCallback) {
         GraphRequest request = GraphRequest.newMeRequest(
             AccessToken.getCurrentAccessToken(),
-             new GraphRequest.GraphJSONObjectCallback() {
+            new GraphRequest.GraphJSONObjectCallback() {
                 @Override
                 public void onCompleted(JSONObject object, GraphResponse response) {
-                   Bundle data = new Bundle();
-                   if (response.getError() == null) {
-                       data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
-                       data.putString(Facebook.MSG_KEY_USER, object.toString());
-                       data.putString(Facebook.MSG_KEY_ACCESS_TOKEN, AccessToken.getCurrentAccessToken().getToken());
-                       data.putInt(Facebook.MSG_KEY_STATE, State.STATE_OPEN.getValue());
-                   } else {
-                       data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
-                       data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
-                       data.putString(Facebook.MSG_KEY_ERROR, response.getError().getErrorMessage());
-                   }
-                   respond(Facebook.ACTION_LOGIN, data);
+                    Bundle data = new Bundle();
+                    if (response.getError() == null) {
+                        data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
+                        data.putString(Facebook.MSG_KEY_USER, object.toString());
+                        data.putString(Facebook.MSG_KEY_ACCESS_TOKEN, AccessToken.getCurrentAccessToken().getToken());
+                        data.putInt(Facebook.MSG_KEY_STATE, State.STATE_OPEN.getValue());
+                    } else {
+                        data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                        data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
+                        data.putString(Facebook.MSG_KEY_ERROR, response.getError().getErrorMessage());
+                    }
+
+                    if (triggerLoginCallback) {
+                        respond(Facebook.ACTION_LOGIN, data);
+                    } else {
+                        respond(Facebook.ACTION_UPDATE_METABLE, data);
+                    }
                 }
             });
         Bundle parameters = new Bundle();
@@ -173,13 +178,13 @@ public class FacebookActivity implements PseudoActivity {
     private void actionLogin() {
 
         if (AccessToken.getCurrentAccessToken() != null) {
-            UpdateUserData();
+            UpdateUserData(true);
         } else {
             LoginManager.getInstance().registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
 
                 @Override
                 public void onSuccess(LoginResult result) {
-                    UpdateUserData();
+                    UpdateUserData(true);
                 }
 
                 @Override
@@ -207,50 +212,80 @@ public class FacebookActivity implements PseudoActivity {
 
     }
 
-    private void actionRequestPermissions( final String action, final Bundle extras ) {
+    private void actionLoginWithPermissions(final String action, final Bundle extras) {
+        final String[] permissions = extras.getStringArray(Facebook.INTENT_EXTRA_PERMISSIONS);
+        LoginManager.getInstance().registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
 
-        if (AccessToken.getCurrentAccessToken() != null) {
-
-            final String[] permissions = extras.getStringArray(Facebook.INTENT_EXTRA_PERMISSIONS);
-            LoginManager.getInstance().registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
-
-                @Override
-                public void onSuccess(LoginResult result) {
-                    Bundle data = new Bundle();
-                    data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
-                    respond(action, data);
-                }
-
-                @Override
-                public void onCancel() {
-                    Bundle data = new Bundle();
-                    data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
-                    data.putString(Facebook.MSG_KEY_ERROR, "Login canceled");
-                    respond(action, data);
-                }
-
-                @Override
-                public void onError(FacebookException error) {
-                    Bundle data = new Bundle();
-                    data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
-                    data.putString(Facebook.MSG_KEY_ERROR, error.toString());
-                    respond(action, data);
-                }
-
-            });
-
-            if (action.equals(Facebook.ACTION_REQ_READ_PERMS)) {
-                LoginManager.getInstance().logInWithReadPermissions(parent, Arrays.asList(permissions));
-            } else {
-                int defaultAudienceInt = extras.getInt(Facebook.INTENT_EXTRA_AUDIENCE);
-                LoginManager.getInstance().setDefaultAudience(convertDefaultAudience(defaultAudienceInt));
-                LoginManager.getInstance().logInWithPublishPermissions(parent, Arrays.asList(permissions));
+            @Override
+            public void onSuccess(LoginResult result) {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
+                respond(action, data);
             }
 
+            @Override
+            public void onCancel() {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                data.putString(Facebook.MSG_KEY_ERROR, "Login was cancelled");
+                respond(action, data);
+            }
+
+            @Override
+            public void onError(FacebookException error) {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                data.putString(Facebook.MSG_KEY_ERROR, error.toString());
+                respond(action, data);
+            }
+
+        });
+
+        if (action.equals(Facebook.ACTION_LOGIN_WITH_PUBLISH_PERMISSIONS)) {
+            int audience = extras.getInt(Facebook.INTENT_EXTRA_AUDIENCE);
+            LoginManager.getInstance().setDefaultAudience(convertDefaultAudience(audience));
+            LoginManager.getInstance().logInWithPublishPermissions(parent, Arrays.asList(permissions));
+        } else if (action.equals(Facebook.ACTION_LOGIN_WITH_READ_PERMISSIONS)) {
+            LoginManager.getInstance().logInWithReadPermissions(parent, Arrays.asList(permissions));
+        }
+    }
+
+    private void actionRequestPermissions( final String action, final Bundle extras ) {
+        final String[] permissions = extras.getStringArray(Facebook.INTENT_EXTRA_PERMISSIONS);
+        LoginManager.getInstance().registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
+
+            @Override
+            public void onSuccess(LoginResult result) {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
+                UpdateUserData(false);
+                respond(action, data);
+            }
+
+            @Override
+            public void onCancel() {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                data.putString(Facebook.MSG_KEY_ERROR, "Login canceled");
+                respond(action, data);
+            }
+
+            @Override
+            public void onError(FacebookException error) {
+                Bundle data = new Bundle();
+                data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                data.putString(Facebook.MSG_KEY_ERROR, error.toString());
+                respond(action, data);
+            }
+
+        });
+
+        if (action.equals(Facebook.ACTION_REQ_READ_PERMS)) {
+            LoginManager.getInstance().logInWithReadPermissions(parent, Arrays.asList(permissions));
         } else {
-            Bundle data = new Bundle();
-            data.putString(Facebook.MSG_KEY_ERROR, "User is not logged in");
-            respond(action, data);
+            int defaultAudienceInt = extras.getInt(Facebook.INTENT_EXTRA_AUDIENCE);
+            LoginManager.getInstance().setDefaultAudience(convertDefaultAudience(defaultAudienceInt));
+            LoginManager.getInstance().logInWithPublishPermissions(parent, Arrays.asList(permissions));
         }
     }
 
@@ -434,6 +469,9 @@ public class FacebookActivity implements PseudoActivity {
             } else if (action.equals(Facebook.ACTION_REQ_READ_PERMS) ||
                        action.equals(Facebook.ACTION_REQ_PUB_PERMS)) {
                 actionRequestPermissions( action, extras );
+            } else if (action.equals(Facebook.ACTION_LOGIN_WITH_PUBLISH_PERMISSIONS)
+                || action.equals(Facebook.ACTION_LOGIN_WITH_READ_PERMISSIONS)) {
+                actionLoginWithPermissions(action, extras);
             } else if (action.equals(Facebook.ACTION_SHOW_DIALOG)) {
                 actionShowDialog( extras );
             }

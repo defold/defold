@@ -390,28 +390,32 @@ bail:
             // Skip past all non-matching entries (that must have been destroyed)
             while (j < ssdp->m_LocalAddrCount && ssdp->m_LocalAddr[j].m_Address < addr)
             {
+                dmLogDebug("SSDP Update: Destroying socket previously on #%02d", j);
                 DestroyListeningSocket(ssdp, j++);
             }
 
             // If matches address and the socket is valid, keep it. Otherwise make a new.
             if (j < ssdp->m_LocalAddrCount && ssdp->m_LocalAddr[j].m_Address == addr && ssdp->m_LocalAddrSocket[j] != dmSocket::INVALID_SOCKET_HANDLE)
             {
+                dmLogDebug("SSDP Update: Keeping socket on #%02d, previously on #%02d", i, j);
                 new_socket[i] = ssdp->m_LocalAddrSocket[j];
                 j++;
             }
             else
             {
+                dmLogDebug("SSDP Update: Creating new socket on #%02d", i);
                 new_socket[i] = dmSocket::INVALID_SOCKET_HANDLE;
 
                 if (addr.m_family != dmSocket::DOMAIN_IPV4 && addr.m_family != dmSocket::DOMAIN_IPV6)
                 {
-                    // This is an interesting change in control flow
                     continue;
                 }
 
                 dmSocket::Socket s = NewSocket(addr.m_family);
                 if (s == dmSocket::INVALID_SOCKET_HANDLE)
+                {
                     continue;
+                }
 
                 if (dmSocket::RESULT_OK != dmSocket::SetMulticastIf(s, addr))
                 {
@@ -627,9 +631,18 @@ bail:
         return RESULT_OK;
     }
 
-    static void SendAnnounce(HSSDP ssdp, Device* device, uint32_t iface)
+    static bool SendAnnounce(HSSDP ssdp, Device* device, uint32_t iface)
     {
         assert(iface < ssdp->m_LocalAddrCount);
+        if (ssdp->m_LocalAddrSocket[iface] == dmSocket::INVALID_SOCKET_HANDLE)
+            return false;
+        if (ssdp->m_LocalAddrSocket[iface] == -1) // Not initialized
+            return false;
+        if (ssdp->m_LocalAddr[iface].m_Address.m_family == dmSocket::DOMAIN_MISSING)
+            return false;
+        if (ssdp->m_LocalAddr[iface].m_Address.m_family == dmSocket::DOMAIN_UNKNOWN)
+            return false;
+
         dmLogDebug("SSDP Announcing '%s' on interface %s", device->m_DeviceDesc->m_Id, ssdp->m_LocalAddr[iface].m_Name);
         Replacer replacer1(0, device, ReplaceDeviceVar);
         Replacer replacer2(&replacer1, ssdp, ReplaceSSDPVar);
@@ -639,7 +652,7 @@ bail:
         if (tr != dmTemplate::RESULT_OK)
         {
             dmLogError("Error formating announce message (%d)", tr);
-            return;
+            return false;
         }
 
         int sent_bytes;
@@ -647,7 +660,10 @@ bail:
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogWarning("Failed to send announce message (%d)", sr);
+            return false;
         }
+
+        return true;
     }
 
     static void SendUnannounce(HSSDP ssdp, Device* device, uint32_t iface)
@@ -1070,7 +1086,7 @@ bail:
             {
                 if (ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV4 || ssdp->m_LocalAddr[i].m_Address.m_family == dmSocket::DOMAIN_IPV6)
                 {
-                    SendAnnounce(ssdp, dev, i);
+                    (void) SendAnnounce(ssdp, dev, i);
                 }
 
                 dst->m_Expires = next;

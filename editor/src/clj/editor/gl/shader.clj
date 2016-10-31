@@ -95,8 +95,8 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.defold-project :as project]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
-         [javax.media.opengl GL GL2 GLContext]
-         [javax.vecmath Matrix4d Vector4f Point3d]))
+         [com.jogamp.opengl GL GL2 GLContext]
+         [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -296,6 +296,10 @@ This must be submitted to the driver for compilation before you can use it. See
   [^GL2 gl progn loc ^Vector4f val]
   (.glUniform4f gl loc (.x val) (.y val) (.z val) (.w val)))
 
+(defmethod set-uniform-at-index Vector4d
+  [^GL2 gl progn loc ^Vector4d val]
+  (.glUniform4f gl loc (.x val) (.y val) (.z val) (.w val)))
+
 (defmethod set-uniform-at-index Point3d
   [^GL2 gl progn loc ^Point3d val]
   (.glUniform3f gl loc (float (.x val)) (float (.y val)) (float (.z val))))
@@ -473,31 +477,31 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (def ternary-operator-pattern #"^(\?|:)")
 
 (defn match-directive [s]
-  (code/match-regex directive-pattern s))
+  (code/match-regex s directive-pattern))
 
 (defn match-storage-types [s]
-  (code/match-regex storage-types-pattern s))
+  (code/match-regex s storage-types-pattern))
 
 (defn match-arithmetic-operator [s]
-  (code/match-regex arithmetic-operator-pattern s))
+  (code/match-regex s arithmetic-operator-pattern))
 
 (defn match-increment-decrement-operator [s]
-  (code/match-regex increment-decrement-operator-pattern s))
+  (code/match-regex s increment-decrement-operator-pattern))
 
 (defn match-bitwise-operator [s]
-  (code/match-regex bitwise-operator-pattern s))
+  (code/match-regex s bitwise-operator-pattern))
 
 (defn match-assignment-operator [s]
-  (code/match-regex assignment-operator-pattern s))
+  (code/match-regex s assignment-operator-pattern))
 
 (defn match-comparative-operator [s]
-  (code/match-regex comparative-operator-pattern s))
+  (code/match-regex s comparative-operator-pattern))
 
 (defn match-logical-operator [s]
-  (code/match-regex logical-operator-pattern s))
+  (code/match-regex s logical-operator-pattern))
 
 (defn match-ternary-operator [s]
-  (code/match-regex ternary-operator-pattern s))
+  (code/match-regex s ternary-operator-pattern))
 
 (def glsl-opts {:code {:language "glsl"
                        :syntax
@@ -586,13 +590,13 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (g/defnode ShaderNode
   (inherits project/ResourceNode)
 
-  (property code g/Str (dynamic visible (g/always false)))
-  (property def g/Any (dynamic visible (g/always false)))
-  (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
-  (property prefer-offset g/Int (dynamic visible (g/always false)) (default 0))
-  (property tab-triggers g/Any (dynamic visible (g/always false)) (default nil))
-  (property selection-offset g/Int (dynamic visible (g/always false)) (default 0))
-  (property selection-length g/Int (dynamic visible (g/always false)) (default 0))
+  (property code g/Str (dynamic visible (g/constantly false)))
+  (property def g/Any (dynamic visible (g/constantly false)))
+  (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
+  (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
   (output build-targets g/Any produce-build-targets)
   (output full-source g/Str (g/fnk [code def] (str (get def :prefix) code))))

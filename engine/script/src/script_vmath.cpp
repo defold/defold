@@ -16,6 +16,14 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Vector math API documentation
+     *
+     * Functions for mathematical operations on vectors, matrices and quaternions.
+     *
+     * @name Vector math
+     * @namespace vmath
+     */
+
 #define SCRIPT_LIB_NAME "vmath"
 #define SCRIPT_TYPE_NAME_VECTOR "vector" // Vector of unspecific length
 #define SCRIPT_TYPE_NAME_VECTOR3 "vector3"
@@ -1043,7 +1051,7 @@ namespace dmScript
 
     /*# creates a new quaternion from its coordinates
      * 
-     * Creates a new quartenion with the components set
+     * Creates a new quaternion with the components set
      * according to the supplied parameter values.
      * 
      * @name vmath.quat
@@ -1086,6 +1094,8 @@ namespace dmScript
      * if applied to the first vector, would rotate the first
      * vector to the second. The two vectors must be unit 
      * length vectors (of length 1).
+     *
+     * @note The result is undefined if the two vectors point in opposite directions
      *
      * @name vmath.quat_from_to
      * @param v1 first unit vector, before rotation (vector3)

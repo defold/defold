@@ -4,7 +4,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import [java.io File InputStream]
-           [java.util.zip ZipFile]
+           [java.util.zip ZipInputStream]
            [java.nio.file Path Paths Files CopyOption StandardCopyOption attribute.FileAttribute]
            [java.net URL URLConnection HttpURLConnection]))
 
@@ -122,13 +122,28 @@
     ;; tag may not be available ...
     (merge lib-state (fetch-library! resolver url tag))))
 
+(defn- locate-zip-entry
+  [url file-name]
+  (with-open [zip (ZipInputStream. (io/input-stream url))]
+    (loop [entry (.getNextEntry zip)]
+      (if entry
+        (let [parts (str/split (.getName entry) #"/")
+              name (last parts)]
+          (if (= file-name name)
+            {:name name :path (str/join "/" (butlast parts))}
+            (recur (.getNextEntry zip))))))))
+
+(defn library-base-path
+  [zip-file]
+  (when-let [game-project-entry (locate-zip-entry zip-file "game.project")]
+    (:path game-project-entry)))
+
 (defn- validate-updated-library [lib-state]
   (merge lib-state
          (try
-           (let [zip (ZipFile. ^File (:new-file lib-state))]
-             (when-not (.getEntry zip "game.project")
-               {:status :error
-                :reason :missing-game-project}))
+           (when-not (library-base-path (:new-file lib-state))
+             {:status :error
+              :reason :missing-game-project})
            (catch Exception e
              {:status :error
               :reason :invalid-zip

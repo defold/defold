@@ -57,6 +57,7 @@ namespace dmGameSystem
     void FinalizeScriptLibs(const ScriptLibContext& context)
     {
         ScriptPhysicsFinalize(context);
+        ScriptWindowFinalize(context);
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {

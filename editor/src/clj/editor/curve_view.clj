@@ -54,8 +54,8 @@
            [javafx.util Callback StringConverter]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
            [java.util.concurrent Executors]
@@ -336,12 +336,12 @@
                                           (g/operation-sequence op-seq)
                                           (g/set-property self :current cursor-pos)
                                           (for [[[nid prop] ids] selected-ids
-                                                :let [curve (g/node-value nid prop :basis basis)]]
+                                                :let [curve (g/node-value nid prop {:basis basis})]]
                                             (g/set-property nid prop (types/geom-transform curve ids trans)))))
                                       nil)
                      :tangent (let [basis @(g/node-value self :_basis)
                                     [nid prop idx] (g/node-value self :handle-data)
-                                    new-curve (-> (g/node-value nid prop :basis basis)
+                                    new-curve (-> (g/node-value nid prop {:basis basis})
                                                 (types/geom-update [idx]
                                                                    (fn [cp]
                                                                      (let [[x y tx ty] cp
@@ -372,7 +372,7 @@
   (property select-fn Runnable)
   (input sub-selection g/Any)
   (input curve-handle g/Any)
-  (output input-handler Runnable :cached (g/always handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defn- pick-control-points [curves picking-rect camera viewport]
   (let [aabb (geom/rect->aabb picking-rect)]
@@ -579,7 +579,7 @@
                        (if-let [view-id (ui/user-data image-view ::view-id)]
                          (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                            (doto drawable
-                             (.setSize w h))
+                             (.setSurfaceSize w h))
                            (let [context (scene/make-current drawable)]
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize ^GL2 (.getGL context) w h))
@@ -594,9 +594,9 @@
                                                     (update-image-view! image-view dt)
                                                     (g/node-value view-id :update-list-view))))]
                              (ui/user-data! view ::repainter repainter)
-                             (ui/on-close tab
-                                          (fn [e]
-                                            (ui/timer-stop! repainter)))
+                             (ui/on-closed! tab
+                                            (fn [e]
+                                              (ui/timer-stop! repainter)))
                              (ui/timer-start! repainter))
                            (let [drawable (scene/make-drawable w h)]
                              (g/transact

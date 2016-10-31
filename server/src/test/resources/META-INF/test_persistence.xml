@@ -9,11 +9,9 @@
         <class>com.dynamo.cr.server.model.NewUser</class>
         <class>com.dynamo.cr.server.model.Project</class>
         <class>com.dynamo.cr.server.model.Job</class>
-        <class>com.dynamo.cr.server.model.Invitation</class>
-        <class>com.dynamo.cr.server.model.InvitationAccount</class>
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
-        <class>com.dynamo.cr.server.model.Prospect</class>
         <class>com.dynamo.cr.server.model.AccessToken</class>
+        <class>com.dynamo.cr.server.model.PasswordResetToken</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.apache.derby.jdbc.EmbeddedDriver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:derby:tmp/testdb;create=true" />

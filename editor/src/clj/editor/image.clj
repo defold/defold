@@ -17,6 +17,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def exts ["jpg" "png"])
+
 ;; TODO - fix real profiles
 (def test-profile {:name "test-profile"
                    :platforms [{:os :os-id-generic
@@ -39,12 +41,9 @@
   (output content BufferedImage :cached (g/fnk [resource] (try
                                                             (if-let [img (ImageIO/read (io/input-stream resource))]
                                                               img
-                                                              (g/error-severe {:type :invalid-content
-                                                                        :message (format "The image '%s' could not be loaded." (resource/proj-path resource))}))
+                                                              (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
                                                             (catch java.io.FileNotFoundException e
-                                                              (log/warn :exception e)
-                                                              (g/error-severe {:type :file-not-found
-                                                                               :message (format "The image '%s' could not be found." (resource/proj-path resource))})))))
+                                                              (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics
@@ -185,7 +184,7 @@ region will be identical to the nearest pixel of the source image."
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
-                                      :ext ["jpg" "png"]
+                                      :ext exts
                                       :label "Image"
                                       :icon "icons/32/Icons_25-AT-Image.png"
                                       :build-ext "texturec"

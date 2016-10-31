@@ -96,7 +96,7 @@ namespace dmEngine
         }
         else
         {
-            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resized, data_size);
+            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resized, data_size, 0);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);
@@ -150,6 +150,7 @@ namespace dmEngine
     , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_RigContext(0x0)
     , m_SharedScriptContext(0x0)
     , m_GOScriptContext(0x0)
     , m_RenderScriptContext(0x0)
@@ -224,6 +225,8 @@ namespace dmEngine
         dmSound::Finalize();
 
         dmInput::DeleteContext(engine->m_InputContext);
+
+        dmRig::DeleteContext(engine->m_RigContext);
 
         dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
@@ -545,6 +548,8 @@ namespace dmEngine
             return false;
         }
 
+        dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
+
         dmArray<dmScript::HContext>& module_script_contexts = engine->m_ModuleContext.m_ScriptContexts;
 
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
@@ -621,6 +626,16 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
 
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &engine->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = dmConfigFile::GetInt(engine->m_Config, dmRig::MAX_RIG_INSTANCE_COUNT_KEY, 128);
+        dmRig::Result rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::RESULT_OK)
+        {
+            dmLogFatal("Unable to create rig context: %d", rr);
+            return false;
+        }
+
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
@@ -646,9 +661,11 @@ namespace dmEngine
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
         gui_params.m_HidContext = engine->m_HidContext;
+        gui_params.m_RigContext = engine->m_RigContext;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
+        engine->m_GuiContext.m_RigContext = engine->m_RigContext;
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(engine->m_Config, "physics.type", "2D");
@@ -703,6 +720,7 @@ namespace dmEngine
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_SpineModelContext.m_RigContext = engine->m_RigContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
 
@@ -896,6 +914,21 @@ bail:
         return a_is_text - b_is_text;
     }
 
+    static uint32_t GetLuaMemCount(HEngine engine)
+    {
+        uint32_t memcount = 0;
+        if (engine->m_SharedScriptContext) {
+            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_SharedScriptContext));
+        } else {
+            memcount += dmScript::GetLuaGCCount(dmScript::GetLuaState(engine->m_GOScriptContext));
+            if (engine->m_GuiContext.m_GuiContext != 0x0)
+            {
+                memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
+            }
+        }
+        return memcount;
+    }
+
     void Step(HEngine engine)
     {
         engine->m_Alive = true;
@@ -961,6 +994,12 @@ bail:
             {
                 DM_PROFILE(Engine, "Frame");
 
+                if (dLib::IsDebugMode() && engine->m_ShowProfile)
+                {
+                    DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
+                    DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
+                }
+
                 // We had buffering problems with the output when running the engine inside the editor
                 // Flushing stdout/stderr solves this problem.
                 fflush(stdout);
@@ -1007,7 +1046,7 @@ bail:
                     dmHID::KeyboardPacket keybdata;
                     dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
 
-                    if (engine->m_QuitOnEsc && (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED)))
+                    if ((engine->m_QuitOnEsc && dmHID::GetKey(&keybdata, dmHID::KEY_ESC)) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                     {
                         engine->m_Alive = false;
                         return;
@@ -1032,9 +1071,12 @@ bail:
                         dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
                     }
 
+
                     dmGameObject::UpdateContext update_context;
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
+
+                    dmRig::Update(engine->m_RigContext, dt);
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
@@ -1246,6 +1288,13 @@ bail:
             else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
             {
                 self->m_ShowProfile = !self->m_ShowProfile;
+            }
+            else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
+            {
+                if(dLib::IsDebugMode())
+                {
+                    self->m_PhysicsContext.m_Debug = !self->m_PhysicsContext.m_Debug;
+                }
             }
             else if (descriptor == dmEngineDDF::StartRecord::m_DDFDescriptor)
             {

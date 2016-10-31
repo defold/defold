@@ -63,6 +63,17 @@
       external-fnk                                                            #{:a :b :c :d}
       #'external-fnk                                                          #{:a :b :c :d}
       (g/fnk [one two three])                                                 #{:one :two :three}
-      '(g/fnk [one two three])                                                #{:one :two :three}
-      (g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}])  #{:commands :roles :blah}
-      '(g/fnk [commands :- [g/Str] roles :- g/Any blah :- {g/Keyword g/Num}]) #{:commands :roles :blah})))
+      '(g/fnk [one two three])                                                #{:one :two :three})))
+
+(deftest seq-starts-with?-test
+  (is (true? (seq-starts-with? [] [])))
+  (is (true? (seq-starts-with? [1] [])))
+  (is (true? (seq-starts-with? [1] [1])))
+  (is (true? (seq-starts-with? [1 2 3] [1 2])))
+  (is (true? (seq-starts-with? [nil] [nil])))
+  (is (true? (seq-starts-with? [nil 1 2] [nil 1])))
+  (is (true? (seq-starts-with? (range 3) (range 2))))
+  (is (true? (seq-starts-with? "abc" "ab")))
+  (is (false? (seq-starts-with? [] [1])))
+  (is (false? (seq-starts-with? [1 2] [1 2 3])))
+  (is (false? (seq-starts-with? [nil 1] [nil 1 2]))))

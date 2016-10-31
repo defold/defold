@@ -17,7 +17,7 @@
 (def ^:dynamic *workspace*)
 (def ^:dynamic *project*)
 
-(def ^:const project-path "resources/build_project/SideScroller")
+(def ^:const project-path "test/resources/build_project/SideScroller")
 
 (defn- with-http-server [f]
   (let [server (http/start! (http/->server 0 {project/hot-reload-url-prefix (partial hotload/build-handler *project*)}))]
@@ -64,6 +64,6 @@
         data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
     (is (= 200 (:status res)))
     (is (= "parallax" (:name data)))
-    (is (= 9 (count (:instances data)))))
+    (is (= 11 (count (:instances data)))))
 
   (is (= 404 (:status (handler-get (partial hotload/build-handler *project*) "foobar")))))

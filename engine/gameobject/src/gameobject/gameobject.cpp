@@ -32,7 +32,7 @@ namespace dmGameObject
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
-    const uint32_t MAX_DISPATCH_ITERATION_COUNT = 5;
+    const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
 
     static Prototype EMPTY_PROTOTYPE;
 
@@ -624,22 +624,39 @@ namespace dmGameObject
 
     bool Init(HCollection collection, HInstance instance);
 
-    void GenerateUniqueInstanceId(HCollection collection, char* buf, uint32_t bufsize)
+    dmhash_t ConstructInstanceId(uint32_t index)
     {
-        // global path
-        const char* id_format = "%sinstance%d";
-        uint32_t index = 0;
-        dmMutex::Lock(collection->m_Mutex);
-        index = collection->m_GenInstanceCounter++;
-        dmMutex::Unlock(collection->m_Mutex);
-        DM_SNPRINTF(buf, bufsize, id_format, ID_SEPARATOR, index);
+        char buffer[16] = { 0 };
+        DM_SNPRINTF(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
+        return dmHashString64(buffer);
     }
 
-    dmhash_t GenerateUniqueInstanceId(HCollection collection)
+    uint32_t AcquireInstanceIndex(HCollection collection)
     {
-        char id_s[16];
-        GenerateUniqueInstanceId(collection, id_s, sizeof(id_s));
-        return dmHashString64(id_s);
+        dmMutex::Lock(collection->m_Mutex);
+        uint32_t index = INVALID_INSTANCE_POOL_INDEX;
+        if (collection->m_InstanceIdPool.Remaining() > 0)
+        {
+            index = collection->m_InstanceIdPool.Pop();
+        }
+        dmMutex::Unlock(collection->m_Mutex);
+
+        return index;
+    }
+
+    void ReleaseInstanceIndex(uint32_t index, HCollection collection)
+    {
+        dmMutex::Lock(collection->m_Mutex);
+        collection->m_InstanceIdPool.Push(index);
+        dmMutex::Unlock(collection->m_Mutex);
+    }
+
+    void AssignInstanceIndex(uint32_t index, HInstance instance)
+    {
+        if (instance != 0x0)
+        {
+            instance->m_IdentifierIndex = index;
+        }
     }
 
     void GenerateUniqueCollectionInstanceId(HCollection collection, char* buf, uint32_t bufsize)
@@ -1510,6 +1527,11 @@ namespace dmGameObject
             component_type->m_DestroyFunction(params);
         }
 
+        if (instance->m_IdentifierIndex < collection->m_MaxInstances)
+        {
+            // The identifier (hash) for this gameobject comes from the pool!
+            ReleaseInstanceIndex(instance->m_IdentifierIndex, collection);
+        }
         ReleaseIdentifier(collection, instance);
 
         assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);
@@ -1822,7 +1844,7 @@ namespace dmGameObject
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
                 if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
                 {
-                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size);
+                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size, 0);
                     if (message_result != dmMessage::RESULT_OK)
                     {
                         dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name, message_result);

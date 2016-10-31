@@ -1,0 +1,3 @@
+mesh: "/mesh/test_collada_dae.dae"
+material: "/model/model.material"
+textures: "/mesh/test_m.png"

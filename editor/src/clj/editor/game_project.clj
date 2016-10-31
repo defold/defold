@@ -1,13 +1,17 @@
 (ns editor.game-project
-  (:require [clojure.string :as s]
+  (:require [clojure.string :as string]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [util.murmur :as murmur]
             [editor.graph-util :as gu]
             [editor.game-project-core :as gpcore]
             [editor.defold-project :as project]
             [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [service.log :as log]))
+            [service.log :as log])
+  (:import [java.io File]
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -17,7 +21,7 @@
   (-> key
       name
       camel/->Camel_Snake_Case_String
-      (s/replace "_" " ")))
+      (string/replace "_" " ")))
 
 (defn- make-form-field [setting]
   (assoc setting
@@ -47,12 +51,6 @@
   (let [path (gpcore/get-setting-or-default meta-settings settings [category key])]
     (workspace/resolve-resource base-resource path)))
 
-(def ^:private settings-map-substitute (gpcore/make-settings-map (gpcore/make-default-settings (:settings gpcore/basic-meta-info))))
-
-(g/defnode GameProjectSettingsProxy
-  (input settings-map g/Any :substitute settings-map-substitute)
-  (output settings-map g/Any :cached (gu/passthrough settings-map)))
-
 (def ^:private path->property {["display" "display_profiles"] :display-profiles
                                ["bootstrap" "main_collection"] :main-collection
                                ["bootstrap" "render"] :render
@@ -62,31 +60,21 @@
 (def ^:private property->path (clojure.set/map-invert path->property))
 
 (defn- load-game-project [project self input]
-  (g/make-nodes
-   (g/node-id->graph-id self)
-   [proxy [GameProjectSettingsProxy]]
-   (g/connect self :display-profiles-data project :display-profiles)
-   (g/connect proxy :settings-map project :settings)
-   (g/connect proxy :_node-id self :nodes)
-   (try
-     (let [raw-settings (gpcore/parse-settings (gpcore/string-reader (slurp input)))
-           meta-info (gpcore/complement-meta-info gpcore/basic-meta-info raw-settings)
-           meta-settings (:settings meta-info)
-           sanitized-settings (gpcore/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
-           resource   (g/node-value self :resource)
-           roots      (into {} (map (fn [[category field]] [[category field] (root-resource resource sanitized-settings meta-settings category field)])
-                                   (keys path->property)))]
-       (concat
-        ;; We retain the actual raw string settings and update these when/if the user changes a setting,
-        ;; rather than parse to proper typed/sanitized values and rendering these on save - again only to
-        ;; reduce diffs.
-        (g/set-property self :raw-settings raw-settings :meta-info meta-info)
-        (for [[p root] roots]
-          (g/set-property self (path->property p) root))))
-     (catch java.lang.Exception e
-       (log/warn :exception e)
-       (g/mark-defective self (g/error-severe {:type :invalid-content :message (.getMessage e)}))))
-   (g/connect self :settings-map proxy :settings-map)))
+  (let [raw-settings (gpcore/parse-settings (gpcore/string-reader (slurp input)))
+        meta-info (gpcore/complement-meta-info gpcore/basic-meta-info raw-settings)
+        meta-settings (:settings meta-info)
+        sanitized-settings (gpcore/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
+        resource   (g/node-value self :resource)
+        roots      (into {} (map (fn [[category field]] [[category field] (root-resource resource sanitized-settings meta-settings category field)])
+                                 (keys path->property)))]
+    (concat
+      ;; We retain the actual raw string settings and update these when/if the user changes a setting,
+      ;; rather than parse to proper typed/sanitized values and rendering these on save - again only to
+      ;; reduce diffs.
+     (g/set-property self :raw-settings raw-settings :meta-info meta-info)
+     (g/connect project :resource-map self :resource-map)
+      (for [[p root] roots]
+        (g/set-property self (path->property p) root)))))
 
 (g/defnk produce-save-data [resource raw-settings meta-info _declared-properties]
   (let [content (->> raw-settings
@@ -107,6 +95,69 @@
                       (gpcore/settings-with-value (:settings user-data)))
         ^String user-data-content (gpcore/settings->str settings)]
     {:resource resource :content (.getBytes user-data-content)}))
+
+(defn- resource-content [resource]
+  (IOUtils/toByteArray (io/input-stream resource)))
+
+(defn- build-custom-resource [self basis resource dep-resources user-data]
+  {:resource resource :content (resource-content (:resource resource))})
+
+(defrecord CustomResource [resource]
+  ;; Only purpose is to provide resource-type with :build-ext = :ext
+  resource/Resource
+  (children [this] (resource/children resource))
+  (resource-type [this]
+    (let [path (resource/path this)
+          ext (FilenameUtils/getExtension path)]
+      {:ext ext
+       :label "Custom Resource"
+       :build-ext ext}))
+  (source-type [this] (resource/source-type resource))
+  (exists? [this] (resource/exists? resource))
+  (read-only? [this] (resource/read-only? resource))
+  (path [this] (resource/path resource))
+  (abs-path [this] (resource/abs-path resource))
+  (proj-path [this] (resource/proj-path resource))
+  (url [this] (resource/url resource))
+  (resource-name [this] (resource/resource-name resource))
+  (workspace [this] (resource/workspace resource))
+  (resource-hash [this] (resource/resource-hash resource))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/input-stream resource))
+  (io/make-reader        [this opts] (io/reader resource))
+  (io/make-output-stream [this opts] (io/output-stream resource))
+  (io/make-writer        [this opts] (io/writer resource)))
+
+(defn- make-custom-build-target [node-id resource]
+  {:node-id node-id
+   :resource (workspace/make-build-resource (CustomResource. resource))
+   :build-fn build-custom-resource
+   ;; NOTE! Break build cache when resource content changes.
+   :user-data {:hash (murmur/hash64-bytes (resource-content resource))}})
+
+(defn- with-leading-slash [path]
+  (if (string/starts-with? path "/")
+    path
+    (str "/" path)))
+
+(defn- strip-trailing-slash [path]
+  (string/replace path #"/*$" ""))
+
+(defn- file-resource? [resource]
+  (= (resource/source-type resource) :file))
+
+(defn- find-custom-resources [resource-map custom-paths]
+  (->> (flatten (keep (fn [custom-path]
+                      (when-let [base-resource (resource-map custom-path)]
+                        (resource/resource-seq base-resource)))
+                    custom-paths))
+       (distinct)
+       (filter file-resource?)))
+
+(defn- parse-custom-resource-paths [cr-setting]
+  (let [paths (remove string/blank? (map string/trim (string/split (or cr-setting "")  #",")))]
+    (map (comp strip-trailing-slash with-leading-slash) paths)))
 
 (defn- set-setting [settings {:keys [path] :as meta-setting} value]
   (gpcore/set-setting settings meta-setting path value))
@@ -146,7 +197,7 @@
 
 (g/defnode GameProjectRefs
   (property display-profiles resource/Resource
-          (dynamic visible (g/always false))
+          (dynamic visible (g/constantly false))
           (value (gu/passthrough display-profiles-resource))
           (set (fn [basis self old-value new-value]
                  (project/resource-setter basis self old-value new-value
@@ -154,35 +205,35 @@
                                               [:build-targets :dep-build-targets]
                                               [:profile-data :display-profiles-data]))))
   (property main-collection resource/Resource
-            (dynamic visible (g/always false))
+            (dynamic visible (g/constantly false))
             (value (gu/passthrough main-collection-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :main-collection-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property render resource/Resource
-            (dynamic visible (g/always false))
+            (dynamic visible (g/constantly false))
             (value (gu/passthrough render-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :render-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property texture-profiles resource/Resource
-            (dynamic visible (g/always false))
+            (dynamic visible (g/constantly false))
             (value (gu/passthrough texture-profiles-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :texture-profiles-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property gamepads resource/Resource
-            (dynamic visible (g/always false))
+            (dynamic visible (g/constantly false))
             (value (gu/passthrough gamepads-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :gamepads-resource]
                                                 [:build-targets :dep-build-targets]))))
   (property input-binding resource/Resource
-            (dynamic visible (g/always false))
+            (dynamic visible (g/constantly false))
             (value (gu/passthrough input-binding-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -208,8 +259,8 @@
   (inherits project/ResourceNode)
   (inherits GameProjectRefs)
 
-  (property raw-settings g/Any (dynamic visible (g/always false)))
-  (property meta-info g/Any (dynamic visible (g/always false)))
+  (property raw-settings g/Any (dynamic visible (g/constantly false)))
+  (property meta-info g/Any (dynamic visible (g/constantly false)))
 
   (output raw-settings g/Any
           (g/fnk [raw-settings meta-info ref-settings]
@@ -223,19 +274,26 @@
   (output settings-map g/Any :cached produce-settings-map)
   (output form-data g/Any :cached produce-form-data)
 
+  (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
+
+  (output custom-build-targets g/Any :cached (g/fnk [_node-id resource-map settings-map]
+                                                    (let [custom-paths (parse-custom-resource-paths (get settings-map ["project" "custom_resources"]))]
+                                                      (map (partial make-custom-build-target _node-id)
+                                                           (find-custom-resources resource-map custom-paths)))))
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached (g/fnk [_node-id resource raw-settings meta-info dep-build-targets _declared-properties]
+  (output build-targets g/Any :cached (g/fnk [_node-id resource raw-settings custom-build-targets dep-build-targets _declared-properties]
                                              (let [ref-deps (into {} (map (fn [[k v]] [k (workspace/make-build-resource (:value v))])
                                                                           (select-keys (:properties _declared-properties) (keys property->path))))]
                                                [{:node-id _node-id
-                                                :resource (workspace/make-build-resource resource)
-                                                :build-fn build-game-project
-                                                :user-data {:settings raw-settings
-                                                            :ref-deps ref-deps}
-                                                :deps (vec (flatten dep-build-targets))}]))))
+                                                 :resource (workspace/make-build-resource resource)
+                                                 :build-fn build-game-project
+                                                 :user-data {:settings raw-settings
+                                                             :ref-deps ref-deps}
+                                                 :deps (vec (concat (flatten dep-build-targets)
+                                                                    custom-build-targets))}]))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

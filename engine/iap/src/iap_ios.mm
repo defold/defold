@@ -17,6 +17,14 @@ struct IAP;
     @property IAP* m_IAP;
 @end
 
+/*# In-app purchases API documentation
+ *
+ * Functions and constants for interacting with Apple's In-app purchases
+ * and Google's In-app billing.
+ *
+ * @name In-app purchases
+ * @namespace iap
+ */
 
 struct IAP
 {
@@ -118,8 +126,8 @@ IAP g_IAP;
         lua_pop(L, 1);
     }
 
-    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
     g_IAP.m_Callback = LUA_NOREF;
     g_IAP.m_Self = LUA_NOREF;
 
@@ -161,8 +169,8 @@ IAP g_IAP;
         lua_pop(L, 1);
     }
 
-    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
     g_IAP.m_Callback = LUA_NOREF;
     g_IAP.m_Self = LUA_NOREF;
 
@@ -337,8 +345,8 @@ int IAP_List(lua_State* L)
     int top = lua_gettop(L);
     if (g_IAP.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
         g_IAP.m_Callback = LUA_NOREF;
         g_IAP.m_Self = LUA_NOREF;
     }
@@ -355,10 +363,10 @@ int IAP_List(lua_State* L)
 
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_IAP.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_IAP.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_IAP.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_IAP.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     SKProductsRequest* products_request = [[SKProductsRequest alloc] initWithProductIdentifiers: product_identifiers];
     SKProductsRequestDelegate* delegate = [SKProductsRequestDelegate alloc];
@@ -373,6 +381,7 @@ int IAP_List(lua_State* L)
 
 /*# buy product
  *
+ * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings.
  * @name iap.buy
  * @param id product to buy (identifier)
  * @param options table of optional parameters as properties.
@@ -381,8 +390,6 @@ int IAP_List(lua_State* L)
  * <ul>
  * <li> request_id: custom unique request id -- optional argument only available for Facebook IAP transactions
  * </ul>
- *
- * <b>Note:</b> Calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings.
  *
  * @examples
  *
@@ -430,10 +437,11 @@ int IAP_Buy(lua_State* L)
 
 /*# finish buying product
  *
+ * Explicitly finish a product transaction.
+ *
  * @name iap.finish
  * @param transaction transaction table parameter as supplied in listener callback
- *
- * <b>Note:</b> Calling iap.finish is required on a successful transaction if auto finish transactions is disabled in project settings (otherwise ignored).
+ * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings (otherwise ignored).
  * The transaction.state field must equal iap.TRANS_STATE_PURCHASED.
  *
  */
@@ -524,18 +532,18 @@ int IAP_SetListener(lua_State* L)
     IAP* iap = &g_IAP;
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    int cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if (iap->m_Listener.m_Callback != LUA_NOREF) {
-        luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Callback);
-        luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
+        dmScript::Unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Callback);
+        dmScript::Unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
     }
 
     iap->m_Listener.m_L = dmScript::GetMainThread(L);
     iap->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);
-    iap->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    iap->m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if (g_IAP.m_Observer == 0) {
         SKPaymentTransactionObserver* observer = [[SKPaymentTransactionObserver alloc] init];
@@ -676,8 +684,8 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
     // TODO: Should we support one listener per lua-state?
     // Or just use a single lua-state...?
     if (params->m_L == g_IAP.m_Listener.m_L && g_IAP.m_Listener.m_Callback != LUA_NOREF) {
-        luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
-        luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
+        dmScript::Unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
+        dmScript::Unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
         g_IAP.m_Listener.m_L = 0;
         g_IAP.m_Listener.m_Callback = LUA_NOREF;
         g_IAP.m_Listener.m_Self = LUA_NOREF;

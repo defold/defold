@@ -3,6 +3,8 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.build-errors-view :as build-errors-view]
+            [editor.collision-groups :as collision-groups]
             [editor.console :as console]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -17,6 +19,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
+            [editor.properties :as properties]
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
@@ -43,12 +46,16 @@
   (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets g/Any (g/always []))
+  (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
-                                {:node-id _node-id
-                                 :label (or (:label rt) (:ext rt) "unknown")
-                                 :icon (or (:icon rt) unknown-icon)}))))
+    (g/fnk [_node-id resource source-outline child-outlines]
+           (let [rt (resource/resource-type resource)
+                 children (cond-> child-outlines
+                            source-outline (into (:children source-outline)))]
+             {:node-id _node-id
+              :label (or (:label rt) (:ext rt) "unknown")
+              :icon (or (:icon rt) unknown-icon)
+              :children children}))))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -59,31 +66,35 @@
 (defn- load-node [project node-id node-type resource]
   (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
     (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
-      (try
-        (when *load-cache*
-          (swap! *load-cache* conj node-id))
-        (concat
-         (load-fn project node-id resource)
-         (when (instance? FileResource resource)
-           (g/connect node-id :save-data project :save-data)))
-        (catch java.io.IOException e
-          (log/warn :exception e)
-          (g/mark-defective node-id node-type (g/error-severe {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+      (if (resource/exists? resource)
+        (try
+          (when *load-cache*
+            (swap! *load-cache* conj node-id))
+          (concat
+            (load-fn project node-id resource)
+            (when (instance? FileResource resource)
+              (g/connect node-id :save-data project :save-data)))
+          (catch Exception e
+            (log/warn :exception e)
+            (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
+        (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
       [])))
 
-(defn load-resource-nodes [project node-ids render-progress!]
+(defn load-resource-nodes [basis project node-ids render-progress!]
   (let [progress (atom (progress/make "Loading resources" (count node-ids)))]
     (doall
      (for [node-id node-ids
-           :when (g/has-output? (g/node-type* node-id) :resource)
-           :let [resource (g/node-value node-id :resource)]]
+           :let [type (g/node-type* basis node-id)]
+           :when (g/has-output? type :resource)
+           :let [resource (g/node-value node-id :resource {:basis basis})]]
        (do
-         (render-progress! (swap! progress progress/advance))
-         (load-node project node-id (g/node-type* node-id) resource))))))
+         (when render-progress!
+           (render-progress! (swap! progress progress/advance)))
+         (load-node project node-id type resource))))))
 
 (defn- load-nodes! [project node-ids render-progress!]
   (g/transact
-    (load-resource-nodes project node-ids render-progress!)))
+    (load-resource-nodes (g/now) project node-ids render-progress!)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -127,6 +138,14 @@
                                                                                [:resource :node-resources]]})
             []))))))
 
+(defn get-resource-node [project path-or-resource]
+  (when-let [resource (cond
+                        (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace) path-or-resource)
+                        (satisfies? resource/Resource path-or-resource) path-or-resource
+                        :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
+    (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)]
+      (get nodes-by-resource-path (resource/proj-path resource)))))
+
 (defn load-project
   ([project]
    (load-project project (g/node-value project :resources)))
@@ -136,6 +155,11 @@
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
      (let [nodes (make-nodes! project resources)]
        (load-nodes! project nodes render-progress!)
+       (when-let [game-project (get-resource-node project "/game.project")]
+         (g/transact
+           (concat
+             (g/connect game-project :display-profiles-data project :display-profiles)
+             (g/connect game-project :settings-map project :settings))))
        project))))
 
 (defn make-embedded-resource [project type data]
@@ -143,26 +167,31 @@
     (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
 (defn save-data [project]
-  (g/node-value project :save-data :skip-validation true))
+  (g/node-value project :save-data {:skip-validation true}))
 
 (defn save-all [project {:keys [render-progress! basis cache]
                          :or {render-progress! progress/null-render-progress!
                               basis            (g/now)
                               cache            (g/cache)}
                          :as opts}]
-  (let [save-data (g/node-value project :save-data :basis basis :cache cache :skip-validation true)]
-    (if-not (g/error? save-data)
-      (do
-        (progress/progress-mapv
-         (fn [{:keys [resource content]} _]
-           (when-not (resource/read-only? resource)
-             (spit resource content)))
-         save-data
-         render-progress!
-         (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-        (workspace/resource-sync! (g/node-value project :workspace :basis basis :cache cache) false [] render-progress!))
-      ;; TODO: error message somewhere...
-      (println (validation/error-message save-data)))))
+  (try
+    (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
+      (if-not (g/error? save-data)
+        (do
+          (progress/progress-mapv
+            (fn [{:keys [resource content]} _]
+              (when-not (resource/read-only? resource)
+                (spit resource content)))
+            save-data
+            render-progress!
+            (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
+          (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
+        (do
+          (ui/run-later
+            (throw (Exception. ^String (properties/error-message save-data)))))))
+    (catch Exception e
+      (ui/run-later
+        (throw e)))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a java regex"
@@ -269,16 +298,6 @@
 (defn prune-build-cache! [cache build-targets]
   (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
 
-(defn- get-resource-name [node-id]
-  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
-    (and resource (resource/resource-name resource))))
-
-(defn find-errors [{:keys [user-data causes _node-id] :as error} labels]
-  (let [labels (conj labels (get-resource-name _node-id))]
-    (if causes
-      (recur (first causes) labels)
-      [(remove nil? labels) user-data])))
-
 (defn- build-targets-deep [build-targets]
   (loop [targets build-targets
          queue []
@@ -298,28 +317,25 @@
                                   basis            (g/now)
                                   cache            (g/cache)}
                            :as   opts}]
-  (try
-    (let [build-cache          (g/node-value project :build-cache :basis basis :cache cache)
-          build-targets        (g/node-value node :build-targets :basis basis :cache cache)
-          build-targets-by-key (and (not (g/error? build-targets))
-                                    (->> (g/node-value node :build-targets :basis basis :cache cache)
-                                      build-targets-deep
-                                      targets-by-key))]
-      (if (g/error? build-targets)
-        (let [[labels cause] (find-errors build-targets [])
-              message        (format "Build error [%s] '%s'" (last labels) cause)]
-          (when render-error! (render-error! message))
-          nil)
-        (do
-          (prune-build-cache! build-cache build-targets-by-key)
-          (progress/progress-mapv
-           (fn [target _]
-             (build-target basis (second target) build-targets-by-key build-cache))
-           build-targets-by-key
-           render-progress!
-           (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e)))))))))
-    (catch Throwable e
-      (println e))))
+  (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
+        build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
+        build-targets-by-key (and (not (g/error? build-targets))
+                                  (->> (g/node-value node :build-targets {:basis basis :cache cache})
+                                       build-targets-deep
+                                       targets-by-key))]
+    (if (g/error? build-targets)
+      (do
+        (when render-error!
+          (render-error! build-targets))
+        nil)
+      (do
+        (prune-build-cache! build-cache build-targets-by-key)
+        (progress/progress-mapv
+          (fn [target _]
+            (build-target basis (second target) build-targets-by-key build-cache))
+          build-targets-by-key
+          render-progress!
+          (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e))))))))))
 
 (defn- prune-fs [files-on-disk built-files]
   (let [files-on-disk (reverse files-on-disk)
@@ -346,7 +362,7 @@
 
 (defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
+        path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)
         pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
@@ -359,11 +375,9 @@
                                           basis            (g/now)
                                           cache            (g/cache)}
                                      :as opts}]
-  (reset! (g/node-value project :build-cache :basis basis :cache cache) {})
-  (reset! (g/node-value project :fs-build-cache :basis basis :cache cache) {})
   (let [files-on-disk  (file-seq (io/file (workspace/build-path
-                                           (g/node-value project :workspace :basis basis :cache cache))))
-        fs-build-cache (g/node-value project :fs-build-cache :basis basis :cache cache)
+                                           (g/node-value project :workspace {:basis basis :cache cache}))))
+        fs-build-cache (g/node-value project :fs-build-cache {:basis basis :cache cache})
         build-results  (build project node opts)]
     (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
@@ -423,102 +437,96 @@
                              {:label "Target Discovery Log"
                               :command :target-log}]}])
 
-(defn get-resource-node [project path-or-resource]
-  (when-let [resource (cond
-                        (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace) path-or-resource)
-                        (satisfies? resource/Resource path-or-resource) path-or-resource
-                        :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
-    (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)]
-      (get nodes-by-resource-path (resource/proj-path resource)))))
-
 (defn- outputs [node]
   (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
 
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
 
-(defn- add-resources [project resources render-progress!]
-  (load-nodes! project (make-nodes! project resources) render-progress!))
-
-(defn- resource-node-pairs [project resources]
-  (->> resources
-       (map (fn [resource]
-              [resource (get-resource-node project resource)]))
-       (filterv (comp some? second))))
-
-(defn- remove-resources [project resources render-progress!]
-  (let [internals (resource-node-pairs project (filter loadable? resources))
-        externals (resource-node-pairs project (filter (complement loadable?) resources))]
-    (progress/progress-mapv
-     (fn [[resource resource-node] _]
-      (let [current-outputs (outputs resource-node)
-            new-node (first (make-nodes! project [resource]))
-            new-outputs (set (outputs new-node))
-            outputs-to-make (remove new-outputs current-outputs)]
-        (g/transact
-          (concat
-            (g/mark-defective new-node (g/error-severe {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
-            (g/delete-node resource-node)
-            (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-              (g/connect new-node src-label tgt-node tgt-label))))))
-     internals
-     render-progress!
-     (fn [[resource _]] (str "Removing " (resource/resource->proj-path resource))))
-    (progress/progress-mapv
-     (fn [[resource resource-node] _]
-       (g/invalidate! (mapv #(do [resource-node (first %)]) (outputs resource-node))))
-     externals
-     render-progress!
-     (fn [[resource _]] (str "Invalidating " (resource/resource->proj-path resource))))))
-
-(defn- move-resources [project moved]
-  (g/transact
-    (for [[from to] moved
-          :let [resource-node (get-resource-node project from)]
-          :when resource-node]
-      (g/set-property resource-node :resource to))))
-
+;; Reloading works like this:
+;; * All moved files are handled by simply updating their resource property
+;; * All truly added files are added/loaded
+;;   - "Truly added" means it was not referenced before
+;;   - Referenced missing files will still be represented with a node
+;; * The remaining files are handled by:
+;;   - Adding the new nodes
+;;   - Transfering overrides from old nodes
+;;   - Deleting old nodes
+;;   - Loading new nodes
+;;   - Reconnecting remaining connections from old nodes
+;; * Invalidate external resource nodes, e.g. png's and wav's
+;; * Reset undo history when necessary
 (defn- handle-resource-changes [project changes render-progress!]
   (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
-    (let [moved           (:moved changes)
-          all             (reduce into [] (vals (select-keys changes [:added :removed :changed])))
-          reset-undo?     (or (some loadable? all)
-                              (not (empty? moved)))
-          unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
-          to-reload       (resource-node-pairs project (concat (:changed changes) (:added changes)))
-          to-add          (filter #(nil? (get-resource-node project %)) (:added changes))
-          progress        (atom (progress/make "" 4))]
-      ;; Order is important, since move-resources reuses/patches the resource node
-      (render-progress! (swap! progress progress/message "Moving resources"))
-      (move-resources project moved)
-      (render-progress! (swap! progress progress/advance 1 "Adding resources"))
-      (add-resources project to-add render-progress!)
-      (render-progress! (swap! progress progress/advance 1 "Removing resources"))
-      (remove-resources project (:removed changes) (progress/nest-render-progress render-progress! @progress))
-      (render-progress! (swap! progress progress/advance 1 "Reloading resources"))
-      (progress/progress-mapv
-       (fn [[resource resource-node] _]
-         (let [current-outputs (outputs resource-node)]
-           (if (loadable? resource)
-             (let [nodes (make-nodes! project [resource])]
-               (load-nodes! project nodes render-progress!)
-               (let [new-node        (first nodes)
-                     new-outputs     (set (outputs new-node))
-                     outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
-                 (g/transact
-                  (concat
-                   (g/transfer-overrides resource-node new-node)
-                   (g/delete-node resource-node)
-                   (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-                     (g/connect new-node src-label tgt-node tgt-label))))))
-             (g/invalidate! (mapv #(do [resource-node (first %)]) current-outputs)))))
-       to-reload
-       (progress/nest-render-progress render-progress! @progress)
-       (fn [[resource _]] (str "Reloading " (resource/resource->proj-path resource))))
-      (when reset-undo?
-        (g/reset-undo! (graph project)))
-      (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
-                                               (clojure.string/join ", " (map resource/proj-path unknown-changed)))))))
+    (let [project-graph (g/node-id->graph-id project)]
+      (let [nodes-by-path (g/node-value project :nodes-by-resource-path)]
+        (g/transact
+          (concat
+            ;; Moved resources
+            (for [[from to] (:moved changes)
+                  :let [resource-node (nodes-by-path (resource/proj-path from))]
+                  :when resource-node]
+              (g/set-property resource-node :resource to))
+            ;; Added resources
+            (for [resource (:added changes)
+                  :when (not (contains? nodes-by-path (resource/proj-path resource)))]
+              (make-resource-node project-graph project resource true {project [[:_node-id :nodes]
+                                                                                [:resource :node-resources]]})))))
+      (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
+            res->node (comp nodes-by-path resource/proj-path)
+            known? (fn [r] (contains? nodes-by-path (resource/proj-path r)))
+            all-but-moved (vec (mapcat (fn [[k vs]] (map vector (repeat k) vs)) (select-keys changes [:added :removed :changed])))
+            reset-undo?     (or (not (empty? (:moved changes)))
+                                (some (comp loadable? second) all-but-moved))
+            unknown-changed (filterv (complement known?) (:changed changes))
+            to-reload       (filterv (comp known? second) all-but-moved)
+            to-reload-int   (filterv (comp loadable? second) to-reload)
+            to-reload-ext   (filterv (comp (complement loadable?) second) to-reload)
+            old-outputs (reduce (fn [res [_ resource]]
+                                  (let [nid (res->node resource)]
+                                    (assoc res nid (outputs nid))))
+                                {} to-reload-int)
+            old->new (atom {})]
+        ;; Internal resources to reload
+        (let [resources-to-create (mapv second to-reload-int)
+              new-nodes (make-nodes! project resources-to-create)
+              new-nodes-by-path (into {} (map (fn [n] (let [r (g/node-value n :resource)]
+                                                        [(resource/proj-path r) n]))
+                                              new-nodes))
+              old->new (into {} (map (fn [[p n]] [(nodes-by-path p) n]) new-nodes-by-path))]
+          (g/transact
+            (concat
+              (for [[_ r] to-reload-int
+                    :let [p (resource/proj-path r)]
+                    :when (contains? new-nodes-by-path p)
+                    :let [old-node (nodes-by-path p)]]
+                (g/transfer-overrides old-node (new-nodes-by-path p)))
+              (for [[_ r] to-reload-int
+                    :let [old-node (nodes-by-path (resource/proj-path r))]]
+                (g/delete-node old-node))))
+          (load-nodes! project new-nodes render-progress!)
+          ;; Re-connect existing outputs
+          (g/transact
+            (for [[old new] old->new
+                  :when new
+                  :let [existing (set (outputs new))]
+                  [src-label [tgt-id tgt-label]] (old-outputs old)
+                  :let [tgt-id (get old->new tgt-id tgt-id)]
+                  :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
+              (g/connect new src-label tgt-id tgt-label))))
+        ;; External resources to invalidate
+        (let [all-outputs (mapcat (fn [[_ resource]]
+                                    (let [n (res->node resource)]
+                                      (map (fn [[tgt-label _]] [n tgt-label]) (outputs n)))) to-reload-ext)]
+          (g/invalidate! all-outputs))
+        (when reset-undo?
+          (g/reset-undo! (graph project)))
+        (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
+                                                 (clojure.string/join ", " (map resource/proj-path unknown-changed))))))))
+
+(g/defnk produce-collision-groups-data
+  [collision-group-nodes]
+  (collision-groups/make-collision-groups-data collision-group-nodes))
 
 (g/defnode Project
   (inherits core/Scope)
@@ -532,21 +540,26 @@
   (input selected-node-ids g/Any :array)
   (input selected-node-properties g/Any :array)
   (input resources g/Any)
+  (input resource-map g/Any)
   (input resource-types g/Any)
-  (input save-data g/Any :array)
-  (input node-resources g/Any :array)
-  (input settings g/Any)
+  (input save-data g/Any :array :substitute (fn [save-data] (vec (remove g/error? save-data))))
+  (input node-resources resource/Resource :array)
+  (input settings g/Any :substitute (constantly (gpc/default-settings)))
   (input display-profiles g/Any)
+  (input collision-group-nodes g/Any :array)
 
   (output selected-node-ids g/Any :cached (gu/passthrough selected-node-ids))
   (output selected-node-properties g/Any :cached (gu/passthrough selected-node-properties))
   (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
                                              (let [nids (set selected-node-ids)]
                                                (filterv (comp nids first) sub-selection))))
+  (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
-  (output display-profiles g/Any :cached (gu/passthrough display-profiles)))
+  (output display-profiles g/Any :cached (gu/passthrough display-profiles))
+  (output nil-resource resource/Resource (g/constantly nil))
+  (output collision-groups-data g/Any :cached produce-collision-groups-data))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
@@ -564,7 +577,8 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-save-project [project]
+
+(defn build-and-save-project [project build-errors-view]
   (when-not @ongoing-build-save?
     (reset! ongoing-build-save? true)
     (let [workspace     (workspace project)
@@ -574,9 +588,14 @@
       (future
         (try
           (ui/with-progress [render-fn ui/default-render-progress!]
+            (ui/run-later (build-errors-view/clear-build-errors build-errors-view))
             (when-not (empty? (build-and-write project game-project
                                                {:render-progress! render-fn
-                                                :render-error!    #(ui/run-later (dialogs/make-alert-dialog %))
+                                                :render-error!    (fn [errors]
+                                                                    (ui/run-later
+                                                                     (build-errors-view/update-build-errors
+                                                                      build-errors-view
+                                                                      errors)))
                                                 :basis            (g/now)
                                                 :cache            cache}))
               (update-system-cache! old-cache-val cache)))
@@ -587,8 +606,8 @@
 
 (handler/defhandler :build :global
   (enabled? [] (not @ongoing-build-save?))
-  (run [project prefs web-server]
-    (let [build  (build-and-save-project project)]
+  (run [project prefs web-server build-errors-view]
+    (let [build  (build-and-save-project project build-errors-view)]
       (when (and (future? build) @build)
         (or (when-let [target (get-selected-target prefs)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]
@@ -669,24 +688,20 @@
                                                                                           [:resource :node-resources]]
                                                                                  consumer-node connections}
                             attach-fn))
-    [])))
+      [])))
 
 (defn select
   [project-id node-ids]
-    (let [nil-node-ids (filter nil? node-ids)
-          node-ids (if (not (empty? nil-node-ids))
-                     (filter some? node-ids)
-                     node-ids)]
-      (assert (empty? nil-node-ids) "Attempting to select nil values")
+  (assert (not-any? nil? node-ids) "Attempting to select nil values")
+  (concat
+    (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
+      (g/disconnect node-id label project-id :selected-node-ids))
+    (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
+      (g/disconnect node-id label project-id :selected-node-properties))
+    (for [node-id (distinct node-ids)]
       (concat
-        (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
-          (g/disconnect node-id label project-id :selected-node-ids))
-        (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
-          (g/disconnect node-id label project-id :selected-node-properties))
-        (for [node-id node-ids]
-          (concat
-            (g/connect node-id :_node-id    project-id :selected-node-ids)
-            (g/connect node-id :_properties project-id :selected-node-properties))))))
+        (g/connect node-id :_node-id    project-id :selected-node-ids)
+        (g/connect node-id :_properties project-id :selected-node-properties)))))
 
 (defn select!
   ([project node-ids]
@@ -729,6 +744,7 @@
               (g/make-nodes graph
                             [project [Project :workspace workspace-id :build-cache (atom {}) :fs-build-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
+                            (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
                             (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))

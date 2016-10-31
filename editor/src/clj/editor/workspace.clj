@@ -157,9 +157,10 @@ ordinary paths."
   (get (g/node-value workspace :resource-map) proj-path))
 
 (defn resolve-workspace-resource [workspace path]
-  (or
-   (find-resource workspace path)
-   (file-resource workspace path)))
+  (when (and path (not-empty path))
+    (or
+      (find-resource workspace path)
+      (file-resource workspace path))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))
@@ -238,6 +239,12 @@ ordinary paths."
            (doseq [listener @(g/node-value workspace :resource-listeners)]
              (resource/handle-changes listener move-adjusted-changes render-progress!)))))
      changes)))
+
+(defn fetch-libraries!
+  [workspace library-urls render-fn login-fn]
+  (set-project-dependencies! workspace library-urls)
+  (update-dependencies! workspace render-fn login-fn)
+  (resource-sync! workspace true [] render-fn))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))
