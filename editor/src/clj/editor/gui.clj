@@ -1250,7 +1250,10 @@
                     [:resource :script-resource]
                     [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id script]
-                                  (prop-resource-error _node-id :script script "Script"))))
+                             (when script
+                               (prop-resource-error _node-id :script script "Script"))))
+            (dynamic edit-type (g/fnk [] {:type resource/Resource
+                                          :ext "gui_script"})))
 
 
   (property material resource/Resource
