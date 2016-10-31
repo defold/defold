@@ -904,8 +904,8 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
                 tme.hwndTrack = _glfwWin.window;
                 TrackMouseEvent(&tme);
 
-                _glfwWin.cursorTracked = GLFW_TRUE;
-                _glfwInputCursorEnter(window, GLFW_TRUE);
+                _glfwWin.cursorTracked = 1;
+                _glfwInputCursorEnter(1);
             }
 
             return 0;
@@ -914,8 +914,8 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
         // DEFOLD added from glfw 3.x
         case WM_MOUSELEAVE: // This event is triggered due to the TrackMouseEvent
         {
-            _glfwWin.cursorTracked = GLFW_FALSE;
-            _glfwInputCursorEnter(window, GLFW_FALSE);
+            _glfwWin.cursorTracked = 0;
+            _glfwInputCursorEnter(0);
             return 0;
         }
 
