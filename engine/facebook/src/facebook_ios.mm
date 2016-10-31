@@ -653,8 +653,8 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
  *
  * <b>NOTE</b> that this function cannot be used to request read permissions.
  * If the application requires both publish and read permissions, individual
- * calls to both login_with_publish_permissions and login_with_read_permissions
- * has to be made.
+ * calls to both <code>login_with_publish_permissions</code> 
+ * and <code>login_with_read_permissions</code> has to be made.
  *
  * A comprehensive list of permissions can be found in the <a href="https://developers.facebook.com/docs/facebook-login/permissions">Facebook documentation</a>,
  * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
@@ -847,9 +847,14 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 }
 
 /*# get the current Facebook access token
+ * 
+ * This function returns the currently stored access token after a previous
+ * sucessful login. If it returns nil no access token exists and you need 
+ * to perform a login to get the wanted permissions. Note that a user can
+ * 
  *
  * @name facebook.access_token
- * @return the access token (string)
+ * @return the access token or nil if the user is not logged in (string|nil)
  */
 
 int Facebook_AccessToken(lua_State* L)
