@@ -42,6 +42,7 @@ import com.dynamo.bob.util.RigUtil.SlotAnimationKey;
 import com.dynamo.bob.util.RigUtil.EventTrack;
 import com.dynamo.bob.util.RigUtil.EventKey;
 import com.dynamo.bob.util.RigUtil.UVTransformProvider;
+import com.dynamo.bob.util.RigUtil.Weight;
 
 /**
  * Convenience class for loading spine json data.
@@ -190,28 +191,6 @@ public class SpineSceneUtil {
                 0, 1, 2,
                 2, 1, 3
         };
-    }
-
-    private class Weight implements Comparable<Weight> {
-        public Point3d p;
-        public int boneIndex;
-        public float weight;
-
-        public Weight(Point3d p, int boneIndex, float weight) {
-            this.p = p;
-            this.boneIndex = boneIndex;
-            this.weight = weight;
-        }
-
-        private int toCompInt() {
-            // weight is [0.0, 1.0]
-            return (int)(Integer.MAX_VALUE * this.weight);
-        }
-
-        @Override
-        public int compareTo(Weight o) {
-            return o.toCompInt() - toCompInt();
-        }
     }
 
     private void loadMesh(JsonNode attNode, Mesh mesh, Bone bone, boolean skinned) throws LoadException {

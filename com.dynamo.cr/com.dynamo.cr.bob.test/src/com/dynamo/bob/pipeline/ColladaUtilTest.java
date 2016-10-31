@@ -10,10 +10,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import javax.vecmath.Point4i;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
+import javax.vecmath.Tuple4f;
+import javax.vecmath.Tuple4i;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4f;
 
 import org.eclipse.swt.widgets.Display;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
@@ -86,6 +90,21 @@ public class ColladaUtilTest {
         assertEquals(expected.z, actual.z, EPSILON);
         assertEquals(expected.w, actual.w, EPSILON);
     }
+
+    private void assertVertWeight(Tuple4f expected, List<Float> actual) {
+        assertEquals(expected.x, actual.get(0), EPSILON);
+        assertEquals(expected.y, actual.get(1), EPSILON);
+        assertEquals(expected.z, actual.get(2), EPSILON);
+        assertEquals(expected.w, actual.get(3), EPSILON);
+    }
+
+    private void assertVertBone(Tuple4i expected, List<Integer> actual) {
+        assertEquals(expected.x, actual.get(0), EPSILON);
+        assertEquals(expected.y, actual.get(1), EPSILON);
+        assertEquals(expected.z, actual.get(2), EPSILON);
+        assertEquals(expected.w, actual.get(3), EPSILON);
+    }
+
 
     private InputStream load(String path) {
         return getClass().getResourceAsStream(path);
@@ -247,6 +266,37 @@ public class ColladaUtilTest {
         assertNrm(nrm, 0,  0,  1,  0);
         assertNrm(nrm, 0,  0,  1,  0);
         assertNrm(nrm, 0,  0,  1,  0);
+    }
+
+    /*
+     * Tests a collada file with fewer, and more, than 4 bone influences per vertex.
+     */
+    @Test
+    public void testBoneInfluences() throws Exception {
+        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("bone_influences.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+
+        // Should have exactly 4 influences per vertex
+        int vertCount = meshBuilder.getIndicesCount();
+        assertEquals(vertCount*4, meshBuilder.getBoneIndicesCount());
+        assertEquals(vertCount*4, meshBuilder.getWeightsCount());
+
+        List<Integer>boneIndices = meshBuilder.getBoneIndicesList();
+        List<Float>boneWeights = meshBuilder.getWeightsList();
+
+        // V0 has only one influence in DAE, with zero weight
+        assertVertBone(new Point4i(0, 0, 0, 0), boneIndices.subList(0, 4));
+        assertVertWeight(new Vector4f(0.0f, 0.0f, 0.0f, 0.0f), boneWeights.subList(0, 4));
+
+        // V1 has 5 influences in DAE
+        assertVertBone(new Point4i(0, 1, 2, 3), boneIndices.subList(4, 8));
+        assertVertWeight(new Vector4f(0.5f, 0.1f, 0.1f, 0.1f), boneWeights.subList(4, 8));
+
+        // V2 has 5 influences in DAE, with the most significant last (i.e. should be sorted)
+        assertVertBone(new Point4i(4, 0, 1, 2), boneIndices.subList(8, 12));
+        assertVertWeight(new Vector4f(0.5f, 0.1f, 0.1f, 0.1f), boneWeights.subList(8, 12));
     }
 
     @Test
