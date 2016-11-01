@@ -58,7 +58,8 @@
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
             (and (= 1 (count selection))
-                 (not= :add (:change-type (first selection)))))
+                 (not= :add (:change-type (first selection)))
+                 (not= :delete (:change-type (first selection)))))
   (run [selection ^Git git list-view]
        (let [status (first selection)
              old-name (or (:old-path status) (:new-path status) )
