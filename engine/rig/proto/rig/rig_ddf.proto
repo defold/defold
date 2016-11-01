@@ -34,6 +34,9 @@ message Skeleton
 {
     repeated Bone bones = 1;
     repeated IK iks = 2;
+
+    // Spine 2.x specific feature.
+    optional bool local_bone_scaling = 3 [default = false];
 }
 
 message AnimationTrack

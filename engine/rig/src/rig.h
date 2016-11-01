@@ -79,7 +79,7 @@ namespace dmRig
         /// Model space transform
         dmTransform::Transform m_LocalToModel;
         /// Inv model space transform
-        dmTransform::Transform m_ModelToLocal;
+        Matrix4 m_ModelToLocal;
         /// Index of parent bone, NOTE root bone has itself as parent
         uint32_t m_ParentIndex;
         /// Length of the bone
@@ -151,10 +151,48 @@ namespace dmRig
         uint64_t  m_String;
     };
 
+    // NOTE: We expose two different vertex format that GenerateVertexData can output.
+    // This is a temporary fix until we have better support for custom vertex formats.
+    enum RigVertexFormat
+    {
+        RIG_VERTEX_FORMAT_SPINE = 0,
+        RIG_VERTEX_FORMAT_MODEL = 1
+    };
+
+    struct RigSpineModelVertex
+    {
+        float x;
+        float y;
+        float z;
+        float u;
+        float v;
+        uint32_t rgba;
+    };
+
+    struct RigModelVertex
+    {
+        float x;
+        float y;
+        float z;
+        uint16_t u;
+        uint16_t v;
+        float nx;
+        float ny;
+        float nz;
+    };
+
     struct RigContext
     {
-        dmObjectPool<HRigInstance> m_Instances;
-        dmArray<uint32_t>          m_DrawOrderToMesh;
+        dmObjectPool<HRigInstance>      m_Instances;
+        dmArray<uint32_t>               m_DrawOrderToMesh;
+        // Temporary scratch buffers used for store pose as transform and matrices
+        // (avoids modifying the real pose transform data during rendering).
+        dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
+        dmArray<Matrix4>                m_ScratchPoseMatrixBuffer;
+        // Temporary scratch buffers used when transforming the vertex buffer,
+        // used to creating primitives from indices.
+        dmArray<Vector3>                m_ScratchPositionBuffer;
+        dmArray<Vector3>                m_ScratchNormalBuffer;
     };
 
     struct NewContextParams {
@@ -241,12 +279,10 @@ namespace dmRig
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration);
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
+
+    void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, RigVertexFormat vertex_format, void* vertex_data_out);
     uint32_t GetVertexCount(HRigInstance instance);
 
-    float* GenerateNormalData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& normal_matrix, float* out_buffer);
-    float* GeneratePositionData(const HRigInstance instance, const uint32_t mesh_index, const Matrix4& model_matrix, float* out_buffer);
-
-    void UpdateMeshDrawOrder(HRigContext context, const HRigInstance instance, uint32_t mesh_count);
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
     dmhash_t GetMesh(HRigInstance instance);
     float GetCursor(HRigInstance instance, bool normalized);
@@ -256,8 +292,12 @@ namespace dmRig
     void SetEnabled(HRigInstance instance, bool enabled);
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);
+    uint32_t GetBoneCount(HRigInstance instance);
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
+    // Util function used to fill a bind pose array from skeleton data
+    // used in rig tests and loading rig resources.
+    void CreateBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose);
 }
 
 #endif // DM_RIG_H

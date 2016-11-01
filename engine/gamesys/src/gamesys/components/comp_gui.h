@@ -66,7 +66,6 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexBuffer        m_VertexBuffer;
         dmArray<BoxVertex>               m_ClientVertexBuffer;
-        dmArray<Vector3>                 m_ScratchPositionBufferData;
         dmGraphics::HTexture             m_WhiteTexture;
         dmRig::HRigContext               m_RigContext;
     };
