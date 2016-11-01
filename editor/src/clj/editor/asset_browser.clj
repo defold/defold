@@ -148,7 +148,7 @@
           (FileUtils/moveFile srcf dstf))
         (workspace/resource-sync! workspace true [[srcf dstf]])))))
 
-(defn delete [resources on-delete-resource-fn]
+(defn delete [resources]
   (when (not (empty? resources))
     (let [workspace (resource/workspace (first resources))]
       (doseq [resource resources]
@@ -156,8 +156,7 @@
           (if (.isDirectory f)
             (FileUtils/deleteDirectory f)
             (.delete (File. (resource/abs-path resource))))))
-      (on-delete-resource-fn resources)
-      (workspace/resource-sync! workspace false))))
+      (workspace/resource-sync! workspace))))
 
 (defn- copy [files]
   (let [cb (Clipboard/getSystemClipboard)
@@ -172,12 +171,12 @@
 
 (handler/defhandler :cut :asset-browser
   (enabled? [selection] (and (seq selection) (every? is-deletable-resource selection)))
-  (run [selection on-delete-resource-fn]
+  (run [selection]
        (let [tmp (doto (-> (Files/createTempDirectory "asset-cut" (into-array FileAttribute []))
                          (.toFile))
                    (.deleteOnExit))]
          (copy (mapv #(tmp-file tmp %) (roots selection))))
-    (delete selection on-delete-resource-fn)))
+    (delete selection)))
 
 (defn- unique [^File f]
   (if (.exists f)
@@ -240,10 +239,10 @@
 
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (and (seq selection) (every? is-deletable-resource selection)))
-  (run [selection on-delete-resource-fn]
+  (run [selection]
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))]
       (and (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
-           (delete selection on-delete-resource-fn)))))
+           (delete selection)))))
 
 (handler/defhandler :show-in-desktop :asset-browser
   (enabled? [selection] (and (= 1 (count selection)) (not= nil (resource/abs-path (first selection)))) )
@@ -475,14 +474,13 @@
 
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view open-resource-fn on-delete-resource-fn]
+(defn make-asset-browser [graph workspace tree-view open-resource-fn]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :tree-view tree-view]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
-    (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :open-fn open-resource-fn
-                                           :on-delete-resource-fn on-delete-resource-fn} tree-view)
+    (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :open-fn open-resource-fn} tree-view)
     (setup-asset-browser workspace tree-view open-resource-fn)
     asset-browser))

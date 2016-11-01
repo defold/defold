@@ -1,5 +1,6 @@
 (ns editor.sprite
-  (:require [editor.protobuf :as protobuf]
+  (:require [clojure.string :as str]
+            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
@@ -233,14 +234,26 @@
   (property image resource/Resource
             (value (gu/passthrough image-resource))
             (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                            [:resource :image-resource]
-                                            [:anim-data :anim-data]
-                                            [:gpu-texture :gpu-texture]
-                                            [:build-targets :dep-build-targets])))
+                   (let [project (project/get-project self)]
+                     (concat
+                       (project/resource-setter basis self old-value new-value
+                                                [:resource :image-resource]
+                                                [:anim-data :anim-data]
+                                                [:gpu-texture :gpu-texture]
+                                                [:build-targets :dep-build-targets])
+                       (when-let [resource-node (and new-value (project/get-resource-node project new-value))]
+                         (when-let [first-anim (->> (g/node-value resource-node :anim-data {:basis basis})
+                                                    keys
+                                                    (map str/lower-case)
+                                                    sort
+                                                    first)]
+                           (g/set-property self :default-animation first-anim)))))))
             (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
-                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
+                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image"))))
+            (dynamic edit-type (g/fnk []
+                                 {:type resource/Resource
+                                  :ext ["atlas" "tilesource"]})))
 
   (property default-animation g/Str
             (dynamic error (g/fnk [_node-id image default-animation anim-data]
