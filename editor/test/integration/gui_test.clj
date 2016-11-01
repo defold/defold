@@ -53,7 +53,9 @@
          project   (test-util/setup-project! workspace)
          node-id   (test-util/resource-node project "/logic/main.gui")]
      (is (nil? (test-util/prop-error node-id :script)))
-     ; Script is not required, so nil would be ok
+     ;; Script is not required, so nil would be ok
+     (test-util/with-prop [node-id :script nil]
+       (is (nil? (test-util/prop-error node-id :script))))
      (test-util/with-prop [node-id :script (workspace/resolve-workspace-resource workspace "/not_found.script")]
        (is (g/error-fatal? (test-util/prop-error node-id :script))))
      (is (nil? (test-util/prop-error node-id :material)))
