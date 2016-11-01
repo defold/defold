@@ -62,7 +62,10 @@ public class XMLChannel {
         /** A rotate channel */
         ROTATE,
         /** A scale channel */
-        SCALE
+        SCALE,
+        /** A transform channel */
+        TRANSFORM,
+        MATRIX
     }
 
     public ChannelType type;
@@ -70,6 +73,8 @@ public class XMLChannel {
     public final static String TRANSLATE_TARGET = "translate";
     public final static String ROTATE_TARGET = "rotate";
     public final static String SCALE_TARGET = "scale";
+    public final static String TRANSFORM_TARGET = "transform";
+    public final static String MATRIX_TARGET = "matrix";
 
     public String source = null;
     public String target = null;
@@ -80,6 +85,8 @@ public class XMLChannel {
     //target="Root/rotateX.ANGLE"
     //target="Root/translate"
     //target="Root/scale"
+    //target="Root/transform"
+    //target="Root/matrix"
 
     public String getTargetBone() {
         checkIsParsed();
@@ -136,6 +143,14 @@ public class XMLChannel {
                 /*
                  * It's a scale channel
                  */
+
+            } else if (trans.startsWith(TRANSFORM_TARGET)) {
+
+                type = ChannelType.TRANSFORM;
+
+            } else if (trans.startsWith(MATRIX_TARGET)) {
+
+                type = ChannelType.MATRIX;
 
             }
         }

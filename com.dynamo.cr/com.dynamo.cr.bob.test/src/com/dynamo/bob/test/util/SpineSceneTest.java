@@ -22,16 +22,16 @@ import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
-import com.dynamo.bob.util.RigScene;
-import com.dynamo.bob.util.RigScene.Animation;
-import com.dynamo.bob.util.RigScene.AnimationCurve;
-import com.dynamo.bob.util.RigScene.AnimationTrack;
-import com.dynamo.bob.util.RigScene.AnimationTrack.Property;
-import com.dynamo.bob.util.RigScene.Bone;
-import com.dynamo.bob.util.RigScene.EventTrack;
-import com.dynamo.bob.util.RigScene.Mesh;
-import com.dynamo.bob.util.RigScene.Transform;
-import com.dynamo.bob.util.RigScene.UVTransformProvider;
+import com.dynamo.bob.util.SpineSceneUtil;
+import com.dynamo.bob.util.RigUtil.Animation;
+import com.dynamo.bob.util.RigUtil.AnimationCurve;
+import com.dynamo.bob.util.RigUtil.AnimationTrack;
+import com.dynamo.bob.util.RigUtil.AnimationTrack.Property;
+import com.dynamo.bob.util.RigUtil.Bone;
+import com.dynamo.bob.util.RigUtil.EventTrack;
+import com.dynamo.bob.util.RigUtil.Mesh;
+import com.dynamo.bob.util.RigUtil.Transform;
+import com.dynamo.bob.util.RigUtil.UVTransformProvider;
 
 public class SpineSceneTest {
     private static final double EPSILON = 0.000001;
@@ -128,14 +128,14 @@ public class SpineSceneTest {
         assertTuple3(1.0, 1.0, 1.0, identity.scale);
     }
 
-    private RigScene load() throws Exception {
+    private SpineSceneUtil load() throws Exception {
         InputStream input = null;
         try {
             Bundle bundle = FrameworkUtil.getBundle(getClass());
             Enumeration<URL> entries = bundle.findEntries("/test", "skeleton.json", false);
             if (entries.hasMoreElements()) {
                 input = entries.nextElement().openStream();
-                return RigScene.loadJson(input, new TestUVTProvider());
+                return SpineSceneUtil.loadJson(input, new TestUVTProvider());
             }
             return null;
         } catch (Exception e) {
@@ -147,7 +147,7 @@ public class SpineSceneTest {
 
     @Test
     public void testLoadingBones() throws Exception {
-        RigScene scene = load();
+        SpineSceneUtil scene = load();
         assertEquals(9, scene.bones.size());
         Bone root = scene.getBone("root");
         Bone animated = scene.getBone("bone_animated");
@@ -188,7 +188,7 @@ public class SpineSceneTest {
 
     @Test
     public void testLoadingMeshes() throws Exception {
-        RigScene scene = load();
+        SpineSceneUtil scene = load();
         assertEquals(3, scene.meshes.size());
         assertMesh(scene.meshes.get(0), "test_sprite",
                 new float[] {
@@ -264,7 +264,7 @@ public class SpineSceneTest {
         );
     }
 
-    private static void assertSimpleAnim(RigScene scene, String name, Property property, float[][] values) {
+    private static void assertSimpleAnim(SpineSceneUtil scene, String name, Property property, float[][] values) {
         Animation anim = scene.getAnimation(name);
         assertEquals(1.0, anim.duration, EPSILON);
         assertEquals(1, anim.tracks.size());
@@ -277,7 +277,7 @@ public class SpineSceneTest {
         }
     }
 
-    private static void assertEvents(RigScene scene, String name, String eventId, Object[] values) {
+    private static void assertEvents(SpineSceneUtil scene, String name, String eventId, Object[] values) {
         Animation anim = scene.getAnimation(name);
         assertEquals(1, anim.eventTracks.size());
         EventTrack track = anim.eventTracks.get(0);
@@ -298,7 +298,7 @@ public class SpineSceneTest {
 
     @Test
     public void testLoadingAnims() throws Exception {
-        RigScene scene = load();
+        SpineSceneUtil scene = load();
         assertEquals(8, scene.animations.size());
 
         assertSimpleAnim(scene, "anim_pos", Property.POSITION, new float[][] {new float[] {0.0f, 0.0f, 0.0f}, new float[] {100.0f, 0.0f, 0.0f}});
@@ -328,7 +328,7 @@ public class SpineSceneTest {
         InputStream input = null;
         try {
             input = getClass().getResourceAsStream("empty.json");
-            RigScene scene = RigScene.loadJson(input, new TestUVTProvider());
+            SpineSceneUtil scene = SpineSceneUtil.loadJson(input, new TestUVTProvider());
             assertEquals(1, scene.bones.size());
             assertEquals(0, scene.meshes.size());
             assertEquals(0, scene.animations.size());
@@ -343,7 +343,7 @@ public class SpineSceneTest {
             InputStream input = null;
             try {
                 input = getClass().getResourceAsStream(String.format("sample%d.json", i));
-                RigScene scene = RigScene.loadJson(input, new TestUVTProvider());
+                SpineSceneUtil scene = SpineSceneUtil.loadJson(input, new TestUVTProvider());
                 assertTrue(0 < scene.bones.size());
                 assertTrue(0 < scene.meshes.size());
                 assertTrue(0 < scene.animations.size());

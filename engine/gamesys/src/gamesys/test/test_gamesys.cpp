@@ -465,12 +465,14 @@ INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, ::testing::ValuesIn(invalid_
 
 /* Mesh */
 
-const char* valid_mesh_resources[] = {"/mesh/valid.meshc"};
+const char* valid_mesh_resources[] = {"/mesh/valid.meshsetc", "/mesh/valid.skeletonc", "/mesh/valid.animationsetc"};
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, ::testing::ValuesIn(valid_mesh_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
 {
-    {"/mesh/valid.meshc", "/mesh/missing.meshc"},
+    {"/mesh/valid.meshsetc", "/mesh/missing.meshsetc"},
+    {"/mesh/valid.skeletonc", "/mesh/missing.skeletonc"},
+    {"/mesh/valid.animationsetc", "/mesh/missing.animationsetc"},
 };
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, ::testing::ValuesIn(invalid_mesh_resources));
 

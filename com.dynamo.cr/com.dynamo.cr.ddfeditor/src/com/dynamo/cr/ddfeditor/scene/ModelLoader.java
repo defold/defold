@@ -9,8 +9,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
-import com.dynamo.model.proto.Model.ModelDesc;
-import com.dynamo.model.proto.Model.ModelDesc.Builder;
+import com.dynamo.model.proto.ModelProto.ModelDesc;
+import com.dynamo.model.proto.ModelProto.ModelDesc.Builder;
 import com.google.protobuf.Message;
 
 public class ModelLoader implements INodeLoader<ModelNode> {

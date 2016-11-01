@@ -46,11 +46,28 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Positions.m_Data[7] = 0.0f;
     mesh.m_Positions.m_Data[8] = 0.0f;
 
-    // data for each vertex (tex coords and normals not used)
+    // data for each vertex (tex coords not used)
     mesh.m_Texcoord0.m_Data       = new float[vert_count*2];
     mesh.m_Texcoord0.m_Count      = vert_count*2;
+    mesh.m_Texcoord0Indices.m_Count = 0;
+
     mesh.m_Normals.m_Data         = new float[vert_count*3];
     mesh.m_Normals.m_Count        = vert_count*3;
+    mesh.m_Normals[0]             = 0.0;
+    mesh.m_Normals[1]             = 1.0;
+    mesh.m_Normals[2]             = 0.0;
+    mesh.m_Normals[3]             = 0.0;
+    mesh.m_Normals[4]             = 1.0;
+    mesh.m_Normals[5]             = 0.0;
+    mesh.m_Normals[6]             = 0.0;
+    mesh.m_Normals[7]             = 1.0;
+    mesh.m_Normals[8]             = 0.0;
+
+    mesh.m_NormalsIndices.m_Data    = new uint32_t[vert_count];
+    mesh.m_NormalsIndices.m_Count   = vert_count;
+    mesh.m_NormalsIndices.m_Data[0] = 0;
+    mesh.m_NormalsIndices.m_Data[1] = 1;
+    mesh.m_NormalsIndices.m_Data[2] = 2;
 
     mesh.m_Color.m_Data           = new float[vert_count*4];
     mesh.m_Color.m_Count          = vert_count*4;
@@ -167,13 +184,31 @@ private:
 
         ------------------------------------
 
-            Animation (id: "ik_anim") for IK on Bone B.
+            Animation (id: "scaling") for Bone A:
+
+            I:
+            (0)---->(1)---->
+
+            II:
+            (0) (scale 2x)
+             |
+             |
+             |
+             |
+             v
+             (1)---->
+
+
+        ------------------------------------
+
+            Animation (id: "ik") for IK on Bone B.
 
         */
 
         uint32_t bone_count = 5;
         m_Skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
         m_Skeleton->m_Bones.m_Count = bone_count;
+        m_Skeleton->m_LocalBoneScaling = true;
 
         // Bone 0
         dmRigDDF::Bone& bone0 = m_Skeleton->m_Bones.m_Data[0];
@@ -182,7 +217,7 @@ private:
         bone0.m_Position     = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
         bone0.m_Rotation     = Vectormath::Aos::Quat::identity();
         bone0.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
-        bone0.m_InheritScale = false;
+        bone0.m_InheritScale = true;
         bone0.m_Length       = 0.0f;
 
         // Bone 1
@@ -192,7 +227,7 @@ private:
         bone1.m_Position     = Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f);
         bone1.m_Rotation     = Vectormath::Aos::Quat::identity();
         bone1.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
-        bone1.m_InheritScale = false;
+        bone1.m_InheritScale = true;
         bone1.m_Length       = 1.0f;
 
         // Bone 2
@@ -202,7 +237,7 @@ private:
         bone2.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
         bone2.m_Rotation     = Vectormath::Aos::Quat::identity();
         bone2.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
-        bone2.m_InheritScale = false;
+        bone2.m_InheritScale = true;
         bone2.m_Length       = 1.0f;
 
         // Bone 3
@@ -212,7 +247,7 @@ private:
         bone3.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
         bone3.m_Rotation     = Vectormath::Aos::Quat::identity();
         bone3.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
-        bone3.m_InheritScale = false;
+        bone3.m_InheritScale = true;
         bone3.m_Length       = 1.0f;
 
         // Bone 4
@@ -222,7 +257,7 @@ private:
         bone4.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
         bone4.m_Rotation     = Vectormath::Aos::Quat::identity();
         bone4.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
-        bone4.m_InheritScale = false;
+        bone4.m_InheritScale = true;
         bone4.m_Length       = 1.0f;
 
         m_BindPose.SetCapacity(bone_count);
@@ -240,94 +275,133 @@ private:
         ik_target.m_Mix      = 1.0f;
 
         // Calculate bind pose
-        // (code from res_rig_scene.h)
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmRig::RigBone* bind_bone = &m_BindPose[i];
-            dmRigDDF::Bone* bone = &m_Skeleton->m_Bones[i];
-            bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-            if (i > 0)
-            {
-                bind_bone->m_LocalToModel = dmTransform::Mul(m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-                if (!bone->m_InheritScale)
-                {
-                    bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-                }
-            }
-            else
-            {
-                bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-            }
-            bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
-            bind_bone->m_ParentIndex = bone->m_Parent;
-            bind_bone->m_Length = bone->m_Length;
-        }
+        dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
 
         // Bone animations
-        uint32_t animation_count = 2;
+        uint32_t animation_count = 3;
         m_AnimationSet->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         m_AnimationSet->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
         dmRigDDF::RigAnimation& anim1 = m_AnimationSet->m_Animations.m_Data[1];
+        dmRigDDF::RigAnimation& anim2 = m_AnimationSet->m_Animations.m_Data[2];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
         anim0.m_EventTracks.m_Count = 0;
         anim0.m_MeshTracks.m_Count  = 0;
         anim0.m_IkTracks.m_Count    = 0;
-        anim1.m_Id = dmHashString64("ik_anim");
+        anim1.m_Id = dmHashString64("ik");
         anim1.m_Duration            = 3.0f;
         anim1.m_SampleRate          = 1.0f;
         anim1.m_Tracks.m_Count      = 0;
         anim1.m_EventTracks.m_Count = 0;
         anim1.m_MeshTracks.m_Count  = 0;
+        anim2.m_Id = dmHashString64("scaling");
+        anim2.m_Duration            = 2.0f;
+        anim2.m_SampleRate          = 1.0f;
+        anim2.m_EventTracks.m_Count = 0;
+        anim2.m_MeshTracks.m_Count  = 0;
+        anim2.m_IkTracks.m_Count    = 0;
 
-        uint32_t bone_track_count = 2;
-        anim0.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[bone_track_count];
-        anim0.m_Tracks.m_Count = bone_track_count;
-        dmRigDDF::AnimationTrack& anim_track0 = anim0.m_Tracks.m_Data[0];
-        dmRigDDF::AnimationTrack& anim_track1 = anim0.m_Tracks.m_Data[1];
+        // Animation 0: "valid"
+        {
+            uint32_t track_count = 2;
+            anim0.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[track_count];
+            anim0.m_Tracks.m_Count = track_count;
+            dmRigDDF::AnimationTrack& anim_track0 = anim0.m_Tracks.m_Data[0];
+            dmRigDDF::AnimationTrack& anim_track1 = anim0.m_Tracks.m_Data[1];
 
-        anim_track0.m_BoneIndex         = 0;
-        anim_track0.m_Positions.m_Count = 0;
-        anim_track0.m_Scale.m_Count     = 0;
+            anim_track0.m_BoneIndex         = 0;
+            anim_track0.m_Positions.m_Count = 0;
+            anim_track0.m_Scale.m_Count     = 0;
 
-        anim_track1.m_BoneIndex         = 1;
-        anim_track1.m_Positions.m_Count = 0;
-        anim_track1.m_Scale.m_Count     = 0;
+            anim_track1.m_BoneIndex         = 1;
+            anim_track1.m_Positions.m_Count = 0;
+            anim_track1.m_Scale.m_Count     = 0;
 
-        uint32_t samples = 4;
-        anim_track0.m_Rotations.m_Data = new float[samples*4];
-        anim_track0.m_Rotations.m_Count = samples*4;
-        ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::identity();
-        ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::identity();
-        ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
-        ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
+            uint32_t samples = 4;
+            anim_track0.m_Rotations.m_Data = new float[samples*4];
+            anim_track0.m_Rotations.m_Count = samples*4;
+            ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::identity();
+            ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::identity();
+            ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
+            ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
 
-        anim_track1.m_Rotations.m_Data = new float[samples*4];
-        anim_track1.m_Rotations.m_Count = samples*4;
-        ((Quat*)anim_track1.m_Rotations.m_Data)[0] = Quat::identity();
-        ((Quat*)anim_track1.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
-        ((Quat*)anim_track1.m_Rotations.m_Data)[2] = Quat::identity();
-        ((Quat*)anim_track1.m_Rotations.m_Data)[3] = Quat::identity();
+            anim_track1.m_Rotations.m_Data = new float[samples*4];
+            anim_track1.m_Rotations.m_Count = samples*4;
+            ((Quat*)anim_track1.m_Rotations.m_Data)[0] = Quat::identity();
+            ((Quat*)anim_track1.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
+            ((Quat*)anim_track1.m_Rotations.m_Data)[2] = Quat::identity();
+            ((Quat*)anim_track1.m_Rotations.m_Data)[3] = Quat::identity();
+        }
 
-        // IK animation
-        anim1.m_IkTracks.m_Data = new dmRigDDF::IKAnimationTrack[1];
-        anim1.m_IkTracks.m_Count = 1;
-        dmRigDDF::IKAnimationTrack& ik_track = anim1.m_IkTracks.m_Data[0];
-        ik_track.m_IkIndex = 0;
-        ik_track.m_Mix.m_Data = new float[samples];
-        ik_track.m_Mix.m_Count = samples;
-        ik_track.m_Mix.m_Data[0] = 1.0f;
-        ik_track.m_Mix.m_Data[1] = 1.0f;
-        ik_track.m_Mix.m_Data[2] = 1.0f;
-        ik_track.m_Mix.m_Data[3] = 1.0f;
-        ik_track.m_Positive.m_Data = new bool[samples];
-        ik_track.m_Positive.m_Count = samples;
-        ik_track.m_Positive.m_Data[0] = 1.0f;
-        ik_track.m_Positive.m_Data[1] = 1.0f;
-        ik_track.m_Positive.m_Data[2] = 1.0f;
-        ik_track.m_Positive.m_Data[3] = 1.0f;
+        // Animation 1: "ik"
+        {
+            uint32_t samples = 4;
+            anim1.m_IkTracks.m_Data = new dmRigDDF::IKAnimationTrack[1];
+            anim1.m_IkTracks.m_Count = 1;
+            dmRigDDF::IKAnimationTrack& ik_track = anim1.m_IkTracks.m_Data[0];
+            ik_track.m_IkIndex = 0;
+            ik_track.m_Mix.m_Data = new float[samples];
+            ik_track.m_Mix.m_Count = samples;
+            ik_track.m_Mix.m_Data[0] = 1.0f;
+            ik_track.m_Mix.m_Data[1] = 1.0f;
+            ik_track.m_Mix.m_Data[2] = 1.0f;
+            ik_track.m_Mix.m_Data[3] = 1.0f;
+            ik_track.m_Positive.m_Data = new bool[samples];
+            ik_track.m_Positive.m_Count = samples;
+            ik_track.m_Positive.m_Data[0] = 1.0f;
+            ik_track.m_Positive.m_Data[1] = 1.0f;
+            ik_track.m_Positive.m_Data[2] = 1.0f;
+            ik_track.m_Positive.m_Data[3] = 1.0f;
+        }
+
+        // Animation 2: "scaling"
+        {
+            uint32_t track_count = 3; // 2x rotation, 1x scale
+            anim2.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[track_count];
+            anim2.m_Tracks.m_Count = track_count;
+            dmRigDDF::AnimationTrack& anim_track_b0_rot   = anim2.m_Tracks.m_Data[0];
+            dmRigDDF::AnimationTrack& anim_track_b0_scale = anim2.m_Tracks.m_Data[1];
+            dmRigDDF::AnimationTrack& anim_track_b1_rot   = anim2.m_Tracks.m_Data[2];
+
+            anim_track_b0_rot.m_BoneIndex         = 0;
+            anim_track_b0_rot.m_Positions.m_Count = 0;
+            anim_track_b0_rot.m_Scale.m_Count     = 0;
+
+            anim_track_b0_scale.m_BoneIndex         = 0;
+            anim_track_b0_scale.m_Rotations.m_Count = 0;
+            anim_track_b0_scale.m_Positions.m_Count = 0;
+
+            anim_track_b1_rot.m_BoneIndex         = 1;
+            anim_track_b1_rot.m_Positions.m_Count = 0;
+            anim_track_b1_rot.m_Scale.m_Count     = 0;
+
+            uint32_t samples = 3;
+            anim_track_b0_rot.m_Rotations.m_Data = new float[samples*4];
+            anim_track_b0_rot.m_Rotations.m_Count = samples*4;
+            ((Quat*)anim_track_b0_rot.m_Rotations.m_Data)[0] = Quat::identity();
+            ((Quat*)anim_track_b0_rot.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
+            ((Quat*)anim_track_b0_rot.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
+
+            anim_track_b0_scale.m_Scale.m_Data = new float[samples*3];
+            anim_track_b0_scale.m_Scale.m_Count = samples*3;
+            anim_track_b0_scale.m_Scale.m_Data[0] = 1.0f;
+            anim_track_b0_scale.m_Scale.m_Data[1] = 1.0f;
+            anim_track_b0_scale.m_Scale.m_Data[2] = 1.0f;
+            anim_track_b0_scale.m_Scale.m_Data[3] = 2.0f;
+            anim_track_b0_scale.m_Scale.m_Data[4] = 1.0f;
+            anim_track_b0_scale.m_Scale.m_Data[5] = 1.0f;
+            anim_track_b0_scale.m_Scale.m_Data[6] = 2.0f;
+            anim_track_b0_scale.m_Scale.m_Data[7] = 1.0f;
+            anim_track_b0_scale.m_Scale.m_Data[8] = 1.0f;
+
+            anim_track_b1_rot.m_Rotations.m_Data = new float[samples*4];
+            anim_track_b1_rot.m_Rotations.m_Count = samples*4;
+            ((Quat*)anim_track_b1_rot.m_Rotations.m_Data)[0] = Quat::identity();
+            ((Quat*)anim_track_b1_rot.m_Rotations.m_Data)[1] = Quat::rotationZ(-(float)M_PI / 2.0f);
+            ((Quat*)anim_track_b1_rot.m_Rotations.m_Data)[2] = Quat::rotationZ(-(float)M_PI / 2.0f);
+        }
 
         // Meshes / skins
         m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
@@ -340,6 +414,10 @@ private:
 
     void TearDownSimpleSpine() {
 
+        delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[2].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[1].m_Scale.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[0].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Positive.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Mix.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data;
@@ -352,6 +430,7 @@ private:
 
         for (int i = 0; i < 2; ++i)
         {
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_NormalsIndices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
@@ -568,9 +647,9 @@ TEST_F(RigInstanceTest, PoseAnim)
 
     // sample 2
     ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[1].GetTranslation());
+    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0f), pose[1].GetTranslation());
     ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[0].GetRotation());
-    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[1].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
@@ -612,69 +691,141 @@ TEST_F(RigInstanceTest, GetVertexCount)
     ASSERT_EQ(3, dmRig::GetVertexCount(m_Instance));
 }
 
+#define ASSERT_VERT_POS(exp, act)\
+    ASSERT_VEC3(exp, Vector3(act.x, act.y, act.z));
+
+#define ASSERT_VERT_NORM(exp, act)\
+    ASSERT_VEC3(exp, Vector3(act.nx, act.ny, act.nz));
+
 TEST_F(RigInstanceTest, GenerateVertexData)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
-
-    dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
-    dmRig::RigGenVertexDataParams params;
-    params.m_ModelMatrix = Matrix4::identity();
-    params.m_VertexData = (void**)&data;
-    params.m_VertexStride = sizeof(dmRig::RigVertexData);
+    dmRig::RigSpineModelVertex data[3];
+    dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
-    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
-    ASSERT_VEC3(Vector3(2.0f, 0.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
+
+    // // sample 1
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
+
+    // // sample 2
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(0.0f, 1.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[2]); // v2
+}
+
+TEST_F(RigInstanceTest, GenerateNormalData)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    dmRig::RigModelVertex data[3];
+    dmRig::RigModelVertex* data_end = data + 3;
+
+    Vector3 n_up(0.0f, 1.0f, 0.0f);
+    Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_VERT_NORM(n_up, data[0]); // v0
+    ASSERT_VERT_NORM(n_up, data[1]); // v1
+    ASSERT_VERT_NORM(n_up, data[2]); // v2
+
+    // // sample 1
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_VERT_NORM(n_up,        data[0]); // v0
+    ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
+    ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
+
+    // // sample 2
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_VERT_NORM(n_neg_right, data[0]); // v0
+    ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
+    ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
+}
+
+// Test Spine 2.x skeleton that has scaling relative to the bone local space.
+TEST_F(RigInstanceTest, LocalBoneScaling)
+{
+    m_Skeleton->m_LocalBoneScaling = true;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    dmRig::RigSpineModelVertex data[3];
+    dmRig::RigSpineModelVertex* data_end = data + 3;
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
-    ASSERT_VEC3(Vector3(1.0f, 0.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
-    ASSERT_VEC3(Vector3(1.0f, 1.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
-
-    // sample 2
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_VEC3(Vector3(0.0f), Vector3(data[0].x, data[0].y, data[0].z));            // v0
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0), Vector3(data[1].x, data[1].y, data[1].z)); // v1
-    ASSERT_VEC3(Vector3(0.0f, 2.0f, 0.0), Vector3(data[2].x, data[2].y, data[2].z)); // v2
-
-    delete [] data;
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(2.0f, 2.0f, 0.0), data[2]); // v2
 }
+
+TEST_F(RigInstanceTest, BoneScaling)
+{
+    m_Skeleton->m_LocalBoneScaling = false;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    dmRig::RigSpineModelVertex data[3];
+    dmRig::RigSpineModelVertex* data_end = data + 3;
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
+
+    // sample 1
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[1]); // v1
+
+    // This is the major difference from Spine 2.x -> Spine 3.x behaviour.
+    ASSERT_VERT_POS(Vector3(1.0f, 2.0f, 0.0), data[2]); // v2
+}
+
 
 TEST_F(RigInstanceTest, SetMeshInvalid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
-
-    dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
-    dmRig::RigGenVertexDataParams params;
-    params.m_ModelMatrix = Matrix4::identity();
-    params.m_VertexData = (void**)&data;
-    params.m_VertexStride = sizeof(dmRig::RigVertexData);
-
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_EQ(0, data[0].r);
-    ASSERT_EQ(0, data[0].g);
-    ASSERT_EQ(0, data[0].b);
-    ASSERT_EQ(0, data[0].a);
+    dmRig::RigSpineModelVertex data[3];
+    dmRig::RigSpineModelVertex* data_end = data + 3;
 
     dmhash_t new_mesh = dmHashString64("not_a_valid_skin");
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(dmHashString64("test"), dmRig::GetMesh(m_Instance));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_EQ(0, data[0].r);
-    ASSERT_EQ(0, data[0].g);
-    ASSERT_EQ(0, data[0].b);
-    ASSERT_EQ(0, data[0].a);
-
-    delete [] data;
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
 }
 
 
@@ -682,31 +833,22 @@ TEST_F(RigInstanceTest, SetMeshValid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
-
-    dmRig::RigVertexData* data = new dmRig::RigVertexData[3];
-    dmRig::RigGenVertexDataParams params;
-    params.m_ModelMatrix = Matrix4::identity();
-    params.m_VertexData = (void**)&data;
-    params.m_VertexStride = sizeof(dmRig::RigVertexData);
-
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_EQ(0, data[0].r);
-    ASSERT_EQ(0, data[0].g);
-    ASSERT_EQ(0, data[0].b);
-    ASSERT_EQ(0, data[0].a);
+    dmRig::RigSpineModelVertex data[3];
+    dmRig::RigSpineModelVertex* data_end = data + 3;
 
     dmhash_t new_mesh = dmHashString64("secondary_skin");
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(new_mesh, dmRig::GetMesh(m_Instance));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, params));
-    ASSERT_EQ(255, data[0].r);
-    ASSERT_EQ(255, data[0].g);
-    ASSERT_EQ(255, data[0].b);
-    ASSERT_EQ(255, data[0].a);
-
-    delete [] data;
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
 }
 
 TEST_F(RigInstanceTest, CursorNoAnim)
@@ -802,6 +944,11 @@ TEST_F(RigInstanceTest, CursorSetOutside)
     ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
 }
 
+static Vector3 IKTargetPositionCallback(void* user_data, void*)
+{
+    return *(Vector3*)user_data;
+}
+
 TEST_F(RigInstanceTest, InvalidIKTarget)
 {
     // Getting invalid ik constraint
@@ -816,7 +963,8 @@ static Vector3 UpdateIKPositionCallback(dmRig::IKTarget* ik_target)
 TEST_F(RigInstanceTest, IKTarget)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("ik_anim"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("ik"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+
 
     dmRig::IKTarget* target = dmRig::GetIKTarget(m_Instance, dmHashString64("test_ik"));
     ASSERT_NE((dmRig::IKTarget*)0x0, target);
@@ -830,11 +978,11 @@ TEST_F(RigInstanceTest, IKTarget)
 
     ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
-    ASSERT_VEC3(Vector3(-1.0f, 1.0f, 0.0f), pose[3].GetTranslation());
-    ASSERT_VEC3(Vector3(-2.0f, 1.0f, 0.0f), pose[4].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[3].GetRotation());
-    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[4].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
 
     target->m_Position.setX(100.0f);
     target->m_Position.setY(1.0f);
@@ -843,10 +991,18 @@ TEST_F(RigInstanceTest, IKTarget)
 
     ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
-    ASSERT_VEC3(Vector3(-1.0f, 1.0f, 0.0f), pose[3].GetTranslation());
-    ASSERT_VEC3(Vector3(-1.0f, 2.0f, 0.0f), pose[4].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ(-(float)M_PI / 2.0f), pose[3].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+
+    target->m_Position.setX(0.0f);
+    target->m_Position.setY(-100.0f);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ(-(float)M_PI), pose[3].GetRotation());
     ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
 }
 

@@ -17,7 +17,6 @@
 #include "resources/res_fragment_program.h"
 #include "resources/res_font_map.h"
 #include "resources/res_model.h"
-#include "resources/res_mesh.h"
 #include "resources/res_material.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound_data.h"
@@ -94,8 +93,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, 0, ResVertexProgramCreate, ResVertexProgramDestroy, ResVertexProgramRecreate);
         REGISTER_RESOURCE_TYPE("fpc", graphics_context, 0, ResFragmentProgramCreate, ResFragmentProgramDestroy, ResFragmentProgramRecreate);
         REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontMapPreload, ResFontMapCreate, ResFontMapDestroy, ResFontMapRecreate);
-        REGISTER_RESOURCE_TYPE("modelc", 0, ResPreloadModel, ResCreateModel, ResDestroyModel, ResRecreateModel);
-        REGISTER_RESOURCE_TYPE("meshc", graphics_context, 0, ResCreateMesh, ResDestroyMesh, ResRecreateMesh);
+        REGISTER_RESOURCE_TYPE("modelc", 0, ResModelPreload, ResModelCreate, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, 0, ResMaterialCreate, ResMaterialDestroy, ResMaterialRecreate);
         REGISTER_RESOURCE_TYPE("guic", gui_context, ResPreloadSceneDesc, ResCreateSceneDesc, ResDestroySceneDesc, ResRecreateSceneDesc);
         REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResPreloadGuiScript, ResCreateGuiScript, ResDestroyGuiScript, ResRecreateGuiScript);
@@ -135,7 +133,9 @@ namespace dmGameSystem
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
-                                                SpineModelContext* spine_model_context)
+                                                SpineModelContext* spine_model_context,
+                                                ModelContext* model_context
+                                                )
     {
         dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
@@ -214,7 +214,7 @@ namespace dmGameSystem
                 CompSoundUpdate, 0, 0, CompSoundOnMessage, 0, 0, 0, 0,
                 0, 0);
 
-        REGISTER_COMPONENT_TYPE("modelc", 700, render_context,
+        REGISTER_COMPONENT_TYPE("modelc", 700, model_context,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate,
                 CompModelUpdate, CompModelRender, 0, CompModelOnMessage, 0, 0, CompModelGetProperty, CompModelSetProperty,

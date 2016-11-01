@@ -17,6 +17,7 @@
 #include <render/render_ddf.h>
 
 #include "comp_gui.h"
+#include "comp_spine_model.h"
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
@@ -739,11 +740,14 @@ namespace dmGameSystem
         gro.m_SortOrder = gui_context->m_NextSortOrder++;
 
         uint32_t vertex_count = 0;
+        uint32_t max_component_vertices = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            vertex_count += dmRig::GetVertexCount(rig_instance);
+            uint32_t count = dmRig::GetVertexCount(rig_instance);
+            vertex_count += count;
+            max_component_vertices = dmMath::Max(max_component_vertices, count);
         }
 
         ro.Init();
@@ -776,20 +780,11 @@ namespace dmGameSystem
         // Fill in vertex buffer
         BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
         BoxVertex *vb_end = vb_begin;
-
-        dmRig::RigGenVertexDataParams params;
         for (uint32_t i = 0; i < node_count; ++i)
         {
-
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-            params.m_ModelMatrix = node_transforms[i];
-            params.m_VertexData = (void**)&vb_end;
-            params.m_VertexStride = sizeof(BoxVertex);
-            params.m_Color = Vector4(color.getXYZ() * node_opacities[i], node_opacities[i]); // Pre-multiplied alpha
-
-            vb_end = (BoxVertex *)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, params);
+            vb_end = (BoxVertex*)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, node_transforms[i], Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
@@ -854,7 +849,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
-        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
@@ -1072,7 +1067,7 @@ namespace dmGameSystem
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
-        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);

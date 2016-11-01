@@ -60,10 +60,10 @@ message PlayAnimation
 }
 
 /*# reports that an animation has completed
- * <p>This message is sent to the sender of a <code>play_animation</code> message when the 
+ * <p>This message is sent to the sender of a <code>play_animation</code> message when the
  * animation has completed.</p>
  *
- * <p>Note that this message is sent only for animations that play with the following 
+ * <p>Note that this message is sent only for animations that play with the following
  * playback modes:</p>
  * <ul>
  * <li>Once Forward</li>
@@ -71,7 +71,7 @@ message PlayAnimation
  * <li>Once Ping Pong</li>
  * </ul>
  *
- * <p>See <code>play_animation</code> for more information and examples of how to use 
+ * <p>See <code>play_animation</code> for more information and examples of how to use
  * this message.</p>
  *
  * @message
@@ -95,12 +95,6 @@ message SetFlipHorizontal
 message SetFlipVertical
 {
     required uint32 flip = 1;
-}
-
-/* Function wrapper documented in gamesys_script.cpp */
-message ResetConstant
-{
-    required uint64         name_hash   = 1;
 }
 
 /* Function wrapper documented in gamesys_script.cpp */

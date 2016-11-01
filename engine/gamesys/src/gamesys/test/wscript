@@ -12,7 +12,7 @@ else:
     os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto:../src"
 
 def configure(conf):
-    conf.find_file('meshc.py', [os.path.abspath('tools')], var = 'MESHC', mandatory = True)
+    pass
 
 def build(bld):
     dirs = [
