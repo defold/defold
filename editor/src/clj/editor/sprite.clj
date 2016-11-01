@@ -244,7 +244,7 @@
                                             [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
                                             [:build-targets :dep-build-targets])))
-            (dynamic error (g/fnk [_node-id image]
+            (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
                                       (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image"))))
             (dynamic edit-type (g/constantly
@@ -253,9 +253,9 @@
 
   (property default-animation g/Str
             (value (g/fnk [default-animation anim-ids]
-                     (if-not (str/blank? default-animation)
-                       default-animation
-                       (first (sort-anim-ids anim-ids)))))
+                     (if (and (str/blank? default-animation) anim-ids)
+                       (first (sort-anim-ids anim-ids))
+                       default-animation)))
             (dynamic error (g/fnk [_node-id image anim-ids default-animation]
                              (when image
                                (let [anim-id-set (set anim-ids)]
