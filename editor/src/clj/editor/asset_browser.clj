@@ -196,12 +196,22 @@
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
+(defn- allow-resource-transfer? [tgt-resource src-files]
+  (and (not (resource/read-only? tgt-resource))
+       (let [^Path tgt-path (-> tgt-resource resource/abs-path File. to-folder .getAbsolutePath ->path)
+             src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
+                            src-files)
+             descendant (some (fn [^Path p] (or (.equals tgt-path (.getParent p))
+                                                (.startsWith tgt-path p)))
+                              src-paths)]
+         (nil? descendant))))
+
 (handler/defhandler :paste :asset-browser
   (enabled? [selection]
             (let [cb (Clipboard/getSystemClipboard)]
               (and (.hasFiles cb)
                    (= 1 (count selection))
-                   (empty? (filter resource/read-only? selection)))))
+                   (allow-resource-transfer? (first selection) (.getFiles cb)))))
   (run [selection workspace tree-view]
        (let [resource (first selection)
              src-files (.getFiles (Clipboard/getSystemClipboard))
@@ -385,14 +395,9 @@
          (when (> view-y (- height 15))
            (.scrollTo view (inc (.getIndex cell)))))
        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
-         (when (not (resource/read-only? tgt-resource))
-           (let [^Path tgt-path (-> tgt-resource resource/abs-path File. to-folder .getAbsolutePath ->path)
-                 tgt-descendant? (not (empty? (filter (fn [^Path p] (or
-                                                                      (.equals tgt-path (.getParent p))
-                                                                      (.startsWith tgt-path p))) (map (fn [^File f] (-> f .getAbsolutePath ->path)) (.getFiles db)))))]
-             (when (not tgt-descendant?)
-               (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
-               (.consume e)))))))))
+         (when (allow-resource-transfer? tgt-resource (.getFiles db))
+           (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+           (.consume e)))))))
 
 (defn- find-files [^File src ^File tgt]
   (if (.isDirectory src)
