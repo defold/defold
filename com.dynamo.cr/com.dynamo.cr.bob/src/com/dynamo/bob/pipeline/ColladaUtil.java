@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Vector;
 import java.util.Map.Entry;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -51,6 +53,7 @@ import com.dynamo.bob.util.RigUtil;
 
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
+import com.dynamo.bob.util.RigUtil.Weight;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -498,7 +501,7 @@ public class ColladaUtil {
 
         List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
-        loadVertexWeights(collada, position_indices_list, bone_weights_list, bone_indices_list, colladaIndexToDDFIndex);
+        loadVertexWeights(collada, bone_weights_list, bone_indices_list, colladaIndexToDDFIndex);
 
         if(normals != null) {
             meshBuilder.addAllNormals(normal_list);
@@ -693,7 +696,7 @@ public class ColladaUtil {
     }
 
 
-    private static void loadVertexWeights(XMLCOLLADA collada, List<Integer> position_indices_list, List<Float> bone_weights_list, List<Integer> bone_indices_list, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
+    private static void loadVertexWeights(XMLCOLLADA collada, List<Float> boneWeightsList, List<Integer> boneIndicesList, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
 
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
@@ -708,13 +711,15 @@ public class ColladaUtil {
 
         XMLInput weights_input = findInput(skin.vertexWeights.inputs, "WEIGHT", true);
         XMLSource weightsSource = sourcesMap.get(weights_input.source);
+        Vector<Weight> weights = new Vector<Weight>(10);
 
         int vIndex = 0;
         for ( int i = 0; i < skin.vertexWeights.vcount.ints.length; i++ )
         {
-            final int numBones = skin.vertexWeights.vcount.ints[ i ];
+            int influenceCount = skin.vertexWeights.vcount.ints[ i ];
             int j = 0;
-            for (; j < Math.min(numBones, 4); j++ ) {
+            weights.setSize(0);
+            for (; j < influenceCount; j++ ) {
                 float bw = 0f;
                 int bi = 0;
                 bi = skin.vertexWeights.v.ints[ vIndex + j * 2 + 0 ];
@@ -722,18 +727,30 @@ public class ColladaUtil {
                 if (bi != -1) {
                     final int weightIndex = skin.vertexWeights.v.ints[ vIndex + j * 2 + 1 ];
                     bw = weightsSource.floatArray.floats[ weightIndex ];
-                    bone_indices_list.add(bi);
-                    bone_weights_list.add(bw);
+                    weights.add(new Weight(bi, bw));
                 } else {
                     throw new LoaderException("Invalid bone index when loading vertex weights.");
                 }
             }
+
+            vIndex += influenceCount * 2;
+
+            // Skinning in engine expect each vertex to have exactly 4 bone influences.
             for (; j < 4; j++ ) {
-                bone_indices_list.add(0);
-                bone_weights_list.add(0f);
+                weights.add(new Weight(0, 0.0f));
             }
 
-            vIndex += numBones * 2;
+            // If there are more than 4 influences, we sort and take only the 4 with heighest weight.
+            influenceCount = weights.size();
+            if (influenceCount > 4) {
+                Collections.sort(weights);
+                weights.setSize(4);
+            }
+
+            for (Weight w : weights) {
+                boneIndicesList.add(w.boneIndex);
+                boneWeightsList.add(w.weight);
+            }
         }
     }
 

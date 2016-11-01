@@ -223,10 +223,16 @@ public class RigUtil {
         public List<EventTrack> eventTracks = new ArrayList<EventTrack>();
     }
 
-    public class Weight implements Comparable<Weight> {
+    public static class Weight implements Comparable<Weight> {
         public Point3d p;
         public int boneIndex;
         public float weight;
+
+        public Weight(int boneIndex, float weight) {
+            this.p = new Point3d(0.0, 0.0, 0.0);
+            this.boneIndex = boneIndex;
+            this.weight = weight;
+        }
 
         public Weight(Point3d p, int boneIndex, float weight) {
             this.p = p;
