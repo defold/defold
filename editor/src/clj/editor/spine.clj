@@ -540,21 +540,23 @@
 
 (def color [1.0 1.0 1.0 1.0])
 
-(defn- skeleton-vs [parent-pos bone vs]
+(defn- skeleton-vs [parent-pos bone vs ^Matrix4d wt]
   (let [pos (Vector3d.)
-        _ (.get ^Matrix4d (:transform bone) pos)
+        t (doto (Matrix4d.)
+            (.mul wt ^Matrix4d (:transform bone)))
+        _ (.get ^Matrix4d t pos)
         pos [(.x pos) (.y pos) (.z pos)]
         vs (if parent-pos
              (conj vs (into parent-pos color) (into pos color))
              vs)]
-    (reduce (fn [vs bone] (skeleton-vs pos bone vs)) vs (:children bone))))
+    (reduce (fn [vs bone] (skeleton-vs pos bone vs wt)) vs (:children bone))))
 
 (defn- gen-skeleton-vb [renderables rcount]
   (let [vs (loop [renderables renderables
                   vs []]
              (if-let [r (first renderables)]
                (let [skeleton (get-in r [:user-data :scene-structure :skeleton])]
-                 (recur (rest renderables) (skeleton-vs nil skeleton vs)))
+                 (recur (rest renderables) (skeleton-vs nil skeleton vs (:world-transform r))))
                vs))
         vcount (count vs)]
     (when (> vcount 0)
