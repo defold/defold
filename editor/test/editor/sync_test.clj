@@ -24,6 +24,11 @@
        (= (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider (:creds a))
           (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider (:creds b)))))
 
+(deftest flow-in-progress-test
+  (is (false? (sync/flow-in-progress? nil)))
+  (with-git [git (new-git)]
+    (is (false? (sync/flow-in-progress? git)))))
+
 (deftest begin-flow-test
   (with-git [git   (new-git)
              prefs (make-prefs)
