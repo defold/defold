@@ -84,7 +84,7 @@
                    (not= (:pos old-progress) (:size old-progress))))))))
 
 (defn- flow-journal-file ^java.io.File [^Git git]
-  (io/file (.. git getRepository getWorkTree) ".internal/.sync-in-progress"))
+  (some-> git .getRepository .getWorkTree (io/file ".internal/.sync-in-progress")))
 
 (defn- write-flow-journal! [{:keys [git] :as flow}]
   (let [file (flow-journal-file git)
@@ -97,7 +97,9 @@
     (write-flow-journal! new-flow)))
 
 (defn flow-in-progress? [^Git git]
-  (.exists (flow-journal-file git)))
+  (if-let [file (flow-journal-file git)]
+    (.exists file)
+    false))
 
 (defn begin-flow! [^Git git prefs]
   (when *login*

@@ -31,7 +31,7 @@
 
 (defn- find-original-for-renamed [ustatus file]
   (->> ustatus
-    (filter (fn [e] (= (:new-path file))))
+    (filter (fn [e] (= file (:new-path e))))
     (map :old-path)
     (first)))
 
