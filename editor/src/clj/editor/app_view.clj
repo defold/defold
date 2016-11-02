@@ -16,6 +16,7 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.graph-util :as gu]
+            [editor.util :as util]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
@@ -472,17 +473,14 @@
            (catch Exception _
              (dialogs/make-alert-dialog (str "Unable to open external editor for " path)))))))))
 
-(defn- selection->files [selection]
+(defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
     (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
 
-(defn- selection->single-file [selection]
+(defn- selection->single-resource-file [selection]
   (when-let [r (handler/adapt-single selection resource/Resource)]
     (when (= :file (resource/source-type r))
       r)))
-
-(defn- to-folder ^File [^File file]
-  (if (.isFile file) (.getParentFile file) file))
 
 (handler/defhandler :new-file :global
   (label [user-data] (if-not user-data
@@ -494,14 +492,14 @@
                                                                                 (not= nil (some-> (handler/adapt-single selection resource/Resource)
                                                                                             resource/abs-path)))))
   (run [selection user-data app-view workspace project]
-       (let [base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
+       (let [project-path (workspace/project-path workspace)
+             base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
                                    first
                                    resource/abs-path
                                    (File.))
-                                 (workspace/project-path workspace))
-                           to-folder)
-             rt (:resource-type user-data)
-             project-path (workspace/project-path workspace)]
+                                 project-path)
+                           util/to-folder)
+             rt (:resource-type user-data)]
          (when-let [new-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (spit new-file (workspace/template rt))
            (workspace/resource-sync! workspace)
@@ -518,20 +516,22 @@
                                                                                        :user-data {:resource-type res-type}}) resource-types))))))
 
 (handler/defhandler :open :global
-  (active? [selection user-data] (:resources user-data (not-empty (selection->files selection))))
+  (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
+  (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->resource-files selection))))
   (run [selection app-view workspace project user-data]
-       (doseq [resource (:resources user-data (selection->files selection))]
+       (doseq [resource (:resources user-data (selection->resource-files selection))]
          (open-resource app-view workspace project resource))))
 
 (handler/defhandler :open-as :global
-  (active? [selection] (selection->single-file selection))
+  (active? [selection] (selection->single-resource-file selection))
+  (enabled? [selection user-data] (resource/exists? (selection->single-resource-file selection)))
   (run [selection app-view workspace project user-data]
-       (let [resource (selection->single-file selection)]
+       (let [resource (selection->single-resource-file selection)]
          (open-resource app-view workspace project resource (when-let [view-type (:selected-view-type user-data)]
                                                               {:selected-view-type view-type}))))
   (options [workspace selection user-data]
            (when-not user-data
-             (let [resource (selection->single-file selection)
+             (let [resource (selection->single-resource-file selection)
                    resource-type (resource/resource-type resource)]
                (map (fn [vt]
                       {:label     (or (:label vt) "External Editor")
@@ -540,12 +540,13 @@
                     (:view-types resource-type))))))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [selection] (selection->single-file selection))
-  (enabled? [selection] (when-let [r (selection->single-file selection)]
-                          (resource/abs-path r)))
-  (run [selection] (when-let [r (selection->single-file selection)]
+  (active? [selection] (selection->single-resource-file selection))
+  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
+                          (and (resource/abs-path r)
+                               (resource/exists? r))))
+  (run [selection] (when-let [r (selection->single-resource-file selection)]
                      (let [f (File. (resource/abs-path r))]
-                       (.open (Desktop/getDesktop) (to-folder f))))))
+                       (.open (Desktop/getDesktop) (util/to-folder f))))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)

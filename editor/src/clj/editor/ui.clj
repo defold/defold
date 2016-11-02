@@ -352,6 +352,7 @@
 (defprotocol CollectionView
   (selection [this])
   (select! [this item])
+  (select-index! [this index])
   (selection-mode! [this mode])
   (items [this])
   (items! [this items])
@@ -490,9 +491,12 @@
 (extend-type ComboBox
   CollectionView
   (selection [this] (when-let [item (.getSelectedItem (.getSelectionModel this))] [item]))
-  (select! [this item] (let [model (.getSelectionModel this)]
-                         (.select model item)))
-  (selection-mode! [this mode] (throw (NoSuchMethodError. "ComboBox only has single selection")))
+  (select! [this item] (doto (.getSelectionModel this)
+                         (.select item)))
+  (select-index! [this index] (doto (.getSelectionModel this)
+                                (.select (int index))))
+  (selection-mode! [this mode] (when (= :multiple mode)
+                                 (throw (UnsupportedOperationException. "ComboBox only has single selection"))))
   (items [this] (.getItems this))
   (items! [this ^java.util.Collection items] (let [l (.getItems this)]
                                                (.clear l)
@@ -509,10 +513,10 @@
 (extend-type ListView
   CollectionView
   (selection [this] (when-let [items (.getSelectedItems (.getSelectionModel this))] items))
-  (select! [this item] (let [model (.getSelectionModel this)]
-                         (if (integer? item)
-                           (let [^int index item] (.select model index))
-                           (.select model item))))
+  (select! [this item] (doto (.getSelectionModel this)
+                         (.select item)))
+  (select-index! [this index] (doto (.getSelectionModel this)
+                                (.select (int index))))
   (selection-mode! [this mode] (let [^SelectionMode mode (selection-mode mode)]
                                  (.setSelectionMode (.getSelectionModel this) mode)))
   (items [this] (.getItems this))
@@ -533,8 +537,10 @@
   CollectionView
   (selection [this] (when-let [item ^TreeItem (.getSelectedItem (.getSelectionModel this))]
                       (.getValue item)))
-  (select! [this item] (let [model (.getSelectionModel this)]
-                         (.select model item)))
+  (select! [this item] (doto (.getSelectionModel this)
+                         (.select item)))
+  (select-index! [this index] (doto (.getSelectionModel this)
+                                (.select (int index))))
   (selection-mode! [this mode] (let [^SelectionMode mode (selection-mode mode)]
                                  (.setSelectionMode (.getSelectionModel this) mode)))
   (cell-factory! [this render-fn]
@@ -756,15 +762,16 @@
   ([^Node node command]
     (run-command node command {}))
   ([^Node node command user-data]
-    (run-command node command user-data nil))
+    (run-command node command user-data true nil))
   ([^Node node command user-data all-selections? success-fn]
     (let [user-data (or user-data {})
           command-contexts (contexts (.getScene node) all-selections?)]
       (when-let [handler-ctx (handler/active command command-contexts user-data)]
         (when (handler/enabled? handler-ctx)
-          (when success-fn
-            (success-fn))
-          (handler/run handler-ctx))))))
+          (let [result (handler/run handler-ctx)]
+            (when success-fn
+              (success-fn))
+            result))))))
 
 (defn bind-action!
   ([^Node node command]
@@ -783,12 +790,12 @@
 (defn bind-keys! [^Node node key-bindings]
   (.addEventFilter node KeyEvent/KEY_PRESSED
     (event-handler event
-                      (let [code (.getCode ^KeyEvent event)]
-                        (when-let [binding (get key-bindings code)]
-                          (let [[command user-data] (if (vector? binding)
-                                                      binding
-                                                      [binding {}])]
-                            (run-command node command user-data true (fn [] (.consume event)))))))))
+                   (let [code (.getCode ^KeyEvent event)]
+                     (when-let [binding (get key-bindings code)]
+                       (let [[command user-data] (if (vector? binding)
+                                                   binding
+                                                   [binding {}])]
+                         (run-command node command user-data true (fn [] (.consume event)))))))))
 
 (def ^:private invalidate-menus? (atom false))
 

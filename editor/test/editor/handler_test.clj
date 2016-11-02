@@ -190,6 +190,8 @@
         (is (not (enabled? :string-node-command [global] {})))
         (select! [{:node-id s}])
         (is (enabled? :string-node-command [global] {}))
+        (select! [s])
+        (is (enabled? :string-node-command [global] {}))
         (select! ["other-type"])
         (is (not (enabled? :string-node-command [global] {})))
         (select! [nil])

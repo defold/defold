@@ -7,7 +7,8 @@
             [editor.ui :as ui]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.dialogs :as dialogs])
+            [editor.dialogs :as dialogs]
+            [editor.util :as util])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
            [java.awt Desktop]
@@ -192,16 +193,13 @@
       (recur (File. path)))
     f))
 
-(defn- to-folder ^File [^File file]
-  (if (.isFile file) (.getParentFile file) file))
-
 (defn- select-files! [workspace tree-view files]
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
 (defn- allow-resource-transfer? [tgt-resource src-files]
   (and (not (resource/read-only? tgt-resource))
-       (let [^Path tgt-path (-> tgt-resource resource/abs-path File. to-folder .getAbsolutePath ->path)
+       (let [^Path tgt-path (-> tgt-resource resource/abs-path File. util/to-folder .getAbsolutePath ->path)
              src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
                             src-files)
              descendant (some (fn [^Path p] (or (.equals tgt-path (.getParent p))
@@ -222,7 +220,7 @@
                                      (if (= tgt src)
                                        (.getParentFile ^File tgt)
                                        tgt))
-                                   (to-folder (File. (resource/abs-path resource))) src-files)
+                                   (util/to-folder (File. (resource/abs-path resource))) src-files)
              pairs (mapv (fn [^File f] [f (unique (File. tgt-dir (FilenameUtils/getName (.toString f))))]) src-files)]
          (doseq [[^File src-file ^File tgt-file] pairs]
            (if (.isDirectory src-file)
@@ -265,7 +263,7 @@
 (handler/defhandler :new-folder :asset-browser
   (enabled? [selection] (and (= (count selection) 1) (not= nil (resource/abs-path (first selection)))))
   (run [selection workspace] (let [f (File. (resource/abs-path (first selection)))
-                                   base-folder (to-folder f)]
+                                   base-folder (util/to-folder f)]
                                (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
                                  (.mkdir ^File (resolve-sub-folder base-folder new-folder-name))
                                  (workspace/resource-sync! workspace)))))
@@ -386,7 +384,7 @@
       (let [target (-> e (.getTarget) ^TreeCell (target))
             tree-view (.getTreeView target)
             resource (-> target (.getTreeItem) (.getValue))
-            ^File tgt-dir (to-folder (File. (resource/abs-path resource)))
+            ^File tgt-dir (util/to-folder (File. (resource/abs-path resource)))
             move? (and (= (.getGestureSource e) tree-view)
                        (= (.getTransferMode e) TransferMode/MOVE))
             pairs (mapv (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) (.getFiles db))
@@ -416,9 +414,9 @@
         detected-handler (ui/event-handler e (drag-detected e (handler/selection tree-view)))
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))]
+    (ui/bind-double-click! tree-view :open)
     (.setOnDragDetected tree-view detected-handler)
     (.setOnDragDone tree-view done-handler)
-    (ui/bind-double-click! tree-view :open)
     (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                  (let [cell (proxy [TreeCell] []
                                                             (updateItem [resource empty]
