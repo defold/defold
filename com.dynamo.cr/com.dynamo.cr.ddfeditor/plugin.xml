@@ -147,6 +147,15 @@
             id="com.dynamo.cr.ddfeditor.displayprofileseditor"
             name="Display Profiles Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.LabelEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="label"
+            icon="icons/text_allcaps.png"
+            id="com.dynamo.cr.ddfeditor.labeleditor"
+            name="Label Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -248,6 +257,13 @@
             id="com.dynamo.cr.ddfeditor.wizards.DisplayProfilesNewWizard"
             name="Display Profiles File">
       </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard"
+            icon="icons/text_allcaps.png"
+            id="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard"
+            name="Label  File">
+      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
@@ -304,6 +320,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
@@ -631,6 +652,9 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.CubemapNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>

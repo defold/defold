@@ -1,5 +1,4 @@
 package com.dynamo.cr.ddfeditor.scene;
-import java.util.List;
 
 import javax.media.opengl.GL2;
 import javax.vecmath.Vector3d;
@@ -15,8 +14,6 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.sceneed.core.FontRendererHandle;
 import com.dynamo.cr.sceneed.core.ISceneModel;
-import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.Node.Flags;
 import com.dynamo.label.proto.Label.LabelDesc.BlendMode;
 import com.dynamo.label.proto.Label.LabelDesc.Pivot;
 

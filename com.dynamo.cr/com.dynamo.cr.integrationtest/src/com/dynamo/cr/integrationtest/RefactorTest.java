@@ -59,6 +59,7 @@ import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.dynamo.spine.proto.Spine.SpineModelDesc;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
+import com.dynamo.label.proto.Label.LabelDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.Message;
@@ -72,6 +73,18 @@ public class RefactorTest {
     NullProgressMonitor monitor;
     protected INodeTypeRegistry nodeTypeRegistry;
     protected ILoaderContext loaderContext;
+
+    private void createFolderRecursively(IContainer folder) throws CoreException, IOException {
+        IContainer parent = folder.getParent();
+        if (parent instanceof IFolder) {
+            if (!parent.exists()) {
+                createFolderRecursively(parent);
+            }
+        }
+        if (!folder.exists()) {
+            ((IFolder)folder).create(true, true, null);
+        }
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -99,16 +112,7 @@ public class RefactorTest {
                 IFile file = project.getFile(path);
                 IContainer parent = file.getParent();
                 if (parent instanceof IFolder) {
-                    IFolder folder = (IFolder) file.getParent();
-                    while (!folder.exists()) {
-                        folder.create(true, true, null);
-                        parent = folder.getParent();
-                        if (parent instanceof IFolder) {
-                            folder = (IFolder) parent;
-                        } else {
-                            break;
-                        }
-                    }
+                    createFolderRecursively(file.getParent());
                 }
                 file.create(is, true, monitor);
                 is.close();
@@ -552,6 +556,16 @@ public class RefactorTest {
     }
 
     @Test
+    public void testLabelForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/ball.go", "/logic/session/ball.label", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(4).getComponent() };
+            }
+        });
+    }
+
+    @Test
     public void testTileGridForGO() throws CoreException, IOException {
         testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/tilegrid.go", "/tilegrid/test.tilegrid", new ReferenceFetcher<PrototypeDesc>() {
             @Override
@@ -560,6 +574,7 @@ public class RefactorTest {
             }
         });
     }
+
 
     @Test
     public void testCollectionForEmbeddedCollectionProxy() throws CoreException, IOException {

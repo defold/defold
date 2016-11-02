@@ -26,7 +26,6 @@ import com.dynamo.cr.sceneed.core.FontRendererHandle;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.util.Shader;
-import com.dynamo.label.proto.Label.LabelDesc.BlendMode;
 import com.dynamo.label.proto.Label.LabelDesc.Pivot;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontTextureFormat;
