@@ -48,8 +48,8 @@ message LabelDesc
     required bool           line_break  = 10;
 
     required string         text        = 11;
-    required string         font        = 12;
-    required string         material    = 13;
+    required string         font        = 12 [(resource)=true];
+    required string         material    = 13 [(resource)=true];
 }
 
 

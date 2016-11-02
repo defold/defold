@@ -661,6 +661,40 @@ public class RefactorTest {
         });
     }
 
+    @Test
+    public void testFontForEmbeddedLabel() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/embedded_label.go", "/content/builtins/fonts/system_font.font", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                LabelDesc.Builder builder = LabelDesc.newBuilder();
+                try {
+                    TextFormat.merge(desc.getEmbeddedComponents(0).getData(), builder);
+                    LabelDesc label = builder.build();
+                    return new String[] { label.getFont() };
+                } catch (ParseException e) {
+                    return new String[] {};
+                }
+            }
+        });
+    }
+
+    @Test
+    public void testMaterialForEmbeddedLabel() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/embedded_label.go", "/content/builtins/fonts/label.material", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                LabelDesc.Builder builder = LabelDesc.newBuilder();
+                try {
+                    TextFormat.merge(desc.getEmbeddedComponents(0).getData(), builder);
+                    LabelDesc label = builder.build();
+                    return new String[] { label.getMaterial() };
+                } catch (ParseException e) {
+                    return new String[] {};
+                }
+            }
+        });
+    }
+
     /*
      * Spine Scene
      */

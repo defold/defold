@@ -606,8 +606,17 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Label"
             name="Label"
             proto-message-class="com.dynamo.label.proto.Label$LabelDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.LabelRefactorParticipant"
             template-data="text: &apos;Label&apos; font: &apos;/builtins/fonts/system_font.font&apos; material: &apos;/builtins/fonts/label.material&apos; scale { x: 1 y: 1 z: 1 } size { x: 128 y: 32 z: 0 } color { x: 1 y: 1 z: 1 w: 1 } outline { x: 0 y: 0 z: 0 w: 1 } shadow { x: 0 y: 0 z: 0 w: 1 }  leading: 1.0 tracking: 0.0 pivot: PIVOT_CENTER blend_mode: BLEND_MODE_ALPHA line_break: false"
             type-class="component">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Material">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.FontDesc">
+            </reference-resource-type>
+         </references>
       </resource-type>
     </extension>
    <extension
