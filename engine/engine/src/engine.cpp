@@ -606,7 +606,7 @@ namespace dmEngine
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
-        render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_instances", 1024);
+        render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
         render_params.m_VertexProgramData = ::DEBUG_VPC;
         render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
