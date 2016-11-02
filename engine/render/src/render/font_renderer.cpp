@@ -711,6 +711,7 @@ namespace dmRender
     {
         DM_PROFILE(Render, "FlushTexts");
 
+        (void)final;
         TextContext& text_context = render_context->m_TextContext;
 
         if (text_context.m_TextEntries.Size() > 0) {

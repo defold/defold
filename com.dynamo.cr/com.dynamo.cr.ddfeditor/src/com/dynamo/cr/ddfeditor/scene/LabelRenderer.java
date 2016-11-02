@@ -15,17 +15,6 @@ import org.eclipse.swt.graphics.RGB;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.font.Fontc.InputFontFormat;
-
-/*
-import com.dynamo.cr.guied.core.ClippingNode;
-import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
-import com.dynamo.cr.guied.core.LabelNode;
-import com.dynamo.cr.guied.util.Clipping;
-import com.dynamo.cr.guied.util.TextUtil;
-import com.dynamo.cr.guied.util.TextUtil.TextMetric;
-*/
-
-
 import com.dynamo.cr.sceneed.core.TextUtil;
 import com.dynamo.cr.sceneed.core.TextUtil.TextLine;
 import com.dynamo.cr.sceneed.core.TextUtil.TextMetric;
