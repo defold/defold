@@ -92,14 +92,19 @@
   (let [selection (context-selection context)]
     (-> context
       eval-dynamics
-      (assoc-in [:env :selection] selection))))
+      (update :env assoc :selection selection :selection-context (:name context)))))
 
 (defn eval-contexts [contexts all-selections?]
   (loop [command-contexts (mapv eval-context contexts)
          result []]
     (if-let [ctx (first command-contexts)]
       (let [result (if-let [selection (get-in ctx [:env :selection])]
-                     (into result (map (fn [ctx] (assoc-in ctx [:env :selection] selection)) command-contexts))
+                     (let [adapters (:adapters ctx)
+                           name (:name ctx)]
+                       (into result (map (fn [ctx] (-> ctx
+                                                     (update :env assoc :selection selection :selection-context name)
+                                                     (assoc :adapters adapters)))
+                                         command-contexts)))
                      (conj result ctx))]
         (if all-selections?
           (recur (rest command-contexts) result)
@@ -109,20 +114,21 @@
 (defn adapt [selection t]
   (if (empty? selection)
     selection
-    (let [adapters *adapters*
+    (let [selection (if (g/isa-node-type? t)
+                      (adapt selection Long)
+                      selection)
+          adapters *adapters*
           v (first selection)
-          adapter (get adapters t)
           f (cond
-              adapter adapter
+              (isa? (type v) t) identity
               ;; this is somewhat of a hack, copied from clojure internal source
               ;; there does not seem to be a way to test if a type is a protocol
               (and (:on-interface t) (instance? (:on-interface t) v)) identity
               ;; test for node types specifically by checking for longs
               ;; we can't use g/NodeID because that is actually a wrapped ValueTypeRef
               (and (g/isa-node-type? t) (= (type v) java.lang.Long)) (fn [v] (when (g/node-instance? t v) v))
-              (isa? (type v) t) identity
               (satisfies? core/Adaptable v) (fn [v] (core/adapt v t))
-              true (constantly nil))]
+              true (get adapters t (constantly nil)))]
       (mapv f selection))))
 
 (defn adapt-every [selection t]
@@ -136,3 +142,9 @@
 (defn adapt-single [selection t]
   (when (and (nil? (next selection)) (first selection))
     (first (adapt selection t))))
+
+(defn selection->node-ids [selection]
+  (adapt-every selection Long))
+
+(defn selection->node-id [selection]
+  (adapt-single selection Long))

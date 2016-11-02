@@ -24,8 +24,8 @@
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
-   [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem CheckMenuItem ProgressBar TabPane Tab TextField Tooltip]
-   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
+   [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode]
+   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent KeyCode]
    [javafx.scene.image Image]
    [javafx.scene.layout Region]
    [javafx.scene.layout AnchorPane Pane HBox]
@@ -292,6 +292,9 @@
 (defn request-focus! [^Node node]
   (.requestFocus node))
 
+(defn focus? [^Node node]
+  (.isFocused node))
+
 (defn on-double! [^Node node fn]
   (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                               (fn e)))))
@@ -315,6 +318,11 @@
     (when (and (.exists css) (seq (.getStylesheets root)))
       (.setAll (.getStylesheets root) ^java.util.Collection (vec [(str (.toURI css))])))
     root))
+
+(extend-type Window
+  HasUserData
+  (user-data [this key] (get (.getUserData this) key))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
 
 (extend-type Node
   HasUserData
@@ -343,6 +351,9 @@
 
 (defprotocol CollectionView
   (selection [this])
+  (select! [this item])
+  (select-index! [this index])
+  (selection-mode! [this mode])
   (items [this])
   (items! [this items])
   (cell-factory! [this render-fn]))
@@ -480,6 +491,12 @@
 (extend-type ComboBox
   CollectionView
   (selection [this] (when-let [item (.getSelectedItem (.getSelectionModel this))] [item]))
+  (select! [this item] (doto (.getSelectionModel this)
+                         (.select item)))
+  (select-index! [this index] (doto (.getSelectionModel this)
+                                (.select (int index))))
+  (selection-mode! [this mode] (when (= :multiple mode)
+                                 (throw (UnsupportedOperationException. "ComboBox only has single selection"))))
   (items [this] (.getItems this))
   (items! [this ^java.util.Collection items] (let [l (.getItems this)]
                                                (.clear l)
@@ -488,9 +505,20 @@
     (.setButtonCell this (make-list-cell render-fn))
     (.setCellFactory this (make-list-cell-factory render-fn))))
 
+(defn- selection-mode ^SelectionMode [mode]
+  (case mode
+    :single SelectionMode/SINGLE
+    :multiple SelectionMode/MULTIPLE))
+
 (extend-type ListView
   CollectionView
   (selection [this] (when-let [items (.getSelectedItems (.getSelectionModel this))] items))
+  (select! [this item] (doto (.getSelectionModel this)
+                         (.select item)))
+  (select-index! [this index] (doto (.getSelectionModel this)
+                                (.select (int index))))
+  (selection-mode! [this mode] (let [^SelectionMode mode (selection-mode mode)]
+                                 (.setSelectionMode (.getSelectionModel this) mode)))
   (items [this] (.getItems this))
   (items! [this ^java.util.Collection items] (let [l (.getItems this)]
                                                (.clear l)
@@ -509,6 +537,12 @@
   CollectionView
   (selection [this] (when-let [item ^TreeItem (.getSelectedItem (.getSelectionModel this))]
                       (.getValue item)))
+  (select! [this item] (doto (.getSelectionModel this)
+                         (.select item)))
+  (select-index! [this index] (doto (.getSelectionModel this)
+                                (.select (int index))))
+  (selection-mode! [this mode] (let [^SelectionMode mode (selection-mode mode)]
+                                 (.setSelectionMode (.getSelectionModel this) mode)))
   (cell-factory! [this render-fn]
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
@@ -590,7 +624,7 @@
     :else
     (user-data node ::context)))
 
-(defn- contexts
+(defn contexts
   ([^Scene scene]
     (contexts scene true))
   ([^Scene scene all-selections?]
@@ -625,24 +659,32 @@
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(defn- make-menu-command [label icon acc user-data command handler-ctx check]
-  (let [^MenuItem menu-item (if check
-                              (CheckMenuItem. label)
-                              (MenuItem. label))
-        key-combo           (and acc (KeyCombination/keyCombination acc))]
-    (when command
-      (.setId menu-item (name command)))
-    (when key-combo
-      (.setAccelerator menu-item key-combo)
-      (swap! *menu-key-combos* conj key-combo))
-    (when icon
-      (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
-    (.setDisable menu-item (not (handler/enabled? handler-ctx)))
-    (.setOnAction menu-item (event-handler event (handler/run handler-ctx)))
-    (user-data! menu-item ::menu-user-data user-data)
-    menu-item))
+(defn- make-menu-command
+  ([label icon acc user-data command handler-ctx check]
+    (make-menu-command label icon acc user-data command handler-ctx check (fn [] (handler/run handler-ctx))))
+  ([label icon acc user-data command handler-ctx check action-fn]
+    (let [^MenuItem menu-item (if check
+                                (CheckMenuItem. label)
+                                (MenuItem. label))
+          key-combo           (and acc (KeyCombination/keyCombination acc))]
+      (when command
+        (.setId menu-item (name command)))
+      (when key-combo
+        (.setAccelerator menu-item key-combo)
+        (swap! *menu-key-combos* conj key-combo))
+      (when icon
+        (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
+      (.setDisable menu-item (not (handler/enabled? handler-ctx)))
+      (.setOnAction menu-item (event-handler event (action-fn)))
+      (user-data! menu-item ::menu-user-data user-data)
+      menu-item)))
 
 (declare make-menu-items)
+
+(defn select-items [items options command-contexts]
+  (some-> (handler/active :select-items command-contexts {:items items
+                                                          :options options})
+    handler/run))
 
 (defn- make-menu-item [item command-contexts]
   (let [icon (:icon item)
@@ -658,7 +700,19 @@
           (when-let [handler-ctx (handler/active command command-contexts user-data)]
             (let [label (or (handler/label handler-ctx) item-label)]
               (if-let [options (handler/options handler-ctx)]
-                (make-submenu label icon (make-menu-items options command-contexts) on-open)
+                (if (contains? item :acc)
+                  (make-menu-command label icon (:acc item) user-data command handler-ctx check
+                                     (fn []
+                                       (when-let [user-data (some-> (select-items options {:title label
+                                                                                           :cell-fn (fn [item]
+                                                                                                      {:text (:label item)
+                                                                                                       :icon (:icon item)})}
+                                                                                  command-contexts)
+                                                              first
+                                                              :user-data)]
+                                         (-> (handler/active command command-contexts user-data)
+                                           handler/run))))
+                  (make-submenu label icon (make-menu-items options command-contexts) on-open))
                 (make-menu-command label icon (:acc item) user-data command handler-ctx check)))))))))
 
 (defn- make-menu-items [menu command-contexts]
@@ -703,6 +757,45 @@
     (event-handler event
       (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
         (.consume event)))))
+
+(defn run-command
+  ([^Node node command]
+    (run-command node command {}))
+  ([^Node node command user-data]
+    (run-command node command user-data true nil))
+  ([^Node node command user-data all-selections? success-fn]
+    (let [user-data (or user-data {})
+          command-contexts (contexts (.getScene node) all-selections?)]
+      (when-let [handler-ctx (handler/active command command-contexts user-data)]
+        (when (handler/enabled? handler-ctx)
+          (let [result (handler/run handler-ctx)]
+            (when success-fn
+              (success-fn))
+            result))))))
+
+(defn bind-action!
+  ([^Node node command]
+    (bind-action! node command {}))
+  ([^Node node command user-data]
+    (on-action! node (fn [^Event e] (run-command node command user-data true (fn [] (.consume e)))))))
+
+(defn bind-double-click!
+  ([^Node node command]
+    (bind-double-click! node command {}))
+  ([^Node node command user-data]
+    (.addEventFilter node MouseEvent/MOUSE_CLICKED
+      (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
+                         (run-command node command user-data false (fn [] (.consume e))))))))
+
+(defn bind-keys! [^Node node key-bindings]
+  (.addEventFilter node KeyEvent/KEY_PRESSED
+    (event-handler event
+                   (let [code (.getCode ^KeyEvent event)]
+                     (when-let [binding (get key-bindings code)]
+                       (let [[command user-data] (if (vector? binding)
+                                                   binding
+                                                   [binding {}])]
+                         (run-command node command user-data true (fn [] (.consume event)))))))))
 
 (def ^:private invalidate-menus? (atom false))
 
