@@ -106,10 +106,11 @@ namespace dmRender
         Matrix4             m_Transform;
         uint32_t            m_StringOffset;
         HFontMap            m_FontMap;
+        HMaterial           m_Material;
+        uint64_t            m_BatchKey;
         uint32_t            m_FaceColor;
         uint32_t            m_OutlineColor;
         uint32_t            m_ShadowColor;
-        uint32_t            m_Depth;
         uint16_t            m_RenderOrder;
         float               m_Width;
         float               m_Height;
@@ -135,8 +136,8 @@ namespace dmRender
         uint32_t                            m_VerticesFlushed;
         dmArray<char>                       m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
-        dmHashTable64<int32_t>              m_Batches;
         dmArray<TextEntry>                  m_TextEntries;
+        uint32_t                            m_TextEntriesFlushed;
         uint32_t                            m_Frame;
     };
 

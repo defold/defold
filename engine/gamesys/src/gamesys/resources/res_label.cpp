@@ -10,8 +10,6 @@ namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, LabelResource* resource, const char* filename)
     {
-        printf("MAWE %s\n", __FUNCTION__);
-
         dmResource::Result result;
         result = dmResource::Get(factory, resource->m_DDF->m_Material, (void**)&resource->m_Material);
         if (result != dmResource::RESULT_OK)
@@ -29,8 +27,6 @@ namespace dmGameSystem
 
     void ReleaseResources(dmResource::HFactory factory, LabelResource* resource)
     {
-        printf("MAWE %s\n", __FUNCTION__);
-
         if (resource->m_DDF != 0x0)
             dmDDF::FreeMessage(resource->m_DDF);
         if (resource->m_Material != 0x0)
@@ -41,8 +37,6 @@ namespace dmGameSystem
 
     dmResource::Result ResLabelPreload(const dmResource::ResourcePreloadParams& params)
     {
-        printf("MAWE %s   buffersize: %u\n", __FUNCTION__, params.m_BufferSize);
-
         dmGameSystemDDF::LabelDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
@@ -59,8 +53,6 @@ namespace dmGameSystem
 
     dmResource::Result ResLabelCreate(const dmResource::ResourceCreateParams& params)
     {
-        printf("MAWE %s\n", __FUNCTION__);
-
         LabelResource* resource = new LabelResource();
         memset(resource, 0, sizeof(LabelResource));
         resource->m_DDF = (dmGameSystemDDF::LabelDesc*) params.m_PreloadData;
@@ -80,8 +72,6 @@ namespace dmGameSystem
 
     dmResource::Result ResLabelDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        printf("MAWE %s\n", __FUNCTION__);
-
         LabelResource* resource = (LabelResource*) params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, resource);
         delete resource;
@@ -90,8 +80,6 @@ namespace dmGameSystem
 
     dmResource::Result ResLabelRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        printf("MAWE %s\n", __FUNCTION__);
-
         LabelResource tmp_resource;
         memset(&tmp_resource, 0, sizeof(LabelResource));
         dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tmp_resource.m_DDF);
