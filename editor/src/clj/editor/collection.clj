@@ -748,9 +748,9 @@
                          ; Selection
                          (g/transact
                            (concat
-                            (g/operation-sequence op-seq)
-                            (g/operation-label "Add Collection")
-                            (project/select project [coll-inst-node]))))))))
+                             (g/operation-sequence op-seq)
+                             (g/operation-label "Add Collection")
+                             (project/select project [coll-inst-node]))))))))
 
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]

@@ -174,10 +174,10 @@
        (when-let [^Node node (:node user-data)]
          (ui/request-focus! node))))
 
-(defn- default-filter-fn [cell-fn text items]
+(defn- default-filter-fn [cell-fn text]
   (let [text (string/lower-case text)
         str-fn (comp string/lower-case :text cell-fn)]
-    (filter (fn [item] (string/starts-with? (str-fn item) text)) items)))
+    (fn [item] (string/starts-with? (str-fn item) text))))
 
 (defn make-select-list-dialog [items options]
   (let [^Parent root (ui/load-fxml "select-list.fxml")
@@ -199,12 +199,12 @@
       (ui/observe-list (ui/items item-list)
                        (fn [_ items]
                          (when (not (empty? items))
-                           (ui/select! item-list 0))))
+                           (ui/select-index! item-list 0))))
       (ui/items! items))
     (let [filter-fn (or (:filter-fn options) (partial default-filter-fn cell-fn))]
       (ui/observe (.textProperty filter-field)
                   (fn [_ _ ^String new]
-                    (let [filtered-items (filter-fn new items)]
+                    (let [filtered-items (filter (filter-fn new) items)]
                       (ui/items! item-list filtered-items)))))
 
     (ui/context! root :dialog {:stage stage} item-list)
@@ -212,7 +212,7 @@
     (ui/bind-double-click! item-list ::confirm)
     (ui/bind-keys! root {KeyCode/ENTER ::confirm
                          KeyCode/ESCAPE ::close
-                         KeyCode/DOWN [::focus {:active-fn (fn [_] (and (not (empty? (ui/items item-list)))
+                         KeyCode/DOWN [::focus {:active-fn (fn [_] (and (seq (ui/items item-list))
                                                                         (ui/focus? filter-field)))
                                                 :node item-list}]
                          KeyCode/UP [::focus {:active-fn (fn [_] (= 0 (.getSelectedIndex (.getSelectionModel item-list))))
@@ -227,25 +227,25 @@
         accepted-ext (if (seq exts) (set exts) (constantly true))
         items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
                              (g/node-value workspace :resource-list))
-        options (assoc options
-                       :title "Select Resource"
-                       :prompt "filter resources - '*' to match any string, '.' to filter file extensions"
-                       :cell-fn (fn [r] {:text (resource/proj-path r)
-                                         :icon (workspace/resource-icon r)
-                                         :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
-                                                    (tooltip-gen r))})
-                       :filter-fn (fn [filter-value items]
-                                    (let [search-str (str/lower-case filter-value)
-                                          parts (-> search-str
-                                                  (str/replace #"\*" "")
-                                                  (str/split #"\."))
-                                          pattern-str (if (> (count parts) 1)
-                                                        (apply str (concat ["^.*"]
-                                                                           (butlast parts)
-                                                                           [".*\\." (last parts) ".*$"]))
-                                                        (str "^" (str/replace search-str #"\*" ".*")))
-                                          pattern (re-pattern pattern-str)]
-                                      (filter (fn [r] (re-find pattern (resource/resource-name r))) items))))]
+        options (-> {:title "Select Resource"
+                     :prompt "filter resources - '*' to match any string, '.' to filter file extensions"
+                     :cell-fn (fn [r] {:text (resource/proj-path r)
+                                       :icon (workspace/resource-icon r)
+                                       :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
+                                                  (tooltip-gen r))})
+                     :filter-fn (fn [filter-value]
+                                  (let [search-str (str/lower-case filter-value)
+                                        parts (-> search-str
+                                                (str/replace #"\*" "")
+                                                (str/split #"\."))
+                                        pattern-str (if (> (count parts) 1)
+                                                      (apply str (concat ["^.*"]
+                                                                         (butlast parts)
+                                                                         [".*\\." (last parts) ".*$"]))
+                                                      (str "^" (str/replace search-str #"\*" ".*")))
+                                        pattern (re-pattern pattern-str)]
+                                    (fn [r] (re-find pattern (resource/resource-name r)))))}
+                  (merge options))]
     (make-select-list-dialog items options)))
 
 (declare tree-item)

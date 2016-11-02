@@ -530,6 +530,12 @@
 (defn- image-parent [node]
   (first (first (targets-of node :image-order))))
 
+(defn- move-active? [selection]
+  (some->> selection
+    selection->image
+    image-parent
+    (g/node-instance? AtlasAnimation)))
+
 (defn- run-move [selection direction]
   (let [image (selection->image selection)
         parent (image-parent image)
@@ -545,11 +551,9 @@
            new-image-order))))
 
 (handler/defhandler :move-up :workbench
-  (active? [selection] (when-let [image (selection->image selection)]
-                         (g/node-instance? AtlasAnimation (image-parent image))))
+  (active? [selection] (move-active? selection))
   (run [selection] (run-move selection :move-up)))
 
 (handler/defhandler :move-down :workbench
-  (active? [selection] (when-let [image (selection->image selection)]
-                         (g/node-instance? AtlasAnimation (image-parent image))))
+  (active? [selection] (move-active? selection))
   (run [selection] (run-move selection :move-down)))
