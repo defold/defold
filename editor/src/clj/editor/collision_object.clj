@@ -680,15 +680,18 @@
     (g/operation-label "Add Shape")
     (make-shape-node collision-object-node (default-shape shape-type)))))
 
+(defn- selection->collision-object [selection]
+  (handler/adapt-single selection CollisionObjectNode))
+
 (handler/defhandler :add :workbench
   (label [user-data]
          (if-not user-data
            "Add Shape"
            (shape-type-label (:shape-type user-data))))
-  (active? [selection] (handler/adapt-single selection CollisionObjectNode))
-  (run [selection user-data] (add-shape-handler (first selection) (:shape-type user-data)))
+  (active? [selection] (selection->collision-object selection))
+  (run [selection user-data] (add-shape-handler (selection->collision-object selection) (:shape-type user-data)))
   (options [selection user-data]
-           (let [self (first selection)]
+           (let [self (selection->collision-object selection)]
              (when-not user-data
                (->> shape-type-ui
                     (reduce-kv (fn [res shape-type {:keys [label icon]}]

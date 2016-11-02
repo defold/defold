@@ -974,11 +974,17 @@
 
 ;; handlers/menu
 
+(defn- selection->tile-map [selection]
+  (handler/adapt-single selection TileMapNode))
+
+(defn- selection->layer [selection]
+  (handler/adapt-single selection LayerNode))
+
 (defn tile-map-node
   [selection]
-  (or (handler/adapt-single selection TileMapNode)
-      (when-let [layer-node (handler/adapt-single selection LayerNode)]
-        (core/scope layer-node))))
+  (or (selection->tile-map selection)
+      (some-> (selection->layer selection)
+        core/scope)))
 
 (defn- gen-unique-name
   [basename existing-names]
@@ -1005,9 +1011,8 @@
 
 (handler/defhandler :add :workbench
   (label [user-data] "Add layer")
-  (active? [selection] (handler/adapt-single selection TileMapNode))
-  (run [selection user-data] (add-layer-handler (first selection))))
-
+  (active? [selection] (selection->tile-map selection))
+  (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
 
 (defn- erase-tool-handler
   [tile-map-node]
@@ -1017,7 +1022,7 @@
 
 (handler/defhandler :erase-tool :workbench
   (label [user-data] "Select Eraser")
-  (enabled? [selection] (handler/adapt-single selection LayerNode))
+  (enabled? [selection] (selection->layer selection))
   (run [selection] (erase-tool-handler (tile-map-node selection))))
 
 
@@ -1028,10 +1033,10 @@
      (g/update-property tool-controller :mode (toggler :palette :editor)))))
 
 (handler/defhandler :tile-map-palette :workbench
-  (active? [selection] (or (handler/adapt-single selection TileMapNode)
-                           (handler/adapt-single selection LayerNode)))
-  (enabled? [selection] (when-let [node (tile-map-node selection)]
-                          (g/node-value node :tile-source-resource)))
+  (active? [selection] (or (selection->tile-map selection)
+                           (selection->layer selection)))
+  (enabled? [selection] (some-> (tile-map-node selection)
+                          (g/node-value :tile-source-resource)))
   (run [selection] (tile-map-palette-handler (tile-map-node selection))))
 
 (ui/extend-menu ::menubar :editor.scene/scene-end
