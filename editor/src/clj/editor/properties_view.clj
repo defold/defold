@@ -43,6 +43,7 @@
 
 (def ^{:private true :const true} grid-hgap 4)
 (def ^{:private true :const true} grid-vgap 6)
+(def ^{:private true :const true} all-available 5000)
 
 (defn- to-int [s]
   (try
@@ -131,7 +132,7 @@
 
 (defn- create-property-component [ctrls]
   (let [box (doto (GridPane.)
-              (.setPrefWidth 5000)
+              (.setPrefWidth all-available)
               (ui/add-style! "property-component")
               (ui/children! ctrls))]
     (doall (map-indexed (fn [idx c]
@@ -141,11 +142,11 @@
 
 (defn- create-multi-textfield! [labels property-fn]
   (let [text-fields  (mapv (fn [l] (doto (TextField.)
-                                     (.setPrefWidth 5000)
+                                     (.setPrefWidth all-available)
                                      (GridPane/setFillWidth true)))
                            labels)
         box          (doto (GridPane.)
-                       (.setPrefWidth Double/MAX_VALUE))
+                       (.setHgap grid-hgap))
         update-ui-fn (fn [values message read-only?]
                        (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
                                                                       [t (str (properties/unify-values
@@ -190,7 +191,7 @@
 
 (defn- create-multi-keyed-textfield! [fields property-fn]
   (let [text-fields  (mapv (fn [_] (doto (TextField.)
-                                     (.setPrefWidth 5000)))
+                                     (.setPrefWidth all-available)))
                            fields)
         box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
@@ -328,11 +329,10 @@
     [cb update-ui-fn]))
 
 (defmethod create-property-control! resource/Resource [edit-type workspace property-fn]
-  (let [box          (doto (GridPane.)
-                       (.setPrefWidth Double/MAX_VALUE))
-        button       (doto (Button. "...")
-                       (.setMinWidth 40)
-                       (ui/add-style! "small-button"))
+  (let [box          (doto (GridPane.))
+        button       (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
+                       (.setPrefWidth 26)
+                       (ui/add-style! "button-small"))
         text         (doto (TextField.)
                        (GridPane/setFillWidth true))
         dialog-opts  (if (:ext edit-type) {:ext (:ext edit-type)} {})
@@ -352,8 +352,11 @@
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints button 1 0)
     (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                        (.setFillWidth true)
+                                        (.setPrefWidth all-available)
                                         (.setHgrow Priority/ALWAYS))))
+    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
+                                        (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+                                        (.setHgrow Priority/NEVER))))
     [box update-ui-fn]))
 
 (defmethod create-property-control! :slider [edit-type workspace property-fn]
@@ -388,10 +391,8 @@
     (GridPane/setConstraints textfield 0 0)
     (GridPane/setConstraints slider 1 0)
     (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                        (.setFillWidth true)
                                         (.setPercentWidth 20))))
     (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                        (.setFillWidth true)
                                         (.setPercentWidth 80))))
     [box update-ui-fn]))
 
@@ -472,6 +473,7 @@
 (defn- create-property-label [label]
   (doto (Label. label)
     (ui/add-style! "property-label")
+    (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
 
 (defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
@@ -479,17 +481,17 @@
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
-                    (ui/add-styles! ["clear-button" "small-button"])
+                    (ui/add-styles! ["clear-button" "button-small"])
                     (ui/on-action! (fn [_]
                                      (properties/clear-override! (property-fn key))
                                      (.requestFocus control))))
 
         label-box (let [box (GridPane.)]
-                    (.setPrefWidth box Double/MAX_VALUE)
                     (GridPane/setFillWidth label true)
                     (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                                        (.setFillWidth true)
                                                         (.setHgrow Priority/ALWAYS))))
+                    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
+                                                        (.setHgrow Priority/NEVER))))
                     box)
 
         update-label-box (fn [overridden?]
@@ -535,8 +537,8 @@
   (let [grid (doto (GridPane.)
                (.setHgap grid-hgap)
                (.setVgap grid-vgap))
-        cc1  (doto (ColumnConstraints.) (.setFillWidth true) (.setPercentWidth 20) (.setHgrow Priority/ALWAYS))
-        cc2  (doto (ColumnConstraints.) (.setFillWidth true) (.setPercentWidth 80) (.setHgrow Priority/ALWAYS))]
+        cc1  (doto (ColumnConstraints.) (.setHgrow Priority/NEVER))
+        cc2  (doto (ColumnConstraints.) (.setHgrow Priority/ALWAYS) (.setPrefWidth all-available))]
     (.. grid getColumnConstraints (add cc1))
     (.. grid getColumnConstraints (add cc2))
 
