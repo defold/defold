@@ -1402,7 +1402,7 @@ namespace dmRig
         return INVALID_BONE_IDX;
     }
 
-    void CreateLookUpArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence)
+    void FillBoneListArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence)
     {
         // Create lookup arrays
         // - track-to-pose, used to convert animation track bonde index into correct pose transform index

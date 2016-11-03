@@ -436,7 +436,7 @@ private:
             m_MeshSet->m_BoneList.m_Data[i] = bone_count-i-1;
         }
 
-        dmRig::CreateLookUpArrays(*m_MeshSet, *m_AnimationSet, *m_Skeleton, m_TrackIdxToPose, m_PoseIdxToInfluence);
+        dmRig::FillBoneListArrays(*m_MeshSet, *m_AnimationSet, *m_Skeleton, m_TrackIdxToPose, m_PoseIdxToInfluence);
 
     }
 
