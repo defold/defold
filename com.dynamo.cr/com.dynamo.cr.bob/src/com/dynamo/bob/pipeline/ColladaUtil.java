@@ -59,6 +59,7 @@ import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 
 import com.dynamo.rig.proto.Rig;
+import com.dynamo.rig.proto.Rig.MeshEntry;
 
 public class ColladaUtil {
 
@@ -92,12 +93,11 @@ public class ColladaUtil {
         return collada;
     }
 
-    public static boolean load(InputStream is, Rig.Mesh.Builder meshBuilder, Rig.AnimationSet.Builder animationSetBuilder, Rig.Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
+    public static boolean load(InputStream is, Rig.MeshSet.Builder meshSetBuilder, Rig.AnimationSet.Builder animationSetBuilder, Rig.Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        HashMap<Integer, Integer> colladaIndexToDDFIndex = new HashMap<Integer, Integer>();
-        ArrayList<Bone> boneList = loadSkeleton(collada, skeletonBuilder, new ArrayList<String>(), colladaIndexToDDFIndex);
-        loadMesh(collada, meshBuilder, colladaIndexToDDFIndex);
-        loadAnimations(collada, animationSetBuilder, boneList, 30.0f, new ArrayList<String>()); // TODO pick the sample rate from a parameter
+        loadMesh(collada, meshSetBuilder);
+        loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
+        loadAnimations(collada, animationSetBuilder, 30.0f, new ArrayList<String>()); // TODO pick the sample rate from a parameter
         return true;
     }
 
@@ -237,7 +237,7 @@ public class ColladaUtil {
         }
     }
 
-    private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, float duration, float sampleRate) throws LoaderException {
+    private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, float duration, float sampleRate) throws LoaderException {
         animBuilder.setDuration(duration);
         animBuilder.setSampleRate(sampleRate);
 
@@ -251,7 +251,15 @@ public class ColladaUtil {
         {
             Bone bone = boneList.get(bi);
             String boneId = bone.node.id;
-            if (boneToAnimations.containsKey(boneId))
+
+            // Lookup the index for the bone in the reference map.
+            // This is the bone index to use since we can't guarantee that that
+            // the bone hierarchy is stored as depth first, we need to depend on the
+            // supplied "JOINT" reference list from the skin entry.
+            Long boneHash = MurmurHash.hash64(bone.getSourceId());
+            Integer refIndex = boneRefMap.get(boneHash);
+
+            if (boneToAnimations.containsKey(boneId) && refIndex != null)
             {
                 Matrix4d parentToLocal = getBoneParentToLocal(bone);
 
@@ -271,9 +279,9 @@ public class ColladaUtil {
 
                     ExtractKeys(bone, parentToLocal, animation, posTrack, rotTrack, scaleTrack);
 
-                    samplePosTrack(animBuilder, bi, posTrack, duration, sampleRate, spf, true, false);
-                    sampleRotTrack(animBuilder, bi, rotTrack, duration, sampleRate, spf, true, true);
-                    sampleScaleTrack(animBuilder, bi, scaleTrack, duration, sampleRate, spf, true, false);
+                    samplePosTrack(animBuilder, refIndex, posTrack, duration, sampleRate, spf, true, false);
+                    sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sampleRate, spf, true, true);
+                    sampleScaleTrack(animBuilder, refIndex, scaleTrack, duration, sampleRate, spf, true, false);
                 }
             }
         }
@@ -300,15 +308,30 @@ public class ColladaUtil {
         }
     }
 
-    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> boneList, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadAnimations(collada, animationSetBuilder, boneList, sampleRate, animationIds);
+        loadAnimations(collada, animationSetBuilder, sampleRate, animationIds);
     }
 
-    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> boneList, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryAnimations.size() != 1) {
             return;
         }
+
+        String[] boneRefArray = getBoneReferenceList(collada);
+        if (boneRefArray == null) {
+            return;
+        }
+        HashMap<Long, Integer> boneRefMap = new HashMap<Long, Integer>();
+        for (int i = 0; i < boneRefArray.length; i++) {
+            Long boneRef = MurmurHash.hash64(boneRefArray[i]);
+            boneRefMap.put(boneRef, i);
+            animationSetBuilder.addBoneList(boneRef);
+        }
+
+        // Load skeleton to get bone bind poses
+        ArrayList<String> boneIds = new ArrayList<String>();
+        ArrayList<Bone> boneList = loadSkeleton(collada, boneIds);
 
         // Animation clips
         ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
@@ -341,16 +364,16 @@ public class ColladaUtil {
 
             // If no clips are provided, add a "Default" clip that is the whole animation as one clip
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
-            boneAnimToDDF(collada, animBuilder, boneList, boneToAnimations, totalAnimationLength, sampleRate);
+            boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength, sampleRate);
             animBuilder.setId(MurmurHash.hash64("Default"));
             animationIds.add("Default");
             animationSetBuilder.addAnimations(animBuilder.build());
         }
     }
 
-    public static void loadMesh(InputStream is, Rig.Mesh.Builder meshBuilder, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
+    public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadMesh(collada, meshBuilder, colladaIndexToDDFIndex);
+        loadMesh(collada, meshSetBuilder);
     }
 
     public static Matrix4f createUpAxisMatrix(UpAxis upAxis) {
@@ -366,7 +389,7 @@ public class ColladaUtil {
         return axisMatrix;
     }
 
-    public static void loadMesh(XMLCOLLADA collada, Rig.Mesh.Builder meshBuilder, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
+    public static void loadMesh(XMLCOLLADA collada, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryGeometries.size() != 1) {
             if (collada.libraryGeometries.isEmpty()) {
                 return;
@@ -501,8 +524,9 @@ public class ColladaUtil {
 
         List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
-        loadVertexWeights(collada, bone_weights_list, bone_indices_list, colladaIndexToDDFIndex);
+        loadVertexWeights(collada, bone_weights_list, bone_indices_list);
 
+        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
         if(normals != null) {
             meshBuilder.addAllNormals(normal_list);
             meshBuilder.addAllNormalsIndices(normal_indices_list);
@@ -513,32 +537,35 @@ public class ColladaUtil {
         meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
         meshBuilder.addAllWeights(bone_weights_list);
         meshBuilder.addAllBoneIndices(bone_indices_list);
-    }
 
+        // We currently only support one mesh per collada file
+        MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
+        meshEntryBuilder.addMeshes(meshBuilder);
+        meshEntryBuilder.setId(0);
+        meshSetBuilder.addMeshEntries(meshEntryBuilder);
 
-    public static ArrayList<Bone> loadSkeleton(InputStream is, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
-        return loadSkeleton(loadDAE(is), skeletonBuilder, boneIds, colladaIndexToDDFIndex);
-    }
-
-    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, HashMap<String, Integer> colladaBoneIndexMap, HashMap<Integer, Integer> colladaIndexToDDFIndex) {
-        Bone newBone = new Bone(node, node.sid, node.name, node.matrix.matrix4f, new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
-
-        /*
-         * A lookup map to convert collada bone indexes into indexes representing the final DDF bone list.
-         * We need the bones to be in a depth first (and root at 0) order, currently the engine depend on this
-         * when it creates GOs for bones.
-         */
-        int colladaBoneIndex = colladaBoneIndexMap.getOrDefault(newBone.getSourceId(), 0xffff);
-        if(colladaIndexToDDFIndex != null) {
-            colladaIndexToDDFIndex.put(colladaBoneIndex, boneList.size());
+        String[] boneRefArray = getBoneReferenceList(collada);
+        if (boneRefArray != null) {
+            for (int i = 0; i < boneRefArray.length; i++) {
+                meshSetBuilder.addBoneList(MurmurHash.hash64(boneRefArray[i]));
+            }
         }
+    }
+
+
+    public static void loadSkeleton(InputStream is, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
+        loadSkeleton(loadDAE(is), skeletonBuilder, boneIds);
+    }
+
+    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds) {
+        Bone newBone = new Bone(node, node.sid, node.name, node.matrix.matrix4f, new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
 
         boneList.add(newBone);
         boneIds.add(newBone.getSourceId());
 
         for(XMLNode childNode : node.childrenList) {
             if(childNode.type == XMLNode.Type.JOINT) {
-                Bone childBone = loadBone(childNode, boneList, boneIds, colladaBoneIndexMap, colladaIndexToDDFIndex);
+                Bone childBone = loadBone(childNode, boneList, boneIds);
                 newBone.addChild(childBone);
             }
         }
@@ -546,7 +573,37 @@ public class ColladaUtil {
         return newBone;
     }
 
-    public static ArrayList<Bone> loadSkeleton(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
+    private static String[] getBoneReferenceList(XMLCOLLADA collada) throws LoaderException {
+        /*
+         * Get the bone reference array.
+         * This array specify the order the bone indices are defined (bone indices for vertex data are based on this order).
+         */
+        XMLSkin skin = null;
+        if (!collada.libraryControllers.isEmpty()) {
+            skin = findFirstSkin(collada.libraryControllers.get(0));
+        }
+        if(skin == null) {
+            return null;
+        }
+        List<XMLSource> sources = skin.sources;
+        HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
+
+        XMLInput jointInput = findInput(skin.jointsInputs, "JOINT", true);
+        XMLSource jointSource = sourcesMap.get(jointInput.source);
+
+        String boneRefArray[];
+        if(jointSource.nameArray != null) {
+            boneRefArray = jointSource.nameArray.names;
+        } else if(jointSource.idrefArray != null) {
+            boneRefArray = jointSource.idrefArray.idrefs;
+        } else {
+            return null;
+        }
+
+        return boneRefArray;
+    }
+
+    public static ArrayList<Bone> loadSkeleton(XMLCOLLADA collada, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryVisualScenes.size() != 1) {
             return null;
         }
@@ -565,58 +622,32 @@ public class ColladaUtil {
             return null;
         }
 
-        XMLSkin skin = null;
-        if (!collada.libraryControllers.isEmpty()) {
-            skin = findFirstSkin(collada.libraryControllers.get(0));
-        }
-        if(skin == null) {
-            return null;
-        }
-        List<XMLSource> sources = skin.sources;
-        HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
-
         // We don't use the supplied inverse bind matrices. This is calculated automatically in the engine, see res_rig_scene.cpp.
         // XMLInput invBindMatInput = findInput(skin.jointsInputs, "INV_BIND_MATRIX", true);
         // XMLSource invBindMatSource = sourcesMap.get(invBindMatInput.source);
-
-        XMLInput jointInput = findInput(skin.jointsInputs, "JOINT", true);
-        XMLSource jointSource = sourcesMap.get(jointInput.source);
-
-        /*
-         * Get the bone reference array.
-         * This array specify the order the bone indexes are defined (bone indices for vertex data are based on this order).
-         */
-        String boneRefArray[];
-        int boneRefArrayCount;
-        if(jointSource.nameArray != null) {
-            boneRefArray = jointSource.nameArray.names;
-            boneRefArrayCount = jointSource.nameArray.count;
-        } else if(jointSource.idrefArray != null) {
-            boneRefArray = jointSource.idrefArray.idrefs;
-            boneRefArrayCount = jointSource.idrefArray.count;
-        } else {
-            return null;
-        }
-
-        HashMap<String, Integer> colladaBoneIndexMap = new HashMap<String, Integer>();
-        for(int i = 0; i < boneRefArrayCount; i++) {
-            colladaBoneIndexMap.put(boneRefArray[i], i);
-        }
 
         /*
          * Create the Bone hierarchy based on depth first recursion of the skeleton tree.
          */
         ArrayList<Bone> boneList = new ArrayList<Bone>();
-        Bone rootBone = loadBone(rootNode, boneList, boneIds, colladaBoneIndexMap, colladaIndexToDDFIndex);
+        loadBone(rootNode, boneList, boneIds);
+        return boneList;
+    }
+
+    public static void loadSkeleton(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
+        ArrayList<Bone> boneList = loadSkeleton(collada, boneIds);
+
+        // No bones found
+        if (boneList == null) {
+            return;
+        }
 
         /*
          * Generate DDF representation of bones.
          */
         ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones = new ArrayList<com.dynamo.rig.proto.Rig.Bone>();
-        toDDF(ddfBones, rootBone, 0xffff, createUpAxisMatrix(collada.asset.upAxis));
+        toDDF(ddfBones, boneList.get(0), 0xffff, createUpAxisMatrix(collada.asset.upAxis));
         skeletonBuilder.addAllBones(ddfBones);
-
-        return boneList;
     }
 
     private static XMLNode findFirstSkeleton(XMLNode node) {
@@ -696,7 +727,7 @@ public class ColladaUtil {
     }
 
 
-    private static void loadVertexWeights(XMLCOLLADA collada, List<Float> boneWeightsList, List<Integer> boneIndicesList, HashMap<Integer, Integer> colladaIndexToDDFIndex) throws IOException, XMLStreamException, LoaderException {
+    private static void loadVertexWeights(XMLCOLLADA collada, List<Float> boneWeightsList, List<Integer> boneIndicesList) throws IOException, XMLStreamException, LoaderException {
 
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
@@ -723,7 +754,6 @@ public class ColladaUtil {
                 float bw = 0f;
                 int bi = 0;
                 bi = skin.vertexWeights.v.ints[ vIndex + j * 2 + 0 ];
-                bi = colladaIndexToDDFIndex.get(bi);
                 if (bi != -1) {
                     final int weightIndex = skin.vertexWeights.v.ints[ vIndex + j * 2 + 1 ];
                     bw = weightsSource.floatArray.floats[ weightIndex ];
@@ -740,7 +770,7 @@ public class ColladaUtil {
                 weights.add(new Weight(0, 0.0f));
             }
 
-            // If there are more than 4 influences, we sort and take only the 4 with heighest weight.
+            // If there are more than 4 influences, we sort and take only the 4 with highest weight.
             influenceCount = weights.size();
             if (influenceCount > 4) {
                 Collections.sort(weights);

@@ -90,18 +90,21 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Indices.m_Data[2]      = 2;
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
-    mesh.m_BoneIndices.m_Data[0]  = 0;
-    mesh.m_BoneIndices.m_Data[1]  = 1;
-    mesh.m_BoneIndices.m_Data[2]  = 0;
-    mesh.m_BoneIndices.m_Data[3]  = 0;
-    mesh.m_BoneIndices.m_Data[4]  = 0;
-    mesh.m_BoneIndices.m_Data[5]  = 1;
-    mesh.m_BoneIndices.m_Data[6]  = 0;
-    mesh.m_BoneIndices.m_Data[7]  = 0;
-    mesh.m_BoneIndices.m_Data[8]  = 0;
-    mesh.m_BoneIndices.m_Data[9]  = 1;
-    mesh.m_BoneIndices.m_Data[10] = 0;
-    mesh.m_BoneIndices.m_Data[11] = 0;
+
+    // Bone indices are in reverse order here to test bone list in meshset.
+    int bone_count = 5;
+    mesh.m_BoneIndices.m_Data[0]  = bone_count-1;
+    mesh.m_BoneIndices.m_Data[1]  = bone_count-2;
+    mesh.m_BoneIndices.m_Data[2]  = bone_count-1;
+    mesh.m_BoneIndices.m_Data[3]  = bone_count-1;
+    mesh.m_BoneIndices.m_Data[4]  = bone_count-1;
+    mesh.m_BoneIndices.m_Data[5]  = bone_count-2;
+    mesh.m_BoneIndices.m_Data[6]  = bone_count-1;
+    mesh.m_BoneIndices.m_Data[7]  = bone_count-1;
+    mesh.m_BoneIndices.m_Data[8]  = bone_count-1;
+    mesh.m_BoneIndices.m_Data[9]  = bone_count-2;
+    mesh.m_BoneIndices.m_Data[10] = bone_count-1;
+    mesh.m_BoneIndices.m_Data[11] = bone_count-1;
 
     mesh.m_Weights.m_Data         = new float[vert_count*4];
     mesh.m_Weights.m_Count        = vert_count*4;
@@ -131,12 +134,24 @@ public:
     dmRigDDF::MeshSet*      m_MeshSet;
     dmRigDDF::AnimationSet* m_AnimationSet;
 
+    dmArray<uint32_t>       m_PoseIdxToInfluence;
+    dmArray<uint32_t>       m_TrackIdxToPose;
+
 private:
-    void SetUpSimpleSpine() {
+    void SetUpSimpleRig() {
 
         /*
 
-            Bones:
+        Note:
+            - Skeleton has a depth first bone hirarchy, as expected by the engine.
+            - Bone indices in the influence/weight and animations are specified in
+              reverse order, together with reversed bone lists to compensate for this.
+              See rig_ddf.proto for detailed information on skeleton, meshset and animationset
+              decoupling and usage of bone lists.
+
+        ------------------------------------
+
+        Bones:
             A:
             (0)---->(1)---->
              |
@@ -311,11 +326,11 @@ private:
             dmRigDDF::AnimationTrack& anim_track0 = anim0.m_Tracks.m_Data[0];
             dmRigDDF::AnimationTrack& anim_track1 = anim0.m_Tracks.m_Data[1];
 
-            anim_track0.m_BoneIndex         = 0;
+            anim_track0.m_BoneIndex         = 4;
             anim_track0.m_Positions.m_Count = 0;
             anim_track0.m_Scale.m_Count     = 0;
 
-            anim_track1.m_BoneIndex         = 1;
+            anim_track1.m_BoneIndex         = 3;
             anim_track1.m_Positions.m_Count = 0;
             anim_track1.m_Scale.m_Count     = 0;
 
@@ -365,15 +380,15 @@ private:
             dmRigDDF::AnimationTrack& anim_track_b0_scale = anim2.m_Tracks.m_Data[1];
             dmRigDDF::AnimationTrack& anim_track_b1_rot   = anim2.m_Tracks.m_Data[2];
 
-            anim_track_b0_rot.m_BoneIndex         = 0;
+            anim_track_b0_rot.m_BoneIndex         = 4;
             anim_track_b0_rot.m_Positions.m_Count = 0;
             anim_track_b0_rot.m_Scale.m_Count     = 0;
 
-            anim_track_b0_scale.m_BoneIndex         = 0;
+            anim_track_b0_scale.m_BoneIndex         = 4;
             anim_track_b0_scale.m_Rotations.m_Count = 0;
             anim_track_b0_scale.m_Positions.m_Count = 0;
 
-            anim_track_b1_rot.m_BoneIndex         = 1;
+            anim_track_b1_rot.m_BoneIndex         = 3;
             anim_track_b1_rot.m_Positions.m_Count = 0;
             anim_track_b1_rot.m_Scale.m_Count     = 0;
 
@@ -410,6 +425,19 @@ private:
         CreateDummyMeshEntry(m_MeshSet->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
         CreateDummyMeshEntry(m_MeshSet->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
 
+        // We create bone lists for both the meshste and animationset,
+        // that is in "inverted" order of the skeleton hirarchy.
+        m_MeshSet->m_BoneList.m_Data = new uint64_t[bone_count];
+        m_MeshSet->m_BoneList.m_Count = bone_count;
+        m_AnimationSet->m_BoneList.m_Data = m_MeshSet->m_BoneList.m_Data;
+        m_AnimationSet->m_BoneList.m_Count = bone_count;
+        for (int i = 0; i < bone_count; ++i)
+        {
+            m_MeshSet->m_BoneList.m_Data[i] = bone_count-i-1;
+        }
+
+        dmRig::CreateLookUpArrays(*m_MeshSet, *m_AnimationSet, *m_Skeleton, m_TrackIdxToPose, m_PoseIdxToInfluence);
+
     }
 
     void TearDownSimpleSpine() {
@@ -441,6 +469,7 @@ private:
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
         }
         delete [] m_MeshSet->m_MeshEntries.m_Data;
+        delete [] m_MeshSet->m_BoneList.m_Data;
     }
 
 protected:
@@ -455,13 +484,15 @@ protected:
         m_Skeleton     = new dmRigDDF::Skeleton();
         m_MeshSet      = new dmRigDDF::MeshSet();
         m_AnimationSet = new dmRigDDF::AnimationSet();
-        SetUpSimpleSpine();
+        SetUpSimpleRig();
 
         // Data
         create_params.m_BindPose     = &m_BindPose;
         create_params.m_Skeleton     = m_Skeleton;
         create_params.m_MeshSet      = m_MeshSet;
         create_params.m_AnimationSet = m_AnimationSet;
+        create_params.m_TrackIdxToPose     = &m_TrackIdxToPose;
+        create_params.m_PoseIdxToInfluence = &m_PoseIdxToInfluence;
 
         create_params.m_MeshId           = dmHashString64((const char*)"test");
         create_params.m_DefaultAnimation = dmHashString64((const char*)"");
