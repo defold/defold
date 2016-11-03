@@ -6,7 +6,8 @@
    [editor.jfx :as jfx]
    [editor.outline :as outline]
    [editor.resource :as resource]
-   [editor.ui :as ui])
+   [editor.ui :as ui]
+   [service.log :as log])
   (:import
    (com.defold.control TreeCell)
    (editor.outline ItemIterator)
@@ -24,6 +25,7 @@
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
 (def ^:private ^:dynamic *paste-into-parent* false)
+(def ^:private selection-updated? (atom false))
 
 ;; TreeItem creator
 (defn- ^ObservableList list-children [parent]
@@ -102,18 +104,33 @@
         (assoc :path path)
         (update :children (fn [children] (mapv #(pathify path %) children)))))))
 
-(g/defnk update-tree-view [_node-id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
-  (let [resource-set (set open-resources)
-        root (get root-cache active-resource)
-        ^TreeItem new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
-        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
-    (binding [*programmatic-selection* true]
-      (when new-root
-        (.setExpanded new-root true))
-      (.setRoot tree-view new-root)
-      (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property _node-id :root-cache new-cache))
-      tree-view)))
+(defn- selection-consistent?
+  [^TreeView tree-view selection]
+  (let [tree-view-selection (set (mapv item->node-id (.. tree-view getSelectionModel getSelectedItems)))
+        selection-set (set selection)]
+    (if (= tree-view-selection selection-set)
+      true
+      (do
+        ;; Log here, because selection really should be consistent.
+        (log/warn :message (format "selection was not consistent: %s" (pr-str {:tree-view-selection tree-view-selection
+                                                                               :selection selection})))
+        false))))
+
+(g/defnk update-tree-view [_node-id ^TreeView tree-view root-cache active-resource active-outline open-resources selection]
+  (let [check-consistent-selection @selection-updated?]
+    (when check-consistent-selection (reset! selection-updated? false))
+    (or (and check-consistent-selection (selection-consistent? tree-view selection) tree-view)
+        (let [resource-set (set open-resources)
+              root (get root-cache active-resource)
+              ^TreeItem new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
+              new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
+          (binding [*programmatic-selection* true]
+            (when new-root
+              (.setExpanded new-root true))
+            (.setRoot tree-view new-root)
+            (sync-selection tree-view new-root selection)
+            (g/transact (g/set-property _node-id :root-cache new-cache))
+            tree-view)))))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
@@ -390,9 +407,20 @@
 (defn- propagate-selection [^ListChangeListener$Change change selection-fn]
   (when-not *programmatic-selection*
     (alter-var-root #'*paste-into-parent* (constantly false))
-    (when-let [changes (filter #(and (not (nil? %)) (item->node-id %)) (and change (.getList change)))]
+    (when-let [changes (and change (into [] (keep #(and % (item->node-id %))) (.getList change)))]
       ;; TODO - handle selection order
-      (selection-fn (map item->node-id changes)))))
+
+      ;; NOTE: We set the `selection-updated?` flag here to allow the
+      ;; next call to update-tree-view to exit early if the selections
+      ;; (tree-view selection vs. project selection) are still
+      ;; consistent. This avoids bugs with keyboard selection and
+      ;; flickering updates to tree-view. Bug reports on javafx
+      ;; indicates multiple issues with the ListChangeListener
+      ;; implementation in JDK8, most which have been fixed in JDK9
+      ;; but are unlikely to be backported due to the size of the
+      ;; changes. We should re-visit this when JDK9 is near/released.
+      (reset! selection-updated? true)
+      (selection-fn changes))))
 
 (defn make-outline-view [graph tree-view selection-fn selection-provider]
   (let [selection-listener (reify ListChangeListener
