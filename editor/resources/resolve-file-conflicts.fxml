@@ -23,7 +23,7 @@
             <Region prefHeight="10.0" prefWidth="10.0" HBox.hgrow="ALWAYS" />
             <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel">
                <tooltip>
-                  <Tooltip text="Keep all files, giving new unique names for conflicting files" />
+                  <Tooltip text="Cancel entire operation" />
                </tooltip>
             </Button>
          </children>
