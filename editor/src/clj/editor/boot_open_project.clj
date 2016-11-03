@@ -229,7 +229,8 @@
                          :web-server        web-server
                          :build-errors-view build-errors-view
                          :changes-view      changes-view
-                         :main-stage        stage}
+                         :main-stage        stage
+                         :asset-browser     asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env assets dynamics)
         (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))

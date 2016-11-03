@@ -482,39 +482,6 @@
     (when (= :file (resource/source-type r))
       r)))
 
-(handler/defhandler :new-file :global
-  (label [user-data] (if-not user-data
-                       "New..."
-                       (let [rt (:resource-type user-data)]
-                         (or (:label rt) (:ext rt)))))
-  (active? [selection selection-context] (or (= :global selection-context) (and (= :asset-browser selection-context)
-                                                                                (= (count selection) 1)
-                                                                                (not= nil (some-> (handler/adapt-single selection resource/Resource)
-                                                                                            resource/abs-path)))))
-  (run [selection user-data app-view workspace project]
-       (let [project-path (workspace/project-path workspace)
-             base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
-                                   first
-                                   resource/abs-path
-                                   (File.))
-                                 project-path)
-                           util/to-folder)
-             rt (:resource-type user-data)]
-         (when-let [new-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
-           (spit new-file (workspace/template rt))
-           (workspace/resource-sync! workspace)
-           (let [resource-map (g/node-value workspace :resource-map)
-                 new-resource-path (resource/file->proj-path project-path new-file)
-                 resource (resource-map new-resource-path)]
-             (open-resource app-view workspace project resource)))))
-  (options [workspace selection user-data]
-           (when (not user-data)
-             (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
-               (sort-by (fn [rt] (string/lower-case (:label rt))) (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                                                                                       :icon (:icon res-type)
-                                                                                       :command :new-file
-                                                                                       :user-data {:resource-type res-type}}) resource-types))))))
-
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
   (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->resource-files selection))))
