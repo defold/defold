@@ -11,7 +11,7 @@
             [editor.resource :as resource]
             [service.log :as log])
   (:import [java.io File]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -106,9 +106,9 @@
   ;; Only purpose is to provide resource-type with :build-ext = :ext
   resource/Resource
   (children [this] (resource/children resource))
+  (ext [this] (resource/ext resource))
   (resource-type [this]
-    (let [path (resource/path this)
-          ext (FilenameUtils/getExtension path)]
+    (let [ext (resource/ext this)]
       {:ext ext
        :label "Custom Resource"
        :build-ext ext}))
