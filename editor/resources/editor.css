@@ -399,6 +399,10 @@ Defold Orange       #fd6623             Guides etc
   -fx-border-radius: 0px;
   -fx-background-insets: 0;
   -fx-border-width: 0; }
+  .combo-box:hover > .text-input {
+    -fx-border-width: 1 0 1 1; }
+  .combo-box:focused > .text-input {
+    -fx-border-width: 1; }
   .combo-box:hover > .list-cell {
     -fx-border-width: 1 0 1 1;
     -fx-border-color: #484d54;
