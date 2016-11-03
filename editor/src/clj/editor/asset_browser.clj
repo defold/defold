@@ -193,6 +193,16 @@
       (recur (File. new-path) exists-fn name-fn))
     f))
 
+(defn- ensure-unique-dest-files
+  [make-name-fn src-dest-pairs]
+  (loop [[[src dest :as pair] & rest] src-dest-pairs
+         new-names #{}
+         ret []]
+    (if pair
+      (let [new-dest (unique dest #(or (.exists ^File %) (new-names %)) (make-name-fn dest))]
+        (recur rest (conj new-names new-dest) (conj ret [src new-dest])))
+      ret)))
+
 (defn- numbering-name-fn
   [^File f]
   (let [basename (FilenameUtils/getBaseName (str f))
@@ -227,9 +237,9 @@
                                        (.getParentFile ^File tgt)
                                        tgt))
                                    (util/to-folder (File. (resource/abs-path resource))) src-files)
-             pairs (mapv (fn [^File f] [f (unique (File. tgt-dir (FilenameUtils/getName (.toString f)))
-                                                  #(.exists ^File %)
-                                                  #(str % "_copy"))]) src-files)]
+             pairs (->> src-files
+                        (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]))
+                        (ensure-unique-dest-files (constantly #(str % "_copy"))))]
          (doseq [[^File src-file ^File tgt-file] pairs]
            (if (.isDirectory src-file)
              (FileUtils/copyDirectory src-file tgt-file)
@@ -395,13 +405,7 @@
 
 (defmethod resolve-conflicts :rename
   [_ src-dest-pairs]
-  (loop [[[src dest :as pair] & rest] src-dest-pairs
-         new-names #{}
-         ret []]
-    (if pair
-      (let [new-dest (unique dest #(or (.exists ^File %) (new-names %)) (numbering-name-fn dest))]
-        (recur rest (conj new-names new-dest) (conj ret [src new-dest])))
-      ret)))
+  (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
 
 (defn- resolve-any-conflicts
   [src-dest-pairs]
@@ -433,15 +437,15 @@
             workspace (resource/workspace resource)]
         (when pairs
           (doseq [[^File src-file ^File tgt-file] pairs]
-                      (if (= (.getTransferMode e) TransferMode/MOVE)
-                        (if (.isDirectory src-file)
-                          (FileUtils/moveDirectory src-file tgt-file)
-                          (do
-                            (io/make-parents tgt-file)
-                            (.renameTo src-file tgt-file)))
-                        (if (.isDirectory src-file)
-                          (FileUtils/copyDirectory src-file tgt-file)
-                          (FileUtils/copyFile src-file tgt-file))))
+            (if (= (.getTransferMode e) TransferMode/MOVE)
+              (if (.isDirectory src-file)
+                (FileUtils/moveDirectory src-file tgt-file)
+                (do
+                  (io/make-parents tgt-file)
+                  (.renameTo src-file tgt-file)))
+              (if (.isDirectory src-file)
+                (FileUtils/copyDirectory src-file tgt-file)
+                (FileUtils/copyFile src-file tgt-file))))
           (select-files! workspace tree-view (mapv second pairs))
           (workspace/resource-sync! workspace true moved))))
     (.setDropCompleted e true)
