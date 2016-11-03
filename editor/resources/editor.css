@@ -173,7 +173,7 @@ Links:
   -fx-border-color: #313439;
   -fx-border-width: 1;
   -fx-text-fill: #f0f2f6;
-  -fx-font-size: 14px; }
+  -fx-font-size: 12px; }
   .button:hover, .button-small:hover, .button-large:hover {
     -fx-background-color: #1e2021; }
   .button:armed, .button-small:armed, .button-large:armed {
@@ -1113,7 +1113,7 @@ Line numbers:
 .console-tab-base, #console-tab, #curve-editor-tab, #build-errors-tab {
   -fx-background-position: center;
   -fx-background-repeat: no-repeat;
-  -fx-background-size: 26 20; }
+  -fx-background-size: 21 16; }
 
 #console-tab {
   -fx-background-image: url("icons/tabs/console-icon-off.png"); }
@@ -1124,7 +1124,7 @@ Line numbers:
 
 #curve-editor-tab {
   -fx-background-image: url("icons/tabs/curve-editor-icon-off.png");
-  -fx-background-position: center 5px; }
+  -fx-background-position: center 8px; }
   #curve-editor-tab:selected {
     -fx-background-image: url("icons/tabs/curve-editor-icon-on.png"); }
   #curve-editor-tab:hover {
