@@ -1191,11 +1191,15 @@ namespace dmRig
             // Bump scratch buffer capacity to handle current vertex count
             uint32_t index_count = mesh->m_Indices.m_Count;
             if (positions.Capacity() < index_count) {
-                int offset_capacity = index_count - positions.Capacity();
-                positions.OffsetCapacity(offset_capacity);
-                if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh->m_NormalsIndices.m_Count) {
-                    normals.OffsetCapacity(offset_capacity);
+                positions.OffsetCapacity(index_count - positions.Capacity());
+            }
+            positions.SetSize(index_count);
+
+            if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh->m_NormalsIndices.m_Count) {
+                if (normals.Capacity() < index_count) {
+                    normals.OffsetCapacity(index_count - normals.Capacity());
                 }
+                normals.SetSize(index_count);
             }
 
             // Fill scratch buffers for positions, and normals if applicable, using pose matrices.
