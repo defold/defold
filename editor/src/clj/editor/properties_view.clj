@@ -333,24 +333,33 @@
         button       (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                        (.setPrefWidth 26)
                        (ui/add-style! "button-small"))
+        open-button  (doto ^Button (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
+                       (.setMaxWidth 24.0)
+                       (ui/add-style! "button-small"))
         text         (doto (TextField.)
                        (GridPane/setFillWidth true))
         dialog-opts  (if (:ext edit-type) {:ext (:ext edit-type)} {})
         update-ui-fn (fn [values message read-only?]
                        (let [val (properties/unify-values values)]
-                         (ui/text! text (when val (resource/proj-path val))))
-                       (update-field-message [text] message)
-                       (ui/editable! text (not read-only?))
-                       (ui/editable! button (not read-only?)))]
+                         (ui/text! text (when val (resource/proj-path val)))
+                         (update-field-message [text] message)
+                         (ui/editable! text (not read-only?))
+                         (ui/editable! button (not read-only?))
+                         (ui/editable! open-button (boolean (when val (resource/proj-path val))))))]
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace dialog-opts))]
                                      (properties/set-values! (property-fn) (repeat resource)))))
+    (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
+                                                              properties/values
+                                                              properties/unify-values)]
+                                          (ui/run-command open-button :open {:resources [resource]}))))
     (ui/on-action! text (fn [_] (let [path     (ui/text text)
                                       resource (workspace/resolve-workspace-resource workspace path)]
                                   (properties/set-values! (property-fn) (repeat resource)))))
-    (ui/children! box [text button])
+    (ui/children! box [text button open-button])
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints button 1 0)
+    (GridPane/setConstraints open-button 2 0)
     (.. box getColumnConstraints (add (doto (ColumnConstraints.)
                                         (.setPrefWidth all-available)
                                         (.setHgrow Priority/ALWAYS))))
