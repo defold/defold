@@ -12,6 +12,7 @@
             [editor.properties :as properties]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.math :as math]
             [util.id-vec :as iv])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
@@ -143,6 +144,7 @@
 (defn- create-multi-textfield! [labels property-fn]
   (let [text-fields  (mapv (fn [l] (doto (TextField.)
                                      (.setPrefWidth all-available)
+                                     (.setMinWidth 36)
                                      (GridPane/setFillWidth true)))
                            labels)
         box          (doto (GridPane.)
@@ -329,26 +331,26 @@
     [cb update-ui-fn]))
 
 (defmethod create-property-control! resource/Resource [edit-type workspace property-fn]
-  (let [box          (doto (GridPane.))
-        button       (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
-                       (.setPrefWidth 26)
-                       (ui/add-style! "button-small"))
-        open-button  (doto ^Button (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
-                       (.setMaxWidth 24.0)
-                       (ui/add-style! "button-small"))
-        text         (doto (TextField.)
-                       (GridPane/setFillWidth true))
-        dialog-opts  (if (:ext edit-type) {:ext (:ext edit-type)} {})
-        update-ui-fn (fn [values message read-only?]
-                       (let [val (properties/unify-values values)]
-                         (ui/text! text (when val (resource/proj-path val)))
-                         (update-field-message [text] message)
-                         (ui/editable! text (not read-only?))
-                         (ui/editable! button (not read-only?))
-                         (ui/editable! open-button (boolean (when val (resource/proj-path val))))))]
+  (let [box           (GridPane.)
+        browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
+                        (.setPrefWidth 26)
+                        (ui/add-style! "button-small"))
+        open-button   (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
+                        (.setMaxWidth 26)
+                        (ui/add-style! "button-small"))
+        text          (doto (TextField.)
+                        (GridPane/setFillWidth true))
+        dialog-opts   (if (:ext edit-type) {:ext (:ext edit-type)} {})
+        update-ui-fn  (fn [values message read-only?]
+                        (let [val (properties/unify-values values)]
+                          (ui/text! text (when val (resource/proj-path val)))
+                          (update-field-message [text] message)
+                          (ui/editable! text (not read-only?))
+                          (ui/editable! browse-button (not read-only?))
+                          (ui/editable! open-button (boolean (when val (resource/proj-path val))))))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace dialog-opts))]
-                                     (properties/set-values! (property-fn) (repeat resource)))))
+    (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace dialog-opts))]
+                                           (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
                                                               properties/values
                                                               properties/unify-values)]
@@ -356,21 +358,31 @@
     (ui/on-action! text (fn [_] (let [path     (ui/text text)
                                       resource (workspace/resolve-workspace-resource workspace path)]
                                   (properties/set-values! (property-fn) (repeat resource)))))
-    (ui/children! box [text button open-button])
+    (ui/children! box [text browse-button open-button])
     (GridPane/setConstraints text 0 0)
-    (GridPane/setConstraints button 1 0)
-    (GridPane/setConstraints open-button 2 0)
-    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                        (.setPrefWidth all-available)
-                                        (.setHgrow Priority/ALWAYS))))
-    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                        (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
-                                        (.setHgrow Priority/NEVER))))
+    (GridPane/setConstraints open-button 1 0)
+    (GridPane/setConstraints browse-button 2 0)
+
+    ; Merge the facing borders of the open and browse buttons.
+    (GridPane/setMargin open-button (Insets. 0 -1 0 0))
+    (.setOnMousePressed open-button (ui/event-handler _ (.toFront open-button)))
+    (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
+
+    (doto (.. box getColumnConstraints)
+      (.add (doto (ColumnConstraints.)
+              (.setPrefWidth all-available)
+              (.setHgrow Priority/ALWAYS)))
+      (.add (doto (ColumnConstraints.)
+              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+              (.setHgrow Priority/NEVER)))
+      (.add (doto (ColumnConstraints.)
+              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+              (.setHgrow Priority/NEVER))))
     [box update-ui-fn]))
 
 (defmethod create-property-control! :slider [edit-type workspace property-fn]
   (let [box (doto (GridPane.)
-              (.setPrefWidth Double/MAX_VALUE))
+              (.setHgap grid-hgap))
         [^TextField textfield tf-update-ui-fn] (create-property-control! {:type g/Num} workspace property-fn)
         min (:min edit-type 0.0)
         max (:max edit-type 1.0)
@@ -393,7 +405,7 @@
     (ui/observe (.valueProperty slider) (fn [observable old-val new-val]
                                           (when-not *programmatic-setting*
                                             (let [val (if precision
-                                                        (* precision (Math/round (double (/ new-val precision))))
+                                                        (math/round-with-precision new-val precision)
                                                         new-val)]
                                               (properties/set-values! (property-fn) (repeat val) (ui/user-data slider ::op-seq))))))
     (ui/children! box [textfield slider])
