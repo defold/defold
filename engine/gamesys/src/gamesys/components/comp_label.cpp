@@ -1,5 +1,6 @@
 #include "comp_label.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <float.h>
 #include <algorithm>
@@ -39,6 +40,7 @@ namespace dmGameSystem
         Vector4                     m_Outline;
         Vector4                     m_Shadow;
         Matrix4                     m_World;
+        uint32_t                    m_Pivot;
         // Hash of the components properties. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
         uint32_t                    m_MixedHash;
@@ -52,7 +54,8 @@ namespace dmGameSystem
         uint16_t                    m_ComponentIndex : 8;
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_AddedToUpdate : 1;
-        uint16_t                    m_Padding : 6;
+        uint16_t                    m_UserAllocatedText : 1;
+        uint16_t                    m_Padding : 5;
     };
 
     struct LabelWorld
@@ -61,10 +64,15 @@ namespace dmGameSystem
     };
 
     DM_GAMESYS_PROP_VECTOR3(LABEL_PROP_SCALE, scale, false);
-    DM_GAMESYS_PROP_VECTOR3(LABEL_PROP_SIZE, size, true);
+    DM_GAMESYS_PROP_VECTOR3(LABEL_PROP_SIZE, size, false);
+    DM_GAMESYS_PROP_VECTOR4(LABEL_PROP_COLOR, color, false);
+    DM_GAMESYS_PROP_VECTOR4(LABEL_PROP_OUTLINE, outline, false);
+    DM_GAMESYS_PROP_VECTOR4(LABEL_PROP_SHADOW, shadow, false);
 
     dmGameObject::CreateResult CompLabelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
+        DM_STATIC_ASSERT( dmRender::MAX_FONT_RENDER_CONSTANTS == MAX_COMP_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
+
         LabelContext* label_context = (LabelContext*)params.m_Context;
         LabelWorld* world = new LabelWorld();
 
@@ -78,6 +86,17 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompLabelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
+
+        LabelComponent* components = world->m_Components.m_Objects.Begin();
+        for (int i = 0; i < world->m_Components.m_Objects.Capacity(); ++i )
+        {
+            LabelComponent& component = components[i];
+            if (component.m_UserAllocatedText)
+            {
+                free((void*)component.m_Text);
+            }
+        }
+
         delete world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -171,17 +190,19 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Size     = Vector3(ddf->m_Size[0], ddf->m_Size[1], ddf->m_Size[2]);
         component->m_Scale    = Vector3(ddf->m_Scale[0], ddf->m_Scale[1], ddf->m_Scale[2]);
-        component->m_Position = params.m_Position + CalcPivotDelta(ddf->m_Pivot, mulPerElem(component->m_Scale, component->m_Size));
+        component->m_Position = params.m_Position;
         component->m_Rotation = params.m_Rotation;
         component->m_Color    = Vector4(ddf->m_Color[0], ddf->m_Color[1], ddf->m_Color[2], ddf->m_Color[3]);
         component->m_Outline  = Vector4(ddf->m_Outline[0], ddf->m_Outline[1], ddf->m_Outline[2], ddf->m_Outline[3]);
         component->m_Shadow   = Vector4(ddf->m_Shadow[0], ddf->m_Shadow[1], ddf->m_Shadow[2], ddf->m_Shadow[3]);
         component->m_Resource = resource;
+        component->m_Pivot    = ddf->m_Pivot;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Text = ddf->m_Text;
+        component->m_UserAllocatedText = 0;
         ReHash(component);
 
         *params.m_UserData = (uintptr_t)index;
@@ -192,6 +213,19 @@ namespace dmGameSystem
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
         uint32_t index = *params.m_UserData;
+
+        dmArray<LabelComponent>& components = world->m_Components.m_Objects;
+        uint32_t n = components.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            LabelComponent* component = &components[i];
+            if (component->m_UserAllocatedText)
+            {
+                component->m_UserAllocatedText = 0;
+                free((void*)component->m_Text);
+            }
+        }
+
         world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -209,7 +243,7 @@ namespace dmGameSystem
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
 
-            Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(Vector3(c->m_Position), c->m_Rotation, 1.0));
+            Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(Vector3(c->m_Position + CalcPivotDelta(c->m_Pivot, mulPerElem(c->m_Scale, c->m_Size))), c->m_Rotation, 1.0));
             Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
             Matrix4 w;
 
@@ -306,6 +340,30 @@ namespace dmGameSystem
             params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
             break;
         }
+
+        // Taken from comp_sprite.cpp
+        switch (ddf->m_BlendMode)
+        {
+            case dmGameSystemDDF::LabelDesc::BLEND_MODE_ALPHA:
+                params.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                params.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            case dmGameSystemDDF::LabelDesc::BLEND_MODE_ADD:
+                params.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                params.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+            break;
+
+            case dmGameSystemDDF::LabelDesc::BLEND_MODE_MULT:
+                params.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                params.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            default:
+                dmLogError("Label: Unknown blend mode: %d\n", ddf->m_BlendMode);
+                assert(0);
+            break;
+        }
     }
 
     dmGameObject::UpdateResult CompLabelRender(const dmGameObject::ComponentsRenderParams& params)
@@ -341,6 +399,10 @@ namespace dmGameSystem
             dmRender::DrawTextParams params;
             CreateDrawTextParams(component, params);
 
+            assert( component->m_RenderConstants.m_ConstantCount <= dmRender::MAX_FONT_RENDER_CONSTANTS );
+            params.m_NumRenderConstants = component->m_RenderConstants.m_ConstantCount;
+            memcpy( params.m_RenderConstants, component->m_RenderConstants.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::Constant));
+
             dmRender::DrawText(render_context, component->m_Resource->m_FontMap, component->m_Resource->m_Material, component->m_MixedHash, params);
         }
 
@@ -373,32 +435,15 @@ namespace dmGameSystem
         {
             component->m_Enabled = 0;
         }
-        else if (params.m_Message->m_Descriptor != 0x0)
+        else if (params.m_Message->m_Id == dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash)
         {
-            if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
+            dmGameSystemDDF::SetText* textmsg = (dmGameSystemDDF::SetText*)params.m_Message->m_Data;
+            if (component->m_UserAllocatedText)
             {
-                dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash, dmGameObject::PropertyVar(ddf->m_Value), CompLabelSetConstantCallback, component);
-                if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
-                {
-                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
-                    dmLogError("'%s:%s#%s' has no constant named '%s'", dmMessage::GetSocketName(receiver.m_Socket), (const char*)dmHashReverse64(receiver.m_Path, 0x0),
-                                                                        (const char*)dmHashReverse64(receiver.m_Fragment, 0x0), (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
-                }
+                free((void*)component->m_Text);
             }
-            else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
-            {
-                dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                if( ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash) )
-                {
-                    ReHash(component);
-                }
-            }
-            else if (params.m_Message->m_Id == dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash)
-            {
-                dmGameSystemDDF::SetScale* ddf = (dmGameSystemDDF::SetScale*)params.m_Message->m_Data;
-                component->m_Scale = ddf->m_Scale;
-            }
+            component->m_Text = strdup(textmsg->m_Text);
+            component->m_UserAllocatedText = 1;
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -424,6 +469,18 @@ namespace dmGameSystem
         {
             result = GetProperty(out_value, get_property, component->m_Size, LABEL_PROP_SIZE);
         }
+        else if (IsReferencingProperty(LABEL_PROP_COLOR, get_property))
+        {
+            result = GetProperty(out_value, get_property, component->m_Color, LABEL_PROP_COLOR);
+        }
+        else if (IsReferencingProperty(LABEL_PROP_OUTLINE, get_property))
+        {
+            result = GetProperty(out_value, get_property, component->m_Outline, LABEL_PROP_OUTLINE);
+        }
+        else if (IsReferencingProperty(LABEL_PROP_SHADOW, get_property))
+        {
+            result = GetProperty(out_value, get_property, component->m_Shadow, LABEL_PROP_SHADOW);
+        }
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
@@ -448,6 +505,19 @@ namespace dmGameSystem
         {
             result = SetProperty(set_property, params.m_Value, component->m_Size, LABEL_PROP_SIZE);
         }
+        else if (IsReferencingProperty(LABEL_PROP_COLOR, set_property))
+        {
+            result = SetProperty(set_property, params.m_Value, component->m_Color, LABEL_PROP_COLOR);
+        }
+        else if (IsReferencingProperty(LABEL_PROP_OUTLINE, set_property))
+        {
+            result = SetProperty(set_property, params.m_Value, component->m_Outline, LABEL_PROP_OUTLINE);
+        }
+        else if (IsReferencingProperty(LABEL_PROP_SHADOW, set_property))
+        {
+            result = SetProperty(set_property, params.m_Value, component->m_Shadow, LABEL_PROP_SHADOW);
+        }
+
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {

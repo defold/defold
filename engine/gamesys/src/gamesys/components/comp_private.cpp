@@ -109,6 +109,125 @@ dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObje
     return result;
 }
 
+
+dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vector4& ref_value, const PropVector4& property)
+{
+    dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
+
+    // We deliberately do not provide a value pointer, two reasons:
+    // 1. Deleting a gameobject (that included sprite(s)) will rearrange the
+    //    object pool for components (due to EraseSwap in the Free for the object pool);
+    //    this result in the original animation value pointer will still point
+    //    to the original memory location in the component object pool.
+    // 2. If it's a read only variable, we can't do it in order to ensure that it
+    //    is not used in any write optimisation (see animation system).
+    out_value.m_ReadOnly = property.m_ReadOnly;
+    out_value.m_ValuePtr = 0x0;
+    if (get_property == property.m_Vector)
+    {
+        out_value.m_ElementIds[0] = property.m_X;
+        out_value.m_ElementIds[1] = property.m_Y;
+        out_value.m_ElementIds[2] = property.m_Z;
+        out_value.m_ElementIds[3] = property.m_W;
+        out_value.m_Variant = dmGameObject::PropertyVar(ref_value);
+    }
+    else if (get_property == property.m_X)
+    {
+        out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getX());
+    }
+    else if (get_property == property.m_Y)
+    {
+        out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getY());
+    }
+    else if (get_property == property.m_Z)
+    {
+        out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getZ());
+    }
+    else if (get_property == property.m_W)
+    {
+        out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getW());
+    }
+    else
+    {
+        result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    return result;
+}
+
+
+dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vector4& set_value, const PropVector4& property)
+{
+    dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
+
+    if (property.m_ReadOnly)
+    {
+        result = dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
+    }
+
+    if (set_property == property.m_Vector)
+    {
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR3)
+        {
+            set_value = Vector4(in_value.m_V4[0], in_value.m_V4[1], in_value.m_V4[2], in_value.m_V4[3]);
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+    }
+    else if (set_property == property.m_X)
+    {
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+        {
+            set_value.setX(in_value.m_Number);
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+    }
+    else if (set_property == property.m_Y)
+    {
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+        {
+            set_value.setY(in_value.m_Number);
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+    }
+    else if (set_property == property.m_Z)
+    {
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+        {
+            set_value.setZ(in_value.m_Number);
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+    }
+    else if (set_property == property.m_W)
+    {
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+        {
+            set_value.setW(in_value.m_Number);
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+    }
+    else
+    {
+        result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    return result;
+}
+
 bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRender::Constant** out_constant)
 {
     uint32_t count = constants->m_ConstantCount;

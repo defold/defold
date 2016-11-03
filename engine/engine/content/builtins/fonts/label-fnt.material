@@ -1,5 +1,5 @@
 name: "label"
-tags: "label"
+tags: "tile"
 vertex_program: "/builtins/fonts/font-fnt.vp"
 fragment_program: "/builtins/fonts/font-fnt.fp"
 vertex_constants {

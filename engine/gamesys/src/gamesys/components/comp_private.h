@@ -29,9 +29,34 @@ namespace dmGameSystem
         }
     };
 
+    struct PropVector4
+    {
+        dmhash_t m_Vector;
+        dmhash_t m_X;
+        dmhash_t m_Y;
+        dmhash_t m_Z;
+        dmhash_t m_W;
+        bool m_ReadOnly;
+
+        PropVector4(dmhash_t v, dmhash_t x, dmhash_t y, dmhash_t z, dmhash_t w, bool readOnly)
+        {
+            m_Vector = v;
+            m_X = x;
+            m_Y = y;
+            m_Z = z;
+            m_W = w;
+            m_ReadOnly = readOnly;
+        }
+    };
+
     inline bool IsReferencingProperty(const PropVector3& property, dmhash_t query)
     {
         return property.m_Vector == query || property.m_X == query || property.m_Y == query || property.m_Z == query;
+    }
+
+    inline bool IsReferencingProperty(const PropVector4& property, dmhash_t query)
+    {
+        return property.m_Vector == query || property.m_X == query || property.m_Y == query || property.m_Z == query || property.m_W == query;
     }
 
     struct CompRenderConstants
@@ -44,6 +69,9 @@ namespace dmGameSystem
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector3& ref_value, const PropVector3& property);
     dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vectormath::Aos::Vector3& set_value, const PropVector3& property);
 
+    dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector4& ref_value, const PropVector4& property);
+    dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vectormath::Aos::Vector4& set_value, const PropVector4& property);
+
     bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRender::Constant** out_constant);
     void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
     int  ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash);
@@ -55,6 +83,14 @@ namespace dmGameSystem
             dmHashString64(#prop_name ".x"),\
             dmHashString64(#prop_name ".y"),\
             dmHashString64(#prop_name ".z"),\
+            readOnly);
+
+#define DM_GAMESYS_PROP_VECTOR4(var_name, prop_name, readOnly)\
+    static const dmGameSystem::PropVector4 var_name(dmHashString64(#prop_name),\
+            dmHashString64(#prop_name ".x"),\
+            dmHashString64(#prop_name ".y"),\
+            dmHashString64(#prop_name ".z"),\
+            dmHashString64(#prop_name ".w"),\
             readOnly);
 
 }

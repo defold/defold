@@ -280,6 +280,7 @@ namespace dmRender
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters)
     {
         DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
+        DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == MAX_TEXT_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
 
         TextContext& text_context = render_context->m_TextContext;
 
@@ -347,7 +348,10 @@ namespace dmRender
     , m_OutlineColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_Text(0x0)
+    , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
+    , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
     , m_RenderOrder(0)
+    , m_NumRenderConstants(0)
     , m_Width(FLT_MAX)
     , m_Height(0)
     , m_Leading(1.0f)
@@ -433,6 +437,12 @@ namespace dmRender
         te.m_VAlign = params.m_VAlign;
         te.m_StencilTestParams = params.m_StencilTestParams;
         te.m_StencilTestParamsSet = params.m_StencilTestParamsSet;
+        te.m_SourceBlendFactor = params.m_SourceBlendFactor;
+        te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
+
+        assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
+        te.m_NumRenderConstants = params.m_NumRenderConstants;
+        memcpy( te.m_RenderConstants, params.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::Constant));
 
         text_context->m_TextEntries.Push(te);
     }
@@ -655,8 +665,8 @@ namespace dmRender
 
         RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
         ro->ClearConstants();
-        ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-        ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        ro->m_SourceBlendFactor = first_te.m_SourceBlendFactor;
+        ro->m_DestinationBlendFactor = first_te.m_DestinationBlendFactor;
         ro->m_SetBlendFactors = 1;
         ro->m_Material = first_te.m_Material;
         ro->m_Textures[0] = font_map->m_Texture;
@@ -666,6 +676,14 @@ namespace dmRender
 
         Vector4 texture_size_recip(im_recip, ih_recip, 0, 0);
         EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, texture_size_recip);
+
+        const dmRender::Constant* constants = first_te.m_RenderConstants;
+        uint32_t size = first_te.m_NumRenderConstants;
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const dmRender::Constant& c = constants[i];
+            dmRender::EnableRenderObjectConstant(ro, c.m_NameHash, c.m_Value);
+        }
 
         for (uint32_t *i = begin;i != end; ++i)
         {

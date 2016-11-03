@@ -150,6 +150,7 @@ namespace dmRender
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters);
     void FinalizeTextContext(HRenderContext render_context);
 
+    const int MAX_FONT_RENDER_CONSTANTS = 4;
     /**
      * Draw text params.
      */
@@ -167,8 +168,16 @@ namespace dmRender
         Vectormath::Aos::Vector4 m_ShadowColor;
         /// Text to draw in utf8-format
         const char* m_Text;
+        /// Render constants
+        dmRender::Constant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
+        /// The source blend factor
+        dmGraphics::BlendFactor m_SourceBlendFactor;
+        /// The destination blend factor
+        dmGraphics::BlendFactor m_DestinationBlendFactor;
         /// Render order value. Passed to the render-key
         uint16_t    m_RenderOrder;
+        /// Number render constants
+        uint8_t     m_NumRenderConstants;
         /// Text render box width. Used for alignment and when m_LineBreak is true
         float       m_Width;
         /// Text render box height. Used for vertical alignment

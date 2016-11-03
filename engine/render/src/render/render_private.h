@@ -100,23 +100,29 @@ namespace dmRender
         uint32_t                        m_RenderBatchVersion;
     };
 
+    const int MAX_TEXT_RENDER_CONSTANTS = 4;
+
     struct TextEntry
     {
         StencilTestParams   m_StencilTestParams;
         Matrix4             m_Transform;
-        uint32_t            m_StringOffset;
+        dmRender::Constant  m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
         HFontMap            m_FontMap;
         HMaterial           m_Material;
+        dmGraphics::BlendFactor m_SourceBlendFactor;
+        dmGraphics::BlendFactor m_DestinationBlendFactor;
         uint64_t            m_BatchKey;
         uint32_t            m_FaceColor;
+        uint32_t            m_StringOffset;
         uint32_t            m_OutlineColor;
         uint32_t            m_ShadowColor;
         uint16_t            m_RenderOrder;
+        uint8_t             m_NumRenderConstants;
+        bool                m_LineBreak;
         float               m_Width;
         float               m_Height;
         float               m_Leading;
         float               m_Tracking;
-        bool                m_LineBreak;
         int32_t             m_Next;
         int32_t             m_Tail;
         uint32_t            m_Align : 2;
