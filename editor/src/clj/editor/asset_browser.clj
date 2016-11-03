@@ -438,11 +438,9 @@
         (when pairs
           (doseq [[^File src-file ^File tgt-file] pairs]
             (if (= (.getTransferMode e) TransferMode/MOVE)
-              (if (.isDirectory src-file)
-                (FileUtils/moveDirectory src-file tgt-file)
-                (do
-                  (io/make-parents tgt-file)
-                  (.renameTo src-file tgt-file)))
+              (do
+                (io/make-parents tgt-file)
+                (.renameTo src-file tgt-file))
               (if (.isDirectory src-file)
                 (FileUtils/copyDirectory src-file tgt-file)
                 (FileUtils/copyFile src-file tgt-file))))
