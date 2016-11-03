@@ -5,3 +5,11 @@
 @mixin effect-lighten-blue() {
 	-fx-effect: innershadow(gaussian, $defold-light-blue, 20, 0.3, 0, 0);
 }
+
+@mixin effect-icon-grey() {
+	-fx-effect: innershadow(gaussian, $tree-view-icon, 20, 0.3, 0, 0);
+}
+
+@mixin effect-bright-grey() {
+	-fx-effect: innershadow(gaussian, $bright-grey, 20, 0.3, 0, 0);
+}

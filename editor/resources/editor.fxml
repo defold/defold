@@ -53,7 +53,9 @@
                   </Pane>
                </left>
             </BorderPane>
-            <Pane HBox.hgrow="ALWAYS" />
+            <Pane HBox.hgrow="ALWAYS">
+              <ProgressBar id="progress-bar" prefWidth="0" prefHeight="0" progress="0.0" />
+            </Pane>
          </children>
          <VBox.margin>
             <Insets />
@@ -86,16 +88,12 @@
                                <children>
                                  <VBox id="changes-container" layoutX="64.0" layoutY="34.0" prefHeight="200.0" prefWidth="100.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                    <children>
-                                     <AnchorPane VBox.vgrow="ALWAYS">
-                                       <children>
-                                         <ListView id="changes" prefHeight="200.0" prefWidth="200.0" styleClass="flat-list-view" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
-                                       </children>
-                                     </AnchorPane>
-                                     <ToolBar prefHeight="30.0" prefWidth="200.0">
-                                       <items>
-                                         <Button id="changes-refresh" mnemonicParsing="false" styleClass="button-small" text="Refresh" />
-                                       </items>
-                                     </ToolBar>
+                                      <ListView VBox.vgrow="ALWAYS" id="changes" prefHeight="170.0" prefWidth="200.0" styleClass="flat-list-view" />
+                                      <ToolBar prefHeight="30.0" prefWidth="200.0">
+                                        <items>
+                                          <Button id="changes-refresh" mnemonicParsing="false" styleClass="button-small" text="Refresh" />
+                                        </items>
+                                      </ToolBar>
                                    </children>
                                  </VBox>
                                </children>
@@ -293,11 +291,5 @@
             </AnchorPane>
         </items>
       </SplitPane>
-      <HBox prefWidth="200.0" VBox.vgrow="SOMETIMES">
-         <children>
-            <Region prefWidth="200.0" HBox.hgrow="ALWAYS" />
-            <ProgressBar id="progress-bar" prefWidth="200.0" progress="0.0" />
-         </children>
-      </HBox>
    </children>
 </VBox>

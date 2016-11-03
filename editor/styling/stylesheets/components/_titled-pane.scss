@@ -2,6 +2,7 @@
     -fx-background-color: $dark-grey-light;
     -fx-border-width: 0;
     -fx-padding: 0.0em;
+    -fx-text-fill: $defold-white;
 
     .list-view {
         -fx-background-insets: 0;
@@ -13,6 +14,7 @@
         -fx-background-insets: 0;
         -fx-background-radius: 0;
         -fx-font-size: 14px;
+        -fx-font-weight: bold;
         -fx-padding: 12 0 5 12;
     }
 

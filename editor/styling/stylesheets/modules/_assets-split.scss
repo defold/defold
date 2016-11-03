@@ -1,14 +1,8 @@
 #assets-split {
     -fx-padding: 10 0 0 0;
-    /*.titled-pane {
-        -fx-background-color: red;
-    }*/
-    
-    /*.content {
-        -fx-background-color: red;
-    }*/
     .tree-view {
         -fx-background-color: $dark-grey-light;
+        -fx-padding: 0 0 0 6;
     }
 
     .tree-cell {
@@ -38,5 +32,12 @@
 
     .split-pane-divider {
         //-fx-background-color: red;
+    }
+
+    .progress-bar {
+        .track {
+            -fx-border-width: 0;
+            -fx-background-color: transparent;
+        }
     }
 }
