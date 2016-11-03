@@ -1,8 +1,9 @@
 #changes-container {
+    -fx-padding: 0 0 17 0;
     >.tool-bar {
-        -fx-background-color: transparent;
-        -fx-border-width: 0 0 1 0;
-        -fx-border-color: $dark-grey;
+        -fx-background-color: $dark-grey-light;
+        -fx-border-width: 0;
+        -fx-padding: 10 0 10 15;
     }
 
     .list-view {
@@ -12,10 +13,6 @@
     .flat-list-view {
         .cell, .list-cell {
             -fx-background-color: $dark-grey-light !important;
-
-            /*.text {
-                -fx-fill: red !important;
-            }*/
         }
     }
 }

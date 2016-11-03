@@ -22,13 +22,13 @@
         -fx-padding: 5;
         -fx-border-width: 0 0 0 2;
         -fx-border-color: transparent;
+        -fx-text-fill: $bright-grey-light;
 
         &:hover {
             -fx-background-color: $dark-black;
             -fx-text-fill: $defold-white;
         }
         &:selected {
-            /*-fx-background-color: rgba(38, 74, 139, 0.5);*/
             -fx-border-width: 0 0 0 2;
             -fx-border-color: $defold-orange;
             -fx-text-fill: $defold-white;
@@ -52,6 +52,16 @@
         &.last-tree-item {
             -fx-border-insets: 0 0 0 0;
             -fx-background-insets: 0 0 0 0; 
+        }
+
+        .image-view {
+            @include effect-icon-grey();
+        }
+
+        .tree-disclosure-node {
+            .arrow {
+                @include effect-bright-grey();
+            }
         }
     }
 }
