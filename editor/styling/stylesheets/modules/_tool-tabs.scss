@@ -90,7 +90,7 @@
 .console-tab-base {
     -fx-background-position: center;
     -fx-background-repeat: no-repeat;
-    -fx-background-size: 26 20;
+    -fx-background-size: 21 16;
 }
 
 #console-tab {
@@ -107,7 +107,7 @@
 #curve-editor-tab {
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/curve-editor-icon-off.png");
-    -fx-background-position: center 5px;
+    -fx-background-position: center 8px;
     &:selected {
         -fx-background-image: url("icons/tabs/curve-editor-icon-on.png");
     }
