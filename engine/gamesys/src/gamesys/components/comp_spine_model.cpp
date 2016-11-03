@@ -320,6 +320,8 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
+        create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
+        create_params.m_TrackIdxToPose     = &rig_resource->m_TrackIdxToPose;
         create_params.m_MeshId           = dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
@@ -724,6 +726,8 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
+        create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
+        create_params.m_TrackIdxToPose     = &rig_resource->m_TrackIdxToPose;
         create_params.m_MeshId           = dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 

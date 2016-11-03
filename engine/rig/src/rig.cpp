@@ -1414,22 +1414,34 @@ namespace dmRig
         pose_idx_to_influence.SetCapacity(bone_count);
         pose_idx_to_influence.SetSize(bone_count);
 
+        uint32_t anim_bone_list_count = animationset.m_BoneList.m_Count;
+        uint32_t mesh_bone_list_count = meshset.m_BoneList.m_Count;
+
         for (int bi = 0; bi < bone_count; ++bi)
         {
             uint64_t bone_id = skeleton.m_Bones[bi].m_Id;
-            uint32_t track_idx = FindBoneInList(animationset.m_BoneList.m_Data, animationset.m_BoneList.m_Count, bone_id);
-            uint32_t influence_idx = FindBoneInList(meshset.m_BoneList.m_Data, meshset.m_BoneList.m_Count, bone_id);
 
-            if (track_idx != INVALID_BONE_IDX) {
-                track_idx_to_pose[track_idx] = bi;
-            }
-            if (influence_idx != INVALID_BONE_IDX) {
-                pose_idx_to_influence[bi] = influence_idx;
+            if (anim_bone_list_count) {
+                uint32_t track_idx = FindBoneInList(animationset.m_BoneList.m_Data, animationset.m_BoneList.m_Count, bone_id);
+                if (track_idx != INVALID_BONE_IDX) {
+                    track_idx_to_pose[track_idx] = bi;
+                }
             } else {
-                // If there is no influence index for the current bone
-                // we still need to put the pose matrix somewhere during
-                // pose-to-influence rearrangement so just put it last.
-                pose_idx_to_influence[bi] = bone_count - 1;
+                track_idx_to_pose[bi] = bi;
+            }
+
+            if (mesh_bone_list_count) {
+                uint32_t influence_idx = FindBoneInList(meshset.m_BoneList.m_Data, meshset.m_BoneList.m_Count, bone_id);
+                if (influence_idx != INVALID_BONE_IDX) {
+                    pose_idx_to_influence[bi] = influence_idx;
+                } else {
+                    // If there is no influence index for the current bone
+                    // we still need to put the pose matrix somewhere during
+                    // pose-to-influence rearrangement so just put it last.
+                    pose_idx_to_influence[bi] = bone_count - 1;
+                }
+            } else {
+                pose_idx_to_influence[bi] = bi;
             }
         }
     }
