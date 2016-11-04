@@ -13,6 +13,7 @@ Alpha channel is automatically released when [cr-editor-dev](http://ci.defold.co
 Important: *Make sure your branches are up to date!*
 
  1. Make sure dev is up to date:
+ 
         $ git checkout dev
         $ git pull
 
