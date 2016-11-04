@@ -489,13 +489,10 @@
             old->new (atom {})]
         ;; Internal resources to reload
         (let [in-use? (fn [resource-node-id]
-                        (reduce (fn [_ [target _]]
-                                  (if (and (not= project target)
-                                           (= project-graph (g/node-id->graph-id target)))
-                                    (reduced true)
-                                    false))
-                                false
-                                (gt/targets (g/now) resource-node-id)))
+                        (some (fn [[target _]]
+                                (and (not= project target)
+                                     (= project-graph (g/node-id->graph-id target))))
+                              (gt/targets (g/now) resource-node-id)))
               should-create-node? (fn [[operation resource]]
                                     (or (not= :removed operation)
                                         (-> resource
