@@ -117,7 +117,7 @@ namespace dmGui
 
         // We ignore rig keyframe events for now, only completed events are handled.
         if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
-            animation->m_AnimationComplete(scene, animation->m_Node, animation->m_Userdata1, animation->m_Userdata2);
+            animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
         }
 
     }
@@ -277,6 +277,7 @@ namespace dmGui
         memset(scene, 0, sizeof(Scene));
         scene->m_InstanceReference = LUA_NOREF;
         scene->m_DataReference = LUA_NOREF;
+        scene->m_RefTableReference = LUA_NOREF;
     }
 
     HScene NewScene(HContext context, const NewSceneParams* params)
@@ -296,10 +297,15 @@ namespace dmGui
         scenes.Push(scene);
 
         lua_pushvalue(L, -1);
-        scene->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        scene->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+
+        // Here we create a custom table to hold the references created by this gui scene
+        // Don't interact with this table with other functions than dmScript::Ref/dmScript::Unref
+        lua_newtable(L);
+        scene->m_RefTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         lua_newtable(L);
-        scene->m_DataReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        scene->m_DataReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         scene->m_Context = context;
         scene->m_Script = 0x0;
@@ -367,8 +373,9 @@ namespace dmGui
                 free((void*) n->m_Node.m_Text);
         }
 
-        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
-        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
 
         dmArray<HScene>& scenes = scene->m_Context->m_Scenes;
         uint32_t scene_count = scenes.Size();
@@ -1272,7 +1279,7 @@ namespace dmGui
                             // before invoking the call-back. The call-back could potentially
                             // start a new animation that could reuse the same animation slot.
                             anim->m_AnimationCompleteCalled = 1;
-                            anim->m_AnimationComplete(scene, anim->m_Node, anim->m_Userdata1, anim->m_Userdata2);
+                            anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
 
                             if (anim->m_Easing.release_callback != 0x0)
                             {
@@ -1631,7 +1638,7 @@ namespace dmGui
 
         if (is_callback) {
             lua_State* L = scene->m_Context->m_LuaState;
-            luaL_unref(L, LUA_REGISTRYINDEX, custom_ref);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, custom_ref);
         }
         return r;
     }
@@ -1893,6 +1900,17 @@ namespace dmGui
 
             if (anim->m_Node == node)
             {
+                if(!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                {
+                    anim->m_AnimationCompleteCalled = 1;
+                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+
+                    if (anim->m_Easing.release_callback != 0x0)
+                    {
+                        anim->m_Easing.release_callback(&anim->m_Easing);
+                    }
+                }
+
                 animations->EraseSwap(i);
                 i--;
                 n_anims--;
@@ -3365,7 +3383,7 @@ namespace dmGui
         luaL_getmetatable(L, GUI_SCRIPT);
         lua_setmetatable(L, -2);
 
-        script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        script->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         return script;
     }
@@ -3375,10 +3393,10 @@ namespace dmGui
         lua_State* L = script->m_Context->m_LuaState;
         for (int i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i) {
             if (script->m_FunctionReferences[i] != LUA_NOREF) {
-                luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
             }
         }
-        luaL_unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         script->~Script();
         ResetScript(script);
     }
@@ -3418,14 +3436,14 @@ namespace dmGui
         {
             if (script->m_FunctionReferences[i] != LUA_NOREF)
             {
-                luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
                 script->m_FunctionReferences[i] = LUA_NOREF;
             }
 
             lua_getglobal(L, SCRIPT_FUNCTION_NAMES[i]);
             if (lua_type(L, -1) == LUA_TFUNCTION)
             {
-                script->m_FunctionReferences[i] = luaL_ref(L, LUA_REGISTRYINDEX);
+                script->m_FunctionReferences[i] = dmScript::Ref(L, LUA_REGISTRYINDEX);
             }
             else
             {
