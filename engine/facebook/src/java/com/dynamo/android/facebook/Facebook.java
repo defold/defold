@@ -49,6 +49,7 @@ public class Facebook implements Handler.Callback {
     public static final String ACTION_REQ_READ_PERMS    = "defold.fb.intent.action.REQ_READ_PERMS";
     public static final String ACTION_REQ_PUB_PERMS     = "defold.fb.intent.action.REQ_PUB_PERMS";
     public static final String ACTION_SHOW_DIALOG       = "defold.fb.intent.action.SHOW_DIALOG";
+    public static final String ACTION_UPDATE_METABLE    = "defold.fb.intent.action.UPDATE_METABLE";
 
     private Handler handler;
     private Messenger messenger;
@@ -113,6 +114,9 @@ public class Facebook implements Handler.Callback {
         if (AccessToken.getCurrentAccessToken() != null) {
             LoginManager.getInstance().logOut();
         }
+
+        this.me = null;
+        this.accessToken = null;
     }
 
     public String getAccessToken() {
@@ -200,7 +204,7 @@ public class Facebook implements Handler.Callback {
             error = data.getString(MSG_KEY_ERROR);
         }
         String action = data.getString(MSG_KEY_ACTION);
-        if (action.equals(ACTION_LOGIN)) {
+        if (action.equals(ACTION_LOGIN) || action.equals(ACTION_UPDATE_METABLE)) {
             if (success && data.getString(MSG_KEY_USER) != null) {
                 JSONObject me;
                 try {
@@ -219,14 +223,14 @@ public class Facebook implements Handler.Callback {
                 }
             }
 
-            this.stateCallback.onDone(data.getInt(MSG_KEY_STATE), error);
-
+            if (action.equals(ACTION_LOGIN)) {
+                this.stateCallback.onDone(data.getInt(MSG_KEY_STATE), error);
+            }
         } else if (action.equals(ACTION_REQ_READ_PERMS) || action.equals(ACTION_REQ_PUB_PERMS)) {
             this.callback.onDone(error);
 
         } else if (action.equals(ACTION_SHOW_DIALOG)) {
             this.dialogCallback.onDone(data.getBundle(MSG_KEY_DIALOG_RESULT), error);
-
         }
         return handled;
     }

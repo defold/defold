@@ -460,6 +460,7 @@ namespace dmGui
 
     typedef void (*AnimationComplete)(HScene scene,
                                       HNode node,
+                                      bool finished,
                                       void* userdata1,
                                       void* userdata2);
 

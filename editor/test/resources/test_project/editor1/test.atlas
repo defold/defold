@@ -1,0 +1,16 @@
+images {
+  image: "/builtins/graphics/particle_blob.png"
+}
+animations {
+  id: "test"
+  images {
+    image: "/builtins/graphics/particle_blob.png"
+  }
+  playback: PLAYBACK_LOOP_PINGPONG
+  fps: 10
+  flip_horizontal: 0
+  flip_vertical: 1
+}
+margin: 1
+extrude_borders: 2
+inner_padding: 3

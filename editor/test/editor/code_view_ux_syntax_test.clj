@@ -159,12 +159,14 @@
   (are [init completions] (completions-in? "/mymodule.lua"
                                            "local mymodule={} \n function mymodule.add(x,y) return x end \n return mymodule"
                                           init completions)
-    "require(\"mymodule\") \n mymodule.|"        [["mymodule.add" "mymodule.add(x,y)" "mymodule.add(x,y)"]]
     "foo = require(\"mymodule\") \n foo.|"       [["foo.add"      "foo.add(x,y)"      "foo.add(x,y)"]]
     "local bar = require(\"mymodule\") \n bar.|" [["bar.add"      "bar.add(x,y)"      "bar.add(x,y)"]]
-    "require(\"mymodule\") \n mymod|"            [["mymodule"     "mymodule"          "mymodule"]]
     "foo = require(\"mymodule\") \n foo|"        [["foo"          "foo"               "foo"]]
-    "local bar = require(\"mymodule\") \n ba|"   [["bar"          "bar"               "bar"]]))
+    "local bar = require(\"mymodule\") \n ba|"   [["bar"          "bar"               "bar"]])
+  (are [init completions] (completions-in? "/mymodule.lua"
+                                           "local M = {} \n function M.yield(...) \n end return M"
+                                           init completions)
+    "local foo = require(\"mymodule\") \n foo.|" [["foo.yield"    "foo.yield(...)"    "foo.yield(...)"]]))
 
 (deftest test-do-proposal-replacement
   (with-clean-system

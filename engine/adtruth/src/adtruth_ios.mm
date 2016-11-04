@@ -130,8 +130,8 @@ static int AdTruth_Load(lua_State* L)
     const const char* url = luaL_checkstring(L, 1);
 
     if (g_AdTruth.m_Callback != LUA_NOREF) {
-        luaL_unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Self);
         g_AdTruth.m_Callback = LUA_NOREF;
         g_AdTruth.m_Self = LUA_NOREF;
         g_AdTruth.m_L = 0;
@@ -139,9 +139,9 @@ static int AdTruth_Load(lua_State* L)
 
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_AdTruth.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_AdTruth.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
-    g_AdTruth.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_AdTruth.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     g_AdTruth.m_L = L;
 
     Init();
@@ -215,8 +215,8 @@ dmExtension::Result InitializeAdTruth(dmExtension::Params* params)
 dmExtension::Result FinalizeAdTruth(dmExtension::Params* params)
 {
     if (params->m_L == g_AdTruth.m_L && g_AdTruth.m_Callback != LUA_NOREF) {
-        luaL_unref(g_AdTruth.m_L, LUA_REGISTRYINDEX, g_AdTruth.m_Callback);
-        luaL_unref(g_AdTruth.m_L, LUA_REGISTRYINDEX, g_AdTruth.m_Self);
+        dmScript::Unref(g_AdTruth.m_L, LUA_REGISTRYINDEX, g_AdTruth.m_Callback);
+        dmScript::Unref(g_AdTruth.m_L, LUA_REGISTRYINDEX, g_AdTruth.m_Self);
         g_AdTruth.m_L = 0;
         g_AdTruth.m_Callback = LUA_NOREF;
         g_AdTruth.m_Self = LUA_NOREF;
