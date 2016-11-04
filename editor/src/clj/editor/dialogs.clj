@@ -192,6 +192,7 @@
                        (.setScene scene))
         controls (ui/collect-controls root ["filter" "item-list" "ok"])
         ^TextField filter-field (:filter controls)
+        filter-value (:filter options "")
         cell-fn (:cell-fn options identity)
         ^ListView item-list (doto (:item-list controls)
                               (ui/cell-factory! cell-fn)
@@ -201,14 +202,14 @@
                        (fn [_ items]
                          (when (not (empty? items))
                            (ui/select-index! item-list 0))))
-      (ui/items! (if (contains? options :filter) [] items)))
+      (ui/items! (if (str/blank? filter-value) items [])))
     (let [filter-fn (or (:filter-fn options) (partial default-filter-fn cell-fn))]
       (ui/observe (.textProperty filter-field)
                   (fn [_ _ ^String new]
                     (let [filtered-items (filter-fn new items)]
                       (ui/items! item-list filtered-items)))))
     (doto filter-field
-      (.setText (:filter options ""))
+      (.setText filter-value)
       (.setPromptText (:prompt options "")))
 
     (ui/context! root :dialog {:stage stage} item-list)
