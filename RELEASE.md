@@ -12,15 +12,9 @@ Alpha channel is automatically released when [cr-editor-dev](http://ci.defold.co
 ## Beta
 Important: *Make sure your branches are up to date!*
 
- 1. Merge dev into beta;
-
+ 1. Make sure dev is up to date:
         $ git checkout dev
         $ git pull
-        $ git checkout beta
-        $ git pull
-        $ git merge dev
-
-    (The merge changed to a specific SHA1 commit of dev.)
 
  1. Bump version:
 
@@ -29,6 +23,18 @@ Important: *Make sure your branches are up to date!*
         $ git add VERSION
         $ git commit
         > Message: "Bumped version to 1.2.xx"
+
+ 1. Push to dev
+ 
+        $ git push
+
+ 1. Merge dev into beta;
+
+        $ git checkout beta
+        $ git pull
+        $ git merge dev
+
+    (The merge changed to a specific SHA1 commit of dev.)
 
  1. Push to beta
  
