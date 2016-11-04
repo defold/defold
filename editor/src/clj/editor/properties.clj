@@ -376,7 +376,8 @@
   (-> kw
     name
     camel/->Camel_Snake_Case_String
-    (clojure.string/replace "_" " ")))
+    (clojure.string/replace "_" " ")
+    clojure.string/trim))
 
 (defn label
   [property]
