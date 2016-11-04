@@ -670,7 +670,7 @@ public class ColladaUtil {
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
         b.setParent(parentIndex);
-        b.setId(MurmurHash.hash64(bone.getName()));
+        b.setId(MurmurHash.hash64(bone.getSourceId()));
 
         Matrix4d matrix = MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
 

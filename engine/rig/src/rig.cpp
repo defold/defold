@@ -1415,6 +1415,8 @@ namespace dmRig
 
         track_idx_to_pose.SetCapacity(bone_count);
         track_idx_to_pose.SetSize(bone_count);
+        memset((void*)track_idx_to_pose.Begin(), 0x0, track_idx_to_pose.Size()*sizeof(uint32_t));
+
         pose_idx_to_influence.SetCapacity(bone_count);
         pose_idx_to_influence.SetSize(bone_count);
 
