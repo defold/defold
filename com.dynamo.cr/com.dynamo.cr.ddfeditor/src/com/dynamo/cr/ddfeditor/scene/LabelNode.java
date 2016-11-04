@@ -74,6 +74,7 @@ public class LabelNode extends ComponentTypeNode {
     @NotEmpty
     private String material = "";
 
+    private boolean fontIsDirty = false;
 
     private transient FontRendererHandle fontRendererHandle = null;
 
@@ -242,6 +243,24 @@ public class LabelNode extends ComponentTypeNode {
     }
 
     public FontRendererHandle getFontRendererHandle(GL2 gl) {
+        if (getModel() != null) {
+
+            if (this.fontRendererHandle != null && this.fontIsDirty ) {
+                if (this.fontRendererHandle.getDeferredClear()) {
+                    this.fontRendererHandle.clear(gl);
+                    this.fontRendererHandle = null;
+                }
+            }
+
+            if (this.fontIsDirty) {
+                this.fontRendererHandle = null;
+            }
+
+            if (this.fontRendererHandle == null && !this.font.isEmpty()) {
+                this.fontRendererHandle = getModel().getFont(this.font);
+            }
+        }
+
         return this.fontRendererHandle;
     }
 
@@ -254,11 +273,7 @@ public class LabelNode extends ComponentTypeNode {
     }
 
     private void updateFont() {
-        if (!this.font.isEmpty() && getModel() != null) {
-            if (this.fontRendererHandle == null && !this.font.isEmpty()) {
-                this.fontRendererHandle = getModel().getFont(this.font);
-            }
-        }
+        this.fontIsDirty = true;
     }
 
     @Override
