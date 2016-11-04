@@ -46,7 +46,7 @@ Important: *Make sure your branches are up to date!*
  1. Wait for [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) to finish, make sure autobuilders are green.
  1. Sign the editor (creates the .dmg) [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta)
  1. Write release beta release notes.
- 1. Download and run beta:
+ 1. (Optional) Download and run beta:
  
     http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.zip
     
@@ -56,14 +56,20 @@ Important: *Make sure your branches are up to date!*
     
     The SHA1 can be found in the latest [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) build, or `git log` on beta branch.
 
- 1. Verify new features and bug fixes.
- 1. Verify dev mobile apps.
+ 1. (Optional) Verify new features and bug fixes.
+ 1. (Optional) Verify dev mobile apps.
 
  1. If everything is OK, time to release beta:
  
     $ `git./scripts/build.py release --channel=beta --branch=beta`
 
     Important: *Make sure the SHA1 and channel is correct!*
+
+ 1. Build QRT test apps on [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/).
+
+    Log in and open "Build with Parameters"
+
+    In "DEFOLD_CHANNEL" select "beta"
 
  1. Verify release by updating an old editor, OSX, Win and Linux.
 
