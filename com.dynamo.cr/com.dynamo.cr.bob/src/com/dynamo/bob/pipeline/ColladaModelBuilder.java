@@ -41,22 +41,16 @@ public class ColladaModelBuilder extends Builder<Void>  {
 
         // MeshSet
         ByteArrayInputStream mesh_is = new ByteArrayInputStream(task.input(0).getContent());
-        Mesh.Builder meshBuilder = Mesh.newBuilder();
+        MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
         AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
         Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
         try {
-            ColladaUtil.load(mesh_is, meshBuilder, animSetBuilder, skeletonBuilder);
+            ColladaUtil.load(mesh_is, meshSetBuilder, animSetBuilder, skeletonBuilder);
         } catch (XMLStreamException e) {
             throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh: " + e.getLocalizedMessage(), e);
         } catch (LoaderException e) {
             throw new CompileExceptionError(task.input(0), -1, "Failed to compile mesh: " + e.getLocalizedMessage(), e);
         }
-        Mesh mesh = meshBuilder.build();
-        MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-        MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
-        meshEntryBuilder.addMeshes(mesh);
-        meshEntryBuilder.setId(0);
-        meshSetBuilder.addMeshEntries(meshEntryBuilder);
         out = new ByteArrayOutputStream(64 * 1024);
         meshSetBuilder.build().writeTo(out);
         out.close();

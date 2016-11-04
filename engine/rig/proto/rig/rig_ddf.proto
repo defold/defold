@@ -97,6 +97,7 @@ message RigAnimation
 message AnimationSet
 {
     repeated RigAnimation animations = 1;
+    repeated uint64 bone_list = 2;
 }
 
 message Mesh
@@ -128,6 +129,10 @@ message MeshEntry
 message MeshSet
 {
     repeated MeshEntry mesh_entries = 1;
+
+    // List of bone names that represent the order of the bone influences.
+    // Not used for Spine rigs since they don't have support for external skeletons.
+    repeated uint64 bone_list = 2;
 }
 
 message RigScene

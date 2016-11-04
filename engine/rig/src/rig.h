@@ -188,6 +188,7 @@ namespace dmRig
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
+        dmArray<Matrix4>                m_ScratchInfluenceMatrixBuffer;
         dmArray<Matrix4>                m_ScratchPoseMatrixBuffer;
         // Temporary scratch buffers used when transforming the vertex buffer,
         // used to creating primitives from indices.
@@ -212,6 +213,8 @@ namespace dmRig
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
+        const dmArray<uint32_t>*      m_PoseIdxToInfluence;
+        const dmArray<uint32_t>*      m_TrackIdxToPose;
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
         void*                         m_PoseCBUserData2;
@@ -255,6 +258,10 @@ namespace dmRig
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
+
+        const dmArray<uint32_t>*      m_PoseIdxToInfluence;
+        const dmArray<uint32_t>*      m_TrackIdxToPose;
+
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
         void*                         m_PoseCBUserData2;
@@ -298,6 +305,7 @@ namespace dmRig
     // Util function used to fill a bind pose array from skeleton data
     // used in rig tests and loading rig resources.
     void CreateBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose);
+    void FillBoneListArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence);
 }
 
 #endif // DM_RIG_H

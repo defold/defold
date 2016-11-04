@@ -20,7 +20,6 @@ import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4f;
 
 import org.eclipse.swt.widgets.Display;
-import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 import org.junit.Test;
 
 import com.dynamo.bob.util.MathUtil;
@@ -173,8 +172,9 @@ public class ColladaUtilTest {
 
     @Test
     public void testMayaQuad() throws Exception {
-        Rig.Mesh.Builder mesh = Rig.Mesh.newBuilder();
-        ColladaUtil.loadMesh(load("maya_quad.dae"), mesh, new HashMap<Integer, Integer>());
+        Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
+        ColladaUtil.loadMesh(load("maya_quad.dae"), meshSet);
+        Rig.Mesh mesh = meshSet.getMeshEntries(0).getMeshes(0);
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
         List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
@@ -205,8 +205,9 @@ public class ColladaUtilTest {
 
     @Test
     public void testBlenderPolylistQuad() throws Exception {
-        Rig.Mesh.Builder mesh = Rig.Mesh.newBuilder();
-        ColladaUtil.loadMesh(load("blender_polylist_quad.dae"), mesh, new HashMap<Integer, Integer>());
+        Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
+        ColladaUtil.loadMesh(load("blender_polylist_quad.dae"), meshSet);
+        Rig.Mesh mesh = meshSet.getMeshEntries(0).getMeshes(0);
 
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
@@ -243,13 +244,14 @@ public class ColladaUtilTest {
      */
     @Test
     public void testBlenderTriangleNormals() throws Exception {
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ColladaUtil.load(getClass().getResourceAsStream("quad_normals.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        ColladaUtil.load(getClass().getResourceAsStream("quad_normals.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
 
-        List<Float> pos = bake(meshBuilder.getIndicesList(), meshBuilder.getPositionsList(), 3);
-        List<Float> nrm = bake(meshBuilder.getNormalsIndicesList(), meshBuilder.getNormalsList(), 3);
+        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
+        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
 
         // face 0:
         assertVtx(pos, 0, -1,  0, -1);
@@ -273,18 +275,19 @@ public class ColladaUtilTest {
      */
     @Test
     public void testBoneInfluences() throws Exception {
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ColladaUtil.load(load("bone_influences.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        ColladaUtil.load(load("bone_influences.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
 
         // Should have exactly 4 influences per vertex
-        int vertCount = meshBuilder.getIndicesCount();
-        assertEquals(vertCount*4, meshBuilder.getBoneIndicesCount());
-        assertEquals(vertCount*4, meshBuilder.getWeightsCount());
+        int vertCount = mesh.getIndicesCount();
+        assertEquals(vertCount*4, mesh.getBoneIndicesCount());
+        assertEquals(vertCount*4, mesh.getWeightsCount());
 
-        List<Integer>boneIndices = meshBuilder.getBoneIndicesList();
-        List<Float>boneWeights = meshBuilder.getWeightsList();
+        List<Integer>boneIndices = mesh.getBoneIndicesList();
+        List<Float>boneWeights = mesh.getWeightsList();
 
         /*
          * The DAE has the following bones and weights for each vertex:
@@ -323,12 +326,15 @@ public class ColladaUtilTest {
     }
 
     @Test
-    public void testBlenderAnimations() throws Exception {
+    public void testObjectAnimations() throws Exception {
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
-        ArrayList<Bone> bones = ColladaUtil.loadSkeleton(load("blender_animated_cube.dae"), skeleton, new ArrayList<String>(), new HashMap<Integer, Integer>());
+        ColladaUtil.loadSkeleton(load("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
         Rig.AnimationSet.Builder animation = Rig.AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(load("blender_animated_cube.dae"), animation, bones, 16.0f, new ArrayList<String>());
-        assertEquals(1, animation.getAnimationsCount());
+        ColladaUtil.loadAnimations(load("blender_animated_cube.dae"), animation, 16.0f, new ArrayList<String>());
+
+        // We only support bone animations currently, this collada file include
+        // animations directly on the object. The resulting output will be zero animations.
+        assertEquals(0, animation.getAnimationsCount());
     }
 
     @Test
@@ -338,7 +344,7 @@ public class ColladaUtilTest {
         String[] parentIds = {null,   "root",  "l_hip",  "l_knee",  "l_ankle",    "root",   "pelvis", "spine",     "l_humerus", "l_ulna",  "spine",     "r_humerus", "r_ulna",  "spine", "neck",      "root",  "r_hip",  "r_knee",  "r_ankle"};
 
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
-        ColladaUtil.loadSkeleton(load("simple_anim.dae"), skeleton, new ArrayList<String>(), new HashMap<Integer, Integer>());
+        ColladaUtil.loadSkeleton(load("simple_anim.dae"), skeleton, new ArrayList<String>());
         List<Rig.Bone> bones = skeleton.getBonesList();
         assertEquals(boneIds.length, bones.size());
         HashMap<String,Integer> idToIndex = new HashMap<String,Integer>();
@@ -355,10 +361,10 @@ public class ColladaUtilTest {
 
     @Test
     public void testBoneNoAnimation() throws Exception {
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ColladaUtil.load(load("one_vertice_bone_noanim.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        ColladaUtil.load(load("one_vertice_bone_noanim.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
 
         assertEquals(0, animSetBuilder.getAnimationsCount());
 
@@ -375,10 +381,10 @@ public class ColladaUtilTest {
      */
     @Test
     public void testOneBoneAnimation() throws Exception {
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ColladaUtil.load(load("one_vertice_bone.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        ColladaUtil.load(load("one_vertice_bone.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         // Same bone setup as testBoneNoAnimation().
@@ -422,10 +428,10 @@ public class ColladaUtilTest {
      */
     @Test
     public void testTwoBoneAnimation() throws Exception {
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ColladaUtil.load(load("two_bone.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        ColladaUtil.load(load("two_bone.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         /*
@@ -489,10 +495,10 @@ public class ColladaUtilTest {
      */
     @Test
     public void testDefaultKeyframes() throws Exception {
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ColladaUtil.load(load("one_bone_no_initial_keyframe.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        ColladaUtil.load(load("one_bone_no_initial_keyframe.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         // Same bone setup as testBoneNoAnimation().
@@ -551,10 +557,10 @@ public class ColladaUtilTest {
      */
     @Test
     public void testMultipleBones() throws Exception {
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ColladaUtil.load(load("bone_box5.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        ColladaUtil.load(load("bone_box5.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         assertEquals(3, skeletonBuilder.getBonesCount());
@@ -610,10 +616,10 @@ public class ColladaUtilTest {
      */
     @Test
     public void testBlenderRotation() throws Exception {
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ColladaUtil.load(load("two_bone_two_triangles.dae"), meshBuilder, animSetBuilder, skeletonBuilder);
+        ColladaUtil.load(load("two_bone_two_triangles.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         assertEquals(2, skeletonBuilder.getBonesCount());
@@ -643,6 +649,30 @@ public class ColladaUtilTest {
                 // There should only be animation on the bones specified above.
                 fail("Animation on invalid bone index: " + boneIndex);
             }
+        }
+    }
+
+    /*
+     * Test that MeshSets and AnimationSets can have bones specified in different order.
+     */
+    @Test
+    public void testBoneList() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        ColladaUtil.loadMesh(load("bonelist_mesh_test.dae"), meshSetBuilder);
+        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, 30.0f, new ArrayList<String>());
+
+        int meshBoneListCount = meshSetBuilder.getBoneListCount();
+        int animBoneListCount = animSetBuilder.getBoneListCount();
+
+        assertEquals(3, meshBoneListCount);
+        assertEquals(3, animBoneListCount);
+
+        // The bone lists are inverted between the meshset and animationset.
+        for (int i = 0; i < meshBoneListCount; i++) {
+            Long meshBone = meshSetBuilder.getBoneList(i);
+            Long animBone = animSetBuilder.getBoneList(meshBoneListCount-i-1);
+            assertEquals(meshBone, animBone);
         }
     }
 
