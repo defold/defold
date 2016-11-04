@@ -233,16 +233,19 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
+(defn- build-project [project build-errors-view]
+  (let [build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+                       :render-error! (fn [errors]
+                                        (ui/run-later
+                                          (build-errors-view/update-build-errors
+                                            build-errors-view
+                                            errors)))}]
+    (project/build-and-save-project project build-options)))
+
 (handler/defhandler :build :global
   (enabled? [] (not @project/ongoing-build-save?))
   (run [project prefs web-server build-errors-view]
-    (let [build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
-                         :render-error! (fn [errors]
-                                          (ui/run-later
-                                            (build-errors-view/update-build-errors
-                                              build-errors-view
-                                              errors)))}
-          build (project/build-and-save-project project build-options)]
+    (let [build (build-project project build-errors-view)]
       (when (and (future? build) @build)
         (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
@@ -254,7 +257,7 @@
             (g/node-value app-view :active-resource))
   (run [project app-view prefs build-errors-view]
     (when-let [resource (g/node-value app-view :active-resource)]
-      (let [build (project/build-and-save-project project build-errors-view)]
+      (let [build (build-project project build-errors-view)]
         (when (and (future? build) @build)
             (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))
 
