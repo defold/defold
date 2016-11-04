@@ -76,9 +76,13 @@
                  {:label "Open As"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open-as}
-                 {:label "Show in Desktop"
+                 {:label "Show In Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
+                 {:label "Show Referencing Files"
+                  :command :show-referencing-files}
+                 {:label "Show Dependencies"
+                  :command :show-dependencies}
                  {:label :separator}
                  {:label "Copy"
                   :command :copy

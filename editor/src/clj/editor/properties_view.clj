@@ -327,7 +327,7 @@
                                         (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
 
-(defmethod create-property-control! resource/Resource [edit-type workspace property-fn]
+(defmethod create-property-control! resource/Resource [edit-type {:keys [workspace project]} property-fn]
   (let [box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
         button       (doto (Button. "...")
@@ -347,7 +347,7 @@
                          (ui/editable! button (not read-only?))
                          (ui/editable! open-button (boolean (when val (resource/proj-path val))))))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace dialog-opts))]
+    (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace project dialog-opts))]
                                      (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
                                                               properties/values
@@ -365,10 +365,10 @@
                                         (.setHgrow Priority/ALWAYS))))
     [box update-ui-fn]))
 
-(defmethod create-property-control! :slider [edit-type workspace property-fn]
+(defmethod create-property-control! :slider [edit-type context property-fn]
   (let [box (doto (GridPane.)
               (.setPrefWidth Double/MAX_VALUE))
-        [^TextField textfield tf-update-ui-fn] (create-property-control! {:type g/Num} workspace property-fn)
+        [^TextField textfield tf-update-ui-fn] (create-property-control! {:type g/Num} context property-fn)
         min (:min edit-type 0.0)
         max (:max edit-type 1.0)
         val (:value edit-type max)
@@ -483,9 +483,9 @@
     (ui/add-style! "property-label")
     (.setMinHeight 28.0)))
 
-(defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
+(defn- create-properties-row [context ^GridPane grid key property row property-fn]
   (let [^Label label (create-property-label (properties/label property))
-        [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) workspace
+        [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) context
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
                     (ui/add-styles! ["clear-button" "small-button"])
@@ -534,13 +534,13 @@
 
     [key update-ui-fn]))
 
-(defn- create-properties [workspace grid properties property-fn]
+(defn- create-properties [context grid properties property-fn]
   ; TODO - add multi-selection support for properties view
   (doall (map-indexed (fn [row [key property]]
-                        (create-properties-row workspace grid key property row property-fn))
+                        (create-properties-row context grid key property row property-fn))
                       properties)))
 
-(defn- make-grid [parent workspace properties property-fn]
+(defn- make-grid [parent context properties property-fn]
   (let [grid (doto (GridPane.)
                (.setHgap grid-hgap)
                (.setVgap grid-vgap))
@@ -551,12 +551,12 @@
 
     (ui/add-child! parent grid)
     (ui/add-style! grid "form")
-    (create-properties workspace grid properties property-fn)))
+    (create-properties context grid properties property-fn)))
 
 (defn- create-category-label [label]
   (doto (Label. label) (ui/add-style! "property-category")))
 
-(defn- make-pane [parent workspace properties]
+(defn- make-pane [parent context properties]
   (let [vbox (doto (VBox. (double 10.0))
                (.setPadding (Insets. 10 10 10 10))
                (.setFillWidth true)
@@ -583,7 +583,7 @@
                                                    (when category
                                                      (let [label (create-category-label category)]
                                                        (ui/add-child! vbox label)))
-                                                   (make-grid vbox workspace properties property-fn)))]
+                                                   (make-grid vbox context properties property-fn)))]
                                 (recur (rest sections) (into result update-fns)))
                               result))]
         ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
@@ -591,7 +591,7 @@
       (ui/children! parent [vbox])
       vbox))
 
-(defn- refresh-pane [parent ^Pane pane workspace properties]
+(defn- refresh-pane [parent ^Pane pane properties]
   (ui/user-data! pane ::properties properties)
   (let [update-fns (ui/user-data parent ::update-fns)]
     (doseq [[key property] (:properties properties)]
@@ -601,31 +601,33 @@
 (defn- properties->template [properties]
   (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) (:properties properties)))
 
-(defn- update-pane [parent id workspace properties]
+(defn- update-pane [parent id context properties]
   ; NOTE: We cache the ui based on the ::template user-data
   (let [properties (properties/coalesce properties)
         template (properties->template properties)
         prev-template (ui/user-data parent ::template)]
     (when (not= template prev-template)
-      (let [pane (make-pane parent workspace properties)]
+      (let [pane (make-pane parent context properties)]
         (ui/user-data! parent ::template template)
         (g/set-property! id :prev-pane pane)))
     (let [pane (g/node-value id :prev-pane)]
-      (refresh-pane parent pane workspace properties)
+      (refresh-pane parent pane properties)
       pane)))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property workspace g/Any)
+  (property project g/Any)
   (property prev-pane Pane)
 
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties]
-                                   (update-pane parent-view _node-id workspace selected-node-properties))))
+  (output pane Pane :cached (g/fnk [parent-view _node-id workspace project selected-node-properties]
+                                   (let [context {:workspace workspace :project project}]
+                                     (update-pane parent-view _node-id context selected-node-properties)))))
 
 (defn make-properties-view [workspace project view-graph ^Node parent]
-  (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
+  (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace :project project)
         stage         (.. parent getScene getWindow)]
     (g/connect! project :selected-node-properties view-id :selected-node-properties)
     view-id))
