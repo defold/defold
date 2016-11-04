@@ -240,6 +240,12 @@ ordinary paths."
              (resource/handle-changes listener move-adjusted-changes render-progress!)))))
      changes)))
 
+(defn fetch-libraries!
+  [workspace library-urls render-fn login-fn]
+  (set-project-dependencies! workspace library-urls)
+  (update-dependencies! workspace render-fn login-fn)
+  (resource-sync! workspace true [] render-fn))
+
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))
 

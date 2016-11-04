@@ -1,0 +1,15 @@
+font: "/fonts/justov.ttf"
+material: "/builtins/fonts/font.material"
+size: 20
+antialias: 0
+outline_alpha: 0.1
+outline_width: 1.0
+shadow_alpha: 0.5
+shadow_blur: 1
+shadow_x: 1.0
+shadow_y: 2.0
+extra_characters: "\303\245\303\244o\303\205\303\204O"
+output_format: TYPE_DISTANCE_FIELD
+all_chars: true
+cache_width: 512
+cache_height: 512

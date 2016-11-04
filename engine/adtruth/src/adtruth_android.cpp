@@ -62,8 +62,8 @@ static void VerifyCallback(lua_State* L)
 {
     if (g_AdTruth.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Self);
         g_AdTruth.m_Callback = LUA_NOREF;
         g_AdTruth.m_Self = LUA_NOREF;
         g_AdTruth.m_L = 0;
@@ -78,10 +78,10 @@ int AdTruth_Load(lua_State* L)
     const char* url_cstr = luaL_checkstring(L, 1);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_AdTruth.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_AdTruth.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_AdTruth.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_AdTruth.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     g_AdTruth.m_L = L;
 

@@ -129,3 +129,9 @@ Links:
 #console {
     -fx-highlight-fill: $selected-blue;
 }
+
+.copyable-label, .copyable-label:focused {
+  -fx-background-color: transparent;
+  -fx-border-width: 0px;
+  -fx-text-fill: $bright-grey;
+}
