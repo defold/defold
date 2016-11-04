@@ -570,7 +570,7 @@
                      (let [f (File. (resource/abs-path r))]
                        (.open (Desktop/getDesktop) (util/to-folder f))))))
 
-(handler/defhandler :show-referencing-files :global
+(handler/defhandler :referencing-files :global
   (active? [selection] (selection->single-resource-file selection))
   (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
                           (and (resource/abs-path r)
@@ -579,7 +579,7 @@
                                                 (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "refs:%s" (resource/proj-path r))})]
                                                   (open-resource app-view workspace project resource)))))
 
-(handler/defhandler :show-dependencies :global
+(handler/defhandler :dependencies :global
   (active? [selection] (selection->single-resource-file selection))
   (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
                           (and (resource/abs-path r)
