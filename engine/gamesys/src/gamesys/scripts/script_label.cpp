@@ -1,6 +1,6 @@
 
 #include <dlib/log.h>
-#include <gamesys/gamesys.h>
+#include "../gamesys.h"
 #include "../gamesys_private.h"
 #include <render/render.h>
 #include <script/script.h>
