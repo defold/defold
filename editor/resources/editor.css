@@ -1139,6 +1139,11 @@ Line numbers:
   #build-errors-tab .label {
     -fx-padding: 5; }
 
+#build-errors-container .tree-view {
+  -fx-background-color: #3a3f44; }
+  #build-errors-container .tree-view .tree-cell {
+    -fx-background-color: #3a3f44; }
+
 /*
  * Styling of toolbar that changes mouse action in scene editor.
  */
@@ -1150,7 +1155,8 @@ Line numbers:
   -fx-border-color: #454A4F;
   -fx-border-width: 0;
   -fx-padding: 0;
-  -fx-spacing: 0; }
+  -fx-spacing: 0;
+  /* This is for the gui device picker that pops up when an .gui file is active */ }
   #toolbar > .toggle-button {
     -fx-background-color: #232529;
     -fx-background-insets: 0, 0 0 0 0;
@@ -1167,6 +1173,9 @@ Line numbers:
     -fx-border-width: 0 0 2 0; }
     #toolbar > .toggle-button:selected .image-view {
       -fx-effect: innershadow(gaussian, #f0f2f6, 20, 0.3, 0, 0); }
+  #toolbar .cell {
+    -fx-padding: 4px 5px;
+    -fx-spacing: 4px; }
 
 #toolbar-status {
   -fx-background-color: #232529, #272b30;

@@ -1,5 +1,6 @@
 # Setup
 To build the editor css, gulp is used in combination with SASS to compile the CSS file from many smaller files.
+
 1. First run `npm install` in the /styling folder
 2. To build the CSS file, either run `gulp` to build it once or `gulp watch` to watch for changes within the .scss files beneath the folder stylesheets and build it on every save.
 

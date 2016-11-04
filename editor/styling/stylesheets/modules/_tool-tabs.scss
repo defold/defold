@@ -130,3 +130,12 @@
         -fx-padding: 5;
     }
 }
+
+#build-errors-container {
+    .tree-view {
+        -fx-background-color: $dark-grey-light;
+        .tree-cell {
+            -fx-background-color: $dark-grey-light;
+        }
+    }
+}
