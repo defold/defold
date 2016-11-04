@@ -38,6 +38,17 @@ namespace dmRender
         uint32_t    m_Frame;
     };
 
+    struct DM_ALIGNED(16) GlyphVertex
+    {
+        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
+        float    m_Position[4];
+        float    m_UV[2];
+        uint32_t m_FaceColor;
+        uint32_t m_OutlineColor;
+        uint32_t m_ShadowColor;
+        float    m_SdfParams[4];
+    };
+
     /**
      * Font map parameters supplied to NewFontMap
      */
@@ -139,6 +150,7 @@ namespace dmRender
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters);
     void FinalizeTextContext(HRenderContext render_context);
 
+    const int MAX_FONT_RENDER_CONSTANTS = 4;
     /**
      * Draw text params.
      */
@@ -156,10 +168,16 @@ namespace dmRender
         Vectormath::Aos::Vector4 m_ShadowColor;
         /// Text to draw in utf8-format
         const char* m_Text;
-        /// Render depth value. Passed to the render-key depth
-        uint32_t    m_Depth;
+        /// Render constants
+        dmRender::Constant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
+        /// The source blend factor
+        dmGraphics::BlendFactor m_SourceBlendFactor;
+        /// The destination blend factor
+        dmGraphics::BlendFactor m_DestinationBlendFactor;
         /// Render order value. Passed to the render-key
         uint16_t    m_RenderOrder;
+        /// Number render constants
+        uint8_t     m_NumRenderConstants;
         /// Text render box width. Used for alignment and when m_LineBreak is true
         float       m_Width;
         /// Text render box height. Used for vertical alignment
@@ -186,7 +204,7 @@ namespace dmRender
      * @param font_map Font map handle
      * @param params Parameters to use when rendering
      */
-    void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params);
+    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint64_t batch_key, const DrawTextParams& params);
 
     /**
      * Produces render list entries for all the previously DrawText:ed texts.
@@ -198,7 +216,7 @@ namespace dmRender
      * @param render_order Render order to write for the rendering
      * @param render_context Context to use when rendering
      */
-    void FlushTexts(HRenderContext render_context, uint32_t render_order, bool final);
+    void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final);
 
     /**
      * Get text metrics for string
@@ -209,7 +227,6 @@ namespace dmRender
      * @param metrics Metrics, out-value
      */
     void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
-
 }
 
 #endif // FONTRENDERER_H
