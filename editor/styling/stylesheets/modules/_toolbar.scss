@@ -36,4 +36,10 @@
             } 
         }
     }
+
+    /* This is for the gui device picker that pops up when an .gui file is active */
+    .cell {
+        -fx-padding: 4px 5px;
+        -fx-spacing: 4px;
+    }
 }
