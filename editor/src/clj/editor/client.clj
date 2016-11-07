@@ -5,6 +5,8 @@
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
            [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
+           [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]
            [java.net URI]
            [javax.ws.rs.core MediaType]))
 
@@ -46,3 +48,4 @@
         resource   (.resource ^Client (:client client) (URI. server-url))
         builder    (.accept (.path resource path) media-types)]
     (protobuf/pb->map (.get builder entity-class))))
+

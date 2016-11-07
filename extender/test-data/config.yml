@@ -1,0 +1,44 @@
+context:
+    dynamo_home: '/Users/chmu/tmp/dynamo-home'
+    frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
+    includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
+    symbols: []
+
+main: |
+    #include <stdio.h>
+
+    {{#symbols}}
+    extern "C" void {{.}}();
+    {{/symbols}}
+
+    {{#ext.symbols}}
+    extern "C" void {{.}}();
+    {{/ext.symbols}}
+
+    void dmExportedSymbols() {
+        {{#symbols}}
+        {{.}}();
+        {{/symbols}}
+        {{#ext.symbols}}
+        {{.}}();
+        {{/ext.symbols}}
+    }
+
+    extern "C" void Test();
+    int main(int argc, char *argv[])
+    {
+        printf("Hello Extender\n");
+        Test();
+        return 0;
+    }
+
+platforms:
+  x86-osx:
+    context:
+        engineLibs: []
+    exeExt: ''
+    shlibRe: 'lib(.+).dylib'
+    stlibRe: 'lib(.+).a'
+    compileCmd: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{src}} -o{{tgt}}'
+    linkCmd: clang++ -m32 -stdlib=libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#ext.libs}}-l{{.}} {{/ext.libs}}
+    libCmd: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
