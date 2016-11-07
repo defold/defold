@@ -230,14 +230,12 @@ namespace dmGameSystem
             dmGameObject::HInstance bone_instance = dmGameObject::New(collection, 0x0);
             if (bone_instance == 0x0) {
                 component->m_NodeInstances.SetSize(i);
-                dmLogInfo("NEW failed, i: %i", i);
                 return false;
             }
 
             uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
             if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
             {
-                dmLogInfo("GETTING INDEX failed");
                 dmGameObject::Delete(collection, bone_instance);
                 component->m_NodeInstances.SetSize(i);
                 return false;
@@ -249,7 +247,6 @@ namespace dmGameSystem
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_instance, id);
             if (dmGameObject::RESULT_OK != result)
             {
-                dmLogInfo("SET ID INDEX failed");
                 dmGameObject::Delete(collection, bone_instance);
                 component->m_NodeInstances.SetSize(i);
                 return false;
@@ -339,8 +336,6 @@ namespace dmGameSystem
         {
             dmLogError("Failed to create game objects for bones in spine model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
             DestroyComponent(world, index);
-            dmLogInfo("DONE!");
-
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -713,7 +708,6 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component, int index)
     {
-        dmLogInfo("SPINE RELOAD!!");
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = world->m_RigContext;
@@ -754,10 +748,8 @@ namespace dmGameSystem
         {
             dmLogError("RELOAD! Failed to create game objects for bones in spine model: %d.", index);
             DestroyComponent(world, index);
-            dmLogInfo("DONE!")
             return false;
         }
-        dmLogInfo("RELOAD Success!");
 
         return true;
     }
@@ -766,7 +758,6 @@ namespace dmGameSystem
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         int index = *params.m_UserData;
-        dmLogInfo("CompSpineModelOnReload, index = %i, components Size(): %i", index, world->m_Components.Size());
         SpineModelComponent* component = world->m_Components.Get(index);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
         (void)OnResourceReloaded(world, component, index);
