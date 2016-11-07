@@ -455,7 +455,18 @@
                                 {} to-reload-int)
             old->new (atom {})]
         ;; Internal resources to reload
-        (let [resources-to-create (mapv second to-reload-int)
+        (let [in-use? (fn [resource-node-id]
+                        (some (fn [[target _]]
+                                (and (not= project target)
+                                     (= project-graph (g/node-id->graph-id target))))
+                              (gt/targets (g/now) resource-node-id)))
+              should-create-node? (fn [[operation resource]]
+                                    (or (not= :removed operation)
+                                        (-> resource
+                                            resource/proj-path
+                                            nodes-by-path
+                                            in-use?)))
+              resources-to-create (into [] (comp (filter should-create-node?) (map second)) to-reload-int)
               new-nodes (make-nodes! project resources-to-create)
               new-nodes-by-path (into {} (map (fn [n] (let [r (g/node-value n :resource)]
                                                         [(resource/proj-path r) n]))
