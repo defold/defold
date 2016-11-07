@@ -1,31 +1,25 @@
 (ns editor.label
-  (:require [clojure.string :as str]
-            [editor.protobuf :as protobuf]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
+            [editor.defold-project :as project]
             [editor.font :as font]
-            [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.validation :as validation]
-            [editor.resource :as resource]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
+            [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
+            [editor.material :as material]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.scene :as scene]
             [editor.types :as types]
-            [editor.material :as material])
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
   (:import [com.dynamo.label.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]
-           [editor.gl.shader ShaderLifecycle]))
+           [com.jogamp.opengl GL GL2]
+           [editor.gl.shader ShaderLifecycle]
+           [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -50,7 +44,6 @@
   (defn void main []
     (setq gl_FragColor var_color)))
 
-; TODO - macro of this
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
 
 (shader/defshader line-vertex-shader
@@ -70,55 +63,6 @@
 
 ; Vertex generation
 
-#_(defn- gen-vertex [^Matrix4d wt ^Point3d pt x y u v]
-   (.set pt x y 0)
-   (.transform wt pt)
-   [(.x pt) (.y pt) (.z pt) u v])
-
-#_(defn- conj-quad! [vbuf ^Matrix4d wt ^Point3d pt width height anim-uvs]
-   (let [x1 (* 0.5 width)
-         y1 (* 0.5 height)
-         x0 (- x1)
-         y0 (- y1)
-         [[u0 v0] [u1 v1] [u2 v2] [u3 v3]] anim-uvs]
-     (-> vbuf
-       (conj! (gen-vertex wt pt x0 y0 u0 v0))
-       (conj! (gen-vertex wt pt x1 y0 u3 v3))
-       (conj! (gen-vertex wt pt x0 y1 u1 v1))
-       (conj! (gen-vertex wt pt x1 y0 u3 v3))
-       (conj! (gen-vertex wt pt x1 y1 u2 v2))
-       (conj! (gen-vertex wt pt x0 y1 u1 v1)))))
-
-#_(defn- gen-vertex-buffer
-   [renderables count]
-   (let [tmp-point (Point3d.)]
-     (loop [renderables renderables
-           vbuf (->texture-vtx (* count 6))]
-       (if-let [renderable (first renderables)]
-         (let [world-transform (:world-transform renderable)
-               user-data (:user-data renderable)
-               anim-uvs (:anim-uvs user-data)
-               anim-width (:anim-width user-data)
-               anim-height (:anim-height user-data)]
-           (recur (rest renderables) (conj-quad! vbuf world-transform tmp-point anim-width anim-height anim-uvs)))
-         (persistent! vbuf)))))
-
-#_(defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
-   (.set pt x y 0)
-   (.transform wt pt)
-   [(.x pt) (.y pt) (.z pt) cr cg cb 1])
-
-#_(defn- conj-outline-quad! [vbuf ^Matrix4d wt ^Point3d pt width height cr cg cb]
-   (let [x1 (* 0.5 width)
-         y1 (* 0.5 height)
-         x0 (- x1)
-         y0 (- y1)
-         v0 (gen-outline-vertex wt pt x0 y0 cr cg cb)
-         v1 (gen-outline-vertex wt pt x1 y0 cr cg cb)
-         v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
-         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
-     (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
-
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
 (def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
 
@@ -128,23 +72,6 @@
     (doseq [v vs]
       (conj! vb v))
     (persistent! vb)))
-
-#_(defn- gen-outline-vertex-buffer
-   [renderables count]
-   (let [tmp-point (Point3d.)]
-     (loop [renderables renderables
-            vbuf (->color-vtx (* count 8))]
-       (if-let [renderable (first renderables)]
-         (let [color (if (:selected renderable) selected-outline-color outline-color)
-               cr (get color 0)
-               cg (get color 1)
-               cb (get color 2)
-               world-transform (:world-transform renderable)
-               user-data (:user-data renderable)
-               anim-width (:anim-width user-data)
-               anim-height (:anim-height user-data)]
-           (recur (rest renderables) (conj-outline-quad! vbuf world-transform tmp-point anim-width anim-height cr cg cb)))
-         (persistent! vbuf)))))
 
 ; Rendering
 
@@ -183,7 +110,7 @@
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader material-shader #_(if (types/selection? (:pass render-args))
+      (let [shader (if (types/selection? (:pass render-args))
                      shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
                      (or material-shader shader))
             vertex-binding (vtx/use-with ::tris vb shader)]
@@ -200,33 +127,6 @@
     (if (= pass pass/outline)
       (render-lines gl render-args renderables rcount)
       (render-tris gl render-args renderables rcount))))
-
-#_(defn render-sprites [^GL2 gl render-args renderables count]
-   (let [pass (:pass render-args)]
-     (cond
-       (= pass pass/outline)
-       (let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
-         (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8))))
-
-       (= pass pass/transparent)
-       (let [vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
-             user-data (:user-data (first renderables))
-             gpu-texture (:gpu-texture user-data)
-             blend-mode (:blend-mode user-data)]
-         (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
-           (case blend-mode
-             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-             (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-             :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-           (shader/set-uniform shader gl "texture" 0)
-           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
-           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
-
-       (= pass pass/selection)
-       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) shader)]
-         (gl/with-gl-bindings gl render-args [shader vertex-binding]
-           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
 
 ; Node defs
 
