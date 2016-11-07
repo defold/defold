@@ -19,14 +19,15 @@ import com.dynamo.cr.guied.core.ClippingNode;
 import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
 import com.dynamo.cr.guied.core.TextNode;
 import com.dynamo.cr.guied.util.Clipping;
-import com.dynamo.cr.guied.util.TextUtil;
-import com.dynamo.cr.guied.util.TextUtil.TextMetric;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.FontRendererHandle;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
+import com.dynamo.cr.sceneed.core.TextUtil;
+import com.dynamo.cr.sceneed.core.TextUtil.TextLine;
+import com.dynamo.cr.sceneed.core.TextUtil.TextMetric;
 import com.dynamo.cr.sceneed.ui.util.Shader;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.dynamo.render.proto.Font.FontMap;
@@ -43,15 +44,6 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     private Shader shaderDF;
     private Shader shaderBMFont;
 
-    public static class TextLine {
-        public TextLine(String text, double width) {
-            this.text = text;
-            this.width = width;
-        }
-
-        public String text;
-        public double width;
-    }
 
     public TextNodeRenderer() {
         BufferedImage image = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
