@@ -241,11 +241,13 @@
   (let [user-data (get (first renderables) :user-data)
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
-        vertex-buffer (gen-vertex-buffer gl user-data [{:text (:text user-data)
+        max-width (:cache-width font-map)
+        text-layout (layout-text font-map (:text user-data) true max-width 0 1)
+        vertex-buffer (gen-vertex-buffer gl user-data [{:text-layout text-layout
+                                                        :align :left
                                                         :offset [0.0 0.0]
                                                         :world-transform (doto (Matrix4d.) (.setIdentity))
-                                                        :color [1.0 1.0 1.0 1.0] :outline [0.0 0.0 0.0 1.0] :shadow [0.0 0.0 0.0 0.0]
-                                                        :line-break true :max-width (:cache-width font-map)}])
+                                                        :color [1.0 1.0 1.0 1.0] :outline [0.0 0.0 0.0 1.0] :shadow [0.0 0.0 0.0 0.0]}])
         material-shader (:shader user-data)
         type (:type user-data)
         vcount (count vertex-buffer)]
