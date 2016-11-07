@@ -733,3 +733,34 @@
     (.setScene stage scene)
     (ui/show! stage)
     stage))
+
+
+(handler/defhandler ::rename-conflicting-files :dialog
+  (run [^Stage stage]
+    (ui/user-data! stage ::file-conflict-resolution-strategy :rename)
+    (ui/close! stage)))
+
+(handler/defhandler ::replace-conflicting-files :dialog
+  (run [^Stage stage]
+    (ui/user-data! stage ::file-conflict-resolution-strategy :replace)
+    (ui/close! stage)))
+
+(defn make-resolve-file-conflicts-dialog
+  [src-dest-pairs]
+  (let [^Parent root (ui/load-fxml "resolve-file-conflicts.fxml")
+        scene (Scene. root)
+        ^Stage stage (doto (ui/make-stage)
+                       (observe-focus)
+                       (.initOwner (ui/main-stage))
+                       (.initModality Modality/WINDOW_MODAL)
+                       (ui/title! "Resolve file name conflicts")
+                       (.setScene scene))
+        controls (ui/collect-controls root ["message" "rename" "replace" "cancel"])]
+    (ui/context! root :dialog {:stage stage} nil)
+    (ui/bind-action! (:rename controls) ::rename-conflicting-files)
+    (ui/bind-action! (:replace controls) ::replace-conflicting-files)
+    (ui/bind-action! (:cancel controls) ::close)
+    (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+    (ui/text! (:message controls) (format "The destination has %d file(s) with the same names" (count src-dest-pairs)))
+    (ui/show-and-wait! stage)
+    (ui/user-data stage ::file-conflict-resolution-strategy)))
