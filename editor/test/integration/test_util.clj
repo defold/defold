@@ -10,6 +10,7 @@
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
             [editor.image :as image]
+            [editor.label :as label]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
@@ -65,6 +66,7 @@
         (gui/register-resource-types workspace)
         (image/register-resource-types workspace)
         (json/register-resource-types workspace)
+        (label/register-resource-types workspace)
         (material/register-resource-types workspace)
         (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
