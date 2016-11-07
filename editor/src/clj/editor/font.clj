@@ -307,14 +307,19 @@
         font-map (assoc (:font-map user-data) :textures [(resource/proj-path (second (first dep-resources)))])]
     {:resource resource :content (protobuf/map->bytes Font$FontMap font-map)}))
 
-(g/defnk produce-build-targets [_node-id resource font-resource font-map dep-build-targets]
-  (let [project        (project/get-project _node-id)
-        workspace      (project/workspace project)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-font
-      :user-data {:font-map font-map}
-      :deps (flatten dep-build-targets)}]))
+(g/defnk produce-build-targets [_node-id resource font-resource font-map material dep-build-targets]
+  (or (when-let [errors (->> [[material :material "Material"]]
+                          (keep (fn [[v prop-kw name]]
+                                  (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
+                          not-empty)]
+        (g/error-aggregate errors))
+      (let [project        (project/get-project _node-id)
+           workspace      (project/workspace project)]
+       [{:node-id _node-id
+         :resource (workspace/make-build-resource resource)
+         :build-fn build-font
+         :user-data {:font-map font-map}
+         :deps (flatten dep-build-targets)}])))
 
 (g/defnode FontSourceNode
   (inherits project/ResourceNode))
@@ -434,11 +439,12 @@
                                  (geom/aabb-incorporate (Point3d. w (- h-offset h) 0))))
                              (geom/null-aabb))))
   (output gpu-texture g/Any :cached (g/fnk [_node-id font-map material-samplers]
-                                           (let [w (:cache-width font-map)
-                                                 h (:cache-height font-map)
-                                                 channels (:glyph-channels font-map)]
-                                             (texture/empty-texture _node-id w h channels
-                                                                   (material/sampler->tex-params (first material-samplers)) 0))))
+                                           (when font-map
+                                             (let [w (:cache-width font-map)
+                                                   h (:cache-height font-map)
+                                                   channels (:glyph-channels font-map)]
+                                               (texture/empty-texture _node-id w h channels
+                                                                      (material/sampler->tex-params (first material-samplers)) 0)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output type g/Keyword produce-font-type)
   (output font-data FontData :cached (g/fnk [type gpu-texture font-map]
