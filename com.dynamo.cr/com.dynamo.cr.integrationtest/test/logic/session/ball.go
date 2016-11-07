@@ -14,6 +14,10 @@ components {
   id: "spine"
   component: "/spine/reload.spinemodel"
 }
+components {
+  id: "label"
+  component: "/logic/session/ball.label"
+}
 embedded_components {
   id: "co"
   type: "collisionobject"
