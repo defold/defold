@@ -1425,7 +1425,7 @@
     (attach-texture self parent texture)))
 
 (defn- browse [project exts]
-  (first (dialogs/make-resource-dialog (project/workspace project) {:ext exts})))
+  (first (dialogs/make-resource-dialog (project/workspace project) project {:ext exts})))
 
 (defn- resource->id [resource]
   (FilenameUtils/getBaseName ^String (resource/resource-name resource)))
