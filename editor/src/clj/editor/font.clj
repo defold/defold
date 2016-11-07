@@ -201,7 +201,7 @@
                                       (= type :distance-field) (into sdf-params)))
                      text-layout (:text-layout entry)
                      text-tracking (* line-height (:text-tracking text-layout 0))
-                     text-leading (:text-leading text-layout 0)
+                     text-leading (:text-leading text-layout 1)
                      offset (:offset entry)
                      xform (doto (Matrix4d.)
                              (.set (let [[x y] offset]
