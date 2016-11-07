@@ -147,9 +147,12 @@ ordinary paths."
       (or (:icon (resource/resource-type resource))
           (get default-icons (resource/source-type resource))))))
 
-(defn file-resource [workspace path]
-  (let [root (g/node-value workspace :root)]
-    (FileResource. workspace root (File. (str root path)) [])))
+(defn file-resource [workspace path-or-file]
+  (let [root (g/node-value workspace :root)
+        f (if (instance? File path-or-file)
+            path-or-file
+            (File. (str root path-or-file)))]
+    (FileResource. workspace root f [])))
 
 (defn find-resource [workspace proj-path]
   (get (g/node-value workspace :resource-map) proj-path))
