@@ -446,6 +446,9 @@ namespace dmRig
         {
             const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
             uint32_t bone_index = track->m_BoneIndex;
+            if (bone_index >= track_idx_to_pose.Size()) {
+                continue;
+            }
             uint32_t pose_index = track_idx_to_pose[bone_index];
             dmTransform::Transform& transform = pose[pose_index];
             if (track->m_Positions.m_Count > 0)

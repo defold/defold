@@ -218,6 +218,12 @@ private:
 
             Animation (id: "ik") for IK on Bone B.
 
+        ------------------------------------
+
+            Animation (id: "invalid_bones") for IK on Bone B.
+
+            Tries to animate a bone that does not exist.
+
         */
 
         uint32_t bone_count = 5;
@@ -293,12 +299,13 @@ private:
         dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
 
         // Bone animations
-        uint32_t animation_count = 3;
+        uint32_t animation_count = 4;
         m_AnimationSet->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         m_AnimationSet->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
         dmRigDDF::RigAnimation& anim1 = m_AnimationSet->m_Animations.m_Data[1];
         dmRigDDF::RigAnimation& anim2 = m_AnimationSet->m_Animations.m_Data[2];
+        dmRigDDF::RigAnimation& anim3 = m_AnimationSet->m_Animations.m_Data[3];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
@@ -317,6 +324,12 @@ private:
         anim2.m_EventTracks.m_Count = 0;
         anim2.m_MeshTracks.m_Count  = 0;
         anim2.m_IkTracks.m_Count    = 0;
+        anim3.m_Id = dmHashString64("invalid_bones");
+        anim3.m_Duration            = 3.0f;
+        anim3.m_SampleRate          = 1.0f;
+        anim3.m_EventTracks.m_Count = 0;
+        anim3.m_MeshTracks.m_Count  = 0;
+        anim3.m_IkTracks.m_Count    = 0;
 
         // Animation 0: "valid"
         {
@@ -418,6 +431,26 @@ private:
             ((Quat*)anim_track_b1_rot.m_Rotations.m_Data)[2] = Quat::rotationZ(-(float)M_PI / 2.0f);
         }
 
+        // Animation 0: "invalid_bones"
+        {
+            uint32_t track_count = 1;
+            anim3.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[track_count];
+            anim3.m_Tracks.m_Count = track_count;
+            dmRigDDF::AnimationTrack& anim_track0 = anim3.m_Tracks.m_Data[0];
+
+            anim_track0.m_BoneIndex         = 5;
+            anim_track0.m_Positions.m_Count = 0;
+            anim_track0.m_Scale.m_Count     = 0;
+
+            uint32_t samples = 4;
+            anim_track0.m_Rotations.m_Data = new float[samples*4];
+            anim_track0.m_Rotations.m_Count = samples*4;
+            ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::identity();
+            ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::identity();
+            ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
+            ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
+        }
+
         // Meshes / skins
         m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
         m_MeshSet->m_MeshEntries.m_Count = 2;
@@ -442,6 +475,7 @@ private:
 
     void TearDownSimpleSpine() {
 
+        delete [] m_AnimationSet->m_Animations.m_Data[3].m_Tracks.m_Data[0].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[2].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[1].m_Scale.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[0].m_Rotations.m_Data;
@@ -1035,6 +1069,31 @@ TEST_F(RigInstanceTest, IKTarget)
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
     ASSERT_VEC4(Quat::rotationZ(-(float)M_PI), pose[3].GetRotation());
     ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+}
+
+TEST_F(RigInstanceTest, InvalidTrackBone)
+{
+    m_Skeleton->m_LocalBoneScaling = false;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("invalid_bones"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    dmRig::RigSpineModelVertex data[3];
+    dmRig::RigSpineModelVertex* data_end = data + 3;
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
+
+    // sample 1
+    // There should be no changes to the pose/vertices since
+    // the animation includes a track for a bone that does not exist.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
+    ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
+    ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 }
 
 #undef ASSERT_VEC3
