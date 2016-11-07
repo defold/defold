@@ -746,7 +746,7 @@ namespace dmGameSystem
         dmGameObject::DeleteBones(component->m_Instance);
         if(!CreateGOBones(world, component))
         {
-            dmLogError("RELOAD! Failed to create game objects for bones in spine model: %d.", index);
+            dmLogError("Failed to create game objects during reload for bones in spine model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
             DestroyComponent(world, index);
             return false;
         }
