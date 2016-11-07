@@ -183,31 +183,34 @@
     (delete selection)))
 
 (defn- unique
-  [^File f exists-fn name-fn]
-  (if (exists-fn f)
-    (let [path (.getAbsolutePath f)
-          ext (FilenameUtils/getExtension path)
-          new-path (str (FilenameUtils/getFullPath path)
-                        (name-fn (FilenameUtils/getBaseName path))
-                        (when (seq ext) (str "." ext)))]
-      (recur (File. new-path) exists-fn name-fn))
-    f))
+  [^File original exists-fn name-fn]
+  (let [original-basename (FilenameUtils/getBaseName (.getAbsolutePath original))]
+    (loop [^File f original]
+      (if (exists-fn f)
+        (let [path (.getAbsolutePath f)
+              ext (FilenameUtils/getExtension path)
+              new-path (str (FilenameUtils/getFullPath path)
+                            (name-fn original-basename (FilenameUtils/getBaseName path))
+                            (when (seq ext) (str "." ext)))]
+          (recur (File. new-path)))
+        f))))
 
 (defn- ensure-unique-dest-files
-  [make-name-fn src-dest-pairs]
+  [name-fn src-dest-pairs]
   (loop [[[src dest :as pair] & rest] src-dest-pairs
          new-names #{}
          ret []]
     (if pair
-      (let [new-dest (unique dest #(or (.exists ^File %) (new-names %)) (make-name-fn dest))]
+      (let [new-dest (unique dest #(or (.exists ^File %) (new-names %)) name-fn)]
         (recur rest (conj new-names new-dest) (conj ret [src new-dest])))
       ret)))
 
 (defn- numbering-name-fn
-  [^File f]
-  (let [basename (FilenameUtils/getBaseName (str f))
-        num (java.util.concurrent.atomic.AtomicInteger. 1)]
-    (fn [_] (str basename (.getAndIncrement num)))))
+  [original-basename basename]
+  (let [suffix (string/replace basename original-basename "")]
+    (if (.isEmpty suffix)
+      (str original-basename "1")
+      (str original-basename (str (inc (Integer/parseInt suffix)))))))
 
 (defn- select-files! [workspace tree-view files]
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
@@ -239,7 +242,7 @@
                                    (util/to-folder (File. (resource/abs-path resource))) src-files)
              pairs (->> src-files
                         (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]))
-                        (ensure-unique-dest-files (constantly #(str % "_copy"))))]
+                        (ensure-unique-dest-files (fn [_ basename] (str basename "_copy"))))]
          (doseq [[^File src-file ^File tgt-file] pairs]
            (if (.isDirectory src-file)
              (FileUtils/copyDirectory src-file tgt-file)
