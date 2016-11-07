@@ -15,7 +15,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    dirs = [
+    dirs = ['animationset',
             'camera',
             'collection_proxy',
             'collision_object',
@@ -42,7 +42,8 @@ def build(bld):
             'texture',
             'vertex_program',
             'window']
-    exts = ['camera',
+    exts = ['animationset',
+            'camera',
             'collisionobject',
             'convexshape',
             'emitter',

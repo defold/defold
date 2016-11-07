@@ -184,8 +184,11 @@ namespace dmGameSystem
         const dmArray<dmRig::RigBone>& bind_pose = component->m_Resource->m_RigScene->m_BindPose;
         const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
+        uint32_t prev_bone_count = component->m_NodeInstances.Size();
 
-        component->m_NodeInstances.SetCapacity(bone_count);
+        if (bone_count > component->m_NodeInstances.Capacity()) {
+            component->m_NodeInstances.OffsetCapacity(bone_count - prev_bone_count);
+        }
         component->m_NodeInstances.SetSize(bone_count);
         if (bone_count > world->m_ScratchInstances.Capacity()) {
             world->m_ScratchInstances.SetCapacity(bone_count);
@@ -193,32 +196,41 @@ namespace dmGameSystem
         world->m_ScratchInstances.SetSize(0);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            dmGameObject::HInstance inst = dmGameObject::New(collection, 0x0);
-            if (inst == 0x0) {
-                component->m_NodeInstances.SetSize(i);
-                return false;
-            }
-
-            uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
-            if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+            dmGameObject::HInstance inst;
+            if(i < prev_bone_count)
             {
-                dmGameObject::Delete(collection, inst);
-                component->m_NodeInstances.SetSize(i);
-                return false;
+                inst = component->m_NodeInstances[i];
             }
-
-            dmhash_t id = dmGameObject::ConstructInstanceId(index);
-            dmGameObject::AssignInstanceIndex(index, instance);
-
-            dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
-            if (dmGameObject::RESULT_OK != result)
+            else
             {
-                dmGameObject::Delete(collection, inst);
-                component->m_NodeInstances.SetSize(i);
-                return false;
+                inst = dmGameObject::New(collection, 0x0);
+                if (inst == 0x0) {
+                    component->m_NodeInstances.SetSize(i);
+                    return false;
+                }
+
+                uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+                if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+                {
+                    dmGameObject::Delete(collection, inst);
+                    component->m_NodeInstances.SetSize(i);
+                    return false;
+                }
+
+                dmhash_t id = dmGameObject::ConstructInstanceId(index);
+                dmGameObject::AssignInstanceIndex(index, instance);
+
+                dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
+                if (dmGameObject::RESULT_OK != result)
+                {
+                    dmGameObject::Delete(collection, inst);
+                    component->m_NodeInstances.SetSize(i);
+                    return false;
+                }
+                dmGameObject::SetBone(inst, true);
+                component->m_NodeInstances[i] = inst;
             }
 
-            dmGameObject::SetBone(inst, true);
             dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
             if (i == 0)
             {
@@ -227,7 +239,6 @@ namespace dmGameSystem
             dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
             dmGameObject::SetRotation(inst, transform.GetRotation());
             dmGameObject::SetScale(inst, transform.GetScale());
-            component->m_NodeInstances[i] = inst;
             world->m_ScratchInstances.Push(inst);
         }
         // Set parents in reverse to account for child-prepending
@@ -714,7 +725,6 @@ namespace dmGameSystem
         ReHash(component);
 
         // Create GO<->bone representation
-        dmGameObject::DeleteBones(component->m_Instance);
         CreateGOBones(world, component);
         return true;
     }
@@ -773,8 +783,21 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             ModelComponent* component = components[i];
-            if (component->m_Resource != 0x0 && component->m_Resource == params.m_Resource->m_Resource)
-                OnResourceReloaded(world, component);
+            if (component->m_Resource)
+            {
+                if(component->m_Resource == params.m_Resource->m_Resource)
+                {
+                    // Model resource reload
+                    OnResourceReloaded(world, component);
+                    continue;
+                }
+                RigSceneResource *rig_scene_res = component->m_Resource->m_RigScene;
+                if((rig_scene_res) && (rig_scene_res->m_AnimationSetRes == params.m_Resource->m_Resource))
+                {
+                    // Model resource reload because animset used in rig was reloaded
+                    OnResourceReloaded(world, component);
+                }
+            }
         }
     }
 

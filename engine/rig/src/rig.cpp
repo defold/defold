@@ -890,16 +890,8 @@ namespace dmRig
                 if (bone_weights[bi] > 0.0f)
                 {
                     uint32_t bone_index = bone_indices[bi];
-                    if(bone_index < pose_matrices.Size())
-                    {
-                        Vector4 t_n = pose_matrices[bone_index] * Vector4(normal_in.getX(), normal_in.getY(), normal_in.getZ(), 0.0f);
-                        normal_out += Vector3(t_n.getX(), t_n.getY(), t_n.getZ()) * bone_weights[bi];
-                    }
-                    else
-                    {
-                        normal_out = normal_in;
-                        break;
-                    }
+                    Vector4 t_n = pose_matrices[bone_index] * Vector4(normal_in.getX(), normal_in.getY(), normal_in.getZ(), 0.0f);
+                    normal_out += Vector3(t_n.getX(), t_n.getY(), t_n.getZ()) * bone_weights[bi];
                 }
             }
 
@@ -952,17 +944,8 @@ namespace dmRig
                 if (bone_weights[bi] > 0.0f)
                 {
                     uint32_t bone_index = bone_indices[bi];
-                    // TODO: Check for this in the pipeline stage if we can find a good way of doing that.. happens as any skeleton can be set to any mesh
-                    if(bone_index < pose_matrices.Size())
-                    {
-                        Vector4 t_p = pose_matrices[bone_index] * Vector4(in_p.getX(), in_p.getY(), in_p.getZ(), 1.0f);
-                        out_p += Vector3(t_p.getX(), t_p.getY(), t_p.getZ()) * bone_weights[bi];
-                    }
-                    else
-                    {
-                        out_p = in_p;
-                        break;
-                    }
+                    Vector4 t_p = pose_matrices[bone_index] * Vector4(in_p.getX(), in_p.getY(), in_p.getZ(), 1.0f);
+                    out_p += Vector3(t_p.getX(), t_p.getY(), t_p.getZ()) * bone_weights[bi];
                 }
             }
             v = model_matrix * out_p;
@@ -1140,17 +1123,27 @@ namespace dmRig
         dmArray<Vector3>& normals            = context->m_ScratchNormalBuffer;
 
         // If the rig has bones, update the pose to be local-to-model
-        int bone_count = GetBoneCount(instance);
+        uint32_t bone_count = GetBoneCount(instance);
         if (bone_count) {
 
-            // Make sure scratch buffers have enough space
+            // Make sure pose scratch buffers have enough space
             if (pose_matrices.Capacity() < bone_count) {
-                int size_offset = bone_count - pose_matrices.Capacity();
+                uint32_t size_offset = bone_count - pose_matrices.Capacity();
                 pose_matrices.OffsetCapacity(size_offset);
-                influence_matrices.OffsetCapacity(size_offset);
             }
             pose_matrices.SetSize(bone_count);
-            influence_matrices.SetSize(bone_count);
+
+            // Make sure influence scratch buffers have enough space sufficient for max bones to be indexed
+            uint32_t max_bone_count = instance->m_MaxBoneCount;
+            if (influence_matrices.Capacity() < max_bone_count) {
+                uint32_t capacity = influence_matrices.Capacity();
+                uint32_t size_offset = max_bone_count - capacity;
+                influence_matrices.OffsetCapacity(size_offset);
+                influence_matrices.SetSize(max_bone_count);
+                for(uint32_t i = capacity; i < capacity+size_offset; ++i)
+                    influence_matrices[i] = Matrix4::identity();
+            }
+            influence_matrices.SetSize(max_bone_count);
 
             const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
@@ -1268,6 +1261,14 @@ namespace dmRig
         return instance->m_Skeleton->m_Bones.m_Count;
     }
 
+    uint32_t GetMaxBoneCount(HRigInstance instance)
+    {
+        if (instance == 0x0) {
+            return 0;
+        }
+        return instance->m_MaxBoneCount;
+    }
+
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2)
     {
         if (!instance) {
@@ -1342,11 +1343,13 @@ namespace dmRig
         AllocateMeshProperties(params.m_MeshSet, instance->m_MeshProperties);
         instance->m_MeshEntry = FindMeshEntry(params.m_MeshSet, instance->m_MeshId);
 
+        instance->m_MaxBoneCount = dmMath::Max(instance->m_MeshSet->m_MaxBoneCount, instance->m_Skeleton == 0x0 ? 0 : instance->m_Skeleton->m_Bones.m_Count);
         Result result = CreatePose(context, instance);
         if (result != dmRig::RESULT_OK) {
             DestroyInstance(context, index);
             return result;
         }
+
 
         if (params.m_DefaultAnimation != NULL_ANIMATION)
         {
@@ -1419,7 +1422,6 @@ namespace dmRig
         track_idx_to_pose.SetCapacity(bone_count);
         track_idx_to_pose.SetSize(bone_count);
         memset((void*)track_idx_to_pose.Begin(), 0x0, track_idx_to_pose.Size()*sizeof(uint32_t));
-
         pose_idx_to_influence.SetCapacity(bone_count);
         pose_idx_to_influence.SetSize(bone_count);
 

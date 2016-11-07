@@ -100,6 +100,16 @@ message AnimationSet
     repeated uint64 bone_list = 2;
 }
 
+message AnimationInstanceDesc
+{
+    required string animation = 1  [(resource)=true];
+}
+
+message AnimationSetDesc
+{
+    repeated AnimationInstanceDesc animations = 1;
+}
+
 message Mesh
 {
     // NOTE: Positions, texcoord0, color and normals might be something
@@ -133,6 +143,8 @@ message MeshSet
     // List of bone names that represent the order of the bone influences.
     // Not used for Spine rigs since they don't have support for external skeletons.
     repeated uint64 bone_list = 2;
+    // Max number of bones used in any of the meshes (in the bone_indices list)
+    optional uint32 max_bone_count = 3;
 }
 
 message RigScene

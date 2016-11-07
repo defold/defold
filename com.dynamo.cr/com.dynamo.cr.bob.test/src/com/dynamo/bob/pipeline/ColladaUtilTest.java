@@ -7,6 +7,7 @@ import static org.junit.Assert.fail;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
@@ -289,6 +290,9 @@ public class ColladaUtilTest {
         List<Integer>boneIndices = mesh.getBoneIndicesList();
         List<Float>boneWeights = mesh.getWeightsList();
 
+        // Test the max bone count is correct, should be 4 for this mesh, which is the highest indexed bone + 1 in any of the meshes in the mesh set
+        assertEquals(Collections.max(boneIndices).longValue(), meshSetBuilder.getMaxBoneCount()-1);
+
         /*
          * The DAE has the following bones and weights for each vertex:
          *
@@ -330,7 +334,7 @@ public class ColladaUtilTest {
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(load("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
         Rig.AnimationSet.Builder animation = Rig.AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(load("blender_animated_cube.dae"), animation, 16.0f, new ArrayList<String>());
+        ColladaUtil.loadAnimations(load("blender_animated_cube.dae"), animation, 16.0f, "", new ArrayList<String>());
 
         // We only support bone animations currently, this collada file include
         // animations directly on the object. The resulting output will be zero animations.
@@ -660,7 +664,7 @@ public class ColladaUtilTest {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         ColladaUtil.loadMesh(load("bonelist_mesh_test.dae"), meshSetBuilder);
-        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, 30.0f, new ArrayList<String>());
+        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, 30.0f, "", new ArrayList<String>());
 
         int meshBoneListCount = meshSetBuilder.getBoneListCount();
         int animBoneListCount = animSetBuilder.getBoneListCount();

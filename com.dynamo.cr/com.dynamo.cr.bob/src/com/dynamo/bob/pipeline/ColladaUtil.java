@@ -1,7 +1,11 @@
 package com.dynamo.bob.pipeline;
 
+import java.awt.FontFormatException;
+import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -11,6 +15,7 @@ import java.util.List;
 import java.util.Vector;
 import java.util.Map.Entry;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
@@ -48,6 +53,8 @@ import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.openmali.FastMath;
 
 
+import com.dynamo.bob.font.Fontc.FontResourceResolver;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
 
@@ -59,7 +66,10 @@ import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 
 import com.dynamo.rig.proto.Rig;
+import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
+import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.MeshEntry;
+import com.google.protobuf.TextFormat;
 
 public class ColladaUtil {
 
@@ -97,7 +107,7 @@ public class ColladaUtil {
         XMLCOLLADA collada = loadDAE(is);
         loadMesh(collada, meshSetBuilder);
         loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
-        loadAnimations(collada, animationSetBuilder, 30.0f, new ArrayList<String>()); // TODO pick the sample rate from a parameter
+        loadAnimations(collada, animationSetBuilder, 30.0f, "", new ArrayList<String>()); // TODO pick the sample rate from a parameter
         return true;
     }
 
@@ -287,33 +297,58 @@ public class ColladaUtil {
         }
     }
 
-    public static void loadAnimationIds(InputStream is, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public interface ColladaResourceResolver {
+        public InputStream getResource(String resourceName) throws FileNotFoundException;
+    }
+
+    private static void loadAnimationClipIds(InputStream is, String parentId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
         if(animClips.isEmpty()) {
-            animationIds.clear();
             if(!collada.libraryAnimations.isEmpty()) {
-                animationIds.add("Default");
+                animationIds.add(parentId);
             }
             return;
         }
         for (XMLAnimationClip clip : animClips.get(0).animationClips.values()) {
             if (clip.name != null) {
-                animationIds.add(clip.name);
+                animationIds.add(parentId + "/" + clip.name);
             } else if (clip.id != null) {
-                animationIds.add(clip.id);
+                animationIds.add(parentId + "/" + clip.id);
             } else {
-                throw new LoaderException("Animation clip lacks name and id.");
+                throw new LoaderException("Animation clip must contain name or id.");
             }
         }
     }
 
-    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
-        XMLCOLLADA collada = loadDAE(is);
-        loadAnimations(collada, animationSetBuilder, sampleRate, animationIds);
+    public static void loadAnimationIds(String resourceName, String parentId, ArrayList<String> animationIds, final ColladaResourceResolver resourceResolver) throws IOException, XMLStreamException, LoaderException {
+        InputStream is;
+        try {
+            is = resourceResolver.getResource(resourceName);
+        } catch (FileNotFoundException e) {
+            throw new IOException("Could not extract animation id from resource: " + resourceName);
+        }
+        String animId  = FilenameUtils.getBaseName(resourceName);
+        if(resourceName.toLowerCase().endsWith(".dae")) {
+            loadAnimationClipIds(is, animId, animationIds);
+            return;
+        }
+        animId  = (parentId.isEmpty() ? "" : parentId + "/") + animId;
+        InputStreamReader animset_isr = new InputStreamReader(is);
+        AnimationSetDesc.Builder animationDescBuilder = AnimationSetDesc.newBuilder();
+        TextFormat.merge(animset_isr, animationDescBuilder);
+
+        for(AnimationInstanceDesc animationSet : animationDescBuilder.getAnimationsList()) {
+            loadAnimationIds(animationSet.getAnimation(), animId, animationIds, resourceResolver);
+        }
     }
 
-    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+        XMLCOLLADA collada = loadDAE(is);
+        loadAnimations(collada, animationSetBuilder, sampleRate, parentAnimationId, animationIds);
+    }
+
+    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryAnimations.size() != 1) {
             return;
         }
@@ -365,8 +400,8 @@ public class ColladaUtil {
             // If no clips are provided, add a "Default" clip that is the whole animation as one clip
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
             boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength, sampleRate);
-            animBuilder.setId(MurmurHash.hash64("Default"));
-            animationIds.add("Default");
+            animBuilder.setId(MurmurHash.hash64(parentAnimationId));
+            animationIds.add(parentAnimationId);
             animationSetBuilder.addAnimations(animBuilder.build());
         }
     }
@@ -524,7 +559,7 @@ public class ColladaUtil {
 
         List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
-        loadVertexWeights(collada, bone_weights_list, bone_indices_list);
+        int max_bone_count = loadVertexWeights(collada, bone_weights_list, bone_indices_list);
 
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
         if(normals != null) {
@@ -543,6 +578,7 @@ public class ColladaUtil {
         meshEntryBuilder.addMeshes(meshBuilder);
         meshEntryBuilder.setId(0);
         meshSetBuilder.addMeshEntries(meshEntryBuilder);
+        meshSetBuilder.setMaxBoneCount(max_bone_count);
 
         String[] boneRefArray = getBoneReferenceList(collada);
         if (boneRefArray != null) {
@@ -727,14 +763,14 @@ public class ColladaUtil {
     }
 
 
-    private static void loadVertexWeights(XMLCOLLADA collada, List<Float> boneWeightsList, List<Integer> boneIndicesList) throws IOException, XMLStreamException, LoaderException {
+    private static int loadVertexWeights(XMLCOLLADA collada, List<Float> boneWeightsList, List<Integer> boneIndicesList) throws IOException, XMLStreamException, LoaderException {
 
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
             skin = findFirstSkin(collada.libraryControllers.get(0));
         }
         if(skin == null) {
-            return;
+            return 0;
         }
 
         List<XMLSource> sources = skin.sources;
@@ -743,6 +779,7 @@ public class ColladaUtil {
         XMLInput weights_input = findInput(skin.vertexWeights.inputs, "WEIGHT", true);
         XMLSource weightsSource = sourcesMap.get(weights_input.source);
         Vector<Weight> weights = new Vector<Weight>(10);
+        int maxBoneCount = 0;
 
         int vIndex = 0;
         for ( int i = 0; i < skin.vertexWeights.vcount.ints.length; i++ )
@@ -779,9 +816,11 @@ public class ColladaUtil {
 
             for (Weight w : weights) {
                 boneIndicesList.add(w.boneIndex);
+                maxBoneCount = Math.max(maxBoneCount, w.boneIndex + 1);
                 boneWeightsList.add(w.weight);
             }
         }
+        return maxBoneCount;
     }
 
 

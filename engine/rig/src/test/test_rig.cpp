@@ -454,6 +454,7 @@ private:
         // Meshes / skins
         m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
         m_MeshSet->m_MeshEntries.m_Count = 2;
+        m_MeshSet->m_MaxBoneCount = bone_count + 1;
 
         CreateDummyMeshEntry(m_MeshSet->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
         CreateDummyMeshEntry(m_MeshSet->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
@@ -655,6 +656,26 @@ TEST_F(RigInstanceTest, PlayValidAnimation)
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
 }
+
+TEST_F(RigInstanceTest, MaxBoneCount)
+{
+    // Call GenerateVertedData to setup m_ScratchInfluenceMatrixBuffer
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
+    dmRig::RigModelVertex data[3];
+    dmRig::RigModelVertex* data_end = data + 3;
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+
+    // m_ScratchInfluenceMatrixBuffer should be able to contain the instance max bone count, which is the max of the used skeleton and meshset
+    // MaxBoneCount is set to BoneCount + 1 for testing.
+    ASSERT_EQ(m_Context->m_ScratchInfluenceMatrixBuffer.Size(), dmRig::GetMaxBoneCount(m_Instance));
+    ASSERT_EQ(m_Context->m_ScratchInfluenceMatrixBuffer.Size(), dmRig::GetBoneCount(m_Instance) + 1);
+
+    // Setting the m_ScratchInfluenceMatrixBuffer to zero ensures it have to be resized to max bone count
+    m_Context->m_ScratchInfluenceMatrixBuffer.SetCapacity(0);
+    // If this isn't done correctly, it'll assert out of bounds
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
+}
+
 
 #define ASSERT_VEC3(exp, act)\
     ASSERT_NEAR(exp.getX(), act.getX(), RIG_EPSILON);\

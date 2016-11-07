@@ -494,6 +494,18 @@ INSTANTIATE_TEST_CASE_P(Model, ComponentTest, ::testing::ValuesIn(valid_model_go
 const char* invalid_model_gos[] = {"/model/invalid_model.goc", "/model/invalid_material.goc"};
 INSTANTIATE_TEST_CASE_P(Model, ComponentFailTest, ::testing::ValuesIn(invalid_model_gos));
 
+/* Animationset */
+
+const char* valid_animationset_resources[] = {"/animationset/valid.animationsetc"};
+INSTANTIATE_TEST_CASE_P(AnimationSet, ResourceTest, ::testing::ValuesIn(valid_animationset_resources));
+
+ResourceFailParams invalid_animationset_resources[] =
+{
+    {"/animationset/valid.animationsetc", "/animationset/missing.animationsetc"},
+    {"/animationset/valid.animationsetc", "/animationset/invalid_animationset.animationsetc"},
+};
+INSTANTIATE_TEST_CASE_P(AnimationSet, ResourceFailTest, ::testing::ValuesIn(invalid_animationset_resources));
+
 /* Particle FX */
 
 const char* valid_particlefx_resources[] = {"/particlefx/valid.particlefxc"};

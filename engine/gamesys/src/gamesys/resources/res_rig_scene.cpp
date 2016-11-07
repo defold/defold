@@ -70,7 +70,15 @@ namespace dmGameSystem
         if (result == dmResource::RESULT_OK && resource->m_SkeletonRes)
         {
             dmRig::CreateBindPose(*resource->m_SkeletonRes->m_Skeleton, resource->m_BindPose);
-            dmRig::FillBoneListArrays(*resource->m_MeshSetRes->m_MeshSet, *resource->m_AnimationSetRes->m_AnimationSet, *resource->m_SkeletonRes->m_Skeleton, resource->m_TrackIdxToPose, resource->m_PoseIdxToInfluence);
+            if(resource->m_AnimationSetRes)
+            {
+                dmRig::FillBoneListArrays(*resource->m_MeshSetRes->m_MeshSet, *resource->m_AnimationSetRes->m_AnimationSet, *resource->m_SkeletonRes->m_Skeleton, resource->m_TrackIdxToPose, resource->m_PoseIdxToInfluence);
+            }
+            else
+            {
+                resource->m_TrackIdxToPose.SetSize(0);
+                resource->m_PoseIdxToInfluence.SetSize(0);
+            }
         }
         return result;
     }
