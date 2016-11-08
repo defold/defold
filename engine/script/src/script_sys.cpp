@@ -35,8 +35,13 @@ extern "C"
 namespace dmScript
 {
 
-    const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
-    char g_saveload_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
+const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
+
+union SaveLoadBuffer
+{
+    uint32_t m_alignment; // This alignment is required for js-web
+    char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
+} g_saveload;
 
 #define LIB_NAME "sys"
 
@@ -88,7 +93,7 @@ namespace dmScript
     int Sys_Save(lua_State* L)
     {
         luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload_buffer, sizeof(g_saveload_buffer), 2);
+        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
 
         const char* filename = luaL_checkstring(L, 1);
         char tmp_filename[DMPATH_MAX_PATH];
@@ -105,7 +110,7 @@ namespace dmScript
         FILE* file = fopen(tmp_filename, "wb");
         if (file != 0x0)
         {
-            bool result = fwrite(g_saveload_buffer, 1, n_used, file) == n_used;
+            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
             result = (fclose(file) == 0) && result;
             if (result)
             {
@@ -132,11 +137,11 @@ namespace dmScript
     {
         const char* filename = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload_buffer, sizeof(g_saveload_buffer), 2);
+        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
         FILE* file = fopen(filename, "wb");
         if (file != 0x0)
         {
-            bool result = fwrite(g_saveload_buffer, 1, n_used, file) == n_used;
+            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
             result = (fclose(file) == 0) && result;
             if (result)
             {
@@ -167,13 +172,13 @@ namespace dmScript
             lua_newtable(L);
             return 1;
         }
-        fread(g_saveload_buffer, 1, sizeof(g_saveload_buffer), file);
+        fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
         bool file_size_ok = feof(file) != 0;
         bool result = ferror(file) == 0 && file_size_ok;
         fclose(file);
         if (result)
         {
-            PushTable(L, g_saveload_buffer);
+            PushTable(L, g_saveload.m_buffer);
             return 1;
         }
         else
