@@ -5,6 +5,8 @@
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
            [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
+           [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]
            [java.net URI]
            [javax.ws.rs.core MediaType]))
 
