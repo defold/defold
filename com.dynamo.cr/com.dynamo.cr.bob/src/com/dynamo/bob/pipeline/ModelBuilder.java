@@ -25,11 +25,26 @@ public class ModelBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        ModelDesc.Builder modelDescBuilder = ModelDesc.newBuilder();
+        ProtoUtil.merge(input, modelDescBuilder);
+
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())
             .addInput(input);
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.addOutput(input.changeExt(".rigscenec"));
+
+        IResource mesh = BuilderUtil.checkResource(this.project, input, "mesh", modelDescBuilder.getMesh());
+        taskBuilder.addInput(mesh);
+        if(!modelDescBuilder.getSkeleton().isEmpty()) {
+            IResource skeleton = BuilderUtil.checkResource(this.project, input, "skeleton", modelDescBuilder.getSkeleton());
+            taskBuilder.addInput(skeleton);
+        }
+        if((!modelDescBuilder.getAnimations().isEmpty()) && modelDescBuilder.getAnimations().endsWith(".dae")) {
+            IResource animations = BuilderUtil.checkResource(this.project, input, "animation", modelDescBuilder.getAnimations());
+            taskBuilder.addInput(animations);
+        }
+
         return taskBuilder.build();
     }
 
@@ -43,19 +58,23 @@ public class ModelBuilder extends Builder<Void> {
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
-        IResource resource = task.input(0);
-
-        BuilderUtil.checkResource(this.project, resource, "model", modelDescBuilder.getMesh());
         rigBuilder.setMeshSet(BuilderUtil.replaceExt(modelDescBuilder.getMesh(), ".dae", ".meshsetc"));
-
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            BuilderUtil.checkResource(this.project, resource, "skeleton", modelDescBuilder.getSkeleton());
             rigBuilder.setSkeleton(BuilderUtil.replaceExt(modelDescBuilder.getSkeleton(), ".dae", ".skeletonc"));
         }
-
         if(!modelDescBuilder.getAnimations().isEmpty()) {
-            BuilderUtil.checkResource(this.project, resource, "animations", modelDescBuilder.getAnimations());
-            rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".dae", ".animationsetc"));
+            if(modelDescBuilder.getAnimations().endsWith(".dae")) {
+                // if a collada file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh collada file
+                // we define this a generated file as the animation set does not come from an animset resource, but is exported directly from this collada file
+                // and because we alseo avoid possible resource name collision (ref: atlas <-> texture).
+                rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".dae", "_generated_0.animationsetc"));
+            } else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
+                // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh collada file
+                rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".animationset", ".animationsetc"));
+            } else {
+                throw new CompileExceptionError(task.input(0), -1, "Unknown animation format: " + modelDescBuilder.getAnimations());
+            }
+
         }
 
         rigBuilder.setTextureSet(""); // this is set in the model
@@ -65,6 +84,7 @@ public class ModelBuilder extends Builder<Void> {
         task.output(1).setContent(out.toByteArray());
 
         // Model
+        IResource resource = task.input(0);
         Model.Builder model = Model.newBuilder();
         model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
 

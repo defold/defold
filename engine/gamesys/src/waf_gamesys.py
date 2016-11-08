@@ -116,6 +116,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
         c.component = c.component.replace('.model', '.modelc')
+        c.component = c.component.replace('.animationset', '.animationsetc')
         c.component = c.component.replace('.script', '.scriptc')
         c.component = c.component.replace('.sound', '.soundc')
         c.component = c.component.replace('.factory', '.factoryc')
@@ -142,7 +143,7 @@ def compile_model(task):
         msg_out = rig.rig_ddf_pb2.RigScene()
         msg_out.mesh_set = "/" + msg.mesh.replace(".dae", ".meshsetc")
         msg_out.skeleton = "/" + msg.mesh.replace(".dae", ".skeletonc")
-        msg_out.animation_set = "/" + msg.mesh.replace(".dae", ".animationsetc")
+        msg_out.animation_set = "/" + msg.animations.replace(".dae", ".animationsetc")
         with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
 
@@ -173,6 +174,37 @@ def model_file(self, node):
     out_rigscene = node.change_ext(rig_ext)
     task.set_outputs([out_model, out_rigscene])
 
+def compile_animationset(task):
+    try:
+        import google.protobuf.text_format
+        import rig.rig_ddf_pb2
+        import dlib
+        msg = rig.rig_ddf_pb2.AnimationSetDesc()
+        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+        msg_animset = rig.rig_ddf_pb2.AnimationSet()
+        msg_riganim = msg_animset.animations.add()
+        msg_riganim.id = dlib.dmHashBuffer64(os.path.splitext(os.path.basename(msg.animations[0].animation))[0])
+        msg_riganim.duration = 0.0
+        msg_riganim.sample_rate = 30.0
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(msg_animset.SerializeToString())
+        return 0
+    except google.protobuf.text_format.ParseError,e:
+        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+        return 1
+
+Task.task_type_from_func('animationset',
+                         func    = compile_animationset,
+                         color   = 'PINK')
+
+@extension('.animationset')
+def animationset_file(self, node):
+    out_ext = '.animationsetc'
+    task = self.create_task('animationset')
+    task.set_inputs(node)
+    out_animationset  = node.change_ext(out_ext)
+    task.set_outputs([out_animationset])
 
 def transform_gui(task, msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
@@ -231,8 +263,8 @@ def transform_spine_model(task, msg):
 
 def transform_rig_scene(task, msg):
     msg.skeleton = msg.skeleton.replace('.skeleton', '.skeletonc')
-    msg.animation_set = msg.skeleton.replace('.animationset', '.animationsetc')
-    msg.mesh_set = msg.skeleton.replace('.meshset', '.meshsetc')
+    msg.animation_set = msg.animation_set.replace('.animationset', '.animationsetc')
+    msg.mesh_set = msg.mesh_set.replace('.meshset', '.meshsetc')
     return msg
 
 def write_embedded(task):
