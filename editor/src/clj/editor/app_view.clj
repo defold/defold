@@ -165,7 +165,7 @@
                  :width  (.getWidth stage)
                  :height (.getHeight stage)}]
     (prefs/set-prefs prefs prefs-window-dimensions dims)))
-  
+
 (defn restore-window-dimensions [^Stage stage prefs]
   (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
     (.setX stage (:x dims))
@@ -244,13 +244,13 @@
 
 (handler/defhandler :build :global
   (enabled? [] (not @project/ongoing-build-save?))
-  (run [project prefs web-server build-errors-view]
+  (run [workspace project prefs web-server build-errors-view]
     (let [build (build-project project build-errors-view)]
       (when (and (future? build) @build)
         (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
                 (engine/reboot (:url target) local-url)))
-            (engine/launch (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+            (engine/launch prefs workspace (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
