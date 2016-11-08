@@ -434,6 +434,9 @@ public class ColladaUtil {
         XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values()
                 .iterator().next();
         XMLMesh mesh = geom.mesh;
+        if(mesh == null || mesh.triangles == null) {
+            return;
+        }
         List<XMLSource> sources = mesh.sources;
         HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
 
