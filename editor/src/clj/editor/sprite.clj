@@ -1,5 +1,6 @@
 (ns editor.sprite
-  (:require [editor.protobuf :as protobuf]
+  (:require [clojure.string :as str]
+            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
@@ -227,6 +228,10 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets}])))
 
+(defn- sort-anim-ids
+  [anim-ids]
+  (sort-by str/lower-case anim-ids))
+
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
@@ -236,21 +241,30 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :image-resource]
                                             [:anim-data :anim-data]
+                                            [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
-                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
+                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image"))))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["atlas" "tilesource"]})))
 
   (property default-animation g/Str
-            (dynamic error (g/fnk [_node-id image default-animation anim-data]
-                                  (when image
-                                    (validation/prop-error :fatal _node-id :default-animation (fn [a]
-                                                                                               (when (not (contains? anim-data default-animation))
-                                                                                                 (format "'%s' is not in '%s'" default-animation (resource/resource-name image))))
-                                                          default-animation))))
-            (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
-                                                   :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+            (value (g/fnk [default-animation anim-ids]
+                     (if (and (str/blank? default-animation) anim-ids)
+                       (first (sort-anim-ids anim-ids))
+                       default-animation)))
+            (dynamic error (g/fnk [_node-id image anim-ids default-animation]
+                             (when image
+                               (let [anim-id-set (set anim-ids)]
+                                 (validation/prop-error :fatal _node-id :default-animation (fn [a]
+                                                                                             (when (not (anim-id-set default-animation))
+                                                                                               (format "'%s' is not in '%s'" default-animation (resource/resource-name image))))
+                                                        default-animation)))))
+            (dynamic edit-type (g/fnk [anim-ids] {:type :choicebox
+                                                  :options (zipmap anim-ids anim-ids)})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
@@ -263,7 +277,7 @@
 
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
-            (dynamic edit-type (g/always
+            (dynamic edit-type (g/constantly
                                 (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
                                   {:type :choicebox
                                    :options (zipmap (map first options)
@@ -271,6 +285,7 @@
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
+  (input anim-ids g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
 

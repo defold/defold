@@ -1,7 +1,6 @@
 (ns editor.console
   (:require [editor.ui :as ui]
             [editor.handler :as handler]
-            [editor.workspace :as workspace]
             [clojure.string :as str])
   (:import [javafx.scene.control Button TextArea TextField]
            [javafx.scene.input KeyCode KeyEvent Clipboard ClipboardContent]))
@@ -67,7 +66,7 @@
       (.setContent cb content))))
 
 (defrecord DummySelectionProvider []
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] []))
 
 (defn setup-console! [{:keys [^TextArea text ^TextField search ^Button prev ^Button next ^Button clear]}]

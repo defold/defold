@@ -661,6 +661,20 @@ INSTANTIATE_TEST_CASE_P(SpineModel, ResourceTest, ::testing::ValuesIn(valid_spin
 const char* valid_spine_gos[] = {"/spine/valid_spine.goc"};
 INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, ::testing::ValuesIn(valid_spine_gos));
 
+/* Label */
+
+const char* valid_label_resources[] = {"/label/valid.labelc"};
+INSTANTIATE_TEST_CASE_P(Label, ResourceTest, ::testing::ValuesIn(valid_label_resources));
+
+const char* valid_label_gos[] = {"/label/valid_label.goc"};
+INSTANTIATE_TEST_CASE_P(Label, ComponentTest, ::testing::ValuesIn(valid_label_gos));
+
+const char* invalid_label_gos[] = {"/label/invalid_label.goc"};
+INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, ::testing::ValuesIn(invalid_label_gos));
+
+
+
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

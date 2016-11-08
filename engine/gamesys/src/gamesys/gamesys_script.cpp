@@ -7,6 +7,7 @@
 #include "gamesys.h"
 #include "gamesys_private.h"
 
+#include "scripts/script_label.h"
 #include "scripts/script_particlefx.h"
 #include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
@@ -42,6 +43,7 @@ namespace dmGameSystem
 
         bool result = true;
 
+        ScriptLabelRegister(context);
         ScriptParticleFXRegister(context);
         ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
@@ -60,6 +62,7 @@ namespace dmGameSystem
 
     void FinalizeScriptLibs(const ScriptLibContext& context)
     {
+        ScriptLabelFinalize(context);
         ScriptPhysicsFinalize(context);
         ScriptGfxFinalize(context);
         ScriptMeshFinalize(context);

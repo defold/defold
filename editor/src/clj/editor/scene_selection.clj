@@ -73,40 +73,53 @@
        (.glVertex3d gl max-x, min-y, z);
        (.glEnd gl)))))
 
-(defn- select [controller op-seq mode]
+(defn- select [controller op-seq mode toggle?]
   (let [select-fn (g/node-value controller :select-fn)
         selection (g/node-value controller :picking-selection)
-        sel-filter-fn (case mode
-                        :direct (fn [selection] selection)
-                        :toggle (fn [selection]
-                                  (let [selection-set (set selection)
-                                        prev-selection-set (g/node-value controller :prev-selection-set)]
-                                    (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))
-        selection (or (not-empty (sel-filter-fn selection)) (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
+        mode-filter-fn (case mode
+                        :single (fn [selection] (if-let [sel (first selection)] [sel] []))
+                        :multi  identity)
+        toggle-filter-fn (if toggle?
+                           (fn [selection]
+                             (let [selection-set (set selection)
+                                   prev-selection-set (g/node-value controller :prev-selection-set)]
+                               (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set)))))
+                           identity)
+        sel-filter-fn (comp toggle-filter-fn mode-filter-fn)
+        selection (or (not-empty (sel-filter-fn selection))
+                      (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
     (select-fn selection op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})
 (def other-toggle-modifiers #{:control})
 (def toggle-modifiers (if system/mac? mac-toggle-modifiers other-toggle-modifiers))
 
+(def ^Integer min-pick-size 10)
+
+(defn distance
+  [[x0 y0 z0] [x1 y1 z1]]
+  (.distance (Point3d. x0 y0 z0) (Point3d. x1 y1 z1)))
+
 (defn handle-selection-input [self action user-data]
   (let [start      (g/node-value self :start)
         current    (g/node-value self :current)
         op-seq     (g/node-value self :op-seq)
         mode       (g/node-value self :mode)
+        toggle?    (g/node-value self :toggle?)
         cursor-pos [(:x action) (:y action) 0]]
     (case (:type action)
       :mouse-pressed (let [op-seq (gensym)
-                           toggle (reduce #(or %1 %2) (map #(% action) toggle-modifiers))
-                           mode (if toggle :toggle :direct)]
+                           toggle? (true? (some true? (map #(% action) toggle-modifiers)))
+                           mode :single]
                        (g/transact
                          (concat
                            (g/set-property self :op-seq op-seq)
                            (g/set-property self :start cursor-pos)
                            (g/set-property self :current cursor-pos)
                            (g/set-property self :mode mode)
+                           (g/set-property self :toggle? toggle?)
                            (g/set-property self :prev-selection-set (set (g/node-value self :selection)))))
-                       (select self op-seq mode)
+                       (select self op-seq mode toggle?)
                        nil)
       :mouse-released (do
                         (g/transact
@@ -115,17 +128,21 @@
                             (g/set-property self :current nil)
                             (g/set-property self :op-seq nil)
                             (g/set-property self :mode nil)
+                            (g/set-property self :toggle? nil)
                             (g/set-property self :prev-selection-set nil)))
                         nil)
       :mouse-moved (if start
-                     (do
-                       (g/transact (g/set-property self :current cursor-pos))
-                       (select self op-seq mode)
+                     (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
+                                      :multi
+                                      mode)]
+                       (g/transact
+                         (concat
+                           (when (not= new-mode mode) (g/set-property self :mode new-mode))
+                           (g/set-property self :current cursor-pos)))
+                       (select self op-seq new-mode toggle?)
                        nil)
                      action)
       action)))
-
-(def ^Integer min-pick-size 10)
 
 (defn- imin [^Integer v1 ^Integer v2] (Math/min v1 v2))
 (defn- imax [^Integer v1 ^Integer v2] (Math/max v1 v2))
@@ -138,7 +155,7 @@
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
     (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
-(g/deftype SelectionMode (s/enum :direct :toggle))
+(g/deftype SelectionMode (s/enum :single :multi))
 
 (g/defnode SelectionController
   (property select-fn Runnable)
@@ -146,6 +163,7 @@
   (property current types/Vec3)
   (property op-seq g/Any)
   (property mode SelectionMode)
+  (property toggle? g/Bool)
   (property prev-selection-set g/Any)
 
   (input selection g/Any)
@@ -156,4 +174,4 @@
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
                                                                                     :render-fn render-selection-box
                                                                                     :user-data {:start start :current current}}]}))
-  (output input-handler Runnable :cached (g/always handle-selection-input)))
+  (output input-handler Runnable :cached (g/constantly handle-selection-input)))

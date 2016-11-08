@@ -297,9 +297,9 @@
           node-id (project/get-resource-node project "/collection/sub_defaults.collection")
           coll-path "/collection/props.collection"
           new-coll-path "/collection/props2.collection"]
-      (is (= (format "props (%s)" coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label])))
+      (is (= (format "props - %s" coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label])))
       (move-file workspace coll-path new-coll-path)
-      (is (= (format "props (%s)" new-coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label]))))))
+      (is (= (format "props - %s" new-coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label]))))))
 
 (deftest project-with-missing-parts-can-be-saved
   ;; missing embedded game object, sub collection

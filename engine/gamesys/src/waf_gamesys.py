@@ -119,6 +119,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.script', '.scriptc')
         c.component = c.component.replace('.sound', '.soundc')
         c.component = c.component.replace('.factory', '.factoryc')
+        c.component = c.component.replace('.label', '.labelc')
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
         c.component = c.component.replace('.tileset', '.texturesetc')
@@ -195,6 +196,11 @@ def transform_rig_scene(task, msg):
     msg.skeleton = msg.skeleton.replace('.skeleton', '.skeletonc')
     msg.animation_set = msg.skeleton.replace('.animationset', '.animationsetc')
     msg.mesh_set = msg.skeleton.replace('.meshset', '.meshsetc')
+    return msg
+
+def transform_label(task, msg):
+    msg.font = msg.font.replace('.font', '.fontc')
+    msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
 def write_embedded(task):
@@ -321,6 +327,7 @@ proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_bin
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
 proto_compile_task('factory', 'gamesys_ddf_pb2', 'FactoryDesc', '.factory', '.factoryc', transform_factory)
 proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
+proto_compile_task('label', 'label_ddf_pb2', 'LabelDesc', '.label', '.labelc', transform_label)
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)

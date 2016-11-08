@@ -20,7 +20,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.handler :as handler]
-            [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
             [editor.ui :as ui]
             [editor.scene :as scene]
@@ -372,7 +371,7 @@
   (property select-fn Runnable)
   (input sub-selection g/Any)
   (input curve-handle g/Any)
-  (output input-handler Runnable :cached (g/always handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defn- pick-control-points [curves picking-rect camera viewport]
   (let [aabb (geom/rect->aabb picking-rect)]
@@ -636,7 +635,7 @@
            :fov-x 1.2)))
 
 (defrecord SubSelectionProvider [project]
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] (g/node-value project :sub-selection)))
 
 (defn- on-list-selection [project values]

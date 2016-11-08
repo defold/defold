@@ -8,7 +8,6 @@
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))
 
-(def NodeID s/Int)
 (defn node-id? [v] (integer? v))
 
 (defprotocol Evaluation
