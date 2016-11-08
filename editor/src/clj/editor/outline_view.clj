@@ -83,15 +83,17 @@
                                                         (when expanded (.setExpanded item expanded))
                                                         selected)) items)))
 
-(defn- sync-selection [^TreeView tree-view ^TreeItem root selection]
-  (when (and root (not (empty? selection)))
-    (let [selected-ids (set selection)]
-      (auto-expand (.getChildren root) selected-ids)
-      (let [count (.getExpandedItemCount tree-view)
-            selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
-        (when (not (empty? selected-indices))
-          (doto (-> tree-view (.getSelectionModel))
-            (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
+(defn- sync-selection [^TreeView tree-view selection]
+  (let [root (.getRoot tree-view)]
+    (.. tree-view getSelectionModel clearSelection)
+    (when (and root (not (empty? selection)))
+      (let [selected-ids (set selection)]
+        (auto-expand (.getChildren root) selected-ids)
+        (let [count (.getExpandedItemCount tree-view)
+              selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
+          (when (not (empty? selected-indices))
+            (doto (-> tree-view (.getSelectionModel))
+              (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices))))))))))
 
 (defn- pathify
   ([root]
@@ -102,18 +104,40 @@
         (assoc :path path)
         (update :children (fn [children] (mapv #(pathify path %) children)))))))
 
-(g/defnk update-tree-view [_node-id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
+(defn- tree-view-selection
+  [^TreeView tree-view]
+  (mapv item->node-id (.. tree-view getSelectionModel getSelectedItems)))
+
+(g/defnk produce-tree-root
+  [_node-id active-outline active-resource open-resources root-cache]
   (let [resource-set (set open-resources)
         root (get root-cache active-resource)
-        ^TreeItem new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
+        new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
         new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
-    (binding [*programmatic-selection* true]
-      (when new-root
-        (.setExpanded new-root true))
-      (.setRoot tree-view new-root)
-      (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property _node-id :root-cache new-cache))
-      tree-view)))
+    (g/transact (g/set-property _node-id :root-cache new-cache))
+    new-root))
+
+(defn- update-tree-view-selection!
+  [^TreeView tree-view selection]
+  (binding [*programmatic-selection* true]
+    (sync-selection tree-view selection)
+    tree-view))
+
+(defn- update-tree-view-root!
+  [^TreeView tree-view ^TreeItem root selection]
+  (binding [*programmatic-selection* true]
+    (when root
+      (.setExpanded root true))
+    (.setRoot tree-view root)
+    (sync-selection tree-view selection)
+    tree-view))
+
+(g/defnk update-tree-view [_node-id ^TreeView tree-view ^TreeItem root selection]
+  (if (identical? (.getRoot tree-view) root)
+    (if (= (set selection) (set (tree-view-selection tree-view)))
+      tree-view
+      (update-tree-view-selection! tree-view selection))
+    (update-tree-view-root! tree-view root selection)))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
@@ -125,6 +149,7 @@
   (input open-resources g/Any :substitute [])
   (input selection g/Any :substitute [])
 
+  (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached update-tree-view))
 
 (ui/extend-menu ::outline-menu nil
