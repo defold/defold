@@ -15,6 +15,7 @@ import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.value.WeakChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -159,11 +160,11 @@ public class DefoldStyledTextLayoutContainer extends Region {
 		Bindings.bindContent(this.textLayoutNode.getChildren(), this.textNodes);
 		getChildren().setAll(this.selectionMarker, this.textLayoutNode, this.caret);
 		selectionProperty().addListener(this::handleSelectionChange);
-		ownerFocusedProperty.addListener( o -> {
-			if( ! ownerFocusedProperty.get() ) {
-				this.caret.setVisible(false);
+		ownerFocusedProperty.addListener(new WeakChangeListener<>((observable, oldValue, newValue) -> {
+			if (!newValue) {
+                            this.caret.setVisible(false);
 			}
-		});
+                }));
 	}
 
 	private int getEndOffset() {
