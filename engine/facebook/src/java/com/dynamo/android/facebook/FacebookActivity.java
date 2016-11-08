@@ -219,6 +219,7 @@ public class FacebookActivity implements PseudoActivity {
             @Override
             public void onSuccess(LoginResult result) {
                 Bundle data = new Bundle();
+                data.putInt(Facebook.MSG_KEY_STATE, State.STATE_OPEN.getValue());
                 data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
                 respond(action, data);
             }
@@ -227,6 +228,7 @@ public class FacebookActivity implements PseudoActivity {
             public void onCancel() {
                 Bundle data = new Bundle();
                 data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
                 data.putString(Facebook.MSG_KEY_ERROR, "Login was cancelled");
                 respond(action, data);
             }
@@ -235,6 +237,7 @@ public class FacebookActivity implements PseudoActivity {
             public void onError(FacebookException error) {
                 Bundle data = new Bundle();
                 data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
                 data.putString(Facebook.MSG_KEY_ERROR, error.toString());
                 respond(action, data);
             }
