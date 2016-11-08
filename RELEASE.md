@@ -50,9 +50,9 @@ Important: *Make sure your branches are up to date!*
  
     http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.dmg
     
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-win32.win32.x86.dmg
+    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-win32.win32.x86.zip
     
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-linux.gtk.x86_64.dmg
+    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-linux.gtk.x86_64.zip
     
     The SHA1 can be found in the latest [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) build, or `git log` on beta branch.
 
@@ -116,9 +116,9 @@ The following smoke tests are currently performed by the team on each platform (
  
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
     
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-win32.win32.x86.dmg
+    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-win32.win32.x86.zip
     
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-linux.gtk.x86_64.dmg
+    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-linux.gtk.x86_64.zip
     
  1. Tag the release in git:
 
