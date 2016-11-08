@@ -84,7 +84,8 @@
     (.add (.getTabs pane) tab)))
 
 (defpage "General"
-  {:label "Enable Texture Profiles" :type :boolean :key "general-enable-texture-profiles" :default true})
+  {:label "Enable Texture Profiles" :type :boolean :key "general-enable-texture-profiles" :default true}
+  {:label "Enable Extensions" :type :boolean :key "enable-extensions" :default false})
 
 (defpage "Scene"
   {:label "Selection Color" :type :color :key "scene-selection-color" :default (Color/web "#00ff00ff")}
