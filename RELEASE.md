@@ -73,6 +73,8 @@ Important: *Make sure your branches are up to date!*
 
  1. Verify release by updating an old editor, OSX, Win and Linux.
 
+ 1. Send notification email with release notes to defold-users@king.com
+
 ## Smoke Tests of Beta
 
 ### QRT
