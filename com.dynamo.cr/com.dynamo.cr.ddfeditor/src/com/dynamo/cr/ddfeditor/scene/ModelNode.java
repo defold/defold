@@ -1,17 +1,26 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import java.awt.FontFormatException;
 import java.awt.image.BufferedImage;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.FloatBuffer;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 import javax.media.opengl.GL2;
 
+import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 
+import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.bob.pipeline.ColladaUtil;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
@@ -52,7 +61,7 @@ public class ModelNode extends ComponentTypeNode {
     @Resource
     private String skeleton = "";
 
-    @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"dae", "animationset"})
     @Resource
     private String animations = "";
 
@@ -148,8 +157,23 @@ public class ModelNode extends ComponentTypeNode {
     private void updateAnimations() {
         animationOptions.clear();
         try {
-            IFile animFile = getModel().getFile(this.animations.isEmpty() ? this.mesh : this.animations);
-            ColladaUtil.loadAnimationIds(animFile.getContents(), animationOptions);
+            animationOptions.clear();
+            if(!this.animations.isEmpty())
+            {
+                ColladaUtil.loadAnimationIds(this.animations.isEmpty() ? this.mesh : this.animations, "", animationOptions, new ColladaUtil.ColladaResourceResolver() {
+                    @Override
+                    public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                            IFile resFile = getModel().getFile(resourceName);
+                            try {
+                                return resFile.getContents();
+                            } catch (CoreException e) {
+                                throw new FileNotFoundException(e.getMessage());
+                            }
+                        }
+                    }
+                );
+            }
         } catch (Exception e) {
             animationOptions.clear();
         }

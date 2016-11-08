@@ -12,8 +12,8 @@ import com.dynamo.bob.pipeline.LoaderException;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.google.protobuf.Message;
-import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.Mesh;
+import com.dynamo.rig.proto.Rig.MeshEntry;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
@@ -25,11 +25,12 @@ public class MeshLoader implements INodeLoader<MeshNode> {
 
         try {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-            Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-            AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
-            ColladaUtil.load(contents, meshSetBuilder, animSetBuilder, skeletonBuilder);
-            Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
-            return new MeshNode(mesh);
+            ColladaUtil.loadMesh(contents, meshSetBuilder);
+            MeshSet meshSet = meshSetBuilder.build();
+            if(meshSet.getMeshEntriesCount() == 0) {
+                return new MeshNode();
+            }
+            return new MeshNode(meshSet.getMeshEntries(0).getMeshes(0));
         } catch (XMLStreamException e) {
             return invalidMeshNode(e);
         } catch (LoaderException e) {

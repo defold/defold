@@ -237,6 +237,8 @@ namespace dmRig
         float                         m_BlendTimer;
         /// Mesh type indicate how vertex data will be filled
         RigMeshType                   m_MeshType;
+        // Max bone count used by skeleton (if it is used) and meshset
+        uint32_t                      m_MaxBoneCount;
         /// Current player index
         uint8_t                       m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not
@@ -300,6 +302,7 @@ namespace dmRig
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);
     uint32_t GetBoneCount(HRigInstance instance);
+    uint32_t GetMaxBoneCount(HRigInstance instance);
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
     // Util function used to fill a bind pose array from skeleton data

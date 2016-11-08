@@ -394,6 +394,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             // Skeleton
             Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
             List<Integer> boneIndexRemap = toDDF(scene.bones, scene.iks, skeletonBuilder);
+            int maxBoneCount = skeletonBuilder.getBonesCount();
             out = new ByteArrayOutputStream(64 * 1024);
             skeletonBuilder.setLocalBoneScaling(scene.localBoneScaling);
             skeletonBuilder.build().writeTo(out);
@@ -407,6 +408,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             for (Map.Entry<String, List<RigUtil.Mesh>> entry : scene.skins.entrySet()) {
                 slotIndices.put(MurmurHash.hash64(entry.getKey()), toDDF(entry.getKey(), scene.meshes, entry.getValue(), meshSetBuilder, boneIndexRemap));
             }
+            meshSetBuilder.setMaxBoneCount(maxBoneCount);
             out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);
             out.close();
