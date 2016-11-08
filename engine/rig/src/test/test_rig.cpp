@@ -477,6 +477,7 @@ private:
     void TearDownSimpleSpine() {
 
         delete [] m_AnimationSet->m_Animations.m_Data[3].m_Tracks.m_Data[0].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[3].m_Tracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[2].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[1].m_Scale.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[0].m_Rotations.m_Data;
