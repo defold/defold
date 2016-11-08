@@ -64,6 +64,6 @@
         data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
     (is (= 200 (:status res)))
     (is (= "parallax" (:name data)))
-    (is (= 11 (count (:instances data)))))
+    (is (= 12 (count (:instances data)))))
 
   (is (= 404 (:status (handler-get (partial hotload/build-handler *project*) "foobar")))))
