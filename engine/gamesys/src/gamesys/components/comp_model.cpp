@@ -184,8 +184,11 @@ namespace dmGameSystem
         const dmArray<dmRig::RigBone>& bind_pose = component->m_Resource->m_RigScene->m_BindPose;
         const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
-        uint32_t prev_bone_count = component->m_NodeInstances.Size();
 
+        // When reloading, we want to preserve the existing instances.
+        // We need to be able to dynamically add objects on reloading since we can mix mesh, skeleton, animations. We could possibly delete all and recreate all,
+        // but except for performance it would also need double the instance count (which is preallocated) since we're using deferred deletes, which would not reflect the actual max instance need.
+        uint32_t prev_bone_count = component->m_NodeInstances.Size();
         if (bone_count > component->m_NodeInstances.Capacity()) {
             component->m_NodeInstances.OffsetCapacity(bone_count - prev_bone_count);
         }

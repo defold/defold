@@ -70,11 +70,11 @@ public class AnimationSetBuilder extends Builder<Void>  {
             AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
             ArrayList<String> animationIds = new ArrayList<String>();
             try {
-                ColladaUtil.loadAnimations(animFileIS, animBuilder, 30.0f, animId, animationIds);
+                ColladaUtil.loadAnimations(animFileIS, animBuilder, 30.0f, animId, animationIds); // TODO: The samplerate should settable per animation instance, as a property defaulting to 30.0
             } catch (XMLStreamException e) {
-                throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
+                throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
             } catch (LoaderException e) {
-                throw new CompileExceptionError(task.input(0), -1, "Failed to load animation: " + e.getLocalizedMessage(), e);
+                throw new CompileExceptionError(animFile, -1, "Failed to load animation: " + e.getLocalizedMessage(), e);
             }
 
             animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
