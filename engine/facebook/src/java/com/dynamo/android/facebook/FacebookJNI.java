@@ -201,7 +201,7 @@ class FacebookJNI {
                 Facebook.LoginCallback callback = new Facebook.LoginCallback() {
 
                     @Override
-                    public void onDone(int state, final String error) {
+                    public void onDone(final int state, final String error) {
                         onLoginWithPermissions(userData, state, error);
                     }
 
@@ -221,7 +221,7 @@ class FacebookJNI {
                 Facebook.LoginCallback callback = new Facebook.LoginCallback() {
 
                     @Override
-                    public void onDone(int state, final String error) {
+                    public void onDone(final int state, final String error) {
                         onLoginWithPermissions(userData, state, error);
                     }
 
