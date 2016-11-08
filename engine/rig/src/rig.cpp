@@ -62,7 +62,7 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration)
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
         if (anim == 0x0)
@@ -84,7 +84,17 @@ namespace dmRig
         RigPlayer* player = SwitchPlayer(instance);
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
-        player->m_Cursor = 0.0f;
+        //player->m_Cursor = 0.0f;
+
+        if (offset > 0.0f)
+        {
+            SetCursor(instance, offset, true);
+        }
+        else
+        {
+            player->m_Cursor = 0.0f;
+        }
+        SetPlaybackRate(instance, playback_rate);
         player->m_Playing = 1;
         player->m_Playback = playback;
         if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD)
@@ -269,7 +279,7 @@ namespace dmRig
         float prev_cursor = player->m_Cursor;
         if (player->m_Playback != dmRig::PLAYBACK_NONE)
         {
-            player->m_Cursor += dt;
+            player->m_Cursor += dt * player->m_PlaybackRate;
         }
         float duration = GetCursorDuration(player, animation);
         if (duration == 0.0f) {
@@ -755,43 +765,84 @@ namespace dmRig
     float GetCursor(HRigInstance instance, bool normalized)
     {
         RigPlayer* player = GetPlayer(instance);
-        if (!player) {
+
+        if (!player)
+        {
             return 0.0f;
         }
 
         float duration = GetCursorDuration(player, player->m_Animation);
-        if (duration == 0.0f) {
+
+        if (duration == 0.0f)
+        {
             return 0.0f;
         }
 
         float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
-        if (normalized) {
+
+        if (normalized)
+        {
             t = t / duration;
         }
-        return t;
 
+        return t;
     }
 
     Result SetCursor(HRigInstance instance, float cursor, bool normalized)
     {
         float t = cursor;
-
         RigPlayer* player = GetPlayer(instance);
-        if (!player) {
+
+        if (!player)
+        {
             return dmRig::RESULT_ERROR;
         }
 
         float duration = GetCursorDuration(player, player->m_Animation);
-        if (normalized) {
+
+        if (normalized)
+        {
             t = t * duration;
         }
 
         t = fmod(t, duration);
-        if (cursor < 0) {
+
+        if (cursor < 0)
+        {
             t = duration + t;
         }
 
         player->m_Cursor = t;
+
+        return dmRig::RESULT_OK;
+    }
+
+    float GetPlaybackRate(HRigInstance instance)
+    {
+        RigPlayer* player = GetPlayer(instance);
+        if (!player)
+        {
+            return 1.0f;
+        }
+
+        return player->m_PlaybackRate;
+    }
+
+    Result SetPlaybackRate(HRigInstance instance, float playback_rate)
+    {
+        RigPlayer* player = GetPlayer(instance);
+
+        if (!player)
+        {
+            return dmRig::RESULT_ERROR;
+        }
+
+        player->m_PlaybackRate = playback_rate;
+
+        if (playback_rate < 0.0f)
+        {
+            player->m_Backwards = 1;
+        }
 
         return dmRig::RESULT_OK;
     }
