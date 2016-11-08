@@ -99,7 +99,7 @@ The following smoke tests are currently performed by the team on each platform (
 
     This will trigger a build of the engines and editors for stable.
     
- 1. Wait for the editor build: [cr-editor](http://ci.defold.com/builders/cr-editor)
+ 1. Wait for the editor build: [cr-editor](http://ci.defold.com/builders/cr-editor).
     Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
  
  1. Sign the editor: [sign-editor-master](http://ci.defold.com/builders/sign-editor-master)
