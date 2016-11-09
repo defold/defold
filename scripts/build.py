@@ -367,8 +367,45 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
+    def _add_files_to_zip(self, zip, paths, directory=None):
+        for p in paths:
+            if not os.path.isfile(p):
+                continue
+            an = p
+            if directory:
+                an = os.path.relpath(p, directory)
+            zip.write(p, an)
+
     def is_cross_platform(self):
         return self.host != self.target_platform
+
+    # package the native SDK, return the path to the zip file
+    def _package_platform_sdk(self, platform):
+        outfile = tempfile.NamedTemporaryFile(delete = False)
+
+        zip = zipfile.ZipFile(outfile, 'w')
+
+        # Includes
+        includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
+        includes = [os.path.join(self.dynamo_home, x) for x in includes]
+        self._add_files_to_zip(zip, includes, self.dynamo_home)
+
+        def _findlibs(libdir):
+            paths = os.listdir(libdir)
+            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+            return paths
+
+        # Dynamo libs
+        libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
+        paths = _findlibs(libdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home)
+        # External libs
+        libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
+        paths = _findlibs(libdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home)
+
+        zip.close()
+        return outfile.name
 
     def archive_engine(self):
         exe_prefix = ''
@@ -446,6 +483,10 @@ class Configuration(object):
         for lib in libs:
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
             self.upload_file(lib_path, '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext))
+
+        sdkpath = self._package_platform_sdk(self.target_platform)
+        self.upload_file(sdkpath, '%s/sdk.zip' % full_archive_path)
+        os.unlink(sdkpath)
 
     def build_engine(self):
         supported_tests = {}
