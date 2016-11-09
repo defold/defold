@@ -137,7 +137,7 @@
             (dynamic error (g/fnk [_node-id sound]
                                   (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound "Sound")
                                       (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound "Sound"))))
-            (dynamic edit-type (g/always {:type resource/Resource :ext supported-audio-formats})))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats})))
 
   (property looping g/Bool (default false))
   (property group g/Str (default "master"))

@@ -31,7 +31,7 @@
    [com.google.protobuf ByteString]
    [editor.types AABB]
    [javax.vecmath Point3d Matrix4d]
-   [javax.media.opengl GL GL2]
+   [com.jogamp.opengl GL GL2]
    [java.awt.image BufferedImage]
    [java.nio ByteBuffer ByteOrder FloatBuffer]))
 
@@ -188,7 +188,7 @@
                                   (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
   (property playback types/AnimationPlayback
             (default :playback-once-forward)
-            (dynamic edit-type (g/always
+            (dynamic edit-type (g/constantly
                                 (let [options (protobuf/enum-values Tile$Playback)]
                                   {:type :choicebox
                                    :options (zipmap (map first options)
@@ -197,7 +197,7 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
   (property flip-horizontal g/Bool (default false))
   (property flip-vertical g/Bool (default false))
-  (property cues g/Any (dynamic visible (g/always false)))
+  (property cues g/Any (dynamic visible (g/constantly false)))
 
   (input tile-count g/Int)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
@@ -522,9 +522,9 @@
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
                                   (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
 
-  (property material-tag g/Str (default "tile") (dynamic visible (g/always false)))
-  (property original-convex-hulls g/Any (dynamic visible (g/always false)))
-  (property tile->collision-group-node g/Any (dynamic visible (g/always false)))
+  (property material-tag g/Str (default "tile") (dynamic visible (g/constantly false)))
+  (property original-convex-hulls g/Any (dynamic visible (g/constantly false)))
+  (property tile->collision-group-node g/Any (dynamic visible (g/constantly false)))
 
   (input collision-groups g/Any :array)
   (input animation-ddfs g/Any :array)
@@ -743,7 +743,7 @@
   (output active-tile-idx g/Any :cached produce-active-tile-idx)
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
-  (output input-handler Runnable :cached (g/always handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defmethod scene/attach-tool-controller ::ToolController
   [_ tool-id view-id resource-id]
@@ -850,8 +850,11 @@
     (g/transact
       (make-collision-group-node self project true collision-group))))
 
-(handler/defhandler :add :global
-  (active? [selection] (handler/single-selection? selection TileSourceNode))
+(defn- selection->tile-source [selection]
+  (handler/adapt-single selection TileSourceNode))
+
+(handler/defhandler :add :workbench
+  (active? [selection] (selection->tile-source selection))
   (label [selection user-data]
          (if-not user-data
            "Add"
@@ -868,7 +871,7 @@
                :user-data {:action add-collision-group-node!}}
               ]))
   (run [selection user-data]
-    ((:action user-data) (first selection))))
+    ((:action user-data) (selection->tile-source selection))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

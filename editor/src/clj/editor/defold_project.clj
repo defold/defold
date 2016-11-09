@@ -36,7 +36,7 @@
 
 (def ^:dynamic *load-cache* nil)
 
-(def ^:private unknown-icon "icons/32/Icons_29-AT-Unkown.png")
+(def ^:private unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (def ^:const hot-reload-url-prefix "/build")
 
@@ -46,7 +46,7 @@
   (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets g/Any (g/always []))
+  (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id resource source-outline child-outlines]
            (let [rt (resource/resource-type resource)
@@ -362,7 +362,7 @@
 
 (defn- launch-engine [launch-dir]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
+        path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)
         pb     (doto (ProcessBuilder. ^java.util.List (list path))
                  (.redirectErrorStream true)
                  (.directory launch-dir))]
@@ -375,8 +375,6 @@
                                           basis            (g/now)
                                           cache            (g/cache)}
                                      :as opts}]
-  (reset! (g/node-value project :build-cache {:basis basis :cache cache}) {})
-  (reset! (g/node-value project :fs-build-cache {:basis basis :cache cache}) {})
   (let [files-on-disk  (file-seq (io/file (workspace/build-path
                                            (g/node-value project :workspace {:basis basis :cache cache}))))
         fs-build-cache (g/node-value project :fs-build-cache {:basis basis :cache cache})
@@ -542,6 +540,7 @@
   (input selected-node-ids g/Any :array)
   (input selected-node-properties g/Any :array)
   (input resources g/Any)
+  (input resource-map g/Any)
   (input resource-types g/Any)
   (input save-data g/Any :array :substitute (fn [save-data] (vec (remove g/error? save-data))))
   (input node-resources resource/Resource :array)
@@ -554,11 +553,12 @@
   (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
                                              (let [nids (set selected-node-ids)]
                                                (filterv (comp nids first) sub-selection))))
+  (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
-  (output nil-resource resource/Resource (g/always nil))
+  (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data))
 
 (defn get-resource-type [resource-node]
@@ -692,20 +692,16 @@
 
 (defn select
   [project-id node-ids]
-    (let [nil-node-ids (filter nil? node-ids)
-          node-ids (if (not (empty? nil-node-ids))
-                     (filter some? node-ids)
-                     node-ids)]
-      (assert (empty? nil-node-ids) "Attempting to select nil values")
+  (assert (not-any? nil? node-ids) "Attempting to select nil values")
+  (concat
+    (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
+      (g/disconnect node-id label project-id :selected-node-ids))
+    (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
+      (g/disconnect node-id label project-id :selected-node-properties))
+    (for [node-id (distinct node-ids)]
       (concat
-        (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
-          (g/disconnect node-id label project-id :selected-node-ids))
-        (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
-          (g/disconnect node-id label project-id :selected-node-properties))
-        (for [node-id node-ids]
-          (concat
-            (g/connect node-id :_node-id    project-id :selected-node-ids)
-            (g/connect node-id :_properties project-id :selected-node-properties))))))
+        (g/connect node-id :_node-id    project-id :selected-node-ids)
+        (g/connect node-id :_properties project-id :selected-node-properties)))))
 
 (defn select!
   ([project node-ids]
@@ -735,7 +731,7 @@
     (handle-resource-changes project-id changes render-progress!)))
 
 (deftype ProjectSelectionProvider [project-id]
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] (g/node-value project-id :selected-node-ids)))
 
 (defn selection-provider [project-id] (ProjectSelectionProvider. project-id))
@@ -748,6 +744,7 @@
               (g/make-nodes graph
                             [project [Project :workspace workspace-id :build-cache (atom {}) :fs-build-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
+                            (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
                             (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))

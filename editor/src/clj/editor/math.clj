@@ -1,5 +1,6 @@
 (ns editor.math
   (:import [java.lang Math]
+           [java.math RoundingMode]
            [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d
             Tuple3d Tuple4d]))
 
@@ -19,6 +20,17 @@
 
 (defn rad->deg [rad]
   (* rad 180.0 recip-pi))
+
+(defn round-with-precision
+  "Slow but precise rounding to a specified precision. Use with UI elements that
+  produce doubles, not for performance-sensitive code. The precision is expected
+  to be a double in the format 0.01, which would round 1.666666 to 1.67."
+  ([^double n ^double precision]
+   (round-with-precision n precision RoundingMode/HALF_UP))
+  ([^double n ^double precision ^RoundingMode rounding-mode]
+   (.doubleValue (.setScale (BigDecimal. n)
+                            (int (- (Math/log10 precision)))
+                            rounding-mode))))
 
 (defn project [^Vector3d from ^Vector3d onto] ^Double
   (let [onto-dot (.dot onto onto)]

@@ -61,18 +61,19 @@
 
 (g/defnk produce-build-targets
   [_node-id resource factory-type prototype pb-msg dep-build-targets]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
-        dep-resources (map (fn [[label resource]]
-                             [label (get deps-by-resource resource)])
-                           [[:prototype prototype]])]
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-factory
-        :user-data {:pb-msg pb-msg
-                    :pb-type (get-in factory-types [factory-type :pb-type])
-                    :dep-resources dep-resources}
-        :deps dep-build-targets}]))
+  (or (validation/prop-error :fatal _node-id :prototype validation/prop-nil? prototype "prototype")
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
+            dep-resources (map (fn [[label resource]]
+                                 [label (get deps-by-resource resource)])
+                               [[:prototype prototype]])]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-factory
+          :user-data {:pb-msg pb-msg
+                      :pb-type (get-in factory-types [factory-type :pb-type])
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
 
 (defn load-factory
   [factory-type project self resource]
@@ -90,7 +91,7 @@
   (input prototype-resource resource/Resource)
 
   (property factory-type g/Any
-            (dynamic visible (g/always false)))
+            (dynamic visible (g/constantly false)))
 
   (property prototype resource/Resource
             (value (gu/passthrough prototype-resource))

@@ -27,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.defold.editor.Updater.UpdateInfo;
-import com.defold.libs.NativeArtifacts;
+import com.defold.libs.ResourceUnpacker;
 
 import javafx.application.Application;
 import javafx.beans.value.ChangeListener;
@@ -191,9 +191,9 @@ public class Start extends Application {
                 // Occular inspection shows the splash as grey for a few frames (1-3?) before filled in with graphics. That grey-time also seems to differ between runs.
                 // This is an attempt to make the deadlock less likely to happen and hopefully avoid it altogether. No guarantees.
                 Thread.sleep(200);
-                NativeArtifacts.extractNatives();
+                ResourceUnpacker.unpackResources();
                 ClassLoader parent = ClassLoader.getSystemClassLoader();
-                Class<?> glprofile = parent.loadClass("javax.media.opengl.GLProfile");
+                Class<?> glprofile = parent.loadClass("com.jogamp.opengl.GLProfile");
                 Method init = glprofile.getMethod("initSingleton");
                 init.invoke(null);
             } catch (Exception e) {

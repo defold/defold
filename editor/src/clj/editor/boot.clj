@@ -62,7 +62,7 @@
 
 (defn open-welcome [prefs cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")
         ^Button open-project (.lookup root "#open-project")

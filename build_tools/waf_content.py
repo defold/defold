@@ -86,6 +86,11 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
             print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
             return 1
 
+        except google.protobuf.message.EncodeError,e:
+            print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+            return 1
+
+
     task = Task.task_type_from_func(name,
                                     func    = compile,
                                     color   = 'RED',

@@ -22,6 +22,67 @@ static int WriteString(char* dst, size_t dst_size, const char* src, size_t src_s
     return src_size;
 }
 
+void dmFacebook::JoinCStringArray(const char** array, uint32_t arrlen,
+    char* buffer, uint32_t buflen, const char* delimiter)
+{
+    if (array == 0x0 || arrlen == 0 || buffer == 0x0 || buflen == 0)
+    {
+        return;
+    }
+
+    for (uint32_t i = 0; i < arrlen; ++i)
+    {
+        if (i > 0)
+        {
+            (void) dmStrlCat(buffer, delimiter, buflen);
+        }
+
+        (void) dmStrlCat(buffer, array[i], buflen);
+    }
+}
+
+int dmFacebook::luaTableToCArray(lua_State* L, int index, char** buffer, uint32_t buffer_size)
+{
+    uint32_t entries = 0;
+
+    if (L == 0x0 || buffer == 0x0 || buffer_size == 0)
+    {
+        return entries;
+    }
+
+    lua_pushnil(L);
+    while (lua_next(L, index))
+    {
+        if (lua_isstring(L, -1))
+        {
+            if (entries < buffer_size)
+            {
+                const char* permission = lua_tostring(L, -1);
+
+                uint32_t permission_buffer_len = strlen(permission) + 1;
+                char* permission_buffer = (char*) malloc(permission_buffer_len);
+                DM_SNPRINTF(permission_buffer, permission_buffer_len, "%s", permission);
+
+                buffer[entries++] = permission_buffer;
+            }
+        }
+        else
+        {
+            for (uint32_t i = 0; i < entries; ++i)
+            {
+                free(buffer[i]);
+            }
+
+            lua_pop(L, 1);
+            return -1;
+        }
+
+        lua_pop(L, 1);
+    }
+
+    return entries;
+}
+
 int dmFacebook::LuaValueToJsonValue(lua_State* L, int index, char* buffer, size_t buffer_size)
 {
     // need space for null term

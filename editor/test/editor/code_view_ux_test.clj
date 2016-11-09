@@ -19,16 +19,20 @@
   (text [this] @content)
   (replace! [this offset length s]))
 
+(defn- ->context [source-viewer clipboard]
+  {:name :code-view
+   :env {:source-viewer source-viewer :clipboard clipboard}})
+
 (defn- key-typed! [source-viewer key-typed]
-  (cvx/handler-run :key-typed [{:name :code-view
-                                :env {:selection source-viewer :key-typed key-typed :key-event (KeyEvent. KeyEvent/KEY_TYPED
-                                                                                                          key-typed
-                                                                                                          ""
-                                                                                                          (KeyCode/getKeyCode key-typed)
-                                                                                                          false
-                                                                                                          false
-                                                                                                          false
-                                                                                                          false)}}] {}))
+  (cvx/handler-run :key-typed [(->context source-viewer nil)] {:key-typed key-typed
+                                                               :key-event (KeyEvent. KeyEvent/KEY_TYPED
+                                                                                     key-typed
+                                                                                     ""
+                                                                                     (KeyCode/getKeyCode key-typed)
+                                                                                     false
+                                                                                     false
+                                                                                     false
+                                                                                     false)}))
 
 (deftest key-typed-test
   (with-clean-system
@@ -56,10 +60,10 @@
         (is (= "[1]" (text source-viewer)))))))
 
 (defn- copy! [source-viewer clipboard]
-  (cvx/handler-run :copy [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}] {}))
+  (cvx/handler-run :copy [(->context source-viewer clipboard)] {}))
 
 (defn- paste! [source-viewer clipboard]
-  (cvx/handler-run :paste [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}]{}))
+  (cvx/handler-run :paste [(->context source-viewer clipboard)]{}))
 
 (deftest copy-paste-test
   (with-clean-system
@@ -81,10 +85,10 @@
         (is (= "world world" (text source-viewer)))))))
 
 (defn- right! [source-viewer]
-  (cvx/handler-run :right [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :right [(->context source-viewer nil)] {}))
 
 (defn- left! [source-viewer]
-  (cvx/handler-run :left [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :left [(->context source-viewer nil)] {}))
 
 (deftest move-right-left-test
   (with-clean-system
@@ -143,10 +147,10 @@
         (is (= 0 (caret source-viewer)))))))
 
 (defn- select-right! [source-viewer]
-  (cvx/handler-run :select-right [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-right [(->context source-viewer nil)] {}))
 
 (defn- select-left! [source-viewer]
-  (cvx/handler-run :select-left [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-left [(->context source-viewer nil)] {}))
 
 (deftest select-move-right-left-test
   (with-clean-system
@@ -183,10 +187,10 @@
        (is (= 0 (caret source-viewer)))))))
 
 (defn- up! [source-viewer]
-  (cvx/handler-run :up [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :up [(->context source-viewer nil)] {}))
 
 (defn- down! [source-viewer]
-  (cvx/handler-run :down [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :down [(->context source-viewer nil)] {}))
 
 (defn- get-char-at-caret [source-viewer]
   (get (text source-viewer) (caret source-viewer)))
@@ -259,10 +263,10 @@
         (is (= 0 (caret source-viewer)))))))
 
 (defn- select-up! [source-viewer]
-  (cvx/handler-run :select-up [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-up [(->context source-viewer nil)] {}))
 
 (defn- select-down! [source-viewer]
-  (cvx/handler-run :select-down [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-down [(->context source-viewer nil)] {}))
 
 (deftest select-move-up-down-test
   (with-clean-system
@@ -283,10 +287,10 @@
         (is (= "line" (text-selection source-viewer)))))))
 
 (defn- next-word! [source-viewer]
-  (cvx/handler-run :next-word [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :next-word [(->context source-viewer nil)] {}))
 
 (defn- prev-word! [source-viewer]
-  (cvx/handler-run :prev-word [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :prev-word [(->context source-viewer nil)] {}))
 
 (deftest word-move-test
   (with-clean-system
@@ -345,10 +349,10 @@
         (is (= 9 (caret source-viewer)))))))
 
 (defn- select-next-word! [source-viewer]
-  (cvx/handler-run :select-next-word [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-next-word [(->context source-viewer nil)] {}))
 
 (defn- select-prev-word! [source-viewer]
-  (cvx/handler-run :select-prev-word [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-prev-word [(->context source-viewer nil)] {}))
 
 (deftest select-word-move-test
   (with-clean-system
@@ -369,10 +373,10 @@
         (is (= "" (text-selection source-viewer)))))))
 
 (defn- line-begin! [source-viewer]
-  (cvx/handler-run :line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :line-begin [(->context source-viewer nil)]{}))
 
 (defn- line-end! [source-viewer]
-  (cvx/handler-run :line-end [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :line-end [(->context source-viewer nil)]{}))
 
 (deftest line-begin-end-test
   (with-clean-system
@@ -406,10 +410,10 @@
         (is (= 0 (caret source-viewer)))))))
 
 (defn- select-line-begin! [source-viewer]
-  (cvx/handler-run :select-line-begin [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-line-begin [(->context source-viewer nil)]{}))
 
 (defn- select-line-end! [source-viewer]
-  (cvx/handler-run :select-line-end [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-line-end [(->context source-viewer nil)]{}))
 
 (deftest select-line-begin-end-test
   (with-clean-system
@@ -429,10 +433,10 @@
         (is (= "o world" (text-selection source-viewer)))))))
 
 (defn- file-begin! [source-viewer]
-  (cvx/handler-run :file-begin [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :file-begin [(->context source-viewer nil)]{}))
 
 (defn- file-end! [source-viewer]
-  (cvx/handler-run :file-end [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :file-end [(->context source-viewer nil)]{}))
 
 (deftest file-begin-end-test
   (with-clean-system
@@ -452,10 +456,10 @@
         (is (= 11 (caret source-viewer)))))))
 
 (defn- select-file-begin! [source-viewer]
-  (cvx/handler-run :select-file-begin [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-file-begin [(->context source-viewer nil)]{}))
 
 (defn- select-file-end! [source-viewer]
-  (cvx/handler-run :select-file-end [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-file-end [(->context source-viewer nil)]{}))
 
 (deftest select-file-begin-end-test
   (with-clean-system
@@ -501,7 +505,7 @@
         (is (= 5 (caret source-viewer)))))))
 
 (defn- select-word! [source-viewer]
-  (cvx/handler-run :select-word [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-word [(->context source-viewer nil)]{}))
 
 (deftest select-word-test
   (with-clean-system
@@ -531,7 +535,7 @@
         (is (= "" (text-selection source-viewer)))))))
 
 (defn- select-line! [source-viewer]
-  (cvx/handler-run :select-line [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-line [(->context source-viewer nil)]{}))
 
 (deftest select-line-test
   (with-clean-system
@@ -547,7 +551,7 @@
         (is (= "line2" (text-selection source-viewer)))))))
 
 (defn- select-all! [source-viewer]
-  (cvx/handler-run :select-all [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :select-all [(->context source-viewer nil)]{}))
 
 (deftest select-all-test
   (with-clean-system
@@ -561,10 +565,10 @@
         (is (= (caret source-viewer) (count (text source-viewer))))))))
 
 (defn- delete! [source-viewer]
-  (cvx/handler-run :delete [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :delete [(->context source-viewer nil)]{}))
 
 (defn- delete-forward! [source-viewer]
-  (cvx/handler-run :delete-forward [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :delete-forward [(->context source-viewer nil)]{}))
 
 (deftest delete-test
   (with-clean-system
@@ -621,7 +625,7 @@
         (is (= "[hello" (text source-viewer)))))))
 
 (defn- cut! [source-viewer clipboard]
-  (cvx/handler-run :cut [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}]{}))
+  (cvx/handler-run :cut [(->context source-viewer clipboard)]{}))
 
 (deftest cut-test
   (with-clean-system
@@ -649,10 +653,10 @@
         (= "line1\n" (text source-viewer))))))
 
 (defn- delete-prev-word! [source-viewer]
-  (cvx/handler-run :delete-prev-word [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :delete-prev-word [(->context source-viewer nil)]{}))
 
 (defn- delete-next-word! [source-viewer]
-  (cvx/handler-run :delete-next-word [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :delete-next-word [(->context source-viewer nil)]{}))
 
 (deftest delete-by-word
   (with-clean-system
@@ -681,10 +685,10 @@
         (is (= nil  (get-char-at-caret source-viewer)))))))
 
 (defn- delete-to-end-of-line! [source-viewer]
-  (cvx/handler-run :delete-to-end-of-line [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :delete-to-end-of-line [(->context source-viewer nil)] {}))
 
 (defn- delete-to-start-of-line! [source-viewer]
-  (cvx/handler-run :delete-to-start-of-line [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :delete-to-start-of-line [(->context source-viewer nil)] {}))
 
 (deftest delete-to-start-end-line-test
   (with-clean-system
@@ -707,7 +711,7 @@
         (is (= \c (get-char-at-caret source-viewer)))))))
 
 (defn- cut-to-end-of-line! [source-viewer clipboard]
-  (cvx/handler-run :cut-to-end-of-line [{:name :code-view :env {:selection source-viewer :clipboard clipboard}}]{}))
+  (cvx/handler-run :cut-to-end-of-line [(->context source-viewer clipboard)]{}))
 
 (deftest cut-to-end-line-test
   (with-clean-system
@@ -767,10 +771,10 @@
           (is (= \s (get-char-at-caret source-viewer))))))))
 
 (defn- find-next! [source-viewer]
-  (cvx/handler-run :find-next [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :find-next [(->context source-viewer nil)] {}))
 
 (defn- find-prev! [source-viewer]
-  (cvx/handler-run :find-prev [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :find-prev [(->context source-viewer nil)] {}))
 
 (deftest find-next-prev-test
   (with-clean-system
@@ -824,7 +828,7 @@
         (is (= 7 (caret source-viewer)))))))
 
 (defn- replace-next! [source-viewer]
-  (cvx/handler-run :replace-next [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :replace-next [(->context source-viewer nil)] {}))
 
 (deftest replace-next-test
   (with-clean-system
@@ -847,7 +851,7 @@
         (is (= 12 (caret source-viewer)))))))
 
 (defn- tab! [source-viewer]
-  (cvx/handler-run :tab [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :tab [(->context source-viewer nil)]{}))
 
 (deftest tab-test
   (with-clean-system
@@ -860,7 +864,7 @@
         (is (= "\thi" (text source-viewer)))))))
 
 (defn- enter! [source-viewer]
-  (cvx/handler-run :enter [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :enter [(->context source-viewer nil)]{}))
 
 (deftest enter-test
   (with-clean-system
@@ -884,7 +888,7 @@
   (typing-changes! source-viewer))
 
 (defn- propose! [source-viewer]
-  (cvx/handler-run :proposals [{:name :code-view :env {:selection source-viewer}}]{}))
+  (cvx/handler-run :proposals [(->context source-viewer nil)]{}))
 
 (defn- refresh-viewer [viewer-node]
   (g/node-value viewer-node :new-content))

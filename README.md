@@ -29,9 +29,9 @@ For Eclipse:
 
     - [Python](https://www.python.org/downloads/windows/)
 
-        Install the 32-bit [2.7.12](https://www.python.org/ftp/python/2.7.12/python-2.7.12.msi) (latest tested version). We only build 32-bit versions of Defold on Windows, and during the build process a python script needs to load a defold library. A 64-bit version of python will get you pretty far and then fail. Add `C:\Python27` to the PATH environment variable.
+        Install the 32-bit [2.7.12](https://www.python.org/ftp/python/2.7.12/python-2.7.12.msi) (latest tested version). We only build 32-bit versions of Defold on Windows, and during the build process a python script needs to load a defold library. A 64-bit version of python will get you pretty far and then fail. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually.
   
-    - [easy_install](https://pypi.python.org/pypi/setuptools#id3 )
+    - [easy_install](https://pypi.python.org/pypi/setuptools#id3) - [ez_setup](https://bootstrap.pypa.io/ez_setup.py)
 
         Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
 
@@ -47,12 +47,12 @@ For Eclipse:
 
     - [Git](https://git-scm.com/download/win)
 
-        The 32-bit version is known to work. If you use ssh (public/private keys) to access github then:
+        The 32-bit version is known to work. During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
         - Run Git GUI
         - Help > Show SSH Key
         - If you don't have an SSH Key, press Generate Key
         - Add the public key to your Github profile
-        - You might need to run start-ssh-agent
+        - You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
         
         Now you should be able to clone the defold repo from a cmd prompt:
         
@@ -101,7 +101,7 @@ Explanations:
 
 <tr>
 <td>EclipseLink</td>
-<td>http://download.eclipse.org/rt/eclipselink/updates</td>
+<td>http://download.eclipse.org/rt/eclipselink/updates ([Alternative URL, usually faster download](http://ftp.gnome.org/mirror/eclipse.org/rt/eclipselink/updates/))</td>
 <td>`EclipseLink Target Components` v2.5.2 (for javax components)</td>
 </tr>
 
@@ -195,21 +195,6 @@ If eclipse doesn’t get the JDK setup automatically:
     This will start a new shell and land you in your msys home (for instance `/usr/home/Erik.Angelin`) so `cd` back to Defold.
 
 * Run `./scripts/build.py install_ext`
-
-    If during install_ext you get an error about downloading go, you might have to update `scripts/build.py` and retry:
-    - Open `build.py`
-    - Find `_install_go`
-    - Replace the url for win32 with a newer from [GOLANG](https://golang.org/dl/), for instance:
-
-        https://storage.googleapis.com/golang/go1.2.2.windows-386.zip
-
-    If using plain old notepad, note that it doesn't understand unix line endings so before the above steps do:
-
-        unix2dos scripts/build.py
-
-    And after, do:
-
-        dos2unix scripts/build.py
 
 * Now, you should be able to build the engine
 

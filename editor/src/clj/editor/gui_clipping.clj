@@ -1,6 +1,6 @@
 (ns editor.gui-clipping
   (:require [dynamo.graph :as g])
-  (:import [javax.media.opengl GL GL2]
+  (:import [com.jogamp.opengl GL GL2]
            [clojure.lang ExceptionInfo]))
 
 (set! *warn-on-reflection* true)
