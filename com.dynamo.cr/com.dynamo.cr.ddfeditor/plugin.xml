@@ -349,6 +349,9 @@
             <reference-type-class
                   type-class="mesh">
             </reference-type-class>
+            <reference-type-class
+                  type-class="animationsetdesc">
+            </reference-type-class>
          </references>
       </resource-type>
       <resource-type
