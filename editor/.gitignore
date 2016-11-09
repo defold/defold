@@ -13,3 +13,5 @@ pom.xml.asc
 /generated-resources/
 /editor2.log
 /misc/timeseries.csv
+/resources/_unpack/
+/.cache

@@ -1,0 +1,52 @@
+name: "props"
+instances {
+    id: "props"
+    prototype: "/game_object/props.go"
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
+    component_properties {
+        id: "script"
+        properties {id: "number" value: "false" type: PROPERTY_TYPE_BOOLEAN}
+    }
+}
+instances {
+    id: "type_faulty_props"
+    prototype: "/game_object/type_faulty_props.go"
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
+    component_properties {
+        id: "script"
+        properties {id: "number" value: "hash" type: PROPERTY_TYPE_HASH}
+    }
+}
+instances {
+    id: "type_faulty_props_overriden"
+    prototype: "/game_object/type_faulty_props.go"
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
+    component_properties {
+        id: "script"
+        properties {id: "number" value: "3.0" type: PROPERTY_TYPE_NUMBER}
+    }
+}
+embedded_instances {
+    id: "props_embedded"
+    data: "components {\n"
+    "  id: \"script\"\n"
+    "  component: \"/script/props.script\"\n"
+    "  position {\n"
+    "    x: 0.0\n"
+    "    y: 0.0\n"
+    "    z: 0.0\n"
+    "  }\n"
+    "  rotation {\n"
+    "    x: 0.0\n"
+    "    y: 0.0\n"
+    "    z: 0.0\n"
+    "    w: 1.0\n"
+    "  }\n"
+    "}\n"
+    ""
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
+    component_properties {
+        id: "script"
+        properties {id: "number" value: "3.0" type: PROPERTY_TYPE_BOOLEAN}
+    }
+}

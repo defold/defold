@@ -9,7 +9,8 @@
             [editor.types :as types]
             [editor.handler :as handler]
             [integration.test-util :as test-util])
-  (:import [javax.vecmath Point3d]))
+  (:import [javax.vecmath Point3d]
+           [editor.curve_view SubSelectionProvider]))
 
 (defn- world->screen [view x y]
   (let [world-p (Point3d. x y 0.0)
@@ -126,7 +127,8 @@
           project (test-util/setup-project! workspace)
           curve-view (make-curve-view! project 800 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-          emitter (:node-id (test-util/outline node-id [2]))]
+          emitter (:node-id (test-util/outline node-id [2]))
+          context (handler/->context :curve-view {} (SubSelectionProvider. project))]
       (project/select! project [emitter])
       ; First control point can't be deleted
       (mouse-dbl-click! curve-view 0.0 0.0)
@@ -138,5 +140,5 @@
       (is (nil? (cp emitter :particle-key-alpha 9)))
       ; Delete through handler
       (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
-      (test-util/handler-run :delete [{:name :curve-view :env {:selection (g/node-value project :sub-selection)}}] {})
+      (test-util/handler-run :delete [context] {})
       (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6))))))

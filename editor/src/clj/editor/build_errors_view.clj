@@ -35,7 +35,9 @@
   (->> errors
        (map (fn [{:keys [_node-id] :as error}]
               {:node-id _node-id
-               :resource (some-> _node-id g/node-by-id :resource)}))
+               :resource (and _node-id
+                              (g/node-instance? resource/ResourceNode _node-id)
+                              (g/node-value _node-id :resource))}))
        (filter (fn [{:keys [resource]}]
                  (instance? FileResource resource)))
        (first)))
@@ -44,12 +46,13 @@
   [root-error]
   (let [items (->> (root-causes root-error)
                    (map (fn [{:keys [error parents] :as root-cause}]
-                          (assoc root-cause :parent (parent-file-resource parents))))
+                          {:error error
+                           :parent (parent-file-resource parents)}))
                    (group-by :parent)
                    (reduce-kv (fn [ret resource errors]
                                 (conj ret {:type :resource
                                            :value resource
-                                           :children errors}))
+                                           :children (vec (distinct errors))}))
                               []))]
     {:label "root"
      :children items}))

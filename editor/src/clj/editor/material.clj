@@ -19,8 +19,8 @@
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Vector4d Matrix4d Point3d Quat4d]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -182,10 +182,10 @@
 (g/defnode MaterialNode
   (inherits project/ResourceNode)
 
-  (property pb g/Any (dynamic visible (g/always false)))
-  (property def g/Any (dynamic visible (g/always false)))
+  (property pb g/Any (dynamic visible (g/constantly false)))
+  (property def g/Any (dynamic visible (g/constantly false)))
   (property vertex-program resource/Resource
-    (dynamic visible (g/always false))
+    (dynamic visible (g/constantly false))
     (value (gu/passthrough vertex-resource))
     (set (fn [basis self old-value new-value]
            (project/resource-setter basis self old-value new-value
@@ -195,7 +195,7 @@
                           (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program"))))
 
   (property fragment-program resource/Resource
-    (dynamic visible (g/always false))
+    (dynamic visible (g/constantly false))
     (value (gu/passthrough fragment-resource))
     (set (fn [basis self old-value new-value]
            (project/resource-setter basis self old-value new-value
@@ -214,7 +214,7 @@
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/always {}))
+  (output scene g/Any (g/constantly {}))
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source pb]
                                            (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat (:vertex-constants pb) (:fragment-constants pb))))]
                                              (shader/make-shader _node-id vertex-source fragment-source uniforms))))

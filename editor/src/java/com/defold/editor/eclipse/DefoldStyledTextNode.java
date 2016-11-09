@@ -282,6 +282,7 @@ public class DefoldStyledTextNode extends Region {
 		this.originalText = text;
 
 		this.textNode = new Text(processText(text));
+		this.textNode.getStyleClass().add("text");
 		this.textNode.setBoundsType(TextBoundsType.LOGICAL_VERTICAL_CENTER);
 		this.textNode.fillProperty().bind(fillProperty());
 		getChildren().add(this.textNode);

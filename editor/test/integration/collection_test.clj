@@ -68,7 +68,7 @@
                ; Select the collection node
                (project/select! project [node-id])
                ; Run the add handler
-               (test-util/handler-run :add [{:name :global :env {:selection [node-id]}}] {})
+               (test-util/handler-run :add [{:name :workbench :env {:selection [node-id]}}] {})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
@@ -96,7 +96,7 @@
                    scene     (g/node-value node-id :scene)
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
                ; Verify outline labels
-               (is (= (list "Collection" "my_instance (/game_object/unknown_components.go)" "unknown - /game_object/test.unknown")
+               (is (= (list "Collection" "my_instance - /game_object/unknown_components.go" "unknown - /game_object/test.unknown")
                       (map :label (tree-seq :children :children outline))))
                ; Verify AABBs
                (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))

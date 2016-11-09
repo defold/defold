@@ -30,8 +30,8 @@
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -203,10 +203,12 @@
   (let [tracks-by-bone (reduce-kv (fn [m bone-name timeline]
                                     (let [bone-index (bone-id->index (murmur/hash64 bone-name))]
                                       (reduce-kv (fn [m type keys]
-                                                   (let [field (timeline-type->pb-field type)
-                                                         pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
-                                                                   :bone-index bone-index}]
-                                                   (update-in m [bone-index] merge pb-track))) m timeline)))
+                                                   (if-let [field (timeline-type->pb-field type)]
+                                                     (let [pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
+                                                                     :bone-index bone-index}]
+                                                       (update-in m [bone-index] merge pb-track))
+                                                     m))
+                                                 m timeline)))
                                   {} timelines)]
     (sort-by :bone-index (vals tracks-by-bone))))
 
@@ -275,12 +277,14 @@
                              0 weights)]
     (mapv (fn [w] (update w :weight #(/ % total-weight))) weights)))
 
+(def ^:private ^TextureSetGenerator$UVTransform uv-identity (TextureSetGenerator$UVTransform.))
+
 (defn- attachment->mesh [attachment att-name slot-data anim-data bones-remap bone-index->world]
   (when anim-data
     (let [type (get attachment "type" "region")
           world ^SpineScene$Transform (:bone-world slot-data)
           anim-id (get attachment "name" att-name)
-          uv-trans ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms]))
+          uv-trans (or ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms])) uv-identity)
           mesh (case type
                  "region"
                  (let [local (doto (SpineScene$Transform.)
@@ -536,21 +540,23 @@
 
 (def color [1.0 1.0 1.0 1.0])
 
-(defn- skeleton-vs [parent-pos bone vs]
+(defn- skeleton-vs [parent-pos bone vs ^Matrix4d wt]
   (let [pos (Vector3d.)
-        _ (.get ^Matrix4d (:transform bone) pos)
+        t (doto (Matrix4d.)
+            (.mul wt ^Matrix4d (:transform bone)))
+        _ (.get ^Matrix4d t pos)
         pos [(.x pos) (.y pos) (.z pos)]
         vs (if parent-pos
              (conj vs (into parent-pos color) (into pos color))
              vs)]
-    (reduce (fn [vs bone] (skeleton-vs pos bone vs)) vs (:children bone))))
+    (reduce (fn [vs bone] (skeleton-vs pos bone vs wt)) vs (:children bone))))
 
 (defn- gen-skeleton-vb [renderables rcount]
   (let [vs (loop [renderables renderables
                   vs []]
              (if-let [r (first renderables)]
                (let [skeleton (get-in r [:user-data :scene-structure :skeleton])]
-                 (recur (rest renderables) (skeleton-vs nil skeleton vs)))
+                 (recur (rest renderables) (skeleton-vs nil skeleton vs (:world-transform r))))
                vs))
         vcount (count vs)]
     (when (> vcount 0)
@@ -624,7 +630,7 @@
                                                 [:content :spine-scene]
                                                 [:structure :scene-structure]
                                                 [:node-outline :source-outline])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "json"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "json"}))
             (dynamic error (g/fnk [_node-id spine-json]
                                   (prop-resource-error _node-id :spine-json spine-json "Spine Json"))))
 
@@ -636,7 +642,7 @@
                                                 [:anim-data :anim-data]
                                                 [:gpu-texture :gpu-texture]
                                                 [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "atlas"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "atlas"}))
             (dynamic error (g/fnk [_node-id atlas]
                                   (prop-resource-error _node-id :atlas atlas "Atlas"))))
 
@@ -713,12 +719,12 @@
                                                   [:node-outline :source-outline]
                                                   [:anim-data :anim-data]
                                                   [:scene-structure :scene-structure])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "spinescene"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "spinescene"}))
             (dynamic error (g/fnk [_node-id spine-scene]
                                   (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
-            (dynamic edit-type (g/always (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
@@ -727,7 +733,7 @@
                                                 [:shader :material-shader]
                                                 [:sampler-data :sampler-data]
                                                 [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "material"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"}))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error _node-id :material material "Material"))))
   (property default-animation g/Str
@@ -804,14 +810,14 @@
 
 (g/defnode SpineBone
   (inherits outline/OutlineNode)
-  (property name g/Str (dynamic read-only? (g/always true)))
+  (property name g/Str (dynamic read-only? (g/constantly true)))
   (property position types/Vec3
-            (dynamic edit-type (g/always (properties/vec3->vec2 0.0)))
-            (dynamic read-only? (g/always true)))
-  (property rotation g/Num (dynamic read-only? (g/always true)))
+            (dynamic edit-type (g/constantly (properties/vec3->vec2 0.0)))
+            (dynamic read-only? (g/constantly true)))
+  (property rotation g/Num (dynamic read-only? (g/constantly true)))
   (property scale types/Vec3
-            (dynamic edit-type (g/always (properties/vec3->vec2 1.0)))
-            (dynamic read-only? (g/always true)))
+            (dynamic edit-type (g/constantly (properties/vec3->vec2 1.0)))
+            (dynamic read-only? (g/constantly true)))
 
   (input child-bones g/Any :array)
 

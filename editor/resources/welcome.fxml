@@ -33,7 +33,6 @@
                   <Font name="Helvetica Light" size="36.0" />
                </font>
             </Label>
-            <Button id="new-project" disable="true" mnemonicParsing="false" text="New Project" GridPane.halignment="CENTER" GridPane.rowIndex="2" GridPane.vgrow="NEVER" />
             <Button id="open-project" mnemonicParsing="false" text="Open Project" GridPane.halignment="CENTER" GridPane.rowIndex="3" GridPane.vgrow="NEVER" />
             <Pane GridPane.hgrow="ALWAYS" GridPane.rowIndex="5" GridPane.vgrow="ALWAYS" />
             <Button id="import-project" mnemonicParsing="false" text="Import Project" GridPane.halignment="CENTER" GridPane.rowIndex="4" />

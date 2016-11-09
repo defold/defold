@@ -1,6 +1,7 @@
 (ns editor.util
   (:import
-   (java.util Comparator)))
+    [java.util Comparator]
+    [java.io File]))
 
 (defmacro spy
   [& body]
@@ -43,3 +44,6 @@
                        (.compareTo ^java.lang.Comparable (alphanum-chunks a) (alphanum-chunks b)))))
 
 (def natural-order-key alphanum-chunks)
+
+(defn to-folder ^File [^File file]
+  (if (.isFile file) (.getParentFile file) file))

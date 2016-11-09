@@ -105,6 +105,9 @@ namespace dmFacebook {
      */
     int DialogTableToAndroid(lua_State* L, const char* dialog_type, int from_index, int to_index);
 
+    void JoinCStringArray(const char** array, uint32_t arrlen, char* buffer, uint32_t buflen, const char* delimiter);
+
+    int luaTableToCArray(lua_State* L, int index, char** buffer, uint32_t buffer_size);
 
 }
 
