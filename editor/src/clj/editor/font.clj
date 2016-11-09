@@ -27,8 +27,8 @@
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [java.nio ByteBuffer]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Vector3d]
            [com.jogamp.opengl.util.texture Texture TextureData]
            [com.google.protobuf ByteString]))
@@ -373,7 +373,7 @@
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (or (= type :defold) (= type :distance-field)))))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? size)))
-  (property antialias g/Int (dynamic visible (g/always false)))
+  (property antialias g/Int (dynamic visible (g/constantly false)))
   (property alpha g/Num
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (= type :defold))))
@@ -403,7 +403,7 @@
   (property extra-characters g/Str (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                                                   (or (= type :defold) (= type :distance-field))))))
   (property output-format g/Keyword
-    (dynamic edit-type (g/always (properties/->pb-choicebox Font$FontTextureFormat))))
+    (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
 
   (property all-chars g/Bool)
   (property cache-width g/Int
@@ -411,7 +411,7 @@
   (property cache-height g/Int
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height)))
 
-  (property pb g/Any (dynamic visible (g/always false)))
+  (property pb g/Any (dynamic visible (g/constantly false)))
 
   (input dep-build-targets g/Any :array)
   (input font-resource resource/Resource)

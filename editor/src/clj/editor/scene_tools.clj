@@ -10,7 +10,7 @@
             [editor.gl.pass :as pass]
             [editor.types :as types])
   (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util.awt TextRenderer Screenshot]
+           [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Camera AABB Region Rect]
            [java.awt Font]
            [java.awt.image BufferedImage]
@@ -27,8 +27,8 @@
            [javafx.scene.layout AnchorPane Pane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d AxisAngle4d]))
 
 (set! *warn-on-reflection* true)
@@ -527,4 +527,4 @@
   (input selected-renderables g/Any)
 
   (output renderables pass/RenderData :cached produce-renderables)
-  (output input-handler Runnable :cached (g/always handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input)))

@@ -23,8 +23,8 @@
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
 (set! *warn-on-reflection* true)
@@ -110,8 +110,8 @@
 (g/defnode ProtobufNode
   (inherits project/ResourceNode)
 
-  (property pb g/Any (dynamic visible (g/always false)))
-  (property def g/Any (dynamic visible (g/always false)))
+  (property pb g/Any (dynamic visible (g/constantly false)))
+  (property def g/Any (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
 
@@ -119,7 +119,7 @@
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/always {})))
+  (output scene g/Any (g/constantly {})))
 
 (defn- connect-build-targets [project self resource path]
   (let [resource (workspace/resolve-resource resource path)]

@@ -53,9 +53,11 @@
          project   (test-util/setup-project! workspace)
          node-id   (test-util/resource-node project "/logic/main.gui")]
      (is (nil? (test-util/prop-error node-id :script)))
-     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.script")]]
-       (test-util/with-prop [node-id :script v]
-         (is (g/error-fatal? (test-util/prop-error node-id :script)))))
+     ;; Script is not required, so nil would be ok
+     (test-util/with-prop [node-id :script nil]
+       (is (nil? (test-util/prop-error node-id :script))))
+     (test-util/with-prop [node-id :script (workspace/resolve-workspace-resource workspace "/not_found.script")]
+       (is (g/error-fatal? (test-util/prop-error node-id :script))))
      (is (nil? (test-util/prop-error node-id :material)))
      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
        (test-util/with-prop [node-id :material v]
@@ -443,7 +445,7 @@
 (defn- add-layout! [project scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
-    (test-util/handler-run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
+    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data}}] user-data)))
 
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
@@ -509,3 +511,18 @@
           text (gui-node node-id "text")]
       (is (= 0.5 (g/node-value box :alpha)))
       (is (every? #(= 0.5 (g/node-value text %)) [:alpha :outline-alpha :shadow-alpha])))))
+
+(deftest set-gui-layout
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/layouts.gui")
+          gui-resource (g/node-value node-id :resource)
+          context (handler/->context :workbench {:active-resource gui-resource :project project})
+          options (test-util/handler-options :set-gui-layout [context] nil)
+          options-by-label (zipmap (map :label options) options)]
+      (is (= ["Default" "Landscape"] (map :label options)))
+      (is (= (get options-by-label "Default") (test-util/handler-state :set-gui-layout [context] nil)))
+      (g/set-property! node-id :visible-layout "Landscape")
+      (is (= (get options-by-label "Landscape") (test-util/handler-state :set-gui-layout [context] nil))))))

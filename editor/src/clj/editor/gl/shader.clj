@@ -95,7 +95,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.defold-project :as project]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
-         [javax.media.opengl GL GL2 GLContext]
+         [com.jogamp.opengl GL GL2 GLContext]
          [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -590,13 +590,13 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (g/defnode ShaderNode
   (inherits project/ResourceNode)
 
-  (property code g/Str (dynamic visible (g/always false)))
-  (property def g/Any (dynamic visible (g/always false)))
-  (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
-  (property prefer-offset g/Int (dynamic visible (g/always false)) (default 0))
-  (property tab-triggers g/Any (dynamic visible (g/always false)) (default nil))
-  (property selection-offset g/Int (dynamic visible (g/always false)) (default 0))
-  (property selection-length g/Int (dynamic visible (g/always false)) (default 0))
+  (property code g/Str (dynamic visible (g/constantly false)))
+  (property def g/Any (dynamic visible (g/constantly false)))
+  (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
+  (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
   (output build-targets g/Any produce-build-targets)
   (output full-source g/Str (g/fnk [code def] (str (get def :prefix) code))))

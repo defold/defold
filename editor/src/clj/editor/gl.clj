@@ -5,10 +5,10 @@
   (:import [java.awt Font]
            [java.util WeakHashMap]
            [java.nio IntBuffer]
-           [javax.media.opengl GL GL2 GLDrawableFactory GLProfile]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLDrawableFactory GLProfile]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d]
-           [javax.media.opengl.awt GLCanvas]
+           [com.jogamp.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
 
 (set! *warn-on-reflection* true)

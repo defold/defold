@@ -29,7 +29,7 @@
     Physics$CollisionShape
     Physics$CollisionShape$Shape
     Physics$CollisionShape$Type]
-   [javax.media.opengl GL GL2]
+   [com.jogamp.opengl GL GL2]
    [javax.vecmath Point3d Matrix4d Quat4d Vector3d]
    [editor.types AABB]))
 
@@ -63,7 +63,7 @@
   (input color g/Any)
   
   (property shape-type g/Any
-            (dynamic visible (g/always false)))
+            (dynamic visible (g/constantly false)))
 
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
@@ -393,7 +393,7 @@
                                                       (fn [d _] (when (some #(<= % 0.0) d)
                                                                   "All dimensions must be greater than zero"))
                                                       dimensions))
-            (dynamic edit-type (g/always {:type types/Vec3 :labels ["W" "H" "D"]})))
+            (dynamic edit-type (g/constantly {:type types/Vec3 :labels ["W" "H" "D"]})))
 
   (display-order [Shape :dimensions])
 
@@ -608,13 +608,13 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :collision-shape-resource]
                                             [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/always {:type resource/Resource :ext "tilemap"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilemap"}))
             (dynamic error (g/fnk [_node-id collision-shape]
                                   (when collision-shape
                                     (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")))))
 
   (property type g/Any
-            (dynamic edit-type (g/always (properties/->pb-choicebox Physics$CollisionObjectType))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Physics$CollisionObjectType))))
 
   (property mass g/Num
             (value (g/fnk [mass type]
@@ -680,15 +680,18 @@
     (g/operation-label "Add Shape")
     (make-shape-node collision-object-node (default-shape shape-type)))))
 
-(handler/defhandler :add :global
+(defn- selection->collision-object [selection]
+  (handler/adapt-single selection CollisionObjectNode))
+
+(handler/defhandler :add :workbench
   (label [user-data]
          (if-not user-data
            "Add Shape"
            (shape-type-label (:shape-type user-data))))
-  (active? [selection] (some->> (first selection) (g/node-instance? CollisionObjectNode)))
-  (run [selection user-data] (add-shape-handler (first selection) (:shape-type user-data)))
+  (active? [selection] (selection->collision-object selection))
+  (run [selection user-data] (add-shape-handler (selection->collision-object selection) (:shape-type user-data)))
   (options [selection user-data]
-           (let [self (first selection)]
+           (let [self (selection->collision-object selection)]
              (when-not user-data
                (->> shape-type-ui
                     (reduce-kv (fn [res shape-type {:keys [label icon]}]

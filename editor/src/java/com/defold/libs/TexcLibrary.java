@@ -13,7 +13,7 @@ public class TexcLibrary {
 
     static {
         try {
-            NativeArtifacts.extractNatives();
+            ResourceUnpacker.unpackResources();
             Native.register("texc_shared");
         } catch (Exception e) {
             logger.error("Failed to extract/register texc_shared", e);

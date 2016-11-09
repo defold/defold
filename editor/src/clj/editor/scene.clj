@@ -47,8 +47,8 @@
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
            [java.util.concurrent Executors]
@@ -161,8 +161,10 @@
                   (.setOnscreen false)
                   (.setPBuffer true)
                   (.setDoubleBuffered false)
-                  (.setStencilBits 8))]
-    ^GLOffscreenAutoDrawable (.createOffscreenAutoDrawable factory nil caps nil w h nil)))
+                  (.setStencilBits 8))
+        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)]
+    (doto drawable
+      (.setContext (.createContext drawable nil) true))))
 
 (defn make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
   (let [context ^GLContext (make-current drawable)
@@ -406,7 +408,7 @@
   (inherits SceneRenderer)
 
   (property image-view ImageView)
-  (property viewport Region (default (g/always (types/->Region 0 0 0 0))))
+  (property viewport Region (default (g/constantly (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
@@ -539,6 +541,7 @@
                     (frame-selection view true))))
 
 (handler/defhandler :realign-camera :global
+  (enabled? [app-view] (active-scene-view app-view))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
@@ -557,7 +560,9 @@
                               :command :scene-play}
                              {:label "Stop"
                               :acc "Shortcut+T"
-                              :command :scene-stop}]}])
+                              :command :scene-stop}
+                             {:label :separator
+                              :id ::scene-end}]}])
 
 (defn- update-image-view! [^ImageView image-view dt]
   (profiler/begin-frame)
@@ -628,7 +633,7 @@
                        (if-let [view-id (ui/user-data image-view ::view-id)]
                          (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                            (doto drawable
-                             (.setSize w h))
+                             (.setSurfaceSize w h))
                            (let [context (make-current drawable)]
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize ^GL2 (.getGL context) w h))
@@ -803,13 +808,13 @@
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))
   (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
-            (dynamic edit-type (g/always (properties/quat->euler))))
+            (dynamic edit-type (g/constantly (properties/quat->euler))))
 
   (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
   (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec4 rotation] (doto (Quat4d.) (math/clj->vecmath rotation))))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (math/->mat4-uniform position-v3 rotation-q4 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
-  (output aabb AABB :cached (g/always (geom/null-aabb))))
+  (output aabb AABB :cached (g/constantly (geom/null-aabb))))
 
 (defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position {:basis basis})))

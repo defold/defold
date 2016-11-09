@@ -15,8 +15,8 @@
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
@@ -116,7 +116,7 @@
 
   (output gpu-texture g/Any :cached produce-gpu-texture)
   (output save-data   g/Any :cached produce-save-data)
-  (output aabb        AABB  :cached (g/always geom/unit-bounding-box))
+  (output aabb        AABB  :cached (g/constantly geom/unit-bounding-box))
   (output scene       g/Any :cached produce-scene))
 
 (defn load-cubemap [project self resource]
