@@ -9,6 +9,7 @@
 #include "../gui.h"
 #include "../gui_private.h"
 #include "test_gui_ddf.h"
+#include "rig/test_rig.h"
 
 extern "C"
 {
@@ -4188,10 +4189,29 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
     dummy_data->m_AnimationSet = animation_set;
 
     BuildBindPose(dummy_data->m_BindPose, skeleton);
+
+    mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
+    mesh_set->m_MeshEntries.m_Count = 2;
+
+    dmRig::CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[0], dmHashString64("skin1"), Vector4(0.0f));
+    dmRig::CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[1], dmHashString64("skin2"), Vector4(1.0f));
 }
 
 static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
 {
+    for (int i = 0; i < 2; ++i)
+    {
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
+    }
+    delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
+
     delete dummy_data->m_BindPose;
     delete [] dummy_data->m_Skeleton->m_Bones.m_Data;
     delete dummy_data->m_Skeleton;
@@ -4231,6 +4251,36 @@ TEST_F(dmGuiTest, SpineNode)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
+
+    DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiTest, SpineNodeSetGetSkin)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+    CreateSpineDummyData(dummy_data);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
+
+    // set then get skin
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineSkin(m_Scene, node, dmHashString64("skin1")));
+    ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
+
+    // set then get different skin
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineSkin(m_Scene, node, dmHashString64("skin2")));
+    ASSERT_NE(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
+    ASSERT_EQ(dmHashString64("skin2"), dmGui::GetNodeSpineSkin(m_Scene, node));
 
     DeleteSpineDummyData(dummy_data);
 }

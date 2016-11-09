@@ -9,4 +9,6 @@ def build(bld):
                                 target = 'test_rig',
                                 source = 'test_rig.cpp')
 
+    bld.install_files('${PREFIX}/include/rig', 'test_rig.h')
+
     test_rig.install_path = None
