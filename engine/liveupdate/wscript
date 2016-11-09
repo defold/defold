@@ -1,0 +1,32 @@
+#!/usr/bin/env python
+
+VERSION = '1.0'
+APPNAME = 'LiveUpdate'
+
+import os
+import waf_dynamo, waf_ddf
+
+def init():
+    pass
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+    conf.check_tool('java')
+
+    waf_ddf.configure(conf)
+
+    conf.env['STATICLIB_DDF'] = 'ddf'
+
+def build(bld):
+    liveupdate = bld.new_task_gen(
+        features = 'cxx cstaticlib ddf',
+        protoc_includes = 'proto',
+        target = 'liveupdate')
+
+    liveupdate.find_sources_in_dirs(['proto'])
+
+def shutdown():
+    pass
