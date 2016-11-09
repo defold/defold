@@ -234,7 +234,7 @@ TEST_F(WindowEventTest, Test)
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    
+
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -650,7 +650,7 @@ INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, ::testing::ValuesIn(inv
 
 /* Spine Scene */
 
-const char* valid_spine_scene_resources[] = {"/spine/valid.spinescenec"};
+const char* valid_spine_scene_resources[] = {"/spine/valid.rigscenec"};
 INSTANTIATE_TEST_CASE_P(SpineScene, ResourceTest, ::testing::ValuesIn(valid_spine_scene_resources));
 
 /* Spine Model */
@@ -660,6 +660,20 @@ INSTANTIATE_TEST_CASE_P(SpineModel, ResourceTest, ::testing::ValuesIn(valid_spin
 
 const char* valid_spine_gos[] = {"/spine/valid_spine.goc"};
 INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, ::testing::ValuesIn(valid_spine_gos));
+
+/* Label */
+
+const char* valid_label_resources[] = {"/label/valid.labelc"};
+INSTANTIATE_TEST_CASE_P(Label, ResourceTest, ::testing::ValuesIn(valid_label_resources));
+
+const char* valid_label_gos[] = {"/label/valid_label.goc"};
+INSTANTIATE_TEST_CASE_P(Label, ComponentTest, ::testing::ValuesIn(valid_label_gos));
+
+const char* invalid_label_gos[] = {"/label/invalid_label.goc"};
+INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, ::testing::ValuesIn(invalid_label_gos));
+
+
+
 
 int main(int argc, char **argv)
 {

@@ -5,10 +5,10 @@
   (:import [java.awt Font]
            [java.util WeakHashMap]
            [java.nio IntBuffer]
-           [javax.media.opengl GL GL2 GLDrawableFactory GLProfile]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLDrawableFactory GLProfile]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d]
-           [javax.media.opengl.awt GLCanvas]
+           [com.jogamp.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
 
 (set! *warn-on-reflection* true)
@@ -135,6 +135,12 @@
          (when (satisfies? p/GlBind b#)
            (p/unbind b# gl#)))
        res#)))
+
+(defn bind [^GL2 gl bindable render-args]
+  (p/bind bindable gl render-args))
+
+(defn unbind [^GL2 gl bindable]
+  (p/unbind bindable gl))
 
 (defmacro do-gl
   [glsymb render-args bindings & body]

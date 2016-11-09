@@ -1,0 +1,61 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.label.proto";
+option java_outer_classname = "Label";
+
+/*# Label API documentation
+ *
+ * @name Label
+ * @namespace label
+ */
+
+message LabelDesc
+{
+    enum BlendMode
+    {
+        BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
+        BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
+        BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
+    }
+
+    enum Pivot
+    {
+        PIVOT_CENTER = 0 [(displayName) = "Center"];
+        PIVOT_N      = 1 [(displayName) = "North"];
+        PIVOT_NE     = 2 [(displayName) = "North East"];
+        PIVOT_E      = 3 [(displayName) = "East"];
+        PIVOT_SE     = 4 [(displayName) = "South East"];
+        PIVOT_S      = 5 [(displayName) = "South"];
+        PIVOT_SW     = 6 [(displayName) = "South West"];
+        PIVOT_W      = 7 [(displayName) = "West"];
+        PIVOT_NW     = 8 [(displayName) = "North West"];
+    };
+
+
+    required dmMath.Vector4 size        = 1;
+    required dmMath.Vector4 scale       = 2;
+    required dmMath.Vector4 color       = 3;
+    required dmMath.Vector4 outline     = 4;
+    required dmMath.Vector4 shadow      = 5;
+
+    required float          leading     = 6;
+    required float          tracking    = 7;
+    required Pivot          pivot       = 8;
+    required BlendMode      blend_mode  = 9;
+    required bool           line_break  = 10;
+
+    required string         text        = 11;
+    required string         font        = 12 [(resource)=true];
+    required string         material    = 13 [(resource)=true];
+}
+
+
+message SetText
+{
+    required string text  = 1;
+}
+
+

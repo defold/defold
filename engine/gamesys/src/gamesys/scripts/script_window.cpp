@@ -7,6 +7,14 @@
 
 namespace dmGameSystem
 {
+    /*# Window API documentation
+     *
+     * Functions and constants to access the window, window event listeners 
+     * and screen dimming.
+     *
+     * @name Window
+     * @namespace window
+     */
 
 enum WindowEvent
 {
@@ -44,9 +52,9 @@ WindowInfo g_Window;
 static void ClearListener(LuaListener* listener)
 {
     if( listener->m_Callback != LUA_NOREF )
-        luaL_unref(listener->m_L, LUA_REGISTRYINDEX, listener->m_Callback);
+        dmScript::Unref(listener->m_L, LUA_REGISTRYINDEX, listener->m_Callback);
     if( listener->m_Self != LUA_NOREF )
-        luaL_unref(listener->m_L, LUA_REGISTRYINDEX, listener->m_Self);
+        dmScript::Unref(listener->m_L, LUA_REGISTRYINDEX, listener->m_Self);
     listener->m_L = 0;
     listener->m_Callback = LUA_NOREF;
     listener->m_Self = LUA_NOREF;
@@ -149,7 +157,7 @@ static int SetListener(lua_State* L)
     WindowInfo* window_info = &g_Window;
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    int cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     ClearListener(&window_info->m_Listener);
 
@@ -157,7 +165,7 @@ static int SetListener(lua_State* L)
     window_info->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);
-    window_info->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    window_info->m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     return 0;
 }
 

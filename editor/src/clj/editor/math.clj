@@ -1,5 +1,6 @@
 (ns editor.math
   (:import [java.lang Math]
+           [java.math RoundingMode]
            [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d
             Tuple3d Tuple4d]))
 
@@ -19,6 +20,17 @@
 
 (defn rad->deg [rad]
   (* rad 180.0 recip-pi))
+
+(defn round-with-precision
+  "Slow but precise rounding to a specified precision. Use with UI elements that
+  produce doubles, not for performance-sensitive code. The precision is expected
+  to be a double in the format 0.01, which would round 1.666666 to 1.67."
+  ([^double n ^double precision]
+   (round-with-precision n precision RoundingMode/HALF_UP))
+  ([^double n ^double precision ^RoundingMode rounding-mode]
+   (.doubleValue (.setScale (BigDecimal. n)
+                            (int (- (Math/log10 precision)))
+                            rounding-mode))))
 
 (defn project [^Vector3d from ^Vector3d onto] ^Double
   (let [onto-dot (.dot onto onto)]
@@ -65,48 +77,59 @@
   ; Implementation based on:
   ; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
   ; Rotation sequence: 231 (YZX)
-  (let [[t1 t2 t3] (map deg->rad (map #(nth euler %) [1 2 0]))
-        c1 (Math/cos (* t1 0.5))
-        s1 (Math/sin (* t1 0.5))
-        c2 (Math/cos (* t2 0.5))
-        s2 (Math/sin (* t2 0.5))
-        c3 (Math/cos (* t3 0.5))
-        s3 (Math/sin (* t3 0.5))
-        c1_c2 (* c1 c2)
-        s2_s3 (* s2 s3)
-        q (Quat4d. (+ (* s1 s2 c3) (* s3 c1_c2))
-                   (+ (* s1 c2 c3) (* s2_s3 c1))
-                   (+ (- (* s1 s3 c2)) (* s2 c1 c3))
-                   (+ (- (* s1 s2_s3)) (* c1_c2 c3)))]
-    (.normalize q)
-    q))
+  (let [[x y z] euler]
+    (if (= 0.0 (double x) (double y))
+      (let [ha (* 0.5 (deg->rad z))
+            s (Math/sin ha)
+            c (Math/cos ha)]
+        (Quat4d. 0 0 s c))
+      (let [[t1 t2 t3] (map deg->rad (map #(nth euler %) [1 2 0]))
+            c1 (Math/cos (* t1 0.5))
+            s1 (Math/sin (* t1 0.5))
+            c2 (Math/cos (* t2 0.5))
+            s2 (Math/sin (* t2 0.5))
+            c3 (Math/cos (* t3 0.5))
+            s3 (Math/sin (* t3 0.5))
+            c1_c2 (* c1 c2)
+            s2_s3 (* s2 s3)
+            q (Quat4d. (+ (* s1 s2 c3) (* s3 c1_c2))
+                       (+ (* s1 c2 c3) (* s2_s3 c1))
+                       (+ (- (* s1 s3 c2)) (* s2 c1 c3))
+                       (+ (- (* s1 s2_s3)) (* c1_c2 c3)))]
+        (.normalize q)
+        q))))
+
+(defn euler-z->quat [angle]
+  (let [ha (* (deg->rad angle) 0.5)
+        s (Math/sin ha)
+        c (Math/cos ha)]
+    (Quat4d. 0.0 0.0 s c)))
 
 (defn quat->euler [^Quat4d quat]
   (let [x (.getX quat)
         y (.getY quat)
         z (.getZ quat)
-        w (.getW quat)
-        test (+ (* x y) (* z w))
-        euler-fn (fn [heading attitude bank]
-                   [(* bank 180.0 recip-pi)
-                    (* heading 180.0 recip-pi)
-                    (* attitude 180.0 recip-pi)])]
-    (cond
-      (or (> test 0.499) (< test -0.499)) ; singularity at north pole
-      (let [sign (Math/signum test)
-            heading (* sign 2.0 (Math/atan2 x w))
-            attitude (* sign Math/PI 0.5)
-            bank 0]
-        (map rad->deg [bank heading attitude]))
+        w (.getW quat)]
+    (if (= 0.0 x y)
+      (let [ha (Math/atan2 z w)]
+        [0.0 0.0 (rad->deg (* 2.0 ha))])
+      (let [test (+ (* x y) (* z w))]
+       (cond
+         (or (> test 0.499) (< test -0.499)) ; singularity at north pole
+         (let [sign (Math/signum test)
+               heading (* sign 2.0 (Math/atan2 x w))
+               attitude (* sign Math/PI 0.5)
+               bank 0]
+           (mapv rad->deg [bank heading attitude]))
 
-      :default
-      (let [sqx (* x x)
-            sqy (* y y)
-            sqz (* z z)
-            heading (Math/atan2 (- (* 2.0 y w) (* 2.0 x z)) (- 1.0 (* 2.0 sqy) (* 2.0 sqz)))
-            attitude (Math/asin (* 2.0 test))
-            bank (Math/atan2 (- (* 2.0 x w) (* 2.0 y z)) (- 1.0 (* 2.0 sqx) (* 2.0 sqz)))]
-        (mapv rad->deg [bank heading attitude])))))
+         :default
+         (let [sqx (* x x)
+               sqy (* y y)
+               sqz (* z z)
+               heading (Math/atan2 (- (* 2.0 y w) (* 2.0 x z)) (- 1.0 (* 2.0 sqy) (* 2.0 sqz)))
+               attitude (Math/asin (* 2.0 test))
+               bank (Math/atan2 (- (* 2.0 x w) (* 2.0 y z)) (- 1.0 (* 2.0 sqx) (* 2.0 sqz)))]
+           (mapv rad->deg [bank heading attitude])))))))
 
 (defn ^Vector3d rotate [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
@@ -135,6 +158,25 @@
     0 (Vector3d. 1 0 0)
     1 (Vector3d. 0 1 0)
     2 (Vector3d. 0 0 1)))
+
+(defn ->mat4 ^Matrix4d []
+  (doto (Matrix4d.) (.setIdentity)))
+
+(defn ->mat4-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^double scale]
+  (Matrix4d. rotation position scale))
+
+(defn ->mat4-non-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (let [s (doto (Matrix3d.)
+            (.setElement 0 0 (.x scale))
+            (.setElement 1 1 (.y scale))
+            (.setElement 2 2 (.z scale)))
+        rs (doto (Matrix3d.)
+             (.set rotation)
+             (.mul s))]
+    (doto (Matrix4d.)
+      (.setRotationScale rs)
+      (.setTranslation position)
+      (.setElement 3 3 1.0))))
 
 (defn split-mat4 [^Matrix4d mat ^Point3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
   (let [tmp (Vector4d.)

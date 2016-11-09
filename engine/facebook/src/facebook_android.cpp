@@ -20,10 +20,11 @@
 
 extern struct android_app* g_AndroidApp;
 
-#define CMD_LOGIN 1
-#define CMD_REQUEST_READ 2
-#define CMD_REQUEST_PUBLISH 3
-#define CMD_DIALOG_COMPLETE 4
+#define CMD_LOGIN                  (1)
+#define CMD_REQUEST_READ           (2)
+#define CMD_REQUEST_PUBLISH        (3)
+#define CMD_DIALOG_COMPLETE        (4)
+#define CMD_LOGIN_WITH_PERMISSIONS (5)
 
 struct Command
 {
@@ -56,6 +57,8 @@ struct Facebook
     jmethodID m_RequestReadPermissions;
     jmethodID m_RequestPublishPermissions;
     jmethodID m_ShowDialog;
+    jmethodID m_LoginWithPublishPermissions;
+    jmethodID m_LoginWithReadPermissions;
 
     jmethodID m_PostEvent;
     jmethodID m_EnableEventUsage;
@@ -122,7 +125,7 @@ static void RunStateCallback(Command* cmd)
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         (void)ret;
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
     } else {
         dmLogError("No callback set");
     }
@@ -158,7 +161,7 @@ static void RunCallback(Command* cmd)
         int ret = dmScript::PCall(L, 2, LUA_MULTRET);
         (void)ret;
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
     } else {
         dmLogError("No callback set");
     }
@@ -207,7 +210,7 @@ static void RunDialogResultCallback(Command* cmd)
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         (void)ret;
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
         g_Facebook.m_Callback = LUA_NOREF;
     } else {
         dmLogError("No callback set");
@@ -251,6 +254,19 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLogin
     cmd.m_State = (int)state;
     cmd.m_L = (lua_State*)userData;
     cmd.m_Error = StrDup(env, error);
+    QueueCommand(&cmd);
+}
+
+JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLoginWithPermissions
+  (JNIEnv* env, jobject, jlong userData, jint state, jstring error)
+{
+    Command cmd;
+
+    cmd.m_Type  = CMD_LOGIN_WITH_PERMISSIONS;
+    cmd.m_State = (int) state;
+    cmd.m_L     = (lua_State*) userData;
+    cmd.m_Error = StrDup(env, error);
+
     QueueCommand(&cmd);
 }
 
@@ -349,8 +365,8 @@ static void VerifyCallback(lua_State* L)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     }
@@ -362,17 +378,17 @@ int Facebook_Login(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     JNIEnv* env = Attach();
 
@@ -391,7 +407,7 @@ int Facebook_Logout(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -409,11 +425,66 @@ int Facebook_Logout(lua_State* L)
     return 0;
 }
 
+bool PlatformFacebookInitialized()
+{
+    return !!g_Facebook.m_FBApp;
+}
+
+void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
+{
+    // This function must always return so memory for `permissions` can be free'd.
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    char cstr_permissions[2048];
+    cstr_permissions[0] = 0x0;
+    JoinCStringArray(permissions, permission_count, cstr_permissions,
+        sizeof(cstr_permissions) / sizeof(cstr_permissions[0]), ",");
+
+    JNIEnv* environment = Attach();
+    jstring jstr_permissions = environment->NewStringUTF(cstr_permissions);
+    environment->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_LoginWithPublishPermissions,
+        (jlong) thread, (jint) audience, jstr_permissions);
+    environment->DeleteLocalRef(jstr_permissions);
+
+    if (!Detach(environment))
+    {
+        dmLogError("An unexpected error occurred during Facebook JNI interaction.");
+    }
+}
+
+void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int callback, int context, lua_State* thread)
+{
+    // This function must always return so memory for `permissions` can be free'd.
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    char cstr_permissions[2048];
+    cstr_permissions[0] = 0x0;
+    JoinCStringArray(permissions, permission_count, cstr_permissions,
+        sizeof(cstr_permissions) / sizeof(cstr_permissions[0]), ",");
+
+    JNIEnv* environment = Attach();
+    jstring jstr_permissions = environment->NewStringUTF(cstr_permissions);
+    environment->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_LoginWithReadPermissions,
+        (jlong) thread, jstr_permissions);
+    environment->DeleteLocalRef(jstr_permissions);
+
+    if (!Detach(environment))
+    {
+        dmLogError("An unexpected error occurred during Facebook JNI interaction.");
+    }
+}
+
 int Facebook_RequestReadPermissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -421,10 +492,10 @@ int Facebook_RequestReadPermissions(lua_State* L)
     luaL_checktype(L, top-1, LUA_TTABLE);
     luaL_checktype(L, top, LUA_TFUNCTION);
     lua_pushvalue(L, top);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
     dmFacebook::LuaStringCommaArray(L, top-1, permissions, 512);
@@ -448,7 +519,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -457,10 +528,10 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     int audience = luaL_checkinteger(L, top-1);
     luaL_checktype(L, top, LUA_TFUNCTION);
     lua_pushvalue(L, top);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
     dmFacebook::LuaStringCommaArray(L, top-2, permissions, 512);
@@ -484,7 +555,7 @@ int Facebook_AccessToken(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -513,7 +584,7 @@ int Facebook_Permissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -536,7 +607,7 @@ int Facebook_Me(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -628,7 +699,7 @@ int Facebook_ShowDialog(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -637,9 +708,9 @@ int Facebook_ShowDialog(lua_State* L)
     luaL_checktype(L, 2, LUA_TTABLE);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     JNIEnv* env = Attach();
 
@@ -716,6 +787,10 @@ static dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         g_Facebook.m_RequestReadPermissions = env->GetMethodID(fb_class, "requestReadPermissions", "(JLjava/lang/String;)V");
         g_Facebook.m_RequestPublishPermissions = env->GetMethodID(fb_class, "requestPublishPermissions", "(JILjava/lang/String;)V");
         g_Facebook.m_ShowDialog = env->GetMethodID(fb_class, "showDialog", "(JLjava/lang/String;Ljava/lang/String;)V");
+
+        g_Facebook.m_LoginWithPublishPermissions = env->GetMethodID(fb_class, "loginWithPublishPermissions", "(JILjava/lang/String;)V");
+        g_Facebook.m_LoginWithReadPermissions = env->GetMethodID(fb_class, "loginWithReadPermissions", "(JLjava/lang/String;)V");
+
         g_Facebook.m_PostEvent = env->GetMethodID(fb_class, "postEvent", "(Ljava/lang/String;D[Ljava/lang/String;[Ljava/lang/String;)V");
         g_Facebook.m_EnableEventUsage = env->GetMethodID(fb_class, "enableEventUsage", "()V");
         g_Facebook.m_DisableEventUsage = env->GetMethodID(fb_class, "disableEventUsage", "()V");
@@ -762,6 +837,9 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
                 case CMD_REQUEST_READ:
                 case CMD_REQUEST_PUBLISH:
                     RunCallback(&cmd);
+                    break;
+                case CMD_LOGIN_WITH_PERMISSIONS:
+                    RunCallback(cmd.m_L, &g_Facebook.m_Self, &g_Facebook.m_Callback, cmd.m_Error, cmd.m_State);
                     break;
                 case CMD_DIALOG_COMPLETE:
                     RunDialogResultCallback(&cmd);

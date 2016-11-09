@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox prefHeight="50.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <children>
+    <Label id="message" />
+      <HBox prefHeight="100.0" prefWidth="200.0" spacing="4.0">
+         <children>
+          <Button id="replace" minWidth="80.0" mnemonicParsing="false" text="Replace">
+               <tooltip>
+                  <Tooltip text="Replace all conflicting files in destination with moved files" />
+               </tooltip>
+            </Button>
+          <Button id="rename" minWidth="80.0" mnemonicParsing="false" text="Rename">
+               <tooltip>
+                  <Tooltip text="Rename conflicting files in destination by adding a number to file name" />
+               </tooltip>
+            </Button>
+            <Region prefHeight="10.0" prefWidth="10.0" HBox.hgrow="ALWAYS" />
+            <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel">
+               <tooltip>
+                  <Tooltip text="Cancel entire operation" />
+               </tooltip>
+            </Button>
+         </children>
+      </HBox>
+  </children>
+  <padding>
+    <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+  </padding>
+</VBox>

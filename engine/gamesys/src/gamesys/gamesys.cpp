@@ -33,9 +33,13 @@
 #include "resources/res_sprite.h"
 #include "resources/res_textureset.h"
 #include "resources/res_tilegrid.h"
-#include "resources/res_spine_scene.h"
+#include "resources/res_animationset.h"
+#include "resources/res_meshset.h"
+#include "resources/res_skeleton.h"
+#include "resources/res_rig_scene.h"
 #include "resources/res_spine_model.h"
 #include "resources/res_display_profiles.h"
+#include "resources/res_label.h"
 
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
@@ -51,6 +55,7 @@
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
 #include "components/comp_spine_model.h"
+#include "components/comp_label.h"
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
@@ -104,13 +109,17 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("gamepadsc", 0, 0, ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
         REGISTER_RESOURCE_TYPE("factoryc", 0, ResFactoryPreload, ResFactoryCreate, ResFactoryDestroy, ResFactoryRecreate);
         REGISTER_RESOURCE_TYPE("collectionfactoryc", 0, 0, ResCollectionFactoryCreate, ResCollectionFactoryDestroy, ResCollectionFactoryRecreate);
+        REGISTER_RESOURCE_TYPE("labelc", 0, ResLabelPreload, ResLabelCreate, ResLabelDestroy, ResLabelRecreate);
         REGISTER_RESOURCE_TYPE("lightc", 0, 0, ResLightCreate, ResLightDestroy, ResLightRecreate);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, 0, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, ResTextureSetDestroy, ResTextureSetRecreate);
         REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
-        REGISTER_RESOURCE_TYPE("spinescenec", 0, ResSpineScenePreload, ResSpineSceneCreate, ResSpineSceneDestroy, ResSpineSceneRecreate);
+        REGISTER_RESOURCE_TYPE("animationsetc", 0, ResAnimationSetPreload, ResAnimationSetCreate, ResAnimationSetDestroy, ResAnimationSetRecreate);
+        REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, ResMeshSetDestroy, ResMeshSetRecreate);
+        REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, ResSkeletonDestroy, ResSkeletonRecreate);
+        REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, ResRigSceneDestroy, ResRigSceneRecreate);
         REGISTER_RESOURCE_TYPE(SPINE_MODEL_EXT, 0, ResSpineModelPreload, ResSpineModelCreate, ResSpineModelDestroy, ResSpineModelRecreate);
         REGISTER_RESOURCE_TYPE("display_profilesc", render_context, 0, ResDisplayProfilesCreate, ResDisplayProfilesDestroy, ResDisplayProfilesRecreate);
 
@@ -129,7 +138,8 @@ namespace dmGameSystem
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
-                                                SpineModelContext* spine_model_context)
+                                                SpineModelContext* spine_model_context,
+                                                LabelContext* label_context)
     {
         dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
@@ -261,6 +271,12 @@ namespace dmGameSystem
                 CompSpineModelCreate, CompSpineModelDestroy, 0, 0, CompSpineModelAddToUpdate,
                 CompSpineModelUpdate, CompSpineModelRender, 0, CompSpineModelOnMessage, 0, CompSpineModelOnReload, CompSpineModelGetProperty, CompSpineModelSetProperty,
                 1, 1);
+
+        REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
+                CompLabelNewWorld, CompLabelDeleteWorld,
+                CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate,
+                CompLabelUpdate, CompLabelRender, 0, CompLabelOnMessage, 0, CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
+                1, 0);
 
         #undef REGISTER_COMPONENT_TYPE
 

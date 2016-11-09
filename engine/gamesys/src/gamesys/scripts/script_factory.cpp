@@ -21,6 +21,15 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Factory API documentation
+     *
+     * Functions for controlling factory components which are used to
+     * dynamically spawn game objects into the runtime.
+     *
+     * @name Factory
+     * @namespace factory
+     */
+
     /*# make a factory create a new game object
      * The URL identifies which factory should create the game object.
      * If the game object is created inside of the frame (e.g. from an update callback), the game object will be created instantly, but none of its component will be updated in the same frame.
@@ -126,31 +135,63 @@ namespace dmGameSystem
         {
             scale = dmGameObject::GetWorldScale(sender_instance);
         }
-        dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
 
-        if (msg_passing) {
-            dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
-            create_msg->m_Id = id;
-            create_msg->m_Position = position;
-            create_msg->m_Rotation = rotation;
-            create_msg->m_Scale3 = scale;
-            dmMessage::URL sender;
-            if (!dmScript::GetURL(L, &sender)) {
-                luaL_error(L, "factory.create can not be called from this script type");
-                return 1;
+        uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+        if (index != dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+        {
+            bool success = true;
+            dmhash_t id = dmGameObject::ConstructInstanceId(index);
+
+            if (msg_passing) {
+                dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
+                create_msg->m_Id = id;
+                create_msg->m_Index = index;
+                create_msg->m_Position = position;
+                create_msg->m_Rotation = rotation;
+                create_msg->m_Scale3 = scale;
+                dmMessage::URL sender;
+                if (!dmScript::GetURL(L, &sender)) {
+                    dmGameObject::ReleaseInstanceIndex(index, collection);
+                    return luaL_error(L, "factory.create can not be called from this script type");
+                }
+
+                dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + actual_prop_buffer_size, 0);
+            } else {
+                dmScript::GetInstance(L);
+                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+                dmGameObject::HInstance instance = dmGameObject::Spawn(collection, component->m_Resource->m_FactoryDesc->m_Prototype,
+                    id, buffer, actual_prop_buffer_size, position, rotation, scale);
+                if (instance != 0x0)
+                {
+                    dmGameObject::AssignInstanceIndex(index, instance);
+                }
+                else
+                {
+                    dmGameObject::ReleaseInstanceIndex(index, collection);
+                    success = false;
+                }
+
+                lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+                dmScript::SetInstance(L);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
             }
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + actual_prop_buffer_size);
-        } else {
-            dmScript::GetInstance(L);
-            int ref = luaL_ref(L, LUA_REGISTRYINDEX);
-            dmGameObject::Spawn(collection, component->m_Resource->m_FactoryDesc->m_Prototype, id, buffer, actual_prop_buffer_size,
-                    position, rotation, scale);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-            dmScript::SetInstance(L);
-            luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+            if (success)
+            {
+                dmScript::PushHash(L, id);
+            }
+            else
+            {
+                lua_pushnil(L);
+            }
+        }
+        else
+        {
+            dmLogError("factory.create can not create gameobject since the buffer is full.");
+            lua_pushnil(L);
         }
 
-        dmScript::PushHash(L, id);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }

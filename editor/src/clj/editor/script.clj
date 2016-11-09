@@ -3,6 +3,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.code-completion :as code-completion]
+            [editor.code :as code]
             [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -16,20 +17,21 @@
             [editor.pipeline.lua-scan :as lua-scan]
             [editor.gl.pass :as pass]
             [editor.lua :as lua]
-            [editor.lua-parser :as lua-parser])
+            [editor.lua-parser :as lua-parser]
+            [editor.luajit :as luajit])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.google.protobuf ByteString]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private lua-code-opts {:code lua/lua})
-(def ^:private go-prop-type->property-types
+(def go-prop-type->property-types
   {:property-type-number  g/Num
    :property-type-hash    g/Str
    :property-type-url     g/Str
@@ -43,7 +45,7 @@
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
-                   :tags #{:component :overridable-properties}}
+                   :tags #{:component :non-embeddable :overridable-properties}}
                   {:ext "render_script"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
@@ -65,8 +67,8 @@
 
 (def ^:private status-errors
   {:ok nil
-   :invalid-args (g/error-severe "Invalid arguments to go.property call") ; TODO: not used for now
-   :invalid-value (g/error-severe "Invalid value in go.property call")})
+   :invalid-args (g/error-fatal "Invalid arguments to go.property call") ; TODO: not used for now
+   :invalid-value (g/error-fatal "Invalid value in go.property call")})
 
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
@@ -78,7 +80,7 @@
                                     prop (-> (select-keys p [:value])
                                            (assoc :node-id _node-id
                                                   :type (go-prop-type->property-types type)
-                                                  :validation-problems (status-errors (:status p))
+                                                  :error (status-errors (:status p))
                                                   :edit-type {:type (go-prop-type->property-types type)}
                                                   :go-prop-type type
                                                   :read-only? (nil? (g/override-original _node-id))))]
@@ -87,6 +89,17 @@
         display-order (mapv prop->key script-props)]
     {:properties props
      :display-order display-order}))
+
+(g/defnk produce-bytecode
+  [_node-id code resource]
+  (try
+    (luajit/bytecode code (resource/proj-path resource))
+    (catch Exception e
+      (let [{:keys [filename line message]} (ex-data e)]
+        (g/->error _node-id :code :warning e (.getMessage e)
+                   {:filename filename
+                    :line     line
+                    :message  message})))))
 
 (g/defnk produce-save-data [resource code]
   {:resource resource
@@ -100,19 +113,22 @@
                                         :value (properties/go-prop->str (:value v) type)
                                         :type type}))
                          (:properties user-properties))
-        modules (:modules user-data)]
+        modules (:modules user-data)
+        bytecode (:bytecode user-data)]
     {:resource resource :content (protobuf/map->bytes Lua$LuaModule
-                                                     {:source {:script (ByteString/copyFromUtf8 (:content user-data))
-                                                               :filename (resource/proj-path (:resource resource))}
+                                                      {:source {:script (ByteString/copyFromUtf8 (:content user-data))
+                                                                :filename (resource/proj-path (:resource resource))
+                                                                :bytecode (when-not (g/error? bytecode)
+                                                                            (ByteString/copyFrom ^bytes bytecode))}
                                                       :modules modules
                                                       :resources (mapv lua/lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))
 
-(g/defnk produce-build-targets [_node-id resource code user-properties modules]
+(g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules]
   [{:node-id   _node-id
     :resource  (workspace/make-build-resource resource)
     :build-fn  build-script
-    :user-data {:content code :user-properties user-properties :modules modules}
+    :user-data {:content code :user-properties user-properties :modules modules :bytecode bytecode}
     :deps      (mapcat (fn [mod]
                          (let [path     (lua/lua-module->path mod)
                                mod-node (project/get-resource-node (project/get-project _node-id) path)]
@@ -122,12 +138,12 @@
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
-  (property code g/Str (dynamic visible (g/always false)))
-  (property caret-position g/Int (dynamic visible (g/always false)) (default 0))
-  (property prefer-offset g/Int (dynamic visible (g/always false)) (default 0))
-  (property tab-triggers g/Any (dynamic visible (g/always false)) (default nil))
-  (property selection-offset g/Int (dynamic visible (g/always false)) (default 0))
-  (property selection-length g/Int (dynamic visible (g/always false)) (default 0))
+  (property code g/Str (dynamic visible (g/constantly false)))
+  (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
+  (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
   (input module-nodes g/Any :array)
 
@@ -141,6 +157,7 @@
                                                     (g/error? _declared-properties) _declared-properties
                                                     (g/error? user-properties) user-properties
                                                     true (merge-with into _declared-properties user-properties))))
+  (output bytecode g/Any :cached produce-bytecode)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
 
@@ -152,7 +169,7 @@
                                                                                 module-nodes))))
 
 (defn load-script [project self resource]
-  (g/set-property self :code (slurp resource)))
+  (g/set-property self :code (code/lf-normalize-line-endings (slurp resource))))
 
 (defn- register [workspace def]
   (let [args (merge def

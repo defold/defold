@@ -219,7 +219,7 @@ namespace dmRender
     {
         // Unflushed leftovers are assumed to be the debug rendering
         // and we give them render orders statically here
-        FlushTexts(render_context, 0xffffff, true);
+        FlushTexts(render_context, RENDER_ORDER_AFTER_WORLD, 0xffffff, true);
 
     }
 
@@ -299,13 +299,14 @@ namespace dmRender
         ClearDebugRenderObjects(context);
 
         // Should probably be moved and/or refactored, see case 2261
+        // (Cannot reset the text buffer until all render objects are dispatched)
         context->m_TextContext.m_RenderObjectIndex = 0;
         context->m_TextContext.m_VertexIndex = 0;
         context->m_TextContext.m_VerticesFlushed = 0;
         context->m_TextContext.m_Frame += 1;
         context->m_TextContext.m_TextBuffer.SetSize(0);
-        context->m_TextContext.m_Batches.Clear();
         context->m_TextContext.m_TextEntries.SetSize(0);
+        context->m_TextContext.m_TextEntriesFlushed = 0;
 
         return RESULT_OK;
     }

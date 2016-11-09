@@ -1,5 +1,6 @@
 (ns integration.build-test
   (:require [clojure.test :refer :all]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
@@ -16,12 +17,15 @@
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.spine.proto Spine$SpineScene]
+           [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.lua.proto Lua$LuaModule]
+           [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
+           [com.dynamo.spine.proto Spine$SpineModelDesc]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -30,7 +34,7 @@
            [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
-(def project-path "resources/build_project/SideScroller")
+(def project-path "test/resources/build_project/SideScroller")
 
 (defn- ->BuildResource
   ([project path]
@@ -39,15 +43,55 @@
    (let [node (test-util/resource-node project path)]
      (workspace/make-build-resource (g/node-value node :resource) prefix))))
 
+(def target-pb-classes {"skeletonc" Rig$Skeleton
+                        "animationsetc" Rig$AnimationSet
+                        "meshsetc" Rig$MeshSet
+                        "texturesetc" TextureSetProto$TextureSet})
+
+(defn- target [path targets]
+  (let [ext (FilenameUtils/getExtension path)
+        pb-class (get target-pb-classes ext)]
+    (protobuf/bytes->map pb-class (get targets path))))
+
 (def pb-cases [{:label    "ParticleFX"
                 :path     "/main/blob.particlefx"
                 :pb-class Particle$ParticleFX
-                :test-fn  (fn [pb]
+                :test-fn  (fn [pb targets]
                             (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
                {:label           "Sound"
                 :path            "/main/sound.sound"
                 :pb-class        Sound$SoundDesc
-                :resource-fields [:sound]}])
+                :resource-fields [:sound]}
+               {:label           "Collision Object"
+                :path            "/collisionobject/tile_map.collisionobject"
+                :pb-class        Physics$CollisionObjectDesc
+                :resource-fields [:collision-shape]}
+               {:label           "Collision Object"
+                :path            "/collisionobject/convex_shape.collisionobject"
+                :pb-class        Physics$CollisionObjectDesc
+                :test-fn (fn [pb targets]
+                           (is (= "" (:collision-shape pb)))
+                           (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
+               {:label           "Tile Source"
+                :path            "/tile_source/simple.tilesource"
+                :pb-class        TextureSetProto$TextureSet
+                :test-fn (fn [pb targets]
+                           (is (= "default" (:collision-group (first (:convex-hulls pb)))))
+                           (is (< 0 (count (:convex-hull-points pb)))))}
+               {:label "Spine Scene"
+                :path "/player/spineboy.spinescene"
+                :pb-class Rig$RigScene
+                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                :test-fn (fn [pb targets]
+                           (is (some? (-> pb :texture-set (target targets) :texture)))
+                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+               {:label "Spine Model"
+                :path "/player/spineboy.spinemodel"
+                :pb-class Spine$SpineModelDesc
+                :resource-fields [:spine-scene :material]}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -56,7 +100,7 @@
           test-fn    (:test-fn case)
           res-fields [:sound]]
       (when test-fn
-        (test-fn pb))
+        (test-fn pb content-by-target))
       (doseq [field (:resource-fields case)]
         (is (contains? content-by-target (get pb field)))
         (is (> (count (get content-by-target (get pb field))) 0))))))
@@ -86,8 +130,10 @@
                        "/builtins/render/default.render"
                        "/builtins/render/default.render_script"
                        "/background/bg.png"
-                       "/builtins/graphics/particle_blob.tilesource"
-                       "/main/blob.tilemap"]
+                       "/tile_source/simple.tilesource"
+                       "/main/blob.tilemap"
+                       "/collisionobject/tile_map.collisionobject"
+                       "/collisionobject/convex_shape.collisionobject"]
           exp-exts    ["vpc" "fpc" "texturec"]]
       (doseq [case pb-cases]
         (run-pb-case case content-by-source content-by-target))
@@ -168,18 +214,27 @@
   (ffirst (g/sources-of node label)))
 
 (deftest break-merged-targets
-  (testing "Verify equivalent game objects are not merged after being changed in memory"
-    (with-build-results "/merge/merge_embed.collection"
-      (is (= 1 (count-exts (keys content-by-target) "goc")))
-      (is (= 1 (count-exts (keys content-by-target) "spritec")))
-      (let [go-node   (first-source (first-source resource-node :child-scenes) :source-id)
-            comp-node (first-source go-node :child-scenes)]
-        (g/transact (g/delete-node comp-node))
-        (let [build-results     (project/build project resource-node {})
-              content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
-                                              build-results))]
-          (is (= 1 (count-exts (keys content-by-target) "goc")))
-          (is (= 1 (count-exts (keys content-by-target) "spritec"))))))))
+  (with-build-results "/merge/merge_embed.collection"
+    (is (= 1 (count-exts (keys content-by-target) "goc")))
+    (is (= 1 (count-exts (keys content-by-target) "spritec")))
+    (let [go-node   (first-source (first-source resource-node :child-scenes) :source-id)
+          comp-node (first-source go-node :child-scenes)]
+      (testing "Verify equivalent game objects are not merged after being changed in memory"
+               (g/transact (g/delete-node comp-node))
+               (let [build-results     (project/build project resource-node {})
+                     content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
+                                                     build-results))]
+                 (is (= 2 (count-exts (keys content-by-target) "goc")))
+                 (is (= 1 (count-exts (keys content-by-target) "spritec")))))
+      (g/undo! (g/node-id->graph-id project))
+      (testing "Verify equivalent sprites are not merged after being changed in memory"
+               (let [sprite (test-util/prop-node-id comp-node :blend-mode)]
+                 (test-util/prop! sprite :blend-mode :blend-mode-add)
+                 (let [build-results     (project/build project resource-node {})
+                       content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (:content %)])
+                                                       build-results))]
+                   (is (= 2 (count-exts (keys content-by-target) "goc")))
+                   (is (= 2 (count-exts (keys content-by-target) "spritec")))))))))
 
 (deftest build-cached
   (testing "Verify the build cache works as expected"
@@ -202,6 +257,35 @@
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
           (is (not-any? :cached first-build-results)))))))
+
+(defn- build-path [workspace proj-path]
+  (str (workspace/build-path workspace) proj-path))
+
+(defn- abs-project-path [workspace proj-path]
+  (str (workspace/project-path workspace) proj-path))
+
+(defn mtime [path]
+  (.lastModified (File. path)))
+
+(deftest build-and-write-cached
+  (testing "Verify the build cache works when building to disk"
+    (with-clean-system
+      (let [workspace (test-util/setup-scratch-workspace! world project-path)
+            project (test-util/setup-project! workspace)
+            path "/game.project"
+            game-project (test-util/resource-node project "/game.project")
+            main-collection (test-util/resource-node project "/main/main.collection")]
+        (project/build-and-write project game-project {})
+        (let [first-mtime (mtime (build-path workspace "/main/main.collectionc"))]
+          (Thread/sleep 1000)
+          (project/build-and-write project game-project {})
+          (let [test-mtime (mtime (build-path workspace "/main/main.collectionc"))]
+            (is (= first-mtime test-mtime)))
+          (g/transact (g/set-property main-collection :name "my-test-name"))
+          (Thread/sleep 1000)
+          (project/build-and-write project game-project {})
+          (let [test-mtime (mtime (build-path workspace "/main/main.collectionc"))]
+            (is (not (= first-mtime test-mtime)))))))))
 
 (deftest prune-build-cache
   (testing "Verify the build cache works as expected"
@@ -262,30 +346,32 @@
         (is (= 1024 (:cache-width desc)))
         (is (= 256 (:cache-height desc)))))))
 
-(deftest build-spine-scene
-  (testing "Building spine scene"
-    (with-build-results "/player/spineboy.spinescene"
-      (let [content (get content-by-source "/player/spineboy.spinescene")
-            desc    (Spine$SpineScene/parseFrom content)
-            bones   (-> desc (.getSkeleton) (.getBonesList))
-            meshes  (-> desc (.getMeshSet) (.getMeshEntriesList) (first) (.getMeshesList))]
-        (is (contains? content-by-target (.getTextureSet desc)))))))
-
 (deftest build-mesh
   (testing "Building mesh"
     (with-build-results "/model/book_of_defold.dae"
       (let [content (get content-by-source "/model/book_of_defold.dae")
             desc    (Mesh$MeshDesc/parseFrom content)]
-        #_(prn desc)
-        #_(is (contains? content-by-target (.getTextureSet desc)))))))
+        (is (= "Book" (-> desc (.getComponentsList) (first) (.getName))))))))
 
 (deftest build-model
   (testing "Building model"
     (with-build-results "/model/book_of_defold.model"
       (let [content (get content-by-source "/model/book_of_defold.model")
             desc    (Model$ModelDesc/parseFrom content)]
-        #_(prn desc)
-        #_(is (contains? content-by-target (.getTextureSet desc)))))))
+        (is (= "/model/book_of_defold.meshc" (-> desc (.getMesh))))))))
+
+(deftest build-script
+  (testing "Buildling a valid script succeeds"
+    (with-build-results "/script/good.script"
+      (let [content (get content-by-source "/script/good.script")
+            module    (Lua$LuaModule/parseFrom content)
+            source (.getSource module)]
+        (is (pos? (.size (.getBytecode source))))
+        (is (= "/script/good.script" (.getFilename source))))))
+  (testing "Building a broken script fails"
+    (with-build-results "/script/bad.script"
+      (let [content (get content-by-source "/script/bad.script")]
+        (is (nil? content))))))
 
 (deftest build-script-properties
   (with-build-results "/script/props.collection"
@@ -388,3 +474,78 @@
                                                                     :render-error!    #(reset! build-error %)})]
       (is (nil? build-results))
       (is (instance? internal.graph.error_values.ErrorValue @build-error)))))
+
+(defmacro with-setting [path value & body]
+  ;; assumes game-project in scope
+  (let [path-list (string/split path #"/")]
+    `(let [initial-settings# (g/node-value ~'game-project :raw-settings)]
+           (g/transact (g/update-property ~'game-project :raw-settings conj {:path ~path-list :value ~value}))
+           (try
+             ~@body
+             (finally
+               (g/set-property ~'game-project :raw-settings initial-settings#))))))
+
+(defn- check-file-contents [workspace specs]
+  (doseq [[path content] specs]
+    (let [file (File. (build-path workspace path))]
+      (is (true? (.exists file)))
+      (is (= (slurp file) content)))))
+
+(deftest build-with-custom-resources
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+          project (test-util/setup-project! workspace)
+          game-project (test-util/resource-node project "/game.project")]
+      (with-setting "project/custom_resources" "root.stuff"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace [["root.stuff" "root.stuff"]])
+      (with-setting "project/custom_resources" "/root.stuff"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace [["root.stuff" "root.stuff"]])
+      (with-setting "project/custom_resources" "assets"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace
+                             [["/assets/some.stuff" "some.stuff"]
+                              ["/assets/some2.stuff" "some2.stuff"]]))
+      (with-setting "project/custom_resources" "/assets"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace
+                             [["/assets/some.stuff" "some.stuff"]
+                              ["/assets/some2.stuff" "some2.stuff"]]))
+      (with-setting "project/custom_resources" "/assets, root.stuff"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace
+                             [["/assets/some.stuff" "some.stuff"]
+                              ["/assets/some2.stuff" "some2.stuff"]
+                              ["/root.stuff" "root.stuff"]]))
+      (with-setting "project/custom_resources" "assets, root.stuff, /more_assets/"
+        (project/build-and-write project game-project {})
+        (check-file-contents workspace
+                             [["/assets/some.stuff" "some.stuff"]
+                              ["/assets/some2.stuff" "some2.stuff"]
+                              ["/root.stuff" "root.stuff"]
+                              ["/more_assets/some_more.stuff" "some_more.stuff"]
+                              ["/more_assets/some_more2.stuff" "some_more2.stuff"]]))
+      (with-setting "project/custom_resources" "nonexistent_path"
+        (project/build-and-write project game-project {})
+        (doseq [path ["/assets/some.stuff" "/assets/some2.stuff"
+                      "/root.stuff"
+                      "/more_assets/some_more.stuff" "/more_assets/some_more2.stuff"]]
+          (is (false? (.exists (File. (build-path workspace path))))))))))))
+
+(deftest custom-resources-cached
+  (testing "Check custom resources are only rebuilt when source has changed"
+    (with-clean-system
+      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+            project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (with-setting "project/custom_resources" "assets"
+          (project/build-and-write project game-project {})
+          (let [initial-some-mtime (mtime (build-path workspace "/assets/some.stuff"))
+                initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))]
+            (Thread/sleep 1000)
+            (spit (File. (abs-project-path workspace "/assets/some.stuff")) "new stuff")
+            (workspace/resource-sync! workspace)
+            (project/build-and-write project game-project {})
+            (is (not (= initial-some-mtime (mtime (build-path workspace "/assets/some.stuff")))))
+            (is (= initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))))))))))

@@ -183,16 +183,16 @@ int IAC_PlatformSetListener(lua_State* L)
     IAC* iac = &g_IAC;
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    int cb = luaL_ref(L, LUA_REGISTRYINDEX);
+    int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
     if (iac->m_IACListener.m_Callback != LUA_NOREF) {
-        luaL_unref(iac->m_IACListener.m_L, LUA_REGISTRYINDEX, iac->m_IACListener.m_Callback);
-        luaL_unref(iac->m_IACListener.m_L, LUA_REGISTRYINDEX, iac->m_IACListener.m_Self);
+        dmScript::Unref(iac->m_IACListener.m_L, LUA_REGISTRYINDEX, iac->m_IACListener.m_Callback);
+        dmScript::Unref(iac->m_IACListener.m_L, LUA_REGISTRYINDEX, iac->m_IACListener.m_Self);
     }
     iac->m_IACListener.m_L = dmScript::GetMainThread(L);
     iac->m_IACListener.m_Callback = cb;
 
     dmScript::GetInstance(L);
-    iac->m_IACListener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    iac->m_IACListener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if (g_IAC.m_SavedInvocation)
     {
@@ -232,8 +232,8 @@ dmExtension::Result InitializeIAC(dmExtension::Params* params)
 dmExtension::Result FinalizeIAC(dmExtension::Params* params)
 {
     if (params->m_L == g_IAC.m_IACListener.m_L && g_IAC.m_IACListener.m_Callback != LUA_NOREF) {
-        luaL_unref(g_IAC.m_IACListener.m_L, LUA_REGISTRYINDEX, g_IAC.m_IACListener.m_Callback);
-        luaL_unref(g_IAC.m_IACListener.m_L, LUA_REGISTRYINDEX, g_IAC.m_IACListener.m_Self);
+        dmScript::Unref(g_IAC.m_IACListener.m_L, LUA_REGISTRYINDEX, g_IAC.m_IACListener.m_Callback);
+        dmScript::Unref(g_IAC.m_IACListener.m_L, LUA_REGISTRYINDEX, g_IAC.m_IACListener.m_Self);
         g_IAC.m_IACListener.m_L = 0;
         g_IAC.m_IACListener.m_Callback = LUA_NOREF;
         g_IAC.m_IACListener.m_Self = LUA_NOREF;

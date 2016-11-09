@@ -1,31 +1,28 @@
 package com.dynamo.cr.server.resources;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
+import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
+import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.util.TrackingID;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.eclipse.jgit.util.StringUtils;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.eclipse.jgit.util.StringUtils;
-
-import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
-import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
-import com.dynamo.cr.server.Server;
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Project;
-import com.dynamo.cr.server.model.User;
-import com.dynamo.cr.server.util.TrackingID;
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 public class ResourceUtil {
 
-    public static void throwWebApplicationException(Status status, String msg) {
+    static void throwWebApplicationException(Status status, String msg) {
         Response response = Response
                 .status(status)
                 .type(MediaType.TEXT_PLAIN)
@@ -34,14 +31,13 @@ public class ResourceUtil {
         throw new WebApplicationException(response);
     }
 
-    public static UserInfo createUserInfo(User user) {
-        UserInfo userInfo = UserInfo.newBuilder()
+    private static UserInfo createUserInfo(User user) {
+        return UserInfo.newBuilder()
             .setId(user.getId())
             .setEmail(user.getEmail())
             .setFirstName(user.getFirstName())
             .setLastName(user.getLastName())
             .build();
-        return userInfo;
     }
 
     /*
@@ -73,11 +69,10 @@ public class ResourceUtil {
             repositoryRootList.add(0, ".");
         }
 
-        String baseUri = "/" + repositoryRootList.get(repositoryRootList.size()-1);
-        return baseUri;
+        return "/" + repositoryRootList.get(repositoryRootList.size()-1);
     }
 
-    public static ProjectInfo createProjectInfo(Configuration configuration, User user, Project project) {
+    static ProjectInfo createProjectInfo(Configuration configuration, User user, Project project) {
         ProjectInfo.Builder b = ProjectInfo.newBuilder()
             .setId(project.getId())
             .setName(project.getName())
@@ -109,11 +104,10 @@ public class ResourceUtil {
         return b.build();
     }
 
-    public static void deleteProjectRepo(Project project, Configuration configuration) throws IOException {
+    static void deleteProjectRepo(Project project, Configuration configuration) throws IOException {
         // Delete git repo
         String repositoryRoot = configuration.getRepositoryRoot();
         File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
         FileUtils.deleteDirectory(projectPath);
     }
-
 }

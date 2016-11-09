@@ -1,0 +1,170 @@
+(ns editor.sentry
+  (:require
+   [clojure.data.json :as json]
+   [clojure.java.io :as io]
+   [clojure.string :as string]
+   [editor.system :as system]
+   [schema.utils :as su]
+   [service.log :as log]
+   [util.http-client :as http])
+  (:import
+   (java.util.concurrent LinkedBlockingQueue TimeUnit)
+   (java.time LocalDateTime ZoneOffset)))
+
+(set! *warn-on-reflection* true)
+
+(def user-agent "sentry-defold/1.0")
+
+(defn- stacktrace-data
+  [^Exception ex]
+  {:frames (vec (for [^StackTraceElement frame (reverse (.getStackTrace ex))]
+                  {:filename (.getFileName frame)
+                   :lineno (.getLineNumber frame)
+                   :function (.getMethodName frame)
+                   :module (.getClassName frame)}))})
+
+(defn module-name
+  [frames]
+  (when-let [^StackTraceElement top (first (seq frames))]
+    (str (.getClassName top) "." (.getMethodName top))))
+
+(defn- exception-data
+  [^Exception ex ^Thread thread]
+  (loop [ex ex
+         data []]
+    (if (nil? ex)
+      data
+      (recur (.getCause ex) (conj data {:type (str (.getClass ex))
+                                        :value (.getMessage ex)
+                                        :module (module-name (.getStackTrace ex))
+                                        :stacktrace (stacktrace-data ex)
+                                        :thread_id (str (.getId thread))})))))
+
+(defn- thread-data
+  [^Thread thread ^Exception ex]
+  [{:id (str (.getId thread))
+    :current true
+    :crashed (= (.getState thread) Thread$State/TERMINATED)
+    :name (.getName thread)}])
+
+(defn to-safe-json-value
+  [value]
+  (cond
+    (set? value)
+    (into [] (sort (map to-safe-json-value value)))
+
+    (instance? java.util.Map value)
+    (into {} (map (fn [[k v]] [k (to-safe-json-value v)])) value)
+
+    (instance? java.util.Collection value)
+    (into [] (map to-safe-json-value) value)
+
+    (class? value)
+    (str value)
+
+    (fn? value)
+    (str value)
+
+    (instance? schema.utils.ValidationError value)
+    (su/validation-error-explain value)
+
+    :else
+    value))
+
+(defn make-event
+  [^Exception ex ^Thread thread]
+  (let [environment (if (system/defold-version) "release" "dev")]
+    {:event_id    (string/replace (str (java.util.UUID/randomUUID)) "-" "")
+     :message     (.getMessage ex)
+     :timestamp   (LocalDateTime/now ZoneOffset/UTC)
+     :level       "error"
+     :logger      ""
+     :platform    "java"
+     :sdk         {:name "sentry-defold" :version "1.0"}
+     :device      {:name (system/os-name) :version (system/os-version)}
+     :culprit     (module-name (.getStackTrace ex))
+     :release     (or (system/defold-version) "dev")
+     :tags        {:defold-sha1 (system/defold-sha1)
+                   :defold-version (or (system/defold-version) "dev")
+                   :os-name (system/os-name)
+                   :os-arch (system/os-arch)
+                   :os-version (system/os-version)
+                   :java-version (system/java-runtime-version)}
+     :environment environment
+     :extra       (merge {:java-home (system/java-home)}
+                         (to-safe-json-value (ex-data ex)))
+     :fingerprint ["{{ default }}" environment]
+     :exception   (exception-data ex thread)
+     :threads     (thread-data thread ex)}))
+
+(defn x-sentry-auth
+  [^LocalDateTime ts key secret]
+  (format "Sentry sentry_version=7, sentry_timestamp=%s, sentry_key=%s, sentry_secret=%s"
+          (.toEpochSecond (.atZone ts ZoneOffset/UTC)) key secret))
+
+(extend-protocol json/JSONWriter
+  java.time.LocalDateTime
+  (-write [object out] (json/-write (str object) out)))
+
+(defn make-request-data
+  [{:keys [project-id key secret]} event]
+  {:request-method :post
+   :scheme         "https"
+   :server-name    "sentry.io"
+   :uri            (format "/api/%s/store/" project-id)
+   :content-type   "application/json"
+   :headers        {"X-Sentry-Auth" (x-sentry-auth (:timestamp event) key secret)
+                    "User-Agent"    user-agent
+                    "Accept"        "application/json"}
+   :body           (try
+                     (json/write-str event)
+                     (catch Exception e
+                       ;; The :extra field in the event data returned by make-event can potentially
+                       ;; contain anything, since it includes ex-data from the exception.
+                       ;; We attempt to convert unrepresentable values into an appropriate json value
+                       ;; using the to-safe-json-value function above, but new types might appear.
+                       ;; In case conversion fails, we replace the :extra data with safe data that
+                       ;; will convert successfully, and include info about the conversion failure
+                       ;; so we can add conversions to the to-safe-json-value function as needed.
+                       (json/write-str (assoc event :extra {:java-home (system/java-home)
+                                                            :conversion-failure (exception-data e (Thread/currentThread))}))))})
+
+(defn report-exception
+  [options exception thread]
+  (let [event (make-event exception thread)
+        request (make-request-data options event)]
+    (http/request request)))
+
+
+;; report exceptions on separate thread
+;;
+;; - pass data using bounded queue
+;; - immediately drop exception if queue is full (will still be logged)
+;; - limit rate of reporting
+
+(defn make-exception-reporter
+  [{:keys [project-id key secret] :as options}]
+  (let [queue (LinkedBlockingQueue. 1000)
+        run? (volatile! true)
+        reporter-fn (fn []
+                      ;; very simple time-based rate-limiting, send at most 1 exception/s.
+                      (loop [last-report (System/currentTimeMillis)]
+                        (when @run?
+                          (if-let [[exception thread] (.poll queue 1 TimeUnit/SECONDS)]
+                            (if (< (- (System/currentTimeMillis) last-report) 1000)
+                              (recur last-report)
+                              (do
+                                (try
+                                  (report-exception options exception thread)
+                                  (catch Exception e
+                                    (log/error :exception e :msg (format "Error reporting exception to sentry: %s" (.getMessage e)))))
+                                (recur (System/currentTimeMillis))))
+                            (recur last-report))))) ]
+    (doto (Thread. reporter-fn)
+      (.setName "sentry-reporter-thread")
+      (.start))
+    (fn
+      ([]
+       (vreset! run? false))
+      ([exception thread]
+       (.offer queue [exception thread])))))

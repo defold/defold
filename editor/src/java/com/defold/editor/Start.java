@@ -27,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.defold.editor.Updater.UpdateInfo;
-import com.defold.libs.NativeArtifacts;
+import com.defold.libs.ResourceUnpacker;
 
 import javafx.application.Application;
 import javafx.beans.value.ChangeListener;
@@ -185,9 +185,15 @@ public class Start extends Application {
     private void kickLoading(Splash splash) {
         threadPool.submit(() -> {
             try {
-                NativeArtifacts.extractNatives();
+                // A terrible hack as an attempt to avoid a deadlock when loading native libraries
+                // Prism might be loading native libraries at this point, although we kick this loading after the splash has been shown.
+                // The current hypothesis is that the splash is "onShown" before the loading has finished and rendering can start.
+                // Occular inspection shows the splash as grey for a few frames (1-3?) before filled in with graphics. That grey-time also seems to differ between runs.
+                // This is an attempt to make the deadlock less likely to happen and hopefully avoid it altogether. No guarantees.
+                Thread.sleep(200);
+                ResourceUnpacker.unpackResources();
                 ClassLoader parent = ClassLoader.getSystemClassLoader();
-                Class<?> glprofile = parent.loadClass("javax.media.opengl.GLProfile");
+                Class<?> glprofile = parent.loadClass("com.jogamp.opengl.GLProfile");
                 Method init = glprofile.getMethod("initSingleton");
                 init.invoke(null);
             } catch (Exception e) {
@@ -221,7 +227,7 @@ public class Start extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         final Splash splash = new Splash();
-        splash.showingProperty().addListener(new ChangeListener<Boolean>() {
+        splash.shownProperty().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue<? extends Boolean> observable,
                     Boolean oldValue, Boolean newValue) {

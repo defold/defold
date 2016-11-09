@@ -1,5 +1,6 @@
 (ns editor.sprite
-  (:require [editor.protobuf :as protobuf]
+  (:require [clojure.string :as str]
+            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
@@ -19,8 +20,8 @@
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -177,7 +178,7 @@
    :content (protobuf/map->str Sprite$SpriteDesc
               {:tile-set (resource/resource->proj-path image)
                :default-animation default-animation
-               :material (resource/proj-path material)
+               :material (resource/resource->proj-path material)
                :blend-mode blend-mode})})
 
 (defn anim-uvs [anim]
@@ -207,18 +208,29 @@
     {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc pb)}))
 
 (g/defnk produce-build-targets [_node-id resource image default-animation material blend-mode dep-build-targets]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:tile-set image] [:material material]])]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-sprite
-      :user-data {:proto-msg {:tile-set (resource/proj-path image)
-                              :default-animation default-animation
-                              :material (resource/proj-path material)
-                              :blend-mode blend-mode}
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+  (or (when-let [errors (->> [[image :image "Image"]
+                              [material :material "Material"]]
+                             (keep (fn [[v prop-kw name]]
+                                     (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
+                             not-empty)]
+        (g/error-aggregate errors))
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+            dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:tile-set image] [:material material]])]
+        
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-sprite
+          :user-data {:proto-msg {:tile-set (resource/proj-path image)
+                                  :default-animation default-animation
+                                  :material (resource/proj-path material)
+                                  :blend-mode blend-mode}
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
+
+(defn- sort-anim-ids
+  [anim-ids]
+  (sort-by str/lower-case anim-ids))
 
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
@@ -229,33 +241,51 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :image-resource]
                                             [:anim-data :anim-data]
+                                            [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
                                             [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource image)))
+            (dynamic error (g/fnk [_node-id image anim-data]
+                                  (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
+                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image"))))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["atlas" "tilesource"]})))
 
   (property default-animation g/Str
-            (validate (validation/validate-animation default-animation anim-data))
-            (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
-                                                   :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+            (value (g/fnk [default-animation anim-ids]
+                     (if (and (str/blank? default-animation) anim-ids)
+                       (first (sort-anim-ids anim-ids))
+                       default-animation)))
+            (dynamic error (g/fnk [_node-id image anim-ids default-animation]
+                             (when image
+                               (let [anim-id-set (set anim-ids)]
+                                 (validation/prop-error :fatal _node-id :default-animation (fn [a]
+                                                                                             (when (not (anim-id-set default-animation))
+                                                                                               (format "'%s' is not in '%s'" default-animation (resource/resource-name image))))
+                                                        default-animation)))))
+            (dynamic edit-type (g/fnk [anim-ids] {:type :choicebox
+                                                  :options (zipmap anim-ids anim-ids)})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets])))
-            (validate (validation/validate-resource material)))
-
+            (dynamic error (g/fnk [_node-id material]
+                                  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                                      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))))
 
   (property blend-mode g/Any (default :blend_mode_alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
-            (dynamic edit-type (g/always
+            (dynamic edit-type (g/constantly
                                 (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
                                   {:type :choicebox
                                    :options (zipmap (map first options)
                                                     (map (comp :display-name second) options))}))))
 
   (input image-resource resource/Resource)
-  (input anim-data g/Any)
+  (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
+  (input anim-ids g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
 

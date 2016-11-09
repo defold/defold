@@ -16,6 +16,15 @@ extern "C"
 
 namespace dmScript
 {
+    /*# Built-ins API documentation
+     *
+     * Built-in scripting functions.
+     * 
+     * @name Built-ins
+     * @namespace builtins
+     */
+
+
     #define SCRIPT_TYPE_NAME_HASH "hash"
     #define SCRIPT_HASH_TABLE "__script_hash_table"
 
@@ -131,7 +140,7 @@ namespace dmScript
             luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
             lua_setmetatable(L, -2);
             lua_pushvalue(L, -1);
-            int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
             if (instances->Full())
             {

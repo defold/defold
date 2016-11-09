@@ -20,7 +20,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.handler :as handler]
-            [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
             [editor.ui :as ui]
             [editor.scene :as scene]
@@ -54,8 +53,8 @@
            [javafx.util Callback StringConverter]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [javax.media.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
            [java.util.concurrent Executors]
@@ -372,7 +371,7 @@
   (property select-fn Runnable)
   (input sub-selection g/Any)
   (input curve-handle g/Any)
-  (output input-handler Runnable :cached (g/always handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defn- pick-control-points [curves picking-rect camera viewport]
   (let [aabb (geom/rect->aabb picking-rect)]
@@ -579,7 +578,7 @@
                        (if-let [view-id (ui/user-data image-view ::view-id)]
                          (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                            (doto drawable
-                             (.setSize w h))
+                             (.setSurfaceSize w h))
                            (let [context (scene/make-current drawable)]
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize ^GL2 (.getGL context) w h))
@@ -594,9 +593,9 @@
                                                     (update-image-view! image-view dt)
                                                     (g/node-value view-id :update-list-view))))]
                              (ui/user-data! view ::repainter repainter)
-                             (ui/on-close tab
-                                          (fn [e]
-                                            (ui/timer-stop! repainter)))
+                             (ui/on-closed! tab
+                                            (fn [e]
+                                              (ui/timer-stop! repainter)))
                              (ui/timer-start! repainter))
                            (let [drawable (scene/make-drawable w h)]
                              (g/transact
@@ -636,7 +635,7 @@
            :fov-x 1.2)))
 
 (defrecord SubSelectionProvider [project]
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] (g/node-value project :sub-selection)))
 
 (defn- on-list-selection [project values]

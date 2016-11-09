@@ -11,6 +11,7 @@
 
 #include <render/render.h>
 #include <render/font_renderer.h>
+#include <rig/rig.h>
 
 #include <hid/hid.h>
 #include <input/input.h>
@@ -105,6 +106,7 @@ namespace dmEngine
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;
         dmGameSystem::ParticleFXContext             m_ParticleFXContext;
+        dmRig::HRigContext                          m_RigContext;
         /// If the shared context is set, the three environment specific contexts below will point to the same context
         dmScript::HContext                          m_SharedScriptContext;
         dmScript::HContext                          m_GOScriptContext;
@@ -118,6 +120,7 @@ namespace dmEngine
         dmGameSystem::FactoryContext                m_FactoryContext;
         dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
         dmGameSystem::SpineModelContext             m_SpineModelContext;
+        dmGameSystem::LabelContext                  m_LabelContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmRender::HFontMap                          m_SystemFontMap;

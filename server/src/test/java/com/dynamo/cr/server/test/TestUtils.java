@@ -6,22 +6,6 @@ import javax.persistence.EntityManager;
 
 public class TestUtils {
 
-    public enum TestUser {
-        JAMES("james.bond@mi9.com", "secret", "James", "Bond");
-
-        public String email;
-        public String password;
-        public String firstName;
-        public String lastName;
-
-        TestUser(String email, String password, String firstName, String lastName) {
-            this.email = email;
-            this.password = password;
-            this.firstName = firstName;
-            this.lastName = lastName;
-        }
-    }
-
     public static void createTestUsers(EntityManager entityManager) {
         for (TestUser testUser : TestUser.values()) {
             User user = new User();
@@ -31,5 +15,14 @@ public class TestUtils {
             user.setLastName(testUser.lastName);
             entityManager.persist(user);
         }
+    }
+
+    public static User buildUser(TestUser testUser) {
+        User user = new User();
+        user.setEmail(testUser.email);
+        user.setFirstName(testUser.firstName);
+        user.setLastName(testUser.lastName);
+        user.setPassword(testUser.password);
+        return user;
     }
 }

@@ -22,9 +22,9 @@ public class ParticleLibrary {
 
     static {
         try {
-            NativeArtifacts.extractNatives();
+            ResourceUnpacker.unpackResources();
             Native.register("particle_shared");
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("Failed to extract/register particle_shared", e);
         }
     }
@@ -51,7 +51,7 @@ public class ParticleLibrary {
 
     public static native void Particle_SetContextMaxParticleCount(Pointer context, int maxParticleCount);
 
-    public static native Pointer Particle_CreateInstance(Pointer context, Pointer prototype);
+    public static native Pointer Particle_CreateInstance(Pointer context, Pointer prototype, Pointer emitterStateCallbackData);
 
     public static native void Particle_DestroyInstance(Pointer context, Pointer instance);
 

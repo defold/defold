@@ -1,6 +1,5 @@
 (ns internal.graph.types
   (:require [internal.util :as util]
-            [internal.graph.error-values :as ie]
             [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
@@ -9,7 +8,6 @@
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))
 
-(def NodeID s/Int)
 (defn node-id? [v] (integer? v))
 
 (defprotocol Evaluation

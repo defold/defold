@@ -293,8 +293,8 @@ static void VerifyCallback(lua_State* L)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     }
@@ -328,8 +328,8 @@ static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* err
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -364,8 +364,8 @@ static void RunCallback(lua_State*L, NSError* error)
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -433,8 +433,8 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
             lua_pop(L, 1);
         }
         assert(top == lua_gettop(L));
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
         g_Facebook.m_Self = LUA_NOREF;
     } else {
@@ -542,51 +542,196 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
     }
 }
 
+static void PrepareCallback(lua_State* thread, FBSDKLoginManagerLoginResult* result, NSError* error)
+{
+    if (error)
+    {
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            [error.localizedDescription UTF8String], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+    }
+    else if (result.isCancelled)
+    {
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            "Login was cancelled", dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+    }
+    else
+    {
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            nil, dmFacebook::STATE_OPEN);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Lua API
 //
 
 namespace dmFacebook {
 
- /*# initiate a Facebook login
+/*# Facebook API documentation
  *
- * This function opens a Facebook login dialog allowing the user to log into Facebook
- * with his/her account. This performs a login requesting read permission for:
+ * Functions and constants for interacting with Facebook APIs.
+ *
+ * @name Facebook
+ * @namespace facebook
+ */
+
+bool PlatformFacebookInitialized()
+{
+    return !!g_Facebook.m_Login;
+}
+
+/*# Login to Facebook and request a set of read permissions
+ *
+ * Login to Facebook and request a set of read permissions. The user is
+ * prompted to authorize the application using the login dialog of the specific
+ * platform. Even if the user is already logged in to Facebook this function
+ * can still be used to request additional read permissions.
+ *
+ * <b>NOTE</b> that this function cannot be used to request publish permissions.
+ * If the application requires both read and publish permissions, individual
+ * calls to both login_with_read_permissions and login_with_publish_permissions
+ * has to be made.
+ *
+ * A comprehensive list of permissions can be found in the <a href="https://developers.facebook.com/docs/facebook-login/permissions">Facebook documentation</a>,
+ * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
+ *
+ * @name facebook.login_with_read_permissions
+ * @param permissions (table) Table with the requested read permission strings.
+ * @param callback (function) Callback function that takes the arguments (self, data), the callback is executed when the permission request dialog is closed.
  * <ul>
- *   <li><code>"public_profile"</code></li>
- *   <li><code>"email"</code></li>
- *   <li><code>"user_friends"</code></li>
+ *     <li><code>self</code> The context of the calling script
+ *     <li><code>data</code> A table that contains the response
  * </ul>
- * The actual permission that the user grants can be retrieved with <code>facebook.permissions()</code>.
  *
- * @name facebook.login
- * @param callback callback function with parameters (self, status, error), when the login attempt is done. (function)
  * @examples
  * <pre>
- * facebook.login(function (self, status, error)
- *     if error or status ~= facebook.STATE_OPEN then
- *         print("Facebook log in error: " .. status)
- *         return
+ * local permissions = {"public_profile", "email", "user_friends"}
+ * facebook.login_with_read_permissions(permissions, function(self, data)
+ *     if (data.status == facebook.STATE_OPEN and data.error == nil) then
+ *         print("Successfully logged into Facebook")
+ *         pprint(facebook.permissions())
+ *     else
+ *         print("Failed to get permissions (" .. data.status .. ")")
+ *         pprint(data)
  *     end
  * end)
  * </pre>
  */
+void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int callback, int context, lua_State* thread)
+{
+    // This function must always return so memory for `permissions` can be free'd.
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    NSMutableArray* ns_permissions = [[NSMutableArray alloc] init];
+    for (uint32_t i = 0; i < permission_count; ++i)
+    {
+        const char* permission = permissions[i];
+        [ns_permissions addObject: [NSString stringWithUTF8String: permission]];
+    }
+
+    @try {
+        [g_Facebook.m_Login logInWithReadPermissions: ns_permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error)
+        {
+            PrepareCallback(thread, result, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request read permissions: %@", exception.reason];
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            [errorMessage UTF8String], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+    }
+}
+
+/*# Login to Facebook and request a set of publish permissions
+ *
+ * Login to Facebook and request a set of publish permissions. The user is
+ * prompted to authorize the application using the login dialog of the specific
+ * platform. Even if the user is already logged in to Facebook this function
+ * can still be used to request additional publish permissions.
+ *
+ * <b>NOTE</b> that this function cannot be used to request read permissions.
+ * If the application requires both publish and read permissions, individual
+ * calls to both login_with_publish_permissions and login_with_read_permissions
+ * has to be made.
+ *
+ * A comprehensive list of permissions can be found in the <a href="https://developers.facebook.com/docs/facebook-login/permissions">Facebook documentation</a>,
+ * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
+ *
+ * @name facebook.login_with_publish_permissions
+ * @param permissions (table) Table with the requested publish permission strings.
+ * @param audience (constant|number) The audience that should be able to see the publications.
+ * <ul>
+ *     <li>facebook.AUDIENCE_NONE</li>
+ *     <li>facebook.AUDIENCE_ONLYME</li>
+ *     <li>facebook.AUDIENCE_FRIENDS</li>
+ *     <li>facebook.AUDIENCE_EVERYONE</li>
+ * </ul>
+ * @param callback (function) Callback function that takes the arguments (self, data), the callback is executed when the permission request dialog is closed.
+ * <ul>
+ *     <li><code>self</code> The context of the calling script
+ *     <li><code>data</code> A table that contains the response
+ * </ul>
+ *
+ * @examples
+ * <pre>
+ * local permissions = {"publish_actions"}
+ * facebook.login_with_publish_permissions(permissions, facebook.AUDIENCE_FRIENDS, function(self, data)
+ *     if (data.status == facebook.STATE_OPEN and data.error == nil) then
+ *         print("Successfully logged into Facebook")
+ *         pprint(facebook.permissions())
+ *     else
+ *         print("Failed to get permissions (" .. data.status .. ")")
+ *         pprint(data)
+ *     end
+ * end)
+ * </pre>
+ */
+void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
+    uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
+{
+    // This function must always return so memory for `permissions` can be free'd.
+    VerifyCallback(L);
+    g_Facebook.m_Callback = callback;
+    g_Facebook.m_Self = context;
+
+    NSMutableArray* ns_permissions = [[NSMutableArray alloc] init];
+    for (uint32_t i = 0; i < permission_count; ++i)
+    {
+        const char* permission = permissions[i];
+        [ns_permissions addObject: [NSString stringWithUTF8String: permission]];
+    }
+
+    @try {
+        [g_Facebook.m_Login setDefaultAudience: convertDefaultAudience(audience)];
+        [g_Facebook.m_Login logInWithPublishPermissions: ns_permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+            PrepareCallback(thread, result, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request publish permissions: %@", exception.reason];
+        RunCallback(thread, &g_Facebook.m_Self, &g_Facebook.m_Callback,
+            [errorMessage UTF8String], dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+    }
+}
+
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_Login(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     if ([FBSDKAccessToken currentAccessToken]) {
         UpdateUserData();
@@ -617,7 +762,7 @@ int Facebook_Logout(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     [g_Facebook.m_Login logOut];
     [g_Facebook.m_Me release];
@@ -625,36 +770,12 @@ int Facebook_Logout(lua_State* L)
     return 0;
 }
 
-/*# logs the user in with the requested read permissions
- *
- * Log in the user on Facebook with the specified read permissions. Check the permissions the user
- * actually granted with <code>facebook.permissions()</code>.
- *
- * @name facebook.request_read_permissions
- * @param permissions a table with the requested permission strings (table)
- * The following strings are valid permission identifiers and are requested by default on login:
- * <ul>
- *   <li><code>"public_profile"</code></li>
- *   <li><code>"email"</code></li>
- *   <li><code>"user_friends"</code></li>
- * </ul>
- * A comprehensive list of permissions can be found at <a href='https://developers.facebook.com/docs/facebook-login/permissions/v2.6'>https://developers.facebook.com/docs/facebook-login/permissions/v2.6</a>
- * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
- * @examples
- * <pre>
- * facebook.request_read_permissions({ "user_friends", "email" }, function (self, error)
- *     if error then
- *         -- Something bad happened
- *         return
- *     end
- * end)
- * </pre>
- */
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_RequestReadPermissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -662,54 +783,36 @@ int Facebook_RequestReadPermissions(lua_State* L)
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
     NSMutableArray *permissions = [[NSMutableArray alloc] init];
     AppendArray(L, permissions, 1);
 
-    [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-        RunCallback(main_thread, error);
-    }];
+    @try {
+        [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+            RunCallback(main_thread, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request read permissions: %@", exception.reason];
+        NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
+        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+    }
 
     assert(top == lua_gettop(L));
     return 0;
 }
 
-/*# logs the user in with the requested publish permissions
- *
- *  Log in the user on Facebook with the specified publish permissions. Check the permissions the user
- *  actually granted with <code>facebook.permissions()</code>.
- *
- * @name facebook.request_publish_permissions
- * @param permissions a table with the requested permissions (table)
- * @param audience (constant|number)
- * <ul>
- *     <li>facebook.AUDIENCE_NONE</li>
- *     <li>facebook.AUDIENCE_ONLYME</li>
- *     <li>facebook.AUDIENCE_FRIENDS</li>
- *     <li>facebook.AUDIENCE_EVERYONE</li>
- * </ul>
- * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
- * @examples
- * <pre>
- * facebook.request_publish_permissions({ "user_friends", "email" }, function (self, error)
- *     if error then
- *         -- Something bad happened
- *         return
- *     end
- * end)
- * </pre>
- */
-
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -718,19 +821,26 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     FBSDKDefaultAudience audience = convertDefaultAudience(luaL_checkinteger(L, 2));
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
     NSMutableArray *permissions = [[NSMutableArray alloc] init];
     AppendArray(L, permissions, 1);
 
-    [g_Facebook.m_Login setDefaultAudience: audience];
-    [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-        RunCallback(main_thread, error);
-    }];
+    @try {
+        [g_Facebook.m_Login setDefaultAudience: audience];
+        [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+            RunCallback(main_thread, error);
+        }];
+    } @catch (NSException* exception) {
+        NSString* errorMessage = [NSString stringWithFormat:@"Unable to request publish permissions: %@", exception.reason];
+        NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
+        RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -746,7 +856,7 @@ int Facebook_AccessToken(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     const char* token = [[[FBSDKAccessToken currentAccessToken] tokenString] UTF8String];
     lua_pushstring(L, token);
@@ -773,7 +883,7 @@ int Facebook_Permissions(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -791,33 +901,12 @@ int Facebook_Permissions(lua_State* L)
     return 1;
 }
 
-/*# return a table with "me" user data
- *
- * This function returns a table of user data as requested from the Facebook Graph API
- * "me" path. The user data is fetched during facebook.login().
- *
- * The table contains the following fields:
- *
- * <ul>
- *   <li><code>"name"</code></li>
- *   <li><code>"last_name"</code></li>
- *   <li><code>"first_name"</code></li>
- *   <li><code>"id"</code></li>
- *   <li><code>"email"</code></li>
- *   <li><code>"link"</code></li>
- *   <li><code>"gender"</code></li>
- *   <li><code>"locale"</code></li>
- *   <li><code>"updated_time"</code></li>
- * </ul>
- *
- * @name facebook.me
- * @return table with user data fields (table)
- */
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_Me(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
 
@@ -1043,7 +1132,7 @@ int Facebook_ShowDialog(lua_State* L)
 {
     if(!g_Facebook.m_Login)
     {
-        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.app_id in game.project?");
+        return luaL_error(L, "Facebook module isn't initialized! Did you set the facebook.appid in game.project?");
     }
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -1052,9 +1141,9 @@ int Facebook_ShowDialog(lua_State* L)
     luaL_checktype(L, 2, LUA_TTABLE);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
-    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    g_Facebook.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
     if (dialog == dmHashString64("feed")) {

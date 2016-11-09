@@ -29,7 +29,7 @@
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType]
-           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.defold.libs ParticleLibrary]
            [com.sun.jna Pointer]
@@ -121,7 +121,7 @@
                            :modifier-type-vortex [:modifier-key-magnitude :modifier-key-max-distance]})
 
 (g/defnk produce-modifier-pb
-  [position ^Quat4d rotation-q4 type magnitude max-distance]
+  [position rotation type magnitude max-distance use-direction]
   (let [values {:modifier-key-magnitude magnitude
                 :modifier-key-max-distance max-distance}
         properties (->> (mod-type->properties type)
@@ -131,9 +131,10 @@
                                 :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals p))
                                 :spread (:spread p)})))]
     {:position position
-     :rotation (math/vecmath->clj rotation-q4)
+     :rotation rotation
      :type type
-     :properties properties}))
+     :properties properties
+     :use-direction (if use-direction 1 0)}))
 
 (def ^:private type->vcount
   {:emitter-type-2dcone 6
@@ -275,7 +276,9 @@
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
 
-  (property type g/Keyword (dynamic visible (g/always false)))
+  (property type g/Keyword (dynamic visible (g/constantly false)))
+  (property use-direction g/Bool (default false)
+            (dynamic visible (g/constantly false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
@@ -284,7 +287,7 @@
     (g/fnk [_node-id type]
       (let [mod-type (mod-types type)]
         {:node-id _node-id :label (:label mod-type) :icon modifier-icon})))
-  (output aabb AABB (g/always (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
+  (output aabb AABB (g/constantly (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
@@ -361,26 +364,26 @@
      :children child-scenes}))
 
 (g/defnode EmitterProperties
-  (property emitter-key-spawn-rate CurveSpread (dynamic label (g/always "Spawn Rate")))
-  (property emitter-key-size-x CurveSpread (dynamic label (g/always "Emitter Size X")))
-  (property emitter-key-size-y CurveSpread (dynamic label (g/always "Emitter Size Y")))
-  (property emitter-key-size-z CurveSpread (dynamic label (g/always "Emitter Size Z")))
-  (property emitter-key-particle-life-time CurveSpread (dynamic label (g/always "Particle Life Time")))
-  (property emitter-key-particle-speed CurveSpread (dynamic label (g/always "Initial Speed")))
-  (property emitter-key-particle-size CurveSpread (dynamic label (g/always "Initial Size")))
-  (property emitter-key-particle-red CurveSpread (dynamic label (g/always "Initial Red")))
-  (property emitter-key-particle-green CurveSpread (dynamic label (g/always "Initial Green")))
-  (property emitter-key-particle-blue CurveSpread (dynamic label (g/always "Initial Blue")))
-  (property emitter-key-particle-alpha CurveSpread (dynamic label (g/always "Initial Alpha")))
-  (property emitter-key-particle-rotation CurveSpread (dynamic label (g/always "Initial Rotation"))))
+  (property emitter-key-spawn-rate CurveSpread (dynamic label (g/constantly "Spawn Rate")))
+  (property emitter-key-size-x CurveSpread (dynamic label (g/constantly "Emitter Size X")))
+  (property emitter-key-size-y CurveSpread (dynamic label (g/constantly "Emitter Size Y")))
+  (property emitter-key-size-z CurveSpread (dynamic label (g/constantly "Emitter Size Z")))
+  (property emitter-key-particle-life-time CurveSpread (dynamic label (g/constantly "Particle Life Time")))
+  (property emitter-key-particle-speed CurveSpread (dynamic label (g/constantly "Initial Speed")))
+  (property emitter-key-particle-size CurveSpread (dynamic label (g/constantly "Initial Size")))
+  (property emitter-key-particle-red CurveSpread (dynamic label (g/constantly "Initial Red")))
+  (property emitter-key-particle-green CurveSpread (dynamic label (g/constantly "Initial Green")))
+  (property emitter-key-particle-blue CurveSpread (dynamic label (g/constantly "Initial Blue")))
+  (property emitter-key-particle-alpha CurveSpread (dynamic label (g/constantly "Initial Alpha")))
+  (property emitter-key-particle-rotation CurveSpread (dynamic label (g/constantly "Initial Rotation"))))
 
 (g/defnode ParticleProperties
-  (property particle-key-scale Curve (dynamic label (g/always "Life Scale")))
-  (property particle-key-red Curve (dynamic label (g/always "Life Red")))
-  (property particle-key-green Curve (dynamic label (g/always "Life Green")))
-  (property particle-key-blue Curve (dynamic label (g/always "Life Blue")))
-  (property particle-key-alpha Curve (dynamic label (g/always "Life Alpha")))
-  (property particle-key-rotation Curve (dynamic label (g/always "Life Rotation"))))
+  (property particle-key-scale Curve (dynamic label (g/constantly "Life Scale")))
+  (property particle-key-red Curve (dynamic label (g/constantly "Life Red")))
+  (property particle-key-green Curve (dynamic label (g/constantly "Life Green")))
+  (property particle-key-blue Curve (dynamic label (g/constantly "Life Blue")))
+  (property particle-key-alpha Curve (dynamic label (g/constantly "Life Alpha")))
+  (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation"))))
 
 (defn- get-property [properties kw]
   (let [v (get-in properties [kw :value])]
@@ -389,10 +392,10 @@
       v)))
 
 (g/defnk produce-emitter-pb
-  [position ^Quat4d rotation-q4 _declared-properties modifier-msgs]
+  [position rotation _declared-properties modifier-msgs]
   (let [properties (:properties _declared-properties)]
     (into {:position position
-           :rotation (math/vecmath->clj rotation-q4)
+           :rotation rotation
            :modifiers modifier-msgs}
           (concat
             (map (fn [kw] [kw (get-property properties kw)])
@@ -427,6 +430,14 @@
       (for [[from to] conns]
         (g/connect modifier-id from parent-id to)))))
 
+(defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
+(defn- prop-anim-missing? [animation anim-data]
+  (when (and (some? anim-data) (not (contains? anim-data animation)))
+    (format "'%s' could not be found in the specified image" animation)))
+
 (g/defnode EmitterNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -435,15 +446,15 @@
 
   (property id g/Str)
   (property mode g/Keyword
-            (dynamic edit-type (g/always (->choicebox Particle$PlayMode)))
-            (dynamic label (g/always "Play Mode")))
+            (dynamic edit-type (g/constantly (->choicebox Particle$PlayMode)))
+            (dynamic label (g/constantly "Play Mode")))
   (property duration g/Num)
   (property space g/Keyword
-            (dynamic edit-type (g/always (->choicebox Particle$EmissionSpace)))
-            (dynamic label (g/always "Emission Space")))
+            (dynamic edit-type (g/constantly (->choicebox Particle$EmissionSpace)))
+            (dynamic label (g/constantly "Emission Space")))
 
   (property tile-source resource/Resource
-            (dynamic label (g/always "Image"))
+            (dynamic label (g/constantly "Image"))
             (value (gu/passthrough tile-source-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
@@ -451,11 +462,13 @@
                                                 [:texture-set-data :texture-set-data]
                                                 [:gpu-texture :gpu-texture]
                                                 [:anim-data :anim-data])))
-            (validate (validation/validate-resource tile-source "Missing image"
-                                                    [texture-set-data gpu-texture anim-data])))
+            (dynamic error (g/fnk [_node-id tile-source]
+                                  (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
 
   (property animation g/Str
-            (validate (validation/validate-animation animation anim-data))
+            (dynamic error (g/fnk [_node-id animation anim-data]
+                                  (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
+                                      (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-data))))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
                                          :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
@@ -465,18 +478,19 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource])))
-            (validate (validation/validate-resource material)))
+            (dynamic error (g/fnk [_node-id material]
+                                  (prop-resource-error :fatal _node-id :material material "Material"))))
 
   (property blend-mode g/Keyword
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
-            (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+            (dynamic edit-type (g/constantly (->choicebox Particle$BlendMode))))
 
-  (property particle-orientation g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ParticleOrientation))))
+  (property particle-orientation g/Keyword (dynamic edit-type (g/constantly (->choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)
   (property max-particle-count g/Int)
   (property type g/Keyword
-            (dynamic edit-type (g/always (->choicebox Particle$EmitterType)))
-            (dynamic label (g/always "Emitter Type")))
+            (dynamic edit-type (g/constantly (->choicebox Particle$EmitterType)))
+            (dynamic label (g/constantly "Emitter Type")))
   (property start-delay g/Num)
 
   (display-order [:id scene/SceneNode :mode :space :duration :start-delay :tile-source :animation :material :blend-mode
@@ -662,7 +676,7 @@
   (if (g/node-instance? ParticleFXNode node-id)
     node-id
     (when (contains? (g/declared-inputs node-type) :source-id)
-      (let [source-id (g/node-value node-id :source-id)]
+      (when-let [source-id (g/node-value node-id :source-id)]
         (when (g/node-instance? ParticleFXNode source-id)
           source-id)))))
 
@@ -675,11 +689,12 @@
   ([self parent-id modifier select?]
     (let [graph-id (g/node-id->graph-id self)]
       (g/make-nodes graph-id
-                    [mod-node [ModifierNode :position (:position modifier) :rotation (v4->euler (:rotation modifier))
+                    [mod-node [ModifierNode :position (:position modifier) :rotation (:rotation modifier)
                                :type (:type modifier)]]
                     (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
                                                        (:properties modifier)))]
                       (concat
+                        (g/set-property mod-node :use-direction (= 1 (:use-direction mod-properties)))
                         (g/set-property mod-node :magnitude (if-let [prop (:modifier-key-magnitude mod-properties)]
                                                               (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)) (:spread prop))
                                                               props/default-curve-spread))
@@ -699,15 +714,18 @@
         (g/operation-label "Add Modifier")
         (make-modifier self parent-id modifier true)))))
 
-(handler/defhandler :add-secondary :global
+(defn- selection->emitter [selection]
+  (handler/adapt-single selection EmitterNode))
+
+(defn- selection->particlefx [selection]
+  (handler/adapt-single selection ParticleFXNode))
+
+(handler/defhandler :add-secondary :workbench
   (label [user-data] (if-not user-data
                        "Add Modifier"
                        (get-in user-data [:modifier-data :label])))
-  (active? [selection] (and (= 1 (count selection))
-                            (let [node-id (first selection)
-                                  type (g/node-type (g/node-by-id node-id))]
-                              (or (emitter? node-id)
-                                  (pfx? node-id type)))))
+  (active? [selection] (or (selection->emitter selection)
+                           (selection->particlefx selection)))
   (run [user-data]
        (let [parent-id (:_node-id user-data)
              self (if (emitter? parent-id)
@@ -716,7 +734,7 @@
          (add-modifier-handler self parent-id (:modifier-type user-data))))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (let [node-id (first selection)
+             (let [self (let [node-id (handler/selection->node-id selection)
                               type (g/node-type (g/node-by-id node-id))]
                           (or (emitter? node-id)
                               (pfx? node-id type)))]
@@ -735,7 +753,7 @@
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
-                    [emitter-node [EmitterNode :position (:position emitter) :rotation (v4->euler (:rotation emitter))
+                    [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration (:duration emitter) :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
@@ -770,18 +788,15 @@
             (g/operation-label "Add Emitter")
             (make-emitter self (assoc emitter :type type) true))))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data] (if-not user-data
                        "Add Emitter"
                        (get-in user-data [:emitter-data :label])))
-  (active? [selection] (and (= 1 (count selection))
-                            (let [node-id (first selection)
-                                  type (g/node-type (g/node-by-id node-id))]
-                              (pfx? node-id type))))
+  (active? [selection] (selection->particlefx selection))
   (run [user-data] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data)))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (let [node-id (first selection)
+             (let [self (let [node-id (selection->particlefx selection)
                               type (g/node-type (g/node-by-id node-id))]
                           (pfx? node-id type))]
                (mapv (fn [[type data]] {:label (:label data)
@@ -813,7 +828,7 @@
                                      :node-type ParticleFXNode
                                      :load-fn load-particle-fx
                                      :icon particle-fx-icon
-                                     :tags #{:component}
+                                     :tags #{:component :non-embeddable}
                                      :view-types [:scene :text]
                                      :view-opts {:scene {:grid true}}))
 

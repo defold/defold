@@ -27,16 +27,24 @@ extern "C"
 
 namespace dmScript
 {
+    /*# HTTP API documentation
+     *
+     * Functions for performing HTTP and HTTPS requests.
+     *
+     * @name HTTP
+     * @namespace http
+     */
+
     dmHttpService::HHttpService g_Service = 0;
     int g_ServiceRefCount = 0;
     uint64_t g_Timeout = 0;
 
-    /*# perform a HTTP request
-     * Perform a HTTP request.
+    /*# perform a HTTP/HTTPS request
+     * Perform a HTTP/HTTPS request.
      *
      * @name http.request
      * @param url target url
-     * @param method HTTP method, e.g. GET/PUT/POST/DELETE/...
+     * @param method HTTP/HTTPS method, e.g. GET/PUT/POST/DELETE/...
      * @param callback response callback
      * @param [headers] optional lua-table with custom headers
      * @param [post_data] optional data to send
@@ -77,7 +85,7 @@ namespace dmScript
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
             // NOTE: + 2 as LUA_NOREF is defined as - 2 and 0 is interpreted as uninitialized
-            int callback = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
+            int callback = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
             sender.m_Function = callback;
 
             char* headers = 0;
@@ -165,7 +173,7 @@ namespace dmScript
             dmMessage::ResetURL(receiver);
             receiver.m_Socket = dmHttpService::GetSocket(g_Service);
 
-            dmMessage::Result r = dmMessage::Post(&sender, &receiver, dmHttpDDF::HttpRequest::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor, buf, post_len);
+            dmMessage::Result r = dmMessage::Post(&sender, &receiver, dmHttpDDF::HttpRequest::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpRequest::m_DDFDescriptor, buf, post_len, 0);
             if (r != dmMessage::RESULT_OK) {
                 dmLogError("Failed to create HTTP request");
             }

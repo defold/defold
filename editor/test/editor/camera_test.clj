@@ -32,14 +32,14 @@
   (are [move button-scheme button shift control alt meta]
     (= move (camera/camera-movement button-scheme button shift control alt meta))
        ;; move  scheme        button     shift  ctrl   alt meta
-       :tumble :one-button   :primary   false false  true false
-       :track  :one-button   :primary   false  true  true false
+       :tumble :one-button   :primary   false false true  false
+       :track  :one-button   :primary   false  true true  false
        :dolly  :one-button   :primary   false  true false false
        :idle   :one-button   :primary   false false false false
-       :tumble :three-button :primary   false false  true false
-       :track  :three-button :secondary false false  true false
-       :dolly  :three-button :middle    false false  true false
+       :tumble :three-button :primary   false false true  false
+       :track  :three-button :secondary false false false false
+       :dolly  :three-button :middle    false false true  false
        :idle   :three-button :primary   false false false false
        :idle   :three-button :secondary false  true false false
-       :idle   :three-button :secondary false false false false
+       :idle   :three-button :secondary false false true false
        :idle   :three-button :middle    false  true false false))

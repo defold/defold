@@ -23,6 +23,7 @@ message Create
     optional uint64         id       = 3 [default=0];
     optional float          scale    = 4 [default=1];
     optional dmMath.Vector3 scale3   = 5 [(field_align)=true]; // if zero, 'scale' is used instead
+    optional uint32         index    = 6 [default=0xffffffff]; // Must be same as dmGameObject::INVALID_INSTANCE_POOL_INDEX.
 }
 
 message CollectionProxyDesc
@@ -113,4 +114,16 @@ message SetConstant
 {
     required uint64         name_hash   = 1;
     required dmMath.Vector4 value       = 2 [(field_align)=true];
+}
+
+/* Function wrapper documented in gamesys_script.cpp */
+message ResetConstant
+{
+    required uint64         name_hash   = 1;
+}
+
+/* Function wrapper documented in gamesys_script.cpp */
+message SetScale
+{
+    required dmMath.Vector3 scale  = 1 [(field_align)=true];
 }

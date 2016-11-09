@@ -60,9 +60,19 @@ message PlayAnimation
 }
 
 /*# reports that an animation has completed
- * This message is sent to the sender of a <code>play_animation</code> message when the animation has completed.
- * Note that only animations played either forward or backward once ever completes. See <code>play_animation</code>
- * for more information and examples of how to use this message.
+ * <p>This message is sent to the sender of a <code>play_animation</code> message when the 
+ * animation has completed.</p>
+ *
+ * <p>Note that this message is sent only for animations that play with the following 
+ * playback modes:</p>
+ * <ul>
+ * <li>Once Forward</li>
+ * <li>Once Backward</li>
+ * <li>Once Ping Pong</li>
+ * </ul>
+ *
+ * <p>See <code>play_animation</code> for more information and examples of how to use 
+ * this message.</p>
  *
  * @message
  * @name animation_done
@@ -87,14 +97,3 @@ message SetFlipVertical
     required uint32 flip = 1;
 }
 
-/* Function wrapper documented in gamesys_script.cpp */
-message ResetConstant
-{
-    required uint64         name_hash   = 1;
-}
-
-/* Function wrapper documented in gamesys_script.cpp */
-message SetScale
-{
-    required dmMath.Vector3 scale  = 1 [(field_align)=true];
-}

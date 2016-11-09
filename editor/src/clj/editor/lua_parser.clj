@@ -1,95 +1,184 @@
 (ns editor.lua-parser
   (:require [clj-antlr.core :as antlr]
             [clojure.java.io :as io]
-            [clojure.zip :as zip]
             [clojure.edn :as edn]
             [clojure.set :as set]))
 
-(def lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
+(def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
+
+(defn lua-parser [code]
+  (try
+    (real-lua-parser code)
+    (catch ClassCastException e
+      ;; for some inputs, like "local max_speed = 60|= <!ed\n\tend\nend+-!\n" we get:
+      ;; Unhandled java.lang.ClassCastException
+      ;;   org.antlr.v4.runtime.atn.EpsilonTransition cannot be cast to
+      ;;   org.antlr.v4.runtime.atn.RuleTransition
+      ;; ... which we can't do much about for now.
+      nil)))
+
+
+(defn- node-type? [tag node] (and (seq? node) (= tag (first node))))
+(defn- error-node? [node] (node-type? :clj-antlr/error node))
+(defn- exp-node? [node] (node-type? :exp node))
+(defn- prefix-exp-node? [node] (node-type? :prefixexp node))
+(defn- var-node? [node] (node-type? :var node))
+(defn- string-node? [node] (node-type? :string node))
+(defn- namelist-node? [node] (node-type? :namelist node))
+(defn- explist-node? [node] (node-type? :explist node))
+(defn- name-and-args-node? [node] (node-type? :nameAndArgs node))
+(defn- comma-node? [node] (and (string? node) (= "," node)))
 
 (defn- parse-namelist [namelist]
-  (vec (remove #(= "," %) (rest namelist))))
+  (vec (remove (some-fn comma-node? error-node?) (rest namelist))))
 
-(defn- require-name [loc]
-  (if (zip/end? loc)
-    nil
-    (let [node (zip/node loc)]
-      (if (and (seq? node) (= :string (first node)))
-        (edn/read-string (second node))
-        (recur (zip/next loc))))))
+(defn- parse-parlist [[_ parlist-content]]
+  (vec (cond
+         (and (string? parlist-content)
+              (= "..." parlist-content))
+         [parlist-content]
 
-(defn- has-require? [loc]
-  (if (zip/end? loc)
-    nil
-    (let [node (zip/node loc)]
-      (if (and (seq? node) (= :var (first node)) (= "require" (second node)))
-        node
-        (recur (zip/next loc))))))
+         (namelist-node? parlist-content)
+         (parse-namelist parlist-content)
 
-(defn collect-require [parsed-names exprlist]
-  (if exprlist
-    (let [zexpr (zip/seq-zip exprlist)]
-      (when (has-require? zexpr)
-        {(first parsed-names) (require-name zexpr)}))
-    {}))
+         :else nil)))
 
-(defn collect-vars [varlist]
-  (remove nil? (mapv second (rest varlist))))
+(defn- parse-funcname [funcname]
+  (when-not (or (error-node? funcname)
+                (some error-node? funcname))
+    (apply str (rest funcname))))
 
-(defmulti xform-node (fn [k node] k))
+(defn- parse-funcbody [funcbody]
+  (when-not (or (error-node? funcbody)
+                (some error-node? funcbody))
+    (let [[_ _ parlist _ block] funcbody]
+      [parlist block])))
 
-(defmethod xform-node :default [k node]
-  nil)
+(defn parse-string-vars [varlist]
+  (filterv string? (map second (filter var-node? (rest varlist)))))
 
-(defmethod xform-node :local [k node]
-  (if (and (> (count node) 2) (string? (nth node 2)) (= "function") (nth node 2))
-   (let [[_ _ _ funcname funcbody] node
-         [_ _  [_  namelist]] funcbody]
-     {:local-functions {funcname {:params (parse-namelist namelist)}}})
-   (let [[_ _ namelist _ exprlist] node
-         parsed-names (parse-namelist namelist)
-         require-info (collect-require parsed-names exprlist)]
-     {:local-vars parsed-names :requires require-info})))
+(defn- parse-string [s]
+  ;; strings in (:exp (:string ...)) can be "\"content\"" or in long format,
+  ;; for instance "[=...=[content]=...=]". We skip long format for now.
+  (edn/read-string s))
 
-(defmethod xform-node :varlist [k node]
-  (let [[_ varlist _ exprlist] node
-        parsed-names (collect-vars varlist)
-        require-info (collect-require parsed-names exprlist)]
-    {:vars parsed-names :requires require-info}))
+(defn- parse-string-node [node]
+  (when (string-node? node)
+    (parse-string (second node))))
 
-(defmethod xform-node :function [k node]
-  (let [[_ _ funcname funcbody] node
-        [_ _  [_  namelist]] funcbody]
-    {:functions {(apply str (rest funcname)) {:params (parse-namelist namelist)}}}))
+(defn- parse-exp-string [exp]
+  (parse-string-node (second exp)))
 
-(defmethod xform-node :functioncall [k node]
-  (let [zexpr (zip/seq-zip node)]
-      (when (has-require? zexpr)
-        (let [rname (require-name (zip/seq-zip node))]
-          {:requires {rname rname}}))))
+(defn- parse-explist-strings [explist]
+  (let [explist (remove comma-node? (rest explist))]
+    (keep parse-exp-string explist)))
 
-(defn collect-info [loc]
-  (loop [loc loc
-        result []]
-   (if (zip/end? loc)
-     result
-     (let [node (zip/node loc)]
-       (if (and (seq? node) (= :stat (first node)))
-         (let [k (second node)]
-           (if (seq? k)
-             (recur (zip/next loc) (conj result (xform-node (first k) node)))
-             (recur (zip/next loc) (conj result (xform-node (keyword k) node)))
-             ))
-         (recur (zip/next loc) result))))))
+(defn- parse-args-strings [args]
+  (cond
+    (string-node? (second args))
+    [(parse-string-node (second args))]
 
+    (and (> (count args) 2)
+         (explist-node? (nth args 2)))
+    (parse-explist-strings (nth args 2))
 
+    :else
+    nil))
+
+(defn- parse-name-and-args [name-and-args]
+  (when-not (error-node? name-and-args)
+    (if (and (= ":" (nth name-and-args 1))
+             (string? (nth name-and-args 2)))
+      [(str ":" (nth name-and-args 2)) (parse-args-strings (nth name-and-args 3))]
+      ["" (parse-args-strings (nth name-and-args 1))])))
+
+(defn- parse-first-functioncall [node]
+  ;; should work on :functioncall and :prefixexp's
+  ;; possible to chain calls, like foo("bar")("baz") or even a:foo("abc"):cake("topping")
+  ;; we only parse the first call in the chain for now
+  (let [var-or-exp (second node)
+        name-and-args (first (filter name-and-args-node? (nthrest node 2)))]
+    (when (and (not (error-node? var-or-exp))
+               (var-node? (second var-or-exp))
+               (string? (second (second var-or-exp))))
+      (let [base-name (second (second var-or-exp))
+            [meth-call args] (parse-name-and-args name-and-args)]
+        [(str base-name meth-call) args]))))
+
+(defn parse-explist-requires [parsed-names explist]
+  (let [prefix-exps (keep #(when (and (exp-node? %) (prefix-exp-node? (second %))) (second %)) (rest explist))
+        funcalls (map parse-first-functioncall prefix-exps)
+        required-files (map #(when (= "require" (first %)) (first (second %))) funcalls)]
+    (remove (comp nil? second) (map vector parsed-names required-files))))
+
+(defmulti collect-node-info (fn [result node] (if (seq? node) (first node) node)))
+
+(defmethod collect-node-info :default [result _]
+  result)
+
+(defmethod collect-node-info :chunk [result node]
+  (collect-node-info result (second node)))
+
+(defmethod collect-node-info :block [result node]
+  (reduce collect-node-info result (rest node)))
+
+(defmulti collect-stat-node-info (fn [kw result node] kw))
+
+(defmethod collect-node-info :stat [result node]
+  (let [k (second node)]
+    (if (seq? k)
+      (collect-stat-node-info (first k) result node)
+      (collect-stat-node-info (keyword k) result node))))
+        
+(defmethod collect-stat-node-info :local [_ result node]
+  (if (and (> (count node) 2)
+           (string? (nth node 2)) 
+           (= "function" (nth node 2)))
+    ;; 'local' 'function' NAME funcbody
+    (let [[_ _ _ fname funcbody] node]
+      (if-not (error-node? fname)
+        (let [[parlist block] (parse-funcbody funcbody)]
+          (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block))
+        result))
+    ;; 'local' namelist ('=' explist)?
+    (let [[_ _ namelist _ explist] node]
+      (if-let [parsed-names (parse-namelist namelist)]
+        (conj result {:local-vars parsed-names :requires (parse-explist-requires parsed-names explist)})
+        result))))
+
+(defmethod collect-stat-node-info :default [_ result node] result)
+
+(defmethod collect-stat-node-info :varlist [_ result node]
+  (let [[_ varlist _ explist] node
+        parsed-names (parse-string-vars varlist)
+        require-info (parse-explist-requires parsed-names explist)]
+    (conj result {:vars parsed-names :requires require-info})))
+
+(defmethod collect-stat-node-info :function [_ result node]
+  (let [[_ _ funcname funcbody] node]
+    (if-let [funcname (parse-funcname funcname)]
+      (let [[parlist block] (parse-funcbody funcbody)]
+        (collect-node-info (conj result {:functions {funcname {:params (parse-parlist parlist)}}}) block))
+      result)))
+
+(defmethod collect-stat-node-info :functioncall [_ result node]
+  (let [functioncall (second node)]
+    (let [[name args] (parse-first-functioncall functioncall)]
+      (if (and (= name "require") (seq args))
+        (let [require-name (first args)]
+          (conj result {:requires [[nil require-name]]}))
+        result))))
+
+(defn collect-info [node]
+  (collect-node-info [] node))
+         
 (defn lua-info [code]
-  (let [info (-> code lua-parser zip/seq-zip collect-info)
+  (let [info (-> code lua-parser collect-info)
         local-vars-info (into #{} (apply concat (map :local-vars info)))
         vars-info (set/difference (into #{} (apply concat (map :vars info))) local-vars-info)
         functions-info (or (apply merge (map :functions info)) {})
         local-functions-info (or (apply merge (map :local-functions info)) {})
-        requires-info (or (apply merge (map :requires info)) {})]
+        requires-info (vec (distinct (filter seq (apply concat (map :requires info)))))]
     {:vars vars-info
      :local-vars local-vars-info
      :functions functions-info

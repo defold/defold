@@ -47,6 +47,29 @@
          scene (g/node-value node-id :scene)]
      (is (= 0.25 (get-in scene [:children 0 :children 2 :children 0 :renderable :user-data :color 3]))))))
 
+(deftest gui-scene-validation
+ (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")]
+     (is (nil? (test-util/prop-error node-id :script)))
+     ;; Script is not required, so nil would be ok
+     (test-util/with-prop [node-id :script nil]
+       (is (nil? (test-util/prop-error node-id :script))))
+     (test-util/with-prop [node-id :script (workspace/resolve-workspace-resource workspace "/not_found.script")]
+       (is (g/error-fatal? (test-util/prop-error node-id :script))))
+     (is (nil? (test-util/prop-error node-id :material)))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+       (test-util/with-prop [node-id :material v]
+         (is (g/error-fatal? (test-util/prop-error node-id :material)))))
+     (is (nil? (test-util/prop-error node-id :max-nodes)))
+     (doseq [v [0 1025]]
+       (test-util/with-prop [node-id :max-nodes v]
+         (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))
+     ;; Valid number, but now the amount of nodes exceeds the max
+     (test-util/with-prop [node-id :max-nodes 1]
+       (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))))
+
 (deftest gui-box-auto-size
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
@@ -86,6 +109,18 @@
      (is (= "png_texture" (prop png-node :texture)))
      (prop! png-tex :name "new-name")
      (is (= "new-name" (prop png-node :texture))))))
+
+(deftest gui-texture-validation
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+        atlas-tex (:node-id (test-util/outline node-id [1 1]))]
+     (test-util/with-prop [atlas-tex :name ""]
+       (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
+       (test-util/with-prop [atlas-tex :texture v]
+         (is (g/error-fatal? (test-util/prop-error atlas-tex :texture))))))))
 
 (deftest gui-atlas
   (with-clean-system
@@ -127,6 +162,17 @@
      (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
      (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
      (is (some #{new-font} (build-targets-deps gui-scene-node))))))
+
+(deftest gui-font-validation
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         gui-scene-node (test-util/resource-node project "/logic/main.gui")
+         gui-font-node (:node-id (test-util/outline gui-scene-node [2 0]))]
+     (is (nil? (test-util/prop-error gui-font-node :font)))
+     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
+       (test-util/with-prop [gui-font-node :font v]
+         (is (g/error-fatal? (test-util/prop-error gui-font-node :font))))))))
 
 (deftest gui-text-node
   (with-clean-system
@@ -212,7 +258,7 @@
              (test-load))
            (let [elapsed (measure [i 20]
                                   (test-load))]
-             (is (< elapsed 750))))
+         (is (< elapsed 900))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
@@ -260,13 +306,10 @@
          app-view (test-util/setup-app-view!)
          node-id (test-util/resource-node project "/gui/scene.gui")
          sub-node (gui-node node-id "sub_scene/sub_box")]
-     (let [color (prop sub-node :color)
-           alpha (prop sub-node :alpha)]
+     (let [alpha (prop sub-node :alpha)]
        (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
-       (is (not= color (prop sub-node :color)))
        (is (not= alpha (prop sub-node :alpha)))
        (g/transact (g/clear-property sub-node :alpha))
-       (is (= color (prop sub-node :color)))
        (is (= alpha (prop sub-node :alpha)))))))
 
 (deftest gui-template-hierarchy
@@ -378,6 +421,17 @@
       (prop! new-tmpl :template {:resource (workspace/resolve-workspace-resource workspace "/gui/sub_scene.gui") :overrides {}})
       (is (contains? (:overrides (prop super-template :template)) "template/sub_box")))))
 
+(deftest gui-template-overrides-anchors
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/scene.gui")
+          box (gui-node node-id "sub_scene/sub_box")]
+      (is (= :xanchor-left (g/node-value box :x-anchor))))))
+
+;; Layouts
+
 (deftest gui-layout
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
@@ -391,7 +445,7 @@
 (defn- add-layout! [project scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
-    (test-util/handler-run :add [{:name :global :env {:selection [parent] :project project :user-data user-data}}] user-data)))
+    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data}}] user-data)))
 
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
@@ -446,3 +500,29 @@
                (is (= 1280.0 (max-x (g/node-value node-id :scene))))
                (set-visible-layout! node-id "Portrait")
                (is (= 720.0 (max-x (g/node-value node-id :scene))))))))
+
+(deftest gui-legacy-alpha
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/legacy_alpha.gui")
+          box (gui-node node-id "box")
+          text (gui-node node-id "text")]
+      (is (= 0.5 (g/node-value box :alpha)))
+      (is (every? #(= 0.5 (g/node-value text %)) [:alpha :outline-alpha :shadow-alpha])))))
+
+(deftest set-gui-layout
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view!)
+          node-id (test-util/resource-node project "/gui/layouts.gui")
+          gui-resource (g/node-value node-id :resource)
+          context (handler/->context :workbench {:active-resource gui-resource :project project})
+          options (test-util/handler-options :set-gui-layout [context] nil)
+          options-by-label (zipmap (map :label options) options)]
+      (is (= ["Default" "Landscape"] (map :label options)))
+      (is (= (get options-by-label "Default") (test-util/handler-state :set-gui-layout [context] nil)))
+      (g/set-property! node-id :visible-layout "Landscape")
+      (is (= (get options-by-label "Landscape") (test-util/handler-state :set-gui-layout [context] nil))))))

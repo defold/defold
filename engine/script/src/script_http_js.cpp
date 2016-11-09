@@ -41,6 +41,13 @@ namespace dmScript
         dmScriptHttpRequestAsync(method, url, headers, arg, ol, oe, send_data, send_data_length, timeout);
     }
 
+    static void MessageDestroyCallback(dmMessage::Message* message)
+    {
+        dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
+        free((void*) response->m_Headers);
+        free((void*) response->m_Response);
+    }
+
     static void SendResponse(const dmMessage::URL* requester, int status,
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length)
@@ -57,9 +64,8 @@ namespace dmScript
         resp.m_Response = (uint64_t) malloc(response_length);
         memcpy((void*) resp.m_Response, response, response_length);
 
-        if (dmMessage::IsSocketValid(requester->m_Socket)) {
-            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp));
-        } else {
+        if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
+        {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
             dmLogWarning("Failed to return http-response. Requester deleted?");
@@ -91,7 +97,7 @@ namespace dmScript
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
             // NOTE: + 2 as LUA_NOREF is defined as - 2 and 0 is interpreted as uninitialized
-            int callback = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
+            int callback = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
             sender.m_Function = callback;
 
             dmArray<char> h;

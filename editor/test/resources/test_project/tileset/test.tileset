@@ -1,0 +1,7 @@
+image: "/graphics/ball.png"
+tile_width: 32
+tile_height: 32
+tile_margin: 0
+tile_spacing: 0
+material_tag: "tile"
+animations: {id: "test" start_tile: 1 end_tile: 1}

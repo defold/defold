@@ -14,7 +14,7 @@
   (:import [java.net URL]
            [org.apache.commons.io FileUtils]))
 
-(def ^:dynamic *project-path* "resources/empty_project")
+(def ^:dynamic *project-path* "test/resources/empty_project")
 
 (defn- setup-scratch
   ([ws-graph]
@@ -59,7 +59,7 @@
       (let [project-directory (workspace/project-path workspace)]
         ;; copy to proper place
         (FileUtils/copyDirectory
-         (io/file "resources/lib_resource_project/.internal/lib")
+         (io/file "test/resources/lib_resource_project/.internal/lib")
          (library/library-directory project-directory))
         (testing "libraries now present"
           (let [files (library/library-files project-directory)]
@@ -108,7 +108,7 @@
 
 (deftest open-project
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "resources/test_project")
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
           ^File project-directory (workspace/project-path workspace)
           server (test-util/->lib-server)
           url (test-util/lib-server-url server "lib_resource_project")
@@ -126,3 +126,31 @@
               or (:node-id (test-util/outline int-gui [0 0 0]))]
           (is (= [or] (g/overrides original)))))
       (test-util/kill-lib-server server))))
+
+(deftest fetch-libraries
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup-scratch world))
+          server (test-util/->lib-server)
+          url (test-util/lib-server-url server "lib_resource_project")
+          game-project (project/get-resource-node project "/game.project")]
+      ;; make sure we don't have library file to begin with
+      (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
+
+      ;; add dependency, fetch libraries, we should now have library file
+      (g/update-property! game-project :raw-settings (fn [settings] (gpc/set-setting settings {} ["project" "dependencies"] url)))
+      (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
+      (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
+
+(deftest fetch-libraries-from-library-archive-with-nesting
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup-scratch world))
+          server (test-util/->lib-server)
+          url (test-util/lib-server-url server "lib_resource_project_with_nesting")
+          game-project (project/get-resource-node project "/game.project")]
+      ;; make sure we don't have library file to begin with
+      (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
+
+      ;; add dependency, fetch libraries, we should now have library file
+      (g/update-property! game-project :raw-settings (fn [settings] (gpc/set-setting settings {} ["project" "dependencies"] url)))
+      (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
+      (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))

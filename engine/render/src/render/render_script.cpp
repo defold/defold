@@ -17,6 +17,15 @@
 
 namespace dmRender
 {
+    /*# Rendering API documentation
+     *
+     * Rendering functions, messages and constants. The "render" namespace is
+     * accessible only from render scripts.
+     *
+     * @name Rendering
+     * @namespace render
+     */
+
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
     #define RENDER_SCRIPT "RenderScript"
 
@@ -1970,7 +1979,7 @@ namespace dmRender
                     {
                         if (lua_type(L, -1) == LUA_TFUNCTION)
                         {
-                            script->m_FunctionReferences[i] = luaL_ref(L, LUA_REGISTRYINDEX);
+                            script->m_FunctionReferences[i] = dmScript::Ref(L, LUA_REGISTRYINDEX);
                         }
                         else
                         {
@@ -2025,7 +2034,7 @@ bail:
         render_script->m_RenderContext = render_context;
         luaL_getmetatable(L, RENDER_SCRIPT);
         lua_setmetatable(L, -2);
-        render_script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        render_script->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
         if (LoadRenderScript(L, source, render_script))
         {
             assert(top == lua_gettop(L));
@@ -2050,9 +2059,9 @@ bail:
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (render_script->m_FunctionReferences[i])
-                luaL_unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
         }
-        luaL_unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
         render_script->~RenderScript();
         ResetRenderScript(render_script);
     }
@@ -2079,10 +2088,10 @@ bail:
         i->m_Materials.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
-        i->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         lua_newtable(L);
-        i->m_RenderScriptDataReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        i->m_RenderScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         luaL_getmetatable(L, RENDER_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
@@ -2101,8 +2110,8 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
-        luaL_unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
-        luaL_unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
 
         assert(top == lua_gettop(L));
 
@@ -2217,7 +2226,7 @@ bail:
                     params.m_Text = text;
                     params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
                     params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-                    DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, params);
+                    DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, 0, 0, params);
                 }
                 else
                 {

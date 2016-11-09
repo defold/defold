@@ -7,8 +7,6 @@ import javax.media.opengl.GL2;
 
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.RGB;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.guied.Activator;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
@@ -18,14 +16,11 @@ import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.sceneed.core.FontRendererHandle;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.proto.DdfMath.Vector4;
 
 @SuppressWarnings("serial")
 public class TextNode extends GuiNode {
-
-    private static Logger logger = LoggerFactory.getLogger(TextNode.class);
 
     @Property
     private String text = "";

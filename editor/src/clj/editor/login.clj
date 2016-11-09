@@ -38,7 +38,7 @@
 
 (defn- open-login-dialog [prefs client]
   (let [root ^Parent (ui/load-fxml "login.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         web-view ^WebView (.lookup root "#web")
         engine (.getEngine web-view)

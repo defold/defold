@@ -3,8 +3,7 @@
   (:require [clojure.set :as set]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
-            [editor.types :as types]
-            [inflections.core :as inflect]))
+            [editor.types :as types]))
 
 (set! *warn-on-reflection* true)
 
@@ -38,47 +37,6 @@
 (defn write-handlers [] (:write *serialization-handlers*))
 
 ;; ---------------------------------------------------------------------------
-;; Dependency Injection
-;; ---------------------------------------------------------------------------
-
-(defn compatible?
-  [basis [out-node out-label in-node in-label]]
-  (let [out-type          (some-> out-node (->> (g/node-type* basis)) (g/output-type out-label))
-        in-type           (some-> in-node  (->> (g/node-type* basis)) (g/input-type in-label))
-        in-cardinality    (some-> in-node  (->> (g/node-type* basis)) (g/input-cardinality in-label))
-        type-compatible?  (g/type-compatible? out-type in-type)
-        names-compatible? (or (= out-label in-label)
-                              (and (= in-label (inflect/plural out-label)) (= in-cardinality :many)))]
-    (and type-compatible? names-compatible?)))
-
-(defn injection-candidates
-  [basis out-nodes in-nodes]
-  (into #{}
-     (filter #(compatible? basis %)
-        (for [in-node   in-nodes
-              in-label  (->> in-node (g/node-type* basis) g/injectable-inputs)
-              out-node  out-nodes
-              out-label (keys (->> out-node (g/node-type* basis) g/transform-types))]
-            [out-node out-label in-node in-label]))))
-
-(defn inject-dependencies
-  "Examine the suppliers and consumers to see if any there are any
-  connections to make from outputs to compatible, injectable
-  inputs. Both suppliers and consumers must be collections.
-  Returns a seq of transaction steps."
-  [suppliers consumers]
-  (assert (seq suppliers))
-  (assert (seq consumers))
-  (let [basis           (g/now)
-        new-connections (remove
-                         (fn [[out out-label in in-label]]
-                           (or
-                            (= out in)
-                            (g/connected? basis out out-label in in-label)))
-                         (injection-candidates basis suppliers consumers))]
-    (map #(apply g/connect %) new-connections)))
-
-;; ---------------------------------------------------------------------------
 ;; Bootstrapping the core node types
 ;; ---------------------------------------------------------------------------
 
@@ -109,7 +67,7 @@ Inheritors are required to supply a production function for the :save output."
 
 (g/defnode ResourceNode
   "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename types/PathManipulation (dynamic visible (g/always false)))
+  (property filename types/PathManipulation (dynamic visible (g/constantly false)))
 
   (output content g/Any :abstract))
 
@@ -121,9 +79,9 @@ Inputs:
 
 Outputs:
 - tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (output outline-children [types/OutlineItem] (g/always []))
+  (output outline-children [types/OutlineItem] (g/constantly []))
   (output outline-label    g/Str :abstract)
-  (output outline-commands [types/OutlineCommand] (g/always []))
+  (output outline-commands [types/OutlineCommand] (g/constantly []))
   (output outline-tree     types/OutlineItem
           (g/fnk [this outline-label outline-commands outline-children]
                {:label outline-label
@@ -131,3 +89,6 @@ Outputs:
                 :node-ref (g/node-id this)
                 :commands outline-commands
                 :children outline-children})))
+
+(defprotocol Adaptable
+  (adapt [this t]))

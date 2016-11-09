@@ -14,6 +14,7 @@
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <physics/physics.h>
+#include <rig/rig.h>
 
 namespace dmGameSystem
 {
@@ -27,6 +28,17 @@ namespace dmGameSystem
     extern const char* FACTORY_MAX_COUNT_KEY;
     /// Config key to use for tweaking maximum number of collection factories
     extern const char* COLLECTION_FACTORY_MAX_COUNT_KEY;
+
+    struct LabelContext
+    {
+        LabelContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        dmRender::HRenderContext    m_RenderContext;
+        uint32_t                    m_MaxLabelCount;
+        uint32_t                    m_Subpixels : 1;
+    };
 
     struct PhysicsContext
     {
@@ -70,6 +82,7 @@ namespace dmGameSystem
         dmRender::HRenderContext    m_RenderContext;
         dmGui::HContext             m_GuiContext;
         dmScript::HContext          m_ScriptContext;
+        dmRig::HRigContext          m_RigContext;
     };
 
     struct SpriteContext
@@ -90,6 +103,7 @@ namespace dmGameSystem
             memset(this, 0, sizeof(*this));
         }
         dmRender::HRenderContext    m_RenderContext;
+        dmRig::HRigContext          m_RigContext;
         dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxSpineModelCount;
     };
@@ -150,7 +164,8 @@ namespace dmGameSystem
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
-                                                  SpineModelContext* spine_model_context);
+                                                  SpineModelContext* spine_model_context,
+                                                  LabelContext* label_context);
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);

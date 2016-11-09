@@ -95,6 +95,18 @@ public abstract class AbstractSceneTest {
         }
     }
 
+    private void createFolderRecursively(IContainer folder) throws CoreException, IOException {
+        IContainer parent = folder.getParent();
+        if (parent instanceof IFolder) {
+            if (!parent.exists()) {
+                createFolderRecursively(parent);
+            }
+        }
+        if (!folder.exists()) {
+            ((IFolder)folder).create(true, true, null);
+        }
+    }
+
     @Before
     public void setup() throws CoreException, IOException {
         // Avoid hang when running unit-test on Mac OSX
@@ -129,16 +141,7 @@ public abstract class AbstractSceneTest {
                 IFile file = this.project.getFile(path);
                 IContainer parent = file.getParent();
                 if (parent instanceof IFolder) {
-                    IFolder folder = (IFolder) file.getParent();
-                    while (!folder.exists()) {
-                        folder.create(true, true, null);
-                        parent = folder.getParent();
-                        if (parent instanceof IFolder) {
-                            folder = (IFolder) parent;
-                        } else {
-                            break;
-                        }
-                    }
+                    createFolderRecursively(file.getParent());
                 }
                 file.create(is, true, null);
                 is.close();

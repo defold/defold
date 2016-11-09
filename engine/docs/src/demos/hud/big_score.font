@@ -1,8 +1,0 @@
-font: "/hud/bangers.ttf"
-material: "/builtins/fonts/font.material"
-size: 40
-outline_alpha: 1.0
-outline_width: 2.0
-shadow_alpha: 1.0
-shadow_blur: 4
-shadow_y: -2.0

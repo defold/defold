@@ -16,7 +16,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- get-commit [^Repository repository revision]
+(defn get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
     (.setRetainBody walk true)
     (.parseCommit walk (.resolve repository revision))))
@@ -31,7 +31,7 @@
 
 (defn- find-original-for-renamed [ustatus file]
   (->> ustatus
-    (filter (fn [e] (= (:new-path file))))
+    (filter (fn [e] (= file (:new-path e))))
     (map :old-path)
     (first)))
 

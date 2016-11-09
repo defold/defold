@@ -6,13 +6,16 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.StringProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.event.EventHandler;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.stage.WindowEvent;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
+import javafx.scene.image.Image;
 
 public class Splash {
 
@@ -20,7 +23,7 @@ public class Splash {
     private Scene scene;
     private StringProperty launchError = new SimpleStringProperty();
     private BooleanProperty errorShowing = new SimpleBooleanProperty(false);
-    private BooleanProperty showing = new SimpleBooleanProperty(false);
+    private BooleanProperty shown = new SimpleBooleanProperty(false);
 
     public Splash() throws IOException {
     }
@@ -30,6 +33,7 @@ public class Splash {
         scene = new Scene((Parent) root);
         stage = new Stage();
         stage.initStyle(StageStyle.UNDECORATED);
+        stage.getIcons().add(new Image(Splash.class.getResourceAsStream("/logo_blue.png")));
         stage.setScene(scene);
 
         Label launchErrorLabel = (Label) scene.lookup("#launchError");
@@ -42,7 +46,12 @@ public class Splash {
                 System.exit(1);
             });
 
-        showing.bind(stage.showingProperty());
+        stage.setOnShown(new EventHandler<WindowEvent>() {
+            @Override
+            public void handle(WindowEvent event) {
+                shown.set(true);
+            }
+        });
         stage.show();
     }
 
@@ -74,7 +83,7 @@ public class Splash {
         return errorShowing;
     }
 
-    public BooleanProperty showingProperty() {
-        return showing;
+    public BooleanProperty shownProperty() {
+        return shown;
     }
 }

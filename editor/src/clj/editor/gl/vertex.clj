@@ -33,7 +33,7 @@ the `do-gl` macro from `editor.gl`."
            [com.jogamp.common.nio Buffers]
            [java.nio ByteBuffer]
            [java.util.concurrent.atomic AtomicLong AtomicBoolean]
-           [javax.media.opengl GL GL2]))
+           [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
 

@@ -25,6 +25,16 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# Collision object physics API documentation
+     *
+     * Functions and messages for collision object physics interaction 
+     * with other objects (collisions and ray-casting) and control of 
+     * physical behaviors.
+     *
+     * @name Collision object
+     * @namespace collision_object
+     */
+
     struct PhysicsScriptContext
     {
         dmMessage::HSocket m_Socket;
@@ -218,7 +228,7 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         dmMessage::ResetURL(receiver);
         receiver.m_Socket = context->m_Socket;
-        dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast));
+        dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

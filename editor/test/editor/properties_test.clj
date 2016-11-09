@@ -19,7 +19,7 @@
 
 (g/defnode StrPropReadOnly
   (property my-prop g/Str
-            (dynamic read-only? (g/always true))))
+            (dynamic read-only? (g/constantly true))))
 
 (g/defnode LinkedProps
   (property multi-properties g/Any
@@ -205,3 +205,38 @@
       (is (false? (read-only-fn [(first nodes)])))
       (is (true? (read-only-fn [(second nodes)])))
       (is (true? (read-only-fn nodes))))))
+
+(g/defnode DynamicSetFn
+  (property a g/Num)
+  (property count g/Any (default (atom 0)))
+
+  (output _properties g/Properties (g/fnk [_declared-properties]
+                                          (assoc-in _declared-properties [:properties :a :edit-type :set-fn]
+                                                    (fn [basis self old new]
+                                                      (swap! (g/node-value self :count {:basis basis}) inc)
+                                                      (g/set-property self :a new))))))
+
+(deftest dynamic-set-fn
+  (with-clean-system
+    (let [n (first
+              (tx-nodes
+                (g/make-nodes world [n DynamicSetFn])))
+          p (:a (coalesce-nodes [n]))]
+      (is (= 0 @(g/node-value n :count)))
+      (properties/set-values! p [1])
+      (is (= 1 @(g/node-value n :count))))))
+
+(g/defnode QuatAsEuler
+  (property rotation t/Vec4
+            (dynamic edit-type (g/constantly (properties/quat->euler)))))
+
+(deftest value-conversion
+  (with-clean-system
+    (testing "Value conversion"
+             (let [nodes (g/tx-nodes-added (g/transact
+                                              (g/make-node world QuatAsEuler :rotation [0.0 0.0 0.0 1.0])))
+                   property (-> (coalesce-nodes nodes) :rotation)]
+               (is (= [[0.0 0.0 0.0]] (properties/values property)))
+               (properties/set-values! property [[0.0 0.0 180.0]])
+               (let [property (-> (coalesce-nodes nodes) :rotation)]
+                 (is (= [[0.0 0.0 180.0]] (properties/values property))))))))

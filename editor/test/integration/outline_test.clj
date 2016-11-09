@@ -46,11 +46,11 @@
   (let [data (outline/copy [(->iterator node path)])]
     (alter-var-root #'*clipboard* (constantly data))))
 
-(defn- cut? [node path]
-  (outline/cut? [(->iterator node path)]))
+(defn- cut? [node & paths]
+  (outline/cut? (mapv #(->iterator node %) paths)))
 
-(defn- cut! [node path]
-  (let [data (outline/cut! [(->iterator node path)])]
+(defn- cut! [node & paths]
+  (let [data (outline/cut! (mapv #(->iterator node %) paths))]
     (alter-var-root #'*clipboard* (constantly data))))
 
 (defn- paste!
@@ -107,12 +107,23 @@
   (with-clean-system
     (let [[workspace project] (setup world)
           root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
-      ; 1 go instance
+      ; 2 go instance
       (is (= 2 (child-count root)))
       (copy! root [0])
       (paste! project root)
-      ; 2 go instances
+      ; 3 go instances
       (is (= 3 (child-count root))))))
+
+(deftest copy-paste-component-onto-go-instance
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
+      ; 1 comp instance
+      (is (= 1 (child-count root [0])))
+      (copy! root [0 0])
+      (paste! project root [0])
+      ; 2 comp instances
+      (is (= 2 (child-count root [0]))))))
 
 (deftest copy-paste-game-object
   (with-clean-system
@@ -329,15 +340,15 @@
 
 (deftest outline-shows-missing-parts
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world "resources/missing_project"))]  ; no logging as purposely partially broken project
+    (let [[workspace project] (log/without-logging (setup world "test/resources/missing_project"))]  ; no logging as purposely partially broken project
       (testing "Missing go file visible in collection outline"
-        (let [root (test-util/resource-node project "/missing_go.collection")]
-          (is (= 1 (child-count root)))
-          (is (.startsWith (:label (outline root [0])) "non-existent"))))
+       (let [root (test-util/resource-node project "/missing_go.collection")]
+         (is (= 1 (child-count root)))
+         (is (.startsWith (:label (outline root [0])) "non-existent"))))
       (testing "Missing sub collection visible in collection outline"
-        (let [root (test-util/resource-node project "/missing_collection.collection")]
-          (is (= 1 (child-count root)))
-          (is (.startsWith  (:label (outline root [0])) "non-existent"))))
+       (let [root (test-util/resource-node project "/missing_collection.collection")]
+         (is (= 1 (child-count root)))
+         (is (.startsWith  (:label (outline root [0])) "non-existent"))))
       (testing "Missing script visible in go outline"
         (let [root (test-util/resource-node project "/missing_component.go")]
           (is (= 1 (child-count root)))
@@ -351,7 +362,7 @@
 
 (deftest outline-shows-nil-parts
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world "resources/nil_project"))]  ; no logging as purposely partially broken project
+    (let [[workspace project] (log/without-logging (setup world "test/resources/nil_project"))]  ; no logging as purposely partially broken project
       (testing "Nil go file visible in collection outline"
         (let [root (test-util/resource-node project "/nil_go.collection")]
           (is (= 1 (child-count root)))
@@ -393,3 +404,38 @@
       (paste! project root)
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
+
+(deftest cut-paste-multiple
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/collection/go_hierarchy.collection")]
+      ; Original tree
+      ; Collection
+      ; + left (go)
+      ;   + left_child (go)
+      ; + right (go)
+      ;   + right_child (go)
+      (is (= 2 (child-count root)))
+      (testing "Cut `left_child` and `right`"
+        (is (true? (cut? root [0 0] [1])))
+        (cut! root [0 0] [1])
+        (is (= 0 (child-count root [0])))
+        (is (= 1 (child-count root))))
+      (testing "Paste `left_child` and `right` below `root`"
+        (paste! project root)
+        (is (= 3 (child-count root)))))))
+
+(deftest cut-disallowed-multiple
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
+      ; Original tree
+      ; Game Object
+      ; + collisionobject
+      ;   + Sphere (shape)
+      ;   + Box (shape)
+      ;   + Capsule (shape)
+      ; + sprite
+      (is (= 2 (child-count root)))
+      (testing "Cut is disallowed when both `Capsule` and `sprite` are selected"
+        (is (false? (cut? root [0 2] [1])))))))
