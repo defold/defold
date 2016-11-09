@@ -4255,7 +4255,7 @@ TEST_F(dmGuiTest, SpineNode)
     DeleteSpineDummyData(dummy_data);
 }
 
-TEST_F(dmGuiTest, SpineNodeSetGetSkin)
+TEST_F(dmGuiTest, SpineNodeSetSkin)
 {
     uint32_t width = 100;
     uint32_t height = 50;
@@ -4271,16 +4271,36 @@ TEST_F(dmGuiTest, SpineNodeSetGetSkin)
     // create nodes
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy-skin"), dmHashString64((const char*)""), true));
 
-    // set then get skin
+    // set skin
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineSkin(m_Scene, node, dmHashString64("skin1")));
+    // verify
     ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
 
-    // set then get different skin
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineSkin(m_Scene, node, dmHashString64("skin2")));
-    ASSERT_NE(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
-    ASSERT_EQ(dmHashString64("skin2"), dmGui::GetNodeSpineSkin(m_Scene, node));
+    DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiTest, SpineNodeGetSkin)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+    CreateSpineDummyData(dummy_data);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // get skin
+    ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
 
     DeleteSpineDummyData(dummy_data);
 }

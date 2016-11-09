@@ -3396,7 +3396,7 @@ namespace dmGui
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &node);
-        if(dmGui::GetNodeIsBone(scene, node)) 
+        if (dmGui::GetNodeIsBone(scene, node)) 
         {
             return 0;
         }
@@ -3438,7 +3438,8 @@ namespace dmGui
      */
     int LuaSetSpineSkin(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L);
+
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &node);
@@ -3455,7 +3456,6 @@ namespace dmGui
             return luaL_error(L, "failed to set spine skin for gui node");
         }
 
-        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -3468,6 +3468,8 @@ namespace dmGui
      */
     int LuaGetSpineSkin(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         Scene* scene = GuiScriptInstance_Check(L);
         HNode node;
         InternalNode* n = LuaCheckNode(L, 1, &node);
@@ -3475,12 +3477,14 @@ namespace dmGui
 
         if (dmGui::GetNodeIsBone(scene, node))
         {
+            assert(top == lua_gettop(L));
             return luaL_error(L, "cannot get skin for bone, did you mean to get skin for the spine model?");
         }
 
         dmhash_t spine_skin_id = dmGui::GetNodeSpineSkin(scene, node);
         dmScript::PushHash(L, spine_skin_id);
 
+        assert(top == lua_gettop(L)-1); // hash pushed on to state increased stack by 1;
         return 1;
     }
 
