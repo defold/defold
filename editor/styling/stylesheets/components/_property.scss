@@ -12,8 +12,15 @@
     -fx-padding: 0 5 0 0;
     -fx-font-weight: bold;
     .label {
-        -fx-padding: 5px 5px;
-        -fx-text-fill: rgba(176, 176, 176, 0.8);
+        -fx-padding: 5px;//5px 5px;
+        -fx-font-weight: normal;
+        /*-fx-background-color: $mid-grey-light;*/
+        -fx-text-fill: #848484;//$defold-white; //$mid-grey-light;
+        -fx-alignment: center;
+        
+        .text {
+            -fx-text-alignment: center;
+        }
     }
     .text-field {
         -fx-padding: 5px 8px;

@@ -1,5 +1,5 @@
 .tree-view {
-    -fx-background-color:$bright-black;
+    -fx-background-color: $dark-grey-light;
     -fx-background-insets: 0;
     >.virtual-flow {
         >.scroll-bar {
@@ -16,7 +16,7 @@
 }
 
 .tree-cell {
-    -fx-background-color: $bright-black;
+    -fx-background-color: $dark-grey-light;
     -fx-font-weight: bold;
     &:filled {
         -fx-padding: 5;
@@ -25,13 +25,13 @@
         -fx-text-fill: $bright-grey-light;
 
         &:hover {
-            -fx-background-color: $dark-black;
             -fx-text-fill: $defold-white;
         }
         &:selected {
             -fx-border-width: 0 0 0 2;
             -fx-border-color: $defold-orange;
             -fx-text-fill: $defold-white;
+            -fx-background-color: $dark-grey-selected;
             &:hover {
                 -fx-text-fill: $defold-white; 
             }

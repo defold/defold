@@ -1,9 +1,9 @@
 #tool-tabs {
     -fx-tab-min-width: 40px;
-    -fx-padding: 0 15 0 0;
+    -fx-padding: 0 0 17px 0;
 
     .console-buttons-base {
-        -fx-background-color: $mid-grey;
+        -fx-background-color: $mid-grey-light;
         -fx-background-position: center;
         -fx-background-repeat: no-repeat;
         -fx-background-size: 9 14;
@@ -16,11 +16,11 @@
     }
     #prev-console {
         @extend .console-buttons-base;
-        -fx-border-radius: 10 0 0 10;
-        -fx-background-radius: 10 0 0 10;
+        -fx-border-radius: 15 0 0 15;
+        -fx-background-radius: 15 0 0 15;
         -fx-background-image: url('icons/left-arrow.png');
         -fx-border-width: 0 1 0 0;
-        -fx-border-color: $dark-grey-border;
+        -fx-border-color: $dark-grey-light;
         &:hover {
             -fx-background-image: url('icons/left-arrow-on.png');
         }
@@ -28,8 +28,8 @@
     }
     #next-console {
         @extend .console-buttons-base;
-        -fx-border-radius: 0 10 10 0;
-        -fx-background-radius: 0 10 10 0;
+        -fx-border-radius: 0 15 15 0;
+        -fx-background-radius: 0 15 15 0;
         -fx-background-image: url('icons/right-arrow.png');
         &:hover {
             -fx-background-image: url('icons/right-arrow-on.png');
@@ -59,18 +59,17 @@
             -fx-text-fill: $defold-white;
         }
 
-        .text-input {
+        /*.text-input {
             -fx-background-radius: 12;
             -fx-border-radius: 12;
             -fx-background-color: $dark-grey;
             -fx-border-width: 0;
-        }
+        }*/
 
         .content {//.text-area, .text-input {
             -fx-background-color: $dark-grey-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
-            -fx-border-color: red;
             -fx-border-radius: 0;
             -fx-border-width: 0;
             -fx-border-insets: 0;

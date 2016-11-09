@@ -53,6 +53,28 @@
                   </Pane>
                </left>
             </BorderPane>
+            <HBox id="toolbar" alignment="TOP_LEFT" maxHeight="35.0" prefHeight="35.0" spacing="1.0">
+                    <children>
+                        <ToggleButton mnemonicParsing="false">
+                          <graphic>
+                              <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
+                                <image>
+                                    <Image url="@icons/45/Icons_T_01_Select.png" />
+                                </image>
+                              </ImageView>
+                          </graphic>
+                        </ToggleButton>
+                        <ToggleButton mnemonicParsing="false">
+                          <graphic>
+                              <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
+                                <image>
+                                    <Image url="@icons/45/Icons_T_02_Move.png" />
+                                </image>
+                              </ImageView>
+                          </graphic>
+                        </ToggleButton>
+                    </children>
+                  </HBox>
             <Pane HBox.hgrow="ALWAYS">
               <ProgressBar id="progress-bar" prefWidth="0" prefHeight="0" progress="0.0" />
             </Pane>
@@ -126,10 +148,10 @@
                                                   <GridPane maxHeight="Infinity" maxWidth="Infinity" vgap="0.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                                       <columnConstraints>
                                                           <ColumnConstraints hgrow="ALWAYS" maxWidth="Infinity" minWidth="10.0" prefWidth="150.0" />
-                                                          <ColumnConstraints hgrow="SOMETIMES" minWidth="125.0" prefWidth="125.0" />
+                                                          <ColumnConstraints hgrow="ALWAYS" minWidth="200.0" prefWidth="200.0" />
                                                           <ColumnConstraints halignment="RIGHT" hgrow="NEVER" maxWidth="104.0" minWidth="20.0" prefWidth="41.0" />
                                                           <ColumnConstraints halignment="LEFT" hgrow="NEVER" maxWidth="81.0" minWidth="20.0" prefWidth="40.0" />
-                                                          <ColumnConstraints hgrow="NEVER" maxWidth="120.0" minWidth="39.0" prefWidth="102.0" />
+                                                          <ColumnConstraints hgrow="NEVER" maxWidth="120.0" minWidth="100" prefWidth="120.0" />
                                                       </columnConstraints>
                                                       <rowConstraints>
                                                           <RowConstraints minHeight="20.0" vgrow="NEVER" />
@@ -137,10 +159,11 @@
                                                       </rowConstraints>
                                                       <children>
                                                           <Label text="Console" GridPane.columnIndex="0" />
-                                                          <Button id="clear-console" styleClass="button-small" text="Clear console" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="1" />
+                                                          <TextField id="search-console" promptText="Search" AnchorPane.leftAnchor="120.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="1" />
                                                           <Button id="prev-console" styleClass="button-small" prefWidth="27" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="2" />
                                                           <Button id="next-console" styleClass="button-small" prefWidth="27" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="3" />
-                                                          <TextField id="search-console" promptText="Search" AnchorPane.leftAnchor="120.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="4" />
+                                                          <Button id="clear-console" styleClass="button-small" text="Clear console" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="4" />
+                                                          
                                                           <!-- Row 2 -->
                                                           <TextArea id="console" editable="false" layoutX="91.0" layoutY="52.0" prefHeight="120.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="30.0" GridPane.columnSpan="2147483647" GridPane.rowIndex="1" />
                                                       </children>
@@ -235,29 +258,7 @@
             </AnchorPane>
           <AnchorPane prefHeight="160.0" prefWidth="100.0">
                <children>
-                  <HBox id="toolbar" alignment="TOP_LEFT" maxHeight="35.0" prefHeight="35.0" spacing="1.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="38.0">
-                    <children>
-                        <ToggleButton mnemonicParsing="false">
-                          <graphic>
-                              <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
-                                <image>
-                                    <Image url="@icons/45/Icons_T_01_Select.png" />
-                                </image>
-                              </ImageView>
-                          </graphic>
-                        </ToggleButton>
-                        <ToggleButton mnemonicParsing="false">
-                          <graphic>
-                              <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
-                                <image>
-                                    <Image url="@icons/45/Icons_T_02_Move.png" />
-                                </image>
-                              </ImageView>
-                          </graphic>
-                        </ToggleButton>
-                    </children>
-                  </HBox>
-                  <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="71.0">
+                  <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                     <items>
                         <AnchorPane prefHeight="100.0" prefWidth="160.0">
                            <children>
