@@ -474,38 +474,38 @@ int Push_SetBadgeCount(lua_State* L)
 
 /*# Schedule a local push notification to be triggered at a specific time in the future
  *
+ * [md]
  * Local push notifications are scheduled with this function. 
- * The returned <code>id</code> value is uniquely identifying the scheduled notification 
+ * The returned `id` value is uniquely identifying the scheduled notification 
  * and can be stored for later reference.
- *
+ * [/md]
  * @name push.schedule
  * @param time number of seconds into the future until the notification should be triggered (number)
  * @param title localized title to be displayed to the user if the application is not running (string)
  * @param alert localized body message of the notification to be displayed to the user if the application is not running (string)
  * @param payload JSON string to be passed to the registered listener function (string)
  * @param notification_settings table with notification and platform specific fields (table)
- * <dl>
- *  <dt><code>action</code></dt>
- *  <dd>(iOS only). The alert action string to be used as the title of the
- *          right button of the alert or the value of the unlock slider, where the value replaces
- *          "unlock" in "slide to unlock" text. (string)</dd>
- *  <dt><code>badge_count</code></dt>
- *  <dd>(iOS only). The numeric value of the icon badge. (number)</dd>
- *  <dt><code>badge_number</code></dt>
- *  <dd>Deprecated! Use badge_count instead</dd>
- *  <dt><code>priority</code></dt>
- *  <dd>(Android only). The priority is a hint to the device UI about how the notification
+ * [md]
+ * action [icon:iOS]
+ * :    The alert action string to be used as the title of the right button of the 
+ *      alert or the value of the unlock slider, where the value replaces
+ *      "unlock" in "slide to unlock" text. [type:string]
+ * badge_count [icon:iOS]
+ * :    The numeric value of the icon badge. [type:number]
+ * badge_number
+ * :    Deprecated! Use badge_count instead
+ * priority [icon:Android]
+ * :    The priority is a hint to the device UI about how the notification
  *      should be displayed. There are five priority levels, from -2 to 2 where -1 is the 
  *      lowest priority and 2 the highest. Unless specified, a default priority level of 2 
- *      is used. (number)</dd>
- * </dl>
+ *      is used. [type:number]
+ * [/md]
  * @return id unique id that can be used to cancel or inspect the notification (number)
  * @return err error string if something went wrong, otherwise nil (string)
  * @examples
- * <p>
- * This example demonstrates how to schedule a local notification.
- * </p>
- * <pre>
+ * [md]
+ * This example demonstrates how to schedule a local notification:
+ * ```
  * -- Schedule a local push in 3 seconds
  * local payload = '{ "data" : { "field" : "Some value", "field2" : "Other value" } }'
  * id, err = push.schedule(3, "Update!", "There are new stuff in the app", payload, { action = "check it out" })
@@ -513,7 +513,8 @@ int Push_SetBadgeCount(lua_State* L)
  *      -- Something went wrong
  *      ...
  * end
- * </pre>
+ * ```
+ * [/md]
  */
 int Push_Schedule(lua_State* L)
 {

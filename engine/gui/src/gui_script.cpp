@@ -1379,10 +1379,16 @@ namespace dmGui
      * @examples
      * <p>Set the texture of a node to a flipbook animation from an atlas:</p>
      * <pre>
-     * -- Create a new node and set the texture to a flipbook animation
-     * local node = gui.get_node("button_node")
-     * gui.set_texture(node, "gui_sprites")
-     * gui.play_flipbook(node, "animated_button")
+     * local function anim_callback(self, node)
+     *     -- Take action after animation has played.
+     * end
+     *
+     * function init(self)
+     *     -- Create a new node and set the texture to a flipbook animation
+     *     local node = gui.get_node("button_node")
+     *     gui.set_texture(node, "gui_sprites")
+     *     gui.play_flipbook(node, "animated_button")
+     * end
      * </pre>
      *
      * <p>Set the texture of a node to an image from an atlas:</p>

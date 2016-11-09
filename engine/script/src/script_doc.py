@@ -44,7 +44,7 @@ def _parse_comment(str):
         elif tag == 'property':
             element_type = script_doc_ddf_pb2.PROPERTY
         elif tag == 'namespace':
-            # This is a docinfo comment.
+            # The namespace tag makes the comment apply to the whole doc.
             docinfo_comment = True
 
     if not name_found:

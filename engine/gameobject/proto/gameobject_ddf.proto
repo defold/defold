@@ -284,6 +284,7 @@ message SetParent
  *   <li>Collection Proxy</li>
  *   <li>Collision Object</li>
  *   <li>Gui</li>
+ *   <li>Label</li>
  *   <li>Spine Model</li>
  *   <li>Sprite</li>
  *   <li>Tile Grid</li>
