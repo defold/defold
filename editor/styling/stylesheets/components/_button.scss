@@ -1,16 +1,16 @@
 .button {
-  -fx-background-radius: 15;
-  -fx-border-radius: 15;
+  -fx-background-radius: 0;
+  -fx-border-radius: 0;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: $mid-grey;
+  -fx-background-color: $mid-grey-light;
   -fx-background-insets: 0;
-  -fx-border-color: $dark-grey;
-  -fx-border-width: 1;
+  -fx-border-color: $mid-grey-light;
+  -fx-border-width: 0;
   -fx-text-fill: $defold-white;
   -fx-font-size: 12px;
   &:hover {
-    -fx-background-color: $mid-black;
+    -fx-background-color: $dark-grey;
   }
   &:armed {
     -fx-background-color: $bright-grey;

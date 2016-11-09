@@ -106,9 +106,8 @@ Links:
   -fx-spacing: 0; }
 
 /* Drag and drop targets */
-
 .drop-target {
-  -fx-background-color: $defold-blue;
+  -fx-background-color: $dark-grey !important;//$defold-blue !important;
 }
 
 /* Overrides */

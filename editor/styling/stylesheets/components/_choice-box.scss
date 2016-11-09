@@ -1,9 +1,10 @@
 .choice-box {
-    -fx-background-radius: 3;
-    -fx-border-radius: 3;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
     -fx-background-color: $dark-grey;
     -fx-background-insets: 0;
     -fx-border-color: $mid-grey;
+    -fx-padding: 2;
     /* TODO: Why do we have to do this explicitly? */ 
     &:hover {
         -fx-background-color: $dark-black;
@@ -17,5 +18,8 @@
     }
     .label {
         -fx-text-fill: -fx-text-background-color;
+    }
+    .open-button {
+        -fx-padding: 6 4;
     }
 }
