@@ -1,19 +1,6 @@
 #right-split {
-  -fx-padding: 2 0 17 0;
+  -fx-padding: 10 0 17 0;
   AnchorPane {
-    -fx-background-color: $dark-black;
-  }
-  .tree-view, .tree-cell {
-    -fx-background-color: $dark-black;
-  }
-  .titled-pane {
-    >.title {
-      -fx-background-color: $dark-black;
-    }
-  }
-
-  .button, .arrow-button {
-    -fx-border-width: 0;
-    -fx-background-color: $dark-black;
+    -fx-background-color: $dark-grey-light;
   }
 }

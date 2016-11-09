@@ -1,32 +1,13 @@
 #assets-split {
     -fx-padding: 10 0 0 0;
-    .tree-view {
-        -fx-background-color: $dark-grey-light;
-        -fx-padding: 0 0 0 6;
-    }
 
     .tree-cell {
-        -fx-background-color: $dark-grey-light;
         &:filled {
             -fx-border-width: 0 2 0 0;
-            &:selected {
+            /*&:selected {
                 -fx-border-width: 0 2 0 0;
-            }
-        }
-    }
-
-    .scroll-bar {
-        -fx-background-color: $dark-grey-light;
-
-        .thumb {
-            -fx-background-color: $mid-grey;
-
-            &:hover {
-                -fx-background-color: $bright-grey;
-            }
-            &:pressed {
-                -fx-background-color: $defold-white;
-            }
+                -fx-background-color: $dark-grey-selected;
+            }*/
         }
     }
 

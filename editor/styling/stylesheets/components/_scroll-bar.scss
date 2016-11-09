@@ -1,5 +1,5 @@
 .scroll-bar {
-    -fx-background-color: $dark-black;
+    -fx-background-color: $dark-grey-light;
     &:horizontal {
         >.thumb {
             -fx-background-insets: 2px 5px 3px 5px;
@@ -17,7 +17,7 @@
         }
     }
     .thumb {
-        -fx-background-color: $dark-grey;
+        -fx-background-color: $mid-grey;
         -fx-background-radius: 2em;
         &:hover {
             -fx-background-color: $bright-grey;

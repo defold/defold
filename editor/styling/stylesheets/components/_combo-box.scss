@@ -26,15 +26,15 @@
     }
     .list-view {
         -fx-min-width: 10em;
-        -fx-background-color: $dark-black;
-        -fx-border-width: 1;
+        -fx-background-color: $dark-grey;
+        -fx-border-width: 0;
         -fx-border-color: $mid-grey;
-        -fx-border-insets: 0 24 0 0;
-        -fx-background-insets: 0 24 0 0;
+        -fx-border-insets: 0 0 0 0;
+        -fx-background-insets: 0 0 0 0;
         -fx-text-fill: $mid-grey; 
     }
     .list-cell {
-        -fx-background-color: $dark-black;
+        -fx-background-color: $dark-grey;//$dark-black;
         -fx-color: $bright-grey;
         &:hover {
             -fx-cursor: hand;
@@ -45,17 +45,15 @@
         -fx-background-radius: 0px;
         -fx-border-radius: 0px;
         -fx-background-insets: 0;
-        -fx-background-color: $dark-grey;
-        -fx-border-width: 1;
-        -fx-border-color: $mid-grey;
+        -fx-background-color: $mid-grey-light !important;//$dark-grey;
+        -fx-border-width: 0;
         -fx-padding: 5 7;
 
         &:hover {
-            -fx-background-color: $bright-black; 
+            -fx-background-color: $dark-grey !important;//$bright-black; 
         }
         &:pressed {
-            -fx-background-color: $bright-black;
-            -fx-border-color: $bright-grey;
+            -fx-background-color: $dark-grey;
             -fx-text-fill: $defold-white;
         }
     }
@@ -67,7 +65,7 @@
     .text-field, .text-input {
         -fx-background-insets: 0;
         -fx-border-width: 0 0 1 0;
-        -fx-border-color: $dark-grey-border;
+        -fx-border-color: $mid-grey-light;//$dark-grey-border;
     }
 }
 .combo-box-base {

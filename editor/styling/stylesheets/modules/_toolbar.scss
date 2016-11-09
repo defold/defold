@@ -5,11 +5,13 @@
   -fx-focus-traversable: false; }
 
 #toolbar {
-    -fx-background-color: $dark-black;
+    -fx-background-color: $dark-grey;
     -fx-border-color: $mid-grey;
     -fx-border-width: 0;//1 1;
-    -fx-padding: 0;
-    -fx-spacing: 0; 
+    -fx-border-insets: 0;
+    -fx-background-insets: 0;
+    -fx-padding: 0 0 0 8px;
+    -fx-spacing: 0;
 
     >.toggle-button {
         -fx-background-color: $dark-black;
@@ -37,9 +39,18 @@
         }
     }
 
+    .separator {
+        visibility: hidden;
+    }
+
     /* This is for the gui device picker that pops up when an .gui file is active */
     .cell {
         -fx-padding: 4px 5px;
         -fx-spacing: 4px;
+        -fx-border-width: 0;
+        -fx-border-insets: 0;
+        -fx-background-color: $dark-black;
+        -fx-background-insets: 0 0 2 0;
+        -fx-height: 33;
     }
 }
