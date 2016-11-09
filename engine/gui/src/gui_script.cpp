@@ -1368,19 +1368,30 @@ namespace dmGui
     }
 
     /*# play node flipbook animation
-     * Play flipbook animation on a box or pie node. The current node texture must contain the animation.
+     * Play flipbook animation on a box or pie node.
+     * The current node texture must contain the animation.
+     * Use this function to set one-frame still images on the node.
      *
      * @name gui.play_flipbook
      * @param node node to set animation for (node)
      * @param animation animation id (string|hash)
      * @param [complete_function] function to call when the animation has completed (function)
      * @examples
+     * <p>Set the texture of a node to a flipbook animation from an atlas:</p>
      * <pre>
-     * -- Create a new node and set the 
-     * local node = gui.get_node("box_node")
-     * gui.cancel_flipbook(node)
+     * -- Create a new node and set the texture to a flipbook animation
+     * local node = gui.get_node("button_node")
+     * gui.set_texture(node, "gui_sprites")
+     * gui.play_flipbook(node, "animated_button")
      * </pre>
      *
+     * <p>Set the texture of a node to an image from an atlas:</p>
+     * <pre>
+     * -- Create a new node and set the texture to a "button.png" from atlas
+     * local node = gui.get_node("button_node")
+     * gui.set_texture(node, "gui_sprites")
+     * gui.play_flipbook(node, "button")
+     * </pre>
      */
     static int LuaPlayFlipbook(lua_State* L)
     {
