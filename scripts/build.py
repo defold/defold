@@ -489,7 +489,7 @@ class Configuration(object):
             self.upload_file(lib_path, '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext))
 
         sdkpath = self._package_platform_sdk(self.target_platform)
-        self.upload_file(sdkpath, '%s/sdk.zip' % full_archive_path)
+        self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
 
     def build_engine(self):
         supported_tests = {}
@@ -567,6 +567,44 @@ class Configuration(object):
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                           cwd = cwd,
                           shell = True)
+
+    def build_sdk(self):
+        tempdir = tempfile.mkdtemp() # where the sdk ends up
+
+        sha1 = self._git_sha1()
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+
+        root = urlparse.urlparse(self.archive_path).path[1:]
+        base_prefix = os.path.join(root, sha1)
+
+        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
+        for platform in platforms:
+            platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
+
+            prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
+            entry = bucket.get_key(prefix)
+
+            if entry is None:
+                raise Exception("Could not find sdk: %s" % prefix)
+
+            platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
+            print "Downloading", entry.key
+            entry.get_contents_to_filename(platform_sdk_zip.name)
+            print "Downloaded", entry.key, "to", platform_sdk_zip.name
+
+            self._extract_zip(platform_sdk_zip.name, tempdir)
+            print "Extracted", platform_sdk_zip.name, "to", tempdir
+
+            os.unlink(platform_sdk_zip.name)
+            print ""
+
+        treepath = os.path.join(tempdir, 'defoldsdk')
+        sdkpath = self._ziptree(treepath, directory=tempdir)
+        print "Packaged defold sdk"
+
+        sdkurl = join(self.archive_path, sha1, 'engine').replace('\\', '/')
+        self.upload_file(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
