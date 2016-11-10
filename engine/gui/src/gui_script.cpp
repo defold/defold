@@ -457,7 +457,7 @@ namespace dmGui
      */
     int LuaDeleteNode(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -476,7 +476,7 @@ namespace dmGui
     {
         HScene scene = (HScene)curve->userdata1;
         lua_State* L = scene->m_Context->m_LuaState;
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
 
@@ -492,7 +492,7 @@ namespace dmGui
     void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::SetInstance(L);
@@ -863,7 +863,7 @@ namespace dmGui
      */
     int LuaAnimate(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         Scene* scene = GuiScriptInstance_Check(L);
 
@@ -3278,11 +3278,10 @@ namespace dmGui
 
         HNode hnode;
         Scene* scene = GuiScriptInstance_Check(L);
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        LuaCheckNode(L, 1, &hnode);
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
         lua_Number blend_duration = luaL_checknumber(L, 4);
-        (void) n;
 
         int node_ref = LUA_NOREF;
         int animation_complete_ref = LUA_NOREF;
@@ -3332,8 +3331,7 @@ namespace dmGui
 
         HNode hnode;
         Scene* scene = GuiScriptInstance_Check(L);
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        (void) n;
+        LuaCheckNode(L, 1, &hnode);
 
         if (dmGui::CancelNodeSpineAnim(scene, hnode) != RESULT_OK) {
             dmLogError("Could not cancel spine animation on GUI spine node.");
@@ -3422,8 +3420,7 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        (void) n;
+        LuaCheckNode(L, 1, &hnode);
 
         dmScript::PushHash(L, dmGui::GetNodeSpineSceneId(scene, hnode));
         return 1;
@@ -3438,7 +3435,7 @@ namespace dmGui
      */
     int LuaSetSpineSkin(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
@@ -3468,23 +3465,20 @@ namespace dmGui
      */
     int LuaGetSpineSkin(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 1); // hash pushed onto state will increase stack by 1
 
         Scene* scene = GuiScriptInstance_Check(L);
         HNode node;
-        InternalNode* n = LuaCheckNode(L, 1, &node);
-        (void) n;
+        LuaCheckNode(L, 1, &node);
 
         if (dmGui::GetNodeIsBone(scene, node))
         {
-            assert(top == lua_gettop(L));
             return luaL_error(L, "cannot get skin for bone, did you mean to get skin for the spine model?");
         }
 
         dmhash_t spine_skin_id = dmGui::GetNodeSpineSkin(scene, node);
         dmScript::PushHash(L, spine_skin_id);
 
-        assert(top == lua_gettop(L)-1); // hash pushed on to state increased stack by 1;
         return 1;
     }
 

@@ -4153,7 +4153,7 @@ static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton
     }
 }
 
-static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
     dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
     dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
@@ -4190,27 +4190,39 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
 
     BuildBindPose(dummy_data->m_BindPose, skeleton);
 
-    mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
-    mesh_set->m_MeshEntries.m_Count = 2;
+    if(num_dummy_mesh_entries > 0)
+    {
+        mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[num_dummy_mesh_entries];
+        mesh_set->m_MeshEntries.m_Count = num_dummy_mesh_entries;
+    }
 
-    dmRig::CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[0], dmHashString64("skin1"), Vector4(0.0f));
-    dmRig::CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[1], dmHashString64("skin2"), Vector4(1.0f));
+    char buf[64];
+    for (int i = 0; i < num_dummy_mesh_entries; ++i)
+    {
+        sprintf(buf, "skin%i", i);
+        dmRig::CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[i], dmHashString64(buf), Vector4(float(i)/float(num_dummy_mesh_entries)));
+    }
 }
 
-static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
-    for (int i = 0; i < 2; ++i)
+    if (num_dummy_mesh_entries > 0)
     {
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
-        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
+        for (int i = 0; i < num_dummy_mesh_entries; ++i)
+        {
+            dmRig::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
+            dmRig::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
+            delete [] mesh.m_Normals.m_Data;
+            delete [] mesh.m_BoneIndices.m_Data;
+            delete [] mesh.m_Weights.m_Data;
+            delete [] mesh.m_Indices.m_Data;
+            delete [] mesh.m_Color.m_Data;
+            delete [] mesh.m_Texcoord0.m_Data;
+            delete [] mesh.m_Positions.m_Data;
+            delete [] mesh_entry.m_Meshes.m_Data;
+        }
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
     }
-    delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
 
     delete dummy_data->m_BindPose;
     delete [] dummy_data->m_Skeleton->m_Bones.m_Data;
@@ -4259,12 +4271,13 @@ TEST_F(dmGuiTest, SpineNodeSetSkin)
 {
     uint32_t width = 100;
     uint32_t height = 50;
+    uint32_t num_dummy_mesh_entries = 2;
 
     dmGui::SetPhysicalResolution(m_Context, width, height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
     dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-    CreateSpineDummyData(dummy_data);
+    CreateSpineDummyData(dummy_data, num_dummy_mesh_entries);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
 
@@ -4278,19 +4291,20 @@ TEST_F(dmGuiTest, SpineNodeSetSkin)
     // verify
     ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
 
-    DeleteSpineDummyData(dummy_data);
+    DeleteSpineDummyData(dummy_data, num_dummy_mesh_entries);
 }
 
 TEST_F(dmGuiTest, SpineNodeGetSkin)
 {
     uint32_t width = 100;
     uint32_t height = 50;
+    uint32_t num_dummy_mesh_entries = 2;
 
     dmGui::SetPhysicalResolution(m_Context, width, height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
     dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
-    CreateSpineDummyData(dummy_data);
+    CreateSpineDummyData(dummy_data, num_dummy_mesh_entries);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
 
@@ -4302,7 +4316,7 @@ TEST_F(dmGuiTest, SpineNodeGetSkin)
     // get skin
     ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
 
-    DeleteSpineDummyData(dummy_data);
+    DeleteSpineDummyData(dummy_data, num_dummy_mesh_entries);
 }
 
 TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
