@@ -287,11 +287,11 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  * is iOS only and will be ignored on Android.
  *
  * @name push.register
- * @param notifications [type:table] the types of notifications to listen to. [icon:apple]
- * @param callback [type:function] register callback function. Function parameters:
+ * @param notifications [type:table] the types of notifications to listen to. [icon:iOS]
+ * @param callback [type:function(self, token, error)] register callback function.
  *
  * self
- * :        [type:string] The current object.
+ * :        [type:object] The current object.
  *
  * token
  * :        [type:string] The returned push token if registration is successful.
@@ -302,7 +302,7 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  * @examples
  * 
  * Register for push notifications on iOS. Note that the token needs to be converted on this platform.
- * 
+ *
  * ```lua
  * local function push_listener(self, payload, origin)
  *      -- The payload arrives here.
@@ -479,9 +479,8 @@ int Push_SetListener(lua_State* L)
 
 /*# set badge icon count
  *
+ * [icon:iOS] This function is only available on iOS.
  * Set the badge count for application icon.
- *
- * @note [icon:apple] This function is only available on iOS.
  *
  * @name push.set_badge_count
  * @param count [type:number] badge count
@@ -506,13 +505,13 @@ int Push_SetBadgeCount(lua_State* L)
  * @param payload [type:string] JSON string to be passed to the registered listener function
  * @param notification_settings [type:table] table with notification and platform specific fields
  *
- * action [icon:apple]
+ * action [icon:iOS]
  * :    [type:string]
  *      The alert action string to be used as the title of the right button of the 
  *      alert or the value of the unlock slider, where the value replaces
  *      "unlock" in "slide to unlock" text.
  *
- * badge_count [icon:apple]
+ * badge_count [icon:iOS]
  * :    [type:number] The numeric value of the icon badge.
  *
  * badge_number
@@ -743,7 +742,7 @@ int Push_GetScheduled(lua_State* L)
  * `push.get_scheduled(id)`.
  *
  * @name push.get_all_scheduled
- * @return data [type:number] table with all data associated with all scheduled notifications
+ * @return data [type:table] table with all data associated with all scheduled notifications
  */
 int Push_GetAllScheduled(lua_State* L)
 {
