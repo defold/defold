@@ -287,14 +287,23 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  * is iOS only and will be ignored on Android.
  *
  * @name push.register
- * @param notifications the types of notifications to listen to. (iOS only) (table)
- * @param callback register callback function (function)
+ * @param notifications [type:table] the types of notifications to listen to. [icon:iOS]
+ * @param callback [type:function] register callback function. Function parameters:
+ *
+ * self
+ * :        The current object.
+ *
+ * token
+ * :        [type:string] The returned push token if registration is successful.
+ *
+ * error
+ * :        [type:table] A table containing eventual error information.
  *
  * @examples
  * 
  * Register for push notifications on iOS. Note that the token needs to be converted on this platform.
  * 
- * ```
+ * ```lua
  * local function push_listener(self, payload, origin)
  *      -- The payload arrives here.
  * end
@@ -325,14 +334,15 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  * end
  *
  * function init(self)
- *      push.register(nil, function (self, token, error)
- *      if token then
- *           print(token)
- *           push.set_listener(push_listener)
- *      else
- *           -- Push registration failed.
- *           print(error.error)
- *      end
+ *      push.register({}, function (self, token, error)
+ *          if token then
+ *               print(token)
+ *               push.set_listener(push_listener)
+ *          else
+ *               -- Push registration failed.
+ *               print(error.error)
+ *          end
+ *     end)
  * end
  * ```
  */
@@ -419,7 +429,7 @@ int Push_Register(lua_State* L)
  * 
  * Set the push notification listener.
  * 
- * ```
+ * ```lua
  * local function push_listener(self, payload, origin, activated)
  *      -- The payload arrives here.
  *      pprint(payload)
@@ -521,7 +531,7 @@ int Push_SetBadgeCount(lua_State* L)
  * 
  * This example demonstrates how to schedule a local notification:
  *
- * ```
+ * ```lua
  * -- Schedule a local push in 3 seconds
  * local payload = '{ "data" : { "field" : "Some value", "field2" : "Other value" } }'
  * id, err = push.schedule(3, "Update!", "There are new stuff in the app", payload, { action = "check it out" })
