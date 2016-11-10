@@ -326,3 +326,11 @@
           (when (< initial-undo-stack-count undo-stack-count)
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
+
+(defn add-embedded-component!
+  "Adds a new instance of an embedded component to the specified
+  game object node inside a transaction and makes it the current
+  selection. Returns the id of the added EmbeddedComponent node."
+  [project resource-type go-id]
+  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type})
+  (first (selection project)))

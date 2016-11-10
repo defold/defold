@@ -79,10 +79,8 @@
     (let [workspace (test-util/setup-workspace! world)
           project (test-util/setup-project! workspace)
           go (project/get-resource-node project "/game_object/test.go")
-          add-label-component! (let [resource-type (workspace/get-resource-type workspace "label")]
-                                 (fn [go]
-                                   (game-object/add-embedded-component-handler {:_node-id go :resource-type resource-type})
-                                   (first (test-util/selection project))))
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          add-label-component! (partial test-util/add-embedded-component! project (workspace/get-resource-type workspace "label"))
           render-calls (let [app-view (test-util/setup-app-view!)
                              view (test-util/open-scene-view! project app-view go 128 128)]
                          (fn [selection key-fn]
@@ -94,7 +92,7 @@
                                    render-calls)]
 
       (testing "Single label"
-        (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+        (with-open [_ (make-restore-point!)]
           (add-label-component! go)
           (is (= {pass/outline {label/render-lines 1}
                   pass/transparent {label/render-tris 1}}
@@ -104,7 +102,7 @@
                  (render-call-counts #{} :select-batch-key)))))
 
       (testing "Identical labels"
-        (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+        (with-open [_ (make-restore-point!)]
           (add-label-component! go)
           (add-label-component! go)
           (add-label-component! go)
@@ -117,7 +115,7 @@
                  (render-call-counts #{} :select-batch-key)))))
 
       (testing "Blend mode differs"
-        (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+        (with-open [_ (make-restore-point!)]
           (test-util/prop! (add-label-component! go) :blend-mode :blend-mode-add)
           (test-util/prop! (add-label-component! go) :blend-mode :blend-mode-add)
           (test-util/prop! (add-label-component! go) :blend-mode :blend-mode-mult)
@@ -127,7 +125,7 @@
                  (render-call-counts #{} :batch-key)))))
 
       (testing "Font differs"
-        (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+        (with-open [_ (make-restore-point!)]
           (test-util/prop! (add-label-component! go) :font (workspace/find-resource workspace "/fonts/active_menu_item.font"))
           (test-util/prop! (add-label-component! go) :font (workspace/find-resource workspace "/fonts/active_menu_item.font"))
           (test-util/prop! (add-label-component! go) :font (workspace/find-resource workspace "/fonts/big_score.font"))
@@ -137,7 +135,7 @@
                  (render-call-counts #{} :batch-key)))))
 
       (testing "Material differs"
-        (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+        (with-open [_ (make-restore-point!)]
           (test-util/prop! (add-label-component! go) :material (workspace/find-resource workspace "/fonts/active_menu_item.material"))
           (test-util/prop! (add-label-component! go) :material (workspace/find-resource workspace "/fonts/active_menu_item.material"))
           (test-util/prop! (add-label-component! go) :material (workspace/find-resource workspace "/fonts/big_score_font.material"))

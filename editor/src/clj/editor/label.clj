@@ -241,7 +241,7 @@
                                   {:type :choicebox
                                    :options (zipmap (map first options)
                                                     (map (comp :display-name second) options))}))))
-  (property blend-mode g/Any (default :blend_mode_alpha)
+  (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
             (dynamic edit-type (g/constantly
                                 (let [options (protobuf/enum-values Label$LabelDesc$BlendMode)]
