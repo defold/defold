@@ -876,27 +876,32 @@ namespace dmRig
         const uint32_t* vertex_indices = mesh->m_Indices.m_Data;
         for (uint32_t ii = 0; ii < index_count; ++ii)
         {
-            uint32_t vi = vertex_indices[ii];
-            uint32_t ni = normal_indices[ii];
+            const uint32_t ni = normal_indices[ii]*3;
+            const Vector3 normal_in(normals_in[ni+0], normals_in[ni+1], normals_in[ni+2]);
+            Vector4 normal_out(0.0f, 0.0f, 0.0f, 0.0f);
 
-            Vector3 normal_out(0.0f, 0.0f, 0.0f);
-            Vector3 normal_in(normals_in[ni*3+0], normals_in[ni*3+1], normals_in[ni*3+2]);
-
-            const uint32_t bi_offset = vi << 2;
+            const uint32_t bi_offset = vertex_indices[ii] << 2;
             const uint32_t* bone_indices = &indices[bi_offset];
             const float* bone_weights = &weights[bi_offset];
-            // TODO: Optimise this (Vec3 vs Vec4 and unrolling..)
-            for (uint32_t bi = 0; bi < 4; ++bi)
+
+            if (bone_weights[0])
             {
-                if (bone_weights[bi] > 0.0f)
+                normal_out += (pose_matrices[bone_indices[0]] * normal_in) * bone_weights[0];
+                if (bone_weights[1])
                 {
-                    uint32_t bone_index = bone_indices[bi];
-                    Vector4 t_n = pose_matrices[bone_index] * Vector4(normal_in.getX(), normal_in.getY(), normal_in.getZ(), 0.0f);
-                    normal_out += Vector3(t_n.getX(), t_n.getY(), t_n.getZ()) * bone_weights[bi];
+                    normal_out += (pose_matrices[bone_indices[1]] * normal_in) * bone_weights[1];
+                    if (bone_weights[2])
+                    {
+                        normal_out += (pose_matrices[bone_indices[2]] * normal_in) * bone_weights[2];
+                        if (bone_weights[3])
+                        {
+                            normal_out += (pose_matrices[bone_indices[3]] * normal_in) * bone_weights[3];
+                        }
+                    }
                 }
             }
 
-            v = normal_matrix * normal_out;
+            v = normal_matrix * Vector3(normal_out.getX(), normal_out.getY(), normal_out.getZ());
             if (lengthSqr(v) > 0.0f) {
                 normalize(v);
             }
@@ -933,24 +938,35 @@ namespace dmRig
         const float* weights = mesh->m_Weights.m_Data;
         for (uint32_t i = 0; i < vertex_count; ++i)
         {
-            in_p[0] = *positions++;
-            in_p[1] = *positions++;
-            in_p[2] = *positions++;
-            Point3 out_p(0.0f, 0.0f, 0.0f);
+            Vector4 in_v;
+            in_v.setX(*positions++);
+            in_v.setY(*positions++);
+            in_v.setZ(*positions++);
+            in_v.setW(1.0f);
+
+            Vector4 out_p(0.0f, 0.0f, 0.0f, 0.0f);
             const uint32_t bi_offset = i << 2;
             const uint32_t* bone_indices = &indices[bi_offset];
             const float* bone_weights = &weights[bi_offset];
-            // TODO: Optimise this (Vec3 vs Vec4 and unrolling..)
-            for (uint32_t bi = 0; bi < 4; ++bi)
+
+            if(bone_weights[0])
             {
-                if (bone_weights[bi] > 0.0f)
+                out_p += pose_matrices[bone_indices[0]] * in_v * bone_weights[0];
+                if(bone_weights[1])
                 {
-                    uint32_t bone_index = bone_indices[bi];
-                    Vector4 t_p = pose_matrices[bone_index] * Vector4(in_p.getX(), in_p.getY(), in_p.getZ(), 1.0f);
-                    out_p += Vector3(t_p.getX(), t_p.getY(), t_p.getZ()) * bone_weights[bi];
+                    out_p += pose_matrices[bone_indices[1]] * in_v * bone_weights[1];
+                    if(bone_weights[2])
+                    {
+                        out_p += pose_matrices[bone_indices[2]] * in_v * bone_weights[2];
+                        if(bone_weights[3])
+                        {
+                            out_p += pose_matrices[bone_indices[3]] * in_v * bone_weights[3];
+                        }
+                    }
                 }
             }
-            v = model_matrix * out_p;
+
+            v = model_matrix * Vector3(out_p.getX(), out_p.getY(), out_p.getZ());
             *out_buffer++ = v[0];
             *out_buffer++ = v[1];
             *out_buffer++ = v[2];

@@ -97,12 +97,14 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_BoneIndices.m_Data[1]  = bone_count-2;
     mesh.m_BoneIndices.m_Data[2]  = bone_count-1;
     mesh.m_BoneIndices.m_Data[3]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[4]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[5]  = bone_count-2;
+
+    mesh.m_BoneIndices.m_Data[4]  = bone_count-2;
+    mesh.m_BoneIndices.m_Data[5]  = bone_count-1;
     mesh.m_BoneIndices.m_Data[6]  = bone_count-1;
     mesh.m_BoneIndices.m_Data[7]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[8]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[9]  = bone_count-2;
+
+    mesh.m_BoneIndices.m_Data[8]  = bone_count-2;
+    mesh.m_BoneIndices.m_Data[9]  = bone_count-1;
     mesh.m_BoneIndices.m_Data[10] = bone_count-1;
     mesh.m_BoneIndices.m_Data[11] = bone_count-1;
 
@@ -112,12 +114,14 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Weights.m_Data[1]      = 0.0f;
     mesh.m_Weights.m_Data[2]      = 0.0f;
     mesh.m_Weights.m_Data[3]      = 0.0f;
-    mesh.m_Weights.m_Data[4]      = 0.0f;
-    mesh.m_Weights.m_Data[5]      = 1.0f;
+
+    mesh.m_Weights.m_Data[4]      = 1.0f;
+    mesh.m_Weights.m_Data[5]      = 0.0f;
     mesh.m_Weights.m_Data[6]      = 0.0f;
     mesh.m_Weights.m_Data[7]      = 0.0f;
-    mesh.m_Weights.m_Data[8]      = 0.0f;
-    mesh.m_Weights.m_Data[9]      = 1.0f;
+
+    mesh.m_Weights.m_Data[8]      = 1.0f;
+    mesh.m_Weights.m_Data[9]      = 0.0f;
     mesh.m_Weights.m_Data[10]     = 0.0f;
     mesh.m_Weights.m_Data[11]     = 0.0f;
 
