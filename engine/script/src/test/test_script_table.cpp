@@ -1,4 +1,3 @@
-#include <setjmp.h>
 #include <stdlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -28,22 +27,11 @@ class LuaTableTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        accept_panic = false;
         g_LuaTableTest = this;
         m_Context = dmScript::NewContext(0, 0);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
-        lua_atpanic(L, &AtPanic);
         top = lua_gettop(L);
-    }
-
-    static int AtPanic(lua_State *L)
-    {
-        if (g_LuaTableTest->accept_panic)
-            longjmp(g_LuaTableTest->env, 1);
-        dmLogError("Unexpected error: %s", lua_tostring(L, -1));
-        exit(5);
-        return 0;
     }
 
     virtual void TearDown()
@@ -57,8 +45,6 @@ protected:
 
     char DM_ALIGNED(16) m_Buf[256];
 
-    bool accept_panic;
-    jmp_buf env;
     int top;
     dmScript::HContext m_Context;
     lua_State* L;
@@ -682,26 +668,10 @@ static void RandomString(char* s, int max_len)
 #error "Unsupported compiler: cannot specify 'noinline'."
 #endif
 
-//This is a helper function for working around an emscripten bug. See comment in the test "LuaTableTest Stress"
-NO_INLINE void wrapSetJmp(lua_State *L, jmp_buf &env, char *buf, int buf_size){
-    int ret = setjmp(env);
-    if (ret == 0)
-    {
-        uint32_t buffer_used = dmScript::CheckTable(L, buf, buf_size, -1);
-        (void) buffer_used;
-
-
-        dmScript::PushTable(L, buf);
-        lua_pop(L, 1);
-    }
-}
-
 #undef NO_INLINE
 
 TEST_F(LuaTableTest, Stress)
 {
-    accept_panic = true;
-
     for (int iter = 0; iter < 100; ++iter)
     {
         for (int buf_size = 0; buf_size < 256; ++buf_size)

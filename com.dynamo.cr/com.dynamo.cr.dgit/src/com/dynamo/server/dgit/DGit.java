@@ -23,7 +23,7 @@ public class DGit extends Plugin {
     public void start(BundleContext context) throws Exception {
         super.start(context);
         plugin = this;
-        if (!getPlatform().equals("win32")) {
+        if (!getPlatform().contains("win32")) {
             File binDir = new File(getGitDir() + "/bin");
             File libExecDir = new File(getGitDir() + "/libexec/git-core");
 
@@ -60,7 +60,7 @@ public class DGit extends Plugin {
             defoldDir.mkdir();
         }
         File netRC;
-        if (getPlatform().equals("win32")) {
+        if (getPlatform().contains("win32")) {
             netRC = new File(defoldDir, "_netrc");
         } else {
             netRC = new File(defoldDir, ".netrc");
