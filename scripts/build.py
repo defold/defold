@@ -388,11 +388,18 @@ class Configuration(object):
         zip = zipfile.ZipFile(outfile, 'w')
 
         topfolder = 'defoldsdk'
+        defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
         # Includes
         includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
         includes = [os.path.join(self.dynamo_home, x) for x in includes]
         self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
+
+        # Configs
+        extendersdk = os.path.join(defold_home, 'extender', 'sdk')
+        includes = ['extender/config.yml']
+        includes = [os.path.join(extendersdk, x) for x in includes]
+        self._add_files_to_zip(zip, includes, extendersdk, topfolder)
 
         def _findlibs(libdir):
             paths = os.listdir(libdir)
