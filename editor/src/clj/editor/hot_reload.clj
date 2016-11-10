@@ -6,8 +6,10 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:const url-prefix "/build")
+
 (defn- handler [project {:keys [url method headers]}]
-  (let [node-name (subs url (count project/hot-reload-url-prefix))
+  (let [node-name (subs url (count url-prefix))
         node      (project/get-resource-node project "/game.project")
         res       (project/build project node {})
         resources (into {} (keep (fn [d]

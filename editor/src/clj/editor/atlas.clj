@@ -501,8 +501,8 @@
   (active? [selection] (selection->atlas selection))
   (run [selection] (add-animation-group-handler (selection->atlas selection))))
 
-(defn- add-images-handler [workspace labels parent scope-node] ; parent = new parent of images
-  (when-let [images (seq (dialogs/make-resource-dialog workspace {:ext image/exts :title "Select Images" :selection :multiple}))]
+(defn- add-images-handler [workspace project labels parent scope-node] ; parent = new parent of images
+  (when-let [images (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
     (g/transact
      (concat
       (g/operation-label "Add Images")
@@ -513,7 +513,7 @@
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
   (run [project selection] (let [workspace (project/workspace project)]
                              (if-let [atlas-node (selection->atlas selection)]
-                               (add-images-handler workspace
+                               (add-images-handler workspace project
                                                    [[:animation :animations]
                                                     [:id :animation-ids]]
                                                    atlas-node atlas-node))

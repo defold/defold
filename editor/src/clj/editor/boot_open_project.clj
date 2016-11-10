@@ -24,7 +24,7 @@
             [editor.gl.shader :as shader]
             [editor.graph-view :as graph-view]
             [editor.gui :as gui]
-            [editor.hot-reload :as hotload]
+            [editor.hot-reload :as hot-reload]
             [editor.image :as image]
             [editor.json :as json]
             [editor.label :as label]
@@ -184,7 +184,7 @@
                                                                  (fn [resource & [opts]]
                                                                    (app-view/open-resource app-view workspace project resource (or opts {}))))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            project/hot-reload-url-prefix (partial hotload/build-handler project)})
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id]
@@ -231,7 +231,8 @@
                          :web-server        web-server
                          :build-errors-view build-errors-view
                          :changes-view      changes-view
-                         :main-stage        stage}
+                         :main-stage        stage
+                         :asset-browser     asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env assets dynamics)
         (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
