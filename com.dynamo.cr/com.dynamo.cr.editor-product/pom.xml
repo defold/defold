@@ -101,6 +101,17 @@
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                 </configuration>
                             </execution>
+                            <execution>
+                                <id>download-jre-windows-x64</id>
+                                <phase>initialize</phase>
+                                <goals><goal>wget</goal></goals>
+                                <configuration>
+                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-windows-x64.zip</url>
+                                    <md5>❤❤❤ LOL ❤❤❤</md5>
+                                    <unpack>false</unpack>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                </configuration>
+                            </execution>
                         </executions>
                     </plugin>
 
