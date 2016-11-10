@@ -486,8 +486,6 @@ class Configuration(object):
 
         sdkpath = self._package_platform_sdk(self.target_platform)
         self.upload_file(sdkpath, '%s/sdk.zip' % full_archive_path)
-        self.wait_uploads()
-        os.unlink(sdkpath)
 
     def build_engine(self):
         supported_tests = {}
