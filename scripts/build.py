@@ -367,13 +367,15 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
-    def _add_files_to_zip(self, zip, paths, directory=None):
+    def _add_files_to_zip(self, zip, paths, directory=None, topfolder=None):
         for p in paths:
             if not os.path.isfile(p):
                 continue
             an = p
             if directory:
                 an = os.path.relpath(p, directory)
+            if topfolder:
+                an = os.path.join(topfolder, an)
             zip.write(p, an)
 
     def is_cross_platform(self):
@@ -385,10 +387,12 @@ class Configuration(object):
 
         zip = zipfile.ZipFile(outfile, 'w')
 
+        topfolder = 'defoldsdk'
+
         # Includes
         includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
         includes = [os.path.join(self.dynamo_home, x) for x in includes]
-        self._add_files_to_zip(zip, includes, self.dynamo_home)
+        self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
 
         def _findlibs(libdir):
             paths = os.listdir(libdir)
@@ -398,11 +402,11 @@ class Configuration(object):
         # Dynamo libs
         libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
         paths = _findlibs(libdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
         # External libs
         libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
         paths = _findlibs(libdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
         zip.close()
         return outfile.name
