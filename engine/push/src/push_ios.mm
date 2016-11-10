@@ -291,10 +291,10 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  * @param callback register callback function (function)
  *
  * @examples
- * <p>
+ * 
  * Register for push notifications on iOS. Note that the token needs to be converted on this platform.
- * </p>
- * <pre>
+ * 
+ * ```
  * local function push_listener(self, payload, origin)
  *      -- The payload arrives here.
  * end
@@ -315,12 +315,11 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  *           print(error.error)
  *      end
  * end
- * </pre>
+ * ```
  *
- * <p>
  * Register for push notifications on Android.
- * </p>
- * <pre>
+ *
+ * ```lua
  * local function push_listener(self, payload, origin)
  *      -- The payload arrives here.
  * end
@@ -335,7 +334,7 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  *           print(error.error)
  *      end
  * end
- * </pre>
+ * ```
  */
 int Push_Register(lua_State* L)
 {
@@ -398,18 +397,29 @@ int Push_Register(lua_State* L)
 
 /*# set push listener
  *
- * The listener callback has the following signature: function(self, payload, origin, activated) where payload is a table
- * with the push payload, origin is either ORIGIN_LOCAL or ORIGIN_REMOTE, and activated is either true or false depending
- * on if the application was activated via the notification.
+ * Sets a listener function to listen to push notifications.
  *
  * @name push.set_listener
- * @param listener listener callback function (function)
+ * @param listener [type:function] listener callback function. Callback function parameters:
+ * 
+ * self
+ * :    The current object
+ *
+ * payload
+ * :    [type:function] the push payload
+ *
+ * origin
+ * :    [type:constant] push.ORIGIN_LOCAL or push.ORIGIN_REMOTE
+ *
+ * activated
+ * :    [type:boolean] true or false depending on if the application was 
+ *      activated via the notification.
  *
  * @examples
- * <p>
+ * 
  * Set the push notification listener.
- * </p>
- * <pre>
+ * 
+ * ```
  * local function push_listener(self, payload, origin, activated)
  *      -- The payload arrives here.
  *      pprint(payload)
@@ -429,7 +439,7 @@ int Push_Register(lua_State* L)
  *      -- Assuming that push.register() has been successfully called earlier
  *      push.set_listener(push_listener)
  * end
- *
+ * ```
  */
 int Push_SetListener(lua_State* L)
 {
@@ -460,10 +470,11 @@ int Push_SetListener(lua_State* L)
 /*# set badge icon count
  *
  * Set the badge count for application icon.
- * NOTE: This function is only available on iOS.
+ *
+ * @note [icon:iOS] This function is only available on iOS.
  *
  * @name push.set_badge_count
- * @param count badge count (number)
+ * @param count [type:number] badge count
  */
 int Push_SetBadgeCount(lua_State* L)
 {
@@ -484,6 +495,7 @@ int Push_SetBadgeCount(lua_State* L)
  * @param alert [type:string] localized body message of the notification to be displayed to the user if the application is not running
  * @param payload [type:string] JSON string to be passed to the registered listener function
  * @param notification_settings [type:table] table with notification and platform specific fields
+ *
  * action [icon:iOS]
  * :    [type:string]
  *      The alert action string to be used as the title of the right button of the 
@@ -508,6 +520,7 @@ int Push_SetBadgeCount(lua_State* L)
  * @examples
  * 
  * This example demonstrates how to schedule a local notification:
+ *
  * ```
  * -- Schedule a local push in 3 seconds
  * local payload = '{ "data" : { "field" : "Some value", "field2" : "Other value" } }'
@@ -628,10 +641,10 @@ int Push_Schedule(lua_State* L)
 /*# Cancel a scheduled local push notification
  *
  * Use this function to cancel a previously scheduled local push notification. The
- * notification is identified by a numeric id as returned by +push.schedule()+.
+ * notification is identified by a numeric id as returned by `push.schedule()`.
  *
  * @name push.cancel
- * @param id the numeric id of the local push notification (number)
+ * @param id [type:number] the numeric id of the local push notification
  */
 int Push_Cancel(lua_State* L)
 {
@@ -691,11 +704,11 @@ static void NotificationToLua(lua_State* L, UILocalNotification* notification)
 /*# Retrieve data on a scheduled local push notification
  *
  * Returns a table with all data associated with a specified local push notification.
- * The notification is identified by a numeric id as returned by +push.schedule()+.
+ * The notification is identified by a numeric id as returned by `push.schedule()`.
  *
  * @name push.get_scheduled
- * @param id the numeric id of the local push notification (number)
- * @return data table with all data associated with the notification (table)
+ * @param id [type:number] the numeric id of the local push notification
+ * @return data [type:table] table with all data associated with the notification
  */
 int Push_GetScheduled(lua_State* L)
 {
@@ -717,10 +730,10 @@ int Push_GetScheduled(lua_State* L)
  * Returns a table with all data associated with all scheduled local push notifications.
  * The table contains key, value pairs where the key is the push notification id and the
  * value is a table with the notification data, corresponding to the data given by
- * push.get_scheduled(id).
+ * `push.get_scheduled(id)`.
  *
  * @name push.get_all_scheduled
- * @return data table with all data associated with all scheduled notifications (table)
+ * @return data [type:number] table with all data associated with all scheduled notifications
  */
 int Push_GetAllScheduled(lua_State* L)
 {
