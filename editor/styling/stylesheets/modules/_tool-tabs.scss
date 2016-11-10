@@ -15,9 +15,9 @@
         }
     }
     #prev-console {
-        @extend .console-buttons-base;
+        @extend .console-buttons-base;/*
         -fx-border-radius: 15 0 0 15;
-        -fx-background-radius: 15 0 0 15;
+        -fx-background-radius: 15 0 0 15;*/
         -fx-background-image: url('icons/left-arrow.png');
         -fx-border-width: 0 1 0 0;
         -fx-border-color: $dark-grey-light;
@@ -27,9 +27,9 @@
         
     }
     #next-console {
-        @extend .console-buttons-base;
+        @extend .console-buttons-base;/*
         -fx-border-radius: 0 15 15 0;
-        -fx-background-radius: 0 15 15 0;
+        -fx-background-radius: 0 15 15 0;*/
         -fx-background-image: url('icons/right-arrow.png');
         &:hover {
             -fx-background-image: url('icons/right-arrow-on.png');
