@@ -9,17 +9,16 @@
 
 .property-component {
     -fx-spacing: 0;
-    -fx-padding: 0 5 0 0;
+    -fx-padding: 0;
     -fx-font-weight: bold;
     .label {
-        -fx-padding: 5px;//5px 5px;
+        -fx-padding: 5px;
         -fx-font-weight: normal;
-        /*-fx-background-color: $mid-grey-light;*/
-        -fx-text-fill: #848484;//$defold-white; //$mid-grey-light;
+        -fx-text-fill: #848484;
         -fx-alignment: center;
         
         .text {
-            -fx-text-alignment: center;
+            -fx-text-alignment: center-right;
         }
     }
     .text-field {

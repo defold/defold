@@ -65,7 +65,12 @@
     .text-field, .text-input {
         -fx-background-insets: 0;
         -fx-border-width: 0 0 1 0;
-        -fx-border-color: $mid-grey-light;//$dark-grey-border;
+        -fx-border-color: $dark-grey-header;
+        &:focused {
+            -fx-background-color: $dark-grey-selected;
+            -fx-border-color: $dark-grey-selected;
+            -fx-text-fill: $defold-white;
+        }
     }
 }
 .combo-box-base {
