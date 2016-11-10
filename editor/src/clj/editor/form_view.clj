@@ -129,12 +129,12 @@
     [cb {:update update-fn
          :edit #(do (ui/request-focus! cb) (.show cb))}]))
 
-(defmethod create-field-control :resource [{:keys [filter path help]} {:keys [set cancel]} {:keys [workspace]}]
+(defmethod create-field-control :resource [{:keys [filter path help]} {:keys [set cancel]} {:keys [workspace project]}]
   (let [hbox (HBox.)
         button (doto (Button. "...") (ui/add-style! "small-button"))
         text (TextField.)
         update-fn (fn [value] (ui/text! text value))]
-    (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
+    (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext (when filter [filter])}))]
                                     (set path resource))))
     (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
                                       resource (workspace/resolve-workspace-resource workspace rpath)]
@@ -664,12 +664,12 @@
   (= (select-keys form-data1 [:form-ops :sections])
      (select-keys form-data2 [:form-ops :sections])))
 
-(g/defnk produce-update-form [parent-view _node-id workspace form-data]
+(g/defnk produce-update-form [parent-view _node-id workspace project form-data]
   (let [prev-form (g/node-value _node-id :prev-form)
         prev-form-data (and prev-form (ui/user-data prev-form ::form-data))]
     (if (and prev-form (same-form-structure prev-form-data form-data))
       (update-form prev-form form-data)
-      (let [form (create-form form-data {:workspace workspace})]
+      (let [form (create-form form-data {:workspace workspace :project project})]
         (update-form form form-data)
         (ui/add-style! form "form")
         (ui/children! parent-view [form])
@@ -679,13 +679,15 @@
 (g/defnode FormView
   (property parent-view Parent)
   (property workspace g/Any)
+  (property project g/Any)
   (property prev-form ScrollPane)
   (input form-data g/Any :substitute {})
   (output form ScrollPane :cached produce-update-form))
 
 (defn- do-make-form-view [graph ^Parent parent resource-node opts]
   (let [workspace (:workspace opts)
-        view-id (g/make-node! graph FormView :parent-view parent :workspace workspace)
+        project (:project opts)
+        view-id (g/make-node! graph FormView :parent-view parent :workspace workspace :project project)
         repainter (ui/->timer 10 "refresh-form-view" (fn [dt] (g/node-value view-id :form)))]
     (g/transact
       (concat
