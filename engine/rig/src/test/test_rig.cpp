@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <dlib/log.h>
 
+#include <../rig.h>
 #include "test_rig.h"
 
 #define RIG_EPSILON 0.0001f

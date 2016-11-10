@@ -1,8 +1,6 @@
 #ifndef TESTRIG_H
 #define TESTRIG_H
 
-#include <rig/rig.h>
-
 namespace dmRig
 {
     static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color) 
