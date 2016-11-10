@@ -64,19 +64,31 @@
                                      (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
                                              (.getConflictingStageState s)))}))
 
+(defmacro with-autocrlf-disabled
+  [repo & body]
+  `(let [config# (.getConfig ~repo)
+         autocrlf# (.getString config# "core" nil "autocrlf")]
+     (try
+       (.setString config# "core" nil "autocrlf" "false")
+       ~@body
+       (finally
+         (.setString config# "core" nil "autocrlf" autocrlf#)))))
+
 (defn unified-status
   "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored"
   [^Git git]
-  (let [repository       (.getRepository git)
-        tw               (TreeWalk. repository)
-        rev-commit-index (.addTree tw (.getTree ^RevCommit (get-commit repository "HEAD")))
-        file-tree-index  (.addTree tw (FileTreeIterator. repository))]
-    (.setRecursive tw true)
-    (.setFilter tw (NotIgnoredFilter. file-tree-index))
-    (let [rd (RenameDetector. repository)]
-      (.addAll rd (DiffEntry/scan tw))
-      (->> (.compute rd (.getObjectReader tw) nil)
-           (mapv diff-entry->map)))))
+  (let [repository (.getRepository git)]
+    ;; without this, whitespace conversion will happen when diffing
+    (with-autocrlf-disabled repository
+      (let [tw               (TreeWalk. repository)
+            rev-commit-index (.addTree tw (.getTree ^RevCommit (get-commit repository "HEAD")))
+            file-tree-index  (.addTree tw (FileTreeIterator. repository))]
+        (.setRecursive tw true)
+        (.setFilter tw (NotIgnoredFilter. file-tree-index))
+        (let [rd (RenameDetector. repository)]
+          (.addAll rd (DiffEntry/scan tw))
+          (->> (.compute rd (.getObjectReader tw) nil)
+               (mapv diff-entry->map)))))))
 
 (defn show-file
   ([^Git git name]
