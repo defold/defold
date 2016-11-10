@@ -398,7 +398,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0 1] true)))))
+      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] true)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
