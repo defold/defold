@@ -1,4 +1,5 @@
 import os, sys, subprocess, shutil, re, stat, glob
+import pickle
 import platform as platformlib
 import Build, Options, Utils, Task, Logs
 from Configure import conf
@@ -1073,9 +1074,10 @@ echo LIB=%%LIB%%
     return(MSVC_PATH,MSVC_INCDIR,MSVC_LIBDIR)
 
 # Check the registry for VisualStudio entries
-def _find_msvc(conf,versions):
+def _find_msvc(conf):
     import _winreg
     version_pattern=re.compile('^..?\...?')
+    versions = []
     for vcver,vcvar in[('VCExpress','exp'),('VisualStudio','')]:
         try:
             all_versions=_winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE,'SOFTWARE\\Wow6432node\\Microsoft\\'+vcver)
@@ -1099,32 +1101,57 @@ def _find_msvc(conf,versions):
                 path=str(path)
                 targets=[]
 
-                if os.path.isfile(os.path.join(path,'VC','vcvarsall.bat')):
+                vcvarsall_path = os.path.join(path,'VC','vcvarsall.bat')
+
+                if os.path.isfile(vcvarsall_path):
                     target = 'x86'
                     realtarget = 'x86'
+
                     try:
-                        targets.append((target,(realtarget,_find_specific_msvc(conf, 'msvc',version,target,os.path.join(path,'VC','vcvarsall.bat')))))
+                        targets.append((target,(realtarget,_find_specific_msvc(conf, 'msvc',version,target,vcvarsall_path))))
                     except:
                         pass
+
+                    if os.path.isfile(os.path.join(path,'VC','bin','amd64','vcvars64.bat')):
+                        target = 'x64'
+                        realtarget = 'amd64'
+                    try:
+                        targets.append((target,(realtarget,_find_specific_msvc(conf, 'msvc', version, target, vcvarsall_path))))
+                    except:
+                        pass
+                    
                 elif os.path.isfile(os.path.join(path,'Common7','Tools','vsvars32.bat')):
                     try:
                         targets.append(('x86',('x86',_find_specific_msvc(conf, 'msvc',version,'x86',os.path.join(path,'Common7','Tools','vsvars32.bat')))))
                     except Configure.ConfigurationError:
                         pass
-                    
-                vcvars64_path = os.path.join(path,'VC','bin','amd64','vcvars64.bat')
-
-                if os.path.isfile(vcvars64_path):
-                    target = 'x64'
-                    realtarget = 'amd64'
-                    try:
-                        targets.append((target,(realtarget,_find_specific_msvc(conf, 'msvc', version, target, vcvars64_path))))
-                    except:
-                        pass
 
                 versions.append(('msvc '+version,targets))
             except WindowsError:
                 continue
+    return versions
+
+def find_msvc_versions(conf):
+    dynamo_home = conf.env.DYNAMO_HOME
+
+    if Options.options.use_msvc_cache:
+        try:
+            with open("%s/.msvc-versions" % dynamo_home, "rb") as version_cache:
+                versions = pickle.load(version_cache)
+            return versions
+        except:
+            pass
+
+    versions = _find_msvc(conf)
+
+    if Options.options.use_msvc_cache:
+        try:
+            with open("%s/.msvc-versions" % dynamo_home, "wb") as version_cache:
+                pickle.dump(versions, version_cache)
+        except:
+            pass
+
+    return versions
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
@@ -1146,10 +1173,6 @@ def detect(conf):
             build_platform = "x86_64-win32"
         else:
             build_platform = "win32"
-
-        versions = []
-        _find_msvc(conf, versions)
-        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
     else:
         conf.fatal("Unable to determine host platform")
 
@@ -1158,6 +1181,7 @@ def detect(conf):
 
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
+
     try:
         build_util = create_build_utility(conf.env)
     except BuildUtilityException as ex:
@@ -1165,6 +1189,17 @@ def detect(conf):
 
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
+
+    if 'win32' in platform:
+        target_map = {'win32': 'x86',
+                      'x86_64-win32': 'x64'}
+
+        desired_version = 'msvc 14.0'
+
+        versions = find_msvc_versions(conf)
+        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
+        conf.env['MSVC_TARGETS'] = target_map[platform]
+        conf.env['MSVC_VERSIONS'] = [desired_version]
 
     if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
@@ -1313,3 +1348,4 @@ def set_options(opt):
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
+    opt.add_option('--use-msvc-cache', action="store_true", default=False, dest='use_msvc_cache', help='cache and reuse result of msvc version scan')

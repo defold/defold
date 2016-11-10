@@ -167,7 +167,6 @@
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
         </copy>
-	
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
               <include name="win32/*texc_shared*"/>
@@ -180,7 +179,6 @@
                 <include name="win32/PVRTexLib.dll"/>
             </fileset>
         </copy>
-
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-win32/*texc_shared*"/>
@@ -193,8 +191,6 @@
                 <include name="x86_64-win32/PVRTexLib.dll"/>
             </fileset>
         </copy>
-
-
         <jar destfile="lib/luajit-share.zip">
              <fileset dir="${env.DYNAMO_HOME}/ext/share">
                  <include name="luajit/**"/>
