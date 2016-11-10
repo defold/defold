@@ -20,10 +20,6 @@
  */
 /* Lua script colors */
 @font-face {
-  font-family: 'Inconsolata';
-  src: url("Inconsolata-Regular.ttf"); }
-
-@font-face {
   font-family: 'Open Sans';
   src: url("OpenSans-Regular.ttf"); }
 
@@ -31,9 +27,18 @@
   font-family: 'Source Sans Pro';
   src: url("source-sans-pro.semibold.ttf"); }
 
+/* Dejavu Sans Mono */
 @font-face {
   font-family: 'Dejavu Sans Mono Book';
   src: url("DejaVuSansMono.ttf"); }
+
+@font-face {
+  font-family: 'Dejavu Sans Mono Oblique';
+  src: url("DejaVuSansMono-Oblique.ttf"); }
+
+@font-face {
+  font-family: 'Dejavu Sans Mono Bold';
+  src: url("DejaVuSansMono-Bold.ttf"); }
 
 /* Mixins */
 /* Import the original css */
@@ -121,8 +126,8 @@ Links:
   -fx-hover-base: #ff4646; }
 
 .text-area {
-  -fx-font-size: 11pt;
-  -fx-font-family: "Inconsolata"; }
+  -fx-font-size: 9pt;
+  -fx-font-family: "Dejavu Sans Mono"; }
 
 /* by default AnchorPane has a padding of 0.8em. Don't know if we're abusing
    JavaFX by removing padding for AnchorPane */
@@ -257,6 +262,26 @@ Links:
 .toggle-button:selected {
   -fx-background-color: #00df64; }
 
+.check-box:hover .box {
+  -fx-background-color: #232529;
+  -fx-border-color: #b0b0b0; }
+
+.check-box:selected .mark {
+  -fx-background-color: #b0b0b0; }
+
+.check-box:selected:hover .mark {
+  -fx-background-color: #f0f2f6; }
+
+.check-box .box {
+  -fx-background-color: #373a40;
+  -fx-background-insets: 0;
+  -fx-background-radius: 0;
+  -fx-border-width: 0;
+  -fx-border-color: #454A4F; }
+  .check-box .box .mark {
+    -fx-shape: "M 4.5 9.1 L 0 4.7 L 1.4 3.3 L 4.5 6.3 L 10.8 0 L 12.2 1.4 L 4.5 9.1 L 4.5 9.1";
+    -fx-scale-shape: false; }
+
 .choice-box {
   -fx-background-radius: 0;
   -fx-border-radius: 0;
@@ -350,7 +375,11 @@ Links:
   .combo-box .text-field, .combo-box .text-input {
     -fx-background-insets: 0;
     -fx-border-width: 0 0 1 0;
-    -fx-border-color: #45474B; }
+    -fx-border-color: #373a40; }
+    .combo-box .text-field:focused, .combo-box .text-input:focused {
+      -fx-background-color: #42474C;
+      -fx-border-color: #42474C;
+      -fx-text-fill: #f0f2f6; }
 
 .combo-box-base {
   -fx-border-width: 0; }
@@ -359,31 +388,17 @@ Links:
   -fx-background-radius: 0px;
   -fx-border-radius: 0px;
   -fx-background-insets: 0;
-  -fx-background-color: #313439;
-  -fx-border-width: 1;
-  -fx-border-color: #b0b0b0;
-  -fx-padding: 5 7;
-  -fx-min-width: 0;
-  -fx-text-fill: #b0b0b0; }
-  .composite-property-control-container .button:hover, .composite-property-control-container .button-small:hover, .composite-property-control-container .button-large:hover, .composite-property-control-container .button-small:hover, .composite-property-control-container .button-large:hover {
-    -fx-background-color: #272b30; }
-  .composite-property-control-container .button:armed, .composite-property-control-container .button-small:armed, .composite-property-control-container .button-large:armed, .composite-property-control-container .button-small:armed, .composite-property-control-container .button-large:armed {
-    -fx-background-color: #272b30;
-    -fx-border-color: #b0b0b0;
-    -fx-text-fill: #f0f2f6; }
-
-.composite-property-control-container .text-field {
-  -fx-padding: 5px 8px 5px 8px;
+  -fx-background-color: #45474B !important;
+  -fx-border-color: #45474B;
   -fx-border-width: 0 0 1 0;
-  -fx-border-color: #4d4e53; }
-  .composite-property-control-container .text-field:focused {
-    -fx-border-color: #b0b0b0;
-    -fx-border-width: 1px;
-    -fx-text-fill: #f0f2f6;
-    -fx-padding: 5px 8px; }
-  .composite-property-control-container .text-field:hover {
-    -fx-border-color: #4d4e53;
-    -fx-border-width: 0 0 1 0; }
+  -fx-padding: 5 7; }
+  .composite-property-control-container .button:hover, .composite-property-control-container .button-small:hover, .composite-property-control-container .button-large:hover, .composite-property-control-container .button-small:hover, .composite-property-control-container .button-large:hover {
+    -fx-background-color: #313439 !important;
+    -fx-border-color: #313439; }
+  .composite-property-control-container .button:armed, .composite-property-control-container .button-small:armed, .composite-property-control-container .button-large:armed, .composite-property-control-container .button:pressed, .composite-property-control-container .button-small:pressed, .composite-property-control-container .button-large:pressed, .composite-property-control-container .button-small:armed, .composite-property-control-container .button-small:pressed, .composite-property-control-container .button-large:armed, .composite-property-control-container .button-large:pressed {
+    -fx-background-color: #313439;
+    -fx-border-color: #313439;
+    -fx-text-fill: #f0f2f6; }
 
 .context-menu {
   -fx-background-radius: 4px;
@@ -524,16 +539,15 @@ Links:
 
 .property-component {
   -fx-spacing: 0;
-  -fx-padding: 0 5 0 0;
+  -fx-padding: 0;
   -fx-font-weight: bold; }
   .property-component .label {
     -fx-padding: 5px;
     -fx-font-weight: normal;
-    /*-fx-background-color: $mid-grey-light;*/
     -fx-text-fill: #848484;
     -fx-alignment: center; }
     .property-component .label .text {
-      -fx-text-alignment: center; }
+      -fx-text-alignment: center-right; }
   .property-component .text-field {
     -fx-padding: 5px 8px; }
 
@@ -754,9 +768,8 @@ Links:
   -fx-text-fill: #f0f2f6;
   -fx-prompt-text-fill: #a2b0be; }
   .text-field:focused {
-    -fx-background-color: #313439;
+    -fx-background-color: #42474C;
     -fx-border-color: #fa6731;
-    /*-fx-border-width: 1px;*/
     -fx-text-fill: #f0f2f6; }
 
 .titled-pane {
@@ -885,16 +898,17 @@ Links:
 
 /* Code view */
 .styled-text-area {
-  -fx-font-family: "Inconsolata";
-  -fx-font-size: 14;
+  -fx-font-family: "Dejavu Sans Mono";
+  -fx-font-size: 9pt;
   -fx-background-color: #272b30; }
   .styled-text-area .comment {
-    -styled-text-color: #ff00ff; }
+    -styled-text-color: #ff00ff;
+    -fx-font-style: italic; }
   .styled-text-area .list-view {
     -fx-background-color: #272b30; }
   .styled-text-area .source-segment, .styled-text-area .plain-source-segment {
-    -fx-font-family: "Inconsolata";
-    -fx-font-size: 14; }
+    -fx-font-family: "Dejavu Sans Mono";
+    -fx-font-size: 9pt; }
   .styled-text-area .selection-marker {
     -fx-background-color: rgba(172, 148, 120, 0.3); }
   .styled-text-area .text-caret {
@@ -908,7 +922,8 @@ Links:
   .lua.styled-text-area .list-cell:selected, .glsl.styled-text-area .list-cell:selected {
     -fx-background-color: #313439; }
   .lua.styled-text-area .comment, .lua.styled-text-area .comment-multi, .glsl.styled-text-area .comment, .glsl.styled-text-area .comment-multi {
-    -styled-text-color: #b0b0b0; }
+    -styled-text-color: #b0b0b0;
+    -fx-font-style: italic; }
   .lua.styled-text-area .keyword, .glsl.styled-text-area .keyword {
     -styled-text-color: #fd6623; }
   .lua.styled-text-area .operator, .glsl.styled-text-area .operator {
@@ -916,7 +931,8 @@ Links:
   .lua.styled-text-area .default, .glsl.styled-text-area .default {
     -styled-text-color: #f0f2f6; }
   .lua.styled-text-area .string, .glsl.styled-text-area .string {
-    -styled-text-color: #fbce2f; }
+    -styled-text-color: #fbce2f;
+    -fx-font-style: italic; }
   .lua.styled-text-area .number, .glsl.styled-text-area .number {
     -styled-text-color: #aaaaff; }
 
@@ -930,7 +946,8 @@ Links:
   -styled-text-color: #E3A869; }
 
 .lua.styled-text-area .control-flow-keyword {
-  -styled-text-color: #fd6623; }
+  -styled-text-color: #fd6623;
+  -fx-font-weight: bold; }
 
 .lua.styled-text-area .constant {
   -styled-text-color: #FFBBFF; }
@@ -952,104 +969,6 @@ Links:
 #proposals .list-cell:filled:selected {
   -fx-text-fill: #00FFFF; }
 
-/*.lua.styled-text-area .comment,
-.lua.styled-text-area .comment-multi,
-.glsl.styled-text-area .comment,
-.glsl.styled-text-area .comment-multi {
-    -styled-text-color: $bright-grey;
-}*/
-/*.lua.styled-text-area .keyword,
-.glsl.styled-text-area .keyword {
-    -styled-text-color: $script-keyword;
-}*/
-/*.lua.styled-text-area .helper-keyword {
-    -styled-text-color: $script-helper;
-}*/
-/*.lua.styled-text-area .self-keyword {
-    -styled-text-color: $script-self;
-}*/
-/*.lua.styled-text-area .logic-keywords {
-    -styled-text-color: $script-logic;
-}*/
-/*.lua.styled-text-area .control-flow-keyword,
-.glsl.styled-text-area .control-flow-keyword
- {
-    -styled-text-color: $script-keyword;
-}*/
-/*.lua.styled-text-area .constant {
-    -styled-text-color: $script-constant;
-}*/
-/*.lua.styled-text-area .defold-keyword {
-    -styled-text-color: $script-function;
-}
-*/
-/*.lua.styled-text-area .operator,
-.glsl.styled-text-area .operator {
-    -styled-text-color: $script-operator;
-}*/
-/*.lua.styled-text-area .default,
-.glsl.styled-text-area .default {
-    -styled-text-color: $defold-white;
-}*/
-/*.lua.styled-text-area .string,
-.glsl.styled-text-area .string {
-    -styled-text-color: $script-string;
-}
-*/
-/*.lua.styled-text-area,
-.glsl.styled-text-area {
-    -styled-text-color: $script-comment;
-}*/
-/*
-.styled-text-area .comment { -styled-text-color: $script-comment; }*/
-/*.lua.styled-text-area .number,
-.glsl.styled-text-area .number {
-    -styled-text-color: $script-number;
-}*/
-/*.glsl.styled-text-area .directive {
-    -styled-text-color: $script-keyword;
-}*/
-/*.glsl.styled-text-area .macro-keyword {
-    -styled-text-color: $script-keyword;
-}*/
-/*.glsl.styled-text-area .precision-keyword {
-    -styled-text-color: $script-keyword;
-}*/
-/*.glsl.styled-text-area .storage-type {
-    -styled-text-color: $script-function;
-}*/
-/*.glsl.styled-text-area .storage-modifier-keyword {
-    -styled-text-color: $script-keyword;
-}*/
-/*.glsl.styled-text-area .support-variable-keyword {
-   -styled-text-color: $defold-white;
-}*/
-/*
-.glsl.styled-text-area .support-function-keyword {
-    -styled-text-color: $script-keyword;
-}*/
-/*
-.styled-text-area .text-caret {
-	-fx-fill: white;
-	-fx-stroke: white;
-}*/
-/*.styled-text-area .selection-marker {
-	-fx-background-color: rgba(172,148,120,0.3)
-}*/
-/*
-
-Line numbers:
-
-.luaeditor .line-ruler-text {
-    -fx-background-color: #ff00ff;
-}
-
-*/
-/* Hack for current line */
-/*.lua.styled-text-area .list-cell:selected,
-.glsl.styled-text-area .list-cell:selected {
-    -fx-background-color: $dark-grey;
-}*/
 #tool-tabs {
   -fx-tab-min-width: 40px;
   -fx-padding: 0 0 17px 0; }
@@ -1064,16 +983,18 @@ Line numbers:
     #tool-tabs .console-buttons-base:armed, #tool-tabs #prev-console:armed, #tool-tabs #next-console:armed {
       -fx-background-color: #b0b0b0; }
   #tool-tabs #prev-console {
-    -fx-border-radius: 15 0 0 15;
-    -fx-background-radius: 15 0 0 15;
+    /*
+        -fx-border-radius: 15 0 0 15;
+        -fx-background-radius: 15 0 0 15;*/
     -fx-background-image: url("icons/left-arrow.png");
     -fx-border-width: 0 1 0 0;
     -fx-border-color: #3a3f44; }
     #tool-tabs #prev-console:hover {
       -fx-background-image: url("icons/left-arrow-on.png"); }
   #tool-tabs #next-console {
-    -fx-border-radius: 0 15 15 0;
-    -fx-background-radius: 0 15 15 0;
+    /*
+        -fx-border-radius: 0 15 15 0;
+        -fx-background-radius: 0 15 15 0;*/
     -fx-background-image: url("icons/right-arrow.png"); }
     #tool-tabs #next-console:hover {
       -fx-background-image: url("icons/right-arrow-on.png"); }

@@ -3,34 +3,18 @@
         -fx-background-radius: 0px;
         -fx-border-radius: 0px;
         -fx-background-insets: 0;
-        -fx-background-color: $dark-grey;
-        -fx-border-width: 1;
-        -fx-border-color: $bright-grey;//$dark-grey-border;
-        -fx-padding: 5 7;
-        -fx-min-width: 0;
-        -fx-text-fill: $bright-grey;
-        &:hover {
-            -fx-background-color: $bright-black;
-        }
-        &:armed {
-            -fx-background-color: $bright-black;
-            -fx-border-color: $bright-grey;
-            -fx-text-fill: $defold-white;
-        }
-    }
-    .text-field {
-        -fx-padding: 5px 8px 5px 8px;
+        -fx-background-color: $mid-grey-light !important;
+        -fx-border-color: $mid-grey-light;
         -fx-border-width: 0 0 1 0;
-        -fx-border-color: $dark-grey-border;
-        &:focused {
-            -fx-border-color: $bright-grey;
-            -fx-border-width: 1px;
-            -fx-text-fill: $defold-white;
-            -fx-padding: 5px 8px;
-        }
+        -fx-padding: 5 7;
         &:hover {
-            -fx-border-color: $dark-grey-border;
-            -fx-border-width: 0 0 1 0;
+            -fx-background-color: $dark-grey !important;
+            -fx-border-color: $dark-grey;
+        }
+        &:armed, &:pressed {
+            -fx-background-color: $dark-grey;
+            -fx-border-color: $dark-grey;
+            -fx-text-fill: $defold-white;
         }
     }
 }
