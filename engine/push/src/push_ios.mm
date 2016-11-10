@@ -480,31 +480,33 @@ int Push_SetBadgeCount(lua_State* L)
  * and can be stored for later reference.
  * [/md]
  * @name push.schedule
- * @param time number of seconds into the future until the notification should be triggered (number)
- * @param title localized title to be displayed to the user if the application is not running (string)
- * @param alert localized body message of the notification to be displayed to the user if the application is not running (string)
+ * @param time [type:number] number of seconds into the future until the notification should be triggered
+ * @param title [type:string] localized title to be displayed to the user if the application is not running
+ * @param alert [type:string] localized body message of the notification to be displayed to the user if the application is not running
  * @param payload JSON string to be passed to the registered listener function (string)
  * @param notification_settings table with notification and platform specific fields (table)
  * [md]
  * action [icon:iOS]
- * :    The alert action string to be used as the title of the right button of the 
+ * :    [type:string]
+ *      The alert action string to be used as the title of the right button of the 
  *      alert or the value of the unlock slider, where the value replaces
- *      "unlock" in "slide to unlock" text. [type:string]
+ *      "unlock" in "slide to unlock" text.
  *
  * badge_count [icon:iOS]
- * :    The numeric value of the icon badge. [type:number]
+ * :    [type:number] The numeric value of the icon badge.
  *
  * badge_number
  * :    Deprecated! Use badge_count instead
  *
  * priority [icon:Android]
- * :    The priority is a hint to the device UI about how the notification
+ * :    [type:number]
+ *      The priority is a hint to the device UI about how the notification
  *      should be displayed. There are five priority levels, from -2 to 2 where -1 is the 
  *      lowest priority and 2 the highest. Unless specified, a default priority level of 2 
- *      is used. [type:number]
+ *      is used.
  * [/md]
- * @return id unique id that can be used to cancel or inspect the notification (number)
- * @return err error string if something went wrong, otherwise nil (string)
+ * @return id [type:number] unique id that can be used to cancel or inspect the notification
+ * @return err [type:string] error string if something went wrong, otherwise nil
  * @examples
  * [md]
  * This example demonstrates how to schedule a local notification:
