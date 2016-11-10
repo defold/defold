@@ -355,7 +355,7 @@ class Configuration(object):
         if not outfile:
             outfile = tempfile.NamedTemporaryFile(delete = False)
 
-        zip = zipfile.ZipFile(outfile, 'w')
+        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
         for root, dirs, files in os.walk(path):
             for f in files:
                 p = os.path.join(root, f)
@@ -385,7 +385,7 @@ class Configuration(object):
     def _package_platform_sdk(self, platform):
         outfile = tempfile.NamedTemporaryFile(delete = False)
 
-        zip = zipfile.ZipFile(outfile, 'w')
+        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
 
         topfolder = 'defoldsdk'
         defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
