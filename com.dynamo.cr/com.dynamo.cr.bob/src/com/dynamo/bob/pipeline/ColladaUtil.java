@@ -810,12 +810,10 @@ public class ColladaUtil {
                 weights.add(new Weight(0, 0.0f));
             }
 
-            // If there are more than 4 influences, we sort and take only the 4 with highest weight.
+            // Sort and take only the 4 influences with highest weight.
+            Collections.sort(weights);
+            weights.setSize(Math.min(4, weights.size()));
             influenceCount = weights.size();
-            if (influenceCount > 4) {
-                Collections.sort(weights);
-                weights.setSize(4);
-            }
 
             for (Weight w : weights) {
                 boneIndicesList.add(w.boneIndex);
