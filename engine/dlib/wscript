@@ -30,9 +30,6 @@ def configure(conf):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
-    if 'win' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
-        conf.env.append_value('CPPPATH', "../include/win32")
-
     conf.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
     conf.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
@@ -46,7 +43,7 @@ def build(bld):
         os.mkdir('tmp')
 
     bld.add_subdirs('src')
-    bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
+    bld.install_files('${PREFIX}/include/x86_64-win32', 'include/x86_64-win32/*.h')
 
 def shutdown():
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):

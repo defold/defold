@@ -83,7 +83,8 @@ def build(bld):
 
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
     extra_defines = ['ZLIB_CONST', 'CONFIG_SSL_CTX_MUTEXING']
-    if bld.env.PLATFORM != 'win32':
+
+    if 'win32' not in bld.env.PLATFORM:
         extra_defines.append('Z_HAVE_UNISTD_H')
         extra_defines.append('HAVE_HIDDEN')
         extra_defines.append('CONFIG_USE_DEV_URANDOM')
@@ -158,7 +159,7 @@ def build(bld):
         else:
             dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
-    if bld.env['PLATFORM'] != 'win32' and bld.env['PLATFORM'] != 'as3-web':
+    if 'win32' not in bld.env['PLATFORM'] and bld.env['PLATFORM'] != 'as3-web':
         dlib = bld.new_task_gen(features = 'cxx cshlib',
                                 source='dlib/memprofile.cpp',
                                 includes = '.',
