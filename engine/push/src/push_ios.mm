@@ -287,11 +287,11 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  * is iOS only and will be ignored on Android.
  *
  * @name push.register
- * @param notifications [type:table] the types of notifications to listen to. [icon:iOS]
+ * @param notifications [type:table] the types of notifications to listen to. [icon:apple]
  * @param callback [type:function] register callback function. Function parameters:
  *
  * self
- * :        The current object.
+ * :        [type:string] The current object.
  *
  * token
  * :        [type:string] The returned push token if registration is successful.
@@ -481,7 +481,7 @@ int Push_SetListener(lua_State* L)
  *
  * Set the badge count for application icon.
  *
- * @note [icon:iOS] This function is only available on iOS.
+ * @note [icon:apple] This function is only available on iOS.
  *
  * @name push.set_badge_count
  * @param count [type:number] badge count
@@ -506,19 +506,19 @@ int Push_SetBadgeCount(lua_State* L)
  * @param payload [type:string] JSON string to be passed to the registered listener function
  * @param notification_settings [type:table] table with notification and platform specific fields
  *
- * action [icon:iOS]
+ * action [icon:apple]
  * :    [type:string]
  *      The alert action string to be used as the title of the right button of the 
  *      alert or the value of the unlock slider, where the value replaces
  *      "unlock" in "slide to unlock" text.
  *
- * badge_count [icon:iOS]
+ * badge_count [icon:apple]
  * :    [type:number] The numeric value of the icon badge.
  *
  * badge_number
  * :    Deprecated! Use badge_count instead
  *
- * priority [icon:Android]
+ * priority [icon:android]
  * :    [type:number]
  *      The priority is a hint to the device UI about how the notification
  *      should be displayed. There are five priority levels, from -2 to 2 where -1 is the 
