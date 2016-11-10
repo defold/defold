@@ -474,18 +474,16 @@ int Push_SetBadgeCount(lua_State* L)
 
 /*# Schedule a local push notification to be triggered at a specific time in the future
  *
- * [md]
  * Local push notifications are scheduled with this function. 
  * The returned `id` value is uniquely identifying the scheduled notification 
  * and can be stored for later reference.
- * [/md]
+ *
  * @name push.schedule
  * @param time [type:number] number of seconds into the future until the notification should be triggered
  * @param title [type:string] localized title to be displayed to the user if the application is not running
  * @param alert [type:string] localized body message of the notification to be displayed to the user if the application is not running
- * @param payload JSON string to be passed to the registered listener function (string)
- * @param notification_settings table with notification and platform specific fields (table)
- * [md]
+ * @param payload [type:string] JSON string to be passed to the registered listener function
+ * @param notification_settings [type:table] table with notification and platform specific fields
  * action [icon:iOS]
  * :    [type:string]
  *      The alert action string to be used as the title of the right button of the 
@@ -504,11 +502,11 @@ int Push_SetBadgeCount(lua_State* L)
  *      should be displayed. There are five priority levels, from -2 to 2 where -1 is the 
  *      lowest priority and 2 the highest. Unless specified, a default priority level of 2 
  *      is used.
- * [/md]
+ * 
  * @return id [type:number] unique id that can be used to cancel or inspect the notification
  * @return err [type:string] error string if something went wrong, otherwise nil
  * @examples
- * [md]
+ * 
  * This example demonstrates how to schedule a local notification:
  * ```
  * -- Schedule a local push in 3 seconds
@@ -519,7 +517,7 @@ int Push_SetBadgeCount(lua_State* L)
  *      ...
  * end
  * ```
- * [/md]
+ * 
  */
 int Push_Schedule(lua_State* L)
 {
