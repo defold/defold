@@ -34,11 +34,11 @@
             [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
             [util.http-server :as http-server])
-  (:import [java.io File FilenameFilter FileOutputStream FileInputStream ByteArrayOutputStream]
+  (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
            [javafx.scene.control Tab]
-           [org.apache.commons.io FilenameUtils FileUtils IOUtils]
+           [org.apache.commons.io FileUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
 (def project-path "test/resources/test_project")
@@ -197,10 +197,10 @@
   (get-in (g/node-value node-id :_properties) [:properties label :node-id]))
 
 (defn prop! [node-id label val]
-  (g/transact (g/set-property node-id label val)))
+  (g/transact (g/set-property (prop-node-id node-id label) label val)))
 
 (defn prop-clear! [node-id label]
-  (g/transact (g/clear-property node-id label)))
+  (g/transact (g/clear-property (prop-node-id node-id label) label)))
 
 (defn prop-read-only? [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :read-only?]))
@@ -284,7 +284,45 @@
 
 (defn call-logger-calls
   "Given a function obtained from make-call-logger, returns a
-  vector of vectors containing the arguments for every time it
+  vector of sequences containing the arguments for every time it
   was called."
   [call-logger]
   (-> call-logger meta ::calls deref))
+
+(defmacro with-logged-calls
+  "Temporarily redefines the specified functions into call-loggers
+  while executing the body. Returns a map of functions to the
+  result of (call-logger-calls fn). Non-invoked functions will not
+  be included in the returned map.
+
+  Example:
+  (with-logged-calls [print println]
+    (println :a)
+    (println :a :b))
+  => {#object[clojure.core$println] [(:a)
+                                     (:a :b)]}"
+  [var-symbols & body]
+  `(let [binding-map# ~(into {}
+                             (map (fn [var-symbol]
+                                    `[(var ~var-symbol) (make-call-logger)]))
+                             var-symbols)]
+     (with-redefs-fn binding-map# (fn [] ~@body))
+     (into {}
+           (keep (fn [[var# call-logger#]]
+                   (let [calls# (call-logger-calls call-logger#)]
+                     (when (seq calls#)
+                       [(deref var#) calls#]))))
+           binding-map#)))
+
+(defn make-graph-reverter
+  "Returns an AutoCloseable that reverts the specified graph to
+  the state it was at construction time when its close method
+  is invoked. Suitable for use with the (with-open) macro."
+  [graph-id]
+  (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
+    (reify java.lang.AutoCloseable
+      (close [_]
+        (loop [undo-stack-count (g/undo-stack-count graph-id)]
+          (when (< initial-undo-stack-count undo-stack-count)
+            (g/undo! graph-id)
+            (recur (g/undo-stack-count graph-id))))))))
