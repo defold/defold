@@ -82,7 +82,7 @@ public class TextureSetGenerator {
         public Vector2d scale = new Vector2d();
 
         public UVTransform() {
-            this.translation.set(0.0, 0.0);
+            this.translation.set(0.0, 1.0);
             this.scale.set(1.0, 1.0);
         }
 
@@ -257,7 +257,7 @@ public class TextureSetGenerator {
     }
 
     private static UVTransform genUVTransform(Rect r, float xs, float ys) {
-        return new UVTransform(new Point2d(r.x * xs, r.y * ys), new Vector2d(xs * r.width, ys * r.height), r.rotated);
+        return new UVTransform(new Point2d(r.x * xs, 1 - r.y * ys), new Vector2d(xs * r.width, -ys * r.height), r.rotated);
     }
 
     private static Pair<TextureSet.Builder, List<UVTransform>> genVertexData(BufferedImage image, List<Rect> rects, AnimIterator iterator,
@@ -430,15 +430,15 @@ public class TextureSetGenerator {
 
         if (outlineVertexBuffer != null) {
             if (r.rotated) {
-                putVertex(outlineVertexBuffer, null, h2, -w2, 0, x0 * xs, y1 * ys);
-                putVertex(outlineVertexBuffer, null, h2, w2, 0, x1 * xs, y1 * ys);
-                putVertex(outlineVertexBuffer, null, -h2, w2, 0, x1 * xs, y0 * ys);
-                putVertex(outlineVertexBuffer, null, -h2, -w2, 0, x0 * xs, y0 * ys);
+                putVertex(outlineVertexBuffer, null, h2, -w2, 0, x0 * xs, 1.0f - y1 * ys);
+                putVertex(outlineVertexBuffer, null, h2, w2, 0, x1 * xs, 1.0f - y1 * ys);
+                putVertex(outlineVertexBuffer, null, -h2, w2, 0, x1 * xs, 1.0f - y0 * ys);
+                putVertex(outlineVertexBuffer, null, -h2, -w2, 0, x0 * xs, 1.0f - y0 * ys);
             } else {
-                putVertex(outlineVertexBuffer, null, w2, -h2, 0, x0 * xs, y1 * ys);
-                putVertex(outlineVertexBuffer, null, w2, h2, 0, x1 * xs, y1 * ys);
-                putVertex(outlineVertexBuffer, null, -w2, h2, 0, x1 * xs, y0 * ys);
-                putVertex(outlineVertexBuffer, null, -w2, -h2, 0, x0 * xs, y0 * ys);
+                putVertex(outlineVertexBuffer, null, w2, -h2, 0, x0 * xs, 1.0f - y1 * ys);
+                putVertex(outlineVertexBuffer, null, w2, h2, 0, x1 * xs, 1.0f - y1 * ys);
+                putVertex(outlineVertexBuffer, null, -w2, h2, 0, x1 * xs, 1.0f - y0 * ys);
+                putVertex(outlineVertexBuffer, null, -w2, -h2, 0, x0 * xs, 1.0f - y0 * ys);
             }
         }
 
@@ -456,13 +456,13 @@ public class TextureSetGenerator {
         float w2 = r.width * 0.5f;
         float h2 = r.height * 0.5f;
 
-        putVertex(vertexBuffer, texCoordsBuffer, -w2, -h2, 0, x0 * xs, y1 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, -w2, h2, 0, x0 * xs, y0 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, w2, h2, 0, x1 * xs, y0 * ys);
+        putVertex(vertexBuffer, texCoordsBuffer, -w2, -h2, 0, x0 * xs, 1.0f - y1 * ys);
+        putVertex(vertexBuffer, texCoordsBuffer, -w2, h2, 0, x0 * xs, 1.0f - y0 * ys);
+        putVertex(vertexBuffer, texCoordsBuffer, w2, h2, 0, x1 * xs, 1.0f - y0 * ys);
 
-        putVertex(vertexBuffer, null, w2, h2, 0, x1 * xs, y0 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, w2, -h2, 0, x1 * xs, y1 * ys);
-        putVertex(vertexBuffer, null, -w2, -h2, 0, x0 * xs, y1 * ys);
+        putVertex(vertexBuffer, null, w2, h2, 0, x1 * xs, 1.0f - y0 * ys);
+        putVertex(vertexBuffer, texCoordsBuffer, w2, -h2, 0, x1 * xs, 1.0f - y1 * ys);
+        putVertex(vertexBuffer, null, -w2, -h2, 0, x0 * xs, 1.0f - y1 * ys);
     }
 
     private static void putRotatedQuad(ByteBuffer vertexBuffer, ByteBuffer texCoordsBuffer, Rect r,float xs, float ys) {
@@ -474,13 +474,13 @@ public class TextureSetGenerator {
         float w2 = r.width * 0.5f;
         float h2 = r.height * 0.5f;
 
-        putVertex(vertexBuffer, texCoordsBuffer, -h2, -w2, 0, x0 * xs, y0 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, -h2, w2, 0, x1 * xs, y0 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, h2, w2, 0, x1 * xs, y1 * ys);
+        putVertex(vertexBuffer, texCoordsBuffer, -h2, -w2, 0, x0 * xs, 1.0f - y0 * ys);
+        putVertex(vertexBuffer, texCoordsBuffer, -h2, w2, 0, x1 * xs, 1.0f - y0 * ys);
+        putVertex(vertexBuffer, texCoordsBuffer, h2, w2, 0, x1 * xs, 1.0f - y1 * ys);
 
-        putVertex(vertexBuffer, null, h2, w2, 0, x1 * xs, y1 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, h2, -w2, 0, x0 * xs, y1 * ys);
-        putVertex(vertexBuffer, null, -h2, -w2, 0, x0 * xs, y0 * ys);
+        putVertex(vertexBuffer, null, h2, w2, 0, x1 * xs, 1.0f - y1 * ys);
+        putVertex(vertexBuffer, texCoordsBuffer, h2, -w2, 0, x0 * xs, 1.0f - y1 * ys);
+        putVertex(vertexBuffer, null, -h2, -w2, 0, x0 * xs, 1.0f - y0 * ys);
     }
 
 }

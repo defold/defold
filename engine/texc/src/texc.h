@@ -143,6 +143,10 @@ namespace dmTexc
      */
     DM_TEXC_PROTO(bool, GenMipMaps, HTexture texture);
     /**
+     * Flips a texture vertically
+     */
+    DM_TEXC_PROTO(bool, Flip, HTexture texture);
+    /**
      * Transcode a texture into another format.
      */
     DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type);

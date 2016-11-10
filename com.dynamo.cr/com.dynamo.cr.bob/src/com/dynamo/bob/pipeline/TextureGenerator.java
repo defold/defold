@@ -235,6 +235,10 @@ public class TextureGenerator {
                 }
             }
 
+            if (!TexcLibrary.TEXC_Flip(texture)) {
+                throw new TextureGeneratorException("could not flip");
+            }
+
             if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType)) {
                 throw new TextureGeneratorException("could not transcode");
             }

@@ -762,14 +762,14 @@ namespace dmGui
         {
             // uv-rotated
             w = tc[2]-tc[0];
-            h = tc[5]-tc[1];
+            h = tc[1]-tc[5];
             n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_TextureHeight;
             n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_TextureWidth;
         }
         else
         {
             w = tc[4]-tc[0];
-            h = tc[1]-tc[3];
+            h = tc[3]-tc[1];
             n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_TextureWidth;
             n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_TextureHeight;
         }

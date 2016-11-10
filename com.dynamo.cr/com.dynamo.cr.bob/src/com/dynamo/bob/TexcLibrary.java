@@ -66,6 +66,7 @@ public class TexcLibrary {
     public static native boolean TEXC_Resize(Pointer texture, int width, int height);
     public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
     public static native boolean TEXC_GenMipMaps(Pointer texture);
+    public static native boolean TEXC_Flip(Pointer texture);
     public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType);
 
 }
