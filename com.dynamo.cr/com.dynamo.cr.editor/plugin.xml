@@ -216,7 +216,12 @@
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleWin32"
-                  label="Windows Application..."
+                  label="Windows x86 Application..."
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.target.commands.bundleWin64"
+                  label="Windows x64 Application..."
                   style="push">
             </command>
             <command
@@ -369,7 +374,12 @@
       <command
             defaultHandler="com.dynamo.cr.editor.handlers.BundleWin32Handler"
             id="com.dynamo.cr.target.commands.bundleWin32"
-            name="Bundle Windows Application">
+            name="Bundle Windows x86 Application">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.BundleWin64Handler"
+            id="com.dynamo.cr.target.commands.bundleWin64"
+            name="Bundle Windows x64 Application">
       </command>
       <command
             defaultHandler="com.dynamo.cr.editor.handlers.BundleLinuxHandler"
