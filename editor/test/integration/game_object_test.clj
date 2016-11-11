@@ -37,11 +37,6 @@
                      (is (g/error? (test-util/prop-error comp-id :id)))
                      (is (build-error? go-id)))))))))
 
-(defn- embeddable-component-resource-types
-  [workspace]
-  (filterv #(not (contains? (:tags %) :non-embeddable))
-           (workspace/get-resource-types workspace :component)))
-
 (defn- save-data
   [project resource]
   (first (filter #(= resource (:resource %))
@@ -51,7 +46,7 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project (test-util/setup-project! workspace)
-          resource-types (embeddable-component-resource-types workspace)
+          resource-types (game-object/embeddable-component-resource-types workspace)
           save-data (partial save-data project)
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           add-component! (partial test-util/add-embedded-component! project)
