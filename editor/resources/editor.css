@@ -840,16 +840,9 @@ Links:
 
 /* Targeted modules */
 #assets-split {
-  -fx-padding: 10 0 0 0; }
+  -fx-padding: 0 0 0 0; }
   #assets-split .tree-cell:filled {
-    -fx-border-width: 0 2 0 0;
-    /*&:selected {
-                -fx-border-width: 0 2 0 0;
-                -fx-background-color: $dark-grey-selected;
-            }*/ }
-  #assets-split .progress-bar .track {
-    -fx-border-width: 0;
-    -fx-background-color: transparent; }
+    -fx-border-width: 0 2 0 0; }
 
 #center-split {
   -fx-padding: 0px 15px 0px 15px; }
@@ -892,7 +885,7 @@ Links:
   visibility: hidden; }
 
 #right-split {
-  -fx-padding: 10 0 17 0; }
+  -fx-padding: 0 0 17 0; }
   #right-split AnchorPane {
     -fx-background-color: #3a3f44; }
 
@@ -983,37 +976,21 @@ Links:
     #tool-tabs .console-buttons-base:armed, #tool-tabs #prev-console:armed, #tool-tabs #next-console:armed {
       -fx-background-color: #b0b0b0; }
   #tool-tabs #prev-console {
-    /*
-        -fx-border-radius: 15 0 0 15;
-        -fx-background-radius: 15 0 0 15;*/
     -fx-background-image: url("icons/left-arrow.png");
     -fx-border-width: 0 1 0 0;
     -fx-border-color: #3a3f44; }
     #tool-tabs #prev-console:hover {
       -fx-background-image: url("icons/left-arrow-on.png"); }
   #tool-tabs #next-console {
-    /*
-        -fx-border-radius: 0 15 15 0;
-        -fx-background-radius: 0 15 15 0;*/
     -fx-background-image: url("icons/right-arrow.png"); }
     #tool-tabs #next-console:hover {
       -fx-background-image: url("icons/right-arrow-on.png"); }
   #tool-tabs .list-view {
     -fx-background-insets: 0;
     -fx-border-width: 0; }
-  #tool-tabs .tab-header-area .tab-label .image-view {
-    /*-fx-background-color: red;
-                -fx-height: 50%;
-                -fx-width: 50%;*/ }
   #tool-tabs .tab-content-area {
     -fx-background-color: #3a3f44;
-    -fx-padding: 5px;
-    /*.text-input {
-            -fx-background-radius: 12;
-            -fx-border-radius: 12;
-            -fx-background-color: $dark-grey;
-            -fx-border-width: 0;
-        }*/ }
+    -fx-padding: 5px; }
     #tool-tabs .tab-content-area .label {
       -fx-font-size: 14px;
       -fx-text-fill: #f0f2f6; }
@@ -1031,9 +1008,11 @@ Links:
     -fx-padding: 10; }
 
 .console-tab-base, #console-tab, #curve-editor-tab, #build-errors-tab {
-  -fx-background-position: center;
+  -fx-background-position: 10 center;
   -fx-background-repeat: no-repeat;
-  -fx-background-size: 21 16; }
+  -fx-background-size: 21 16;
+  -fx-padding: 0 10 0 37;
+  -fx-spacing: 10; }
 
 #console-tab {
   -fx-background-image: url("icons/tabs/console-icon-off.png"); }
@@ -1044,7 +1023,7 @@ Links:
 
 #curve-editor-tab {
   -fx-background-image: url("icons/tabs/curve-editor-icon-off.png");
-  -fx-background-position: center 8px; }
+  -fx-background-position: 10 8px; }
   #curve-editor-tab:selected {
     -fx-background-image: url("icons/tabs/curve-editor-icon-on.png"); }
   #curve-editor-tab:hover {
