@@ -126,6 +126,10 @@ namespace dmInput
         {
             action.m_IsGamepad = 1;
 
+            for (int i = 0; i < binding->m_GamepadBindings.Size(); ++i)
+            {
+                delete binding->m_GamepadBindings[i];
+            }
             binding->m_GamepadBindings.SetSize(0);
             for (uint32_t gamepad_index = 0; gamepad_index < dmHID::MAX_GAMEPAD_COUNT; ++gamepad_index)
             {
