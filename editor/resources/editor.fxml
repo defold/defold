@@ -149,7 +149,7 @@
                                        <children>
                                           <TabPane id="tool-tabs" layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                             <tabs>
-                                              <Tab id="console-tab"> <!--Console tab-->
+                                              <Tab id="console-tab" text="Console"> <!--Console tab-->
                                                   <content>
                                                       <AnchorPane prefHeight="180.0" prefWidth="200.0">
                                                           <children>
@@ -180,7 +180,7 @@
                                                       </AnchorPane>
                                                   </content>
                                               </Tab>
-                                              <Tab id="curve-editor-tab">
+                                              <Tab id="curve-editor-tab" text="Curve editor">
                                                 <content>
                                                   <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0">
                                                         <children>
@@ -198,7 +198,7 @@
                                                         </children></AnchorPane>
                                                 </content>
                                               </Tab>
-                                              <Tab id="build-errors-tab">
+                                              <Tab id="build-errors-tab" text="Build errors">
                                                   <content>
                                                     <AnchorPane id="build-errors-container" prefHeight="180.0" prefWidth="200.0">
                                                       <children>
@@ -207,8 +207,8 @@
                                                       </children>
                                                     </AnchorPane>
                                                   </content>
-                                                </Tab>
-                                                <Tab id="graph-tab" text="Graph">
+                                              </Tab>
+                                              <Tab id="graph-tab" text="Graph">
                                                   <content>
                                                     <AnchorPane prefHeight="180.0" prefWidth="200.0">
                                                          <children>
@@ -225,8 +225,8 @@
                                                          </children>
                                                       </AnchorPane>
                                                   </content>
-                                                </Tab>
-                                                <Tab id="css-tab" text="CSS Test">
+                                              </Tab>
+                                              <Tab id="css-tab" text="CSS Test">
                                                   <content>
                                                     <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
                                                          <children>
@@ -255,7 +255,7 @@
                                                          </children>
                                                       </AnchorPane>
                                                   </content>
-                                                </Tab>
+                                              </Tab>
                                             </tabs>
                                           </TabPane>
                                        </children>
