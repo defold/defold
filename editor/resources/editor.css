@@ -245,7 +245,11 @@ Defold Orange       #fd6623             Guides etc
   -fx-control-inner-background: #323232;
   -fx-hover-base: #c80000; }
 
+.text-input {
+  -fx-prompt-text-fill: #484d54; }
+
 .text-area {
+  -fx-border-color: #484d54;
   -fx-font-size: 9pt;
   -fx-font-family: "Dejavu Sans Mono"; }
 

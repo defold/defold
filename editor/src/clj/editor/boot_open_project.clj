@@ -27,6 +27,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.image :as image]
             [editor.json :as json]
+            [editor.label :as label]
             [editor.login :as login]
             [editor.material :as material]
             [editor.mesh :as mesh]
@@ -102,6 +103,7 @@
         (gui/register-resource-types workspace)
         (image/register-resource-types workspace)
         (json/register-resource-types workspace)
+        (label/register-resource-types workspace)
         (material/register-resource-types workspace)
         (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
