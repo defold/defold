@@ -896,7 +896,13 @@ namespace dmGui
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2);
+    Result SetSpineCursor(HScene scene, HNode node, float cursor);
+
+    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
+    float GetNodeSpineCursor(HScene scene, HNode node);
+    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate);
+    float GetNodeSpinePlaybackRate(HScene scene, HNode node);
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
 
     /**

@@ -3282,6 +3282,9 @@ namespace dmGui
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
         lua_Number blend_duration = luaL_checknumber(L, 4);
+        // default values
+        float offset = 0.0f;
+        float playback_rate = 1.0f;
 
         int node_ref = LUA_NOREF;
         int animation_complete_ref = LUA_NOREF;
@@ -3300,9 +3303,94 @@ namespace dmGui
 
         dmGui::Result res;
         if (animation_complete_ref == LUA_NOREF) {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, 0, 0, 0);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, 0);
         } else {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+        }
+
+        if (res == RESULT_WRONG_TYPE) {
+            dmLogError("Could not play spine animation on non-spine node.");
+        } else if (res == RESULT_INVAL_ERROR) {
+            const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
+            if (id_string != 0x0) {
+                dmLogError("Could not find and play spine animation %s.", id_string);
+            } else {
+                dmLogError("Could not find and play spine animation (hash %llu).", anim_id);
+            }
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    // gui.play_spine(node, animation_id, playback, blend_duration, [complete_function])
+
+    // local play_properties = { blend_duration = 0.0, offset = 0.0, playback_rate = 1.0 }
+    // local function gui_spine_complete_func(self, node, anim_id, playback)
+    // gui.play_spine_anim(node, anim_id, playback, [play_properties], [gui_spine_complete_func])
+    int LuaPlaySpineAnim(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+
+        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
+        lua_Integer playback = luaL_checkinteger(L, 3);
+        lua_Number blend_duration = 0.0, offset = 0.0, playback_rate = 1.0;
+
+        int node_ref = LUA_NOREF;
+        int animation_complete_ref = LUA_NOREF;
+        if (top > 3) // table with args, parse
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+            dmLogInfo("Got table with properties!");
+
+            // blend duration
+            dmLogInfo("blend...");
+            lua_getfield(L, -1, "blend_duration");
+            blend_duration = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            dmLogInfo("blend_duration was: %f", (float)blend_duration);
+            lua_pop(L, 1);
+
+            // offset
+            dmLogInfo("offset...");
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            offset = offset - (long)offset; // clamp offset to [0.0, 1.0[
+            dmLogInfo("offset: %f", (float)offset);
+            lua_pop(L, 1);
+
+            // playback_rate
+            dmLogInfo("playback_rate...");
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            dmLogInfo("playback_rate: %f", (float)playback_rate);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (top > 4) // gui_spine_complete_func
+        {
+            if (lua_isfunction(L, 5))
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+                lua_pushvalue(L, 5);
+                animation_complete_ref = dmScript::Ref(L, -2);
+                lua_pushvalue(L, 1);
+                node_ref = dmScript::Ref(L, -2);
+                lua_pop(L, 1);
+            }
+        }
+
+        dmGui::Result res;
+        if (animation_complete_ref == LUA_NOREF) {
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, 0);
+        } else {
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
 
         if (res == RESULT_WRONG_TYPE) {
@@ -3426,6 +3514,87 @@ namespace dmGui
         return 1;
     }
 
+    int LuaSetSpineCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L);
+        //int top = lua_gettop(L);
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if(dmGui::GetNodeIsBone(scene, node)) 
+        {
+            return 0;
+        }
+
+        float cursor = luaL_checknumber(L, 2);
+
+        if (RESULT_OK != SetNodeSpineCursor(scene, node, cursor))
+        {
+            return luaL_error(L, "failed to set spine cursor for gui spine node");
+        }
+
+        //assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    int LuaGetSpineCursor(lua_State* L)
+    {
+        //DM_LUA_STACK_CHECK(L);
+        int top = lua_gettop(L);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode hnode;
+        LuaCheckNode(L, 1, &hnode);
+
+        float cursor = dmGui::GetNodeSpineCursor(scene, hnode);
+
+        lua_pushnumber(L, cursor);
+
+        assert(top == lua_gettop(L)-1);
+        return 1;
+    }
+
+    int LuaSetSpinePlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if(dmGui::GetNodeIsBone(scene, node)) 
+        {
+            return 0;
+        }
+
+        float playback_rate = luaL_checknumber(L, 2);
+
+        if (RESULT_OK != SetNodeSpinePlaybackRate(scene, node, playback_rate))
+        {
+            return luaL_error(L, "failed to set spine playback rate for gui spine node");
+        }
+
+        return 0;
+    }
+
+    int LuaGetSpinePlaybackRate(lua_State* L)
+    {
+        //DM_LUA_STACK_CHECK(L);
+        int top = lua_gettop(L);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode hnode;
+        LuaCheckNode(L, 1, &hnode);
+
+        float playback_rate = dmGui::GetNodeSpinePlaybackRate(scene, hnode);
+
+        lua_pushnumber(L, playback_rate);
+
+        assert(top == lua_gettop(L)-1); 
+        return 1;
+    }
+
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
         {"set_"#luaname, LuaSet##name},\
@@ -3514,10 +3683,15 @@ namespace dmGui
         {"set_size",        LuaSetSize},
         {"get_size",        LuaGetSize},
         {"play_spine",      LuaPlaySpine},
+        {"play_spine_anim", LuaPlaySpineAnim},
         {"cancel_spine",    LuaCancelSpine},
         {"get_spine_bone",  LuaGetSpineBone},
         {"set_spine_scene", LuaSetSpineScene},
         {"get_spine_scene", LuaGetSpineScene},
+        {"set_spine_cursor", LuaSetSpineCursor},
+        {"get_spine_cursor", LuaGetSpineCursor},
+        {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
+        {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

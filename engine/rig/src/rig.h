@@ -277,7 +277,7 @@ namespace dmRig
     Result InstanceCreate(const InstanceCreateParams& params);
     Result InstanceDestroy(const InstanceDestroyParams& params);
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset = 0.0, float playback_rate = 1.0);
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
     uint32_t GetVertexCount(HRigInstance instance);

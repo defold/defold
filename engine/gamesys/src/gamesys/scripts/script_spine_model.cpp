@@ -103,9 +103,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    // local play_properties = { blend_duration = 0.0, offset = 0.0, playback_rate = 1.0 }
-    // spine.play_anim(url, anim_id, playback, [play_properties], [spine_complete_func])
-
     /*# play an animation on a spine model
      *
      * @name spine.play_anim

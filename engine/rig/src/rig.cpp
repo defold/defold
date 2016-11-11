@@ -819,6 +819,7 @@ namespace dmRig
 
     float GetPlaybackRate(HRigInstance instance)
     {
+        // TODO make a note that this must be >=0.0
         RigPlayer* player = GetPlayer(instance);
         if (!player)
         {
@@ -1080,7 +1081,7 @@ namespace dmRig
         if (params.m_DefaultAnimation != NULL_ANIMATION)
         {
             // Loop forward should be the most common for idle anims etc.
-            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f);
+            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f);
         }
 
         return dmRig::RESULT_OK;
