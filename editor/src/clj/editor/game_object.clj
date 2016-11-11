@@ -406,9 +406,15 @@
     (let [rt (:resource-type user-data)]
       (or (:label rt) (:ext rt)))))
 
+(defn embeddable-component-resource-types [workspace]
+  (->> (workspace/get-resource-types workspace :component)
+       (filter (fn [resource-type]
+                 (and (not (contains? (:tags resource-type) :non-embeddable))
+                      (workspace/has-template? resource-type))))))
+
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
-    (->> (remove (comp :non-embeddable :tags) (workspace/get-resource-types workspace :component))
+    (->> (embeddable-component-resource-types workspace)
          (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                               :icon (:icon res-type)
                               :command :add
