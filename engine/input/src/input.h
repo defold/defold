@@ -26,9 +26,8 @@ namespace dmInput
         char         m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t     m_TextCount;
         uint32_t     m_HasText;
-        uint32_t m_GamepadIndex ;
-        // float    m_GamepadValue[dmHID::MAX_GAMEPAD_COUNT];
-        // uint32_t m_GamepadCount;
+        uint32_t m_GamepadIndex;
+        uint32_t m_IsGamepad : 1;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
@@ -43,6 +42,7 @@ namespace dmInput
     const HContext INVALID_CONTEXT = 0;
 
     typedef struct Binding* HBinding;
+    typedef struct GamepadBinding* HGamepadBinding;
     /**
      * Invalid binding handle
      */
@@ -72,6 +72,10 @@ namespace dmInput
     bool Pressed(HBinding binding, dmhash_t action_id);
     bool Released(HBinding binding, dmhash_t action_id);
     bool Repeated(HBinding binding, dmhash_t action_id);
+    float GetValue(HGamepadBinding binding, dmhash_t action_id);
+    bool Pressed(HGamepadBinding binding, dmhash_t action_id);
+    bool Released(HGamepadBinding binding, dmhash_t action_id);
+    bool Repeated(HGamepadBinding binding, dmhash_t action_id);
 
     typedef void (*ActionCallback)(dmhash_t action_id, Action* action, void* user_data);
 

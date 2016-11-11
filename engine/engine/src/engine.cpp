@@ -896,6 +896,7 @@ bail:
             input_action.m_Text[i] = action->m_Text[i];
         }
 
+        input_action.m_IsGamepad = action->m_IsGamepad;
         input_action.m_GamepadIndex = action->m_GamepadIndex;
 
         input_buffer->Push(input_action);

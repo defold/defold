@@ -1392,9 +1392,11 @@ namespace dmGui
 
                     lua_newtable(L);
 
-                    lua_pushliteral(L, "gamepad");
-                    lua_pushnumber(L, ia->m_GamepadIndex);
-                    lua_settable(L, -3);
+                    if (ia->m_IsGamepad) {
+                        lua_pushliteral(L, "gamepad");
+                        lua_pushnumber(L, ia->m_GamepadIndex);
+                        lua_settable(L, -3);
+                    }
 
                     if (ia->m_ActionId != 0)
                     {
