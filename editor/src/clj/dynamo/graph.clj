@@ -1159,6 +1159,12 @@
   (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
     (not (empty? undo-stack))))
 
+(defn undo-stack-count
+  "Returns the number of entries in the undo stack for `graph-id`"
+  [graph-id]
+  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
+    (count undo-stack)))
+
 (defn redo!
   "Given a `graph-id` reverts an undo of the graph
 
