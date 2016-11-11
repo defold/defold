@@ -232,6 +232,7 @@ namespace dmHID
 
     struct GamepadPacket
     {
+        uint32_t m_Index;
         float m_Axis[MAX_GAMEPAD_AXIS_COUNT];
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
     };

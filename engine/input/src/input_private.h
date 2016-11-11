@@ -89,7 +89,7 @@ namespace dmInput
         Context* m_Context;
         KeyboardBinding* m_KeyboardBinding;
         MouseBinding* m_MouseBinding;
-        GamepadBinding* m_GamepadBinding;
+        dmArray<GamepadBinding*> m_GamepadBindings;
         TouchDeviceBinding* m_TouchDeviceBinding;
         AccelerationBinding* m_AccelerationBinding;
         TextBinding* m_TextBinding;

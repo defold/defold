@@ -26,6 +26,9 @@ namespace dmInput
         char         m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t     m_TextCount;
         uint32_t     m_HasText;
+        uint32_t m_GamepadIndex ;
+        // float    m_GamepadValue[dmHID::MAX_GAMEPAD_COUNT];
+        // uint32_t m_GamepadCount;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
