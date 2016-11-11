@@ -625,6 +625,9 @@
     (prev-word source-viewer true)
     (state-changes! source-viewer)))
 
+(defn- get-indentation [line]
+  (re-find #"^[\t ]*" line))
+
 (defn line-begin-pos [source-viewer]
   (let [line-offset (line-offset source-viewer)
         line-indentation-len (count (get-indentation (line source-viewer)))]
@@ -1135,9 +1138,6 @@
 
 (defn- trim-indentation [line]
   (second (re-find #"^[\t ]*(.*)" line)))
-
-(defn- get-indentation [line]
-  (re-find #"^[\t ]*" line))
 
 (defn- untabify [whitespace]
   (string/replace whitespace #"\t" "    "))
