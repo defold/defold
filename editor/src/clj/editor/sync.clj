@@ -394,20 +394,20 @@
 
     (let [^ListView list-view (:conflicting pull-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/register-context-menu list-view ::conflicts-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
     (ui/cell-factory! (:resolved pull-controls) (fn [e] {:text e}))
 
     (let [^ListView list-view (:changed push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/register-context-menu list-view ::staging-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
 
     (let [^ListView list-view (:staged push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/register-context-menu list-view ::unstaging-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
 

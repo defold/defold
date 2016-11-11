@@ -535,16 +535,12 @@
     []))
 
 (extend-type TreeView
-  handler/SelectionProvider
+  CollectionView
   (selection [this] (some->> this
                       (.getSelectionModel)
                       (.getSelectedItems)
                       (filter (comp not nil?))
                       (mapv #(.getValue ^TreeItem %))))
-
-  CollectionView
-  (selection [this] (when-let [item ^TreeItem (.getSelectedItem (.getSelectionModel this))]
-                      (.getValue item)))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
                            (doto (.getSelectionModel this)
@@ -558,7 +554,7 @@
   (cell-factory! [this render-fn]
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
-(defn selection-roots [^TreeView tree-view path-fn id-fn]
+(defn selection-root-items [^TreeView tree-view path-fn id-fn]
   (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
     (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
           roots (loop [paths (keys items)
@@ -573,13 +569,21 @@
       (vals (into {} (map #(let [item (items %)]
                             [(id-fn item) item]) roots))))))
 
-(extend-type ListView
-  handler/SelectionProvider
-  (selection [this] (some->> this
-                      (.getSelectionModel)
-                      (.getSelectedItems)
-                      (vec))))
-
+;; Returns the items that should be selected if the specified root items were deleted.
+(defn succeeding-selection [^TreeView tree-view root-items]
+  (let [items (sort-by (fn [^TreeItem item] (.getRow tree-view item)) root-items)
+        ^TreeItem last-item (last items)
+        indices (set (mapv (fn [^TreeItem item] (.getRow tree-view item)) root-items))
+        ^TreeItem next-item (if last-item
+                              (or (.nextSibling last-item)
+                                  (loop [^TreeItem item last-item]
+                                    (if-let [^TreeItem prev (.previousSibling item)]
+                                      (if (contains? indices (.getRow tree-view prev))
+                                        (recur prev)
+                                        prev)
+                                      (.getParent last-item))))
+                              (.getRoot tree-view))]
+    [(.getValue next-item)]))
 
 ;; context handling
 
@@ -612,6 +616,11 @@
 (handler/defhandler :redo :text-input-control
   (enabled? [^TextInputControl control] (.isRedoable control))
   (run [^TextInputControl control] (.redo control)))
+
+(defn ->selection-provider [view]
+  (reify handler/SelectionProvider
+    (selection [this] (selection view))
+    (succeeding-selection [this] [])))
 
 (defn context!
   ([^Node node name env selection-provider]

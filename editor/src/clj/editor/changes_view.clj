@@ -117,7 +117,7 @@
             ^ListView list-view          (.lookup parent "#changes")]
         (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
         ; TODO: Should we really include both git and list-view in the context. Have to think about this
-        (ui/context! list-view :changes-view {:git git :list-view list-view :workspace workspace} list-view {}
+        (ui/context! list-view :changes-view {:git git :list-view list-view :workspace workspace} (ui/->selection-provider list-view) {}
                      {resource/Resource (fn [status] (status->resource workspace status))})
         (ui/register-context-menu list-view ::changes-menu)
         (ui/cell-factory! list-view status-render)

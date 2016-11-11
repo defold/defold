@@ -10,7 +10,8 @@
 (defonce ^:dynamic *adapters* nil)
 
 (defprotocol SelectionProvider
-  (selection [this]))
+  (selection [this])
+  (succeeding-selection [this]))
 
 (defrecord Context [name env selection-provider dynamics adapters])
 
@@ -92,7 +93,7 @@
   (let [selection (context-selection context)]
     (-> context
       eval-dynamics
-      (update :env assoc :selection selection :selection-context (:name context)))))
+      (update :env assoc :selection selection :selection-context (:name context) :selection-provider (:selection-provider context)))))
 
 (defn eval-contexts [contexts all-selections?]
   (loop [command-contexts (mapv eval-context contexts)
@@ -100,9 +101,10 @@
     (if-let [ctx (first command-contexts)]
       (let [result (if-let [selection (get-in ctx [:env :selection])]
                      (let [adapters (:adapters ctx)
-                           name (:name ctx)]
+                           name (:name ctx)
+                           selection-provider (:selection-provider ctx)]
                        (into result (map (fn [ctx] (-> ctx
-                                                     (update :env assoc :selection selection :selection-context name)
+                                                     (update :env assoc :selection selection :selection-context name :selection-provider selection-provider)
                                                      (assoc :adapters adapters)))
                                          command-contexts)))
                      (conj result ctx))]

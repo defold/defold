@@ -374,7 +374,7 @@
 
 (g/defnk produce-tree-view [_node-id tree-view resource-tree]
   (let [selected-paths (or (ui/user-data tree-view ::pending-selection)
-                           (mapv resource/proj-path (handler/selection tree-view)))]
+                           (mapv resource/proj-path (ui/selection tree-view)))]
     (update-tree-view tree-view resource-tree selected-paths)
     (ui/user-data! tree-view ::pending-selection nil)
     tree-view))
@@ -495,12 +495,12 @@
     (.setDropCompleted e true)
     (.consume e)))
 
-(defn- setup-asset-browser [workspace ^TreeView tree-view open-resource-fn]
+(defn- setup-asset-browser [workspace ^TreeView tree-view]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [over-handler (ui/event-handler e (drag-over e))
-        done-handler (ui/event-handler e (drag-done e (handler/selection tree-view)))
+        done-handler (ui/event-handler e (drag-done e (ui/selection tree-view)))
         dropped-handler (ui/event-handler e (drag-dropped e))
-        detected-handler (ui/event-handler e (drag-detected e (handler/selection tree-view)))
+        detected-handler (ui/event-handler e (drag-detected e (ui/selection tree-view)))
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))]
     (ui/bind-double-click! tree-view :open)
@@ -530,13 +530,18 @@
 
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view open-resource-fn]
+(defrecord SelectionProvider [tree-view]
+  handler/SelectionProvider
+  (selection [this] (ui/selection tree-view))
+  (succeeding-selection [this] []))
+
+(defn make-asset-browser [graph workspace tree-view]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :tree-view tree-view]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
-    (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :open-fn open-resource-fn :asset-browser asset-browser} tree-view)
-    (setup-asset-browser workspace tree-view open-resource-fn)
+    (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :asset-browser asset-browser} (SelectionProvider. tree-view))
+    (setup-asset-browser workspace tree-view)
     asset-browser))
