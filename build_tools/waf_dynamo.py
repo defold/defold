@@ -9,7 +9,8 @@ import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
-ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
+HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
 ANDROID_NDK_API_VERSION='14'
@@ -19,7 +20,7 @@ ANDROID_GCC_VERSION='4.8'
 
 
 # TODO: HACK
-FLASCC_ROOT=os.path.join(os.environ['HOME'], 'local', 'FlasCC1.0', 'sdk')
+FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234

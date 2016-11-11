@@ -16,15 +16,14 @@ Run build.py --help for help
 """
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6 webp-0.5.0".split()
-PACKAGES_TARGET="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_WIN32="PVRTexLib-4.5".split()
-PACKAGES_WIN32_64="PVRTexLib-4.5".split()
-PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3".split()
+PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1 glut-3.7.6".split()
+PACKAGES_WIN32_64="PVRTexLib-4.5 webp-0.5.0 openal-1.1 glut-3.7.6".split()
+PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1".split()
 PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223a67482df2226622be372921847".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
@@ -46,8 +45,8 @@ def is_64bit_machine():
     return platform.machine().endswith('64')
 
 def get_host_platform():
-    arch = platform.architecture()[0]
     if sys.platform == 'linux2':
+        arch = platform.architecture()[0]
         if arch == '64bit':
             return 'x86_64-linux'
         else:
@@ -242,85 +241,96 @@ class Configuration(object):
 
         url = urls[self.host]
         path = self._download(url)
-
-        print("Installing go...")
         
         self._extract(path, self.ext)
 
-    def install_ext(self):
-        def make_path(platform):
-            return join(self.defold_root, 'packages', p) + '-%s.tar.gz' % platform
+    def _make_package_path(self, platform, package):
+        return join(self.defold_root, 'packages', package) + '-%s.tar.gz' % platform
 
+    def _make_package_paths(self, platform, packages):
+        return [self._make_package_path(platform, package) for package in packages]
+
+    def _extract_packages(self, platform, packages):
+        for package in packages:
+            self._extract_tgz(self._make_package_path(platform, package), self.ext)
+
+    def install_ext(self):
+        print("Installing go...")
         self._install_go()
 
         print("Installing common packages...")
-
         for p in PACKAGES_ALL:
-            self._extract_tgz(make_path('common'), self.ext)
+            self._extract_tgz(self._make_package_path('common', p), self.ext)
 
-        print("Installing target packages...")
+        # Target platform packages should take precendence when for instance
+        # extracting headers for a non-default version of PVRTexLib (windows, linux)
+        # For this reason we extract packages for other platforms first, followed by
+        # host packages, base platform packages, and finally target platform packages.
 
-        for p in PACKAGES_TARGET:
-            tgz_path = make_path(self.target_platform)
-            if os.path.isfile(tgz_path):
-                self._extract_tgz(tgz_path, self.ext)
+        platform_packages = {
+            'win32':          PACKAGES_WIN32,
+            'x86_64-win32':   PACKAGES_WIN32_64,
+            'linux':          PACKAGES_LINUX,
+            'x86_64-linux':   PACKAGES_LINUX_64,
+            'x86_64-darwin':  PACKAGES_DARWIN_64,
+            'armv7-darwin':   PACKAGES_IOS,
+            'arm64-darwin':   PACKAGES_IOS_64,
+            'armv7-android':  PACKAGES_ANDROID,
+            'js-web':         PACKAGES_EMSCRIPTEN
+        }
 
-        print("Installing IOS packages...")
+        base_platforms = self.get_base_platforms()
+        target_platform = self.target_platform
+        other_platforms = set(platform_packages.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
-        for p in PACKAGES_IOS:
-            self._extract_tgz(make_path('armv7-darwin'), self.ext)
+        installed_packages = set()
 
-        for p in PACKAGES_IOS_64:
-            self._extract_tgz(make_path('arm64-darwin'), self.ext)
+        for platform in other_platforms:
+            packages = platform_packages.get(platform, [])
+            package_paths = self._make_package_paths(platform, packages)
+            print("Installing %s packages" % platform)
+            for path in package_paths:
+                self._extract_tgz(path, self.ext)
+            installed_packages.update(package_paths)
 
-        if self.target_platform == 'win32':
-            print("Installing win32 packages...")
-            for p in PACKAGES_WIN32:
-                self._extract_tgz(make_path('win32'), self.ext)
+        host_package_paths = [path for path in self._make_package_paths(self.host, PACKAGES_HOST) if path not in installed_packages]
 
-        if self.target_platform == 'x86_64-win32':
-            print("Installing x86_64-win32 packages...")
-            for p in PACKAGES_WIN32_64:
-                self._extract_tgz(make_path('x86_64-win32'), self.ext)
+        if len(host_package_paths) != 0:
+            print("Installing host (%s) packages" % self.host)
+            for path in host_package_paths:
+                self._extract_tgz(path, self.ext)
+            installed_packages.update(host_package_paths)
 
-        if self.target_platform == 'linux':
-            print("Installing linux packages...")
-            for p in PACKAGES_LINUX:
-                self._extract_tgz(make_path('linux'), self.ext)
+        for base_platform in self.get_base_platforms():
+            packages = platform_packages.get(base_platform, [])
+            package_paths = self._make_package_paths(base_platform, packages)
+            package_paths = [path for path in package_paths if path not in installed_packages]
+            if len(package_paths) != 0:
+                print("Installing %s packages" % base_platform)
+                for path in package_paths:
+                    self._extract_tgz(path, self.ext)
+                installed_packages.update(package_paths)
 
-        if self.target_platform == 'x86_64-linux':
-            print("Installing x86_64-linux packages...")
-            for p in PACKAGES_LINUX_64:
-                self._extract_tgz(make_path('x86_64-linux'), self.ext)
+        target_packages = platform_packages.get(self.target_platform, [])
+        target_package_paths = self._make_package_paths(self.target_platform, target_packages)
+        target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
-        if self.target_platform == 'darwin':
-            print("Installing darwin packages...")
-            for p in PACKAGES_DARWIN_64:
-                self._extract_tgz(make_path('x86_64-darwin'), self.ext)
+        if len(target_package_paths) != 0:
+            print("Installing %s packages" % self.target_platform)
+            for path in target_package_paths:
+                self._extract_tgz(path, self.ext)
+            installed_packages.update(target_package_paths)
 
-        print("Installing android packages...")
-
-        for p in PACKAGES_ANDROID:
-            self._extract_tgz(make_path('armv7-android'), self.ext)
-
-        print("Installing emscripten packages...")
-
-        for p in PACKAGES_EMSCRIPTEN:
-            self._extract_tgz(make_path('js-web'), self.ext)
-
+        # Is as3-web a supported platform? doesn't say so in --platform?
         print("Installing flash packages...")
-        
-        for p in PACKAGES_FLASH:
-            self._extract_tgz(make_path('as3-web'), self.ext)
+        self._extract_packages('as3-web', PACKAGES_FLASH)
 
         print("Installing python eggs...")
-
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
         print("Installing javascripts...")            
-
         for n in 'js-web-pre.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
@@ -328,7 +338,6 @@ class Configuration(object):
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         print("Installing profiles etc...")
-
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
@@ -502,7 +511,7 @@ class Configuration(object):
         lib_dir = self.target_platform
 
         # upload editor 2.0 launcher
-        if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32' 'x86_64-win32']:
+        if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']:
             launcherbin = join(bin_dir, "launcher" + exe_ext)
             self.upload_file(launcherbin, '%s/%s%s' % (full_archive_path, "launcher", exe_ext))
 
@@ -559,13 +568,24 @@ class Configuration(object):
         eclipse = '--eclipse' if self.eclipse else ''
         return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'eclipse':eclipse}
 
+    def get_base_platforms(self):
+        # Base platforms is the platforms to build the base libs for.
+        # The base libs are the libs needed to build bob, i.e. contains compiler code.
+
+        platform_dependencies = {'darwin': ['darwin', 'x86_64-darwin'], # x86_64-darwin from IOS fix 3dea8222
+                                 'x86_64-linux': [],
+                                 'x86_64-win32': ['win32']}
+
+        platforms = list(platform_dependencies.get(self.host, [self.host]))
+
+        if not self.host in platforms:
+            platforms.append(self.host)
+
+        return platforms
+
     def _build_engine_base_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
         self._log('Building base libs')
-        # Base platforms is the set of platforms to build the base libs for
-        # The base libs are the libs needed to build bob, i.e. contains compiler code
-        base_platforms = [self.host]
-        if self.host == 'darwin':
-            base_platforms.append('x86_64-darwin')
+        base_platforms = self.get_base_platforms()
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         base_libs = ['dlib', 'texc']
         for platform in base_platforms:
@@ -1368,7 +1388,7 @@ instructions.configure=\
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, self.target_platform),
+                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host),
                                       '%s/ext/go/bin' % self.dynamo_home])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
@@ -1525,5 +1545,9 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         f = getattr(c, cmd, None)
         if not f:
             parser.error('Unknown command %s' % cmd)
-        f()
-        c.wait_uploads()
+        else:
+            print('Running: %s' % cmd)
+            f()
+            c.wait_uploads()
+
+    print('Done')
