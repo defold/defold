@@ -51,7 +51,7 @@
     (let [a (parse-fn (matches 1))
           b (parse-fn (matches 3))
           op (resolve (symbol (matches 2)))]
-      (math/round-with-precision (op a b) 0.01)
+      (math/round-with-precision (op a b) 0.01))
     (parse-fn text)))
 
 (defn- to-int [s]
