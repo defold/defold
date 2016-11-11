@@ -91,8 +91,10 @@
   :Alt+Left              {:command :prev-word}
   :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 1}
   :Ctrl+A                {:command :line-begin}
+  :Home                  {:command :line-begin}
   :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 2}
   :Ctrl+E                {:command :line-end}
+  :End                   {:command :line-end}
   :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 3}
   :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 4}
   :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 5}
@@ -113,8 +115,10 @@
   :Shift+Ctrl+Left       {:command :select-prev-word}
   :Shift+Shortcut+Left   {:command :select-line-begin}
   :Shift+Ctrl+A          {:command :select-line-begin}
+  :Shift+Home            {:command :select-line-begin}
   :Shift+Shortcut+Right  {:command :select-line-end}
   :Shift+Ctrl+E          {:command :select-line-end}
+  :Shift+End             {:command :select-line-end}
   :Shift+Shortcut+Up     {:command :select-file-begin}
   :Shift+Shortcut+Down   {:command :select-file-end}
   :Shift+Page-Up         {:command :select-page-up}
@@ -621,14 +625,21 @@
     (prev-word source-viewer true)
     (state-changes! source-viewer)))
 
+(defn line-begin-pos [source-viewer]
+  (let [line-offset (line-offset source-viewer)
+        line-indentation-len (count (get-indentation (line source-viewer)))]
+    (+ line-offset line-indentation-len)))
+
 (defn line-begin [source-viewer select?]
-  (let [next-pos (line-offset source-viewer)]
+  (let [line-begin-pos (line-begin-pos source-viewer)
+        next-pos (if (= line-begin-pos (caret source-viewer))
+                   (line-offset source-viewer)
+                   line-begin-pos)]
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
 (defn line-end-pos [source-viewer]
-  (let [doc (text source-viewer)
-        line-text-len (count (line source-viewer))
+  (let [line-text-len (count (line source-viewer))
         line-offset (line-offset source-viewer)]
     (+ line-offset line-text-len)))
 
