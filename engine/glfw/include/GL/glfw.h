@@ -554,6 +554,9 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 
+typedef void (GLFWCALL * GLFWcursorlockfun)(int);
+GLFWAPI void glfwSetCursorLockCallback( GLFWcursorlockfun cbfun );
+
 // Trying to mimic somewhat the features of glfw 3.0
 typedef void (GLFWCALL * GLFWwindowfocusfun)(int);
 GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );

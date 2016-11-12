@@ -1059,7 +1059,6 @@ GLFWAPI void GLFWAPIENTRY glfwWaitEvents( void )
 
 // DEFOLD addition / GLFW 3
 
-
 //========================================================================
 // Set callback function for window focus events
 //========================================================================
@@ -1072,6 +1071,12 @@ GLFWAPI void GLFWAPIENTRY glfwSetCursorEnterCallback( GLFWcursorenterfun cbfun )
 
     // Set callback function
     _glfwWin.cursorEnterCallback = cbfun;
+}
+
+GLFWAPI void GLFWAPIENTRY glfwSetCursorLockCallback( GLFWcursorenterfun cbfun )
+{
+    // Currently, this is a HTML5 only feature
+    (void)cbfun;
 }
 
 void _glfwInputCursorEnter(int entered)

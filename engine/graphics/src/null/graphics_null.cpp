@@ -744,7 +744,7 @@ namespace dmGraphics
         uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            if (buffers)
+            if (buffers[i])
             {
                 delete [] (char*)*(buffers[i]);
                 uint32_t buffer_size = sizeof(uint32_t) * width * height;

@@ -163,6 +163,7 @@ namespace dmGameSystem
     void OnWindowFocus(bool focus);
     void OnWindowResized(int width, int height);
     void OnWindowCursorEnter(bool entered);
+    void OnWindowCursorLockChanged(bool locked);
 }
 
 #endif // DM_GAMESYS_H

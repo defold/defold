@@ -180,6 +180,7 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
         infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
+        infoData.put("DEFOLD_POINTER_LOCK", projectProperties.getBooleanValue("html5", "pointer_lock", false));
 
         infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
 

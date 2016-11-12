@@ -90,4 +90,9 @@ namespace dmGameSystem
     {
         ScriptWindowOnWindowCursorEnter(entered);
     }
+
+    void OnWindowCursorLockChanged(bool locked)
+    {
+        ScriptWindowOnWindowCursorLockChanged(locked);
+    }
 }

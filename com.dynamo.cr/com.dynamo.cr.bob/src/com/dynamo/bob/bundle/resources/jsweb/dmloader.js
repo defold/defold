@@ -365,6 +365,23 @@ var Module = {
         GLFW.onCursorEnterChanged(0);
     },
 
+    onClickRequestPointerLock: function(e) {
+      if (!Browser.pointerLock && Module.canvas.requestPointerLock) {
+        Module.canvas.requestPointerLock();
+        e.preventDefault();
+      }
+    },
+
+    onPointerLockChange: function(e) {
+        // We get two events with null, but we only want to send one
+        var element = (document.pointerLockElement === Module.canvas) ? Module.canvas : null;
+        if( !(document.prevPointerLockElement === element) ) {
+            var locked = (document.pointerLockElement === Module.canvas) ? 1 : 0;
+            GLFW.onCursorLockChanged(locked);
+        }
+        document.prevPointerLockElement = document.pointerLockElement;
+    },
+
     getHiddenProperty: function () {
         if ('hidden' in document) return 'hidden';
         var prefixes = ['webkit','moz','ms','o'];
@@ -419,7 +436,8 @@ var Module = {
             unsupported_webgl_callback: undefined,
             engine_arguments: [],
             persistent_storage: true,
-            custom_heap_size: undefined
+            custom_heap_size: undefined,
+            pointer_lock: false,
         };
 
         for (var k in extra_params) {
@@ -444,6 +462,12 @@ var Module = {
 
             Module.canvas.addEventListener("mouseover", Module.cursorEnterFunc);
             Module.canvas.addEventListener("mouseout", Module.cursorLeaveFunc);
+
+            if( params["pointer_lock"] ) {
+                document.prevPointerLockElement = null;
+                Module.canvas.addEventListener('click', Module.onClickRequestPointerLock, true);
+                document.addEventListener('pointerlockchange', Module.onPointerLockChange, false);
+            }
 
             // Load Facebook API
             var fb = document.createElement('script');

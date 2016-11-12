@@ -27,6 +27,8 @@ enum WindowEvent
     WINDOW_EVENT_RESIZED = 2,
     WINDOW_EVENT_MOUSE_ENTER = 3,
     WINDOW_EVENT_MOUSE_LEAVE = 4,
+    WINDOW_EVENT_POINTER_LOCK_GAINED = 5,
+    WINDOW_EVENT_POINTER_LOCK_LOST = 6,
 };
 
 
@@ -134,6 +136,8 @@ static void RunCallback(CallbackInfo* cbinfo)
  *         <li>window.WINDOW_EVENT_RESIZED</li>
  *         <li>window.WINDOW_EVENT_MOUSE_ENTER</li>
  *         <li>window.WINDOW_EVENT_MOUSE_LEAVE</li>
+ *         <li>window.WINDOW_EVENT_POINTER_LOCK_GAINED</li>
+ *         <li>window.WINDOW_EVENT_POINTER_LOCK_LOST</li>
  *     </ul>
  *     <li>data (table) The callback value ''data'' is a table which currently holds these values</li>
  *     <ul>
@@ -155,6 +159,10 @@ static void RunCallback(CallbackInfo* cbinfo)
  *         print("The mouse entered the window!")
  *     elseif event == window.WINDOW_EVENT_MOUSE_LEAVE then
  *         print("The mouse left the window!")
+ *     elseif event == window.WINDOW_EVENT_POINTER_LOCK_GAINED then
+ *         print("The mouse pointer was locked!")
+ *     elseif event == window.WINDOW_EVENT_POINTER_LOCK_LOST then
+ *         print("The mouse pointer was unlocked!")
  *     end
  * end
  *
@@ -188,6 +196,19 @@ static void RunCallback(CallbackInfo* cbinfo)
   * @name window.WINDOW_EVENT_MOUSE_LEAVE
   * @variable
   */
+ /*# mouse cursor lock was obtained
+  * The mouse cursor lock was successfully obtained [platform: HTML5]
+  * @name window.WINDOW_EVENT_POINTER_LOCK_GAINED
+  * @variable
+  */
+ /*# mouse cursor lock was lost
+  * The mouse cursor lock was lost. This can happen if the user
+  * presses the Escape key, or if the tab loses focus [platform: HTML5]
+  * @name window.WINDOW_EVENT_POINTER_LOCK_LOST
+  * @variable
+  */
+
+
 static int SetListener(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L);
@@ -286,53 +307,20 @@ static int GetDimMode(lua_State* L)
  */
 static int ShowMouseCursor(lua_State* L)
 {
-#if defined(__EMSCRIPTEN__)
-    EM_ASM( Module.canvas.style.cursor = "default"; );
-#else
     glfwEnable(GLFW_MOUSE_CURSOR);
-#endif
     return 1;
 }
 
 /** Hides the mouse cursor
- * Hides the mouse cursor.
- * @note Supported platforms: macOS, Windows, Linux, HTML5
- * @note On macOS, Windows and Linux, the subsequent mouse positions are not bound to the screen coordinates.
+ * Hides the mouse cursor. [platform: macOS, Windows, Linux, HTML5]
+ * @note After hiding the cursor, the subsequent cursor positions are not bound to the screen coordinates.
+ * @note On HTML5, 
  * Also note that no mouse enter/leave events will be sent when the mouse is hidden.
  * @name window.hide_mouse_cursor
  */
 static int HideMouseCursor(lua_State* L)
 {
-#if defined(__EMSCRIPTEN__)
-    EM_ASM( Module.canvas.style.cursor = "none"; );
-#else
     glfwDisable(GLFW_MOUSE_CURSOR);
-#endif
-    return 1;
-}
-
-
-/** Sets the window title
-* Sets the window/document title.
-* @note Supported platforms: macOS, Windows, Linux, HTML5
-* @name window.set_title
-* @param title the window title
-* @examples
-* <pre>
-* function init(self)
-*     window.set_title("Defold")
-* end
-* </pre>
-*/
-static int SetTitle(lua_State* L)
-{
-    DM_LUA_STACK_CHECK(L);
-    const char* title = luaL_checkstring(L, 1);
-#if defined(__EMSCRIPTEN__)
-    EM_ASM_({ document.title = Pointer_stringify($0); }, title);
-#else
-    glfwSetWindowTitle(title);
-#endif
     return 1;
 }
 
@@ -343,7 +331,6 @@ static const luaL_reg Module_methods[] =
     {"get_dim_mode", GetDimMode},
     {"show_mouse_cursor", ShowMouseCursor},
     {"hide_mouse_cursor", HideMouseCursor},
-    {"set_title", SetTitle},
     {0, 0}
 };
 
@@ -361,6 +348,8 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(WINDOW_EVENT_RESIZED)
     SETCONSTANT(WINDOW_EVENT_MOUSE_ENTER)
     SETCONSTANT(WINDOW_EVENT_MOUSE_LEAVE)
+    SETCONSTANT(WINDOW_EVENT_POINTER_LOCK_GAINED)
+    SETCONSTANT(WINDOW_EVENT_POINTER_LOCK_LOST)
 
     SETCONSTANT(DIMMING_UNKNOWN)
     SETCONSTANT(DIMMING_ON)
@@ -405,6 +394,14 @@ void ScriptWindowOnWindowCursorEnter(bool enter)
     CallbackInfo cbinfo;
     cbinfo.m_Info = &g_Window;
     cbinfo.m_Event = enter ? WINDOW_EVENT_MOUSE_ENTER : WINDOW_EVENT_MOUSE_LEAVE;
+    RunCallback(&cbinfo);
+}
+
+void ScriptWindowOnWindowCursorLockChanged(bool locked)
+{
+    CallbackInfo cbinfo;
+    cbinfo.m_Info = &g_Window;
+    cbinfo.m_Event = locked ? WINDOW_EVENT_POINTER_LOCK_GAINED : WINDOW_EVENT_POINTER_LOCK_LOST;
     RunCallback(&cbinfo);
 }
 

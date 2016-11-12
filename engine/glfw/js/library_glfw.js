@@ -233,7 +233,7 @@ var LibraryGLFW = {
       }
       Runtime.dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
     },
-
+    
     onTouchEnd: function(event) {
         if (!GLFW.isCanvasActive()) { return; }
 
@@ -328,6 +328,12 @@ var LibraryGLFW = {
       }
     },
 
+    onCursorLockChanged: function(locked) {
+      if (GLFW.cursorLockFunc) {
+        Runtime.dynCall('vi', GLFW.cursorLockFunc, [locked]);
+      }
+    },
+
     onFullScreenEventChange: function(event) {
       var width;
       var height;
@@ -347,6 +353,10 @@ var LibraryGLFW = {
       }
       Module["canvas"].width = width;
       Module["canvas"].height = height;
+
+      if (GLFW.isFullscreen) {
+        Module["canvas"].focus(); // Make sure we get the input focus again, to avoid an extra click
+      }
     },
 
     requestFullScreen: function() {
@@ -412,6 +422,8 @@ var LibraryGLFW = {
             Module["canvas"].width = Module["canvas"].height = 1;
         }
     }});
+
+    GLFW.GLFW_MOUSE_CURSOR = 0x00030001;
 
     //TODO: Init with correct values
     GLFW.params = new Array();
@@ -576,6 +588,17 @@ var LibraryGLFW = {
     GLFW.cursorEnterFunc = cbfun;
   },
 
+  glfwSetCursorLockCallback: function(cbfun) {
+    GLFW.cursorLockFunc = cbfun;
+  },
+
+  onClickRequestPointerLock: function(e) {
+    if (!Browser.pointerLock && Module['canvas'].requestPointerLock) {
+      Module['canvas'].requestPointerLock();
+      e.preventDefault();
+    }
+  },
+
   /* Video mode functions */
   glfwGetVideoModes: function(list, maxcount) { throw "glfwGetVideoModes is not implemented."; },
 
@@ -719,10 +742,19 @@ var LibraryGLFW = {
   /* Enable/disable functions */
   glfwEnable: function(token) {
     GLFW.params[token] = false;
+
+    if (token == GLFW.GLFW_MOUSE_CURSOR) {
+      Module['canvas'].removeEventListener('click', GLFW.onClickRequestPointerLock, true);
+      Module['canvas'].exitPointerLock();
+    }
   },
 
   glfwDisable: function(token) {
     GLFW.params[token] = true;
+    if (token == GLFW.GLFW_MOUSE_CURSOR) {
+      Module['canvas'].addEventListener('click', GLFW.onClickRequestPointerLock, true);
+      Module['canvas'].requestPointerLock();
+    }
   },
 
   /* Image/texture I/O support */

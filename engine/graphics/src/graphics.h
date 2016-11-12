@@ -23,10 +23,9 @@ namespace dmGraphics
     typedef struct RenderTarget*      HRenderTarget;
 
     typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
-
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
-
     typedef void (*WindowCursorEnterCallback)(void* user_data, uint32_t entered);
+    typedef void (*WindowCursorLockCallback)(void* user_data, uint32_t locked);
 
     /**
      * Callback function called when the window is requested to close.
@@ -341,6 +340,10 @@ namespace dmGraphics
         WindowCursorEnterCallback m_CursorEnterCallback;
         /// User data supplied to the callback function
         void*                   m_CursorEnterCallbackUserData;
+        /// Callback when mouse cursor is locked
+        WindowCursorLockCallback m_CursorLockCallback;
+        /// User data supplied to the callback function
+        void*                   m_CursorLockCallbackUserData;
         /// Window width, 640 by default
         uint32_t                m_Width;
         /// Window height, 480 by default

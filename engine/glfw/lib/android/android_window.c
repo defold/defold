@@ -403,3 +403,8 @@ void _glfwAndroidSetInputMethod(int use_hidden_input)
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
+
+void _glfwInputCursorEnter(int)
+{
+    
+}

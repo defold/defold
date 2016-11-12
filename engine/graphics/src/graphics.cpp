@@ -11,6 +11,8 @@ namespace dmGraphics
     , m_FocusCallbackUserData(0x0)
     , m_CursorEnterCallback(0x0)
     , m_CursorEnterCallbackUserData(0x0)
+    , m_CursorLockCallback(0x0)
+    , m_CursorLockCallbackUserData(0x0)
     , m_Width(640)
     , m_Height(480)
     , m_Samples(1)

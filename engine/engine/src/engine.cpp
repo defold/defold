@@ -140,6 +140,12 @@ namespace dmEngine
         dmGameSystem::OnWindowCursorEnter(entered != 0);
     }
 
+    static void OnWindowCursorLockChanged(void* user_data, uint32_t locked)
+    {
+        dmGameSystem::OnWindowCursorLockChanged(locked != 0);
+    }
+
+
     Stats::Stats()
     : m_FrameCount(0)
     {
@@ -508,6 +514,8 @@ namespace dmEngine
         window_params.m_FocusCallbackUserData = engine;
         window_params.m_CursorEnterCallback = OnWindowCursorEnter;
         window_params.m_CursorEnterCallbackUserData = engine;
+        window_params.m_CursorLockCallback = OnWindowCursorLockChanged;
+        window_params.m_CursorLockCallbackUserData = engine;
         window_params.m_Width = engine->m_Width;
         window_params.m_Height = engine->m_Height;
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);

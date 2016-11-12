@@ -18,6 +18,8 @@ namespace dmGraphics
         void*                       m_WindowFocusCallbackUserData;
         WindowCursorEnterCallback   m_CursorEnterCallback;
         void*                       m_CursorEnterCallbackUserData;
+        WindowCursorLockCallback    m_CursorLockCallback;
+        void*                       m_CursorLockCallbackUserData;
 
         uint32_t                m_Width;
         uint32_t                m_Height;

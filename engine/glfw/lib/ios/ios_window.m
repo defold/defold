@@ -1602,3 +1602,9 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
     *z = _glfwInput.AccZ;
     return 1;
 }
+
+
+void _glfwInputCursorEnter(int)
+{
+    
+}
