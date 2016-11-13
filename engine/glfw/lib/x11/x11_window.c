@@ -793,7 +793,8 @@ static GLboolean createWindow( int width, int height,
         wa.border_pixel = 0;
         wa.event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask |
             PointerMotionMask | ButtonPressMask | ButtonReleaseMask |
-            ExposureMask | FocusChangeMask | VisibilityChangeMask;
+            ExposureMask | FocusChangeMask | VisibilityChangeMask |
+            EnterMask | LeaveMask;
 
         if( wndconfig->mode == GLFW_WINDOW )
         {
@@ -1209,6 +1210,25 @@ static GLboolean processSingleEvent( void )
                                       GLFW_RELEASE );
             }
             break;
+        }
+
+        // GLFW3 
+        case EnterNotify:
+        {
+            // HACK: This is a workaround for WMs (KWM, Fluxbox) that otherwise
+            //       ignore the defined cursor for hidden cursor mode
+            //if (window->cursorMode == GLFW_CURSOR_HIDDEN)
+            //    _glfwPlatformSetCursorMode(window, GLFW_CURSOR_HIDDEN);
+
+            _glfwInputCursorEnter(1);
+            return;
+        }
+
+        // GLFW3 
+        case LeaveNotify:
+        {
+            _glfwInputCursorEnter(0);
+            return;
         }
 
         case MotionNotify:
