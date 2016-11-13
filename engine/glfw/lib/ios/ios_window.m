@@ -1604,7 +1604,7 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 }
 
 
-void _glfwInputCursorEnter(int)
+void _glfwInputCursorEnter(int entered)
 {
-    
+    (void)entered;
 }

@@ -197,13 +197,13 @@ static void RunCallback(CallbackInfo* cbinfo)
   * @variable
   */
  /*# mouse cursor lock was obtained
-  * The mouse cursor lock was successfully obtained [platform: HTML5]
+  * The mouse cursor lock was successfully obtained [icon: HTML5]
   * @name window.WINDOW_EVENT_POINTER_LOCK_GAINED
   * @variable
   */
  /*# mouse cursor lock was lost
   * The mouse cursor lock was lost. This can happen if the user
-  * presses the Escape key, or if the tab loses focus [platform: HTML5]
+  * presses the Escape key, or if the tab loses focus [icon: HTML5]
   * @name window.WINDOW_EVENT_POINTER_LOCK_LOST
   * @variable
   */
@@ -312,10 +312,15 @@ static int ShowMouseCursor(lua_State* L)
 }
 
 /** Hides the mouse cursor
- * Hides the mouse cursor. [platform: macOS, Windows, Linux, HTML5]
- * @note After hiding the cursor, the subsequent cursor positions are not bound to the screen coordinates.
- * @note On HTML5, 
+ * Hides the mouse cursor. [icon: macOS, Windows, Linux, HTML5]
+ * After hiding the cursor, the subsequent cursor positions are not bound to the screen coordinates.
  * Also note that no mouse enter/leave events will be sent when the mouse is hidden.
+ *
+ * @note [icon: HTML5] it also requires a user interaction (e.g. a click) to be allowed to lock the pointer. For this reason
+ * there is the project setting html5.pointer_lock, which enables locking the pointer on the first clock on the canvas.
+ * This will generate a window.WINDOW_EVENT_POINTER_LOCK_GAINED event.
+ * @note [icon: HTML5] The user can press the Escape key at any time to unlock the pointer, which will generate a window.WINDOW_EVENT_POINTER_LOCK_LOST event.
+ * You can read more here: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API
  * @name window.hide_mouse_cursor
  */
 static int HideMouseCursor(lua_State* L)

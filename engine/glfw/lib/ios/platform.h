@@ -80,6 +80,7 @@ struct _GLFWwin_struct {
     GLFWwindowclosefun   windowCloseCallback;
     GLFWwindowrefreshfun windowRefreshCallback;
     GLFWwindowfocusfun   windowFocusCallback;
+    GLFWcursorenterfun   cursorEnterCallback;
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;

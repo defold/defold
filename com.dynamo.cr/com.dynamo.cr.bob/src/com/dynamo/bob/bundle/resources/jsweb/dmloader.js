@@ -463,7 +463,8 @@ var Module = {
             Module.canvas.addEventListener("mouseover", Module.cursorEnterFunc);
             Module.canvas.addEventListener("mouseout", Module.cursorLeaveFunc);
 
-            if( params["pointer_lock"] ) {
+            Module.wantPointerLock = params["pointer_lock"];
+            if( Module.wantPointerLock ) {
                 document.prevPointerLockElement = null;
                 Module.canvas.addEventListener('click', Module.onClickRequestPointerLock, true);
                 document.addEventListener('pointerlockchange', Module.onPointerLockChange, false);
@@ -520,6 +521,9 @@ var Module = {
             GLFW.cancelFullScreen();
         } else {
             GLFW.requestFullScreen();
+            if (Module.wantPointerLock) {
+                Module.canvas.requestPointerLock();
+            }
         }
     },
 
