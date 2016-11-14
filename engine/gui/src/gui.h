@@ -875,6 +875,8 @@ namespace dmGui
     Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones);
     Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones);
     dmhash_t GetNodeSpineScene(HScene scene, HNode node);
+    Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id);
+    dmhash_t GetNodeSpineSkin(HScene scene, HNode node);
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
