@@ -90,7 +90,7 @@
   :Ctrl+Left             {:command :prev-word}
   :Alt+Left              {:command :prev-word}
   :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 1}
-  :Ctrl+A                {:command :line-begin}
+  :Ctrl+A                {:command :line-begin-strict}
   :Home                  {:command :line-begin}
   :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 2}
   :Ctrl+E                {:command :line-end}
@@ -114,7 +114,7 @@
   :Shift+Alt+Left        {:command :select-prev-word}
   :Shift+Ctrl+Left       {:command :select-prev-word}
   :Shift+Shortcut+Left   {:command :select-line-begin}
-  :Shift+Ctrl+A          {:command :select-line-begin}
+  :Shift+Ctrl+A          {:command :select-line-begin-strict}
   :Shift+Home            {:command :select-line-begin}
   :Shift+Shortcut+Right  {:command :select-line-end}
   :Shift+Ctrl+E          {:command :select-line-end}
@@ -633,12 +633,15 @@
         line-indentation-len (count (get-indentation (line source-viewer)))]
     (+ line-offset line-indentation-len)))
 
-(defn line-begin [source-viewer select?]
+(defn line-begin [source-viewer {:keys [before-indent select]
+                                 :or {before-indent false
+                                      select false}}]
   (let [line-begin-pos (line-begin-pos source-viewer)
-        next-pos (if (= line-begin-pos (caret source-viewer))
+        next-pos (if (or before-indent
+                         (= line-begin-pos (caret source-viewer)))
                    (line-offset source-viewer)
                    line-begin-pos)]
-    (caret! source-viewer next-pos select?)
+    (caret! source-viewer next-pos select)
     (remember-caret-col source-viewer next-pos)))
 
 (defn line-end-pos [source-viewer]
@@ -651,10 +654,16 @@
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
+(handler/defhandler :line-begin-strict :code-view
+  (enabled? [source-viewer] source-viewer)
+  (run [source-viewer]
+    (line-begin source-viewer {:before-indent true})
+    (state-changes! source-viewer)))
+
 (handler/defhandler :line-begin :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer false)
+    (line-begin source-viewer {:before-indent false})
     (state-changes! source-viewer)))
 
 (handler/defhandler :line-end :code-view
@@ -663,10 +672,16 @@
     (line-end source-viewer false)
     (state-changes! source-viewer)))
 
+(handler/defhandler :select-line-begin-strict :code-view
+  (enabled? [source-viewer] source-viewer)
+  (run [source-viewer]
+    (line-begin source-viewer {:before-indent true :select true})
+    (state-changes! source-viewer)))
+
 (handler/defhandler :select-line-begin :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer true)
+    (line-begin source-viewer {:before-indent false :select true})
     (state-changes! source-viewer)))
 
 (handler/defhandler :select-line-end :code-view
