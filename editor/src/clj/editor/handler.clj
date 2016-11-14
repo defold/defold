@@ -32,10 +32,9 @@
               (mapcat (fn [[fname fargs & fbody]]
                         [(keyword fname) `(fnk ~fargs ~@fbody)]))
               (apply hash-map))]
-    `(swap! *handlers* update [~command ~context]
-            assoc ~qname {:command ~command
-                          :context ~context
-                          :fns ~fns})))
+    `(swap! *handlers* assoc-in [[~command ~context] ~qname] {:command ~command
+                                                              :context ~context
+                                                              :fns ~fns})))
 
 (defn- get-fnk [handler fsym]
   (get-in handler [:fns fsym]))
@@ -52,10 +51,8 @@
 (defn- get-active-handler [command command-context]
   (let [ctx-name (:name command-context)]
     (some (fn [handler]
-            (when (and (= command (:command handler))
-                       (= ctx-name (:context handler)))
-              (when (invoke-fnk handler :active? command-context true)
-                handler)))
+            (when (invoke-fnk handler :active? command-context true)
+              handler))
           (vals (get @*handlers* [command ctx-name])))))
 
 (defn- get-active [command command-contexts user-data]
