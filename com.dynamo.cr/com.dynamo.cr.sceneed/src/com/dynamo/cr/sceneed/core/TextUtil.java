@@ -1,15 +1,24 @@
-package com.dynamo.cr.guied.util;
+package com.dynamo.cr.sceneed.core;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 
-import com.dynamo.cr.guied.ui.TextNodeRenderer.TextLine;
 import com.dynamo.cr.sceneed.core.FontRendererHandle;
 import com.dynamo.render.proto.Font.FontMap;
 
 public class TextUtil {
+
+    public static class TextLine {
+        public TextLine(String text, double width) {
+            this.text = text;
+            this.width = width;
+        }
+
+        public String text;
+        public double width;
+    }
 
     public static class TextMetric {
 

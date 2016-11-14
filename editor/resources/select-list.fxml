@@ -11,10 +11,8 @@
 
 <VBox prefHeight="600.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
-      <Label text="Select item (* to match any string, . to filter file extensions) " />
-      <TextField id="search" />
-      <ListView id="resources" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" styleClass="flat-list-view"/>
-      <Label id="path" />
+      <TextField id="filter" promptText="test" VBox.vgrow="NEVER" />
+      <ListView id="item-list" prefHeight="511.0" prefWidth="476.0" styleClass="flat-list-view" VBox.vgrow="ALWAYS" />
     <HBox maxHeight="-Infinity" maxWidth="+Infinity" minHeight="-Infinity" minWidth="-Infinity">
       <children>
         <HBox fx:id="actionParent" alignment="CENTER">
@@ -25,7 +23,7 @@
         <Pane maxWidth="+Infinity" HBox.hgrow="ALWAYS" />
         <HBox fx:id="okParent" alignment="CENTER">
           <children>
-            <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="Ok" HBox.hgrow="NEVER">
+            <Button id="ok" defaultButton="true" minWidth="80.0" mnemonicParsing="false" text="OK" HBox.hgrow="NEVER">
               <HBox.margin>
                 <Insets left="14.0" />
               </HBox.margin>

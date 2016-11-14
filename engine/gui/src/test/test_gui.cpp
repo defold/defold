@@ -61,6 +61,87 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
+static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color) 
+{
+    mesh_entry.m_Id = id;
+    mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
+    mesh_entry.m_Meshes.m_Count = 1;
+
+    uint32_t vert_count = 3;
+
+    // set vertice position so they match bone positions
+    dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
+    mesh.m_Positions.m_Data = new float[vert_count*3];
+    mesh.m_Positions.m_Count = vert_count*3;
+    mesh.m_Positions.m_Data[0] = 0.0f;
+    mesh.m_Positions.m_Data[1] = 0.0f;
+    mesh.m_Positions.m_Data[2] = 0.0f;
+    mesh.m_Positions.m_Data[3] = 1.0f;
+    mesh.m_Positions.m_Data[4] = 0.0f;
+    mesh.m_Positions.m_Data[5] = 0.0f;
+    mesh.m_Positions.m_Data[6] = 2.0f;
+    mesh.m_Positions.m_Data[7] = 0.0f;
+    mesh.m_Positions.m_Data[8] = 0.0f;
+
+    // data for each vertex (tex coords and normals not used)
+    mesh.m_Texcoord0.m_Data       = new float[vert_count*2];
+    mesh.m_Texcoord0.m_Count      = vert_count*2;
+    mesh.m_Normals.m_Data         = new float[vert_count*3];
+    mesh.m_Normals.m_Count        = vert_count*3;
+
+    mesh.m_Color.m_Data           = new float[vert_count*4];
+    mesh.m_Color.m_Count          = vert_count*4;
+    mesh.m_Color[0]               = color.getX();
+    mesh.m_Color[1]               = color.getY();
+    mesh.m_Color[2]               = color.getZ();
+    mesh.m_Color[3]               = color.getW();
+    mesh.m_Color[4]               = color.getX();
+    mesh.m_Color[5]               = color.getY();
+    mesh.m_Color[6]               = color.getZ();
+    mesh.m_Color[7]               = color.getW();
+    mesh.m_Color[8]               = color.getX();
+    mesh.m_Color[9]               = color.getY();
+    mesh.m_Color[10]              = color.getZ();
+    mesh.m_Color[11]              = color.getW();
+    mesh.m_Indices.m_Data         = new uint32_t[vert_count];
+    mesh.m_Indices.m_Count        = vert_count;
+    mesh.m_Indices.m_Data[0]      = 0;
+    mesh.m_Indices.m_Data[1]      = 1;
+    mesh.m_Indices.m_Data[2]      = 2;
+    mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
+    mesh.m_BoneIndices.m_Count    = vert_count*4;
+    mesh.m_BoneIndices.m_Data[0]  = 0;
+    mesh.m_BoneIndices.m_Data[1]  = 1;
+    mesh.m_BoneIndices.m_Data[2]  = 0;
+    mesh.m_BoneIndices.m_Data[3]  = 0;
+    mesh.m_BoneIndices.m_Data[4]  = 0;
+    mesh.m_BoneIndices.m_Data[5]  = 1;
+    mesh.m_BoneIndices.m_Data[6]  = 0;
+    mesh.m_BoneIndices.m_Data[7]  = 0;
+    mesh.m_BoneIndices.m_Data[8]  = 0;
+    mesh.m_BoneIndices.m_Data[9]  = 1;
+    mesh.m_BoneIndices.m_Data[10] = 0;
+    mesh.m_BoneIndices.m_Data[11] = 0;
+
+    mesh.m_Weights.m_Data         = new float[vert_count*4];
+    mesh.m_Weights.m_Count        = vert_count*4;
+    mesh.m_Weights.m_Data[0]      = 1.0f;
+    mesh.m_Weights.m_Data[1]      = 0.0f;
+    mesh.m_Weights.m_Data[2]      = 0.0f;
+    mesh.m_Weights.m_Data[3]      = 0.0f;
+    mesh.m_Weights.m_Data[4]      = 0.0f;
+    mesh.m_Weights.m_Data[5]      = 1.0f;
+    mesh.m_Weights.m_Data[6]      = 0.0f;
+    mesh.m_Weights.m_Data[7]      = 0.0f;
+    mesh.m_Weights.m_Data[8]      = 0.0f;
+    mesh.m_Weights.m_Data[9]      = 1.0f;
+    mesh.m_Weights.m_Data[10]     = 0.0f;
+    mesh.m_Weights.m_Data[11]     = 0.0f;
+
+    mesh.m_Visible = true;
+    mesh.m_DrawOrder = 0;
+}
+
 static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
 {
     static dmLuaDDF::LuaSource src;
@@ -4152,7 +4233,7 @@ static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton
     }
 }
 
-static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
     dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
     dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
@@ -4188,10 +4269,41 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
     dummy_data->m_AnimationSet = animation_set;
 
     BuildBindPose(dummy_data->m_BindPose, skeleton);
+
+    if(num_dummy_mesh_entries > 0)
+    {
+        mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[num_dummy_mesh_entries];
+        mesh_set->m_MeshEntries.m_Count = num_dummy_mesh_entries;
+    }
+
+    char buf[64];
+    for (int i = 0; i < num_dummy_mesh_entries; ++i)
+    {
+        sprintf(buf, "skin%i", i);
+        CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[i], dmHashString64(buf), Vector4(float(i)/float(num_dummy_mesh_entries)));
+    }
 }
 
-static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
+    if (num_dummy_mesh_entries > 0)
+    {
+        for (int i = 0; i < num_dummy_mesh_entries; ++i)
+        {
+            dmRig::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
+            dmRig::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
+            delete [] mesh.m_Normals.m_Data;
+            delete [] mesh.m_BoneIndices.m_Data;
+            delete [] mesh.m_Weights.m_Data;
+            delete [] mesh.m_Indices.m_Data;
+            delete [] mesh.m_Color.m_Data;
+            delete [] mesh.m_Texcoord0.m_Data;
+            delete [] mesh.m_Positions.m_Data;
+            delete [] mesh_entry.m_Meshes.m_Data;
+        }
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
+    }
+
     delete dummy_data->m_BindPose;
     delete [] dummy_data->m_Skeleton->m_Bones.m_Data;
     delete dummy_data->m_Skeleton;
@@ -4233,6 +4345,58 @@ TEST_F(dmGuiTest, SpineNode)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
 
     DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiTest, SpineNodeSetSkin)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+    uint32_t num_dummy_mesh_entries = 2;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+    CreateSpineDummyData(dummy_data, num_dummy_mesh_entries);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy-skin"), dmHashString64((const char*)""), true));
+
+    // set skin
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineSkin(m_Scene, node, dmHashString64("skin1")));
+    // verify
+    ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
+
+    DeleteSpineDummyData(dummy_data, num_dummy_mesh_entries);
+}
+
+TEST_F(dmGuiTest, SpineNodeGetSkin)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+    uint32_t num_dummy_mesh_entries = 2;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+    CreateSpineDummyData(dummy_data, num_dummy_mesh_entries);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // get skin
+    ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
+
+    DeleteSpineDummyData(dummy_data, num_dummy_mesh_entries);
 }
 
 TEST_F(dmGuiTest, SpineNodeGetBoneNodes)

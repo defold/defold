@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <dlib/log.h>
 
-#include "../rig.h"
+#include <../rig.h>
 
 #define RIG_EPSILON 0.0001f
 
@@ -25,7 +25,8 @@ protected:
     }
 };
 
-static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color) {
+static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color) 
+{
     mesh_entry.m_Id = id;
     mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
     mesh_entry.m_Meshes.m_Count = 1;

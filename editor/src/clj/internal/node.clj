@@ -74,6 +74,9 @@
   (deref [this]
     (node-type-resolve k)))
 
+(defn isa-node-type? [t]
+  (instance? NodeTypeRef t))
+
 (defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order]
   NodeType
   Type

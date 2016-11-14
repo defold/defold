@@ -34,8 +34,17 @@ extern "C"
 
 namespace dmScript
 {
+
+const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
+
+union SaveLoadBuffer
+{
+    uint32_t m_alignment; // This alignment is required for js-web
+    char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
+} g_saveload;
+
 #define LIB_NAME "sys"
-    
+
     /*# System API documentation
      *
      * Functions and messages for using system resources, controlling the engine
@@ -44,8 +53,6 @@ namespace dmScript
      * @name System
      * @namespace sys
      */
-
-    const uint32_t MAX_BUFFER_SIZE =  128 * 1024;
 
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
@@ -85,10 +92,9 @@ namespace dmScript
 #if !defined(__EMSCRIPTEN__)
     int Sys_Save(lua_State* L)
     {
-        char buffer[MAX_BUFFER_SIZE];
         luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
-        
+        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
+
         const char* filename = luaL_checkstring(L, 1);
         char tmp_filename[DMPATH_MAX_PATH];
         // The counter and hash are there to make the files unique enough to avoid that the user
@@ -104,7 +110,7 @@ namespace dmScript
         FILE* file = fopen(tmp_filename, "wb");
         if (file != 0x0)
         {
-            bool result = fwrite(buffer, 1, n_used, file) == n_used;
+            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
             result = (fclose(file) == 0) && result;
             if (result)
             {
@@ -129,14 +135,13 @@ namespace dmScript
 
     int Sys_Save(lua_State* L)
     {
-        char buffer[MAX_BUFFER_SIZE];
         const char* filename = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
+        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
         FILE* file = fopen(filename, "wb");
         if (file != 0x0)
         {
-            bool result = fwrite(buffer, 1, n_used, file) == n_used;
+            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
             result = (fclose(file) == 0) && result;
             if (result)
             {
@@ -160,8 +165,6 @@ namespace dmScript
      */
     int Sys_Load(lua_State* L)
     {
-        //Char arrays function stack are not guaranteed to be 4byte aligned in linux. An union with an int add this guarantee.
-        union {uint32_t dummy_align; char buffer[MAX_BUFFER_SIZE];};
         const char* filename = luaL_checkstring(L, 1);
         FILE* file = fopen(filename, "rb");
         if (file == 0x0)
@@ -169,13 +172,13 @@ namespace dmScript
             lua_newtable(L);
             return 1;
         }
-        fread(buffer, 1, sizeof(buffer), file);
+        fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
         bool file_size_ok = feof(file) != 0;
         bool result = ferror(file) == 0 && file_size_ok;
         fclose(file);
         if (result)
         {
-            PushTable(L, buffer);
+            PushTable(L, g_saveload.m_buffer);
             return 1;
         }
         else
@@ -515,10 +518,10 @@ namespace dmScript
         uint32_t count = 0;
         dmSocket::GetIfAddresses(addresses, max_count, &count);
         lua_createtable(L, count, 0);
-        for (uint32_t i = 0; i < count; ++i) 
+        for (uint32_t i = 0; i < count; ++i)
         {
             dmSocket::IfAddr* ifa = &addresses[i];
-            
+
             lua_newtable(L);
 
             lua_pushliteral(L, "name");
@@ -526,13 +529,13 @@ namespace dmScript
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "address");
-            if (ifa->m_Flags & dmSocket::FLAGS_INET) 
+            if (ifa->m_Flags & dmSocket::FLAGS_INET)
             {
                 char* ip = dmSocket::AddressToIPString(ifa->m_Address);
                 lua_pushstring(L, ip);
                 free(ip);
-            } 
-            else 
+            }
+            else
             {
                 lua_pushnil(L);
             }
@@ -551,12 +554,12 @@ namespace dmScript
                         ifa->m_MacAddress[4],
                         ifa->m_MacAddress[5]);
                 lua_pushstring(L, tmp);
-            } 
+            }
             else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
             {
                 lua_pushstring(L, "02:00:00:00:00:00");
             }
-            else 
+            else
             {
                 lua_pushnil(L);
             }

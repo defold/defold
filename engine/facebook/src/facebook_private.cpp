@@ -8,7 +8,7 @@ void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, in
 {
     if (*_callback != LUA_NOREF)
     {
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, *_callback);
         lua_rawgeti(L, LUA_REGISTRYINDEX, *_self);
@@ -79,7 +79,7 @@ int Facebook_LoginWithPublishPermissions(lua_State* L)
         return luaL_error(L, "Facebook module has not been initialized, is facebook.appid set in game.project?");
     }
 
-    DM_LUA_STACK_CHECK(L);
+    DM_LUA_STACK_CHECK(L, 0);
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TNUMBER);
     luaL_checktype(L, 3, LUA_TFUNCTION);
@@ -120,7 +120,7 @@ int Facebook_LoginWithReadPermissions(lua_State* L)
         return luaL_error(L, "Facebook module has not been initialized, is facebook.appid set in game.project?");
     }
 
-    DM_LUA_STACK_CHECK(L);
+    DM_LUA_STACK_CHECK(L, 0);
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
 

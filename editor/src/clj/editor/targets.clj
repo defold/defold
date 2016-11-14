@@ -242,3 +242,12 @@
     (ui/on-closed! stage (fn [_]
                            (remove-watch event-log :dialog)))
     (ui/show! stage)))
+
+(ui/extend-menu ::menubar :editor.defold-project/project-end
+                [{:label "Target"
+                  :on-submenu-open update!
+                  :command :target}
+                 {:label "Enter Target IP"
+                  :command :target-ip}
+                 {:label "Target Discovery Log"
+                  :command :target-log}])

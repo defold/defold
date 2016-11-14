@@ -1,5 +1,6 @@
 (ns editor.app-view
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
@@ -15,6 +16,10 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.graph-util :as gu]
+            [editor.util :as util]
+            [editor.targets :as targets]
+            [editor.build-errors-view :as build-errors-view]
+            [editor.hot-reload :as hot-reload]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
@@ -83,17 +88,17 @@
 (defn- on-tabs-changed [app-view]
   (invalidate app-view :open-resources))
 
-(handler/defhandler :move-tool :global
+(handler/defhandler :move-tool :workbench
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
   (state [app-view] (= (g/node-value app-view :active-tool) :move)))
 
-(handler/defhandler :scale-tool :global
+(handler/defhandler :scale-tool :workbench
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :scale)))
 
-(handler/defhandler :rotate-tool :global
+(handler/defhandler :rotate-tool :workbench
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
@@ -117,8 +122,42 @@
 
 (handler/defhandler :quit :global
   (enabled? [] true)
-  (run [project ^Stage main-stage]
-    (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST))))
+  (run []
+    (let [^Stage main-stage (ui/main-stage)]
+      (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
+
+(handler/defhandler :target :global
+  (run [user-data prefs]
+    (when user-data
+      (prefs/set-prefs prefs "last-target" user-data)))
+  (state [user-data prefs]
+         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
+           (= user-data last-target)))
+  (options [user-data prefs]
+           (when-not user-data
+             (let [targets     (targets/get-targets)
+                   last-target (when-let [lt (prefs/get-prefs prefs "last-target" nil)]
+                                 [lt])]
+               (mapv (fn [target]
+                       (let [[_ _ ip] (re-matches #"^(http://)([\w\.]+)(:)(.*)$" (:url target))]
+                         {:label     (format "%s (%s)" (:name target) ip)
+                          :command   :target
+                          :check     true
+                          :user-data target}))
+                     (distinct (concat last-target targets)))))))
+
+(handler/defhandler :target-ip :global
+  (run [prefs]
+    (ui/run-later
+     (when-let [ip (dialogs/make-target-ip-dialog)]
+       (let [url (format "http://%s:8001" ip)]
+         (prefs/set-prefs prefs "last-target" {:name "Manual IP"
+                                               :url  url})
+         (ui/invalidate-menus!))))))
+
+(handler/defhandler :target-log :global
+  (run []
+    (ui/run-later (targets/make-target-log-dialog))))
 
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x      (.getX stage)
@@ -126,7 +165,7 @@
                  :width  (.getWidth stage)
                  :height (.getHeight stage)}]
     (prefs/set-prefs prefs prefs-window-dimensions dims)))
-  
+
 (defn restore-window-dimensions [^Stage stage prefs]
   (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
     (.setX stage (:x dims))
@@ -134,28 +173,36 @@
     (.setWidth stage (:width dims))
     (.setHeight stage (:height dims))))
 
-(defn- splits [^Stage stage]
-  (let [root (.getRoot (.getScene stage))]
-    [(.lookup root "#main-split")
-     (.lookup root "#center-split")
-     (.lookup root "#right-split")
-     (.lookup root "#assets-split")]))
+(def ^:private legacy-split-ids ["main-split"
+                                 "center-split"
+                                 "right-split"
+                                 "assets-split"])
 
-(defn store-split-positions [^Stage stage prefs]
-  (let [div-pos (map (fn [^SplitPane sp] (.getDividerPositions sp)) (splits stage))]
+(def ^:private split-ids ["main-split"
+                          "workbench-split"
+                          "center-split"
+                          "right-split"
+                          "assets-split"])
+
+(defn store-split-positions! [^Stage stage prefs]
+  (let [^Node root (.getRoot (.getScene stage))
+        controls (ui/collect-controls root split-ids)
+        div-pos (into {} (map (fn [[id ^SplitPane sp]] [id (.getDividerPositions sp)]) controls))]
     (prefs/set-prefs prefs prefs-split-positions div-pos)))
 
-(defn restore-split-positions [^Stage stage prefs]
+(defn restore-split-positions! [^Stage stage prefs]
   (when-let [div-pos (prefs/get-prefs prefs prefs-split-positions nil)]
-    (doall (map (fn [^SplitPane sp pos]
-                  (when (and sp pos)
-                    (.setDividerPositions sp (into-array Double/TYPE pos))))
-                (splits stage) div-pos))))
+    (let [^Node root (.getRoot (.getScene stage))
+          controls (ui/collect-controls root split-ids)
+          div-pos (if (vector? div-pos)
+                    (zipmap (map keyword legacy-split-ids) div-pos)
+                    div-pos)]
+      (doseq [[k pos] div-pos
+              :let [^SplitPane sp (get controls k)]
+              :when sp]
+        (.setDividerPositions sp (into-array Double/TYPE pos))))))
 
-(handler/defhandler :new :global
-  (run [] (prn "NEW NOW!")))
-
-(handler/defhandler :open :global
+(handler/defhandler :open-project :global
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
@@ -186,14 +233,33 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
+(defn- build-project [project build-errors-view]
+  (let [build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+                       :render-error! (fn [errors]
+                                        (ui/run-later
+                                          (build-errors-view/update-build-errors
+                                            build-errors-view
+                                            errors)))}]
+    (project/build-and-save-project project build-options)))
+
+(handler/defhandler :build :global
+  (enabled? [] (not @project/ongoing-build-save?))
+  (run [workspace project prefs web-server build-errors-view]
+    (let [build (build-project project build-errors-view)]
+      (when (and (future? build) @build)
+        (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
+              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                (engine/reboot (:url target) local-url)))
+            (engine/launch prefs workspace (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
             (g/node-value app-view :active-resource))
   (run [project app-view prefs build-errors-view]
     (when-let [resource (g/node-value app-view :active-resource)]
-      (let [build (project/build-and-save-project project build-errors-view)]
+      (let [build (build-project project build-errors-view)]
         (when (and (future? build) @build)
-            (engine/reload-resource (:url (project/get-selected-target prefs)) resource))))))
+            (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -247,10 +313,10 @@
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
-                  :children [{:label "New"
+                  :children [{:label "New..."
                               :id ::new
                               :acc "Shortcut+N"
-                              :command :new}
+                              :command :new-file}
                              {:label "Open..."
                               :id ::open
                               :acc "Shortcut+O"
@@ -313,7 +379,9 @@
                               :command :move-up}
                              {:label "Move Down"
                               :acc "Alt+DOWN"
-                              :command :move-down}]}
+                              :command :move-down}
+                             {:label :separator
+                              :id ::edit-end}]}
                  {:label "Help"
                   :children [{:label "Profiler"
                               :children [{:label "Measure"
@@ -348,7 +416,7 @@
                   :command :close-all}])
 
 (defrecord DummySelectionProvider []
-  workspace/SelectionProvider
+  handler/SelectionProvider
   (selection [this] []))
 
 (defn- make-title
@@ -422,7 +490,7 @@
                            :tab       tab})
         view       (make-view-fn view-graph parent resource-node opts)]
     (ui/user-data! tab ::view view)
-    (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
+    (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (ui/register-tab-context-menu tab ::tab-menu)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
@@ -453,11 +521,72 @@
          (when-let [focus (:focus-fn view-type)]
            (focus (ui/user-data tab ::view) opts))
          (project/select! project [resource-node]))
-       (let [path (resource/abs-path resource)]
+       (let [^String path (or (resource/abs-path resource)
+                              (resource/temp-path resource))]
          (try
            (.open (Desktop/getDesktop) (File. path))
            (catch Exception _
              (dialogs/make-alert-dialog (str "Unable to open external editor for " path)))))))))
+
+(defn- selection->resource-files [selection]
+  (when-let [resources (handler/adapt-every selection resource/Resource)]
+    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
+
+(defn- selection->single-resource-file [selection]
+  (when-let [r (handler/adapt-single selection resource/Resource)]
+    (when (= :file (resource/source-type r))
+      r)))
+
+(handler/defhandler :open :global
+  (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
+  (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->resource-files selection))))
+  (run [selection app-view workspace project user-data]
+       (doseq [resource (:resources user-data (selection->resource-files selection))]
+         (open-resource app-view workspace project resource))))
+
+(handler/defhandler :open-as :global
+  (active? [selection] (selection->single-resource-file selection))
+  (enabled? [selection user-data] (resource/exists? (selection->single-resource-file selection)))
+  (run [selection app-view workspace project user-data]
+       (let [resource (selection->single-resource-file selection)]
+         (open-resource app-view workspace project resource (when-let [view-type (:selected-view-type user-data)]
+                                                              {:selected-view-type view-type}))))
+  (options [workspace selection user-data]
+           (when-not user-data
+             (let [resource (selection->single-resource-file selection)
+                   resource-type (resource/resource-type resource)]
+               (map (fn [vt]
+                      {:label     (or (:label vt) "External Editor")
+                       :command   :open-as
+                       :user-data {:selected-view-type vt}})
+                    (:view-types resource-type))))))
+
+(handler/defhandler :show-in-desktop :global
+  (active? [selection] (selection->single-resource-file selection))
+  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
+                          (and (resource/abs-path r)
+                               (resource/exists? r))))
+  (run [selection] (when-let [r (selection->single-resource-file selection)]
+                     (let [f (File. (resource/abs-path r))]
+                       (.open (Desktop/getDesktop) (util/to-folder f))))))
+
+(handler/defhandler :referencing-files :global
+  (active? [selection] (selection->single-resource-file selection))
+  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
+                          (and (resource/abs-path r)
+                               (resource/exists? r))))
+  (run [selection app-view workspace project] (when-let [r (selection->single-resource-file selection)]
+                                                (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "refs:%s" (resource/proj-path r))})]
+                                                  (open-resource app-view workspace project resource)))))
+
+(handler/defhandler :dependencies :global
+  (active? [selection] (selection->single-resource-file selection))
+  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
+                          (and (resource/abs-path r)
+                               (resource/exists? r))))
+  (run [selection app-view workspace project] (when-let [r (selection->single-resource-file selection)]
+                                                (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "deps:%s" (resource/proj-path r))})]
+                                                  (open-resource app-view workspace project resource)))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
@@ -487,8 +616,11 @@
                               (g/delete-graph! graph))))))))))
 
 (defn- make-resource-dialog [workspace project app-view]
-  (when-let [resource (first (dialogs/make-resource-dialog workspace {:tooltip-gen (partial gen-tooltip workspace project app-view)}))]
+  (when-let [resource (first (dialogs/make-resource-dialog workspace project {:tooltip-gen (partial gen-tooltip workspace project app-view)}))]
     (open-resource app-view workspace project resource)))
+
+(handler/defhandler :select-items :global
+  (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
 (handler/defhandler :open-asset :global
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))

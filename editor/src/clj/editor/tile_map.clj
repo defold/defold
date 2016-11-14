@@ -119,6 +119,20 @@
 ;;--------------------------------------------------------------------
 ;; rendering
 
+(shader/defshader selection-vert
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (uniform mat4 world)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix world position))))
+
+(shader/defshader selection-frag
+  (defn void main []
+    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
+
+(def selection-shader (shader/make-shader ::selection-shader selection-vert selection-frag))
+
+
 (vtx/defvertex pos-uv-vtx
   (vec3 position)
   (vec2 texcoord0))
@@ -147,11 +161,11 @@
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
-            {:keys [node-id vbuf shader]} user-data]
+            {:keys [node-id vbuf]} user-data]
         (when vbuf
-          (let [vertex-binding (vtx/use-with node-id vbuf shader)]
-            (gl/with-gl-bindings gl render-args [shader vertex-binding]
-              (shader/set-uniform shader gl "world" world-transform)
+          (let [vertex-binding (vtx/use-with node-id vbuf selection-shader)]
+            (gl/with-gl-bindings gl render-args [selection-shader vertex-binding]
+              (shader/set-uniform selection-shader gl "world" world-transform)
               (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))))
 
 
@@ -960,11 +974,17 @@
 
 ;; handlers/menu
 
+(defn- selection->tile-map [selection]
+  (handler/adapt-single selection TileMapNode))
+
+(defn- selection->layer [selection]
+  (handler/adapt-single selection LayerNode))
+
 (defn tile-map-node
   [selection]
-  (or (handler/get-single-selection selection TileMapNode)
-      (when-let [layer-node (handler/get-single-selection selection LayerNode)]
-        (core/scope layer-node))))
+  (or (selection->tile-map selection)
+      (some-> (selection->layer selection)
+        core/scope)))
 
 (defn- gen-unique-name
   [basename existing-names]
@@ -989,11 +1009,10 @@
       (g/operation-label "Add layer")
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data] "Add layer")
-  (active? [selection] (some->> (first selection) (g/node-instance? TileMapNode)))
-  (run [selection user-data] (add-layer-handler (first selection))))
-
+  (active? [selection] (selection->tile-map selection))
+  (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
 
 (defn- erase-tool-handler
   [tile-map-node]
@@ -1001,9 +1020,9 @@
     (g/transact
      (g/set-property tool-controller :brush erase-brush)))  )
 
-(handler/defhandler :erase-tool :global
+(handler/defhandler :erase-tool :workbench
   (label [user-data] "Select Eraser")
-  (enabled? [selection] (some->> (single selection) (g/node-instance? LayerNode)))
+  (enabled? [selection] (selection->layer selection))
   (run [selection] (erase-tool-handler (tile-map-node selection))))
 
 
@@ -1013,18 +1032,17 @@
     (g/transact
      (g/update-property tool-controller :mode (toggler :palette :editor)))))
 
-(handler/defhandler :tile-map-palette :global
-  (enabled? [selection] (when-let [node (tile-map-node selection)]
-                          (g/node-value node :tile-source-resource)))
+(handler/defhandler :tile-map-palette :workbench
+  (active? [selection] (or (selection->tile-map selection)
+                           (selection->layer selection)))
+  (enabled? [selection] (some-> (tile-map-node selection)
+                          (g/node-value :tile-source-resource)))
   (run [selection] (tile-map-palette-handler (tile-map-node selection))))
 
-(ui/extend-menu ::menubar :editor.app-view/edit
+(ui/extend-menu ::menubar :editor.scene/scene-end
                 [{:label    "Tile Map"
                   :id       ::tile-map
-                  :children [{:label   "Add Layer"
-                              :acc     "Shortcut+I"
-                              :command :add}
-                             {:label   "Select Eraser"
+                  :children [{:label   "Select Eraser"
                               :acc     "Shortcut+E"
                               :command :erase-tool}
                              {:label   "Show Palette"
