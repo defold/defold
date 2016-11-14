@@ -31,13 +31,12 @@
            [java.io PushbackReader]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
-           [org.apache.commons.io FilenameUtils]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
-(def unknown-icon "icons/32/Icons_29-AT-Unkown.png") ; spelling...
+(def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (defn- gen-ref-ddf
   ([id position rotation path]
@@ -59,8 +58,9 @@
    :data (or (:content save-data) "")})
 
 (defn- wrap-if-raw-sound [_node-id target]
-  (let [source-path (resource/proj-path (:resource (:resource target)))
-        ext (FilenameUtils/getExtension source-path)]
+  (let [resource (:resource (:resource target))
+        source-path (resource/proj-path resource)
+        ext (resource/ext resource)]
     (if (sound/supported-audio-formats ext)
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
@@ -95,7 +95,7 @@
                                       (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id)))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
-            (dynamic read-only? (g/always true)))
+            (dynamic read-only? (g/constantly true)))
 
   (display-order [:id :url :path scene/SceneNode])
 
@@ -110,11 +110,15 @@
 
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id node-outline-label id source-outline source-properties]
+    (g/fnk [_node-id node-outline-label id source-outline source-properties source-resource]
       (let [source-outline (or source-outline {:icon unknown-icon})
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
-        (assoc source-outline :node-id _node-id :label node-outline-label
-               :outline-overridden? overridden?))))
+        (-> source-outline
+          (assoc :node-id _node-id
+                 :label node-outline-label
+                 :outline-overridden? overridden?)
+          (cond->
+            (and source-resource (resource/path source-resource)) (assoc :link source-resource))))))
   (output node-outline-label g/Str (gu/passthrough id))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
@@ -349,17 +353,20 @@
         (g/operation-label "Add Component")
         (project/select project [comp-node])))))
 
-(defn add-component-handler [workspace go-id]
+(defn add-component-handler [workspace project go-id]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
                                          (workspace/get-resource-types workspace :embeddable)))]
-    (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
+    (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource))))
 
-(handler/defhandler :add-from-file :global
-  (active? [selection] (and (= 1 (count selection)) (g/node-instance? GameObjectNode (first selection))))
+(defn- selection->game-object [selection]
+  (handler/adapt-single selection GameObjectNode))
+
+(handler/defhandler :add-from-file :workbench
+  (active? [selection] (selection->game-object selection))
   (label [] "Add Component File")
-  (run [workspace selection]
-       (add-component-handler workspace (first selection))))
+  (run [workspace project selection]
+       (add-component-handler workspace project (selection->game-object selection))))
 
 (defn- add-embedded-component [self project type data id position rotation select?]
   (let [graph (g/node-id->graph-id self)
@@ -391,7 +398,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0 1] true)))))
+      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] true)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -399,9 +406,15 @@
     (let [rt (:resource-type user-data)]
       (or (:label rt) (:ext rt)))))
 
+(defn embeddable-component-resource-types [workspace]
+  (->> (workspace/get-resource-types workspace :component)
+       (filter (fn [resource-type]
+                 (and (not (contains? (:tags resource-type) :non-embeddable))
+                      (workspace/has-template? resource-type))))))
+
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
-    (->> (remove (comp :non-embeddable :tags) (workspace/get-resource-types workspace :component))
+    (->> (embeddable-component-resource-types workspace)
          (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                               :icon (:icon res-type)
                               :command :add
@@ -409,12 +422,12 @@
          (sort-by :label)
          vec)))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data] (add-embedded-component-label user-data))
-  (active? [selection] (and (= 1 (count selection)) (g/node-instance? GameObjectNode (first selection))))
+  (active? [selection] (selection->game-object selection))
   (run [user-data] (add-embedded-component-handler user-data))
   (options [selection user-data]
-           (let [self (first selection)
+           (let [self (selection->game-object selection)
                  workspace (:workspace (g/node-value self :resource))]
              (add-embedded-component-options self workspace user-data))))
 

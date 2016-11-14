@@ -75,6 +75,8 @@ class FacebookJNI {
 
     private native void onRequestPublish(long userData, String error);
 
+    private native void onLoginWithPermissions(long userData, int state, String error);
+
     private native void onDialogComplete(long userData, String results, String error);
 
     private native void onIterateMeEntry(long userData, String key, String value);
@@ -189,6 +191,46 @@ class FacebookJNI {
 
     public String getAccessToken() {
         return this.facebook.getAccessToken();
+    }
+
+    public void loginWithPublishPermissions(final long userData, final int audience, final String permissions) {
+        this.activity.runOnUiThread(new Runnable() {
+
+            @Override
+            public void run() {
+                Facebook.LoginCallback callback = new Facebook.LoginCallback() {
+
+                    @Override
+                    public void onDone(final int state, final String error) {
+                        onLoginWithPermissions(userData, state, error);
+                    }
+
+                };
+
+                facebook.loginWithPublishPermissions(permissions.split(","), audience, callback);
+            }
+
+        });
+    }
+
+    public void loginWithReadPermissions(final long userData, final String permissions) {
+        this.activity.runOnUiThread(new Runnable() {
+
+            @Override
+            public void run() {
+                Facebook.LoginCallback callback = new Facebook.LoginCallback() {
+
+                    @Override
+                    public void onDone(final int state, final String error) {
+                        onLoginWithPermissions(userData, state, error);
+                    }
+
+                };
+
+                facebook.loginWithReadPermissions(permissions.split(","), callback);
+            }
+
+        });
     }
 
     public void requestReadPermissions(final long userData, final String permissions) {

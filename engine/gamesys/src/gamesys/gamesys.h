@@ -29,6 +29,17 @@ namespace dmGameSystem
     /// Config key to use for tweaking maximum number of collection factories
     extern const char* COLLECTION_FACTORY_MAX_COUNT_KEY;
 
+    struct LabelContext
+    {
+        LabelContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        dmRender::HRenderContext    m_RenderContext;
+        uint32_t                    m_MaxLabelCount;
+        uint32_t                    m_Subpixels : 1;
+    };
+
     struct PhysicsContext
     {
         union
@@ -166,8 +177,8 @@ namespace dmGameSystem
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   SpineModelContext* spine_model_context,
-                                                  ModelContext* model_context
-                                                  );
+                                                  ModelContext* model_context,
+                                                  LabelContext* label_context);
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);

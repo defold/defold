@@ -53,6 +53,7 @@
             <proto dir="../../engine/gamesys/proto/" file="physics_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sound_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sprite_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="label_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="texture_set_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="spine_ddf.proto"/>

@@ -45,6 +45,7 @@ import com.dynamo.gui.proto.Gui;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.label.proto.Label.LabelDesc;
 import com.dynamo.model.proto.ModelProto.ModelDesc;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
@@ -95,6 +96,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".materialc", MaterialDesc.class);
         extToMessageClass.put(".fontc", FontMap.class);
         extToMessageClass.put(".soundc", SoundDesc.class);
+        extToMessageClass.put(".labelc", LabelDesc.class);
         extToMessageClass.put(".modelc", ModelDesc.class);
         extToMessageClass.put(".input_bindingc", InputBinding.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);

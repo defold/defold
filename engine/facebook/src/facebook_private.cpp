@@ -1,6 +1,56 @@
 
 #include "facebook_private.h"
 #include "facebook_analytics.h"
+#include <dlib/log.h>
+#include <dlib/dstrings.h>
+
+void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, int status)
+{
+    if (*_callback != LUA_NOREF)
+    {
+        DM_LUA_STACK_CHECK(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, *_callback);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, *_self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (dmScript::IsInstanceValid(L))
+        {
+            lua_newtable(L);
+
+            if (error != NULL) {
+                lua_pushstring(L, "error");
+                lua_pushstring(L, error);
+                lua_rawset(L, -3);
+            }
+
+            lua_pushstring(L, "status");
+            lua_pushnumber(L, status);
+            lua_rawset(L, -3);
+
+            if (lua_pcall(L, 2, LUA_MULTRET, 0) != 0)
+            {
+                dmLogError("Error running facebook callback: %s", lua_tostring(L, -1));
+                lua_pop(L, 1);
+            }
+
+            dmScript::Unref(L, LUA_REGISTRYINDEX, *_callback);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, *_self);
+            *_callback = LUA_NOREF;
+            *_self = LUA_NOREF;
+        }
+        else
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+        }
+    }
+    else
+    {
+        dmLogError("No callback set for facebook");
+    }
+}
 
 namespace dmFacebook {
 
@@ -17,8 +67,89 @@ static const luaL_reg Facebook_methods[] =
     {"enable_event_usage", Facebook_EnableEventUsage},
     {"disable_event_usage", Facebook_DisableEventUsage},
     {"show_dialog", Facebook_ShowDialog},
+    {"login_with_read_permissions", Facebook_LoginWithReadPermissions},
+    {"login_with_publish_permissions", Facebook_LoginWithPublishPermissions},
     {0, 0}
 };
+
+int Facebook_LoginWithPublishPermissions(lua_State* L)
+{
+    if (!PlatformFacebookInitialized())
+    {
+        return luaL_error(L, "Facebook module has not been initialized, is facebook.appid set in game.project?");
+    }
+
+    DM_LUA_STACK_CHECK(L);
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_checktype(L, 2, LUA_TNUMBER);
+    luaL_checktype(L, 3, LUA_TFUNCTION);
+
+    char* permissions[128];
+    int permission_count = luaTableToCArray(L, 1, permissions,
+        sizeof(permissions) / sizeof(permissions[0]));
+    if (permission_count == -1)
+    {
+        return luaL_error(L, "Facebook permissions must be strings");
+    }
+
+    int audience = luaL_checkinteger(L, 2);
+
+    lua_pushvalue(L, 3);
+    int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    int context = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    lua_State* thread = dmScript::GetMainThread(L);
+
+    PlatformFacebookLoginWithPublishPermissions(
+        L, (const char**) permissions, permission_count, audience, callback, context, thread);
+
+    for (int i = 0; i < permission_count; ++i)
+    {
+        free(permissions[i]);
+    }
+
+    return 0;
+}
+
+int Facebook_LoginWithReadPermissions(lua_State* L)
+{
+    if (!PlatformFacebookInitialized())
+    {
+        return luaL_error(L, "Facebook module has not been initialized, is facebook.appid set in game.project?");
+    }
+
+    DM_LUA_STACK_CHECK(L);
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+
+    char* permissions[128];
+    int permission_count = luaTableToCArray(L, 1, permissions,
+        sizeof(permissions) / sizeof(permissions[0]));
+    if (permission_count == -1)
+    {
+        return luaL_error(L, "Facebook permissions must be strings");
+    }
+
+    lua_pushvalue(L, 2);
+    int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    int context = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    lua_State* thread = dmScript::GetMainThread(L);
+
+    PlatformFacebookLoginWithReadPermissions(
+        L, (const char**) permissions, permission_count, callback, context, thread);
+
+    for (int i = 0; i < permission_count; ++i)
+    {
+        free(permissions[i]);
+    }
+
+    return 0;
+}
 
 void LuaInit(lua_State* L)
 {

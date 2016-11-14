@@ -3,9 +3,12 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.ui :as ui]
+            [editor.handler :as handler]
             [editor.code :as code]
+            [editor.core :as core]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.defold-project :as project]
             [service.log :as log]
             [clojure.string :as str])
   (:import [java.io File]
@@ -16,7 +19,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button ProgressBar TextField TreeView TreeItem ListView SelectionMode]
+           [javafx.scene.control Button TextField TreeView TreeItem ListView SelectionMode]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.web WebView]
@@ -73,7 +76,7 @@
 
 (defn make-alert-dialog [message]
   (let [root     ^Parent (ui/load-fxml "alert.fxml")
-        stage    (Stage.)
+        stage    (ui/make-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "ok"])]
     (observe-focus stage)
@@ -87,7 +90,7 @@
 
 (defn make-confirm-dialog [message]
   (let [root     ^Parent (ui/load-fxml "confirm.fxml")
-        stage    (Stage.)
+        stage    (ui/make-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "ok" "cancel"])
         result   (atom false)]
@@ -108,7 +111,7 @@
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
         dialog-root ^Parent (ui/load-fxml dialog-fxml)
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["error" "ok" "dialog-area" "error-group" "progress-bar"])
 
@@ -156,69 +159,161 @@
 
       (assoc dialog :refresh refresh))))
 
-(defn make-resource-dialog [workspace options]
-  (let [root         ^Parent (ui/load-fxml "resource-dialog.fxml")
-        stage        (Stage.)
-        scene        (Scene. root)
-        controls     (ui/collect-controls root ["resources" "ok" "search"])
-        return       (atom nil)
-        exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
+(handler/defhandler ::confirm :dialog
+  (run [^Stage stage selection]
+       (ui/user-data! stage ::selected-items selection)
+       (ui/close! stage)))
+
+(handler/defhandler ::close :dialog
+  (run [^Stage stage]
+       (ui/close! stage)))
+
+(handler/defhandler ::focus :dialog
+  (active? [user-data] (if-let [active-fn (:active-fn user-data)]
+                         (active-fn nil)
+                         true))
+  (run [^Stage stage user-data]
+       (when-let [^Node node (:node user-data)]
+         (ui/request-focus! node))))
+
+(defn- default-filter-fn [cell-fn text items]
+  (let [text (string/lower-case text)
+        str-fn (comp string/lower-case :text cell-fn)]
+    (filter (fn [item] (string/starts-with? (str-fn item) text)) items)))
+
+(defn make-select-list-dialog [items options]
+  (let [^Parent root (ui/load-fxml "select-list.fxml")
+        scene (Scene. root)
+        ^Stage stage (doto (ui/make-stage)
+                       (observe-focus)
+                       (.initOwner (ui/main-stage))
+                       (.initModality Modality/WINDOW_MODAL)
+                       (ui/title! (or (:title options) "Select Item"))
+                       (.setScene scene))
+        controls (ui/collect-controls root ["filter" "item-list" "ok"])
+        ^TextField filter-field (:filter controls)
+        filter-value (:filter options "")
+        cell-fn (:cell-fn options identity)
+        ^ListView item-list (doto (:item-list controls)
+                              (ui/cell-factory! cell-fn)
+                              (ui/selection-mode! (:selection options :single)))]
+    (doto item-list
+      (ui/observe-list (ui/items item-list)
+                       (fn [_ items]
+                         (when (not (empty? items))
+                           (ui/select-index! item-list 0))))
+      (ui/items! (if (str/blank? filter-value) items [])))
+    (let [filter-fn (or (:filter-fn options) (partial default-filter-fn cell-fn))]
+      (ui/observe (.textProperty filter-field)
+                  (fn [_ _ ^String new]
+                    (let [filtered-items (filter-fn new items)]
+                      (ui/items! item-list filtered-items)))))
+    (doto filter-field
+      (.setText filter-value)
+      (.setPromptText (:prompt options "")))
+
+    (ui/context! root :dialog {:stage stage} item-list)
+    (ui/bind-action! (:ok controls) ::confirm)
+    (ui/bind-double-click! item-list ::confirm)
+    (ui/bind-keys! root {KeyCode/ENTER ::confirm
+                         KeyCode/ESCAPE ::close
+                         KeyCode/DOWN [::focus {:active-fn (fn [_] (and (seq (ui/items item-list))
+                                                                        (ui/focus? filter-field)))
+                                                :node item-list}]
+                         KeyCode/UP [::focus {:active-fn (fn [_] (= 0 (.getSelectedIndex (.getSelectionModel item-list))))
+                                              :node filter-field}]})
+
+    (ui/show-and-wait! stage)
+
+    (ui/user-data stage ::selected-items)))
+
+(defn- text-filter-fn [filter-value items]
+  (let [search-str (str/lower-case filter-value)
+        parts (-> search-str
+                (str/replace #"\*" "")
+                (str/split #"\."))
+        pattern-str (if (> (count parts) 1)
+                      (apply str (concat ["^.*"]
+                                         (butlast parts)
+                                         [".*\\." (last parts) ".*$"]))
+                      (str "^" (str/replace search-str #"\*" ".*")))
+                                        pattern (re-pattern pattern-str)]
+    (filter (fn [r] (re-find pattern (resource/resource-name r))) items)))
+
+(defn- override-seq [node-id]
+  (tree-seq g/overrides g/overrides node-id))
+
+(defn- file-scope [node-id]
+  (last (take-while (fn [n] (and n (not (g/node-instance? project/Project n)))) (iterate core/scope node-id))))
+
+(defn- refs-filter-fn [project filter-value items]
+  ;; Temp limitation to avoid stalls
+  ;; Optimally we would do the work in the background with a progress-bar
+  (if-let [n (project/get-resource-node project filter-value)]
+    (->>
+      (let [all (override-seq n)]
+        (mapcat (fn [n]
+                  (keep (fn [[src src-label node-id label]]
+                          (when-let [node-id (file-scope node-id)]
+                            (when (and (not= n node-id)
+                                       (g/node-instance? project/ResourceNode node-id))
+                              (when-let [r (g/node-value node-id :resource)]
+                                (when (resource/exists? r)
+                                  r)))))
+                        (g/outputs n)))
+                all))
+      distinct)
+    []))
+
+(defn- sub-nodes [n]
+  (g/node-value n :nodes))
+
+(defn- sub-seq [n]
+  (tree-seq (partial g/node-instance? project/ResourceNode) sub-nodes n))
+
+(defn- deps-filter-fn [project filter-value items]
+  ;; Temp limitation to avoid stalls
+  ;; Optimally we would do the work in the background with a progress-bar
+  (if-let [node-id (project/get-resource-node project filter-value)]
+    (->>
+      (let [all (sub-seq node-id)]
+        (mapcat
+          (fn [n]
+            (keep (fn [[src src-label tgt tgt-label]]
+                    (when-let [src (file-scope src)]
+                      (when (and (not= node-id src)
+                                 (g/node-instance? project/ResourceNode src))
+                        (when-let [r (g/node-value src :resource)]
+                          (when (resource/exists? r)
+                            r)))))
+                  (g/inputs n)))
+          all))
+      distinct)
+    []))
+
+(defn make-resource-dialog [workspace project options]
+  (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
         items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
                              (g/node-value workspace :resource-list))
-        close        (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
-    (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
-    (ui/title! stage (or (:title options) "Select Resource"))
-    (ui/items! (:resources controls) items)
-
-    (when (= (:selection options) :multiple)
-      (-> ^ListView (:resources controls)
-          (.getSelectionModel)
-          (.setSelectionMode SelectionMode/MULTIPLE)))
-
-    (ui/cell-factory! (:resources controls) (fn [r] {:text    (resource/proj-path r)
-                                                     :icon    (workspace/resource-icon r)
-                                                     :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
-                                                                (tooltip-gen r))}))
-
-    (ui/on-action! (:ok controls) (fn [_] (close)))
-    (ui/on-double! (:resources controls) (fn [_] (close)))
-
-    (ui/observe (.textProperty ^TextField (:search controls))
-                (fn [_ _ ^String new]
-                  (let [search-str     (str/lower-case new)
-                        parts          (-> search-str
-                                           (str/replace #"\*" "")
-                                           (str/split #"\."))
-                        pattern-str    (if (> (count parts) 1)
-                                         (apply str (concat ["^.*"]
-                                                            (butlast parts)
-                                                            [".*\\." (last parts) ".*$"]))
-                                         (str "^" (str/replace search-str #"\*" ".*")))
-                        pattern        (re-pattern pattern-str)
-                        filtered-items (filter (fn [r] (re-find pattern (resource/resource-name r))) items)
-                        list-view      ^ListView (:resources controls)]
-                    (ui/items! list-view filtered-items)
-                    (when-let [first-match (first filtered-items)]
-                      (.select (.getSelectionModel list-view) first-match)))))
-
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-      (ui/event-handler event
-                        (let [code (.getCode ^KeyEvent event)]
-                          (when (cond
-                                  (= code KeyCode/DOWN)   (ui/request-focus! (:resources controls))
-                                  (= code KeyCode/ESCAPE) true
-                                  (= code KeyCode/ENTER)  (do (reset! return (ui/selection (:resources controls)))
-                                                              true)
-                                  true                    false)
-                            (.close stage)))))
-
-    (.initModality stage Modality/WINDOW_MODAL)
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-
-    @return))
+        options (-> {:title "Select Resource"
+                     :prompt "filter resources - '*' to match any string, '.' to filter file extensions"
+                     :filter ""
+                     :cell-fn (fn [r] {:text (resource/proj-path r)
+                                       :icon (workspace/resource-icon r)
+                                       :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
+                                                  (tooltip-gen r))})
+                     :filter-fn (fn [filter-value items]
+                                  (let [fns {"refs" (partial refs-filter-fn project)
+                                             "deps" (partial deps-filter-fn project)}
+                                        [command arg] (let [parts (str/split filter-value #":")]
+                                                        (if (< 1 (count parts))
+                                                          parts
+                                                          [nil (first parts)]))
+                                        f (get fns command text-filter-fn)]
+                                    (f arg items)))}
+                  (merge options))]
+    (make-select-list-dialog items options)))
 
 (declare tree-item)
 
@@ -254,6 +349,7 @@
 (defrecord MatchContextResource [parent-resource line caret-position match]
   resource/Resource
   (children [this]      [])
+  (ext [this] (resource/ext parent-resource))
   (resource-name [this] (format "%d: %s" line match))
   (resource-type [this] (resource/resource-type parent-resource))
   (source-type [this]   (resource/source-type parent-resource))
@@ -288,7 +384,7 @@
 
 (defn make-search-in-files-dialog [workspace search-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
-        stage     (Stage.)
+        stage     (ui/make-stage)
         scene     (Scene. root)
         controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
         return    (atom nil)
@@ -346,7 +442,7 @@
 
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "ok"])
         return (atom nil)
@@ -374,7 +470,7 @@
 
 (defn make-target-ip-dialog []
   (let [root     ^Parent (ui/load-fxml "target-ip-dialog.fxml")
-        stage    (Stage.)
+        stage    (ui/make-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["add" "cancel" "ip"])
         return   (atom nil)]
@@ -406,7 +502,7 @@
 
 (defn make-rename-dialog [title label placeholder typ]
   (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
-        stage    (Stage.)
+        stage    (ui/make-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
         return   (atom nil)
@@ -462,7 +558,7 @@
 
 (defn make-new-file-dialog [^File base-dir ^File location type ext]
   (let [root ^Parent (ui/load-fxml "new-file-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "location" "browse" "path" "ok"])
         return (atom nil)
@@ -503,7 +599,7 @@
 
 (defn make-goto-line-dialog [result]
   (let [root ^Parent (ui/load-fxml "goto-line-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["line"])
         close (fn [v] (do (deliver result v) (.close stage)))]
@@ -524,7 +620,7 @@
 
 (defn make-find-text-dialog [result]
   (let [root ^Parent (ui/load-fxml "find-text-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["text"])
         close (fn [v] (do (deliver result v) (.close stage)))]
@@ -545,7 +641,7 @@
 
 (defn make-replace-text-dialog [result]
   (let [root ^Parent (ui/load-fxml "replace-text-dialog.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["find-text" "replace-text"])
         close (fn [v] (do (deliver result v) (.close stage)))]
@@ -567,7 +663,7 @@
 
 (defn make-proposal-dialog [result screen-point proposals target text-area]
   (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
-        stage (Stage.)
+        stage (ui/make-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["proposals" "proposals-box"])
         close (fn [v] (do (deliver result v) (.close stage)))
@@ -637,3 +733,34 @@
     (.setScene stage scene)
     (ui/show! stage)
     stage))
+
+
+(handler/defhandler ::rename-conflicting-files :dialog
+  (run [^Stage stage]
+    (ui/user-data! stage ::file-conflict-resolution-strategy :rename)
+    (ui/close! stage)))
+
+(handler/defhandler ::replace-conflicting-files :dialog
+  (run [^Stage stage]
+    (ui/user-data! stage ::file-conflict-resolution-strategy :replace)
+    (ui/close! stage)))
+
+(defn make-resolve-file-conflicts-dialog
+  [src-dest-pairs]
+  (let [^Parent root (ui/load-fxml "resolve-file-conflicts.fxml")
+        scene (Scene. root)
+        ^Stage stage (doto (ui/make-stage)
+                       (observe-focus)
+                       (.initOwner (ui/main-stage))
+                       (.initModality Modality/WINDOW_MODAL)
+                       (ui/title! "Resolve file name conflicts")
+                       (.setScene scene))
+        controls (ui/collect-controls root ["message" "rename" "replace" "cancel"])]
+    (ui/context! root :dialog {:stage stage} nil)
+    (ui/bind-action! (:rename controls) ::rename-conflicting-files)
+    (ui/bind-action! (:replace controls) ::replace-conflicting-files)
+    (ui/bind-action! (:cancel controls) ::close)
+    (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+    (ui/text! (:message controls) (format "The destination has %d file(s) with the same names" (count src-dest-pairs)))
+    (ui/show-and-wait! stage)
+    (ui/user-data stage ::file-conflict-resolution-strategy)))

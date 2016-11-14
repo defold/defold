@@ -65,19 +65,19 @@ namespace dmSocket
                 memcpy(IPv6(&a->m_Address), &ia->sin6_addr, sizeof(struct in6_addr));
             }
 
-            if(ioctl(s, SIOCGIFHWADDR, r) < 0)
-                continue;
-            unsigned char* p = (unsigned char*) &r->ifr_hwaddr.sa_data[0];
-            a->m_Flags |= FLAGS_LINK;
-            a->m_MacAddress[0] = p[0];
-            a->m_MacAddress[1] = p[1];
-            a->m_MacAddress[2] = p[2];
-            a->m_MacAddress[3] = p[3];
-            a->m_MacAddress[4] = p[4];
-            a->m_MacAddress[5] = p[5];
+            if(ioctl(s, SIOCGIFHWADDR, r) >= 0)
+            {
+                memcpy(a->m_MacAddress, &r->ifr_hwaddr.sa_data[0], sizeof(unsigned char) * 6);
+                a->m_Flags |= FLAGS_LINK;
+            }
+            else
+            {
+                memset(a->m_MacAddress, 0x00, sizeof(unsigned char) * 6);
+            }
 
             if(ioctl(s, SIOCGIFFLAGS, r) < 0)
                 continue;
+            
             if (r->ifr_ifru.ifru_flags & IFF_UP) {
                 a->m_Flags |= FLAGS_UP;
             }

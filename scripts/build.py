@@ -21,8 +21,9 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1".split()
-PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0".split()
+PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1 luajit-2.0.3".split()
+PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3".split()
+PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -259,6 +260,9 @@ class Configuration(object):
         for p in PACKAGES_LINUX:
                 self._extract_tgz(make_path('linux'), self.ext)
 
+        for p in PACKAGES_LINUX_64:
+                self._extract_tgz(make_path('x86_64-linux'), self.ext)
+
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
                 self._extract_tgz(make_path('x86_64-darwin'), self.ext)
@@ -301,6 +305,9 @@ class Configuration(object):
     def install_ems(self):
         url = '%s/emsdk-%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, EMSCRIPTEN_VERSION_STR, self.host)
         dlpath = self._download(url)
+        if dlpath is None:
+            print("Error. Could not download %s" % url)
+            sys.exit(1)
         self._extract(dlpath, self.ext)
         self.activate_ems()
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
@@ -348,7 +355,7 @@ class Configuration(object):
         if not outfile:
             outfile = tempfile.NamedTemporaryFile(delete = False)
 
-        zip = zipfile.ZipFile(outfile, 'w')
+        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
         for root, dirs, files in os.walk(path):
             for f in files:
                 p = os.path.join(root, f)
@@ -360,8 +367,56 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
+    def _add_files_to_zip(self, zip, paths, directory=None, topfolder=None):
+        for p in paths:
+            if not os.path.isfile(p):
+                continue
+            an = p
+            if directory:
+                an = os.path.relpath(p, directory)
+            if topfolder:
+                an = os.path.join(topfolder, an)
+            zip.write(p, an)
+
     def is_cross_platform(self):
         return self.host != self.target_platform
+
+    # package the native SDK, return the path to the zip file
+    def _package_platform_sdk(self, platform):
+        outfile = tempfile.NamedTemporaryFile(delete = False)
+
+        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+
+        topfolder = 'defoldsdk'
+        defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
+
+        # Includes
+        includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
+        includes = [os.path.join(self.dynamo_home, x) for x in includes]
+        self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
+
+        # Configs
+        extendersdk = os.path.join(defold_home, 'extender', 'sdk')
+        includes = ['extender/config.yml']
+        includes = [os.path.join(extendersdk, x) for x in includes]
+        self._add_files_to_zip(zip, includes, extendersdk, topfolder)
+
+        def _findlibs(libdir):
+            paths = os.listdir(libdir)
+            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+            return paths
+
+        # Dynamo libs
+        libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
+        paths = _findlibs(libdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+        # External libs
+        libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
+        paths = _findlibs(libdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+        zip.close()
+        return outfile.name
 
     def archive_engine(self):
         exe_prefix = ''
@@ -440,6 +495,9 @@ class Configuration(object):
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
             self.upload_file(lib_path, '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext))
 
+        sdkpath = self._package_platform_sdk(self.target_platform)
+        self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
+
     def build_engine(self):
         supported_tests = {}
         supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
@@ -516,6 +574,44 @@ class Configuration(object):
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                           cwd = cwd,
                           shell = True)
+
+    def build_sdk(self):
+        tempdir = tempfile.mkdtemp() # where the sdk ends up
+
+        sha1 = self._git_sha1()
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+
+        root = urlparse.urlparse(self.archive_path).path[1:]
+        base_prefix = os.path.join(root, sha1)
+
+        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
+        for platform in platforms:
+            platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
+
+            prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
+            entry = bucket.get_key(prefix)
+
+            if entry is None:
+                raise Exception("Could not find sdk: %s" % prefix)
+
+            platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
+            print "Downloading", entry.key
+            entry.get_contents_to_filename(platform_sdk_zip.name)
+            print "Downloaded", entry.key, "to", platform_sdk_zip.name
+
+            self._extract_zip(platform_sdk_zip.name, tempdir)
+            print "Extracted", platform_sdk_zip.name, "to", tempdir
+
+            os.unlink(platform_sdk_zip.name)
+            print ""
+
+        treepath = os.path.join(tempdir, 'defoldsdk')
+        sdkpath = self._ziptree(treepath, directory=tempdir)
+        print "Packaged defold sdk"
+
+        sdkurl = join(self.archive_path, sha1, 'engine').replace('\\', '/')
+        self.upload_file(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -646,11 +742,10 @@ instructions.configure=\
         self.exec_env_command(['./scripts/lein', 'clean'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'protobuf'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'builtins'], cwd = cwd)
+        self.exec_env_command(['./scripts/lein', 'pack'], cwd = cwd)
         self.check_editor2_reflections()
         self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
-
-        ext_lib_path = join(self.dynamo_home, 'ext', 'lib')
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version, '--ext-lib-path=%s' % ext_lib_path], cwd = cwd)
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version], cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -893,7 +988,7 @@ instructions.configure=\
             if response[0] != 'y':
                 return
 
-        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.zip' % self.channel),
+        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.dmg' % self.channel),
                                        dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
                                        dict(name='Linux (64-bit)', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel),
                                        dict(name='Linux (32-bit)', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
@@ -913,7 +1008,7 @@ instructions.configure=\
                                                  'sha1' : release_sha1}))
 
         # Create redirection keys for editor
-        for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
+        for name in ['Defold-macosx.cocoa.x86_64.dmg', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
             key_name = '%s/%s' % (self.channel, name)
             redirect = '/archive/%s/%s/editor/%s' % (release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
@@ -936,6 +1031,7 @@ instructions.configure=\
         prefix = os.path.join(u.path, sha1)[1:]
         return prefix
 
+    # TODO: Fix upload of .dmg (currently aborts if it finds it in the beta branch)
     def sign_editor(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname

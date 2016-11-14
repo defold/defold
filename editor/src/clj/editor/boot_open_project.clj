@@ -24,9 +24,10 @@
             [editor.gl.shader :as shader]
             [editor.graph-view :as graph-view]
             [editor.gui :as gui]
-            [editor.hot-reload :as hotload]
+            [editor.hot-reload :as hot-reload]
             [editor.image :as image]
             [editor.json :as json]
+            [editor.label :as label]
             [editor.login :as login]
             [editor.material :as material]
             [editor.mesh :as mesh]
@@ -37,6 +38,7 @@
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.protobuf-types :as protobuf-types]
+            [editor.resource :as resource]
             [editor.rig :as rig]
             [editor.scene :as scene]
             [editor.script :as script]
@@ -50,6 +52,7 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.sync :as sync]
             [editor.system :as system]
             [util.http-server :as http-server])
   (:import  [java.io File]
@@ -100,6 +103,7 @@
         (gui/register-resource-types workspace)
         (image/register-resource-types workspace)
         (json/register-resource-types workspace)
+        (label/register-resource-types workspace)
         (material/register-resource-types workspace)
         (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
@@ -140,9 +144,13 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
+(defn- handle-resource-changes! [changes editor-tabs]
+  (doseq [resource (:removed changes)]
+    (app-view/remove-resource-tab editor-tabs resource)))
+
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage      (Stage.)
+        stage      (ui/make-stage)
         scene      (Scene. root)]
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
@@ -162,29 +170,21 @@
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
-          ^Tab assets          (.lookup root "#assets")
+          ^TreeView assets     (.lookup root "#assets")
           console              (.lookup root "#console")
           prev-console         (.lookup root "#prev-console")
           next-console         (.lookup root "#next-console")
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
+          workbench            (.lookup root "#workbench")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
                                                                  (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {})))
-                                                                 (fn [resources]
-                                                                   (doseq [resource resources]
-                                                                     (app-view/remove-resource-tab editor-tabs resource))
-                                                                   (let [nodes (keep #(project/get-resource-node project %) resources)]
-                                                                     (when (not-empty nodes)
-                                                                       (g/transact
-                                                                         (for [n nodes]
-                                                                           (g/delete-node n)))
-                                                                       (g/reset-undo! (g/node-id->graph-id project))))))
+                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            project/hot-reload-url-prefix (partial hotload/build-handler project)})
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id]
@@ -200,8 +200,11 @@
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
+      (workspace/add-resource-listener! workspace (reify resource/ResourceListener
+                                                    (handle-changes [_ changes _]
+                                                      (handle-resource-changes! changes editor-tabs))))
 
-      (app-view/restore-split-positions stage prefs)
+      (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
                               (or (not (workspace/version-on-disk-outdated? workspace))
@@ -209,7 +212,7 @@
     
       (ui/on-closed! stage (fn [_]
                              (app-view/store-window-dimensions stage prefs)
-                             (app-view/store-split-positions stage prefs)
+                             (app-view/store-split-positions! stage prefs)
                              (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console
@@ -228,8 +231,11 @@
                          :web-server        web-server
                          :build-errors-view build-errors-view
                          :changes-view      changes-view
-                         :main-stage        stage}]
-        (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project) {:active-resource [:app-view :active-resource]}))
+                         :main-stage        stage
+                         :asset-browser     asset-browser}
+            dynamics {:active-resource [:app-view :active-resource]}]
+        (ui/context! root :global context-env assets dynamics)
+        (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
       (g/transact
         (concat
           (g/connect project :selected-node-ids outline-view :selection)
@@ -240,7 +246,15 @@
           (g/update-property app-view :auto-pulls conj [properties-view :pane])))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
-        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"])))))
+        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
+
+      ; If project sync was in progress when we shut down the editor, re-open the sync dialog at startup.
+      (let [git   (g/node-value changes-view :git)
+            prefs (g/node-value changes-view :prefs)]
+        (when (sync/flow-in-progress? git)
+          (ui/run-later
+            (sync/open-sync-dialog (sync/resume-flow git prefs))))))
+
     (reset! the-root root)
     root))
 

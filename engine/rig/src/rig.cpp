@@ -966,7 +966,7 @@ namespace dmRig
                 }
             }
 
-            v = model_matrix * Vector3(out_p.getX(), out_p.getY(), out_p.getZ());
+            v = model_matrix * Point3(out_p.getX(), out_p.getY(), out_p.getZ());
             *out_buffer++ = v[0];
             *out_buffer++ = v[1];
             *out_buffer++ = v[2];

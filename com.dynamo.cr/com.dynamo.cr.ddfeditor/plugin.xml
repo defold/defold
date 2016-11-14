@@ -152,9 +152,18 @@
             contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="animationset"
-            icon="icons/prop_ps.gif"
+            icon="icons/linechart.png"
             id="com.dynamo.cr.ddfeditor.animationseteditor"
             name="Animationset Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.LabelEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="label"
+            icon="icons/text_allcaps.png"
+            id="com.dynamo.cr.ddfeditor.labeleditor"
+            name="Label Editor">
       </editor>
    </extension>
    <extension
@@ -260,9 +269,16 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.AnimationSetNewWizard"
-            icon="icons/prop_ps.gif"
+            icon="icons/linechart.png"
             id="com.dynamo.cr.ddfeditor.wizards.AnimationSetNewWizard"
             name="Animation Set File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard"
+            icon="icons/text_allcaps.png"
+            id="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard"
+            name="Label  File">
       </wizard>
    </extension>
    <extension
@@ -325,6 +341,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
@@ -619,6 +640,24 @@
             </reference-type-class>
          </references>
       </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="label"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Label"
+            name="Label"
+            proto-message-class="com.dynamo.label.proto.Label$LabelDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.LabelRefactorParticipant"
+            template-data="text: &apos;Label&apos; font: &apos;/builtins/fonts/system_font.font&apos; material: &apos;/builtins/fonts/label.material&apos; scale { x: 1 y: 1 z: 1 } size { x: 128 y: 32 z: 0 } color { x: 1 y: 1 z: 1 w: 1 } outline { x: 0 y: 0 z: 0 w: 1 } shadow { x: 0 y: 0 z: 0 w: 1 }  leading: 1.0 tracking: 0.0 pivot: PIVOT_CENTER blend_mode: BLEND_MODE_ALPHA line_break: false"
+            type-class="component">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Material">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.FontDesc">
+            </reference-resource-type>
+         </references>
+      </resource-type>
     </extension>
    <extension
          point="org.eclipse.ui.perspectiveExtensions">
@@ -662,6 +701,9 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.CubemapNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
@@ -709,6 +751,13 @@
             node="com.dynamo.cr.ddfeditor.scene.CameraNode"
             renderer="com.dynamo.cr.ddfeditor.scene.CameraRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.labelNode"
+            loader="com.dynamo.cr.ddfeditor.scene.LabelLoader"
+            node="com.dynamo.cr.ddfeditor.scene.LabelNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.LabelRenderer"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Label">
       </node-type>
       <node-type
             id="com.dynamo.cr.ddfeditor.scene.lightNode"

@@ -1,6 +1,6 @@
 (ns dynamo.graph
   "Main api for graph and node"
-  (:refer-clojure :exclude [deftype])
+  (:refer-clojure :exclude [deftype constantly])
   (:require [clojure.set :as set]
             [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
@@ -25,7 +25,7 @@
 
 (namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate worse-than])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
@@ -222,7 +222,7 @@
     (assert (symbol? name) (str "Name for defnk is not a symbol:" name))
     `(def ~name (fnk ~@args))))
 
-(defmacro always [v] `(dynamo.graph/fnk [] ~v))
+(defmacro constantly [v] `(let [ret# ~v] (dynamo.graph/fnk [] ret#)))
 
 (defmacro deftype
   [symb & body]
@@ -243,15 +243,13 @@
 (deftype IdPair     [(s/one s/Str "id") (s/one s/Int "node-id")])
 (deftype Dict       {s/Str s/Int})
 (deftype Properties
-    {:properties {s/Keyword {:node-id                              gt/NodeID
+    {:properties {s/Keyword {:node-id                              s/Int
                              (s/optional-key :validation-problems) s/Any
                              :value                                (s/either s/Any ErrorValue)
                              :type                                 s/Any
                              s/Keyword                             s/Any}}
      (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
 (deftype Err ErrorValue)
-
-
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -581,7 +579,7 @@
   (assert node-id)
   (mapcat
    (fn [[p v]]
-     (it/update-property node-id p (constantly v) []))
+     (it/update-property node-id p (clojure.core/constantly v) []))
    (partition-all 2 kvs)))
 
 (defn set-property!
@@ -691,7 +689,7 @@
      (list
       (set-property node-id :_output-jammers
                     (zipmap (remove externs outputs)
-                            (repeat (constantly defective-value))))
+                            (repeat (clojure.core/constantly defective-value))))
       (invalidate node-id)))))
 
 (defn mark-defective!
@@ -990,7 +988,7 @@
                      :serializer (some-fn custom-serializer default-node-serializer %)})"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (constantly false) serializer default-node-serializer} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer} :as opts}]
     (s/validate opts-schema opts)
    (let [serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
          original-ids   (input-traverse basis traverse? root-ids)
@@ -1060,7 +1058,7 @@
     (override root-id {}))
   ([root-id opts]
     (override (now) root-id opts))
-  ([basis root-id {:keys [traverse?] :or {traverse? (constantly true)}}]
+  ([basis root-id {:keys [traverse?] :or {traverse? (clojure.core/constantly true)}}]
     (let [graph-id (node-id->graph-id root-id)
           preds [traverse-cascade-delete traverse?]
           traverse-fn (partial predecessors preds)
@@ -1160,6 +1158,12 @@
   [graph-id]
   (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
     (not (empty? undo-stack))))
+
+(defn undo-stack-count
+  "Returns the number of entries in the undo stack for `graph-id`"
+  [graph-id]
+  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
+    (count undo-stack)))
 
 (defn redo!
   "Given a `graph-id` reverts an undo of the graph

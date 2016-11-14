@@ -22,6 +22,7 @@ import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
+import com.dynamo.label.proto.Label.LabelDesc;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
@@ -187,6 +188,20 @@ public class ProtoBuilders {
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = LabelDesc.class)
+    @BuilderParams(name="LabelDesc", inExts=".label", outExt=".labelc")
+    public static class LabelDescBuilder extends ProtoBuilder<LabelDesc.Builder> {
+        @Override
+        protected LabelDesc.Builder transform(Task<Void> task, IResource resource, LabelDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
+            BuilderUtil.checkResource(this.project, resource, "font", messageBuilder.getFont());
+            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
+            messageBuilder.setFont(BuilderUtil.replaceExt(messageBuilder.getFont(), "font", "fontc"));
             return messageBuilder;
         }
     }

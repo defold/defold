@@ -404,31 +404,6 @@ namespace dmGameSystem
 
         ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
         ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-/*
-        dmModelDDF::ModelDesc::BlendMode blend_mode = first->m_Resource->m_Model->m_BlendMode;
-        switch (blend_mode)
-        {
-            case dmGameSystemDDF::ModelDesc::BLEND_MODE_ALPHA:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            break;
-
-            case dmGameSystemDDF::ModelDesc::BLEND_MODE_ADD:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-            break;
-
-            case dmGameSystemDDF::ModelDesc::BLEND_MODE_MULT:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            break;
-
-            default:
-                dmLogError("Unknown blend mode: %d\n", blend_mode);
-                assert(0);
-            break;
-        }
-*/
         ro.m_SetBlendFactors = 1;
 
         dmRender::AddToRender(render_context, &ro);

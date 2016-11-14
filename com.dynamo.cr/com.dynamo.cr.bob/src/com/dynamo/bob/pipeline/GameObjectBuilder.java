@@ -156,6 +156,7 @@ public class GameObjectBuilder extends Builder<Void> {
         {".collectionfactory", ".collectionfactoryc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},
+        {".label", ".labelc"},
         {".sprite", ".spritec"},
         {".tilegrid", ".tilegridc"},
         {".tilemap", ".tilegridc"},

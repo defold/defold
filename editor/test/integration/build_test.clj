@@ -22,7 +22,9 @@
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
+           [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
+           [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
            [editor.types Region]
@@ -90,7 +92,26 @@
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc
-                :resource-fields [:spine-scene :material]}])
+                :resource-fields [:spine-scene :material]}
+               {:label "Label"
+                :path "/main/label.label"
+                :pb-class Label$LabelDesc
+                :resource-fields [:font :material]
+                :test-fn (fn [pb targets]
+                           (is (= {:color [1.0 1.0 1.0 1.0],
+                                   :line-break false,
+                                   :scale [1.0 1.0 1.0 0.0],
+                                   :blend-mode :blend-mode-alpha,
+                                   :leading 1.0,
+                                   :font "/builtins/fonts/system_font.fontc",
+                                   :size [128.0 32.0 0.0 0.0],
+                                   :tracking 0.0,
+                                   :material "/builtins/fonts/label.materialc",
+                                   :outline [0.0 0.0 0.0 1.0],
+                                   :pivot :pivot-center,
+                                   :shadow [0.0 0.0 0.0 1.0],
+                                   :text "Label"}
+                                  pb)))}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -119,7 +140,7 @@
                                              ~'build-results))]
        ~@forms)))
 
-(deftest build-game-project
+(deftest build-game-project-pb-cases
   (with-build-results "/game.project"
     (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
           exp-paths   [path
@@ -359,6 +380,19 @@
             desc    (Model$ModelDesc/parseFrom content)]
         (is (= "/model/book_of_defold.meshc" (-> desc (.getMesh))))))))
 
+(deftest build-script
+  (testing "Buildling a valid script succeeds"
+    (with-build-results "/script/good.script"
+      (let [content (get content-by-source "/script/good.script")
+            module    (Lua$LuaModule/parseFrom content)
+            source (.getSource module)]
+        (is (pos? (.size (.getBytecode source))))
+        (is (= "/script/good.script" (.getFilename source))))))
+  (testing "Building a broken script fails"
+    (with-build-results "/script/bad.script"
+      (let [content (get content-by-source "/script/bad.script")]
+        (is (nil? content))))))
+
 (deftest build-script-properties
   (with-build-results "/script/props.collection"
     (doseq [[res-path pb decl-path] [["/script/props.script" Lua$LuaModule [:properties]]
@@ -535,5 +569,3 @@
             (project/build-and-write project game-project {})
             (is (not (= initial-some-mtime (mtime (build-path workspace "/assets/some.stuff")))))
             (is (= initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))))))))))
-
-                               
