@@ -90,7 +90,7 @@ static void RunCallback(CallbackInfo* cbinfo)
 
     lua_State* L = listener->m_L;
 
-    DM_LUA_STACK_CHECK(L);
+    DM_LUA_STACK_CHECK(L, 0);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, listener->m_Callback);
     // Setup self
@@ -211,7 +211,7 @@ static void RunCallback(CallbackInfo* cbinfo)
 
 static int SetListener(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L);
+    DM_LUA_STACK_CHECK(L, 0);
 
     WindowInfo* window_info = &g_Window;
     luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -259,7 +259,7 @@ static int SetListener(lua_State* L)
   */
 static int SetDimMode(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L);
+    DM_LUA_STACK_CHECK(L, 0);
 
     DimMode mode = (DimMode) luaL_checkint(L, 1);
     if (mode == DIMMING_ON)
