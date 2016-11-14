@@ -2,7 +2,14 @@
 
 ## Requirements
 * Java 1.8
-* Leiningen
+* [Leiningen](http://leiningen.org/)
+* A sass/scss compiler
+  - to use lein task (required when building):
+    - [SassC](https://github.com/sass/sassc)
+      - osx: `brew install sassc`
+  - to use gulp task (simpler on linux/windows):
+    - [nodejs](https://nodejs.org)
+    - gulp: `npm install --global gulp-cli`
 
 ## Windows
 
@@ -22,7 +29,7 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
         export HOME="/c/Users/erik.angelin"
 
     The problem seems to be that the (windows) java class path points to an invalid home directory.
-  
+
   - If this fails because the github certificate cannot be verified, a hacky workaround is as follows:
     - open `lein.sh` with notepad
     - search for `wget`, you should get a hit near `HTTP_CLIENT` definition
@@ -63,12 +70,12 @@ For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, 
 Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
 
 ## Running the Editor
-`lein run` will launch the editor as well as providing a nprel port
+`lein run` will launch the editor as well as providing a nrepl port
 for you to jack into
 
 **PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
 
-## Buildling the Editor
+## Building the Editor
 
 Use `scripts/bundle.py` to produce a bundled version of the editor.
 
@@ -118,5 +125,25 @@ A single stylesheet is set on the root node (by convention) in the scene. The st
 
 The stylesheet can be reloaded with the function key `F5`.
 
+The `editor.css` stylesheet is generated from the the sass/scss files in `styling/stylesheets`. To generate the file you can use either leiningen or gulp:
+
+**leiningen**
+
+- `lein sass once` to generate once
+- `lein sass watch` to watch and re-generate css on changes
+
+**nodejs**
+
+In the `styling` directory:
+- `npm install`
+
+- `gulp` to generate once
+- `gulp watch` to watch and re-generate css on changes
+
+See `styling/README.md` for details.
+
+
+
 ### JavaFX Styling
+
 The best way to understand how JavaFX styling works is by studying the default stylesheet `modena.css` included in `jfxrt.jar`
