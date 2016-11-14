@@ -3,13 +3,6 @@
 ## Requirements
 * Java 1.8
 * [Leiningen](http://leiningen.org/)
-* A sass/scss compiler
-  - to use lein task (required when building):
-    - [SassC](https://github.com/sass/sassc)
-      - osx: `brew install sassc`
-  - to use gulp task (simpler on linux/windows):
-    - [nodejs](https://nodejs.org)
-    - gulp: `npm install --global gulp-cli`
 
 ## Windows
 
