@@ -72,7 +72,12 @@
   (first (gl-get-integer-v gl GL2/GL_MAX_TEXTURE_UNITS 1)))
 
 (defn text-renderer [font-name font-style font-size]
-  (TextRenderer. (Font. font-name font-style font-size) false false))
+  (doto (TextRenderer. (Font. font-name font-style font-size) false false)
+    ;; NOTE: the TextRenderer implementation has two modes, one using
+    ;; vertex arrays and VBOs, and one using immediate mode. This
+    ;; forces the use of the immediate mode implementation as we've
+    ;; seen issues on some platforms with the other one.
+    (.setUseVertexArrays false)))
 
 (defn gl-clear [^GL2 gl r g b a]
   (.glDepthMask gl true)
