@@ -48,7 +48,7 @@ Important: *Make sure your branches are up to date!*
  1. Write release beta release notes.
  1. (Optional) Download and run beta:
  
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.zip
+    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.dmg
     
     http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-win32.win32.x86.zip
     
@@ -107,14 +107,15 @@ The following smoke tests are currently performed by the team on each platform (
 
     This will trigger a build of the engines and editors for stable.
     
- 1. Wait for the editor build: [cr-editor](http://ci.defold.com/builders/cr-editor)
+ 1. Wait for the editor build: [cr-editor-master](http://ci.defold.com/builders/cr-editor-master).
+
     Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
  
  1. Sign the editor: [sign-editor-master](http://ci.defold.com/builders/sign-editor-master)
 
  1. Fetch editor via:
  
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.zip
+    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
     
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-win32.win32.x86.zip
     
@@ -137,7 +138,8 @@ The following smoke tests are currently performed by the team on each platform (
 
 2. Verify release by updating an old editor, OSX, Win and Linux.
 3. Post release notes on forum.defold.com and send notification email to defold-users@king.com
-4. Merge master into dev
+4. Publish latest documentation by logging into http://www.defold.com/ref/update/latest
+5. Merge master into dev
 
         $ git checkout dev
         $ git pull

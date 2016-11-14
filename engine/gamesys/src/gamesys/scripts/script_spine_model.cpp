@@ -126,6 +126,7 @@ namespace dmGameSystem
      */
     int SpineComp_PlayAnim(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0)
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
@@ -138,42 +139,30 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        if (top > 3) // table with args, parse
+        if (top > 3) // table with args
         {
             luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushvalue(L, 4);
-            dmLogInfo("Got table with properties!");
 
-            // blend duration
-            dmLogInfo("blend...");
             lua_getfield(L, -1, "blend_duration");
             blend_duration = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            dmLogInfo("blend_duration was: %f", (float)blend_duration);
             lua_pop(L, 1);
 
-            // offset
-            dmLogInfo("offset...");
             lua_getfield(L, -1, "offset");
             offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
-            offset = offset - (long)offset; // clamp offset to [0.0, 1.0[
-            dmLogInfo("offset: %f", (float)offset);
             lua_pop(L, 1);
 
-            // playback_rate
-            dmLogInfo("playback_rate...");
             lua_getfield(L, -1, "playback_rate");
             playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
-            dmLogInfo("playback_rate: %f", (float)playback_rate);
             lua_pop(L, 1);
 
             lua_pop(L, 1);
         }
 
-        if (top > 4) // spine_complete_func
+        if (top > 4) // completed cb
         {
             if (lua_isfunction(L, 5))
             {
-                dmLogInfo("Got cb function ref!");
                 lua_pushvalue(L, 5);
                 // see message.h for why 2 is added
                 sender.m_Function = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
@@ -189,9 +178,7 @@ namespace dmGameSystem
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
-        dmLogInfo("top: %i, lua_gettop; %i", top, lua_gettop(L));
-
-        assert(top == lua_gettop(L));
+        //assert(top == lua_gettop(L));
         return 0;
     }
 

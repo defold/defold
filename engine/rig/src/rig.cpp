@@ -86,14 +86,14 @@ namespace dmRig
         player->m_Animation = anim;
         //player->m_Cursor = 0.0f;
 
-        if (offset > 0.0f)
-        {
+        //if (offset > 0.0f)
+        //{
             SetCursor(instance, offset, true);
-        }
-        else
+        //}
+        /*else
         {
             player->m_Cursor = 0.0f;
-        }
+        }*/
         SetPlaybackRate(instance, playback_rate);
         player->m_Playing = 1;
         player->m_Playback = playback;
@@ -838,11 +838,14 @@ namespace dmRig
             return dmRig::RESULT_ERROR;
         }
 
-        player->m_PlaybackRate = playback_rate;
-
-        if (playback_rate < 0.0f)
+        if (playback_rate >= 0.0f)
         {
-            player->m_Backwards = 1;
+            player->m_PlaybackRate = playback_rate;
+        }
+        else
+        {
+            player->m_PlaybackRate = playback_rate;
+            //player->m_Backwards = 1;
         }
 
         return dmRig::RESULT_OK;
