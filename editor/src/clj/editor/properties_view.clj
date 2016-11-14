@@ -46,15 +46,23 @@
 (def ^{:private true :const true} grid-vgap 6)
 (def ^{:private true :const true} all-available 5000)
 
+(defn- evaluate-expression [parse-fn text]
+  (if-let [matches (re-find #"(.+?)\s*([\+\-*/])\s*(.+?)" text)]
+    (let [a (parse-fn (matches 1))
+          b (parse-fn (matches 3))
+          op (resolve (symbol (matches 2)))]
+      (math/round-with-precision (op a b) 0.01))
+    (parse-fn text)))
+
 (defn- to-int [s]
   (try
-    (Integer/parseInt s)
+    (evaluate-expression #(Integer/parseInt %) s)
     (catch Throwable _
       nil)))
 
 (defn- to-double [s]
  (try
-   (Double/parseDouble s)
+   (evaluate-expression #(Double/parseDouble %) s)
    (catch Throwable _
      nil)))
 
