@@ -2400,6 +2400,19 @@ namespace dmGui
         return n->m_Node.m_SpineSceneHash;
     }
 
+    Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        dmRig::Result result = dmRig::SetMesh(rig_instance, skin_id);
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    dmhash_t GetNodeSpineSkin(HScene scene, HNode node)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        return dmRig::GetMesh(rig_instance);
+    }
+
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
