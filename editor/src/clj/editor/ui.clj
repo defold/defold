@@ -139,6 +139,13 @@
                           (conj listener))]
           (user-data! node ::list-listeners listeners))))))
 
+(defmacro observe-selection
+  [node listen-fn]
+  `(let [selection-provider# ~node]
+     (observe-list selection-provider#
+                   (.. selection-provider# getSelectionModel getSelectedItems)
+                   ~listen-fn)))
+
 (defn remove-list-observers
   [^Node node ^ObservableList observable]
   (let [listeners (user-data node ::list-listeners)]
@@ -636,18 +643,21 @@
     :else
     (user-data node ::context)))
 
+(defn node-contexts
+  [^Node initial-node all-selections?]
+  (loop [^Node node initial-node
+         ctxs []]
+    (if-not node
+      (handler/eval-contexts ctxs all-selections?)
+      (if-let [ctx (context node)]
+        (recur (.getParent node) (conj ctxs ctx))
+        (recur (.getParent node) ctxs)))))
+
 (defn contexts
   ([^Scene scene]
     (contexts scene true))
   ([^Scene scene all-selections?]
-    (let [initial-node (or (.getFocusOwner scene) (.getRoot scene))]
-      (loop [^Node node initial-node
-             ctxs []]
-        (if-not node
-          (handler/eval-contexts ctxs all-selections?)
-          (if-let [ctx (context node)]
-            (recur (.getParent node) (conj ctxs ctx))
-            (recur (.getParent node) ctxs)))))))
+    (node-contexts (or (.getFocusOwner scene) (.getRoot scene)) all-selections?)))
 
 (defn extend-menu [id location menu]
   (menu/extend-menu id location menu))
@@ -777,7 +787,7 @@
     (run-command node command user-data true nil))
   ([^Node node command user-data all-selections? success-fn]
     (let [user-data (or user-data {})
-          command-contexts (contexts (.getScene node) all-selections?)]
+          command-contexts (node-contexts node all-selections?)]
       (when-let [handler-ctx (handler/active command command-contexts user-data)]
         (when (handler/enabled? handler-ctx)
           (let [result (handler/run handler-ctx)]
@@ -789,7 +799,18 @@
   ([^Node node command]
     (bind-action! node command {}))
   ([^Node node command user-data]
+    (user-data! node ::bound-action {:command command :user-data user-data})
     (on-action! node (fn [^Event e] (run-command node command user-data true (fn [] (.consume e)))))))
+
+(defn refresh-bound-action-enabled!
+  [^Node node]
+  (let [{:keys [command user-data]
+         :or {:user-data {}}} (user-data node ::bound-action)
+        command-contexts (node-contexts node true)
+        handler-ctx (handler/active command command-contexts user-data)
+        enabled (and handler-ctx
+                     (handler/enabled? handler-ctx))]
+    (disable! node (not enabled))))
 
 (defn bind-double-click!
   ([^Node node command]
