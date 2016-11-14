@@ -102,6 +102,8 @@
         path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)]
     (do-launch path launch-dir)))
 
+;; TODO - prototype for cloud-building
+;; Should be re-written when we have the backend in place etc.
 (defn launch-compiled [workspace launch-dir]
   (let [server-url "http://localhost:9000"
         cc (DefaultClientConfig.)
