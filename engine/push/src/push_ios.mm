@@ -410,10 +410,10 @@ int Push_Register(lua_State* L)
  * Sets a listener function to listen to push notifications.
  *
  * @name push.set_listener
- * @param listener [type:function] listener callback function. Callback function parameters:
+ * @param listener [type:function(self, payload, origin, activated)] listener callback function.
  * 
  * self
- * :    The current object
+ * :    [type:object] The current object
  *
  * payload
  * :    [type:function] the push payload
@@ -479,8 +479,8 @@ int Push_SetListener(lua_State* L)
 
 /*# set badge icon count
  *
- * [icon:iOS] This function is only available on iOS.
- * Set the badge count for application icon.
+ * [icon:iOS] Set the badge count for application icon. 
+ * This function is only available on iOS.
  *
  * @name push.set_badge_count
  * @param count [type:number] badge count
