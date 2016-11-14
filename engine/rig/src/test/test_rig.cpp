@@ -180,7 +180,7 @@ private:
 
         ------------------------------------
 
-            Animation (id: "valid") for Bone A:
+            Animation 0 (id: "valid") for Bone A:
 
             I:
             (0)---->(1)---->
@@ -204,7 +204,7 @@ private:
 
         ------------------------------------
 
-            Animation (id: "scaling") for Bone A:
+            Animation 1 (id: "scaling") for Bone A:
 
             I:
             (0)---->(1)---->
@@ -221,13 +221,25 @@ private:
 
         ------------------------------------
 
-            Animation (id: "ik") for IK on Bone B.
+            Animation 2 (id: "ik") for IK on Bone B.
 
         ------------------------------------
 
-            Animation (id: "invalid_bones") for IK on Bone B.
+            Animation 3 (id: "invalid_bones") for IK on Bone B.
 
             Tries to animate a bone that does not exist.
+
+        ------------------------------------
+
+            Animation 4 (id: "rot_blend1")
+
+                Has a "static" rotation of bone 1 -89 degrees on Z.
+
+            Animation 5 (id: "rot_blend2")
+
+                Has a "static" rotation of bone 1 +89 degrees on Z.
+
+            Used to test bone rotation slerp.
 
         */
 
@@ -304,13 +316,15 @@ private:
         dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
 
         // Bone animations
-        uint32_t animation_count = 4;
+        uint32_t animation_count = 6;
         m_AnimationSet->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         m_AnimationSet->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
         dmRigDDF::RigAnimation& anim1 = m_AnimationSet->m_Animations.m_Data[1];
         dmRigDDF::RigAnimation& anim2 = m_AnimationSet->m_Animations.m_Data[2];
         dmRigDDF::RigAnimation& anim3 = m_AnimationSet->m_Animations.m_Data[3];
+        dmRigDDF::RigAnimation& anim4 = m_AnimationSet->m_Animations.m_Data[4];
+        dmRigDDF::RigAnimation& anim5 = m_AnimationSet->m_Animations.m_Data[5];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
@@ -335,6 +349,18 @@ private:
         anim3.m_EventTracks.m_Count = 0;
         anim3.m_MeshTracks.m_Count  = 0;
         anim3.m_IkTracks.m_Count    = 0;
+        anim4.m_Id = dmHashString64("rot_blend1");
+        anim4.m_Duration            = 1.0f;
+        anim4.m_SampleRate          = 1.0f;
+        anim4.m_EventTracks.m_Count = 0;
+        anim4.m_MeshTracks.m_Count  = 0;
+        anim4.m_IkTracks.m_Count    = 0;
+        anim5.m_Id = dmHashString64("rot_blend2");
+        anim5.m_Duration            = 1.0f;
+        anim5.m_SampleRate          = 1.0f;
+        anim5.m_EventTracks.m_Count = 0;
+        anim5.m_MeshTracks.m_Count  = 0;
+        anim5.m_IkTracks.m_Count    = 0;
 
         // Animation 0: "valid"
         {
@@ -436,7 +462,7 @@ private:
             ((Quat*)anim_track_b1_rot.m_Rotations.m_Data)[2] = Quat::rotationZ(-(float)M_PI / 2.0f);
         }
 
-        // Animation 0: "invalid_bones"
+        // Animation 3: "invalid_bones"
         {
             uint32_t track_count = 1;
             anim3.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[track_count];
@@ -454,6 +480,44 @@ private:
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::identity();
             ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
             ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
+        }
+
+        // Animation 4: "rot_blend1"
+        {
+            uint32_t track_count = 1;
+            anim4.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[track_count];
+            anim4.m_Tracks.m_Count = track_count;
+            dmRigDDF::AnimationTrack& anim_track0 = anim4.m_Tracks.m_Data[0];
+
+            anim_track0.m_BoneIndex         = 4;
+            anim_track0.m_Positions.m_Count = 0;
+            anim_track0.m_Scale.m_Count     = 0;
+
+            uint32_t samples = 2;
+            anim_track0.m_Rotations.m_Data = new float[samples*4];
+            anim_track0.m_Rotations.m_Count = samples*4;
+            float rot_angle = ((float)M_PI / 180.0f) * (-89.0f);
+            ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ(rot_angle);
+            ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
+        }
+
+        // Animation 5: "rot_blend2"
+        {
+            uint32_t track_count = 1;
+            anim5.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[track_count];
+            anim5.m_Tracks.m_Count = track_count;
+            dmRigDDF::AnimationTrack& anim_track0 = anim5.m_Tracks.m_Data[0];
+
+            anim_track0.m_BoneIndex         = 4;
+            anim_track0.m_Positions.m_Count = 0;
+            anim_track0.m_Scale.m_Count     = 0;
+
+            uint32_t samples = 2;
+            anim_track0.m_Rotations.m_Data = new float[samples*4];
+            anim_track0.m_Rotations.m_Count = samples*4;
+            float rot_angle = ((float)M_PI / 180.0f) * (89.0f);
+            ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ(rot_angle);
+            ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
         }
 
         // Meshes / skins
@@ -481,6 +545,10 @@ private:
 
     void TearDownSimpleSpine() {
 
+        delete [] m_AnimationSet->m_Animations.m_Data[5].m_Tracks.m_Data[0].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[5].m_Tracks.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[4].m_Tracks.m_Data[0].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[4].m_Tracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[3].m_Tracks.m_Data[0].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[3].m_Tracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[2].m_Rotations.m_Data;
@@ -775,6 +843,38 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
     ASSERT_VEC4(Quat::identity(), pose[1].GetRotation());
 
+}
+
+// Test that blend between two rotation animations that their midway
+// value is normalized and between the two rotations.
+TEST_F(RigInstanceTest, BlendRotation)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("rot_blend1"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+
+    dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
+
+    const Quat rot_1 = Quat::rotationZ((float)M_PI / 180.0f * (-89.0f));
+    const Quat rot_2 = Quat::rotationZ((float)M_PI / 180.0f * (89.0f));
+    const Quat rot_midway = Quat::identity();
+
+    // Verify that the rotation is "static" -89 degrees.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_VEC4(rot_1, pose[0].GetRotation());
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_VEC4(rot_1, pose[0].GetRotation());
+
+    // Start second animation with 1 second blend
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("rot_blend2"), dmRig::PLAYBACK_LOOP_FORWARD, 1.0f));
+
+    // Verify that the rotation is midway between -89 and 90 degrees on Z (ie identity).
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.5f));
+    ASSERT_VEC4(rot_midway, pose[0].GetRotation());
+
+    // Blend is done, should be "static" at 89 degrees.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_VEC4(rot_2, pose[0].GetRotation());
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_VEC4(rot_2, pose[0].GetRotation());
 }
 
 TEST_F(RigInstanceTest, GetVertexCount)
