@@ -245,7 +245,11 @@ Defold Orange       #fd6623             Guides etc
   -fx-control-inner-background: #323232;
   -fx-hover-base: #c80000; }
 
+.text-input {
+  -fx-prompt-text-fill: #484d54; }
+
 .text-area {
+  -fx-border-color: #484d54;
   -fx-font-size: 9pt;
   -fx-font-family: "Dejavu Sans Mono"; }
 
@@ -399,6 +403,10 @@ Defold Orange       #fd6623             Guides etc
   -fx-border-radius: 0px;
   -fx-background-insets: 0;
   -fx-border-width: 0; }
+  .combo-box:hover > .text-input {
+    -fx-border-width: 1 0 1 1; }
+  .combo-box:focused > .text-input {
+    -fx-border-width: 1; }
   .combo-box:hover > .list-cell {
     -fx-border-width: 1 0 1 1;
     -fx-border-color: #484d54;
@@ -417,7 +425,7 @@ Defold Orange       #fd6623             Guides etc
     -fx-background-color: #222426;
     -fx-border-width: 1;
     -fx-border-color: #484d54;
-    -fx-border-insets: 0 24 0 0;
+    -fx-border-insets: 0 26 0 0;
     -fx-background-insets: 0 24 0 0;
     -fx-text-fill: #484d54; }
   .combo-box .list-cell {
@@ -430,7 +438,7 @@ Defold Orange       #fd6623             Guides etc
     -fx-background-color: #33393f;
     -fx-border-width: 1;
     -fx-border-color: #484d54;
-    -fx-padding: 5 7; }
+    -fx-padding: 5 8; }
     .combo-box .arrow-button:hover {
       -fx-background-color: #272b30; }
     .combo-box .arrow-button:pressed {
@@ -592,14 +600,16 @@ Defold Orange       #fd6623             Guides etc
 
 .property-component {
   -fx-spacing: 0;
-  -fx-padding: 0 5 0 0; }
+  -fx-padding: 0; }
   .property-component .label {
+    -fx-alignment: center;
     -fx-background-color: #2c3036;
     -fx-border-width: 1;
     -fx-border-color: #222426;
     -fx-padding: 5px 5px;
     -fx-text-fill: rgba(176, 176, 176, 0.8); }
   .property-component .text-field {
+    -fx-alignment: center-right;
     -fx-padding: 5px 8px; }
 
 .radio-button:hover .radio {

@@ -47,7 +47,7 @@
             project   (test-util/setup-project! workspace)
             node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
         (project/select! project [node-id])
-        (test-util/handler-run :add [{:name :global :env {:selection [node-id]}}] {:shape-type :type-sphere})
+        (test-util/handler-run :add [{:name :workbench :env {:selection [node-id]}}] {:shape-type :type-sphere})
         (let [outline (g/node-value node-id :node-outline)]
           (is (= 4 (count (:children outline))))
           (is (= "Sphere" (last (outline-seq outline)))))))))

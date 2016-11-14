@@ -39,6 +39,7 @@
 #include "resources/res_rig_scene.h"
 #include "resources/res_spine_model.h"
 #include "resources/res_display_profiles.h"
+#include "resources/res_label.h"
 
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
@@ -54,6 +55,7 @@
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
 #include "components/comp_spine_model.h"
+#include "components/comp_label.h"
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
@@ -107,6 +109,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("gamepadsc", 0, 0, ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
         REGISTER_RESOURCE_TYPE("factoryc", 0, ResFactoryPreload, ResFactoryCreate, ResFactoryDestroy, ResFactoryRecreate);
         REGISTER_RESOURCE_TYPE("collectionfactoryc", 0, 0, ResCollectionFactoryCreate, ResCollectionFactoryDestroy, ResCollectionFactoryRecreate);
+        REGISTER_RESOURCE_TYPE("labelc", 0, ResLabelPreload, ResLabelCreate, ResLabelDestroy, ResLabelRecreate);
         REGISTER_RESOURCE_TYPE("lightc", 0, 0, ResLightCreate, ResLightDestroy, ResLightRecreate);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, 0, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
@@ -135,7 +138,8 @@ namespace dmGameSystem
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
-                                                SpineModelContext* spine_model_context)
+                                                SpineModelContext* spine_model_context,
+                                                LabelContext* label_context)
     {
         dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
@@ -267,6 +271,12 @@ namespace dmGameSystem
                 CompSpineModelCreate, CompSpineModelDestroy, 0, 0, CompSpineModelAddToUpdate,
                 CompSpineModelUpdate, CompSpineModelRender, 0, CompSpineModelOnMessage, 0, CompSpineModelOnReload, CompSpineModelGetProperty, CompSpineModelSetProperty,
                 1, 1);
+
+        REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
+                CompLabelNewWorld, CompLabelDeleteWorld,
+                CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate,
+                CompLabelUpdate, CompLabelRender, 0, CompLabelOnMessage, 0, CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
+                1, 0);
 
         #undef REGISTER_COMPONENT_TYPE
 

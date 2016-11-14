@@ -83,15 +83,17 @@
                                                         (when expanded (.setExpanded item expanded))
                                                         selected)) items)))
 
-(defn- sync-selection [^TreeView tree-view ^TreeItem root selection]
-  (when (and root (not (empty? selection)))
-    (let [selected-ids (set selection)]
-      (auto-expand (.getChildren root) selected-ids)
-      (let [count (.getExpandedItemCount tree-view)
-            selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
-        (when (not (empty? selected-indices))
-          (doto (-> tree-view (.getSelectionModel))
-            (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
+(defn- sync-selection [^TreeView tree-view selection]
+  (let [root (.getRoot tree-view)]
+    (.. tree-view getSelectionModel clearSelection)
+    (when (and root (not (empty? selection)))
+      (let [selected-ids (set selection)]
+        (auto-expand (.getChildren root) selected-ids)
+        (let [count (.getExpandedItemCount tree-view)
+              selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
+          (when (not (empty? selected-indices))
+            (doto (-> tree-view (.getSelectionModel))
+              (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices))))))))))
 
 (defn- pathify
   ([root]
@@ -102,18 +104,40 @@
         (assoc :path path)
         (update :children (fn [children] (mapv #(pathify path %) children)))))))
 
-(g/defnk update-tree-view [_node-id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
+(defn- tree-view-selection
+  [^TreeView tree-view]
+  (mapv item->node-id (.. tree-view getSelectionModel getSelectedItems)))
+
+(g/defnk produce-tree-root
+  [_node-id active-outline active-resource open-resources root-cache]
   (let [resource-set (set open-resources)
         root (get root-cache active-resource)
-        ^TreeItem new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
+        new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
         new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
-    (binding [*programmatic-selection* true]
-      (when new-root
-        (.setExpanded new-root true))
-      (.setRoot tree-view new-root)
-      (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property _node-id :root-cache new-cache))
-      tree-view)))
+    (g/transact (g/set-property _node-id :root-cache new-cache))
+    new-root))
+
+(defn- update-tree-view-selection!
+  [^TreeView tree-view selection]
+  (binding [*programmatic-selection* true]
+    (sync-selection tree-view selection)
+    tree-view))
+
+(defn- update-tree-view-root!
+  [^TreeView tree-view ^TreeItem root selection]
+  (binding [*programmatic-selection* true]
+    (when root
+      (.setExpanded root true))
+    (.setRoot tree-view root)
+    (sync-selection tree-view selection)
+    tree-view))
+
+(g/defnk update-tree-view [_node-id ^TreeView tree-view ^TreeItem root selection]
+  (if (identical? (.getRoot tree-view) root)
+    (if (= (set selection) (set (tree-view-selection tree-view)))
+      tree-view
+      (update-tree-view-selection! tree-view selection))
+    (update-tree-view-root! tree-view root selection)))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
@@ -125,24 +149,35 @@
   (input open-resources g/Any :substitute [])
   (input selection g/Any :substitute [])
 
+  (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached update-tree-view))
 
 (ui/extend-menu ::outline-menu nil
                 [{:label "Add"
-                  :icon "icons/plus.png"
+                  :icon "icons/32/Icons_M_07_plus.png"
                   :command :add}
                  {:label "Add From File"
-                  :icon "icons/plus.png"
+                  :icon "icons/32/Icons_M_07_plus.png"
                   :command :add-from-file}
                  {:label "Add Secondary"
-                  :icon "icons/plus.png"
+                  :icon "icons/32/Icons_M_07_plus.png"
                   :command :add-secondary}
                  {:label "Add Secondary From File"
-                  :icon "icons/plus.png"
+                  :icon "icons/32/Icons_M_07_plus.png"
                   :command :add-secondary-from-file}
                  {:label "Delete"
-                  :icon "icons/cross.png"
-                  :command :delete}])
+                  :icon "icons/32/Icons_M_06_trash.png"
+                  :command :delete}
+                 {:label :separator}
+                 {:label "Open"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :open}
+                 {:label "Open As"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :open-as}
+                 {:label "Show in Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}])
 
 (defn- item->path [^TreeItem item]
   (:path (.getValue item)))
@@ -153,7 +188,11 @@
 (defn- root-iterators [^TreeView tree-view]
   (mapv ->iterator (ui/selection-roots tree-view item->path item->id)))
 
-(handler/defhandler :delete :global
+(defn- selection->nodes [selection]
+  (handler/adapt-every selection Long))
+
+(handler/defhandler :delete :workbench
+  (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection outline-view]
             (and (< 0 (count selection))
                  (let [tree-view (g/node-value outline-view :tree-view)
@@ -163,7 +202,7 @@
        (g/transact
          (concat
            (g/operation-label "Delete")
-           (for [node-id selection]
+           (for [node-id (handler/selection->node-ids selection)]
              (g/delete-node node-id))))))
 
 (defn- project [^TreeView tree-view]
@@ -174,7 +213,8 @@
                         (or (DataFormat/lookupMimeType json)
                             (DataFormat. (into-array String [json]))))))
 
-(handler/defhandler :copy :global
+(handler/defhandler :copy :workbench
+  (active? [selection] (selection->nodes selection))
   (enabled? [selection] (< 0 (count selection)))
   (run [outline-view]
        (alter-var-root #'*paste-into-parent* (constantly true))
@@ -193,7 +233,8 @@
           (outline/parent target-it)
           target-it)))))
 
-(handler/defhandler :paste :global
+(handler/defhandler :paste :workbench
+  (active? [selection] (selection->nodes selection))
   (enabled? [selection outline-view]
             (let [cb (Clipboard/getSystemClipboard)
                   tree-view (g/node-value outline-view :tree-view)
@@ -210,7 +251,8 @@
              data-format (data-format-fn)]
          (outline/paste! (project/graph project) target-item-it (.getContent cb data-format) (partial project/select project)))))
 
-(handler/defhandler :cut :global
+(handler/defhandler :cut :workbench
+  (active? [selection] (selection->nodes selection))
   (enabled? [selection outline-view]
             (let [tree-view (g/node-value outline-view :tree-view)
                   item-iterators (root-iterators tree-view)]
@@ -351,7 +393,7 @@
                                                        a))
                          (proxy-super setStyle nil)))))))]
     (doto cell
-      (.setOnDragEntered drag-entered-handler )
+      (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
 
 (defn- setup-tree-view [^TreeView tree-view ^ListChangeListener selection-listener selection-provider]
@@ -364,7 +406,10 @@
       (.setOnDragDone (ui/event-handler e (drag-done tree-view e)))
       (.setOnDragOver (ui/event-handler e (drag-over tree-view e)))
       (.setOnDragDropped (ui/event-handler e (drag-dropped tree-view e)))
-      (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler)))))
+      (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
+      (ui/context! :outline {} tree-view {} {java.lang.Long :node-id
+                                             resource/Resource :link})
+      (ui/bind-double-click! :open))
     (ui/register-context-menu tree-view ::outline-menu)))
 
 (defn- propagate-selection [^ListChangeListener$Change change selection-fn]
