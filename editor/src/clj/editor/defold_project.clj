@@ -161,11 +161,11 @@
 (defn save-data [project]
   (g/node-value project :save-data {:skip-validation true}))
 
-(defn save-all [project {:keys [render-progress! basis cache]
-                         :or {render-progress! progress/null-render-progress!
-                              basis            (g/now)
-                              cache            (g/cache)}
-                         :as opts}]
+(defn write-save-data-to-disk! [project {:keys [render-progress! basis cache]
+                                         :or {render-progress! progress/null-render-progress!
+                                              basis            (g/now)
+                                              cache            (g/cache)}
+                                         :as opts}]
   (try
     (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
       (if-not (g/error? save-data)
@@ -247,23 +247,23 @@
                        @new-cache
                        current-cache-val))))
 
-(handler/defhandler :save-all :global
-  (enabled? [] (not @ongoing-build-save?))
-  (run [project]
-    (when-not @ongoing-build-save?
-      (reset! ongoing-build-save? true)
-      (let [workspace     (workspace project)
-            old-cache-val @(g/cache)
-            cache         (atom old-cache-val)]
-        (future
-          (try
-            (ui/with-progress [render-fn ui/default-render-progress!]
-              (save-all project {:render-progress! render-fn
-                                 :basis            (g/now)
-                                 :cache            cache})
-              (workspace/update-version-on-disk! workspace)
-              (update-system-cache! old-cache-val cache))
-            (finally (reset! ongoing-build-save? false))))))))
+(defn save-all! [project on-complete-fn]
+  (when-not @ongoing-build-save?
+    (reset! ongoing-build-save? true)
+    (let [workspace     (workspace project)
+          old-cache-val @(g/cache)
+          cache         (atom old-cache-val)]
+      (future
+        (try
+          (ui/with-progress [render-fn ui/default-render-progress!]
+                            (write-save-data-to-disk! project {:render-progress! render-fn
+                                                               :basis            (g/now)
+                                                               :cache            cache})
+                            (workspace/update-version-on-disk! workspace)
+                            (update-system-cache! old-cache-val cache))
+          (ui/run-later
+            (on-complete-fn))
+          (finally (reset! ongoing-build-save? false)))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -386,12 +386,6 @@
 (handler/defhandler :redo :global
     (enabled? [project-graph] (g/has-redo? project-graph))
     (run [project-graph] (g/redo! project-graph)))
-
-(ui/extend-menu ::menubar :editor.app-view/open
-                [{:label "Save All"
-                  :id ::save-all
-                  :acc "Shortcut+S"
-                  :command :save-all}])
 
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"

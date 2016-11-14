@@ -439,13 +439,13 @@
                   (when-not (instance? Button new)
                     (update-push-buttons!))))
 
-    (ui/observe (.. ^ListView (:changed push-controls) getSelectionModel selectedItemProperty)
-                (fn [_ _ _]
-                  (update-push-buttons!)))
+    (ui/observe-selection ^ListView (:changed push-controls)
+                          (fn [_ _]
+                            (update-push-buttons!)))
 
-    (ui/observe (.. ^ListView (:staged push-controls) getSelectionModel selectedItemProperty)
-                (fn [_ _ _]
-                  (update-push-buttons!)))
+    (ui/observe-selection ^ListView (:staged push-controls)
+                          (fn [_ _]
+                            (update-push-buttons!)))
 
     (ui/observe (.textProperty ^TextArea (:message push-controls))
                 (fn [_ _ _]
