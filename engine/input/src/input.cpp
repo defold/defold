@@ -126,7 +126,7 @@ namespace dmInput
         {
             action.m_IsGamepad = 1;
 
-            for (int i = 0; i < binding->m_GamepadBindings.Size(); ++i)
+            for (uint32_t i = 0; i < binding->m_GamepadBindings.Size(); ++i)
             {
                 delete binding->m_GamepadBindings[i];
             }
@@ -256,7 +256,7 @@ namespace dmInput
             delete binding->m_KeyboardBinding;
         if (binding->m_MouseBinding != 0x0)
             delete binding->m_MouseBinding;
-        for (int i = 0; i < binding->m_GamepadBindings.Size(); ++i)
+        for (uint32_t i = 0; i < binding->m_GamepadBindings.Size(); ++i)
         {
             delete binding->m_GamepadBindings[i];
         }
