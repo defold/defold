@@ -15,3 +15,4 @@ pom.xml.asc
 /misc/timeseries.csv
 /resources/_unpack/
 /.cache
+/resources/editor.css
