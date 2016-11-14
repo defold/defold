@@ -106,7 +106,7 @@
         (update :children (fn [children] (mapv #(pathify path %) children)))))))
 
 (g/defnk produce-tree-root
-  [_node-id active-outline active-resource open-resources raw-tree-view]
+  [active-outline active-resource open-resources raw-tree-view]
   (let [resource-set (set open-resources)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
         root (get root-cache active-resource)
@@ -130,7 +130,7 @@
     (sync-selection tree-view selection)
     tree-view))
 
-(g/defnk update-tree-view [_node-id ^TreeView raw-tree-view ^TreeItem root selection]
+(g/defnk update-tree-view [^TreeView raw-tree-view ^TreeItem root selection]
   (if (identical? (.getRoot raw-tree-view) root)
     (if (= (set selection) (set (map :node-id (ui/selection raw-tree-view))))
       raw-tree-view
