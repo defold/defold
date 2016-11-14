@@ -1,13 +1,14 @@
 .choice-box {
     -fx-background-radius: 0;
     -fx-border-radius: 0;
-    -fx-background-color: $dark-grey;
+    -fx-background-color: $dark-grey-header;
     -fx-background-insets: 0;
     -fx-border-color: $mid-grey;
-    -fx-padding: 2;
+    -fx-border-width: 0;
+    -fx-padding: 0;
     /* TODO: Why do we have to do this explicitly? */ 
     &:hover {
-        -fx-background-color: $dark-black;
+        -fx-background-color: $dark-grey;
     }
     &:showing {
         -fx-background-color: $dark-grey;

@@ -2,6 +2,15 @@
     -fx-tab-min-width: 40px;
     -fx-padding: 0 0 17px 0;
 
+    .tab {
+        -fx-padding: 0 10 0 10;
+        &:selected {
+            .tab-label {
+                -fx-padding: 0;
+            }
+        }
+    }
+
     .console-buttons-base {
         -fx-background-color: $mid-grey-light;
         -fx-background-position: center;
@@ -64,14 +73,19 @@
     GridPane {
         -fx-padding: 10;
     }
-}
 
-.console-tab-base {
-    -fx-background-position: 10 center;
-    -fx-background-repeat: no-repeat;
-    -fx-background-size: 21 16;
-    -fx-padding: 0 10 0 37;
-    -fx-spacing: 10;
+    .console-tab-base {
+        -fx-background-position: 10 center;
+        -fx-background-repeat: no-repeat;
+        -fx-background-size: 21 16;
+        -fx-padding: 0 10 0 37;
+        -fx-spacing: 0;//10;
+        &:selected {
+            .tab-label {
+                -fx-padding: 0;
+            }
+        }
+    }
 }
 
 #console-tab {

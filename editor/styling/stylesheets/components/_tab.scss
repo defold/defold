@@ -12,11 +12,11 @@
         .tab {
             -fx-background-radius: 0;
             -fx-background-insets: 0;
-            /*-fx-background-insets: 0, 0 0 2 0;*/
             -fx-background-color: $dark-grey;
             -fx-border-width: 0 0 2 0;
+            -fx-border-insets: 0 8 0 0;
             -fx-border-color: $dark-grey;
-            -fx-padding: 0 10 0 10;
+            -fx-padding: 0 18 0 2;  
             
             &:hover {
                 -fx-background-insets: 0;
@@ -30,11 +30,13 @@
             }
             &:selected { 
                 /*-fx-background-insets: 0, 0;*/
-                -fx-border-width: 0 0 2 0;
+                -fx-padding: 0 0 0 2;
+                -fx-border-insets: 0 8 0 0;
                 -fx-border-color: $defold-orange;
                 -fx-color: $defold-white;
 
                 .tab-label {
+                    -fx-padding: 0 2 0 0;
                     -fx-text-fill: $defold-white;
                     .image-view {
                         @include effect-lighten();
@@ -67,7 +69,7 @@
 }
 
 .tab-label {
-    -fx-padding: 0;
+    -fx-padding: 0 0 0 0;
     -fx-font-weight: bold;
 }
 
@@ -75,6 +77,9 @@
     -fx-shape: "M 0,0 H1 L 4,3 7,0 H8 V1 L 5,4 8,7 V8 H7 L 4,5 1,8 H0 V7 L 3,4 0,1 Z";
     -fx-background-color: $bright-grey;
     -fx-effect: none;
+    &:hover {
+        -fx-background-color: white;
+    }
 }
 
 .control-buttons-tab {
