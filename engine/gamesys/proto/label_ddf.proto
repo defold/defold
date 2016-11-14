@@ -9,7 +9,7 @@ option java_outer_classname = "Label";
 /*# Label API documentation
  *
  * @name Label
- * @namespace label1
+ * @namespace label
  */
 
 message LabelDesc
