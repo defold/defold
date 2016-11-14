@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.media.opengl.GL2;
-import javax.vecmath.Matrix4d;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IFile;
@@ -24,10 +23,10 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
-import com.dynamo.bob.util.RigScene;
-import com.dynamo.bob.util.RigScene.Bone;
-import com.dynamo.bob.util.RigScene.Mesh;
-import com.dynamo.bob.util.RigScene.UVTransformProvider;
+import com.dynamo.bob.util.SpineSceneUtil;
+import com.dynamo.bob.util.RigUtil.Bone;
+import com.dynamo.bob.util.RigUtil.Mesh;
+import com.dynamo.bob.util.RigUtil.UVTransformProvider;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -53,7 +52,7 @@ public class SpineModelNode extends ComponentTypeNode {
     private String spineScene = "";
 
     private transient SpineSceneDesc sceneDesc;
-    private transient RigScene scene;
+    private transient SpineSceneUtil scene;
 
     private transient TextureSetNode textureSetNode = null;
 
@@ -220,7 +219,7 @@ public class SpineModelNode extends ComponentTypeNode {
         return this.textureSetNode;
     }
 
-    public RigScene getScene() {
+    public SpineSceneUtil getScene() {
         return this.scene;
     }
 
@@ -420,13 +419,13 @@ public class SpineModelNode extends ComponentTypeNode {
         return null;
     }
 
-    private static RigScene loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
+    private static SpineSceneUtil loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
         if (!path.isEmpty()) {
             InputStream in = null;
             try {
                 IFile file = model.getFile(path);
                 in = file.getContents();
-                return RigScene.loadJson(in, provider);
+                return SpineSceneUtil.loadJson(in, provider);
             } catch (Exception e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             } finally {
