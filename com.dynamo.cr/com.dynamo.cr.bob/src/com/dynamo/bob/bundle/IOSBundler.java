@@ -261,6 +261,8 @@ public class IOSBundler implements IBundler {
             File tmpZipDir = createTempDirectory();
             tmpZipDir.deleteOnExit();
 
+            // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
+            // to import the resulting zip files.
             File payloadDir = new File(tmpZipDir, "Payload");
             payloadDir.mkdir();
 
