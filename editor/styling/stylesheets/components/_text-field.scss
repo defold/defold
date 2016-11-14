@@ -12,7 +12,7 @@
         //-fx-border-color: $dark-grey-border;
     }
     &:focused {
-        -fx-background-color: $dark-grey-selected;
+        -fx-background-color: $dark-grey;//$dark-grey-selected;
         -fx-border-color: $defold-orange;
         -fx-text-fill: $defold-white;
     }

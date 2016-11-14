@@ -1,11 +1,11 @@
 .color-picker {
-    -fx-background-radius: 3;
-    -fx-border-radius: 3;
-    -fx-background-color: $dark-grey;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-background-color: $dark-grey-header;
     -fx-background-insets: 0;
-    -fx-border-color: $mid-grey;
+    -fx-border-width: 0;
     &:hover {
-        -fx-background-color: $dark-black;
+        -fx-background-color: $dark-grey;
     }
     &:showing {
         -fx-background-color: $dark-grey;
@@ -16,6 +16,16 @@
     }
     .label {
         -fx-text-fill: $bright-grey;
+    }
+    .arrow-button {
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+        -fx-border-width: 0;
+        -fx-background-insets: 0;
+        -fx-background-color: $mid-grey-light;
+        &:hover {
+            -fx-background-color: $dark-grey;
+        }
     }
 }
 .color-palette {
