@@ -3544,7 +3544,7 @@ namespace dmGui
         return 0;
     }
 
-    /*# gets the cursor of the animation on a spine node
+    /*# gets the normalized cursor of the animation on a spine node
      * This is only useful for spine nodes. Gets the normalized cursor of the animation on a spine node.
      *
      * @name gui.get_spine_cursor
@@ -3569,7 +3569,7 @@ namespace dmGui
     }
 
     /*# sets the playback rate of the animation on a spine node
-     * This is only useful for spine nodes. Gets the playback rate of the animation on a spine node.
+     * This is only useful for spine nodes. Sets the playback rate of the animation on a spine node. Must be positive.
      *
      * @name gui.set_spine_playback_rate
      * @param node spine node to set the cursor for (node)
@@ -3608,7 +3608,6 @@ namespace dmGui
     int LuaGetSpinePlaybackRate(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        //int top = lua_gettop(L);
 
         Scene* scene = GuiScriptInstance_Check(L);
         HNode hnode;
@@ -3618,7 +3617,6 @@ namespace dmGui
 
         lua_pushnumber(L, playback_rate);
 
-        //assert(top == lua_gettop(L)-1);
         return 1;
     }
 

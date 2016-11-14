@@ -819,7 +819,6 @@ namespace dmRig
 
     float GetPlaybackRate(HRigInstance instance)
     {
-        // TODO make a note that this must be >=0.0
         RigPlayer* player = GetPlayer(instance);
         if (!player)
         {
@@ -844,8 +843,8 @@ namespace dmRig
         }
         else
         {
-            player->m_PlaybackRate = playback_rate;
-            //player->m_Backwards = 1;
+            dmLogWarning("Playback rate cannot be negative, defaulting to 0.0.");
+            player->m_PlaybackRate = 0.0f;
         }
 
         return dmRig::RESULT_OK;

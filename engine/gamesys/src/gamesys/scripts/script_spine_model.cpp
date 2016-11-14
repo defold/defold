@@ -121,7 +121,7 @@ namespace dmGameSystem
      * <ul>
      *   <li><code>blend_duration</code> duration of a linear blend between the current and new animation (number)</li>
      *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
-     *   <li><code>playback_rate</code> the rate with which the animation will be played (number)</li>
+     *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
      * </ul>
      */
     int SpineComp_PlayAnim(lua_State* L)
