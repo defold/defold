@@ -794,7 +794,7 @@ static GLboolean createWindow( int width, int height,
         wa.event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask |
             PointerMotionMask | ButtonPressMask | ButtonReleaseMask |
             ExposureMask | FocusChangeMask | VisibilityChangeMask |
-            EnterMask | LeaveMask;
+            EnterWindowMask | LeaveWindowMask;
 
         if( wndconfig->mode == GLFW_WINDOW )
         {
