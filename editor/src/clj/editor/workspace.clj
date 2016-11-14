@@ -131,8 +131,15 @@ ordinary paths."
   ([workspace tag]
     (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
+(defn- template-path [resource-type]
+  (or (:template resource-type)
+      (some->> resource-type :ext (str "templates/template."))))
+
+(defn has-template? [resource-type]
+  (some? (some-> resource-type template-path io/resource)))
+
 (defn template [resource-type]
-  (when-let [template-path (or (:template resource-type) (str "templates/template." (:ext resource-type)))]
+  (when-let [template-path (template-path resource-type)]
     (when-let [resource (io/resource template-path)]
       (with-open [f (io/reader resource)]
         (slurp f)))))
