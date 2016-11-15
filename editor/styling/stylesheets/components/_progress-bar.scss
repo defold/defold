@@ -1,0 +1,30 @@
+/* See modena.css for progress bar styling */
+.progress-bar {
+  -fx-background-radius: 0;
+  -fx-border-radius: 0;
+  .track {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-width: 1;
+    -fx-border-color: $mid-grey;
+    -fx-background-insets: 0; }
+  .bar {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-min-height: 10;
+    -fx-padding: 8 0; }
+}
+
+.small-progress-bar {
+    .bar {
+        -fx-background-color: $defold-light-blue;
+        -fx-background-insets: 0;
+        -fx-background-radius: 0;
+        -fx-padding: 1em;
+    }
+
+    .track {
+        -fx-background-color: $dark-grey;
+        -fx-background-insets: 0;
+        -fx-background-radius: 0; }
+}

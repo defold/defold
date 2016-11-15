@@ -5,6 +5,7 @@
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
+                     [lein-sass "0.4.0"]
                      [codox "0.9.3"]]
 
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
@@ -80,9 +81,13 @@
 
   :protobuf-exclude  ["../engine/ddf/src/test"]
 
+  :sass              {:src "styling/stylesheets/main.sass"
+                      :output-directory "resources/editor.css"
+                      :source-maps false}
+
   :aliases           {"ci"        ["do" "test," "uberjar"]
                       "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "init"      ["do" "clean," "builtins," "protobuf," "pack"]}
+                      "init"      ["do" "clean," "builtins," "protobuf," "sass" "once," "pack"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -98,10 +103,10 @@
   :main ^:skip-aot   com.defold.editor.Start
 
   :uberjar-exclusions [#"^natives/"]
-  
+
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]
                                 :resource-paths ["test/resources"]}
-                      :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" "javac" ["run" "-m" "aot"]]
+                      :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}

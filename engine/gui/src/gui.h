@@ -393,6 +393,8 @@ namespace dmGui
         int32_t  m_TouchCount;
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
+        uint32_t m_GamepadIndex;
+        uint32_t m_IsGamepad : 1;
         uint32_t m_HasText : 1;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;

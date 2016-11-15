@@ -1,0 +1,18 @@
+.flat-list-view {
+    -fx-background-insets: 0;
+    .list-cell {
+        -fx-background-color: $bright-black;
+        -fx-border-width: 0 0 0 0;
+        -fx-border-color: $bright-black;//rgba(51, 57, 63, 0.5);
+        -fx-padding: 0.5em 1em;
+        &.first-list-item {
+            -fx-border-width: 0;
+        }
+        &:hover {
+            -fx-text-fill: $defold-white;
+        }
+        &:selected {
+            -fx-background-color: $selected-blue;
+        }
+    }
+}
