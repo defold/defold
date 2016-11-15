@@ -75,11 +75,11 @@
     }
 
     .console-tab-base {
-        -fx-background-position: 10 center;
+        -fx-background-position: 10 8;
         -fx-background-repeat: no-repeat;
-        -fx-background-size: 21 16;
-        -fx-padding: 0 10 0 37;
-        -fx-spacing: 0;//10;
+        -fx-background-size: 17 17;
+        -fx-padding: 0 10 0 32;
+        -fx-spacing: 0;
         &:selected {
             .tab-label {
                 -fx-padding: 0;
@@ -90,35 +90,35 @@
 
 #console-tab {
     @extend .console-tab-base;
-    -fx-background-image: url("icons/tabs/console-icon-off.png");
+    -fx-background-image: url("icons/tabs/ic_console-grey.png");
     &:selected {
-        -fx-background-image: url("icons/tabs/console-icon-on.png");
+        -fx-background-image: url("icons/tabs/ic_console-white.png");
     }
     &:hover {
-        -fx-background-image: url("icons/tabs/console-icon-on.png");
+        -fx-background-image: url("icons/tabs/ic_console-white.png");
     }
 }
 
 #curve-editor-tab {
     @extend .console-tab-base;
-    -fx-background-image: url("icons/tabs/curve-editor-icon-off.png");
-    -fx-background-position: 10 8px;
+    -fx-background-image: url("icons/tabs/ic_curve-editor-grey.png");
+    -fx-background-position: 10 7 !important;
     &:selected {
-        -fx-background-image: url("icons/tabs/curve-editor-icon-on.png");
+        -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
     }
     &:hover {
-        -fx-background-image: url("icons/tabs/curve-editor-icon-on.png");
+        -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
     }
 }
 
 #build-errors-tab {
     @extend .console-tab-base;
-    -fx-background-image: url("icons/tabs/build-problems-off.png");
+    -fx-background-image: url("icons/tabs/ic_build-problems-grey.png");
     &:selected {
-        -fx-background-image: url("icons/tabs/build-problems-on.png");
+        -fx-background-image: url("icons/tabs/ic_build-problems-white.png");
     }
     &:hover {
-        -fx-background-image: url("icons/tabs/build-problems-on.png");
+        -fx-background-image: url("icons/tabs/ic_build-problems-white.png");
     }
     
     .label {
