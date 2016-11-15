@@ -117,29 +117,28 @@
         ^WebResource resource (.resource ^Client client (URI. server-url))
         ^WebResource build-resource (.path resource (format "/build/%s" platform))
         ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-        form (FormDataMultiPart.)
-
         resources (g/node-value workspace :resource-list)
         manifests (filter #(= "ext.manifest" (resource/resource-name %)) resources)
         all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
 
-    ; TODO: potential leak with io/input-stream below?
-    ; TODO: This try/catch shouldn't be necessary. Caught somewhere else and discarded?
     (try
-      (doseq [r all-resources]
-        (prn (resource/proj-path r))
-        (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
-
-      ; NOTE: We need at least one part..
-      (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
-      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
-            f (io/file "/tmp/e")]
-        (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-        (.setExecutable f true)
-
-        (do-launch (.getPath f) launch-dir))
+      (with-open [form (FormDataMultiPart.)]
+        (doseq [r all-resources]
+          (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
+          ; NOTE: We need at least one part..
+        (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
+        (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
+              f (File/createTempFile "engine" "")]
+          (.deleteOnExit f)
+          (if (= 200 (.getStatus cr))
+            (do
+              (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
+              (.setExecutable f true)
+              (do-launch (.getPath f) launch-dir))
+            (do
+              (console/append-console-message! (str (.getEntity cr String) "\n"))))))
       (catch Throwable e
-        (prn e)))))
+        (console/append-console-message! (str e "\n"))))))
 
 (defn launch [prefs workspace launch-dir]
   (if (prefs/get-prefs prefs "enable-extensions" false)
