@@ -24,7 +24,7 @@
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
-   [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode]
+   [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent KeyCode]
    [javafx.scene.image Image]
    [javafx.scene.layout Region]
@@ -140,11 +140,31 @@
           (user-data! node ::list-listeners listeners))))))
 
 (defmacro observe-selection
+  "Helper macro that lets you observe selection changes in a generic fashion.
+  Takes a Node that has a getSelectionModel method and a function that takes
+  the reporting Node and a vector with the selected items as its arguments.
+
+  This is a macro because JavaFX does not have a common interface for classes
+  that feature a getSelectionModel method. To avoid reflection warnings, tag
+  the node argument with type metadata.
+
+  Supports both single and multi-selection. In both cases the selected items
+  will be provided in a vector."
   [node listen-fn]
-  `(let [selection-provider# ~node]
-     (observe-list selection-provider#
-                   (.. selection-provider# getSelectionModel getSelectedItems)
-                   ~listen-fn)))
+  `(let [selection-provider# ~node
+         selection-listener# ~listen-fn
+         selection-model# (.getSelectionModel selection-provider#)]
+     (condp instance? selection-model#
+       MultipleSelectionModel
+       (observe-list selection-provider#
+                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
+                     (fn [_# selected-items#]
+                       (selection-listener# selection-provider# selected-items#)))
+
+       SelectionModel
+       (observe (.selectedItemProperty ^SelectionModel selection-model#)
+                (fn [_# _# selected-item#]
+                  (selection-listener# selection-provider# [selected-item#]))))))
 
 (defn remove-list-observers
   [^Node node ^ObservableList observable]

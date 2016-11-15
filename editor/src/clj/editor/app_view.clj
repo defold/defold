@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.changes-view :as changes-view]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.handler :as handler]
@@ -243,7 +244,7 @@
     (project/build-and-save-project project build-options)))
 
 (handler/defhandler :build :global
-  (enabled? [] (not @project/ongoing-build-save?))
+  (enabled? [] (not (project/ongoing-build-save?)))
   (run [workspace project prefs web-server build-errors-view]
     (let [build (build-project project build-errors-view)]
       (when (and (future? build) @build)
@@ -321,6 +322,10 @@
                               :id ::open
                               :acc "Shortcut+O"
                               :command :open}
+                             {:label "Save All"
+                              :id ::save-all
+                              :acc "Shortcut+S"
+                              :command :save-all}
                              {:label :separator}
                              {:label "Open Asset"
                               :acc "Shift+Shortcut+R"
@@ -560,6 +565,11 @@
                        :command   :open-as
                        :user-data {:selected-view-type vt}})
                     (:view-types resource-type))))))
+
+(handler/defhandler :save-all :global
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [project changes-view]
+       (project/save-all! project #(changes-view/refresh! changes-view))))
 
 (handler/defhandler :show-in-desktop :global
   (active? [selection] (selection->single-resource-file selection))

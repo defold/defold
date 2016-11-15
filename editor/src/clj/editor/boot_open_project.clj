@@ -24,7 +24,6 @@
             [editor.gl.shader :as shader]
             [editor.graph-view :as graph-view]
             [editor.gui :as gui]
-            [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.image :as image]
             [editor.json :as json]
@@ -150,17 +149,6 @@
     (changes-view/refresh! changes-view)
     (doseq [resource (:removed changes)]
       (app-view/remove-resource-tab editor-tabs resource))))
-
-(handler/defhandler :save-all :global
-  (enabled? [] (not @project/ongoing-build-save?))
-  (run [project changes-view]
-    (project/save-all! project #(changes-view/refresh! changes-view))))
-
-(ui/extend-menu ::menubar :editor.app-view/open
-                [{:label "Save All"
-                  :id ::save-all
-                  :acc "Shortcut+S"
-                  :command :save-all}])
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
