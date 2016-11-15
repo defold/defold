@@ -531,16 +531,14 @@ Links:
 
 .property-component {
   -fx-spacing: 0;
-  -fx-padding: 0;
-  -fx-font-weight: bold; }
+  -fx-padding: 0; }
   .property-component .label {
     -fx-padding: 5px;
     -fx-font-weight: normal;
     -fx-text-fill: #848484;
     -fx-alignment: center; }
-    .property-component .label .text {
-      -fx-text-alignment: center-right; }
   .property-component .text-field {
+    -fx-alignment: center-right;
     -fx-padding: 5px 8px; }
 
 .radio-button:hover .radio {
@@ -848,6 +846,18 @@ Links:
     .tree-cell:filled .tree-disclosure-node .arrow {
       -fx-effect: innershadow(gaussian, #b0b0b0, 20, 0.3, 0, 0); }
 
+.added-file .image-view {
+  -fx-effect: innershadow(gaussian, #00df64, 20, 0.3, 0, 0); }
+
+.deleted-file .image-view {
+  -fx-effect: innershadow(gaussian, #ff4646, 20, 0.3, 0, 0); }
+
+.modified-file .image-view {
+  -fx-effect: innershadow(gaussian, #6b7b8b, 20, 0.3, 0, 0); }
+
+.renamed-file .image-view {
+  -fx-effect: innershadow(gaussian, #fbce2f, 20, 0.3, 0, 0); }
+
 /* Targeted modules */
 #assets-split {
   -fx-padding: 0 0 0 0; }
@@ -874,8 +884,13 @@ Links:
     -fx-padding: 10 0 10 15; }
   #changes-container .list-view {
     -fx-background-color: #3a3f44; }
-  #changes-container .flat-list-view .cell, #changes-container .flat-list-view .list-cell {
-    -fx-background-color: #3a3f44 !important; }
+  #changes-container .flat-list-view .list-cell {
+    -fx-background-color: #3a3f44; }
+    #changes-container .flat-list-view .list-cell:selected {
+      -fx-border-width: 0 2 0 0;
+      -fx-border-color: #fa6731;
+      -fx-text-fill: #f0f2f6;
+      -fx-background-color: #42474C; }
 
 /*#next-console {
     -fx-background-color: $mid-grey;
