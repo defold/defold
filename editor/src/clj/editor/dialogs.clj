@@ -160,6 +160,8 @@
       (assoc dialog :refresh refresh))))
 
 (handler/defhandler ::confirm :dialog
+  (enabled? [selection]
+            (seq selection))
   (run [^Stage stage selection]
        (ui/user-data! stage ::selected-items selection)
        (ui/close! stage)))
@@ -214,6 +216,7 @@
 
     (ui/context! root :dialog {:stage stage} (ui/->selection-provider item-list))
     (ui/bind-action! (:ok controls) ::confirm)
+    (ui/observe-selection item-list (fn [_ _] (ui/refresh-bound-action-enabled! (:ok controls))))
     (ui/bind-double-click! item-list ::confirm)
     (ui/bind-keys! root {KeyCode/ENTER ::confirm
                          KeyCode/ESCAPE ::close
