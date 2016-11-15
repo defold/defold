@@ -237,7 +237,10 @@
 (defn workspace [project]
   (g/node-value project :workspace))
 
-(defonce ongoing-build-save? (atom false))
+(defonce ^:private ongoing-build-save-atom (atom false))
+
+(defn ongoing-build-save? []
+  @ongoing-build-save-atom)
 
 ;; We want to save any work done by the save/build, so we use our 'save/build cache' as system cache
 ;; if the system cache hasn't changed during the build.
@@ -248,8 +251,8 @@
                        current-cache-val))))
 
 (defn save-all! [project on-complete-fn]
-  (when-not @ongoing-build-save?
-    (reset! ongoing-build-save? true)
+  (when-not @ongoing-build-save-atom
+    (reset! ongoing-build-save-atom true)
     (let [workspace     (workspace project)
           old-cache-val @(g/cache)
           cache         (atom old-cache-val)]
@@ -263,7 +266,7 @@
                             (update-system-cache! old-cache-val cache))
           (ui/run-later
             (on-complete-fn))
-          (finally (reset! ongoing-build-save? false)))))))
+          (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -550,8 +553,8 @@
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
 (defn build-and-save-project [project build-options]
-  (when-not @ongoing-build-save?
-    (reset! ongoing-build-save? true)
+  (when-not @ongoing-build-save-atom
+    (reset! ongoing-build-save-atom true)
     (let [workspace     (workspace project)
           game-project  (get-resource-node project "/game.project")
           old-cache-val @(g/cache)
@@ -566,7 +569,7 @@
                                                       :basis (g/now)
                                                       :cache cache)))
               (update-system-cache! old-cache-val cache)))
-          (finally (reset! ongoing-build-save? false)))))))
+          (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn settings [project]
   (g/node-value project :settings))
