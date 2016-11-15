@@ -4676,18 +4676,17 @@ TEST_F(dmGuiTest, SpineNodeGetSkin)
 {
     uint32_t width = 100;
     uint32_t height = 50;
-    uint32_t num_dummy_mesh_entries = 2;
 
     dmGui::SetPhysicalResolution(m_Context, width, height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
-    dmGui::RigSceneDataDesc* rig_scene_desc = new dmGui::RigSceneDataDesc();
-    rig_scene_desc->m_BindPose = &m_BindPose;
-    rig_scene_desc->m_Skeleton = m_Skeleton;
-    rig_scene_desc->m_MeshSet = m_MeshSet;
-    rig_scene_desc->m_AnimationSet = m_AnimationSet;
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)rig_scene_desc));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
     // create nodes
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
@@ -4702,19 +4701,18 @@ TEST_F(dmGuiTest, SpineNodeSetCursor)
 {
     uint32_t width = 100;
     uint32_t height = 50;
-    uint32_t num_dummy_mesh_entries = 0;
     float cursor = 0.5f;
 
     dmGui::SetPhysicalResolution(m_Context, width, height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
-    dmGui::RigSceneDataDesc* rig_scene_desc = new dmGui::RigSceneDataDesc();
-    rig_scene_desc->m_BindPose = &m_BindPose;
-    rig_scene_desc->m_Skeleton = m_Skeleton;
-    rig_scene_desc->m_MeshSet = m_MeshSet;
-    rig_scene_desc->m_AnimationSet = m_AnimationSet;
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)rig_scene_desc));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
     // create node
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
@@ -4732,19 +4730,18 @@ TEST_F(dmGuiTest, SpineNodeGetCursor)
 {
     uint32_t width = 100;
     uint32_t height = 50;
-    uint32_t num_dummy_mesh_entries = 0;
     float cursor_offset = 0.3f;
 
     dmGui::SetPhysicalResolution(m_Context, width, height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
-    dmGui::RigSceneDataDesc* rig_scene_desc = new dmGui::RigSceneDataDesc();
-    rig_scene_desc->m_BindPose = &m_BindPose;
-    rig_scene_desc->m_Skeleton = m_Skeleton;
-    rig_scene_desc->m_MeshSet = m_MeshSet;
-    rig_scene_desc->m_AnimationSet = m_AnimationSet;
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)rig_scene_desc));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
     // create node
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
@@ -4761,19 +4758,18 @@ TEST_F(dmGuiTest, SpineNodeSetPlaybackRate)
 {
     uint32_t width = 100;
     uint32_t height = 50;
-    uint32_t num_dummy_mesh_entries = 0;
     float playback_rate = 0.5f;
 
     dmGui::SetPhysicalResolution(m_Context, width, height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
-    dmGui::RigSceneDataDesc* rig_scene_desc = new dmGui::RigSceneDataDesc();
-    rig_scene_desc->m_BindPose = &m_BindPose;
-    rig_scene_desc->m_Skeleton = m_Skeleton;
-    rig_scene_desc->m_MeshSet = m_MeshSet;
-    rig_scene_desc->m_AnimationSet = m_AnimationSet;
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)rig_scene_desc));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
     // create node
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
@@ -4791,19 +4787,18 @@ TEST_F(dmGuiTest, SpineNodeGetPlaybackRate)
 {
     uint32_t width = 100;
     uint32_t height = 50;
-    uint32_t num_dummy_mesh_entries = 0;
     float playback_rate = 0.5f;
 
     dmGui::SetPhysicalResolution(m_Context, width, height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
-    dmGui::RigSceneDataDesc* rig_scene_desc = new dmGui::RigSceneDataDesc();
-    rig_scene_desc->m_BindPose = &m_BindPose;
-    rig_scene_desc->m_Skeleton = m_Skeleton;
-    rig_scene_desc->m_MeshSet = m_MeshSet;
-    rig_scene_desc->m_AnimationSet = m_AnimationSet;
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)rig_scene_desc));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
     // create node
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
