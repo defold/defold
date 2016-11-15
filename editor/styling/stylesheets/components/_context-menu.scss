@@ -1,0 +1,32 @@
+.context-menu {
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-border-width: 1;
+    -fx-border-color: $mid-grey;
+    -fx-padding: 0;
+    -fx-text-fill: $mid-grey;
+    .scroll-arrow {
+        .menu-down-arrow, .menu-up-arrow {
+            -fx-fill: $defold-white;
+            -fx-background-color: $defold-white; }
+    }
+    .first-menu-item {
+        -fx-background-radius: 3 3 0 0;
+        -fx-border-radius: 3 3 0 0;
+    }
+    .last-menu-item {
+        -fx-background-radius: 0 0 3 3;
+        -fx-border-radius: 0 0 3 3;
+    }
+    .separator {
+        &:horizontal {
+            -fx-padding: 0;
+            -fx-min-height: 0; 
+            .line {
+                -fx-border-color: $mid-grey;
+                -fx-border-insets: 0;
+                -fx-border-width: 1 0 0; 
+            }
+        }
+    }
+}

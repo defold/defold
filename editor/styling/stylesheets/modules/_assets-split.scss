@@ -1,0 +1,9 @@
+#assets-split {
+    -fx-padding: 0 0 0 0;
+
+    .tree-cell {
+        &:filled {
+            -fx-border-width: 0 2 0 0;
+        }
+    }
+}
