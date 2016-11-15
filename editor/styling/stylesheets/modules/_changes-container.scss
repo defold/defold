@@ -1,0 +1,18 @@
+#changes-container {
+    -fx-padding: 0 0 17 0;
+    >.tool-bar {
+        -fx-background-color: $dark-grey-light;
+        -fx-border-width: 0;
+        -fx-padding: 10 0 10 15;
+    }
+
+    .list-view {
+        -fx-background-color: $dark-grey-light;
+    }
+
+    .flat-list-view {
+        .cell, .list-cell {
+            -fx-background-color: $dark-grey-light !important;
+        }
+    }
+}
