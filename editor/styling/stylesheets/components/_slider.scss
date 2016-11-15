@@ -1,0 +1,11 @@
+.slider {
+    .track {
+        -fx-background-color: $dark-grey-header;
+    }
+    .thumb {
+        -fx-background-color: $mid-grey-light;
+        &:pressed, &:hover {
+            -fx-background-color: $dark-grey;
+        }
+    }
+}
