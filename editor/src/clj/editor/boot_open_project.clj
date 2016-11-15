@@ -144,9 +144,11 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes editor-tabs]
-  (doseq [resource (:removed changes)]
-    (app-view/remove-resource-tab editor-tabs resource)))
+(defn- handle-resource-changes! [changes changes-view editor-tabs]
+  (ui/run-later
+    (changes-view/refresh! changes-view)
+    (doseq [resource (:removed changes)]
+      (app-view/remove-resource-tab editor-tabs resource))))
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -200,7 +202,7 @@
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ changes _]
-                                                      (handle-resource-changes! changes editor-tabs))))
+                                                      (handle-resource-changes! changes changes-view editor-tabs))))
 
       (app-view/restore-split-positions! stage prefs)
 
@@ -251,7 +253,8 @@
             prefs (g/node-value changes-view :prefs)]
         (when (sync/flow-in-progress? git)
           (ui/run-later
-            (sync/open-sync-dialog (sync/resume-flow git prefs))))))
+            (sync/open-sync-dialog (sync/resume-flow git prefs))
+            (workspace/resource-sync! workspace)))))
 
     (reset! the-root root)
     root))
