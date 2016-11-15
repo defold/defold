@@ -24,4 +24,9 @@
     >*.content {
         -fx-border-width: 0;
     }
+    .content {
+        AnchorPane {
+            -fx-padding: 0em;
+        }
+    }
 }

@@ -42,15 +42,6 @@
 
 /* Mixins */
 /* Import the original css */
-/*.menu-bar {
-    -fx-background-color: #aeb5ba, linear-gradient(to bottom, #ecf4fa 0%, #ced4d9 100%);
-    -fx-background-insets: 0, 0 0 1 0;
-}
-
-.menu-bar .menu .label {
-    -fx-text-fill: #2d3e4c;
-}
-*/
 /*
 Links:
 - http://fxexperience.com/2011/12/styling-fx-buttons-with-css/
@@ -90,10 +81,6 @@ Links:
   -fx-font-size: 12px;
   -fx-font-weight: normal; }
 
-.scroll-pane {
-  -fx-border-width: 0;
-  -fx-background-color: #272b30; }
-
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:vertical {
   -fx-background-insets: 0;
@@ -128,11 +115,6 @@ Links:
 .text-area {
   -fx-font-size: 9pt;
   -fx-font-family: "Dejavu Sans Mono"; }
-
-/* by default AnchorPane has a padding of 0.8em. Don't know if we're abusing
-   JavaFX by removing padding for AnchorPane */
-.titled-pane .content AnchorPane {
-  -fx-padding: 0em; }
 
 /* diff viewer */
 .diff-box {
@@ -448,7 +430,8 @@ Links:
       -fx-background-color: #264a8b; }
 
 .form .section-label {
-  -fx-font-size: 16pt;
+  -fx-font-size: 14px;
+  -fx-font-weight: bold;
   -fx-text-fill: #f0f2f6; }
 
 .form .help-line {
@@ -605,6 +588,10 @@ Links:
     -fx-shape: " ";
     -fx-padding: 0.0; }
 
+.scroll-pane {
+  -fx-border-width: 0;
+  -fx-background-color: #272b30; }
+
 .separator:horizontal .line {
   -fx-border-color: #232529;
   -fx-border-width: 1 0 0; }
@@ -751,7 +738,7 @@ Links:
   -fx-background-radius: 0px;
   -fx-border-radius: 0px;
   -fx-background-insets: 0;
-  -fx-background-color: #232529;
+  -fx-background-color: #313439;
   -fx-border-color: #454A4F;
   -fx-border-width: 0 0 0 0;
   -fx-padding: 5px 10px; }
@@ -813,6 +800,8 @@ Links:
     -fx-border-insets: 0 10 3 10; }
   .titled-pane > *.content {
     -fx-border-width: 0; }
+  .titled-pane .content AnchorPane {
+    -fx-padding: 0em; }
 
 .tree-view {
   -fx-background-color: #3a3f44;
@@ -849,7 +838,7 @@ Links:
       -fx-background-insets: 0 0 0 0; }
       .tree-cell:filled.first-tree-item.last-tree-item {
         -fx-border-insets: 0 0 0 0;
-        -fx-padding: 5;
+        -fx-padding: 5 5 5 -10;
         -fx-background-insets: 0 0 0 0; }
     .tree-cell:filled.last-tree-item {
       -fx-border-insets: 0 0 0 0;
@@ -868,7 +857,7 @@ Links:
 #center-split {
   -fx-padding: 0px 15px 0px 15px; }
   #center-split .viewport {
-    -fx-background-color: #232529; }
+    -fx-background-color: #272b30; }
     #center-split .viewport .button, #center-split .viewport .button-small, #center-split .viewport .button-large {
       -fx-min-width: 20px;
       /*-fx-min-height: 10px;*/
@@ -1032,35 +1021,35 @@ Links:
   #tool-tabs GridPane {
     -fx-padding: 10; }
   #tool-tabs .console-tab-base, #tool-tabs #console-tab, #tool-tabs #curve-editor-tab, #tool-tabs #build-errors-tab {
-    -fx-background-position: 10 center;
+    -fx-background-position: 10 8;
     -fx-background-repeat: no-repeat;
-    -fx-background-size: 21 16;
-    -fx-padding: 0 10 0 37;
+    -fx-background-size: 17 17;
+    -fx-padding: 0 10 0 32;
     -fx-spacing: 0; }
     #tool-tabs .console-tab-base:selected .tab-label, #tool-tabs #console-tab:selected .tab-label, #tool-tabs #curve-editor-tab:selected .tab-label, #tool-tabs #build-errors-tab:selected .tab-label {
       -fx-padding: 0; }
 
 #console-tab {
-  -fx-background-image: url("icons/tabs/console-icon-off.png"); }
+  -fx-background-image: url("icons/tabs/ic_console-grey.png"); }
   #console-tab:selected {
-    -fx-background-image: url("icons/tabs/console-icon-on.png"); }
+    -fx-background-image: url("icons/tabs/ic_console-white.png"); }
   #console-tab:hover {
-    -fx-background-image: url("icons/tabs/console-icon-on.png"); }
+    -fx-background-image: url("icons/tabs/ic_console-white.png"); }
 
 #curve-editor-tab {
-  -fx-background-image: url("icons/tabs/curve-editor-icon-off.png");
-  -fx-background-position: 10 8px; }
+  -fx-background-image: url("icons/tabs/ic_curve-editor-grey.png");
+  -fx-background-position: 10 7 !important; }
   #curve-editor-tab:selected {
-    -fx-background-image: url("icons/tabs/curve-editor-icon-on.png"); }
+    -fx-background-image: url("icons/tabs/ic_curve-editor-white.png"); }
   #curve-editor-tab:hover {
-    -fx-background-image: url("icons/tabs/curve-editor-icon-on.png"); }
+    -fx-background-image: url("icons/tabs/ic_curve-editor-white.png"); }
 
 #build-errors-tab {
-  -fx-background-image: url("icons/tabs/build-problems-off.png"); }
+  -fx-background-image: url("icons/tabs/ic_build-problems-grey.png"); }
   #build-errors-tab:selected {
-    -fx-background-image: url("icons/tabs/build-problems-on.png"); }
+    -fx-background-image: url("icons/tabs/ic_build-problems-white.png"); }
   #build-errors-tab:hover {
-    -fx-background-image: url("icons/tabs/build-problems-on.png"); }
+    -fx-background-image: url("icons/tabs/ic_build-problems-white.png"); }
   #build-errors-tab .label {
     -fx-padding: 5; }
 

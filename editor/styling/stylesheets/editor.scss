@@ -1,13 +1,3 @@
-
-/*.menu-bar {
-    -fx-background-color: #aeb5ba, linear-gradient(to bottom, #ecf4fa 0%, #ced4d9 100%);
-    -fx-background-insets: 0, 0 0 1 0;
-}
-
-.menu-bar .menu .label {
-    -fx-text-fill: #2d3e4c;
-}
-*/
 /*
 Links:
 - http://fxexperience.com/2011/12/styling-fx-buttons-with-css/
@@ -50,10 +40,6 @@ Links:
   -fx-font-weight: normal;
   }
 
-.scroll-pane {
-  -fx-border-width: 0;
-  -fx-background-color: $bright-black; }
-
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:vertical {
   -fx-background-insets: 0;
@@ -90,11 +76,6 @@ Links:
   -fx-font-size: 9pt;
   -fx-font-family: "Dejavu Sans Mono"; }
 
-/* by default AnchorPane has a padding of 0.8em. Don't know if we're abusing
-   JavaFX by removing padding for AnchorPane */
-.titled-pane .content AnchorPane {
-  -fx-padding: 0em; }
-
 /* diff viewer */
 .diff-box {
   -fx-fill: #CCCCCC;
@@ -107,7 +88,7 @@ Links:
 
 /* Drag and drop targets */
 .drop-target {
-  -fx-background-color: $dark-grey !important;//$defold-blue !important;
+  -fx-background-color: $dark-grey !important;
 }
 
 /* Overrides */
