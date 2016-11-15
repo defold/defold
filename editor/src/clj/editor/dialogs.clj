@@ -214,7 +214,7 @@
       (.setText filter-value)
       (.setPromptText (:prompt options "")))
 
-    (ui/context! root :dialog {:stage stage} item-list)
+    (ui/context! root :dialog {:stage stage} (ui/->selection-provider item-list))
     (ui/bind-action! (:ok controls) ::confirm)
     (ui/observe-selection item-list (fn [_ _] (ui/refresh-bound-action-enabled! (:ok controls))))
     (ui/bind-double-click! item-list ::confirm)

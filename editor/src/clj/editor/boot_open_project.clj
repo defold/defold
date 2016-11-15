@@ -180,11 +180,9 @@
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
+          outline-view         (outline-view/make-outline-view *view-graph* outline project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
-                                                                 (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler project)})
                                    http-server/start!)
@@ -236,7 +234,7 @@
                          :main-stage        stage
                          :asset-browser     asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
-        (ui/context! root :global context-env assets dynamics)
+        (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
       (g/transact
         (concat

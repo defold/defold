@@ -56,11 +56,13 @@
 
 (defrecord StaticSelection [selection]
   handler/SelectionProvider
-  (selection [this] selection))
+  (selection [this] selection)
+  (succeeding-selection [this] []))
 
 (defrecord DynamicSelection [selection-ref]
   handler/SelectionProvider
-  (selection [this] @selection-ref))
+  (selection [this] @selection-ref)
+  (succeeding-selection [this] []))
 
 (extend-type java.lang.String
   core/Adaptable
