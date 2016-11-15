@@ -396,10 +396,9 @@ class Configuration(object):
         self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
 
         # Configs
-        extendersdk = os.path.join(defold_home, 'extender', 'sdk')
-        includes = ['extender/config.yml']
-        includes = [os.path.join(extendersdk, x) for x in includes]
-        self._add_files_to_zip(zip, includes, extendersdk, topfolder)
+        configs = ['extender/build.yml']
+        configs = [os.path.join(self.dynamo_home, x) for x in configs]
+        self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
 
         def _findlibs(libdir):
             paths = os.listdir(libdir)
@@ -417,6 +416,15 @@ class Configuration(object):
 
         zip.close()
         return outfile.name
+
+    def build_platform_sdk(self):
+        # Helper function to make it easier to build a platform sdk locally
+        try:
+            path = self._package_platform_sdk(self.target_platform)
+        except Exception, e:
+            print "Failed to package sdk for platform %s: %s" % (self.target_platform, e)
+        else:
+            print "Wrote %s" % path
 
     def archive_engine(self):
         exe_prefix = ''
@@ -535,6 +543,12 @@ class Configuration(object):
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
+            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
+
+        cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
+        for lib in ('extender',):
+            self._log('Building %s' % lib)
+            cwd = join(self.defold_root, 'share/%s' % lib)
             self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def build_go(self):
