@@ -64,7 +64,7 @@ namespace dmRig
         dmhash_t                      m_AnimationId;
         /// Playback cursor in the interval [0,duration]
         float                         m_Cursor;
-        /// Rate of playback, multiplied with dt when stepping
+        /// Rate of playback, multiplied with dt when stepping. Always >= 0.0f
         float                         m_PlaybackRate;
         /// Playback mode
         RigPlayback                   m_Playback;

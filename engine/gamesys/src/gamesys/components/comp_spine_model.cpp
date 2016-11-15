@@ -658,7 +658,6 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
-                dmLogInfo("SpinePlayAnimation ddf, blend_duration: %f, offset: %f, playback_rate: %f", ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate);
                 if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
@@ -822,7 +821,7 @@ namespace dmGameSystem
                 dmLogError("Could not set playback rate %f on the spine model.", params.m_Value.m_Number);
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
             }
-            return dmGameObject::PROPERTY_RESULT_OK;            
+            return dmGameObject::PROPERTY_RESULT_OK;
         }
         return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpineModelSetConstantCallback, component);
     }

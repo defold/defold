@@ -81,22 +81,15 @@ namespace dmRig
             RigPlayer* player = GetPlayer(instance);
             player->m_Playing = 0;
         }
+
         RigPlayer* player = SwitchPlayer(instance);
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
-        //player->m_Cursor = 0.0f;
-
-        //if (offset > 0.0f)
-        //{
-            SetCursor(instance, offset, true);
-        //}
-        /*else
-        {
-            player->m_Cursor = 0.0f;
-        }*/
+        SetCursor(instance, offset, true);
         SetPlaybackRate(instance, playback_rate);
         player->m_Playing = 1;
         player->m_Playback = playback;
+
         if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD)
             player->m_Backwards = 1;
         else
@@ -273,7 +266,9 @@ namespace dmRig
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0 || !player->m_Playing)
+        {
             return;
+        }
 
         // Advance cursor
         float prev_cursor = player->m_Cursor;
@@ -282,8 +277,9 @@ namespace dmRig
             player->m_Cursor += dt * player->m_PlaybackRate;
         }
         float duration = GetCursorDuration(player, animation);
-        if (duration == 0.0f) {
-            player->m_Cursor = 0;
+        if (duration == 0.0f)
+        {
+            player->m_Cursor = 0.0f;
         }
 
         // Adjust cursor
@@ -820,7 +816,8 @@ namespace dmRig
     float GetPlaybackRate(HRigInstance instance)
     {
         RigPlayer* player = GetPlayer(instance);
-        if (!player)
+
+        if (!player || !player->m_Animation)
         {
             return 1.0f;
         }
@@ -843,7 +840,6 @@ namespace dmRig
         }
         else
         {
-            dmLogWarning("Playback rate cannot be negative, defaulting to 0.0.");
             player->m_PlaybackRate = 0.0f;
         }
 

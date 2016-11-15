@@ -31,39 +31,6 @@ namespace dmGameSystem
      * @namespace spine
      */
 
-    /*# play an animation on a spine model
-     *
-     * @name spine.play
-     * @param url the spine model for which to play the animation (url)
-     * @param animation_id id of the animation to play (string|hash)
-     * @param playback playback mode of the animation (constant)
-     * <ul>
-     *   <li><code>go.PLAYBACK_ONCE_FORWARD</code></li>
-     *   <li><code>go.PLAYBACK_ONCE_BACKWARD</code></li>
-     *   <li><code>go.PLAYBACK_ONCE_PINGPONG</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_FORWARD</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
-     * </ul>
-     * @param blend_duration duration of a linear blend between the current and new animations (number)
-     * @param [complete_function] function to call when the animation has completed (function)
-     * @examples
-     * <p>
-     * The following examples assumes that the spine model has id "spinemodel".
-     * </p>
-     * <p>
-     * How to play the "jump" animation followed by the "run" animation:
-     * </p>
-     * <pre>
-     * function init(self)
-     *     local url = msg.url("#spinemodel")
-     *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
-     *     spine.play(url, "jump", go.PLAYBACK_ONCE_FORWARD, 0.1, function (self)
-     *         spine.play(url, "run", go.PLAYBACK_LOOP_FORWARD, 0.2)
-     *     end)
-     * end
-     * </pre>
-     */
     int SpineComp_Play(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -123,6 +90,24 @@ namespace dmGameSystem
      *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
      *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
      * </ul>
+     * @examples
+     * <p>
+     * The following examples assumes that the spine model has id "spinemodel".
+     * </p>
+     * <p>
+     * How to play the "jump" animation followed by the "run" animation:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     local url = msg.url("#spinemodel")
+     *     local play_properties = { blend_duration = 0.1 }
+     *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
+     *     spine.play(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
+     *         local properties = { blend_duration = 0.2 }
+     *         spine.play(url, "run", go.PLAYBACK_LOOP_FORWARD, properties)
+     *     end)
+     * end
+     * </pre>
      */
     int SpineComp_PlayAnim(lua_State* L)
     {
@@ -178,7 +163,6 @@ namespace dmGameSystem
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
-        //assert(top == lua_gettop(L));
         return 0;
     }
 

@@ -2539,7 +2539,7 @@ namespace dmGui
     Result SetNodeSpineCursor(HScene scene, HNode node, float cursor)
     {
         InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) 
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
         {
             return RESULT_WRONG_TYPE;
         }
@@ -2553,7 +2553,7 @@ namespace dmGui
     float GetNodeSpineCursor(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) 
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
         {
             dmLogError("Can only get cursor for spine node");
             return 0.0f;
@@ -2567,7 +2567,7 @@ namespace dmGui
     Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate)
     {
         InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) 
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
         {
             return RESULT_WRONG_TYPE;
         }
@@ -2581,7 +2581,7 @@ namespace dmGui
     float GetNodeSpinePlaybackRate(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
-        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) 
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
         {
             dmLogError("Can only get playback_rate for spine node");
             return 0.0f;

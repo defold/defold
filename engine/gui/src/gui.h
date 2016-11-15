@@ -898,8 +898,6 @@ namespace dmGui
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
-    Result SetSpineCursor(HScene scene, HNode node, float cursor);
-
     Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
     float GetNodeSpineCursor(HScene scene, HNode node);
     Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate);

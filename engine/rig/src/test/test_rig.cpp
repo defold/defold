@@ -803,6 +803,89 @@ TEST_F(RigInstanceTest, CursorSetOutside)
     ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
 }
 
+TEST_F(RigInstanceTest, CursorOffset)
+{
+    float offset = 0.5f;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
+
+    ASSERT_NEAR(offset, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+}
+
+TEST_F(RigInstanceTest, CursorOffsetOutside)
+{
+    float offset = 1.3f;
+    float offset_normalized = 0.3;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
+
+    ASSERT_NEAR(offset_normalized, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+
+    offset = -0.3;
+    offset_normalized = 0.7f;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
+
+    ASSERT_NEAR(offset_normalized, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+}
+
+TEST_F(RigInstanceTest, PlaybackRateNoAnim)
+{
+    float default_playback_rate = 1.0f;
+    // no anim
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    // no anim + set playback rate
+    float playback_rate = 2.0f;
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, playback_rate));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+}
+
+TEST_F(RigInstanceTest, PlaybackRateGet)
+{
+    float default_playback_rate = 1.0f;
+    float double_playback_rate = 2.0f;
+    float negative_playback_rate = -1.0f;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, default_playback_rate));
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, double_playback_rate));
+    ASSERT_NEAR(double_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, negative_playback_rate));
+    ASSERT_NEAR(0.0f, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+}
+
+TEST_F(RigInstanceTest, PlaybackRateSet)
+{
+    float default_playback_rate = 1.0f;
+    float zero_playback_rate = 0.0f;
+    float double_playback_rate = 2.0f;
+    float negative_playback_rate = -1.0f;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, default_playback_rate));
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, zero_playback_rate));
+    ASSERT_NEAR(zero_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, double_playback_rate));
+    ASSERT_NEAR(double_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, negative_playback_rate));
+    ASSERT_NEAR(0.0f, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+}
+
 TEST_F(RigInstanceTest, InvalidIKTarget)
 {
     // Getting invalid ik constraint
