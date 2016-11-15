@@ -281,13 +281,6 @@ private:
     // code from test_rig.cpp
     void SetUpSimpleSpine()
     {
-        dmRig::NewContextParams params = {0};
-        params.m_Context = &m_Context->m_RigContext;
-        params.m_MaxRigInstanceCount = 2;
-        if (dmRig::RESULT_OK != dmRig::NewContext(params)) {
-            dmLogError("Could not create rig context!");
-        }
-
         m_RigInstance = 0x0;
         dmRig::InstanceCreateParams create_params = {0};
         create_params.m_Context = m_Context->m_RigContext;

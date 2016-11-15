@@ -834,14 +834,7 @@ namespace dmRig
             return dmRig::RESULT_ERROR;
         }
 
-        if (playback_rate >= 0.0f)
-        {
-            player->m_PlaybackRate = playback_rate;
-        }
-        else
-        {
-            player->m_PlaybackRate = 0.0f;
-        }
+        player->m_PlaybackRate = dmMath::Max(playback_rate, 0.0f);
 
         return dmRig::RESULT_OK;
     }
