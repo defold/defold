@@ -117,7 +117,8 @@
                                      </AnchorPane>
                                      <ToolBar prefHeight="30.0" prefWidth="200.0">
                                        <items>
-                                         <Button id="changes-refresh" mnemonicParsing="false" styleClass="button-small" text="Refresh" />
+                                         <Button id="changes-diff" mnemonicParsing="false" styleClass="button-small" text="Diff" />
+                                         <Button id="changes-revert" mnemonicParsing="false" styleClass="button-small" text="Revert" />
                                        </items>
                                      </ToolBar>
                                    </children>
