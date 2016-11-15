@@ -184,6 +184,20 @@
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
 
+(deftest gui-text-node-validation
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value node-id :node-outline)
+         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+         text-node (get nodes "hexagon_text")]
+     (are [prop v test] (test-util/with-prop [text-node prop v]
+                          (is (test (test-util/prop-error text-node prop))))
+       :font nil                  g/error-info?
+       :font "not_a_defined_font" g/error-info?
+       :font "highscore"          nil?))))
+
 (deftest gui-text-node-text-layout
   (with-clean-system
    (let [workspace (test-util/setup-workspace! world)

@@ -1,5 +1,6 @@
 (ns editor.spine
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [util.murmur :as murmur]
@@ -677,10 +678,10 @@
                     :sample-rate (:sample-rate spine))))
 
 (g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
-  {:spine-scene (resource/proj-path spine-scene-resource)
+  {:spine-scene (resource/resource->proj-path spine-scene-resource)
    :default-animation default-animation
    :skin skin
-   :material (resource/proj-path material-resource)
+   :material (resource/resource->proj-path material-resource)
    :blend-mode blend-mode})
 
 (g/defnk produce-model-save-data [resource model-pb]
@@ -704,6 +705,10 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
+(defn- sort-spine-anim-ids
+  [spine-anim-ids]
+  (sort-by str/lower-case spine-anim-ids))
+
 (g/defnode SpineModelNode
   (inherits project/ResourceNode)
 
@@ -722,7 +727,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "spinescene"}))
             (dynamic error (g/fnk [_node-id spine-scene]
                                   (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
-  (property blend-mode g/Any (default :blend_mode_alpha)
+  (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
@@ -737,7 +742,10 @@
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error _node-id :material material "Material"))))
   (property default-animation g/Str
-            (value (g/fnk [default-animation spine-anim-ids] (or (not-empty default-animation) (first spine-anim-ids))))
+            (value (g/fnk [default-animation spine-anim-ids]
+                     (if (and (str/blank? default-animation) spine-anim-ids)
+                       (first (sort-spine-anim-ids spine-anim-ids))
+                       default-animation)))
             (dynamic error (g/fnk [_node-id spine-anim-ids default-animation spine-scene]
                                   (when spine-scene
                                     (validation/prop-error :fatal _node-id

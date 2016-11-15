@@ -8,13 +8,14 @@
 (set! *warn-on-reflection* true)
 
 (defn generate [font-desc font-path resolver]
-  (let [^Font$FontDesc font-desc (protobuf/map->pb Font$FontDesc font-desc)
-        font-map-builder (Font$FontMap/newBuilder)
-        font-res-resolver (reify Fontc$FontResourceResolver
-                            (getResource [this resource-name]
-                              (io/input-stream (resolver (str "/" resource-name)))))]
-    (with-open [font-stream (io/input-stream font-path)]
-      (let [^Font$FontMap font-map (-> (doto (Fontc.)
-                                         (.compile font-stream font-desc false font-res-resolver))
-                                     (.getFontMap))]
-        (protobuf/pb->map font-map)))))
+  (when font-path
+    (let [^Font$FontDesc font-desc (protobuf/map->pb Font$FontDesc font-desc)
+          font-map-builder (Font$FontMap/newBuilder)
+          font-res-resolver (reify Fontc$FontResourceResolver
+                              (getResource [this resource-name]
+                                (io/input-stream (resolver (str "/" resource-name)))))]
+      (with-open [font-stream (io/input-stream font-path)]
+        (let [^Font$FontMap font-map (-> (doto (Fontc.)
+                                           (.compile font-stream font-desc false font-res-resolver))
+                                       (.getFontMap))]
+          (protobuf/pb->map font-map))))))
