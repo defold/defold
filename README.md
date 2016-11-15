@@ -317,6 +317,8 @@ com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
 This means that the wrong `vecmath.jar` library is used and you probably have a copy located in `/System/Library/Java/Extensions` or `/System/Library/Java/Extensions`. Move `vecmath.jar` somewhere else while running `test_cr`.
 If you are using El Capitan, the "rootless" feature will not allow you to move that file, as it is under the `/System` directory. To move, you need to reboot into Recovery Mode (hold down Cmd+R while booting), enter a terminal (Utilities > Terminal) and run `csrutil disable`. After this, you can reboot again normally and move the file. After that, you should consider rebooting into Recovery Mode again and run `csrutil enable`.
 
+NOTE: It also seems to work by just upgrading Java3D to 1.5, instead of the provided 1.3. Here is an installer for that: http://create.ife.no/vr/tools/j3d/java3d_1_5_2-macosx.pkg.zip 
+
 #### When opening a .collection in the editor you get this ####
 ```
 org.osgi.framework.BundleException: Exception in com.dynamo.cr.parted.ParticleEditorPlugin.start() of bundle com.dynamo.cr.parted.
