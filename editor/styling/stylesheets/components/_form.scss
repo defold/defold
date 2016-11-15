@@ -1,6 +1,10 @@
-.form { 
+.form {
+    >.viewport {
+
+    }
     .section-label {
-        -fx-font-size: 16pt;
+        -fx-font-size: 14px;
+        -fx-font-weight: bold;
         -fx-text-fill: $defold-white;
     }
     .help-line {
