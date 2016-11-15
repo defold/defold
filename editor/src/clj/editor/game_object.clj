@@ -353,10 +353,10 @@
         (g/operation-label "Add Component")
         (project/select project [comp-node])))))
 
-(defn add-component-handler [workspace go-id]
+(defn add-component-handler [workspace project go-id]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
                                          (workspace/get-resource-types workspace :embeddable)))]
-    (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
+    (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource))))
 
 (defn- selection->game-object [selection]
@@ -365,8 +365,8 @@
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->game-object selection))
   (label [] "Add Component File")
-  (run [workspace selection]
-       (add-component-handler workspace (selection->game-object selection))))
+  (run [workspace project selection]
+       (add-component-handler workspace project (selection->game-object selection))))
 
 (defn- add-embedded-component [self project type data id position rotation select?]
   (let [graph (g/node-id->graph-id self)
@@ -398,7 +398,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0 1] true)))))
+      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] true)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -406,9 +406,15 @@
     (let [rt (:resource-type user-data)]
       (or (:label rt) (:ext rt)))))
 
+(defn embeddable-component-resource-types [workspace]
+  (->> (workspace/get-resource-types workspace :component)
+       (filter (fn [resource-type]
+                 (and (not (contains? (:tags resource-type) :non-embeddable))
+                      (workspace/has-template? resource-type))))))
+
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
-    (->> (remove (comp :non-embeddable :tags) (workspace/get-resource-types workspace :component))
+    (->> (embeddable-component-resource-types workspace)
          (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                               :icon (:icon res-type)
                               :command :add
