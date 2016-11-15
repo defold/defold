@@ -212,7 +212,7 @@
       (.setText filter-value)
       (.setPromptText (:prompt options "")))
 
-    (ui/context! root :dialog {:stage stage} item-list)
+    (ui/context! root :dialog {:stage stage} (ui/->selection-provider item-list))
     (ui/bind-action! (:ok controls) ::confirm)
     (ui/bind-double-click! item-list ::confirm)
     (ui/bind-keys! root {KeyCode/ENTER ::confirm
