@@ -1,12 +1,11 @@
 (ns editor.ui
   (:require
    [clojure.java.io :as io]
+   [clojure.set :as set]
    [clojure.string :as string]
-   [dynamo.graph :as g]
    [editor.handler :as handler]
    [editor.jfx :as jfx]
    [editor.progress :as progress]
-   [editor.workspace :as workspace]
    [editor.menu :as menu]
    [internal.util :as util]
    [service.log :as log]
@@ -464,24 +463,38 @@
   (add-child! [this c]
     (-> this (.getChildren) (.add c))))
 
+(defn- make-style-applier []
+  (let [applied-style-classes (volatile! #{})]
+    (fn [^Styleable styleable style-classes]
+      (when-not (set? style-classes)
+        (throw (IllegalArgumentException. "style-classes must be a set")))
+      (let [current @applied-style-classes
+            removed ^java.util.Collection (set/difference current style-classes)
+            added  ^java.util.Collection (set/difference style-classes current)]
+        (doto (.getStyleClass styleable)
+          (.removeAll removed)
+          (.addAll added)))
+      (vreset! applied-style-classes style-classes))))
+
 (defn- make-list-cell [render-fn]
-  (proxy [ListCell] []
-    (updateItem [object empty]
-      (let [^ListCell this this
-            render-data (and object (render-fn object))]
-        (proxy-super updateItem object empty)
-        (update-list-cell-style! this)
-        (if (or (nil? object) empty)
-          (do
-            (proxy-super setText nil)
-            (proxy-super setGraphic nil))
-          (do
-            (proxy-super setText (:text render-data))
-            (when-let [style (:style render-data)]
-              (proxy-super setStyle style))
-            (when-let [icon (:icon render-data)]
-              (proxy-super setGraphic (jfx/get-image-view icon 16)))))
-        (proxy-super setTooltip (:tooltip render-data))))))
+  (let [apply-style-classes! (make-style-applier)]
+    (proxy [ListCell] []
+      (updateItem [object empty]
+        (let [^ListCell this this
+              render-data (and object (render-fn object))]
+          (proxy-super updateItem object empty)
+          (update-list-cell-style! this)
+          (if (or (nil? object) empty)
+            (do
+              (apply-style-classes! this #{})
+              (proxy-super setText nil)
+              (proxy-super setGraphic nil))
+            (do
+              (apply-style-classes! this (:style render-data #{}))
+              (proxy-super setText (:text render-data))
+              (when-let [icon (:icon render-data)]
+                (proxy-super setGraphic (jfx/get-image-view icon 16)))))
+          (proxy-super setTooltip (:tooltip render-data)))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
