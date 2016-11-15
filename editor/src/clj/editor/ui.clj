@@ -526,6 +526,14 @@
   (cell-factory! [this render-fn]
     (.setCellFactory this (make-list-cell-factory render-fn))))
 
+(defn tree-item-seq [item]
+  (if item
+    (tree-seq
+      #(not (.isLeaf ^TreeItem %))
+      #(seq (.getChildren ^TreeItem %))
+      item)
+    []))
+
 (extend-type TreeView
   handler/SelectionProvider
   (selection [this] (some->> this
@@ -537,8 +545,12 @@
   CollectionView
   (selection [this] (when-let [item ^TreeItem (.getSelectedItem (.getSelectionModel this))]
                       (.getValue item)))
-  (select! [this item] (doto (.getSelectionModel this)
-                         (.select item)))
+  (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
+                         (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
+                           (doto (.getSelectionModel this)
+                             (.clearSelection)
+                             ;; This will not scroll the tree-view to display the item, which is an open issue in JavaFX. The known workaround is to access the internal classes, which seems like a bad idea.
+                             (.select tree-item)))))
   (select-index! [this index] (doto (.getSelectionModel this)
                                 (.select (int index))))
   (selection-mode! [this mode] (let [^SelectionMode mode (selection-mode mode)]
@@ -1082,14 +1094,6 @@ this will create independent entities that refer to the same underlying
 command."
   [name category-id command-id label]
   `(def ^:command ~name [~label ~category-id ~command-id]))
-
-(defn tree-item-seq [item]
-  (if item
-    (tree-seq
-      #(not (.isLeaf ^TreeItem %))
-      #(seq (.getChildren ^TreeItem %))
-      item)
-    []))
 
 (defprotocol Future
   (cancel [this])

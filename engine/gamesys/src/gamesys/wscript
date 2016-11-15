@@ -31,7 +31,7 @@ def build(bld):
         ('collection_proxy', ('components/comp_collection_proxy.cpp')),
         ('collision_object', ('../../proto/physics_ddf.proto', 'scripts/script_physics.cpp')),
         ('factory', ('scripts/script_factory.cpp')),
-        ('label', ('../../proto/label_ddf.proto')), # 'scripts/script_label.cpp')),
+        ('label', ('../../proto/label_ddf.proto', 'scripts/script_label.cpp')),
         ('particlefx', ('scripts/script_particlefx.cpp')),
         ('sound', ('components/comp_sound.cpp', 'scripts/script_sound.cpp')),
         ('spine', ('../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp')),

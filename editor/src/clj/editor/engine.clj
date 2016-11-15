@@ -3,9 +3,13 @@
              [dialogs :as dialogs]
              [protobuf :as protobuf]
              [resource :as resource]
+             [console :as console]
              [ui :as ui]
              [targets :as targets]])
-  (:import [java.net HttpURLConnection URL]))
+  (:import [java.net HttpURLConnection URL]
+           [java.io File InputStream]
+           [java.lang Process ProcessBuilder]
+           [com.defold.editor Platform]))
 
 (set! *warn-on-reflection* true)
 
@@ -56,3 +60,22 @@
       (catch Exception e
         (.disconnect conn)
         false))))
+
+(defn- pump-output [^InputStream stdout]
+  (let [buf (byte-array 1024)]
+    (loop []
+      (let [n (.read stdout buf)]
+        (when (> n -1)
+          (let [msg (String. buf 0 n)]
+            (console/append-console-message! msg)
+            (recur)))))))
+
+(defn launch [launch-dir]
+  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
+        path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)
+        pb     (doto (ProcessBuilder. ^java.util.List (list path))
+                 (.redirectErrorStream true)
+                 (.directory launch-dir))]
+    (let [p  (.start pb)
+          is (.getInputStream p)]
+      (.start (Thread. (fn [] (pump-output is)))))))

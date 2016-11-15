@@ -26,7 +26,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def sprite-icon "icons/16/Icons_14-Sprite.png")
+(def sprite-icon "icons/32/Icons_14-Sprite.png")
 
 ; Render assets
 
@@ -275,7 +275,7 @@
                                   (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                                       (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))))
 
-  (property blend-mode g/Any (default :blend_mode_alpha)
+  (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly
                                 (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]

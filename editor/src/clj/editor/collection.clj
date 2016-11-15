@@ -656,13 +656,13 @@
   (label [selection] (cond
                        (selection->collection selection) "Add Game Object File"
                        (selection->embedded-instance selection) "Add Component File"))
-  (run [workspace selection]
+  (run [workspace project selection]
        (let [collection (selection->collection selection)
              embedded-instance (selection->embedded-instance selection)]
          (cond
-           collection (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext "go" :title "Select Game Object File"}))]
+           collection (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
                         (add-game-object-file collection resource))
-           embedded-instance (game-object/add-component-handler workspace (g/node-value embedded-instance :source-id))))))
+           embedded-instance (game-object/add-component-handler workspace project (g/node-value embedded-instance :source-id))))))
 
 (defn- make-embedded-go [self project type data id position rotation scale child? select? overrides]
   (let [graph (g/node-id->graph-id self)
@@ -730,27 +730,28 @@
 (handler/defhandler :add-secondary-from-file :workbench
   (active? [selection] (selection->collection selection))
   (label [] "Add Collection File")
-  (run [selection] (let [coll-node     (selection->collection selection)
-                         project       (project/get-project coll-node)
-                         workspace     (:workspace (g/node-value coll-node :resource))
-                         ext           "collection"
-                         resource-type (workspace/get-resource-type workspace ext)]
-                     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext ext :title "Select Collection File"}))]
-                       (let [base (FilenameUtils/getBaseName (resource/resource-name resource))
-                             id (gen-instance-id coll-node base)
-                             op-seq (gensym)
-                             [coll-inst-node] (g/tx-nodes-added
-                                                (g/transact
-                                                  (concat
-                                                    (g/operation-label "Add Collection")
-                                                    (g/operation-sequence op-seq)
-                                                    (add-collection-instance coll-node resource id [0 0 0] [0 0 0 1] [1 1 1] []))))]
-                         ; Selection
-                         (g/transact
-                           (concat
-                             (g/operation-sequence op-seq)
-                             (g/operation-label "Add Collection")
-                             (project/select project [coll-inst-node]))))))))
+  (run [selection project]
+       (let [coll-node     (selection->collection selection)
+             project       (project/get-project coll-node)
+             workspace     (:workspace (g/node-value coll-node :resource))
+             ext           "collection"
+             resource-type (workspace/get-resource-type workspace ext)]
+         (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File"}))]
+           (let [base (FilenameUtils/getBaseName (resource/resource-name resource))
+                 id (gen-instance-id coll-node base)
+                 op-seq (gensym)
+                 [coll-inst-node] (g/tx-nodes-added
+                                    (g/transact
+                                      (concat
+                                        (g/operation-label "Add Collection")
+                                        (g/operation-sequence op-seq)
+                                        (add-collection-instance coll-node resource id [0 0 0] [0 0 0 1] [1 1 1] []))))]
+             ; Selection
+             (g/transact
+               (concat
+                 (g/operation-sequence op-seq)
+                 (g/operation-label "Add Collection")
+                 (project/select project [coll-inst-node]))))))))
 
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]
