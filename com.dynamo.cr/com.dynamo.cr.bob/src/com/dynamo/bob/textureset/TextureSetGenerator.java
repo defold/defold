@@ -83,7 +83,7 @@ public class TextureSetGenerator {
 
         public UVTransform() {
             this.translation.set(0.0, 1.0);
-            this.scale.set(1.0, 1.0);
+            this.scale.set(1.0, -1.0);
         }
 
         public UVTransform(Point2d translation, Vector2d scale, boolean rotated) {

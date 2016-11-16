@@ -455,7 +455,32 @@ namespace dmGui
         }
     }
 
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size)
+    static bool CopyImageBufferFlipped(uint32_t width, uint32_t height, const uint8_t* buffer, uint32_t buffer_size, dmImage::Type type, uint8_t* out_buffer)
+    {
+        uint32_t stride = width*sizeof(uint8_t);
+        if (type == dmImage::TYPE_RGB) {
+            stride *= 3;
+        } else if (type == dmImage::TYPE_RGBA) {
+            stride *= 4;
+        }
+
+        if (stride*height != buffer_size) {
+            dmLogError("Invalid data size when flipping image buffer.");
+            return false;
+        }
+
+        const uint8_t* read_buffer = buffer+buffer_size;
+        for (int y = 0; y < height; ++y)
+        {
+            read_buffer -= stride;
+            memcpy(out_buffer, read_buffer, stride);
+            out_buffer += stride;
+        }
+
+        return true;
+    }
+
+    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         dmhash_t texture_hash = dmHashString64(texture_name);
         uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
@@ -479,7 +504,15 @@ namespace dmGui
 
         DynamicTexture t(0);
         t.m_Buffer = malloc(buffer_size);
-        memcpy(t.m_Buffer, buffer, buffer_size);
+        if (flip) {
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t.m_Buffer)) {
+                free(t.m_Buffer);
+                t.m_Buffer = 0;
+                return RESULT_DATA_ERROR;
+            }
+        } else {
+            memcpy(t.m_Buffer, buffer, buffer_size);
+        }
         t.m_Width = width;
         t.m_Height = height;
         t.m_Type = type;
@@ -507,7 +540,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size)
+    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
@@ -527,10 +560,45 @@ namespace dmGui
         }
 
         t->m_Buffer = malloc(buffer_size);
-        memcpy(t->m_Buffer, buffer, buffer_size);
+        if (flip) {
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t->m_Buffer)) {
+                free(t->m_Buffer);
+                t->m_Buffer = 0;
+                return RESULT_DATA_ERROR;
+            }
+        } else {
+            memcpy(t->m_Buffer, buffer, buffer_size);
+        }
         t->m_Width = width;
         t->m_Height = height;
         t->m_Type = type;
+
+        return RESULT_OK;
+    }
+
+    Result GetDynamicTextureData(HScene scene, const char* texture_name, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
+    {
+        dmhash_t texture_hash = dmHashString64(texture_name);
+        DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
+
+        if (!t) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        if (t->m_Deleted) {
+            dmLogError("Can't get texture data for deleted texture");
+            return RESULT_INVAL_ERROR;
+        }
+
+        if (!t->m_Buffer) {
+            dmLogError("No texture data available for dynamic texture");
+            return RESULT_DATA_ERROR;
+        }
+
+        *out_width = t->m_Width;
+        *out_height = t->m_Height;
+        *out_type = t->m_Type;
+        *out_buffer = t->m_Buffer;
 
         return RESULT_OK;
     }

@@ -229,6 +229,77 @@ TEST_F(TexcTest, TranscodeWebPLossy)
     dmTexc::Destroy(texture);
 }
 
+#define ASSERT_RGBA(exp, act)\
+    ASSERT_EQ((exp)[0], (act)[0]);\
+    ASSERT_EQ((exp)[1], (act)[1]);\
+    ASSERT_EQ((exp)[2], (act)[2]);\
+    ASSERT_EQ((exp)[3], (act)[3]);\
+
+TEST_F(TexcTest, FlipAxis)
+{
+
+    /* Original image:
+     *  +--------+--------+
+     *  |  red   | green  |
+     *  +--------+--------+
+     *  |  blue  | white  |
+     *  +--------+--------+
+     */
+
+    const uint8_t red[4]   = {255,   0,   0, 255};
+    const uint8_t green[4] = {  0, 255,   0, 255};
+    const uint8_t blue[4]  = {  0,   0, 255, 255};
+    const uint8_t white[4] = {255, 255, 255, 255};
+
+    uint8_t out[4*4];
+    dmTexc::HTexture texture = CreateDefaultRGBA();
+
+    // Original values
+    dmTexc::GetData(texture, out, 16);
+    ASSERT_RGBA(out,      red);
+    ASSERT_RGBA(out+4,  green);
+    ASSERT_RGBA(out+8,   blue);
+    ASSERT_RGBA(out+12, white);
+
+    /* Flip X axis:
+     *  +--------+--------+
+     *  | green  |  red   |
+     *  +--------+--------+
+     *  | white  |  blue  |
+     *  +--------+--------+
+     */
+    ASSERT_TRUE(dmTexc::Flip(texture, dmTexc::FLIP_AXIS_X));
+    dmTexc::GetData(texture, out, 16);
+    ASSERT_RGBA(out,    green);
+    ASSERT_RGBA(out+4,    red);
+    ASSERT_RGBA(out+8,  white);
+    ASSERT_RGBA(out+12,  blue);
+
+    /* Flip Y axis:
+     *  +--------+--------+
+     *  | white  |  blue  |
+     *  +--------+--------+
+     *  | green  |  red   |
+     *  +--------+--------+
+     */
+    ASSERT_TRUE(dmTexc::Flip(texture, dmTexc::FLIP_AXIS_Y));
+    dmTexc::GetData(texture, out, 16);
+    ASSERT_RGBA(out,    white);
+    ASSERT_RGBA(out+4,   blue);
+    ASSERT_RGBA(out+8,  green);
+    ASSERT_RGBA(out+12,   red);
+
+    // Flip Z axis (no change)
+    ASSERT_TRUE(dmTexc::Flip(texture, dmTexc::FLIP_AXIS_Z));
+    dmTexc::GetData(texture, out, 16);
+    ASSERT_RGBA(out,    white);
+    ASSERT_RGBA(out+4,   blue);
+    ASSERT_RGBA(out+8,  green);
+    ASSERT_RGBA(out+12,   red);
+}
+
+#undef ASSERT_RGBA
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

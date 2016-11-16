@@ -91,6 +91,23 @@ namespace dmTexc
         return ePVRTCSpacesRGB;
     }
 
+    static EPVRTAxis ConvertFlipAxis(FlipAxis flip_axis)
+    {
+        switch (flip_axis)
+        {
+            case FLIP_AXIS_X:
+                return ePVRTAxisX;
+            case FLIP_AXIS_Y:
+                return ePVRTAxisY;
+            case FLIP_AXIS_Z:
+                return ePVRTAxisZ;
+        }
+
+        // Should never get here
+        assert(false);
+        return ePVRTAxisX;
+    }
+
     HTexture Create(uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, void* data)
     {
         pvrtexture::PixelType pf = ConvertPixelFormat(pixel_format);
@@ -236,16 +253,10 @@ namespace dmTexc
         return pvrtexture::GenerateMIPMaps(*t->m_PVRTexture, pvrtexture::eResizeLinear);
     }
 
-    bool Flip(HTexture texture)
+    bool Flip(HTexture texture, FlipAxis flip_axis)
     {
         Texture* t = (Texture*) texture;
-        if(t->m_PVRTexture->getHeight() > 1 && !pvrtexture::Flip(*t->m_PVRTexture, ePVRTAxisY))
-        {
-            dmLogError("Failed to flip texture");
-            return false;
-        }
-
-        return true;
+        return pvrtexture::Flip(*t->m_PVRTexture, ConvertFlipAxis(flip_axis));
     }
 
     bool Transcode(HTexture texture, PixelFormat pixel_format, ColorSpace color_space, CompressionLevel compression_level, CompressionType compression_type)
@@ -328,6 +339,6 @@ namespace dmTexc
     DM_TEXC_TRAMPOLINE3(bool, Resize, HTexture, uint32_t, uint32_t);
     DM_TEXC_TRAMPOLINE1(bool, PreMultiplyAlpha, HTexture);
     DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
-    DM_TEXC_TRAMPOLINE1(bool, Flip, HTexture);
+    DM_TEXC_TRAMPOLINE2(bool, Flip, HTexture, FlipAxis);
     DM_TEXC_TRAMPOLINE5(bool, Transcode, HTexture, PixelFormat, ColorSpace, CompressionLevel, CompressionType);
 }

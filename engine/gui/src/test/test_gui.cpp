@@ -601,16 +601,16 @@ TEST_F(dmGuiTest, DynamicTexture)
 
     // Test creation/deletion in the same frame (case 2355)
     dmGui::Result r;
-    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
     r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
     ASSERT_EQ(r, dmGui::RESULT_OK);
     dmGui::RenderScene(m_Scene, rp, &count);
 
-    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -629,20 +629,103 @@ TEST_F(dmGuiTest, DynamicTexture)
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Recreate the texture again (without RenderScene)
-    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Set data on deleted texture
-    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
     dmGui::DeleteNode(m_Scene, node);
 
     dmGui::RenderScene(m_Scene, rp, &count);
 }
+
+
+#define ASSERT_BUFFER(exp, act, count)\
+    for (int i = 0; i < count; ++i) {\
+        ASSERT_EQ((exp)[i], (act)[i]);\
+    }\
+
+TEST_F(dmGuiTest, DynamicTextureFlip)
+{
+    const int width = 2;
+    const int height = 2;
+
+    // Test data tuples (regular image data & and flipped counter part)
+    const uint8_t data_lum[width * height * 1] = {
+            255, 0,
+            0, 255,
+        };
+    const uint8_t data_lum_flip[width * height * 1] = {
+            0, 255,
+            255, 0,
+        };
+    const uint8_t data_rgb[width * height * 3] = {
+            255, 0, 0,  0, 255, 0,
+            0, 0, 255,  255, 255, 255,
+        };
+    const uint8_t data_rgb_flip[width * height * 3] = {
+            0, 0, 255,  255, 255, 255,
+            255, 0, 0,  0, 255, 0,
+        };
+    const uint8_t data_rgba[width * height * 4] = {
+            255, 0, 0, 255,  0, 255, 0, 255,
+            0, 0, 255, 255,  255, 255, 255, 255,
+        };
+    const uint8_t data_rgba_flip[width * height * 4] = {
+            0, 0, 255, 255,  255, 255, 255, 255,
+            255, 0, 0, 255,  0, 255, 0, 255,
+        };
+
+    // Vars to fetch data results
+    uint32_t out_width = 0;
+    uint32_t out_height = 0;
+    dmImage::Type out_type = dmImage::TYPE_LUMINANCE;
+    const uint8_t* out_buffer = NULL;
+
+    // Create and upload RGB image + flip
+    dmGui::Result r;
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, true, data_rgb, sizeof(data_rgb));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // Get buffer, verify same as input but flipped
+    r = dmGui::GetDynamicTextureData(m_Scene, "t1", &out_width, &out_height, &out_type, (const void**)&out_buffer);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(width, out_width);
+    ASSERT_EQ(height, out_height);
+    ASSERT_EQ(dmImage::TYPE_RGB, out_type);
+    ASSERT_BUFFER(data_rgb_flip, out_buffer, width*height*3);
+
+    // Upload RGBA data and flip
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGBA, true, data_rgba, sizeof(data_rgba));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // Verify flipped result
+    r = dmGui::GetDynamicTextureData(m_Scene, "t1", &out_width, &out_height, &out_type, (const void**)&out_buffer);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(width, out_width);
+    ASSERT_EQ(height, out_height);
+    ASSERT_EQ(dmImage::TYPE_RGBA, out_type);
+    ASSERT_BUFFER(data_rgba_flip, out_buffer, width*height*4);
+
+    // Upload luminance data and flip
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_LUMINANCE, true, data_lum, sizeof(data_lum));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // Verify flipped result
+    r = dmGui::GetDynamicTextureData(m_Scene, "t1", &out_width, &out_height, &out_type, (const void**)&out_buffer);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(width, out_width);
+    ASSERT_EQ(height, out_height);
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE, out_type);
+    ASSERT_BUFFER(data_lum_flip, out_buffer, width*height);
+}
+
+#undef ASSERT_BUFFER
 
 TEST_F(dmGuiTest, ScriptFlipbookAnim)
 {
