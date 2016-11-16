@@ -723,6 +723,9 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
     ASSERT_EQ(height, out_height);
     ASSERT_EQ(dmImage::TYPE_LUMINANCE, out_type);
     ASSERT_BUFFER(data_lum_flip, out_buffer, width*height);
+
+    r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
 }
 
 #undef ASSERT_BUFFER
