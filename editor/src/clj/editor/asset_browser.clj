@@ -377,7 +377,7 @@
       (let [count (.getExpandedItemCount tree-view)
             selected-indices (filter #(selected-paths (item->path (.getTreeItem tree-view %))) (range count))]
         (when (not (empty? selected-indices))
-          (ui/select-indices tree-view selected-indices))))))
+          (ui/select-indices! tree-view selected-indices))))))
 
 (defn update-tree-view [^TreeView tree-view resource-tree selected-paths]
   (let [root (.getRoot tree-view)
