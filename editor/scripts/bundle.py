@@ -226,13 +226,13 @@ if __name__ == '__main__':
         shutil.rmtree('target/editor')
 
     print 'Building editor'
-    exec_command('sh ./scripts/lein clean')
+    exec_command('bash ./scripts/lein clean')
     if options.pack_local:
-        exec_command('sh ./scripts/lein with-profile +release pack')
+        exec_command('bash ./scripts/lein with-profile +release pack')
     else:
-        exec_command('sh ./scripts/lein with-profile +release pack %s' % options.git_sha1)
+        exec_command('bash ./scripts/lein with-profile +release pack %s' % options.git_sha1)
 
-    exec_command('sh ./scripts/lein with-profile +release uberjar')
+    exec_command('bash ./scripts/lein with-profile +release uberjar')
 
     jar_file = 'defold-%s.jar' % options.git_sha1
 
