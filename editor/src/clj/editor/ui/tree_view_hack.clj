@@ -3,10 +3,14 @@
   ;; the TreeView selection model is an anonymous inner class in JDK
   ;; 1.8.0_101, and a named class in 1.8.0_112. If/when we upgrade we
   ;; need to change the class name.
-  (:import (javafx.scene.control MultipleSelectionModelBase
-                                 MultipleSelectionModelBase$4
-                                 ;; 1.8.0_111/112: MultipleSelectionModelBase$BitSetReadOnlyUnbackedObservableList
-                                 )))
+  (:import
+   (javafx.scene.control SelectionModel
+                         MultipleSelectionModelBase
+                         MultipleSelectionModelBase$4
+                         ;; 1.8.0_111/112: MultipleSelectionModelBase$BitSetReadOnlyUnbackedObservableList
+                         )))
+
+(set! *warn-on-reflection* true)
 
 ;; HACK: Workaround for: https://bugs.openjdk.java.net/browse/JDK-8165222
 ;;
@@ -34,7 +38,7 @@
     (.setAccessible true)))
 
 (defn subvert-broken-selection-model-optimization!
-  [selection-model]
+  [^SelectionModel selection-model]
   (when (.isAssignableFrom MultipleSelectionModelBase (.getClass selection-model))
     (let [indices-seq (.get selected-indices-seq-field selection-model)]
       (.set last-get-index-field indices-seq (int -1))
