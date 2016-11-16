@@ -296,6 +296,8 @@ TEST_F(TexcTest, FlipAxis)
     ASSERT_RGBA(out+4,   blue);
     ASSERT_RGBA(out+8,  green);
     ASSERT_RGBA(out+12,   red);
+
+    dmTexc::Destroy(texture);
 }
 
 #undef ASSERT_RGBA
