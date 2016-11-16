@@ -336,10 +336,10 @@
                                  (ui/disable! (:unstage push-controls) (not (:unstage enabled)))
 
                                  (when (:diff enabled)
-                                   (if-let [selection-provider (cond (ui/focus? changed-view) changed-view
-                                                                     (ui/focus? staged-view) staged-view
-                                                                     :else nil)]
-                                     (ui/context! (:diff push-controls) :sync {:!flow !flow} selection-provider)))))
+                                   (if-let [focused-list-view (cond (ui/focus? changed-view) changed-view
+                                                                    (ui/focus? staged-view) staged-view
+                                                                    :else nil)]
+                                     (ui/context! (:diff push-controls) :sync {:!flow !flow} (ui/->selection-provider focused-list-view))))))
         update-controls (fn [{:keys [state conflicts resolved modified staged] :as flow}]
                           (ui/run-later
                            (if (= "pull" (namespace state))
