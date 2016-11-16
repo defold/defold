@@ -93,7 +93,7 @@
         (let [count (.getExpandedItemCount tree-view)
               selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
           (when (not (empty? selected-indices))
-            (ui/select-indices tree-view selected-indices)))))))
+            (ui/select-indices! tree-view selected-indices)))))))
 
 (defn- pathify
   ([root]
