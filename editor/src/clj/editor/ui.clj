@@ -8,6 +8,7 @@
    [editor.progress :as progress]
    [editor.workspace :as workspace]
    [editor.menu :as menu]
+   [editor.ui.tree-view-hack :as tree-view-hack]
    [internal.util :as util]
    [service.log :as log]
    [util.profiler :as profiler])
@@ -560,6 +561,13 @@
       #(seq (.getChildren ^TreeItem %))
       item)
     []))
+
+
+(defn select-indices!
+  [^TreeView tree-view indices]
+  (doto (.getSelectionModel tree-view)
+    (tree-view-hack/subvert-broken-selection-model-optimization!)
+    (.selectIndices  (int (first indices)) (int-array (rest indices)))))
 
 (extend-type TreeView
   CollectionView
