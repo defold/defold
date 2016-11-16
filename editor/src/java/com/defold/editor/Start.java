@@ -196,8 +196,8 @@ public class Start extends Application {
                 Class<?> glprofile = parent.loadClass("com.jogamp.opengl.GLProfile");
                 Method init = glprofile.getMethod("initSingleton");
                 init.invoke(null);
-            } catch (Exception e) {
-                logger.error("failed to extract native libs", e);
+            } catch (Throwable t) {
+                logger.error("failed to extract native libs", t);
             }
             try {
                 pool.add(makeEditor());
