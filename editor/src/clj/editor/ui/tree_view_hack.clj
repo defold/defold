@@ -1,5 +1,12 @@
 (ns editor.ui.tree-view-hack
-  (:import (javafx.scene.control MultipleSelectionModelBase MultipleSelectionModelBase$BitSetReadOnlyUnbackedObservableList)))
+  ;; NOTE: The ReadOnlyUnbackedObservableList implementation used by
+  ;; the TreeView selection model is an anonymous inner class in JDK
+  ;; 1.8.0_101, and a named class in 1.8.0_112. If/when we upgrade we
+  ;; need to change the class name.
+  (:import (javafx.scene.control MultipleSelectionModelBase
+                                 MultipleSelectionModelBase$4
+                                 ;; 1.8.0_111/112: MultipleSelectionModelBase$BitSetReadOnlyUnbackedObservableList
+                                 )))
 
 ;; HACK: Workaround for: https://bugs.openjdk.java.net/browse/JDK-8165222
 ;;
@@ -19,11 +26,11 @@
     (.setAccessible true)))
 
 (def ^java.lang.reflect.Field last-get-index-field
-   (doto (.getDeclaredField MultipleSelectionModelBase$BitSetReadOnlyUnbackedObservableList "lastGetIndex")
+   (doto (.getDeclaredField MultipleSelectionModelBase$4 "lastGetIndex")
     (.setAccessible true)))
 
 (def ^java.lang.reflect.Field last-get-value-field
-  (doto (.getDeclaredField MultipleSelectionModelBase$BitSetReadOnlyUnbackedObservableList "lastGetValue")
+  (doto (.getDeclaredField MultipleSelectionModelBase$4 "lastGetValue")
     (.setAccessible true)))
 
 (defn subvert-broken-selection-model-optimization!
