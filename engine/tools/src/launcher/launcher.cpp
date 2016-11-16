@@ -1,3 +1,4 @@
+#include <launcher.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -161,21 +162,8 @@ int Launch(int argc, char **argv) {
     PROCESS_INFORMATION pi;
     int buffer_size = 32000;
     char* buffer = new char[buffer_size];
-    buffer[0] = 0;
 
-    for (int j = 0; j < i - 1; j++) {
-        // We must quote on windows...
-        if (j == 0) {
-            dmStrlCat(buffer, "\"", buffer_size);
-        }
-        dmStrlCat(buffer, args[j], buffer_size);
-        if (j == 0) {
-            dmStrlCat(buffer, "\"", buffer_size);
-        }
-        if (j != i - 2) {
-            dmStrlCat(buffer, " ", buffer_size);
-        }
-    }
+    QuoteArgv(args, buffer);
 
     dmLogDebug("%s", buffer);
 
@@ -192,8 +180,8 @@ int Launch(int argc, char **argv) {
         char* msg;
         DWORD err = GetLastError();
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
-        LocalFree((HLOCAL) msg);
         dmLogFatal("Failed to launch application: %s (%d)", msg, err);
+        LocalFree((HLOCAL) msg);
         exit(5);
     }
 
