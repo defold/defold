@@ -1,4 +1,4 @@
-(ns integration.mesh-test
+(ns integration.collada-scene-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
@@ -31,4 +31,4 @@
           vbs (g/node-value node-id :vbs)]
       (is (= 1 (count vbs)))
       (let [vb (first vbs)]
-        (= (count vb) (get-in (g/node-value node-id :content) [:components 0 :primitive-count]))))))
+        (is (= (count vb) (count (get-in (g/node-value node-id :content) [:mesh-entries 0 :meshes 0 :indices]))))))))

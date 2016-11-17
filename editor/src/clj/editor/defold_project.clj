@@ -101,7 +101,7 @@
     (assert resource "resource required to make new node")
     (let [resource-type (resource/resource-type resource)
           found? (some? resource-type)
-          node-type (:node-type resource-type PlaceholderResourceNode)]
+          node-type (or (:node-type resource-type) PlaceholderResourceNode)]
       (g/make-nodes graph [node [node-type :resource resource]]
                     (if (some? resource-type)
                       (concat

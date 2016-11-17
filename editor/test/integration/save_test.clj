@@ -15,7 +15,7 @@
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.label.proto Label$LabelDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.model.proto ModelProto$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.dynamo.tile.proto Tile$TileSet]))
@@ -25,7 +25,7 @@
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
                            "label" Label$LabelDesc
-                           "model" Model$ModelDesc
+                           "model" ModelProto$ModelDesc
                            "particlefx" Particle$ParticleFX
                            "spinescene" Spine$SpineSceneDesc
                            "spinemodel" Spine$SpineModelDesc
@@ -52,6 +52,7 @@
                  "**/tile_map_collision_shape.collisionobject"
                  "**/spineboy.spinescene"
                  "**/spineboy.spinemodel"
+                 "**/primary.model"
                  "**/new.factory"
                  "**/with_prototype.factory"
                  "**/new.sound"

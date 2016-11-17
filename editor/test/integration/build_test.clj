@@ -9,6 +9,7 @@
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [util.murmur :as murmur]
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
@@ -18,8 +19,7 @@
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.model.proto ModelProto$Model]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.label.proto Label$LabelDesc]
@@ -44,7 +44,8 @@
    (let [node (test-util/resource-node project path)]
      (workspace/make-build-resource (g/node-value node :resource) prefix))))
 
-(def target-pb-classes {"skeletonc" Rig$Skeleton
+(def target-pb-classes {"rigscenec" Rig$RigScene
+                        "skeletonc" Rig$Skeleton
                         "animationsetc" Rig$AnimationSet
                         "meshsetc" Rig$MeshSet
                         "texturesetc" TextureSetProto$TextureSet})
@@ -111,19 +112,30 @@
                                    :pivot :pivot-center,
                                    :shadow [0.0 0.0 0.0 1.0],
                                    :text "Label"}
-                                  pb)))}])
+                                  pb)))}
+               {:label "Collada Scene"
+                :path "/model/book_of_defold.dae"
+                :pb-class Rig$MeshSet
+                :test-fn (fn [pb targets]
+                           (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id]))))}
+               {:label "Model"
+                :path "/model/book_of_defold.model"
+                :pb-class ModelProto$Model
+                :resource-fields [:rig-scene :material]
+                :test-fn (fn [pb targets]
+                           (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
-    (let [content    (get content-by-source (:path case))
-          pb         (protobuf/bytes->map (:pb-class case) content)
-          test-fn    (:test-fn case)
-          res-fields [:sound]]
-      (when test-fn
-        (test-fn pb content-by-target))
-      (doseq [field (:resource-fields case)]
-        (is (contains? content-by-target (get pb field)))
-        (is (> (count (get content-by-target (get pb field))) 0))))))
+           (let [pb         (some->> (get content-by-source (:path case))
+                              (protobuf/bytes->map (:pb-class case)))
+                 test-fn    (:test-fn case)
+                 res-fields [:sound]]
+             (when test-fn
+               (test-fn pb content-by-target))
+             (doseq [field (:resource-fields case)]
+               (is (contains? content-by-target (get pb field)))
+               (is (> (count (get content-by-target (get pb field))) 0))))))
 
 (defmacro with-build-results [path & forms]
   `(with-clean-system
@@ -365,20 +377,6 @@
             desc    (protobuf/bytes->map Font$FontMap content)]
         (is (= 1024 (:cache-width desc)))
         (is (= 256 (:cache-height desc)))))))
-
-(deftest build-mesh
-  (testing "Building mesh"
-    (with-build-results "/model/book_of_defold.dae"
-      (let [content (get content-by-source "/model/book_of_defold.dae")
-            desc    (Mesh$MeshDesc/parseFrom content)]
-        (is (= "Book" (-> desc (.getComponentsList) (first) (.getName))))))))
-
-(deftest build-model
-  (testing "Building model"
-    (with-build-results "/model/book_of_defold.model"
-      (let [content (get content-by-source "/model/book_of_defold.model")
-            desc    (Model$ModelDesc/parseFrom content)]
-        (is (= "/model/book_of_defold.meshc" (-> desc (.getMesh))))))))
 
 (deftest build-script
   (testing "Buildling a valid script succeeds"

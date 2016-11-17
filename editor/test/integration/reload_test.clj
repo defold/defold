@@ -18,8 +18,6 @@
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.dynamo.rig.proto Rig$RigScene]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
            [editor.types Region]
            [editor.workspace BuildResource]
            [editor.resource FileResource]

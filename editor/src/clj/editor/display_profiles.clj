@@ -13,26 +13,7 @@
             [editor.math :as math]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu])
-  (:import [com.dynamo.input.proto Input$InputBinding]
-           [com.dynamo.render.proto Render$RenderPrototypeDesc]
-           [com.dynamo.graphics.proto Graphics$TextureProfiles]
-           [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
-            GameSystem$CollectionProxyDesc GameSystem$LightDesc]
-           [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
-           [com.dynamo.input.proto Input$GamepadMaps]
-           [com.dynamo.camera.proto Camera$CameraDesc]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
-           [com.dynamo.tile.proto Tile$TileGrid]
-           [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.render.proto Render$DisplayProfiles]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]))
+  (:import [com.dynamo.render.proto Render$DisplayProfiles]))
 
 (set! *warn-on-reflection* true)
 

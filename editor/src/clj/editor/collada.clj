@@ -1,6 +1,7 @@
 (ns editor.collada
   (:require [clojure.xml :as xml]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [util.murmur :as murmur])
   (:import [java.text DecimalFormat DecimalFormatSymbols ParseException]))
 
 (set! *warn-on-reflection* true)
@@ -69,7 +70,7 @@
            flatten
            vec))))
 
-(defn ->mesh [stream]
+(defn ->mesh-set [stream]
   (let [collada (xml/parse stream)
         unit (element-in collada [:asset :unit])
         decimal-format (->decimal-format (if (-> (attr unit :meter)
@@ -123,12 +124,16 @@
                               result (assoc result semantic values)]
                           (recur (rest inputs) result))))
                     result))]
-    {:primitive-type :triangles
-     :components [{:name name
-                   :positions (extract "POSITION" sources 3 tri-count)
-                   :normals (extract "NORMAL" sources 3 tri-count)
-                   :texcoord0 (->> (extract "TEXCOORD" sources 2 tri-count)
-                                (partition 2)
-                                (mapcat (fn [[u v]] [u (- 1.0 v)]))
-                                vec)
-                   :primitive-count (* tri-count 3)}]}))
+    {:mesh-entries [{:id (murmur/hash64 name)
+                     :meshes [(let [positions (extract "POSITION" sources 3 tri-count)
+                                    texcoords (->> (extract "TEXCOORD" sources 2 tri-count)
+                                                (partition 2)
+                                                (mapcat (fn [[u v]] [u (- 1.0 v)]))
+                                                vec)
+                                    normals (extract "NORMAL" sources 3 tri-count)]
+                                {:positions positions
+                                 :indices (range (/ (count positions) 3))
+                                 :normals normals
+                                 :normal-indices (range (/ (count normals) 3))
+                                 :texcoord0 texcoords
+                                 :texcoord0-indices (range (/ (count texcoords) 2))})]}]}))
