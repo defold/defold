@@ -1,62 +1,50 @@
-package dmManifestDDF;
+package dmLiveUpdateDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
-option java_package = "com.dynamo.manifest.proto";
-option java_outer_classname = "dmManifest";
+option java_package = "com.dynamo.liveupdate.proto";
+option java_outer_classname = "Manifest";
 
 enum HashAlgorithm {
-    HASH_MD5        = 0;
-    HASH_SHA1       = 1;
-    HASH_SHA256     = 2;
-    HASH_SHA512     = 3;
+    HASH_UNKNOWN    = 0;
+    HASH_MD5        = 1;
+    HASH_SHA1       = 2;
+    HASH_SHA256     = 3;
+    HASH_SHA512     = 4;
 }
 
 enum SignAlgorithm {
-    SIGN_RSA        = 0;
-}
-
-enum ResourceType {
-    RESOURCE_UNKNOWN = 0;
-    RESOURCE_SIMPLE = 1;
-    RESOURCE_COMPLEX = 2;
+    SIGN_UNKNOWN    = 0;
+    SIGN_RSA        = 1;
 }
 
 message HashDigest {
-    required int64          p1 = 1      [default = 0];
-    optional int64          p2 = 2;
-    optional int64          p3 = 3;
-    optional int64          p4 = 4;
-    optional int64          p5 = 5;
-    optional int64          p6 = 6;
-    optional int64          p7 = 7;
-    optional int64          p8 = 8;
+    repeated bytes              data = 1;
 }
 
 message ManifestHeader {
-    required int32          magic_number = 1                [default = 0];
-    required int32          version = 2                     [default = 0];
-    required HashAlgorithm  resource_hash_algorithm = 3     [default = HASH_SHA256];
-    required HashAlgorithm  signature_hash_algorithm = 4    [default = HASH_SHA256];
-    required SignAlgorithm  signature_sign_algorithm = 5    [default = SIGN_RSA];
-    required HashDigest     project_identifier = 6;
+    required int32              magic_number = 1                [default = 0];
+    required int32              version = 2                     [default = 0];
+    required HashAlgorithm      resource_hash_algorithm = 3     [default = HASH_SHA256];
+    required HashAlgorithm      signature_hash_algorithm = 4    [default = HASH_SHA256];
+    required SignAlgorithm      signature_sign_algorithm = 5    [default = SIGN_RSA];
+    required HashDigest         project_identifier = 6;
 }
 
 message ResourceEntry {
-    repeated bytes          url = 1;
-    required ResourceType   type = 2;
-    required HashDigest     hash = 3;
-    repeated HashDigest     dependants = 4;
+    repeated string             url = 1;
+    required HashDigest         hash = 2;
+    repeated HashDigest         dependants = 3;
 }
 
-message Signature {
-    repeated bytes          data = 1;
-}
-
-message Manifest {
+message ManifestData {
     required ManifestHeader     header = 1;
     repeated HashDigest         engine_versions = 2;
     repeated ResourceEntry      resources = 3;
-    required Signature          signature = 4;
+}
+
+message ManifestFile {
+    required ManifestData       data = 1;
+    repeated bytes              signature = 2;
 }
