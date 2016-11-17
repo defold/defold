@@ -1170,17 +1170,6 @@ instructions.configure=\
         self.s3buckets[bucket_name] = bucket
         return bucket
 
-    def mawe_test(self):
-        if 'android' in self.target_platform:
-            files = [
-                ('share/java', 'classes.dex'),
-                ('bin/%s' % (self.target_platform), 'dmengine.apk'),
-                ('ext/share/java', 'android.jar'),
-            ]
-            for f in files:
-                src = join(dynamo_home, f[0], f[1])
-                self.upload_file(src, '%s/%s' % (full_archive_path, f[1]))
-
     def upload_file(self, path, url):
         url = url.replace('\\', '/')
         self._log('Uploading %s -> %s' % (path, url))
