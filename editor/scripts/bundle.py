@@ -165,7 +165,8 @@ def bundle(platform, jar_file, options):
 
     shutil.copy('target/editor/update/%s' % jar_file, '%s/%s' % (packages_dir, jar_file))
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
-    exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
+    if not 'win32' in platform:
+        exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
 
     if 'win32' in platform:
         exec_command('java -cp target/classes com.defold.util.IconExe %s/Defold%s bundle-resources/logo.ico' % (exe_dir, exe_suffix))
@@ -225,13 +226,13 @@ if __name__ == '__main__':
         shutil.rmtree('target/editor')
 
     print 'Building editor'
-    exec_command('./scripts/lein clean')
+    exec_command('bash ./scripts/lein clean')
     if options.pack_local:
-        exec_command('./scripts/lein with-profile +release pack')
+        exec_command('bash ./scripts/lein with-profile +release pack')
     else:
-        exec_command('./scripts/lein with-profile +release pack %s' % options.git_sha1)
+        exec_command('bash ./scripts/lein with-profile +release pack %s' % options.git_sha1)
 
-    exec_command('./scripts/lein with-profile +release uberjar')
+    exec_command('bash ./scripts/lein with-profile +release uberjar')
 
     jar_file = 'defold-%s.jar' % options.git_sha1
 
