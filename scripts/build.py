@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform, math
+import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -1202,7 +1202,12 @@ instructions.configure=\
                 self._log('Uploaded %s -> %s' % (path, url))
 
             def upload_multipart():
-                mp = bucket.initiate_multipart_upload(p)
+                headers = {}
+                contenttype, _ = mimetypes.guess_type(path)
+                if contenttype is not None:
+                    headers['Content-Type'] = contenttype
+
+                mp = bucket.initiate_multipart_upload(p, headers=headers)
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB
