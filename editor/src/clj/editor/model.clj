@@ -45,8 +45,9 @@
    :content (protobuf/map->str ModelProto$ModelDesc pb-msg)})
 
 (g/defnk produce-rig-scene-pb-msg [pb-msg]
-  {:skeleton (:skeleton pb-msg)
-   :animation-set (:animations pb-msg)
+  {;; TODO - skeleton and animation-set not currently supported
+   ;; :skeleton (:skeleton pb-msg)
+   ;; :animation-set (:animations pb-msg)
    :mesh-set (:mesh pb-msg)
    ;; set in the ModelProto$Model message
    :texture-set ""})

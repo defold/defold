@@ -117,13 +117,23 @@
                 :path "/model/book_of_defold.dae"
                 :pb-class Rig$MeshSet
                 :test-fn (fn [pb targets]
-                           (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id]))))}
+                           ;; TODO - id must be 0 currently because of the runtime
+                           ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
+                           (is (= 0 (get-in pb [:mesh-entries 0 :id]))))}
                {:label "Model"
                 :path "/model/book_of_defold.model"
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}])
+                           ;; TODO - id must be 0 currently because of the runtime
+                           ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
+                           (is (= 0 (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}
+               {:label "Model with animations"
+                :path "/model/primary.model"
+                :pb-class ModelProto$Model
+                :resource-fields [:rig-scene :material]
+                :test-fn (fn [pb targets]
+                           (is (< 0 (count (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :meshes first :indices)))))}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))

@@ -124,7 +124,9 @@
                               result (assoc result semantic values)]
                           (recur (rest inputs) result))))
                     result))]
-    {:mesh-entries [{:id (murmur/hash64 name)
+    {:mesh-entries [{;; TODO - id needs to be hard coded 0 because of the runtime
+                     ;; Should be: :id (murmur/hash64 name)
+                     :id 0
                      :meshes [(let [positions (extract "POSITION" sources 3 tri-count)
                                     texcoords (->> (extract "TEXCOORD" sources 2 tri-count)
                                                 (partition 2)
