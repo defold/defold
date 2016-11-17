@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform, math
+import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -1202,13 +1202,8 @@ instructions.configure=\
                 self._log('Uploaded %s -> %s' % (path, url))
 
             def upload_multipart():
-                contenttypes = { '.apk': 'application/vnd.android.package-archive',
-                                 '.jar': 'application/java-archive',
-                                 '.dex': 'application/octet-stream',
-                                 '.js':  'application/javascript'
-                                }
                 headers = {}
-                contenttype = contenttypes.get(os.path.splitext(path)[1], None)
+                contenttype, _ = mimetypes.guess_type(path)
                 if contenttype is not None:
                     headers['Content-Type'] = contenttype
 
