@@ -14,8 +14,7 @@ class BufferTest : public ::testing::Test
 class GetDataTest : public ::testing::Test
 {
 public:
-    dmBuffer::HBuffer buffer = 0x0;
-
+    dmBuffer::HBuffer buffer;
 
 protected:
     virtual void SetUp() {
@@ -24,8 +23,7 @@ protected:
             {dmHashString64("texcoord"), dmBuffer::BUFFER_TYPE_UINT16, 2}
         };
 
-        dmBuffer::Result r = dmBuffer::Allocate(4, buffer_decl, 2, &buffer);
-        ASSERT_EQ(dmBuffer::RESULT_OK, r);
+        dmBuffer::Allocate(4, buffer_decl, 2, &buffer);
     }
 
     virtual void TearDown() {
