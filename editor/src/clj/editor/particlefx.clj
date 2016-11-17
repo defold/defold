@@ -435,7 +435,7 @@
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (defn- prop-anim-missing? [animation anim-ids]
-  (when (and anim-ids (not (contains? (set anim-ids) animation)))
+  (when (and anim-ids (not-any? #(= animation %) anim-ids))
     (format "'%s' could not be found in the specified image" animation)))
 
 (defn- sort-anim-ids
