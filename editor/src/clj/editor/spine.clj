@@ -47,8 +47,8 @@
 (g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
   {:resource resource
    :content (protobuf/map->str Spine$SpineSceneDesc
-              {:spine-json (resource/proj-path spine-json-resource)
-               :atlas (resource/proj-path atlas-resource)
+              {:spine-json (resource/resource->proj-path spine-json-resource)
+               :atlas (resource/resource->proj-path atlas-resource)
                :sample-rate sample-rate})})
 
 (defprotocol Interpolator
