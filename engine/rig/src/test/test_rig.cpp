@@ -25,7 +25,7 @@ protected:
     }
 };
 
-static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color) 
+static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color)
 {
     mesh_entry.m_Id = id;
     mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
@@ -645,7 +645,7 @@ TEST_F(RigInstanceTest, PlayInvalidAnimation)
     dmhash_t empty_id = dmHashString64("");
 
     // Default animation does not exist
-    ASSERT_EQ(dmRig::RESULT_ANIM_NOT_FOUND, dmRig::PlayAnimation(m_Instance, invalid_anim_id, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_ANIM_NOT_FOUND, dmRig::PlayAnimation(m_Instance, invalid_anim_id, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     ASSERT_NE(invalid_anim_id, dmRig::GetAnimation(m_Instance));
     ASSERT_EQ(empty_id, dmRig::GetAnimation(m_Instance));
 
@@ -657,7 +657,7 @@ TEST_F(RigInstanceTest, PlayValidAnimation)
     dmhash_t valid_anim_id = dmHashString64("valid");
 
     // Default animation does not exist
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, valid_anim_id, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, valid_anim_id, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     ASSERT_EQ(valid_anim_id, dmRig::GetAnimation(m_Instance));
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
@@ -717,7 +717,7 @@ TEST_F(RigInstanceTest, PoseNoAnim)
 TEST_F(RigInstanceTest, PoseAnim)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
@@ -756,7 +756,7 @@ TEST_F(RigInstanceTest, PoseAnim)
 TEST_F(RigInstanceTest, PoseAnimCancel)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
@@ -792,7 +792,7 @@ TEST_F(RigInstanceTest, GetVertexCount)
 TEST_F(RigInstanceTest, GenerateVertexData)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     dmRig::RigSpineModelVertex data[3];
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
@@ -820,7 +820,7 @@ TEST_F(RigInstanceTest, GenerateVertexData)
 TEST_F(RigInstanceTest, GenerateNormalData)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     dmRig::RigModelVertex data[3];
     dmRig::RigModelVertex* data_end = data + 3;
 
@@ -854,7 +854,7 @@ TEST_F(RigInstanceTest, LocalBoneScaling)
     m_Skeleton->m_LocalBoneScaling = true;
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     dmRig::RigSpineModelVertex data[3];
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
@@ -877,7 +877,7 @@ TEST_F(RigInstanceTest, BoneScaling)
     m_Skeleton->m_LocalBoneScaling = false;
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     dmRig::RigSpineModelVertex data[3];
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
@@ -901,7 +901,7 @@ TEST_F(RigInstanceTest, BoneScaling)
 TEST_F(RigInstanceTest, SetMeshInvalid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     dmRig::RigSpineModelVertex data[3];
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
@@ -924,7 +924,7 @@ TEST_F(RigInstanceTest, SetMeshInvalid)
 TEST_F(RigInstanceTest, SetMeshValid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     dmRig::RigSpineModelVertex data[3];
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
@@ -962,7 +962,7 @@ TEST_F(RigInstanceTest, CursorNoAnim)
 TEST_F(RigInstanceTest, CursorGet)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
@@ -989,7 +989,7 @@ TEST_F(RigInstanceTest, CursorGet)
 TEST_F(RigInstanceTest, CursorSet)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
@@ -1021,7 +1021,7 @@ TEST_F(RigInstanceTest, CursorSet)
 TEST_F(RigInstanceTest, CursorSetOutside)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
     ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 4.0f, false), RIG_EPSILON);
     ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
@@ -1041,6 +1041,89 @@ static Vector3 IKTargetPositionCallback(void* user_data, void*)
     return *(Vector3*)user_data;
 }
 
+TEST_F(RigInstanceTest, CursorOffset)
+{
+    float offset = 0.5f;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
+
+    ASSERT_NEAR(offset, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+}
+
+TEST_F(RigInstanceTest, CursorOffsetOutside)
+{
+    float offset = 1.3f;
+    float offset_normalized = 0.3;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
+
+    ASSERT_NEAR(offset_normalized, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+
+    offset = -0.3;
+    offset_normalized = 0.7f;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
+
+    ASSERT_NEAR(offset_normalized, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+}
+
+TEST_F(RigInstanceTest, PlaybackRateNoAnim)
+{
+    float default_playback_rate = 1.0f;
+    // no anim
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    // no anim + set playback rate
+    float playback_rate = 2.0f;
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, playback_rate));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+}
+
+TEST_F(RigInstanceTest, PlaybackRateGet)
+{
+    float default_playback_rate = 1.0f;
+    float double_playback_rate = 2.0f;
+    float negative_playback_rate = -1.0f;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, default_playback_rate));
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, double_playback_rate));
+    ASSERT_NEAR(double_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, negative_playback_rate));
+    ASSERT_NEAR(0.0f, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+}
+
+TEST_F(RigInstanceTest, PlaybackRateSet)
+{
+    float default_playback_rate = 1.0f;
+    float zero_playback_rate = 0.0f;
+    float double_playback_rate = 2.0f;
+    float negative_playback_rate = -1.0f;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, default_playback_rate));
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, zero_playback_rate));
+    ASSERT_NEAR(zero_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, double_playback_rate));
+    ASSERT_NEAR(double_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, negative_playback_rate));
+    ASSERT_NEAR(0.0f, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+}
+
 TEST_F(RigInstanceTest, InvalidIKTarget)
 {
     // Getting invalid ik constraint
@@ -1055,7 +1138,7 @@ static Vector3 UpdateIKPositionCallback(dmRig::IKTarget* ik_target)
 TEST_F(RigInstanceTest, IKTarget)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("ik"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("ik"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
 
     dmRig::IKTarget* target = dmRig::GetIKTarget(m_Instance, dmHashString64("test_ik"));
@@ -1103,7 +1186,7 @@ TEST_F(RigInstanceTest, InvalidTrackBone)
     m_Skeleton->m_LocalBoneScaling = false;
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("invalid_bones"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("invalid_bones"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
     dmRig::RigSpineModelVertex data[3];
     dmRig::RigSpineModelVertex* data_end = data + 3;
 

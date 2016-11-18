@@ -161,11 +161,11 @@
 (defn save-data [project]
   (g/node-value project :save-data {:skip-validation true}))
 
-(defn save-all [project {:keys [render-progress! basis cache]
-                         :or {render-progress! progress/null-render-progress!
-                              basis            (g/now)
-                              cache            (g/cache)}
-                         :as opts}]
+(defn write-save-data-to-disk! [project {:keys [render-progress! basis cache]
+                                         :or {render-progress! progress/null-render-progress!
+                                              basis            (g/now)
+                                              cache            (g/cache)}
+                                         :as opts}]
   (try
     (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
       (if-not (g/error? save-data)
@@ -237,7 +237,10 @@
 (defn workspace [project]
   (g/node-value project :workspace))
 
-(defonce ongoing-build-save? (atom false))
+(defonce ^:private ongoing-build-save-atom (atom false))
+
+(defn ongoing-build-save? []
+  @ongoing-build-save-atom)
 
 ;; We want to save any work done by the save/build, so we use our 'save/build cache' as system cache
 ;; if the system cache hasn't changed during the build.
@@ -247,23 +250,23 @@
                        @new-cache
                        current-cache-val))))
 
-(handler/defhandler :save-all :global
-  (enabled? [] (not @ongoing-build-save?))
-  (run [project]
-    (when-not @ongoing-build-save?
-      (reset! ongoing-build-save? true)
-      (let [workspace     (workspace project)
-            old-cache-val @(g/cache)
-            cache         (atom old-cache-val)]
-        (future
-          (try
-            (ui/with-progress [render-fn ui/default-render-progress!]
-              (save-all project {:render-progress! render-fn
-                                 :basis            (g/now)
-                                 :cache            cache})
-              (workspace/update-version-on-disk! workspace)
-              (update-system-cache! old-cache-val cache))
-            (finally (reset! ongoing-build-save? false))))))))
+(defn save-all! [project on-complete-fn]
+  (when-not @ongoing-build-save-atom
+    (reset! ongoing-build-save-atom true)
+    (let [workspace     (workspace project)
+          old-cache-val @(g/cache)
+          cache         (atom old-cache-val)]
+      (future
+        (try
+          (ui/with-progress [render-fn ui/default-render-progress!]
+                            (write-save-data-to-disk! project {:render-progress! render-fn
+                                                               :basis            (g/now)
+                                                               :cache            cache})
+                            (workspace/update-version-on-disk! workspace)
+                            (update-system-cache! old-cache-val cache))
+          (ui/run-later
+            (on-complete-fn))
+          (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -386,12 +389,6 @@
 (handler/defhandler :redo :global
     (enabled? [project-graph] (g/has-redo? project-graph))
     (run [project-graph] (g/redo! project-graph)))
-
-(ui/extend-menu ::menubar :editor.app-view/open
-                [{:label "Save All"
-                  :id ::save-all
-                  :acc "Shortcut+S"
-                  :command :save-all}])
 
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"
@@ -556,8 +553,8 @@
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
 (defn build-and-save-project [project build-options]
-  (when-not @ongoing-build-save?
-    (reset! ongoing-build-save? true)
+  (when-not @ongoing-build-save-atom
+    (reset! ongoing-build-save-atom true)
     (let [workspace     (workspace project)
           game-project  (get-resource-node project "/game.project")
           old-cache-val @(g/cache)
@@ -572,7 +569,7 @@
                                                       :basis (g/now)
                                                       :cache cache)))
               (update-system-cache! old-cache-val cache)))
-          (finally (reset! ongoing-build-save? false)))))))
+          (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn settings [project]
   (g/node-value project :settings))
@@ -659,7 +656,8 @@
 
 (deftype ProjectSelectionProvider [project-id]
   handler/SelectionProvider
-  (selection [this] (g/node-value project-id :selected-node-ids)))
+  (selection [this] (g/node-value project-id :selected-node-ids))
+  (succeeding-selection [this] []))
 
 (defn selection-provider [project-id] (ProjectSelectionProvider. project-id))
 

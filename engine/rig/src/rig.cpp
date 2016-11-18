@@ -66,7 +66,7 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration)
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
         if (anim == 0x0)
@@ -85,12 +85,15 @@ namespace dmRig
             RigPlayer* player = GetPlayer(instance);
             player->m_Playing = 0;
         }
+
         RigPlayer* player = SwitchPlayer(instance);
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
-        player->m_Cursor = 0.0f;
+        SetCursor(instance, offset, true);
+        SetPlaybackRate(instance, playback_rate);
         player->m_Playing = 1;
         player->m_Playback = playback;
+
         if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD)
             player->m_Backwards = 1;
         else
@@ -267,17 +270,20 @@ namespace dmRig
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0 || !player->m_Playing)
+        {
             return;
+        }
 
         // Advance cursor
         float prev_cursor = player->m_Cursor;
         if (player->m_Playback != dmRig::PLAYBACK_NONE)
         {
-            player->m_Cursor += dt;
+            player->m_Cursor += dt * player->m_PlaybackRate;
         }
         float duration = GetCursorDuration(player, animation);
-        if (duration == 0.0f) {
-            player->m_Cursor = 0;
+        if (duration == 0.0f)
+        {
+            player->m_Cursor = 0.0f;
         }
 
         // Adjust cursor
@@ -749,39 +755,50 @@ namespace dmRig
     float GetCursor(HRigInstance instance, bool normalized)
     {
         RigPlayer* player = GetPlayer(instance);
-        if (!player) {
+
+        if (!player)
+        {
             return 0.0f;
         }
 
         float duration = GetCursorDuration(player, player->m_Animation);
-        if (duration == 0.0f) {
+
+        if (duration == 0.0f)
+        {
             return 0.0f;
         }
 
         float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
-        if (normalized) {
+
+        if (normalized)
+        {
             t = t / duration;
         }
-        return t;
 
+        return t;
     }
 
     Result SetCursor(HRigInstance instance, float cursor, bool normalized)
     {
         float t = cursor;
-
         RigPlayer* player = GetPlayer(instance);
-        if (!player) {
+
+        if (!player)
+        {
             return dmRig::RESULT_ERROR;
         }
 
         float duration = GetCursorDuration(player, player->m_Animation);
-        if (normalized) {
+
+        if (normalized)
+        {
             t = t * duration;
         }
 
         t = fmod(t, duration);
-        if (cursor < 0) {
+
+        if (cursor < 0)
+        {
             t = duration + t;
         }
 
@@ -790,7 +807,33 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-    static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh) {
+    float GetPlaybackRate(HRigInstance instance)
+    {
+        RigPlayer* player = GetPlayer(instance);
+
+        if (!player || !player->m_Animation)
+        {
+            return 1.0f;
+        }
+
+        return player->m_PlaybackRate;
+    }
+
+    Result SetPlaybackRate(HRigInstance instance, float playback_rate)
+    {
+        RigPlayer* player = GetPlayer(instance);
+
+        if (!player)
+        {
+            return dmRig::RESULT_ERROR;
+        }
+
+        player->m_PlaybackRate = dmMath::Max(playback_rate, 0.0f);
+
+        return dmRig::RESULT_OK;
+    }
+
+	static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh) {
         // Spine's approach to update draw order is to:
         // * Initialize with default draw order (integer sequence)
         // * Add entries with changed draw order
@@ -1368,11 +1411,10 @@ namespace dmRig
             return result;
         }
 
-
         if (params.m_DefaultAnimation != NULL_ANIMATION)
         {
             // Loop forward should be the most common for idle anims etc.
-            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f);
+            (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f);
         }
 
         return dmRig::RESULT_OK;

@@ -64,6 +64,8 @@ namespace dmRig
         dmhash_t                      m_AnimationId;
         /// Playback cursor in the interval [0,duration]
         float                         m_Cursor;
+        /// Rate of playback, multiplied with dt when stepping. Always >= 0.0f
+        float                         m_PlaybackRate;
         /// Playback mode
         RigPlayback                   m_Playback;
         /// Whether the animation is currently playing
@@ -285,7 +287,7 @@ namespace dmRig
     Result InstanceCreate(const InstanceCreateParams& params);
     Result InstanceDestroy(const InstanceDestroyParams& params);
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration);
+    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
@@ -296,6 +298,8 @@ namespace dmRig
     dmhash_t GetMesh(HRigInstance instance);
     float GetCursor(HRigInstance instance, bool normalized);
     Result SetCursor(HRigInstance instance, float cursor, bool normalized);
+    float GetPlaybackRate(HRigInstance instance);
+    Result SetPlaybackRate(HRigInstance instance, float playback_rate);
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
     IKTarget* GetIKTarget(HRigInstance instance, dmhash_t constraint_id);
     void SetEnabled(HRigInstance instance, bool enabled);

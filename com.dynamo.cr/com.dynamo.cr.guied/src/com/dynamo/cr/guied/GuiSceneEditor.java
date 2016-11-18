@@ -53,6 +53,14 @@ public class GuiSceneEditor extends SceneEditor implements ISelectionChangedList
                     if(resource != null) {
                         String ext = resource.getFileExtension();
                         if (ext != null && ext.equals("display_profiles")) {
+
+                            // The linked folder "builtins", created by IFolder.createLink is periodically replaced (IResourceDelta.REPLACED) as a link which has the side-effect
+                            // of the builtins/../displav profile resource to be reloaded. This resource should never be changed while the editor is running, so we skip this event.
+                            // This behavior has only been reported on Mac OSX, see DEF-1568. This is a simple (hack) fix for this problem.
+                            if(resource.getProjectRelativePath().toString().startsWith("content/builtins/")) {
+                                return false;
+                            }
+
                             GuiScenePresenter presenter = (GuiScenePresenter) getNodePresenter(GuiSceneNode.class);
                             presenter.onSelectLayoutNode(getPresenterContext(), GuiNodeStateBuilder.getDefaultStateId());
                             return false;

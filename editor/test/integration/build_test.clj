@@ -13,6 +13,7 @@
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+           [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
@@ -210,6 +211,13 @@
                       (persistent! ids)))]
           (doseq [inst instances]
             (is (every? ids (.getChildrenList inst)))))))))
+
+(deftest build-collection-proxy
+  (testing "Building collection proxy"
+    (with-build-results "/collection_proxy/with_collection.collectionproxy"
+      (let [content (get content-by-source "/collection_proxy/with_collection.collectionproxy")
+            desc    (GameSystem$CollectionProxyDesc/parseFrom content)]
+        (is (= "/collection_proxy/default.collection" (-> desc (.getCollection))))))))
 
 (defn- count-exts [paths ext]
   (count (filter #(.endsWith % ext) paths)))

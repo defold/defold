@@ -9,6 +9,7 @@
             [editor.code-view :as code-view]
             [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
+            [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
             [editor.console :as console]
             [editor.core :as core]
@@ -94,6 +95,7 @@
         (camera/register-resource-types workspace)
         (collada-scene/register-resource-types workspace)
         (collection/register-resource-types workspace)
+        (collection-proxy/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
         (cubemap/register-resource-types workspace)
         (display-profiles/register-resource-types workspace)
@@ -144,9 +146,11 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes editor-tabs]
-  (doseq [resource (:removed changes)]
-    (app-view/remove-resource-tab editor-tabs resource)))
+(defn- handle-resource-changes! [changes changes-view editor-tabs]
+  (ui/run-later
+    (changes-view/refresh! changes-view)
+    (doseq [resource (:removed changes)]
+      (app-view/remove-resource-tab editor-tabs resource))))
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -178,11 +182,9 @@
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
+          outline-view         (outline-view/make-outline-view *view-graph* outline project)
           properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
-                                                                 (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler project)})
                                    http-server/start!)
@@ -202,7 +204,7 @@
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ changes _]
-                                                      (handle-resource-changes! changes editor-tabs))))
+                                                      (handle-resource-changes! changes changes-view editor-tabs))))
 
       (app-view/restore-split-positions! stage prefs)
 
@@ -234,7 +236,7 @@
                          :main-stage        stage
                          :asset-browser     asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
-        (ui/context! root :global context-env assets dynamics)
+        (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
       (g/transact
         (concat
@@ -253,7 +255,8 @@
             prefs (g/node-value changes-view :prefs)]
         (when (sync/flow-in-progress? git)
           (ui/run-later
-            (sync/open-sync-dialog (sync/resume-flow git prefs))))))
+            (sync/open-sync-dialog (sync/resume-flow git prefs))
+            (workspace/resource-sync! workspace)))))
 
     (reset! the-root root)
     root))

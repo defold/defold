@@ -395,6 +395,8 @@ namespace dmGui
         int32_t  m_TouchCount;
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
+        uint32_t m_GamepadIndex;
+        uint32_t m_IsGamepad : 1;
         uint32_t m_HasText : 1;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
@@ -900,7 +902,11 @@ namespace dmGui
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2);
+    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
+    float GetNodeSpineCursor(HScene scene, HNode node);
+    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate);
+    float GetNodeSpinePlaybackRate(HScene scene, HNode node);
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
 
     /**

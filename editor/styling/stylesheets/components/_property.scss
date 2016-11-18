@@ -1,0 +1,27 @@
+.property-category {
+    -fx-padding: 0px;
+}
+
+.property-label {
+    -fx-padding: 5 10 5 0;
+    -fx-font-weight: bold;
+}
+
+.property-component {
+    -fx-spacing: 0;
+    -fx-padding: 0;
+    -fx-font-weight: bold;
+    .label {
+        -fx-padding: 5px;
+        -fx-font-weight: normal;
+        -fx-text-fill: #848484;
+        -fx-alignment: center;
+        
+        .text {
+            -fx-text-alignment: center-right;
+        }
+    }
+    .text-field {
+        -fx-padding: 5px 8px;
+    }
+}

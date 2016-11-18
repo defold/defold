@@ -1,0 +1,32 @@
+.titled-pane {
+    -fx-background-color: $dark-grey-light;
+    -fx-border: 0;
+    -fx-padding: 0.0em;
+    -fx-text-fill: $defold-white;
+
+    .list-view {
+        -fx-background-insets: 0;
+        -fx-border-width: 0;
+    }
+
+    >.title {
+        -fx-background-color: $dark-grey-light;//$dark-grey-border;
+        -fx-background-insets: 4;
+        -fx-background-radius: 0;
+        -fx-font-size: 14px;
+        -fx-font-weight: bold;
+        -fx-padding: 12 0 10 0;
+        -fx-border-width: 0 0 1 0;
+        -fx-border-color: $dark-grey-border;//#373a40;
+        -fx-border-insets: 0 10 3 10;
+    }
+
+    >*.content {
+        -fx-border-width: 0;
+    }
+    .content {
+        AnchorPane {
+            -fx-padding: 0em;
+        }
+    }
+}

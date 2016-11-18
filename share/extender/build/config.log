@@ -1,0 +1,44 @@
+# project extender (0.1) configured on Fri Nov 18 11:23:52 2016 by
+# waf 1.5.9 (abi 7, python 2070af0 on darwin)
+# using /Users/andreastadic/workspace/defold/tmp/dynamo_home/ext/bin/waf --prefix=/Users/andreastadic/workspace/defold/tmp/dynamo_home --platform=x86_64-darwin --skip-tests distclean configure build install
+#
+Checking for program valgrind
+
+find program=['valgrind'] paths=[] var='VALGRIND' -> ''
+
+Checking for program ccache
+
+find program=['ccache'] paths=[] var='CCACHE' -> '/usr/local/bin/ccache'
+
+Checking for program nodejs
+
+find program=['nodejs'] paths=[] var='NODEJS' -> ''
+
+Checking for program node
+
+find program=['node'] paths=[] var='NODEJS' -> '/usr/local/bin/node'
+
+Checking for program gcc,cc
+
+find program=['gcc', 'cc'] paths=[] var='CC' -> 'clang'
+
+Checking for program cpp
+
+find program=['cpp'] paths=[] var='CPP' -> '/usr/bin/cpp'
+
+Checking for program ar
+
+find program=['ar'] paths=[] var='AR' -> '/usr/bin/ar'
+
+Checking for program ranlib
+
+find program=['ranlib'] paths=[] var='RANLIB' -> '/usr/bin/ranlib'
+
+Checking for gcc 
+
+Checking for program g++,c++
+
+find program=['g++', 'c++'] paths=[] var='CXX' -> 'clang++'
+
+Checking for g++ 
+

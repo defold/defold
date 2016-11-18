@@ -14,8 +14,8 @@ emitters {
     z: 1.0
     w: 0.0
   }
-  tile_source: "/logic/effects/particles.atlas"
-  animation: "zap"
+  tile_source: "/graphics/atlas.atlas"
+  animation: "anim"
   material: "/builtins/materials/particlefx.material"
   blend_mode: BLEND_MODE_ADD_ALPHA
   particle_orientation: PARTICLE_ORIENTATION_DEFAULT
@@ -268,8 +268,8 @@ emitters {
     z: 1.0
     w: 0.0
   }
-  tile_source: "/logic/effects/particles.atlas"
-  animation: "zap"
+  tile_source: "/graphics/atlas.atlas"
+  animation: "anim"
   material: "/builtins/materials/particlefx.material"
   blend_mode: BLEND_MODE_ADD_ALPHA
   particle_orientation: PARTICLE_ORIENTATION_DEFAULT

@@ -5,6 +5,7 @@
             [editor.camera-editor :as camera]
             [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
+            [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
             [editor.factory :as factory]
@@ -57,6 +58,7 @@
         (camera/register-resource-types workspace)
         (collada-scene/register-resource-types workspace)
         (collection/register-resource-types workspace)
+        (collection-proxy/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
         (cubemap/register-resource-types workspace)
         (display-profiles/register-resource-types workspace)

@@ -480,6 +480,8 @@
   (selection [this] (if-let [selected-text (cvx/text-selection this)]
                       [selected-text]
                       []))
+  (succeeding-selection [this] [])
+
   cvx/TextContainer
   (text! [this s]
     (.set (.getDocument this) s))

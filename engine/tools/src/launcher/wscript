@@ -6,10 +6,18 @@ def configure(conf):
 
 def build(bld):
     script = bld.new_task_gen(features = 'cc cxx cprogram',
+                              includes = ['.'],
                               uselib = 'DLIB',
-                              source = ['launcher.cpp'],
+                              source = ['launcher.cpp', 'launcher_util.cpp'],
                               target = 'launcher')
+
+    lib = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = ['.'],
+                           target = 'launcherutil',
+                           source = ['launcher_util.cpp'])
 
     if 'win32' in bld.env.BUILD_PLATFORM:
         script.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']
         script.source.append('launcher.rc')
+
+    bld.add_subdirs('test')
