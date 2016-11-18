@@ -372,13 +372,13 @@
         (select-prev-word! source-viewer)
         (is (= "" (text-selection source-viewer)))))))
 
-(defn- line-begin! [source-viewer]
-  (cvx/handler-run :line-begin [(->context source-viewer nil)]{}))
+(defn- beginning-of-line! [source-viewer]
+  (cvx/handler-run :beginning-of-line [(->context source-viewer nil)]{}))
 
-(defn- line-end! [source-viewer]
-  (cvx/handler-run :line-end [(->context source-viewer nil)]{}))
+(defn- end-of-line! [source-viewer]
+  (cvx/handler-run :end-of-line [(->context source-viewer nil)]{}))
 
-(deftest line-begin-end-test
+(deftest beginning-of-line-to-end-test
   (with-clean-system
     (let [code "hello world"
           opts lua/lua
@@ -387,35 +387,35 @@
       (testing "moving to beginning of the line"
         (caret! source-viewer 4 false)
         (is (= \o (get-char-at-caret source-viewer)))
-        (line-begin! source-viewer)
+        (beginning-of-line! source-viewer)
         (is (= \h (get-char-at-caret source-viewer)))
-        (line-begin! source-viewer)
+        (beginning-of-line! source-viewer)
         (is (= \h (get-char-at-caret source-viewer))))
       (testing "moving to the end of the line"
         (caret! source-viewer 4 false)
         (is (= \o (get-char-at-caret source-viewer)))
-        (line-end! source-viewer)
+        (end-of-line! source-viewer)
         (is (= nil (get-char-at-caret source-viewer)))
         (is (= 11 (caret source-viewer)))
-        (line-end! source-viewer)
+        (end-of-line! source-viewer)
         (is (= 11 (caret source-viewer))))
       (testing "moving remembers col position"
         (text! source-viewer "line1\nline2")
         (caret! source-viewer 0 false)
-        (line-end! source-viewer)
+        (end-of-line! source-viewer)
         (down! source-viewer)
         (is (= 11 (caret source-viewer)))
-        (line-begin! source-viewer)
+        (beginning-of-line! source-viewer)
         (up! source-viewer)
         (is (= 0 (caret source-viewer)))))))
 
-(defn- select-line-begin! [source-viewer]
-  (cvx/handler-run :select-line-begin [(->context source-viewer nil)]{}))
+(defn- select-beginning-of-line! [source-viewer]
+  (cvx/handler-run :select-beginning-of-line [(->context source-viewer nil)]{}))
 
-(defn- select-line-end! [source-viewer]
-  (cvx/handler-run :select-line-end [(->context source-viewer nil)]{}))
+(defn- select-end-of-line! [source-viewer]
+  (cvx/handler-run :select-end-of-line [(->context source-viewer nil)]{}))
 
-(deftest select-line-begin-end-test
+(deftest select-beginning-of-line-to-end-test
   (with-clean-system
     (let [code "hello world"
           opts lua/lua
@@ -424,21 +424,21 @@
       (testing "selecting to beginning of the line"
         (caret! source-viewer 4 false)
         (is (= \o (get-char-at-caret source-viewer)))
-        (select-line-begin! source-viewer)
+        (select-beginning-of-line! source-viewer)
         (is (= "hell" (text-selection source-viewer))))
       (testing "selecting to the end of the line"
         (caret! source-viewer 4 false)
         (is (= \o (get-char-at-caret source-viewer)))
-        (select-line-end! source-viewer)
+        (select-end-of-line! source-viewer)
         (is (= "o world" (text-selection source-viewer)))))))
 
-(defn- file-begin! [source-viewer]
-  (cvx/handler-run :file-begin [(->context source-viewer nil)]{}))
+(defn- beginning-of-file! [source-viewer]
+  (cvx/handler-run :beginning-of-file [(->context source-viewer nil)]{}))
 
-(defn- file-end! [source-viewer]
-  (cvx/handler-run :file-end [(->context source-viewer nil)]{}))
+(defn- end-of-file! [source-viewer]
+  (cvx/handler-run :end-of-file [(->context source-viewer nil)]{}))
 
-(deftest file-begin-end-test
+(deftest beginning-of-file-to-end-test
   (with-clean-system
     (let [code "hello\nworld"
           opts lua/lua
@@ -447,21 +447,21 @@
       (testing "moving to beginning of the file"
         (caret! source-viewer 4 false)
         (is (= \o (get-char-at-caret source-viewer)))
-        (file-begin! source-viewer)
+        (beginning-of-file! source-viewer)
         (is (= 0 (caret source-viewer))))
       (testing "moving to the end of the file"
         (caret! source-viewer 4 false)
         (is (= \o (get-char-at-caret source-viewer)))
-        (file-end! source-viewer)
+        (end-of-file! source-viewer)
         (is (= 11 (caret source-viewer)))))))
 
-(defn- select-file-begin! [source-viewer]
-  (cvx/handler-run :select-file-begin [(->context source-viewer nil)]{}))
+(defn- select-beginning-of-file! [source-viewer]
+  (cvx/handler-run :select-beginning-of-file [(->context source-viewer nil)]{}))
 
-(defn- select-file-end! [source-viewer]
-  (cvx/handler-run :select-file-end [(->context source-viewer nil)]{}))
+(defn- select-end-of-file! [source-viewer]
+  (cvx/handler-run :select-end-of-file [(->context source-viewer nil)]{}))
 
-(deftest select-file-begin-end-test
+(deftest select-beginning-of-file-to-end-test
   (with-clean-system
     (let [code "hello\nworld"
           opts lua/lua
@@ -470,12 +470,12 @@
       (testing "selecting to the end of the file"
         (caret! source-viewer 4 false)
         (is (= \o (get-char-at-caret source-viewer)))
-        (select-file-end! source-viewer)
+        (select-end-of-file! source-viewer)
         (is (= "o\nworld" (text-selection source-viewer))))
       (testing "selecting to the beginning of the file"
         (caret! source-viewer 8 false)
         (is (= \r (get-char-at-caret source-viewer)))
-        (select-file-begin! source-viewer)
+        (select-beginning-of-file! source-viewer)
         (is (= "hello\nwo" (text-selection source-viewer)))))))
 
 (defn- go-to-line! [source-viewer line-number]
@@ -687,8 +687,8 @@
 (defn- delete-to-end-of-line! [source-viewer]
   (cvx/handler-run :delete-to-end-of-line [(->context source-viewer nil)] {}))
 
-(defn- delete-to-start-of-line! [source-viewer]
-  (cvx/handler-run :delete-to-start-of-line [(->context source-viewer nil)] {}))
+(defn- delete-to-beginning-of-line! [source-viewer]
+  (cvx/handler-run :delete-to-beginning-of-line [(->context source-viewer nil)] {}))
 
 (deftest delete-to-start-end-line-test
   (with-clean-system
@@ -706,7 +706,7 @@
         (text! source-viewer code)
         (caret! source-viewer 7 false)
         (is (= \c (get-char-at-caret source-viewer)))
-        (delete-to-start-of-line! source-viewer)
+        (delete-to-beginning-of-line! source-viewer)
         (is (= "ck" (text source-viewer)))
         (is (= \c (get-char-at-caret source-viewer)))))))
 
