@@ -131,7 +131,7 @@ public class ManifestTest {
     
     @Test
     public void testGetPrivateKey_InvalidKeyFormat() {
-    	String filepath = "test/private_rsa_1024_1.der";
+    	String filepath = "test/private_rsa_1024_3.pem";
     	manifestBuilder.setPrivateKeyFilepath(filepath);
     	PrivateKey privateKey = manifestBuilder.getPrivateKey();
     	
@@ -184,14 +184,13 @@ public class ManifestTest {
     public void testCreateSignature_Verify_KeyMismatch() throws InvalidKeyException, NoSuchAlgorithmException {
     	String filepathPrivateKey = "test/private_rsa_1024_1.der";
     	String filepathPublicKey = "test/public_rsa_1024_2.der";
-    	String data1 = "defold";
-    	String data2 = "defolds";
+    	String data = "defold";
     	
     	manifestBuilder.setPrivateKeyFilepath(filepathPrivateKey);
-    	byte[] signature = manifestBuilder.createSignature(data1.getBytes());
+    	byte[] signature = manifestBuilder.createSignature(data.getBytes());
     	
     	PublicKey publicKey = this.loadPublicKey(filepathPublicKey);
-    	boolean actual = manifestBuilder.verifySignature(data2.getBytes(), signature, publicKey);
+    	boolean actual = manifestBuilder.verifySignature(data.getBytes(), signature, publicKey);
     	
     	assertFalse(actual);
     }

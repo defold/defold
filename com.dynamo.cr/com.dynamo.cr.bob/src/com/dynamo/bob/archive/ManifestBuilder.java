@@ -42,7 +42,7 @@ public class ManifestBuilder {
 	private SignAlgorithm signatureSignAlgorithm = SignAlgorithm.SIGN_UNKNOWN;
 
 	private String privateKeyFilepath = null;
-	
+
 	private ManifestHeader manifestHeader = null;
 	private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
 	private Set<ResourceEntry> resourceEntries = new HashSet<ResourceEntry>();
@@ -52,12 +52,12 @@ public class ManifestBuilder {
 		this.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
 		this.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
 	}
-	
+
 	public byte[] createHash(byte[] data, HashAlgorithm algorithm) throws NoSuchAlgorithmException {
 		if (data == null) {
 			return null;
 		}
-		
+
 		MessageDigest messageDigest = null;
 		if (algorithm.equals(HashAlgorithm.HASH_MD5)) {
 			messageDigest = MessageDigest.getInstance("MD5");
@@ -70,7 +70,7 @@ public class ManifestBuilder {
 		} else {
 			throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
 		}
-		
+
 		messageDigest.update(data);
 		return messageDigest.digest();
 	}
@@ -89,7 +89,7 @@ public class ManifestBuilder {
 			PrivateKey privateKey = null;
 			try {
 				byte[] hash = this.createHash(data, this.signatureHashAlgorithm);
-				
+
 				final Cipher cipher = Cipher.getInstance("RSA");
 				privateKey = this.getPrivateKey();
 				cipher.init(Cipher.ENCRYPT_MODE, privateKey);
@@ -112,10 +112,10 @@ public class ManifestBuilder {
 		} else {
 			throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
 		}
-		
+
 		return result;
 	}
-	
+
 	public boolean verifySignature(byte[] data, byte[] signature, PublicKey publicKey) throws NoSuchAlgorithmException, InvalidKeyException {
 		if (this.signatureSignAlgorithm.equals(SignAlgorithm.SIGN_RSA)) {
 			try {
@@ -123,12 +123,12 @@ public class ManifestBuilder {
 				cipher.init(Cipher.DECRYPT_MODE, publicKey);
 				byte[] decryptedSignature = cipher.doFinal(signature);
 				byte[] hash = this.createHash(data, this.signatureHashAlgorithm);
-				
+
 				boolean result = decryptedSignature.length == hash.length;
 				for (int i = 0; i < Math.min(decryptedSignature.length, hash.length); ++i) {
 					result = decryptedSignature[i] == hash[i] && result;
 				}
-				
+
 				return result;
 			} catch (NoSuchPaddingException exception) {
 				// TODO: Log
@@ -138,7 +138,7 @@ public class ManifestBuilder {
 				// TODO: Log
 			}
 		}
-		
+
 		return false;
 	}
 
@@ -146,7 +146,7 @@ public class ManifestBuilder {
 		if (this.resourceHashAlgorithm.equals(HashAlgorithm.HASH_UNKNOWN)) {
 			this.resourceHashAlgorithm = algorithm;
 		}
-		
+
 		return this.resourceHashAlgorithm;
 	}
 
@@ -154,7 +154,7 @@ public class ManifestBuilder {
 		if (this.signatureHashAlgorithm.equals(HashAlgorithm.HASH_UNKNOWN)) {
 			this.signatureHashAlgorithm = algorithm;
 		}
-		
+
 		return this.signatureHashAlgorithm;
 	}
 
@@ -162,14 +162,14 @@ public class ManifestBuilder {
 		if (this.signatureSignAlgorithm.equals(SignAlgorithm.SIGN_UNKNOWN)) {
 			this.signatureSignAlgorithm = algorithm;
 		}
-		
+
 		return this.signatureSignAlgorithm;
 	}
-	
+
 	public void setPrivateKeyFilepath(String filepath) {
 		this.privateKeyFilepath = filepath;
 	}
-	
+
 	public PrivateKey getPrivateKey() {
 		PrivateKey privateKey = null;
 		if (this.privateKeyFilepath != null) {
@@ -186,12 +186,14 @@ public class ManifestBuilder {
 						// TODO: Log "The algorithm specified is not supported!"
 						System.out.println("The algorithm specified is not supported: " + this.signatureSignAlgorithm.toString());
 					}
-					
+
 					if (keyFactory != null) {
 						privateKey = keyFactory.generatePrivate(specification);
 						Arrays.fill(filecontent, (byte) 0x0); // Zero out memory for private key
 						return privateKey;
-					}
+					} else {
+                        Arrays.fill(filecontent, (byte) 0x0); // Zero out memory for private key
+                    }
 				} catch (NoSuchAlgorithmException exception) {
 					// TODO: Log "The algorithm specified is not supported!"
 					System.out.println("The algorithm specified is not supported: " + this.signatureSignAlgorithm.toString());
@@ -205,10 +207,10 @@ public class ManifestBuilder {
 				System.out.println("Unable to access file: " + this.privateKeyFilepath);
 			}
 		}
-		
+
 		return privateKey;
 	}
-	
+
 	public byte[] generateManifestFile() {
 		byte[] result = null;
 		ManifestData.Builder manifestDataBuilder = ManifestData.newBuilder();
@@ -219,9 +221,9 @@ public class ManifestBuilder {
 			// resourceBuilder.addDependants(value);
 			manifestDataBuilder.addResources(resourceEntryBuilder.build());
 		}
-		
+
 		ManifestData manifestData = manifestDataBuilder.build();
-		
+
 		try {
 			ManifestFile.Builder manifestFileBuilder = ManifestFile.newBuilder();
 			manifestFileBuilder.setData(manifestData);
@@ -234,7 +236,7 @@ public class ManifestBuilder {
 		} catch (InvalidKeyException exception) {
 			// TODO: Log
 		}
-		
+
 		return result;
 	}
 
@@ -268,7 +270,7 @@ public class ManifestBuilder {
 		} catch (NoSuchAlgorithmException exception) {
 			return false;
 		}
-		
+
 		return true;
 	}
 
