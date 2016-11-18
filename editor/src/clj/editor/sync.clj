@@ -336,10 +336,10 @@
                                  (ui/disable! (:unstage push-controls) (not (:unstage enabled)))
 
                                  (when (:diff enabled)
-                                   (if-let [selection-provider (cond (ui/focus? changed-view) changed-view
-                                                                     (ui/focus? staged-view) staged-view
-                                                                     :else nil)]
-                                     (ui/context! (:diff push-controls) :sync {:!flow !flow} selection-provider)))))
+                                   (if-let [focused-list-view (cond (ui/focus? changed-view) changed-view
+                                                                    (ui/focus? staged-view) staged-view
+                                                                    :else nil)]
+                                     (ui/context! (:diff push-controls) :sync {:!flow !flow} (ui/->selection-provider focused-list-view))))))
         update-controls (fn [{:keys [state conflicts resolved modified staged] :as flow}]
                           (ui/run-later
                            (if (= "pull" (namespace state))
@@ -439,13 +439,13 @@
                   (when-not (instance? Button new)
                     (update-push-buttons!))))
 
-    (ui/observe (.. ^ListView (:changed push-controls) getSelectionModel selectedItemProperty)
-                (fn [_ _ _]
-                  (update-push-buttons!)))
+    (ui/observe-selection ^ListView (:changed push-controls)
+                          (fn [_ _]
+                            (update-push-buttons!)))
 
-    (ui/observe (.. ^ListView (:staged push-controls) getSelectionModel selectedItemProperty)
-                (fn [_ _ _]
-                  (update-push-buttons!)))
+    (ui/observe-selection ^ListView (:staged push-controls)
+                          (fn [_ _]
+                            (update-push-buttons!)))
 
     (ui/observe (.textProperty ^TextArea (:message push-controls))
                 (fn [_ _ _]
@@ -453,23 +453,23 @@
 
     (let [^ListView list-view (:conflicting pull-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/register-context-menu list-view ::conflicts-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
     (ui/cell-factory! (:resolved pull-controls) (fn [e] {:text e}))
 
     (let [^ListView list-view (:changed push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
-      (ui/context! (:stage push-controls) :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
+      (ui/context! (:stage push-controls) :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/bind-action! (:stage push-controls) :stage-file)
       (ui/register-context-menu list-view ::staging-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
 
     (let [^ListView list-view (:staged push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
-      (ui/context! (:unstage push-controls) :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
+      (ui/context! (:unstage push-controls) :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/bind-action! (:unstage push-controls) :unstage-file)
       (ui/register-context-menu list-view ::unstaging-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
