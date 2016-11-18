@@ -126,6 +126,8 @@ namespace dmGui
         dmRigDDF::Skeleton*      m_Skeleton;
         dmRigDDF::MeshSet*       m_MeshSet;
         dmRigDDF::AnimationSet*  m_AnimationSet;
+        const dmArray<uint32_t>* m_PoseIdxToInfluence;
+        const dmArray<uint32_t>* m_TrackIdxToPose;
         void*                    m_Texture;
         void*                    m_TextureSet;
     };

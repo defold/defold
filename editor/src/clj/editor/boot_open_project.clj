@@ -7,6 +7,7 @@
             [editor.camera-editor :as camera]
             [editor.changes-view :as changes-view]
             [editor.code-view :as code-view]
+            [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
@@ -31,7 +32,6 @@
             [editor.label :as label]
             [editor.login :as login]
             [editor.material :as material]
-            [editor.mesh :as mesh]
             [editor.model :as model]
             [editor.outline-view :as outline-view]
             [editor.particlefx :as particlefx]
@@ -93,6 +93,7 @@
       (concat
         (atlas/register-resource-types workspace)
         (camera/register-resource-types workspace)
+        (collada-scene/register-resource-types workspace)
         (collection/register-resource-types workspace)
         (collection-proxy/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
@@ -107,7 +108,6 @@
         (json/register-resource-types workspace)
         (label/register-resource-types workspace)
         (material/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
