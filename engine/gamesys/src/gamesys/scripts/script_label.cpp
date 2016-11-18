@@ -143,7 +143,7 @@ static void FreeLabelString(dmMessage::Message* message)
  */
 static int SetText(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L);
+    DM_LUA_STACK_CHECK(L, 0);
 
     dmGameObject::HInstance instance = CheckGoInstance(L);
 
@@ -178,7 +178,7 @@ static const luaL_reg Module_methods[] =
 
 static void LuaInit(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L);
+    DM_LUA_STACK_CHECK(L, 0);
 
     luaL_register(L, "label", Module_methods);
     lua_pop(L, 1);

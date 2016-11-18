@@ -196,7 +196,7 @@
                  (g/transact
                    (g/set-property node :name "new_name"))
                  (is (has-undo? project))
-                 (project/save-all project {})
+                 (project/write-save-data-to-disk! project {})
                  (sync! workspace)
                  (is (has-undo? project)))))))
 
