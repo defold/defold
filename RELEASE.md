@@ -70,6 +70,8 @@ Important: *Make sure your branches are up to date!*
     Log in and open "Build with Parameters"
 
     In "DEFOLD_CHANNEL" select "beta"
+    
+    Let ATL or PO know about the started build so they can monitor and smoke test the apps when build is done.
 
  1. Verify release by updating an old editor, OSX, Win and Linux.
 
@@ -79,10 +81,11 @@ Important: *Make sure your branches are up to date!*
 
 ### QRT
 When the beta has been released the following apps needs to be bundled and sent to QRT:
-* Defold Examples - iOS, Android
+* Defold Examples - iOS, Android, desktops
 * Defold IAP Tester - iOS, Android (Google Play and Amazon)
-* "Geometry Wars" - iOS, Android
-* BBS - iOS, Android
+* "Geometry Wars" - iOS, Android, desktops
+* Defold Facebook test app - iOs, Android
+* BBS - iOS, Android, desktops
 * Presto - iOS, Android
 
 Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
