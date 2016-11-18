@@ -1053,14 +1053,33 @@ instructions.configure=\
         prefix = self._get_s3_archive_prefix()
         bucket_items = bucket.list(prefix=prefix)
 
-        candidate = None
+        candidates = {}
+        print("Searching for editor signing candidates ...")
         for entry in bucket_items:
-            if 'Defold-macosx.cocoa.x86_64.zip' in entry.key:
-                candidate = entry
-            if 'Defold-macosx.cocoa.x86_64.dmg' in entry.key:
-                return True # The editor has already been signed
+            entrypath = os.path.dirname(entry.key)
+            if entry.key.endswith('Defold-macosx.cocoa.x86_64.zip'):
+                if entrypath not in candidates.keys():
+                    candidates[entrypath] = {}
+                candidates[entrypath]['zip'] = entry
+            if entry.key.endswith('Defold-macosx.cocoa.x86_64.dmg'):
+                if entrypath not in candidates.keys():
+                    candidates[entrypath] = {}
+                candidates[entrypath]['dmg'] = entry
 
-        if candidate is not None:
+        print("Found %d candidate(s) for editor signing ..." % len(candidates.keys()))
+        for candidate in candidates.keys():
+            if 'zip' in candidates[candidate].keys():
+                if 'dmg' in candidates[candidate].keys():
+                    print("Pruning candidate, dmg found: %s" % candidate)
+                    del candidates[candidate]
+            elif 'dmg' in candidates[candidate].keys():
+                print("Pruning candidate, dmg found but zip missing: %s" % candidate)
+                del candidates[candidate]
+
+        print("Found %d true candidate(s) for editor signing ..." % (len(candidates.keys())))
+        result = False
+        for candidate in candidates.keys():
+            candidate = candidates[candidate]['zip']
             root = None
             builddir = None
             try:
@@ -1096,7 +1115,7 @@ instructions.configure=\
                 # Upload the signed container to S3
                 target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
                 self.upload_file(fp_defold_dmg, target)
-                return True
+                result = True
             finally:
                 self.wait_uploads()
                 if root is not None:
@@ -1105,7 +1124,7 @@ instructions.configure=\
                             os.unlink(os.path.join(builddir, 'Applications'))
                     shutil.rmtree(root)
 
-        return False
+        return result
 
     def _sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
