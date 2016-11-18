@@ -41,3 +41,6 @@ max_emitter_count = 16
 max_particle_count = 512
 debug = 0
 
+[graphics]
+texture_profiles = /textures/game.texture_profilesc
+
