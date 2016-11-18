@@ -6,6 +6,7 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
             [editor.defold-project :as project]
+            [editor.rig :as rig]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
@@ -16,7 +17,8 @@
             [editor.validation :as validation]
             [editor.image :as image]
             [editor.material :as material])
-  (:import [com.dynamo.model.proto Model$ModelDesc]
+  (:import [com.dynamo.model.proto ModelProto$ModelDesc ModelProto$Model]
+           [com.dynamo.rig.proto Rig$RigScene]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
@@ -29,15 +31,26 @@
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
-(g/defnk produce-pb-msg [name mesh material textures]
+(g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
   {:name name
    :mesh (resource/resource->proj-path mesh)
    :material (resource/resource->proj-path material)
-   :textures (mapv resource/proj-path textures)})
+   :textures (mapv resource/resource->proj-path textures)
+   :skeleton (resource/resource->proj-path skeleton)
+   :animations (resource/resource->proj-path animations)
+   :default-animation default-animation})
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
-   :content (protobuf/map->str Model$ModelDesc pb-msg)})
+   :content (protobuf/map->str ModelProto$ModelDesc pb-msg)})
+
+(g/defnk produce-rig-scene-pb-msg [pb-msg]
+  {;; TODO - skeleton and animation-set not currently supported
+   ;; :skeleton (:skeleton pb-msg)
+   ;; :animation-set (:animations pb-msg)
+   :mesh-set (:mesh pb-msg)
+   ;; set in the ModelProto$Model message
+   :texture-set ""})
 
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -48,18 +61,45 @@
                     pb (map (fn [[label res]]
                               [label (resource/proj-path (get dep-resources res))])
                             (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes Model$ModelDesc pb)}))
+    {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets]
+(defn- build-rig-scene [self basis resource dep-resources user-data]
+  (let [pb (:pb user-data)
+        pb (reduce #(assoc %1 (first %2) (second %2))
+                   pb
+                   (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))])
+                        (:dep-resources user-data)))]
+    {:resource resource :content (protobuf/map->bytes Rig$RigScene pb)}))
+
+(defn- make-rig-scene-build-targets
+  [node-id resource pb dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
-        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) [:mesh :material [:textures]])
+        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb (first field))))) [field])) [:mesh-set])
+        dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb label) (get pb label)))]) resource-fields)]
+    [{:node-id node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-rig-scene
+      :user-data {:pb pb
+                  :dep-resources dep-resources}
+      :deps dep-build-targets}]))
+
+(g/defnk produce-build-targets [_node-id resource pb-msg rig-scene-pb-msg dep-build-targets]
+  (let [;; TODO - this is not the right way to do things
+        ;; should be fixed as part of https://jira.int.midasplayer.com/browse/DEFEDIT-576
+        workspace (resource/workspace resource)
+        rig-scene-type     (workspace/get-resource-type workspace "rigscene")
+        rig-scene-resource (resource/make-memory-resource workspace rig-scene-type (str (gensym)))
+        rig-scene-build-targets (make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets)
+        pb-msg (select-keys pb-msg [:material :textures :default-animation])
+        dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
+        deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
+        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) [:rig-scene :material [:textures]])
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]) resource-fields)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-pb
       :user-data {:pb pb-msg
-                  :pb-class Model$ModelDesc
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
@@ -133,11 +173,34 @@
                            (project/connect-resource-node project r self connections)
                            (g/connect project :nil-resource self :texture-resources)))))))
             (dynamic visible (g/constantly false)))
+  (property skeleton resource/Resource
+            (value (gu/passthrough skeleton-resource))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                            [:resource :skeleton-resource])))
+            (dynamic error (g/fnk [_node-id skeleton]
+                                  (when skeleton
+                                    (prop-resource-error :fatal _node-id :skeleton skeleton "Skeleton"))))
+            (dynamic edit-type (g/constantly {:type resource/Resource
+                                              :ext "dae"})))
+  (property animations resource/Resource
+            (value (gu/passthrough animations-resource))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                            [:resource :animations-resource])))
+            (dynamic error (g/fnk [_node-id animations]
+                                  (when animations
+                                    (prop-resource-error :fatal _node-id :animations animations "Animations"))))
+            (dynamic edit-type (g/constantly {:type resource/Resource
+                                              :ext ["dae" "animset"]})))
+  (property default-animation g/Str)
 
   (input mesh-resource resource/Resource)
   (input mesh-pb g/Any)
   (input material-resource resource/Resource)
   (input samplers g/Any)
+  (input skeleton-resource resource/Resource)
+  (input animations-resource resource/Resource)
   (input texture-resources resource/Resource :array)
   (input images BufferedImage :array)
   (input dep-build-targets g/Any :array)
@@ -145,6 +208,7 @@
   (input shader ShaderLifecycle)
 
   (output pb-msg g/Any :cached produce-pb-msg)
+  (output rig-scene-pb-msg g/Any :cached produce-rig-scene-pb-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-textures g/Any :cached produce-gpu-textures)
@@ -156,7 +220,7 @@
                                                         prop-entry {:node-id _node-id
                                                                     :type resource-type
                                                                     :edit-type {:type resource/Resource
-                                                                                :ext image/exts}}
+                                                                                :ext (conj image/exts "cubemap")}}
                                                         keys (map :name samplers)
                                                         p (->> keys
                                                             (map-indexed (fn [i s] [(keyword (format "texture%d" i))
@@ -171,10 +235,10 @@
                                                       (update :display-order into (map first p)))))))
 
 (defn load-model [project self resource]
-  (let [pb (protobuf/read-text Model$ModelDesc resource)]
+  (let [pb (protobuf/read-text ModelProto$ModelDesc resource)]
     (concat
-      (g/set-property self :name (:name pb))
-      (for [res [:mesh :material [:textures]]]
+      (g/set-property self :name (:name pb) :default-animation (:default-animation pb))
+      (for [res [:mesh :material [:textures] :skeleton :animations]]
         (if (vector? res)
           (let [res (first res)]
             (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
