@@ -15,7 +15,7 @@
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
-           [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc GameSystem$LightDesc]
+           [com.dynamo.gamesystem.proto GameSystem$LightDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
            [com.dynamo.input.proto Input$GamepadMaps]
            [com.dynamo.sound.proto Sound$SoundDesc]
@@ -40,12 +40,6 @@
                :resource-fields [:script [:materials :material]]
                :view-types [:form-view :text]
                :label "Render"}
-              {:ext "collectionproxy"
-               :label "Collection Proxy"
-               :icon "icons/32/Icons_09-Collection.png"
-               :pb-class GameSystem$CollectionProxyDesc
-               :resource-fields [:collection]
-               :tags #{:component}}
               {:ext "light"
                :label "Light"
                :icon "icons/32/Icons_21-Light.png"

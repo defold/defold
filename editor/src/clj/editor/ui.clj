@@ -7,6 +7,7 @@
    [editor.jfx :as jfx]
    [editor.progress :as progress]
    [editor.menu :as menu]
+   [editor.ui.tree-view-hack :as tree-view-hack]
    [internal.util :as util]
    [service.log :as log]
    [util.profiler :as profiler])
@@ -150,20 +151,20 @@
   Supports both single and multi-selection. In both cases the selected items
   will be provided in a vector."
   [node listen-fn]
-  `(let [selection-provider# ~node
+  `(let [selection-owner# ~node
          selection-listener# ~listen-fn
-         selection-model# (.getSelectionModel selection-provider#)]
+         selection-model# (.getSelectionModel selection-owner#)]
      (condp instance? selection-model#
        MultipleSelectionModel
-       (observe-list selection-provider#
+       (observe-list selection-owner#
                      (.getSelectedItems ^MultipleSelectionModel selection-model#)
                      (fn [_# selected-items#]
-                       (selection-listener# selection-provider# selected-items#)))
+                       (selection-listener# selection-owner# selected-items#)))
 
        SelectionModel
        (observe (.selectedItemProperty ^SelectionModel selection-model#)
                 (fn [_# _# selected-item#]
-                  (selection-listener# selection-provider# [selected-item#]))))))
+                  (selection-listener# selection-owner# [selected-item#]))))))
 
 (defn remove-list-observers
   [^Node node ^ObservableList observable]
@@ -573,6 +574,13 @@
       #(seq (.getChildren ^TreeItem %))
       item)
     []))
+
+
+(defn select-indices!
+  [^TreeView tree-view indices]
+  (doto (.getSelectionModel tree-view)
+    (tree-view-hack/subvert-broken-selection-model-optimization!)
+    (.selectIndices  (int (first indices)) (int-array (rest indices)))))
 
 (extend-type TreeView
   CollectionView
