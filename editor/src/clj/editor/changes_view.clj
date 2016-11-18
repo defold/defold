@@ -41,7 +41,7 @@
   {:text (format "%s" (or (:new-path status)
                           (:old-path status)))
    :icon (get status-icons (:change-type status))
-   :style (get status-styles (:change-type status) [])})
+   :style (get status-styles (:change-type status) #{})})
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Diff"
