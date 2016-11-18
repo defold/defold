@@ -4,6 +4,7 @@
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
             [editor.collection :as collection]
+            [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
             [editor.factory :as factory]
@@ -56,6 +57,7 @@
         (atlas/register-resource-types workspace)
         (camera/register-resource-types workspace)
         (collection/register-resource-types workspace)
+        (collection-proxy/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
         (cubemap/register-resource-types workspace)
         (display-profiles/register-resource-types workspace)
