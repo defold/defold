@@ -157,11 +157,11 @@
   (let [st (git/status git)]
     (merge flow
            {:staged   (set/union (:added st)
-                                 (:deleted st)
-                                 (set/difference (:uncommited-changes st)
-                                                 (:modified st)))
-            :modified (set/union (:modified st)
-                                 (:untracked st))})))
+                                 (:removed st)
+                                 (:changed st))
+            :modified (set/union (:missing st)
+                                 (:untracked st)
+                                 (:modified st))})))
 
 (defn advance-flow [{:keys [git state progress creds conflicts stash-ref message] :as flow} render-progress]
   (render-progress progress)
@@ -236,12 +236,14 @@
     (String. ^bytes (git/show-file git file (.name stash-ref)))))
 
 (defn resolve-file! [!flow file]
-  (when-let [entry (get (:conflicts @!flow) file)]
-    (git/stage-file (:git @!flow) file)
-    (git/unstage-file (:git @!flow) file)
-    (swap! !flow #(-> %
-                      (update :conflicts dissoc file)
-                      (update :resolved assoc file entry)))))
+  (let [{:keys [git conflicts]} @!flow]
+    (when-let [entry (get conflicts file)]
+      (let [change (git/guess-change git file)]
+        (git/stage-change! git change)
+        (git/unstage-change! git change))
+      (swap! !flow #(-> %
+                        (update :conflicts dissoc file)
+                        (update :resolved assoc file entry))))))
 
 (handler/defhandler :show-diff :sync
   (enabled? [selection] (= 1 (count selection)))
@@ -283,14 +285,14 @@
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
     (doseq [f selection]
-      (git/stage-file (:git @!flow) f))
+      (git/stage-file! (:git @!flow) f))
     (swap! !flow refresh-git-state)))
 
 (handler/defhandler :unstage-file :sync
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
     (doseq [f selection]
-      (git/unstage-file (:git @!flow) f))
+      (git/unstage-file! (:git @!flow) f))
     (swap! !flow refresh-git-state)))
 
 ;; =================================================================================

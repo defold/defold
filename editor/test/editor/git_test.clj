@@ -7,10 +7,19 @@
            org.apache.commons.io.FileUtils
            [org.eclipse.jgit.api Git]))
 
+(defn- git-file [^Git git path]
+  (io/file (str (.getWorkTree (.getRepository git)) "/" path)))
+
 (defn create-file [git path content]
-  (let [f (io/file (str (.getWorkTree (.getRepository git)) "/" path))]
+  (let [f (git-file git path)]
     (io/make-parents f)
     (spit f content)))
+
+(defn move-file [git old-path new-path]
+  (let [old-file (git-file git old-path)
+        new-file (git-file git new-path)]
+    (io/make-parents new-file)
+    (.renameTo old-file new-file)))
 
 (defn- temp-dir []
   (.toFile (Files/createTempDirectory "foo" (into-array FileAttribute []))))
@@ -34,10 +43,10 @@
   (FileUtils/deleteDirectory (.getWorkTree (.getRepository git))))
 
 (defn delete-file [git file]
-  (io/delete-file (str (.getWorkTree (.getRepository git)) "/" file)))
+  (io/delete-file (git-file git file)))
 
 (defn slurp-file [git file]
-  (slurp (str (.getWorkTree (.getRepository git)) "/" file)))
+  (slurp (git-file git file)))
 
 (defn- add-src [git]
   (-> git (.add) (.addFilepattern "src") (.call)))
@@ -230,21 +239,89 @@
       (is (= "void main() {}" (String. (git/show-file git "src/main.cpp"))))
       (is (= "void main() {}" (String. (git/show-file git "src/main.cpp" (.name ref))))))))
 
-(deftest stage-file-test
+(deftest stage-unstage-added-file-test
   (with-git [git (new-git)]
-    (create-file git "src/main.cpp" "void main() {}")
-    (git/stage-file git "src/main.cpp")
-    (is (= #{"src/main.cpp"} (:added (git/status git))))
-    (is (= #{} (:untracked (git/status git))))))
 
-(deftest unstage-file-test
+    (create-file git "src/main.cpp" "void main() {}")
+    (let [{:keys [added untracked]} (git/status git)]
+      (is (= #{} added))
+      (is (= #{"src/main.cpp"} untracked)))
+
+    (git/stage-change! git (git/make-add-change "src/main.cpp"))
+    (let [{:keys [added untracked]} (git/status git)]
+      (is (= #{"src/main.cpp"} added))
+      (is (= #{} untracked)))
+
+    (git/unstage-change! git (git/make-add-change "src/main.cpp"))
+    (let [{:keys [added untracked]} (git/status git)]
+      (is (= #{} added))
+      (is (= #{"src/main.cpp"} untracked)))))
+
+(deftest stage-unstage-deleted-file-test
   (with-git [git (new-git)]
     (create-file git "src/main.cpp" "void main() {}")
-    (git/stage-file git "src/main.cpp")
-    (is (= #{"src/main.cpp"} (:added (git/status git))))
-    (git/unstage-file git "src/main.cpp")
-    (is (= #{} (:added (git/status git))))
-    (is (= #{"src/main.cpp"} (:untracked (git/status git))))))
+    (commit-src git)
+
+    (delete-file git "src/main.cpp")
+    (let [{:keys [removed missing]} (git/status git)]
+      (is (= #{} removed))
+      (is (= #{"src/main.cpp"} missing)))
+
+    (git/stage-change! git (git/make-delete-change "src/main.cpp"))
+    (let [{:keys [removed missing]} (git/status git)]
+      (is (= #{"src/main.cpp"} removed))
+      (is (= #{} missing)))
+
+    (git/unstage-change! git (git/make-delete-change "src/main.cpp"))
+    (let [{:keys [removed missing]} (git/status git)]
+      (is (= #{} removed))
+      (is (= #{"src/main.cpp"} missing)))))
+
+(deftest stage-unstage-renamed-file-test
+  (with-git [git (new-git)]
+    (create-file git "src/old.cpp" "void main() {}")
+    (commit-src git)
+
+    (move-file git "src/old.cpp" "src/new.cpp")
+    (let [{:keys [added removed missing untracked]} (git/status git)]
+      (is (= #{} added))
+      (is (= #{} removed))
+      (is (= #{"src/old.cpp"} missing))
+      (is (= #{"src/new.cpp"} untracked)))
+
+    (git/stage-change! git (git/make-rename-change "src/old.cpp" "src/new.cpp"))
+    (let [{:keys [added removed missing untracked]} (git/status git)]
+      (is (= #{"src/new.cpp"} added))
+      (is (= #{"src/old.cpp"} removed))
+      (is (= #{} missing))
+      (is (= #{} untracked)))
+
+    (git/unstage-change! git (git/make-rename-change "src/old.cpp" "src/new.cpp"))
+    (let [{:keys [added removed missing untracked]} (git/status git)]
+      (is (= #{} added))
+      (is (= #{} removed))
+      (is (= #{"src/old.cpp"} missing))
+      (is (= #{"src/new.cpp"} untracked)))))
+
+(deftest stage-unstage-modified-file-test
+  (with-git [git (new-git)]
+    (create-file git "src/main.cpp" "void main() {}")
+    (commit-src git)
+
+    (create-file git "src/main.cpp" "void main2() {}")
+    (let [{:keys [modified changed]} (git/status git)]
+      (is (= #{} changed))
+      (is (= #{"src/main.cpp"} modified)))
+
+    (git/stage-change! git (git/make-modify-change "src/main.cpp"))
+    (let [{:keys [modified changed]} (git/status git)]
+      (is (= #{"src/main.cpp"} changed))
+      (is (= #{} modified)))
+
+    (git/unstage-change! git (git/make-modify-change "src/main.cpp"))
+    (let [{:keys [modified changed]} (git/status git)]
+      (is (= #{} changed))
+      (is (= #{"src/main.cpp"} modified)))))
 
 (deftest hard-reset-test
   (with-git [git (new-git)]
