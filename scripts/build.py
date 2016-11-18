@@ -498,11 +498,12 @@ class Configuration(object):
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
 
-        platform_dependencies = {'darwin': ['darwin', 'x86_64-darwin'], # IOS fix 3dea8222
-                                 'x86_64-linux': ['linux'],
+        platform_dependencies = {'darwin': ['darwin', 'x86_64-darwin'], # x86_64-darwin from IOS fix 3dea8222
+                                 'x86_64-linux': [],
                                  'x86_64-win32': ['win32']}
 
         platforms = list(platform_dependencies.get(self.host, self.host))
+
         if not self.host in platforms:
             platforms.append(self.host)
 
