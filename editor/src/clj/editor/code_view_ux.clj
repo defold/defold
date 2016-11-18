@@ -89,15 +89,15 @@
   :Alt+Right             {:command :next-word}
   :Ctrl+Left             {:command :prev-word}
   :Alt+Left              {:command :prev-word}
-  :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 1}
-  :Ctrl+A                {:command :line-begin-strict}
-  :Home                  {:command :line-begin}
-  :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 2}
-  :Ctrl+E                {:command :line-end}
-  :End                   {:command :line-end}
-  :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 3}
-  :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 4}
-  :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 5}
+  :Shortcut+Left         {:command :beginning-of-line-text      :label "Move to Beginning of Line"   :group "Movement" :order 1}
+  :Ctrl+A                {:command :beginning-of-line}
+  :Home                  {:command :beginning-of-line-text}
+  :Shortcut+Right        {:command :end-of-line                 :label "Move to End of Line"         :group "Movement" :order 2}
+  :Ctrl+E                {:command :end-of-line}
+  :End                   {:command :end-of-line}
+  :Shortcut+Up           {:command :beginning-of-file           :label "Move to Beginning of File"   :group "Movement" :order 3}
+  :Shortcut+Down         {:command :end-of-file                 :label "Move to End of File"         :group "Movement" :order 4}
+  :Shortcut+L            {:command :goto-line                   :label "Go to Line"                  :group "Movement" :order 5}
 
   ;; select
   :Double-Click          {:command :select-word}
@@ -113,39 +113,39 @@
   :Shift+Ctrl+Right      {:command :select-next-word}
   :Shift+Alt+Left        {:command :select-prev-word}
   :Shift+Ctrl+Left       {:command :select-prev-word}
-  :Shift+Shortcut+Left   {:command :select-line-begin}
-  :Shift+Ctrl+A          {:command :select-line-begin-strict}
-  :Shift+Home            {:command :select-line-begin}
-  :Shift+Shortcut+Right  {:command :select-line-end}
-  :Shift+Ctrl+E          {:command :select-line-end}
-  :Shift+End             {:command :select-line-end}
-  :Shift+Shortcut+Up     {:command :select-file-begin}
-  :Shift+Shortcut+Down   {:command :select-file-end}
+  :Shift+Shortcut+Left   {:command :select-beginning-of-line-text}
+  :Shift+Ctrl+A          {:command :select-beginning-of-line}
+  :Shift+Home            {:command :select-beginning-of-line-text}
+  :Shift+Shortcut+Right  {:command :select-end-of-line}
+  :Shift+Ctrl+E          {:command :select-end-of-line}
+  :Shift+End             {:command :select-end-of-line}
+  :Shift+Shortcut+Up     {:command :select-beginning-of-file}
+  :Shift+Shortcut+Down   {:command :select-end-of-file}
   :Shift+Page-Up         {:command :select-page-up}
   :Shift+Page-Down       {:command :select-page-down}
 
 
   ;; find
-  :Shortcut+F            {:command :find-text               :label "Find Text"                       :group "Find" :order 1}
-  :Shortcut+G            {:command :find-next               :label "Find Next"                       :group "Find" :order 2}
-  :Shift+Shortcut+G      {:command :find-prev               :label "Find Prev"                       :group "Find" :order 3}
+  :Shortcut+F            {:command :find-text                   :label "Find Text"                   :group "Find" :order 1}
+  :Shortcut+G            {:command :find-next                   :label "Find Next"                   :group "Find" :order 2}
+  :Shift+Shortcut+G      {:command :find-prev                   :label "Find Prev"                   :group "Find" :order 3}
 
   ;; Replace
-  :Shortcut+E            {:command :replace-text            :label "Replace"                         :group "Replace" :order 1}
-  :Alt+Shortcut+E        {:command :replace-next            :label "Replace Next"                    :group "Replace" :order 2}
+  :Shortcut+E            {:command :replace-text                :label "Replace"                     :group "Replace" :order 1}
+  :Alt+Shortcut+E        {:command :replace-next                :label "Replace Next"                :group "Replace" :order 2}
 
   ;; Delete
   :Backspace             {:command :delete}
   :Delete                {:command :delete-forward}
-  :Shortcut+D            {:command :delete-line             :label "Delete Line"                     :group "Delete" :order 1}
-  :Alt+Delete            {:command :delete-next-word}  ;; these two do not work when they are included in the menu
-  :Alt+Backspace         {:command :delete-prev-word}  ;; the menu event does not get propagated back like the rest
-  :Shortcut+Delete       {:command :delete-to-start-of-line :label "Delete to the Start of the Line" :group "Delete" :order 4}
-  :Shift+Shortcut+Delete {:command :delete-to-end-of-line   :label "Delete to the End of the Line"   :group "Delete" :order 5}
+  :Shortcut+D            {:command :delete-line                 :label "Delete Line"                 :group "Delete" :order 1}
+  :Alt+Delete            {:command :delete-next-word}           ;; these two do not work when they are included in the menu
+  :Alt+Backspace         {:command :delete-prev-word}           ;; the menu event does not get propagated back like the rest
+  :Shortcut+Delete       {:command :delete-to-beginning-of-line :label "Delete to Beginning of Line" :group "Delete" :order 4}
+  :Shift+Shortcut+Delete {:command :delete-to-end-of-line       :label "Delete to End of Line"       :group "Delete" :order 5}
   :Ctrl+K                {:command :cut-to-end-of-line}
 
   ;; Comment
-  :Shortcut+Slash        {:command :toggle-comment          :label "Toggle Comment"                  :group "Comment" :order 1}
+  :Shortcut+Slash        {:command :toggle-comment              :label "Toggle Comment"              :group "Comment" :order 1}
 
   ;; Editing
   :Tab                   {:command :tab}
@@ -159,7 +159,7 @@
   :Ctrl+Space            {:command :proposals}
 
   ;;Indentation
-  :Shortcut+I            {:command :indent                  :label "Indent"                           :group "Indent" :order 1}
+  :Shortcut+I            {:command :indent                      :label "Indent"                      :group "Indent" :order 1}
 })
 
 
@@ -628,71 +628,71 @@
 (defn- get-indentation [line]
   (re-find #"^[\t ]*" line))
 
-(defn line-begin-pos [source-viewer]
+(defn beginning-of-line-text-pos [source-viewer]
   (let [line-offset (line-offset source-viewer)
         line-indentation-len (count (get-indentation (line source-viewer)))]
     (+ line-offset line-indentation-len)))
 
-(defn line-begin-strict [source-viewer select?]
+(defn beginning-of-line [source-viewer select?]
   (let [next-pos (line-offset source-viewer)]
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
-(defn line-begin [source-viewer select?]
-  (let [line-begin-pos (line-begin-pos source-viewer)
-        next-pos (if (= line-begin-pos (caret source-viewer))
+(defn beginning-of-line-text [source-viewer select?]
+  (let [beginning-of-line-text-pos (beginning-of-line-text-pos source-viewer)
+        next-pos (if (= beginning-of-line-text-pos (caret source-viewer))
                    (line-offset source-viewer)
-                   line-begin-pos)]
+                   beginning-of-line-text-pos)]
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
-(defn line-end-pos [source-viewer]
+(defn end-of-line-pos [source-viewer]
   (let [line-text-len (count (line source-viewer))
         line-offset (line-offset source-viewer)]
     (+ line-offset line-text-len)))
 
-(defn line-end [source-viewer select?]
-  (let [next-pos (line-end-pos source-viewer)]
+(defn end-of-line [source-viewer select?]
+  (let [next-pos (end-of-line-pos source-viewer)]
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
-(handler/defhandler :line-begin-strict :code-view
+(handler/defhandler :beginning-of-line :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin-strict source-viewer false)
+    (beginning-of-line source-viewer false)
     (state-changes! source-viewer)))
 
-(handler/defhandler :line-begin :code-view
+(handler/defhandler :beginning-of-line-text :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer false)
+    (beginning-of-line-text source-viewer false)
     (state-changes! source-viewer)))
 
-(handler/defhandler :line-end :code-view
+(handler/defhandler :end-of-line :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-end source-viewer false)
+    (end-of-line source-viewer false)
     (state-changes! source-viewer)))
 
-(handler/defhandler :select-line-begin-strict :code-view
+(handler/defhandler :select-beginning-of-line :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin-strict source-viewer true)
+    (beginning-of-line source-viewer true)
     (state-changes! source-viewer)))
 
-(handler/defhandler :select-line-begin :code-view
+(handler/defhandler :select-beginning-of-line-text :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer true)
+    (beginning-of-line-text source-viewer true)
     (state-changes! source-viewer)))
 
-(handler/defhandler :select-line-end :code-view
+(handler/defhandler :select-end-of-line :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-end source-viewer true)
+    (end-of-line source-viewer true)
     (state-changes! source-viewer)))
 
-(handler/defhandler :file-begin :code-view
+(handler/defhandler :beginning-of-file :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
     (caret! source-viewer 0 false)
@@ -700,7 +700,7 @@
     (remember-caret-col source-viewer 0)
     (state-changes! source-viewer)))
 
-(handler/defhandler :file-end :code-view
+(handler/defhandler :end-of-file :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
     (let [doc (text source-viewer)]
@@ -709,7 +709,7 @@
       (remember-caret-col source-viewer (caret source-viewer))
       (state-changes! source-viewer))))
 
-(handler/defhandler :select-file-begin :code-view
+(handler/defhandler :select-beginning-of-file :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
     (caret! source-viewer 0 true)
@@ -717,7 +717,7 @@
     (remember-caret-col source-viewer 0)
     (state-changes! source-viewer)))
 
-(handler/defhandler :select-file-end :code-view
+(handler/defhandler :select-end-of-file :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer user-data]
     (let [doc (text source-viewer)]
@@ -817,7 +817,7 @@
   (let [np (caret source-viewer)
         doc (text source-viewer)
         line-begin-offset (line-offset source-viewer)
-        line-end-offset (line-end-pos source-viewer)
+        line-end-offset (end-of-line-pos source-viewer)
         consume-pos (if (= line-end-offset (count doc))
                       line-end-offset
                       (inc line-end-offset))
@@ -866,7 +866,7 @@
   (run [source-viewer]
     (let [np (caret source-viewer)
           doc (text source-viewer)
-          line-end-offset (line-end-pos source-viewer)
+          line-end-offset (end-of-line-pos source-viewer)
           new-doc (str (subs doc 0 np)
                        (subs doc line-end-offset))]
       (text! source-viewer new-doc))
@@ -877,7 +877,7 @@
   (run [source-viewer clipboard]
     (let [np (caret source-viewer)
           doc (text source-viewer)
-          line-end-offset (line-end-pos source-viewer)
+          line-end-offset (end-of-line-pos source-viewer)
           consume-pos (if (= line-end-offset np) (adjust-bounds doc (inc line-end-offset)) line-end-offset)
           new-doc (str (subs doc 0 np)
                        (subs doc consume-pos))
@@ -888,7 +888,7 @@
       (text! source-viewer new-doc))
     (typing-changes! source-viewer)))
 
-(handler/defhandler :delete-to-start-of-line :code-view
+(handler/defhandler :delete-to-beginning-of-line :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (let [np (caret source-viewer)
@@ -1304,7 +1304,7 @@
     (let [line-separator "\n"]
       (when (editable? source-viewer)
         (clear-snippet-tab-triggers! source-viewer)
-        (if (= (caret source-viewer) (line-end-pos source-viewer))
+        (if (= (caret source-viewer) (end-of-line-pos source-viewer))
           (do
             (do-unindent-line source-viewer (line-num-at-offset source-viewer (caret source-viewer)))
             (enter-key-text source-viewer line-separator)
