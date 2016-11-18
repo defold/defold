@@ -121,15 +121,46 @@
       (.setCredentialsProvider creds)
       (.call)))
 
-(defn stage-file [^Git git file]
-  (-> (.add git)
-      (.addFilepattern file)
-      (.call)))
+(defn make-add-change [file-path]
+  {:change-type :add :old-path nil :new-path file-path})
 
-(defn unstage-file [^Git git file]
-  (-> (.reset git)
-      (.addPath file)
-      (.call)))
+(defn make-delete-change [file-path]
+  {:change-type :delete :old-path file-path :new-path nil})
+
+(defn make-modify-change [file-path]
+  {:change-type :modify :old-path file-path :new-path file-path})
+
+(defn make-rename-change [old-path new-path]
+  {:change-type :rename :old-path old-path :new-path new-path})
+
+(defn guess-change [git file-path]
+  ; The stage-change! and unstage-change! functions behave the same for :add
+  ; and :modify changes, so make-modify-change will work for added files.
+  (if (.exists (io/file (str (worktree git) "/" file-path)))
+    (make-modify-change file-path)
+    (make-delete-change file-path)))
+
+(defn stage-change! [^Git git {:keys [change-type old-path new-path]}]
+  (case change-type
+    (:add :modify) (-> git .add (.addFilepattern new-path) .call)
+    :delete        (-> git .rm (.addFilepattern old-path) .call)
+    :rename        (do (-> git .add (.addFilepattern new-path) .call)
+                       (-> git .rm (.addFilepattern old-path) .call))))
+
+(defn unstage-change! [^Git git {:keys [change-type old-path new-path]}]
+  (case change-type
+    (:add :modify) (-> git .reset (.addPath new-path) .call)
+    :delete        (-> git .reset (.addPath old-path) .call)
+    :rename        (do (-> git .reset (.addPath new-path) .call)
+                       (-> git .reset (.addPath old-path) .call))))
+
+(defn stage-file! [git file-path]
+  "DEPRECATED. TODO: Remove remaining calls to this function."
+  (stage-change! git (guess-change git file-path)))
+
+(defn unstage-file! [git file-path]
+  "DEPRECATED. TODO: Remove remaining calls to this function."
+  (unstage-change! git (guess-change git file-path)))
 
 (defn hard-reset [^Git git ^RevCommit start-ref]
   (-> (.reset git)
