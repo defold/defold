@@ -90,9 +90,11 @@
   :Ctrl+Left             {:command :prev-word}
   :Alt+Left              {:command :prev-word}
   :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 1}
-  :Ctrl+A                {:command :line-begin}
+  :Ctrl+A                {:command :line-begin-strict}
+  :Home                  {:command :line-begin}
   :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 2}
   :Ctrl+E                {:command :line-end}
+  :End                   {:command :line-end}
   :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 3}
   :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 4}
   :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 5}
@@ -112,9 +114,11 @@
   :Shift+Alt+Left        {:command :select-prev-word}
   :Shift+Ctrl+Left       {:command :select-prev-word}
   :Shift+Shortcut+Left   {:command :select-line-begin}
-  :Shift+Ctrl+A          {:command :select-line-begin}
+  :Shift+Ctrl+A          {:command :select-line-begin-strict}
+  :Shift+Home            {:command :select-line-begin}
   :Shift+Shortcut+Right  {:command :select-line-end}
   :Shift+Ctrl+E          {:command :select-line-end}
+  :Shift+End             {:command :select-line-end}
   :Shift+Shortcut+Up     {:command :select-file-begin}
   :Shift+Shortcut+Down   {:command :select-file-end}
   :Shift+Page-Up         {:command :select-page-up}
@@ -621,14 +625,29 @@
     (prev-word source-viewer true)
     (state-changes! source-viewer)))
 
-(defn line-begin [source-viewer select?]
+(defn- get-indentation [line]
+  (re-find #"^[\t ]*" line))
+
+(defn line-begin-pos [source-viewer]
+  (let [line-offset (line-offset source-viewer)
+        line-indentation-len (count (get-indentation (line source-viewer)))]
+    (+ line-offset line-indentation-len)))
+
+(defn line-begin-strict [source-viewer select?]
   (let [next-pos (line-offset source-viewer)]
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
+(defn line-begin [source-viewer select?]
+  (let [line-begin-pos (line-begin-pos source-viewer)
+        next-pos (if (= line-begin-pos (caret source-viewer))
+                   (line-offset source-viewer)
+                   line-begin-pos)]
+    (caret! source-viewer next-pos select?)
+    (remember-caret-col source-viewer next-pos)))
+
 (defn line-end-pos [source-viewer]
-  (let [doc (text source-viewer)
-        line-text-len (count (line source-viewer))
+  (let [line-text-len (count (line source-viewer))
         line-offset (line-offset source-viewer)]
     (+ line-offset line-text-len)))
 
@@ -636,6 +655,12 @@
   (let [next-pos (line-end-pos source-viewer)]
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
+
+(handler/defhandler :line-begin-strict :code-view
+  (enabled? [source-viewer] source-viewer)
+  (run [source-viewer]
+    (line-begin-strict source-viewer false)
+    (state-changes! source-viewer)))
 
 (handler/defhandler :line-begin :code-view
   (enabled? [source-viewer] source-viewer)
@@ -647,6 +672,12 @@
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
     (line-end source-viewer false)
+    (state-changes! source-viewer)))
+
+(handler/defhandler :select-line-begin-strict :code-view
+  (enabled? [source-viewer] source-viewer)
+  (run [source-viewer]
+    (line-begin-strict source-viewer true)
     (state-changes! source-viewer)))
 
 (handler/defhandler :select-line-begin :code-view
@@ -1124,9 +1155,6 @@
 
 (defn- trim-indentation [line]
   (second (re-find #"^[\t ]*(.*)" line)))
-
-(defn- get-indentation [line]
-  (re-find #"^[\t ]*" line))
 
 (defn- untabify [whitespace]
   (string/replace whitespace #"\t" "    "))
