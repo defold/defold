@@ -633,15 +633,17 @@
         line-indentation-len (count (get-indentation (line source-viewer)))]
     (+ line-offset line-indentation-len)))
 
-(defn line-begin [source-viewer {:keys [before-indent select]
-                                 :or {before-indent false
-                                      select false}}]
+(defn line-begin-strict [source-viewer select?]
+  (let [next-pos (line-offset source-viewer)]
+    (caret! source-viewer next-pos select?)
+    (remember-caret-col source-viewer next-pos)))
+
+(defn line-begin [source-viewer select?]
   (let [line-begin-pos (line-begin-pos source-viewer)
-        next-pos (if (or before-indent
-                         (= line-begin-pos (caret source-viewer)))
+        next-pos (if (= line-begin-pos (caret source-viewer))
                    (line-offset source-viewer)
                    line-begin-pos)]
-    (caret! source-viewer next-pos select)
+    (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
 (defn line-end-pos [source-viewer]
@@ -657,13 +659,13 @@
 (handler/defhandler :line-begin-strict :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer {:before-indent true})
+    (line-begin-strict source-viewer false)
     (state-changes! source-viewer)))
 
 (handler/defhandler :line-begin :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer {:before-indent false})
+    (line-begin source-viewer false)
     (state-changes! source-viewer)))
 
 (handler/defhandler :line-end :code-view
@@ -675,13 +677,13 @@
 (handler/defhandler :select-line-begin-strict :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer {:before-indent true :select true})
+    (line-begin-strict source-viewer true)
     (state-changes! source-viewer)))
 
 (handler/defhandler :select-line-begin :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer {:before-indent false :select true})
+    (line-begin source-viewer true)
     (state-changes! source-viewer)))
 
 (handler/defhandler :select-line-end :code-view
