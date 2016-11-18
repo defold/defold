@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform, math
+import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -20,10 +20,10 @@ PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847".split()
 PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1 luajit-2.0.3".split()
 PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3".split()
-PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3".split()
+PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223a67482df2226622be372921847".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -396,10 +396,9 @@ class Configuration(object):
         self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
 
         # Configs
-        extendersdk = os.path.join(defold_home, 'extender', 'sdk')
-        includes = ['extender/config.yml']
-        includes = [os.path.join(extendersdk, x) for x in includes]
-        self._add_files_to_zip(zip, includes, extendersdk, topfolder)
+        configs = ['extender/build.yml']
+        configs = [os.path.join(self.dynamo_home, x) for x in configs]
+        self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
 
         def _findlibs(libdir):
             paths = os.listdir(libdir)
@@ -417,6 +416,15 @@ class Configuration(object):
 
         zip.close()
         return outfile.name
+
+    def build_platform_sdk(self):
+        # Helper function to make it easier to build a platform sdk locally
+        try:
+            path = self._package_platform_sdk(self.target_platform)
+        except Exception, e:
+            print "Failed to package sdk for platform %s: %s" % (self.target_platform, e)
+        else:
+            print "Wrote %s" % path
 
     def archive_engine(self):
         exe_prefix = ''
@@ -535,6 +543,12 @@ class Configuration(object):
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
+            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
+
+        cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
+        for lib in ('extender',):
+            self._log('Building %s' % lib)
+            cwd = join(self.defold_root, 'share/%s' % lib)
             self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def build_go(self):
@@ -1188,7 +1202,12 @@ instructions.configure=\
                 self._log('Uploaded %s -> %s' % (path, url))
 
             def upload_multipart():
-                mp = bucket.initiate_multipart_upload(p)
+                headers = {}
+                contenttype, _ = mimetypes.guess_type(path)
+                if contenttype is not None:
+                    headers['Content-Type'] = contenttype
+
+                mp = bucket.initiate_multipart_upload(p, headers=headers)
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB

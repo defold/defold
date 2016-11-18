@@ -1,0 +1,20 @@
+.composite-property-control-container { 
+    .button, .button-small, .button-large {
+        -fx-background-radius: 0px;
+        -fx-border-radius: 0px;
+        -fx-background-insets: 0;
+        -fx-background-color: $mid-grey-light !important;
+        -fx-border-color: $mid-grey-light;
+        -fx-border-width: 0 0 1 0;
+        -fx-padding: 5 7;
+        &:hover {
+            -fx-background-color: $dark-grey !important;
+            -fx-border-color: $dark-grey;
+        }
+        &:armed, &:pressed {
+            -fx-background-color: $dark-grey;
+            -fx-border-color: $dark-grey;
+            -fx-text-fill: $defold-white;
+        }
+    }
+}
