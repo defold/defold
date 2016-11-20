@@ -121,6 +121,7 @@ namespace dmEngine
         dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
         dmGameSystem::SpineModelContext             m_SpineModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
+        dmGameSystem::TilemapContext                m_TilemapContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmRender::HFontMap                          m_SystemFontMap;
