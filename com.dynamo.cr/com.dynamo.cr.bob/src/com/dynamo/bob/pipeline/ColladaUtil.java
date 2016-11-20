@@ -1,13 +1,12 @@
 package com.dynamo.bob.pipeline;
 
-import java.awt.FontFormatException;
-import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -40,6 +39,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 import org.jagatoo.loaders.models.collada.stax.XMLController;
 import org.jagatoo.loaders.models.collada.stax.XMLGeometry;
 import org.jagatoo.loaders.models.collada.stax.XMLInput;
+import org.jagatoo.loaders.models.collada.stax.XMLInstanceGeometry;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimationClips;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimations;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryControllers;
@@ -52,9 +52,6 @@ import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.openmali.FastMath;
 
-
-import com.dynamo.bob.font.Fontc.FontResourceResolver;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
 
@@ -424,6 +421,18 @@ public class ColladaUtil {
         return axisMatrix;
     }
 
+    private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
+        for (XMLVisualScene scene : scenes) {
+            for (XMLNode node : scene.nodes.values()) {
+                if (node.instanceGeometries.size() > 0) {
+                    return node;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public static void loadMesh(XMLCOLLADA collada, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryGeometries.size() != 1) {
             if (collada.libraryGeometries.isEmpty()) {
@@ -431,8 +440,35 @@ public class ColladaUtil {
             }
             throw new LoaderException("Only a single geometry is supported");
         }
+
+        // Use first geometry entry as default
         XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values()
                 .iterator().next();
+
+        // Find first node in visual scene tree that has a instance geometry
+        XMLNode sceneNode = null;
+        Matrix4f sceneNodeMatrix = new Matrix4f();
+        sceneNodeMatrix.setIdentity();
+        if (collada.libraryVisualScenes.size() > 0) {
+            sceneNode = getFirstNodeWithGeoemtry(collada.libraryVisualScenes.get(0).scenes.values());
+            if (sceneNode != null) {
+                XMLInstanceGeometry instanceGeo = sceneNode.instanceGeometries.get(0);
+                String geometryId = instanceGeo.url;
+
+                // Get node transform if available
+                sceneNodeMatrix = MathUtil.vecmath2ToVecmath1(sceneNode.matrix.matrix4f);
+
+                // Find geometry entry
+                for (XMLGeometry geomEntry : collada.libraryGeometries.get(0).geometries.values())
+                {
+                    if (geomEntry.equals(geometryId)) {
+                        geom = geomEntry;
+                        break;
+                    }
+                }
+            }
+        }
+
         XMLMesh mesh = geom.mesh;
         if(mesh == null || mesh.triangles == null) {
             return;
@@ -455,6 +491,9 @@ public class ColladaUtil {
                 bindShapeMatrix.set(MathUtil.vecmath2ToVecmath1(skin.bindShapeMatrix.matrix4f));
             }
         }
+
+        // Apply any matrix found for scene node
+        bindShapeMatrix.mul(sceneNodeMatrix);
 
         // NOTE: Normals could be part of the vertex of specified directly in triangles...
         int normalOffset;
