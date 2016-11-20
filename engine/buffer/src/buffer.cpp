@@ -19,8 +19,7 @@ namespace dmBuffer
 
     static uint32_t GetSizeForValueType(ValueType value_type)
     {
-        switch (value_type)
-        {
+        switch (value_type) {
             case BUFFER_TYPE_UINT8:
                 return sizeof(uint8_t);
             case BUFFER_TYPE_UINT16:
@@ -55,23 +54,21 @@ namespace dmBuffer
         memcpy(ptr, GUARD_VALUES, GUARD_SIZE);
     }
 
-    static bool ValidateGuards(HBuffer buffer, const Buffer::Stream& stream)
+    static bool ValidateStream(HBuffer buffer, const Buffer::Stream& stream)
     {
         const uintptr_t stream_buffer = (uintptr_t)buffer->m_Data + stream.m_Offset;
         uint32_t stream_size = stream.m_ValueCount * buffer->m_NumElements * GetSizeForValueType(stream.m_ValueType);
         return (memcmp((void*)(stream_buffer + stream_size), GUARD_VALUES, GUARD_SIZE) == 0);
     }
 
-    static bool ValidateBuffer(HBuffer buffer)
+    Result ValidateBuffer(HBuffer buffer)
     {
-        for (int i = 0; i < buffer->m_NumStreams; ++i)
-        {
-            if (!ValidateGuards(buffer, buffer->m_Streams[i]))
-            {
-                return false;
+        for (int i = 0; i < buffer->m_NumStreams; ++i) {
+            if (!ValidateStream(buffer, buffer->m_Streams[i])) {
+                return RESULT_GUARD_INVALID;
             }
         }
-        return true;
+        return RESULT_OK;
     }
 
     static void CreateStreams(HBuffer buffer, BufferDeclaration buffer_decl)
@@ -79,8 +76,7 @@ namespace dmBuffer
         uint32_t num_elements = buffer->m_NumElements;
         uintptr_t data_start = (uintptr_t)buffer->m_Data;
         uintptr_t ptr = data_start;
-        for (int i = 0; i < buffer->m_NumStreams; ++i)
-        {
+        for (int i = 0; i < buffer->m_NumStreams; ++i) {
             const StreamDeclaration& decl = buffer_decl[i];
             ptr = DM_ALIGN(ptr, ADDR_ALIGNMENT);
 
@@ -103,8 +99,7 @@ namespace dmBuffer
         // Calculate total data allocation size needed
         uint32_t header_size = sizeof(Buffer) + sizeof(Buffer::Stream)*buffer_decl_count;
         uint32_t buffer_size = header_size;
-        for (int i = 0; i < buffer_decl_count; ++i)
-        {
+        for (int i = 0; i < buffer_decl_count; ++i) {
             const StreamDeclaration& decl = buffer_decl[i];
 
             // Make sure each stream is aligned
@@ -148,8 +143,7 @@ namespace dmBuffer
 
     void Free(HBuffer buffer)
     {
-        if (buffer)
-        {
+        if (buffer) {
             dmMemory::AlignedFree(buffer);
         }
     }
@@ -160,8 +154,7 @@ namespace dmBuffer
             return 0x0;
         }
 
-        for (int i = 0; i < buffer->m_NumStreams; ++i)
-        {
+        for (int i = 0; i < buffer->m_NumStreams; ++i) {
             const Buffer::Stream* stream = &buffer->m_Streams[i];
             if (stream_name == stream->m_Name) {
                 return stream;
@@ -180,8 +173,7 @@ namespace dmBuffer
         }
 
         // Validate guards
-        if (!dmBuffer::ValidateGuards(buffer, *stream))
-        {
+        if (!dmBuffer::ValidateStream(buffer, *stream)) {
             return RESULT_GUARD_INVALID;
         }
 
