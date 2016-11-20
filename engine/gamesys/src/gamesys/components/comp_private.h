@@ -64,6 +64,10 @@ namespace dmGameSystem
         dmRender::Constant          m_RenderConstants[MAX_COMP_RENDER_CONSTANTS];
         Vectormath::Aos::Vector4    m_PrevRenderConstants[MAX_COMP_RENDER_CONSTANTS];
         uint32_t                    m_ConstantCount;
+
+        CompRenderConstants() : m_ConstantCount(0)
+        {
+        }
     };
 
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector3& ref_value, const PropVector3& property);

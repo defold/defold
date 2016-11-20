@@ -139,7 +139,8 @@ namespace dmGameSystem
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 SpineModelContext* spine_model_context,
-                                                LabelContext* label_context)
+                                                LabelContext* label_context,
+                                                TilemapContext* tilemap_context)
     {
         dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
@@ -260,7 +261,7 @@ namespace dmGameSystem
                 CompSpriteUpdate, CompSpriteRender, 0, CompSpriteOnMessage, 0, CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty,
                 1, 0);
 
-        REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, render_context,
+        REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, tilemap_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
                 CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate,
                 CompTileGridUpdate, CompTileGridRender, 0, CompTileGridOnMessage, 0, CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
