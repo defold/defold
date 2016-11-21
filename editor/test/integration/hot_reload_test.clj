@@ -1,7 +1,7 @@
 (ns integration.hot-reload-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.hot-reload :as hotload]
+            [editor.hot-reload :as hot-reload]
             [editor.defold-project :as project]
             [integration.test-util :as test-util]
             [editor.protobuf :as protobuf]
@@ -20,7 +20,7 @@
 (def ^:const project-path "test/resources/build_project/SideScroller")
 
 (defn- with-http-server [f]
-  (let [server (http/start! (http/->server 0 {project/hot-reload-url-prefix (partial hotload/build-handler *project*)}))]
+  (let [server (http/start! (http/->server 0 {hot-reload/url-prefix (partial hot-reload/build-handler *project*)}))]
     (binding [*port* (.getPort (.getAddress server))]
       (f))
     (http/stop! server)))
@@ -36,7 +36,7 @@
 (use-fixtures :once with-clean-project with-http-server)
 
 (defn- http-get [file]
-  (let [url  (URL. (format "http://localhost:%d%s%s" *port* project/hot-reload-url-prefix file))
+  (let [url  (URL. (format "http://localhost:%d%s%s" *port* hot-reload/url-prefix file))
         conn (doto (.openConnection url) .connect .disconnect)]
     {:status  (.getResponseCode conn)
      :headers (.getHeaderFields conn)
@@ -51,7 +51,7 @@
     (IOUtils/toByteArray input-stream)))
 
 (defn- handler-get [handler-f file]
-  (let [res (handler-f {:url     (format "%s%s" project/hot-reload-url-prefix file)
+  (let [res (handler-f {:url     (format "%s%s" hot-reload/url-prefix file)
                         :headers {}
                         :method  "GET"
                         :body    nil})]
@@ -60,10 +60,10 @@
         (assoc :status (:code res)))))
 
 (deftest build-endpoint-test
-  (let [res  (handler-get (partial hotload/build-handler *project*) "/main/main.collectionc")
+  (let [res  (handler-get (partial hot-reload/build-handler *project*) "/main/main.collectionc")
         data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
     (is (= 200 (:status res)))
     (is (= "parallax" (:name data)))
-    (is (= 11 (count (:instances data)))))
+    (is (= 12 (count (:instances data)))))
 
-  (is (= 404 (:status (handler-get (partial hotload/build-handler *project*) "foobar")))))
+  (is (= 404 (:status (handler-get (partial hot-reload/build-handler *project*) "foobar")))))

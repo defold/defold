@@ -1,0 +1,46 @@
+.split-menu-button {
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-min-width: 10em;
+    -fx-background-color: $dark-grey;
+    -fx-background-insets: 0;
+    -fx-border-color: $mid-grey;
+    -fx-border-width: 1;
+    -fx-padding: 0;
+    -fx-text-fill: $mid-grey;
+
+    &:showing {
+        -fx-background-color: $dark-grey;
+        -fx-text-fill: $defold-white;
+        .label {
+            -fx-text-fill: $defold-white; 
+        }
+        .arrow {
+            -fx-text-fill: $defold-white;
+            -fx-background-color: $defold-white;
+        }
+    }
+    .label {
+        -fx-background-color: transparent;
+        -fx-border-width: 0;
+        -fx-background-insets: 0;
+        -fx-text-fill: $bright-grey;
+
+        &:hover {
+            -fx-background-color: $dark-black;
+        }
+        &:pressed {
+            -fx-text-fill: $defold-white;
+        }
+    }
+    .arrow-button {
+        -fx-background-insets: 0;
+        -fx-background-color: transparent;
+        -fx-border-width: 0 0 0 1;
+        -fx-border-color: $dark-grey-border;
+
+        &:hover {
+            -fx-background-color: $dark-black;
+        }
+    }
+}

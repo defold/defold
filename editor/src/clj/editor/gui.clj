@@ -314,6 +314,7 @@
     (g/connect gui-node :rt-pb-msgs node-tree :node-rt-msgs)
     (g/connect gui-node :node-ids node-tree :node-ids)
     (g/connect gui-node :node-overrides node-tree :node-overrides)
+    (g/connect gui-node :build-errors scene :build-errors)
     (g/connect node-tree :layer-ids gui-node :layer-ids)
     (g/connect node-tree :id-prefix gui-node :id-prefix)
     (case type
@@ -480,7 +481,8 @@
   (output node-overrides g/Any :cached (g/fnk [id _properties]
                                              {id (into {} (map (fn [[k v]] [k (:value v)])
                                                                (filter (fn [[_ v]] (contains? v :original-value))
-                                                                       (:properties _properties))))})))
+                                                                       (:properties _properties))))}))
+  (output build-errors g/Any :abstract))
 
 (g/defnode VisualNode
   (inherits GuiNode)
@@ -564,7 +566,8 @@
   (input texture-ids IDMap)
   (output texture-size g/Any :cached (g/fnk [anim-data texture]
                                             (when-let [anim (get anim-data texture)]
-                                              [(double (:width anim)) (double (:height anim)) 0.0]))))
+                                              [(double (:width anim)) (double (:height anim)) 0.0])))
+  (output build-errors g/Any (g/constantly nil)))
 
 ;; Box nodes
 
@@ -606,7 +609,8 @@
                                   :color color+alpha}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
-                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
+                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
+  (output build-errors g/Any (g/constantly nil)))
 
 ;; Pie nodes
 
@@ -677,7 +681,8 @@
                                   :color color+alpha}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
-                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
+                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
+  (output build-errors g/Any (g/constantly nil)))
 
 ;; Text nodes
 
@@ -689,6 +694,7 @@
   (property line-break g/Bool (default false))
   (property font g/Str
     (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
+    (dynamic error (validation/prop-error-fnk :info validation/prop-empty? font))
     (value (gu/passthrough font-input))
     (set (fn [basis self _ new-value]
            (let [font-ids (g/node-value self :font-ids {:basis basis})]
@@ -751,7 +757,8 @@
                                                  :align (pivot->h-align pivot)}
                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                          h (second aabb-size)]
-                                                                     [x (+ y (- h (get-in font-data [:font-map :max-ascent])))]))))))
+                                                                     [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
+  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? font)))
 
 ;; Template nodes
 
@@ -776,9 +783,10 @@
   (property template TemplateData
             (dynamic read-only? override?)
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                          :ext "gui"
-                                          :to-type (fn [v] (:resource v))
-                                          :from-type (fn [r] {:resource r :overrides {}})}))
+                                              :ext "gui"
+                                              :to-type (fn [v] (:resource v))
+                                              :from-type (fn [r] {:resource r :overrides {}})}))
+            (dynamic error (validation/prop-error-fnk :info validation/prop-empty? template))
             (value (g/fnk [_node-id id template-resource template-overrides]
                           (let [overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
                             {:resource template-resource :overrides overrides})))
@@ -882,7 +890,8 @@
   (output scene-children g/Any (g/fnk [template-scene] (:children template-scene [])))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
-                                                 :user-data {:color color+alpha :inherit-alpha inherit-alpha}})))
+                                                 :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
+  (output build-errors g/Any (validation/prop-error-fnk :fatal validation/prop-empty? template)))
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
@@ -1218,7 +1227,7 @@
                              [(persistent! textures) (persistent! fonts)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts))))
 
-(g/defnk produce-build-targets [_node-id resource rt-pb-msg dep-build-targets template-build-targets]
+(g/defnk produce-build-targets [_node-id build-errors resource rt-pb-msg dep-build-targets template-build-targets]
   (let [def pb-def
         template-build-targets (flatten template-build-targets)
         rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
@@ -1333,6 +1342,7 @@
   (output rt-pb-msg g/Any :cached produce-rt-pb-msg)
   (output save-data g/Any :cached produce-save-data)
   (input template-build-targets g/Any :array)
+  (input build-errors g/Any :array)
   (output build-targets g/Any :cached produce-build-targets)
   (input layout-node-outlines g/Any :array)
   (output layout-node-outlines g/Any :cached (g/fnk [layout-node-outlines] (into {} layout-node-outlines)))
@@ -1425,7 +1435,7 @@
     (attach-texture self parent texture)))
 
 (defn- browse [project exts]
-  (first (dialogs/make-resource-dialog (project/workspace project) {:ext exts})))
+  (first (dialogs/make-resource-dialog (project/workspace project) project {:ext exts})))
 
 (defn- resource->id [resource]
   (FilenameUtils/getBaseName ^String (resource/resource-name resource)))

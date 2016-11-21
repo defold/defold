@@ -33,6 +33,8 @@ namespace dmGameSystem
 
     static const dmhash_t PROP_SKIN = dmHashString64("skin");
     static const dmhash_t PROP_ANIMATION = dmHashString64("animation");
+    static const dmhash_t PROP_CURSOR = dmHashString64("cursor");
+    static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
     static void DestroyComponent(SpineModelWorld* world, uint32_t index);
@@ -656,7 +658,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
-                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration))
+                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
@@ -765,6 +767,16 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetAnimation(component->m_RigInstance));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (params.m_PropertyId == PROP_CURSOR)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetCursor(component->m_RigInstance, true));
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == PROP_PLAYBACK_RATE)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetPlaybackRate(component->m_RigInstance));
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
         return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpineModelGetConstantCallback, component);
     }
 
@@ -781,6 +793,32 @@ namespace dmGameSystem
             if (res == dmRig::RESULT_ERROR)
             {
                 dmLogError("Could not find skin '%s' on the spine model.", (const char*)dmHashReverse64(params.m_Value.m_Hash, 0x0));
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == PROP_CURSOR)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+
+            dmRig::Result res = dmRig::SetCursor(component->m_RigInstance, params.m_Value.m_Number, true);
+            if (res == dmRig::RESULT_ERROR)
+            {
+                dmLogError("Could not set cursor %f on the spine model.", params.m_Value.m_Number);
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == PROP_PLAYBACK_RATE)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+
+            dmRig::Result res = dmRig::SetPlaybackRate(component->m_RigInstance, params.m_Value.m_Number);
+            if (res == dmRig::RESULT_ERROR)
+            {
+                dmLogError("Could not set playback rate %f on the spine model.", params.m_Value.m_Number);
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
             }
             return dmGameObject::PROPERTY_RESULT_OK;
