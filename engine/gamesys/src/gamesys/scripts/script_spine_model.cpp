@@ -155,9 +155,9 @@ namespace dmGameSystem
      *     local url = msg.url("#spinemodel")
      *     local play_properties = { blend_duration = 0.1 }
      *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
-     *     spine.play(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
+     *     spine.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
      *         local properties = { blend_duration = 0.2 }
-     *         spine.play(url, "run", go.PLAYBACK_LOOP_FORWARD, properties)
+     *         spine.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties)
      *     end)
      * end
      * </pre>
