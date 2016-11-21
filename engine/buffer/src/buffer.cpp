@@ -17,6 +17,22 @@ namespace dmBuffer
     };
     static const uint8_t GUARD_SIZE = sizeof(GUARD_VALUES);
 
+    struct Buffer
+    {
+        struct Stream
+        {
+            dmhash_t  m_Name;
+            uint32_t  m_Offset; // ~4gb addressable space
+            ValueType m_ValueType;
+            uint8_t   m_ValueCount;
+        };
+
+        uint8_t  m_NumStreams;
+        Stream*  m_Streams;
+        uint32_t m_NumElements;
+        void*    m_Data; // All stream data, including guard bytes after each stream and 16 byte aligned.
+    };
+
     static uint32_t GetSizeForValueType(ValueType value_type)
     {
         switch (value_type) {
@@ -72,7 +88,7 @@ namespace dmBuffer
         }
 
         // Check guards
-        for (int i = 0; i < buffer->m_NumStreams; ++i) {
+        for (uint8_t i = 0; i < buffer->m_NumStreams; ++i) {
             if (!ValidateStream(buffer, buffer->m_Streams[i])) {
                 return RESULT_GUARD_INVALID;
             }
@@ -80,13 +96,13 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
-    static void CreateStreams(HBuffer buffer, BufferDeclaration buffer_decl)
+    static void CreateStreams(HBuffer buffer, const StreamDeclaration* streams_decl)
     {
         uint32_t num_elements = buffer->m_NumElements;
         uintptr_t data_start = (uintptr_t)buffer->m_Data;
         uintptr_t ptr = data_start;
-        for (int i = 0; i < buffer->m_NumStreams; ++i) {
-            const StreamDeclaration& decl = buffer_decl[i];
+        for (uint8_t i = 0; i < buffer->m_NumStreams; ++i) {
+            const StreamDeclaration& decl = streams_decl[i];
             ptr = DM_ALIGN(ptr, ADDR_ALIGNMENT);
 
             dmBuffer::Buffer::Stream& stream = buffer->m_Streams[i];
@@ -103,17 +119,24 @@ namespace dmBuffer
         }
     }
 
-    Result Allocate(uint32_t num_elements, const BufferDeclaration buffer_decl, uint8_t buffer_decl_count, HBuffer* out_buffer)
+    Result Allocate(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer)
     {
-        if (!buffer_decl || !out_buffer) {
+        if (!streams_decl || !out_buffer) {
             return RESULT_ALLOCATION_ERROR;
         }
 
+        // Verify element count and streams count
+        if (num_elements == 0) {
+            return RESULT_BUFFER_SIZE_ERROR;
+        } else if (streams_decl_count == 0) {
+            return RESULT_STREAM_SIZE_ERROR;
+        }
+
         // Calculate total data allocation size needed
-        uint32_t header_size = sizeof(Buffer) + sizeof(Buffer::Stream)*buffer_decl_count;
+        uint32_t header_size = sizeof(Buffer) + sizeof(Buffer::Stream)*streams_decl_count;
         uint32_t buffer_size = header_size;
-        for (int i = 0; i < buffer_decl_count; ++i) {
-            const StreamDeclaration& decl = buffer_decl[i];
+        for (uint8_t i = 0; i < streams_decl_count; ++i) {
+            const StreamDeclaration& decl = streams_decl[i];
 
             // Make sure each stream is aligned
             buffer_size = DM_ALIGN(buffer_size, ADDR_ALIGNMENT);
@@ -139,16 +162,15 @@ namespace dmBuffer
         if (r != dmMemory::RESULT_OK) {
             return RESULT_ALLOCATION_ERROR;
         }
-        memset((void*)data_block, 0x0, buffer_size);
 
         // Get buffer from data block start
         HBuffer buffer = (Buffer*)data_block;
         buffer->m_NumElements = num_elements;
-        buffer->m_NumStreams = buffer_decl_count;
+        buffer->m_NumStreams = streams_decl_count;
         buffer->m_Streams = (Buffer::Stream*)((uintptr_t)data_block+sizeof(Buffer));
-        buffer->m_Data = (void*)((uintptr_t)buffer->m_Streams+sizeof(Buffer::Stream)*buffer_decl_count);
+        buffer->m_Data = (void*)((uintptr_t)buffer->m_Streams+sizeof(Buffer::Stream)*streams_decl_count);
 
-        CreateStreams(buffer, buffer_decl);
+        CreateStreams(buffer, streams_decl);
 
         *out_buffer = buffer;
         return RESULT_OK;
@@ -167,7 +189,7 @@ namespace dmBuffer
             return 0x0;
         }
 
-        for (int i = 0; i < buffer->m_NumStreams; ++i) {
+        for (uint8_t i = 0; i < buffer->m_NumStreams; ++i) {
             const Buffer::Stream* stream = &buffer->m_Streams[i];
             if (stream_name == stream->m_Name) {
                 return stream;
@@ -189,16 +211,16 @@ namespace dmBuffer
             return RESULT_STREAM_DOESNT_EXIST;
         }
 
-        // Validate guards
-        if (!dmBuffer::ValidateStream(buffer, *stream)) {
-            return RESULT_GUARD_INVALID;
-        }
-
         // Validate expected type and value count
         if (stream->m_ValueType != type) {
             return dmBuffer::RESULT_STREAM_WRONG_TYPE;
         } else if (stream->m_ValueCount != type_count) {
             return dmBuffer::RESULT_STREAM_WRONG_COUNT;
+        }
+
+        // Validate guards
+        if (!dmBuffer::ValidateStream(buffer, *stream)) {
+            return RESULT_GUARD_INVALID;
         }
 
         // Calculate stride

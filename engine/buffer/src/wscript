@@ -11,13 +11,6 @@ def build(bld):
                               uselib = 'DLIB PLATFORM_SOCKET',
                               source = 'buffer.cpp')
 
-
-    buffer_shared = bld.new_task_gen(features = 'cxx cshlib',
-                                  includes = ['.'],
-                                  target = 'buffer_shared',
-                                  uselib = 'DLIB PLATFORM_SOCKET',
-                                  source = 'buffer.cpp')
-
     bld.install_files('${PREFIX}/include/buffer', 'buffer.h')
 
     bld.add_subdirs('test')
