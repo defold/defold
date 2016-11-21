@@ -284,7 +284,6 @@ namespace dmGameSystem
         int32_t cell_x, cell_y;
         GetTileGridCellCoord(component, x, y, cell_x, cell_y);
 
-        dmLogWarning("CELL: %d, %d", cell_x, cell_y);
         if (cell_x < 0 || cell_x >= grid_w || cell_y < 0 || cell_y >= grid_h)
         {
             dmLogError("Could not get the tile since the supplied tile was out of range.");
