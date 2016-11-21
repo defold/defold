@@ -20,28 +20,32 @@ namespace dmBuffer
     static uint32_t GetSizeForValueType(ValueType value_type)
     {
         switch (value_type) {
-            case BUFFER_TYPE_UINT8:
+            case VALUE_TYPE_UINT8:
                 return sizeof(uint8_t);
-            case BUFFER_TYPE_UINT16:
+            case VALUE_TYPE_UINT16:
                 return sizeof(uint16_t);
-            case BUFFER_TYPE_UINT32:
+            case VALUE_TYPE_UINT32:
                 return sizeof(uint32_t);
-            case BUFFER_TYPE_UINT64:
+            case VALUE_TYPE_UINT64:
                 return sizeof(uint64_t);
 
-            case BUFFER_TYPE_INT8:
+            case VALUE_TYPE_INT8:
                 return sizeof(int8_t);
-            case BUFFER_TYPE_INT16:
+            case VALUE_TYPE_INT16:
                 return sizeof(int16_t);
-            case BUFFER_TYPE_INT32:
+            case VALUE_TYPE_INT32:
                 return sizeof(int32_t);
-            case BUFFER_TYPE_INT64:
+            case VALUE_TYPE_INT64:
                 return sizeof(int64_t);
 
-            case BUFFER_TYPE_FLOAT32:
+            case VALUE_TYPE_FLOAT32:
                 return sizeof(float);
-            case BUFFER_TYPE_FLOAT64:
+            case VALUE_TYPE_FLOAT64:
                 return sizeof(double);
+
+            case MAX_VALUE_TYPE_COUNT:
+                assert(0);
+                return 0;
         }
 
         // Should never happen, need to implement all value types above.
@@ -63,6 +67,11 @@ namespace dmBuffer
 
     Result ValidateBuffer(HBuffer buffer)
     {
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+
+        // Check guards
         for (int i = 0; i < buffer->m_NumStreams; ++i) {
             if (!ValidateStream(buffer, buffer->m_Streams[i])) {
                 return RESULT_GUARD_INVALID;
@@ -96,6 +105,10 @@ namespace dmBuffer
 
     Result Allocate(uint32_t num_elements, const BufferDeclaration buffer_decl, uint8_t buffer_decl_count, HBuffer* out_buffer)
     {
+        if (!buffer_decl || !out_buffer) {
+            return RESULT_ALLOCATION_ERROR;
+        }
+
         // Calculate total data allocation size needed
         uint32_t header_size = sizeof(Buffer) + sizeof(Buffer::Stream)*buffer_decl_count;
         uint32_t buffer_size = header_size;
@@ -166,6 +179,10 @@ namespace dmBuffer
 
     Result GetStream(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType type, uint32_t type_count, void **out_stream, uint32_t *out_stride, uint32_t *out_element_count)
     {
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+
         // Get stream
         const Buffer::Stream* stream = GetStream(buffer, stream_name);
         if (stream == 0x0) {
