@@ -236,11 +236,12 @@
     (String. ^bytes (git/show-file git file (.name stash-ref)))))
 
 (defn resolve-file! [!flow file]
-  (let [{:keys [git conflicts]} @!flow]
+  (let [{:keys [^Git git conflicts]} @!flow]
     (when-let [entry (get conflicts file)]
-      (let [change (git/guess-change git file)]
-        (git/stage-change! git change)
-        (git/unstage-change! git change))
+      (if (.exists (git/file git file))
+        (-> git .add (.addFilepattern file) .call)
+        (-> git .rm (.addFilepattern file) .call))
+      (-> git .reset (.addPath file) .call)
       (swap! !flow #(-> %
                         (update :conflicts dissoc file)
                         (update :resolved assoc file entry))))))
