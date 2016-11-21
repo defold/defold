@@ -11,7 +11,17 @@ def build(bld):
                           proto_gen_py = True,
                           protoc_includes = '../proto',
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins.arc ../content/builtins/connect/connect.project',
-                          source='engine.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
+                          source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
+
+    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+                          includes = '../proto . ..',
+                          target = 'engine_release',
+                          defines = 'DM_RELEASE=1',
+                          proto_gen_py = True,
+                          protoc_includes = '../proto',
+                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins.arc ../content/builtins/connect/connect.project',
+                          source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
+
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
@@ -96,7 +106,7 @@ def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
         uselib = 'WEBVIEWEXT ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
-        uselib_local = 'engine',
+        uselib_local = 'engine_release',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff

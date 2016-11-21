@@ -4,6 +4,7 @@
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
+#include <dlib/log.h>
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
 #include "../gui.h"
@@ -61,6 +62,87 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
+static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color) 
+{
+    mesh_entry.m_Id = id;
+    mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
+    mesh_entry.m_Meshes.m_Count = 1;
+
+    uint32_t vert_count = 3;
+
+    // set vertice position so they match bone positions
+    dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
+    mesh.m_Positions.m_Data = new float[vert_count*3];
+    mesh.m_Positions.m_Count = vert_count*3;
+    mesh.m_Positions.m_Data[0] = 0.0f;
+    mesh.m_Positions.m_Data[1] = 0.0f;
+    mesh.m_Positions.m_Data[2] = 0.0f;
+    mesh.m_Positions.m_Data[3] = 1.0f;
+    mesh.m_Positions.m_Data[4] = 0.0f;
+    mesh.m_Positions.m_Data[5] = 0.0f;
+    mesh.m_Positions.m_Data[6] = 2.0f;
+    mesh.m_Positions.m_Data[7] = 0.0f;
+    mesh.m_Positions.m_Data[8] = 0.0f;
+
+    // data for each vertex (tex coords and normals not used)
+    mesh.m_Texcoord0.m_Data       = new float[vert_count*2];
+    mesh.m_Texcoord0.m_Count      = vert_count*2;
+    mesh.m_Normals.m_Data         = new float[vert_count*3];
+    mesh.m_Normals.m_Count        = vert_count*3;
+
+    mesh.m_Color.m_Data           = new float[vert_count*4];
+    mesh.m_Color.m_Count          = vert_count*4;
+    mesh.m_Color[0]               = color.getX();
+    mesh.m_Color[1]               = color.getY();
+    mesh.m_Color[2]               = color.getZ();
+    mesh.m_Color[3]               = color.getW();
+    mesh.m_Color[4]               = color.getX();
+    mesh.m_Color[5]               = color.getY();
+    mesh.m_Color[6]               = color.getZ();
+    mesh.m_Color[7]               = color.getW();
+    mesh.m_Color[8]               = color.getX();
+    mesh.m_Color[9]               = color.getY();
+    mesh.m_Color[10]              = color.getZ();
+    mesh.m_Color[11]              = color.getW();
+    mesh.m_Indices.m_Data         = new uint32_t[vert_count];
+    mesh.m_Indices.m_Count        = vert_count;
+    mesh.m_Indices.m_Data[0]      = 0;
+    mesh.m_Indices.m_Data[1]      = 1;
+    mesh.m_Indices.m_Data[2]      = 2;
+    mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
+    mesh.m_BoneIndices.m_Count    = vert_count*4;
+    mesh.m_BoneIndices.m_Data[0]  = 0;
+    mesh.m_BoneIndices.m_Data[1]  = 1;
+    mesh.m_BoneIndices.m_Data[2]  = 0;
+    mesh.m_BoneIndices.m_Data[3]  = 0;
+    mesh.m_BoneIndices.m_Data[4]  = 0;
+    mesh.m_BoneIndices.m_Data[5]  = 1;
+    mesh.m_BoneIndices.m_Data[6]  = 0;
+    mesh.m_BoneIndices.m_Data[7]  = 0;
+    mesh.m_BoneIndices.m_Data[8]  = 0;
+    mesh.m_BoneIndices.m_Data[9]  = 1;
+    mesh.m_BoneIndices.m_Data[10] = 0;
+    mesh.m_BoneIndices.m_Data[11] = 0;
+
+    mesh.m_Weights.m_Data         = new float[vert_count*4];
+    mesh.m_Weights.m_Count        = vert_count*4;
+    mesh.m_Weights.m_Data[0]      = 1.0f;
+    mesh.m_Weights.m_Data[1]      = 0.0f;
+    mesh.m_Weights.m_Data[2]      = 0.0f;
+    mesh.m_Weights.m_Data[3]      = 0.0f;
+    mesh.m_Weights.m_Data[4]      = 0.0f;
+    mesh.m_Weights.m_Data[5]      = 1.0f;
+    mesh.m_Weights.m_Data[6]      = 0.0f;
+    mesh.m_Weights.m_Data[7]      = 0.0f;
+    mesh.m_Weights.m_Data[8]      = 0.0f;
+    mesh.m_Weights.m_Data[9]      = 1.0f;
+    mesh.m_Weights.m_Data[10]     = 0.0f;
+    mesh.m_Weights.m_Data[11]     = 0.0f;
+
+    mesh.m_Visible = true;
+    mesh.m_DrawOrder = 0;
+}
+
 static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
 {
     static dmLuaDDF::LuaSource src;
@@ -115,6 +197,12 @@ public:
     std::map<std::string, Point3> m_NodeTextToRenderedPosition;
     std::map<std::string, Vector3> m_NodeTextToRenderedSize;
 
+    dmRig::HRigInstance     m_RigInstance;
+    dmArray<dmRig::RigBone> m_BindPose;
+    dmRigDDF::Skeleton*     m_Skeleton;
+    dmRigDDF::MeshSet*      m_MeshSet;
+    dmRigDDF::AnimationSet* m_AnimationSet;
+
     virtual void SetUp()
     {
         m_ScriptContext = dmScript::NewContext(0, 0);
@@ -154,6 +242,8 @@ public:
         dmGui::SetSceneResolution(m_Scene, 1, 1);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
+
+        SetUpSimpleSpine();
     }
 
     static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,
@@ -177,6 +267,7 @@ public:
 
     virtual void TearDown()
     {
+        TearDownSimpleSpine();
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
         dmRig::DeleteContext(m_Context->m_RigContext);
@@ -184,6 +275,289 @@ public:
         dmMessage::DeleteSocket(m_Socket);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+    }
+
+private:
+    // code from test_rig.cpp
+    void SetUpSimpleSpine()
+    {
+        m_RigInstance = 0x0;
+        dmRig::InstanceCreateParams create_params = {0};
+        create_params.m_Context = m_Context->m_RigContext;
+        create_params.m_Instance = &m_RigInstance;
+
+        m_Skeleton     = new dmRigDDF::Skeleton();
+        m_MeshSet      = new dmRigDDF::MeshSet();
+        m_AnimationSet = new dmRigDDF::AnimationSet();
+
+        /*
+
+            Bones:
+            A:
+            (0)---->(1)---->
+             |
+         B:  |
+             v
+            (2)
+             |
+             |
+             v
+            (3)
+             |
+             |
+             v
+
+         A: 0: Pos; (0,0), rotation: 0
+            1: Pos; (1,0), rotation: 0
+
+         B: 0: Pos; (0,0), rotation: 0
+            2: Pos; (0,1), rotation: 0
+            3: Pos; (0,2), rotation: 0
+
+        ------------------------------------
+
+            Animation (id: "valid") for Bone A:
+
+            I:
+            (0)---->(1)---->
+
+            II:
+            (0)---->(1)
+                     |
+                     |
+                     v
+
+            III:
+            (0)
+             |
+             |
+             v
+            (1)
+             |
+             |
+             v
+
+
+        ------------------------------------
+
+            Animation (id: "ik_anim") for IK on Bone B.
+
+        */
+        uint32_t bone_count = 5;
+        m_Skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
+        m_Skeleton->m_Bones.m_Count = bone_count;
+        // Bone 0
+        dmRigDDF::Bone& bone0 = m_Skeleton->m_Bones.m_Data[0];
+        bone0.m_Parent       = 0xffff;
+        bone0.m_Id           = 0;
+        bone0.m_Position     = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+        bone0.m_Rotation     = Vectormath::Aos::Quat::identity();
+        bone0.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone0.m_InheritScale = false;
+        bone0.m_Length       = 0.0f;
+
+        // Bone 1
+        dmRigDDF::Bone& bone1 = m_Skeleton->m_Bones.m_Data[1];
+        bone1.m_Parent       = 0;
+        bone1.m_Id           = 1;
+        bone1.m_Position     = Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f);
+        bone1.m_Rotation     = Vectormath::Aos::Quat::identity();
+        bone1.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone1.m_InheritScale = false;
+        bone1.m_Length       = 1.0f;
+
+        // Bone 2
+        dmRigDDF::Bone& bone2 = m_Skeleton->m_Bones.m_Data[2];
+        bone2.m_Parent       = 0;
+        bone2.m_Id           = 2;
+        bone2.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+        bone2.m_Rotation     = Vectormath::Aos::Quat::identity();
+        bone2.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone2.m_InheritScale = false;
+        bone2.m_Length       = 1.0f;
+
+        // Bone 3
+        dmRigDDF::Bone& bone3 = m_Skeleton->m_Bones.m_Data[3];
+        bone3.m_Parent       = 2;
+        bone3.m_Id           = 3;
+        bone3.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+        bone3.m_Rotation     = Vectormath::Aos::Quat::identity();
+        bone3.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone3.m_InheritScale = false;
+        bone3.m_Length       = 1.0f;
+
+        // Bone 4
+        dmRigDDF::Bone& bone4 = m_Skeleton->m_Bones.m_Data[4];
+        bone4.m_Parent       = 3;
+        bone4.m_Id           = 4;
+        bone4.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+        bone4.m_Rotation     = Vectormath::Aos::Quat::identity();
+        bone4.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone4.m_InheritScale = false;
+        bone4.m_Length       = 1.0f;
+
+        m_BindPose.SetCapacity(bone_count);
+        m_BindPose.SetSize(bone_count);
+
+        // IK
+        m_Skeleton->m_Iks.m_Data = new dmRigDDF::IK[1];
+        m_Skeleton->m_Iks.m_Count = 1;
+        dmRigDDF::IK& ik_target = m_Skeleton->m_Iks.m_Data[0];
+        ik_target.m_Id       = dmHashString64("test_ik");
+        ik_target.m_Parent   = 3;
+        ik_target.m_Child    = 2;
+        ik_target.m_Target   = 4;
+        ik_target.m_Positive = true;
+        ik_target.m_Mix      = 1.0f;
+
+        // Calculate bind pose
+        // (code from res_rig_scene.h)
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            dmRig::RigBone* bind_bone = &m_BindPose[i];
+            dmRigDDF::Bone* bone = &m_Skeleton->m_Bones[i];
+            bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
+            if (i > 0)
+            {
+                bind_bone->m_LocalToModel = dmTransform::Mul(m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
+                if (!bone->m_InheritScale)
+                {
+                    bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
+                }
+            }
+            else
+            {
+                bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
+            }
+            bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
+            bind_bone->m_ParentIndex = bone->m_Parent;
+            bind_bone->m_Length = bone->m_Length;
+        }
+
+        // Bone animations
+        uint32_t animation_count = 2;
+        m_AnimationSet->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
+        m_AnimationSet->m_Animations.m_Count = animation_count;
+        dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
+        dmRigDDF::RigAnimation& anim1 = m_AnimationSet->m_Animations.m_Data[1];
+        anim0.m_Id = dmHashString64("valid");
+        anim0.m_Duration            = 3.0f;
+        anim0.m_SampleRate          = 1.0f;
+        anim0.m_EventTracks.m_Count = 0;
+        anim0.m_MeshTracks.m_Count  = 0;
+        anim0.m_IkTracks.m_Count    = 0;
+        anim1.m_Id = dmHashString64("ik_anim");
+        anim1.m_Duration            = 3.0f;
+        anim1.m_SampleRate          = 1.0f;
+        anim1.m_Tracks.m_Count      = 0;
+        anim1.m_EventTracks.m_Count = 0;
+        anim1.m_MeshTracks.m_Count  = 0;
+
+        uint32_t bone_track_count = 2;
+        anim0.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[bone_track_count];
+        anim0.m_Tracks.m_Count = bone_track_count;
+        dmRigDDF::AnimationTrack& anim_track0 = anim0.m_Tracks.m_Data[0];
+        dmRigDDF::AnimationTrack& anim_track1 = anim0.m_Tracks.m_Data[1];
+
+        anim_track0.m_BoneIndex         = 0;
+        anim_track0.m_Positions.m_Count = 0;
+        anim_track0.m_Scale.m_Count     = 0;
+
+        anim_track1.m_BoneIndex         = 1;
+        anim_track1.m_Positions.m_Count = 0;
+        anim_track1.m_Scale.m_Count     = 0;
+
+        uint32_t samples = 4;
+        anim_track0.m_Rotations.m_Data = new float[samples*4];
+        anim_track0.m_Rotations.m_Count = samples*4;
+        ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::identity();
+        ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::identity();
+        ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
+        ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
+
+        anim_track1.m_Rotations.m_Data = new float[samples*4];
+        anim_track1.m_Rotations.m_Count = samples*4;
+        ((Quat*)anim_track1.m_Rotations.m_Data)[0] = Quat::identity();
+        ((Quat*)anim_track1.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
+        ((Quat*)anim_track1.m_Rotations.m_Data)[2] = Quat::identity();
+        ((Quat*)anim_track1.m_Rotations.m_Data)[3] = Quat::identity();
+
+        // IK animation
+        anim1.m_IkTracks.m_Data = new dmRigDDF::IKAnimationTrack[1];
+        anim1.m_IkTracks.m_Count = 1;
+        dmRigDDF::IKAnimationTrack& ik_track = anim1.m_IkTracks.m_Data[0];
+        ik_track.m_IkIndex = 0;
+        ik_track.m_Mix.m_Data = new float[samples];
+        ik_track.m_Mix.m_Count = samples;
+        ik_track.m_Mix.m_Data[0] = 1.0f;
+        ik_track.m_Mix.m_Data[1] = 1.0f;
+        ik_track.m_Mix.m_Data[2] = 1.0f;
+        ik_track.m_Mix.m_Data[3] = 1.0f;
+        ik_track.m_Positive.m_Data = new bool[samples];
+        ik_track.m_Positive.m_Count = samples;
+        ik_track.m_Positive.m_Data[0] = 1.0f;
+        ik_track.m_Positive.m_Data[1] = 1.0f;
+        ik_track.m_Positive.m_Data[2] = 1.0f;
+        ik_track.m_Positive.m_Data[3] = 1.0f;
+
+        // Meshes / skins
+        m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
+        m_MeshSet->m_MeshEntries.m_Count = 2;
+
+        CreateDummyMeshEntry(m_MeshSet->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
+        CreateDummyMeshEntry(m_MeshSet->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
+
+        // ------------------
+
+        // Data
+        create_params.m_BindPose     = &m_BindPose;
+        create_params.m_Skeleton     = m_Skeleton;
+        create_params.m_MeshSet      = m_MeshSet;
+        create_params.m_AnimationSet = m_AnimationSet;
+
+        create_params.m_MeshId           = dmHashString64((const char*)"test");
+        create_params.m_DefaultAnimation = dmHashString64((const char*)"");
+
+        if (dmRig::RESULT_OK != dmRig::InstanceCreate(create_params))
+        {
+            dmLogError("Could not create rig instance!");
+        }
+    }
+
+    void TearDownSimpleSpine() {
+
+        dmRig::InstanceDestroyParams destroy_params = {0};
+        destroy_params.m_Context = m_Context->m_RigContext;
+        destroy_params.m_Instance = m_RigInstance;
+        if (dmRig::RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
+            dmLogError("Could not delete rig instance!");
+        }
+
+        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Positive.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Mix.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data;
+        delete [] m_Skeleton->m_Bones.m_Data;
+        delete [] m_Skeleton->m_Iks.m_Data;
+        for (int i = 0; i < 2; ++i)
+        {
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
+        }
+        delete [] m_MeshSet->m_MeshEntries.m_Data;
+
+        delete m_Skeleton;
+        delete m_MeshSet;
+        delete m_AnimationSet;
     }
 };
 
@@ -4152,7 +4526,7 @@ static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton
     }
 }
 
-static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
     dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
     dmRigDDF::MeshSet* mesh_set           = new dmRigDDF::MeshSet();
@@ -4188,10 +4562,41 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
     dummy_data->m_AnimationSet = animation_set;
 
     BuildBindPose(dummy_data->m_BindPose, skeleton);
+
+    if(num_dummy_mesh_entries > 0)
+    {
+        mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[num_dummy_mesh_entries];
+        mesh_set->m_MeshEntries.m_Count = num_dummy_mesh_entries;
+    }
+
+    char buf[64];
+    for (int i = 0; i < num_dummy_mesh_entries; ++i)
+    {
+        sprintf(buf, "skin%i", i);
+        CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[i], dmHashString64(buf), Vector4(float(i)/float(num_dummy_mesh_entries)));
+    }
 }
 
-static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data)
+static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
+    if (num_dummy_mesh_entries > 0)
+    {
+        for (int i = 0; i < num_dummy_mesh_entries; ++i)
+        {
+            dmRig::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
+            dmRig::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
+            delete [] mesh.m_Normals.m_Data;
+            delete [] mesh.m_BoneIndices.m_Data;
+            delete [] mesh.m_Weights.m_Data;
+            delete [] mesh.m_Indices.m_Data;
+            delete [] mesh.m_Color.m_Data;
+            delete [] mesh.m_Texcoord0.m_Data;
+            delete [] mesh.m_Positions.m_Data;
+            delete [] mesh_entry.m_Meshes.m_Data;
+        }
+        delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
+    }
+
     delete dummy_data->m_BindPose;
     delete [] dummy_data->m_Skeleton->m_Bones.m_Data;
     delete dummy_data->m_Skeleton;
@@ -4224,15 +4629,179 @@ TEST_F(dmGuiTest, SpineNode)
 
     dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
     CreateSpineDummyData(dummy_data);
-
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
 
     // create nodes
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
-
     DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiTest, SpineNodeSetSkin)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+    uint32_t num_dummy_mesh_entries = 2;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc* dummy_data = new dmGui::RigSceneDataDesc();
+    CreateSpineDummyData(dummy_data, num_dummy_mesh_entries);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy-skin"), dmHashString64((const char*)""), true));
+
+    // set skin
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineSkin(m_Scene, node, dmHashString64("skin1")));
+    // verify
+    ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
+
+    DeleteSpineDummyData(dummy_data, num_dummy_mesh_entries);
+}
+
+TEST_F(dmGuiTest, SpineNodeGetSkin)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create nodes
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // get skin
+    ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
+}
+
+TEST_F(dmGuiTest, SpineNodeSetCursor)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+    float cursor = 0.5f;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // play animation
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
+
+    // set cursor
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineCursor(m_Scene, node, cursor));
+    ASSERT_NEAR(cursor, dmGui::GetNodeSpineCursor(m_Scene, node), EPSILON);
+}
+
+TEST_F(dmGuiTest, SpineNodeGetCursor)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+    float cursor_offset = 0.3f;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // play animation with cursor initial offset
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, cursor_offset, 1.0, 0,0,0));
+
+    // get cursor
+    ASSERT_EQ(cursor_offset, dmGui::GetNodeSpineCursor(m_Scene, node));
+}
+
+TEST_F(dmGuiTest, SpineNodeSetPlaybackRate)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+    float playback_rate = 0.5f;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // play animation
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
+
+    // set playback rate
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpinePlaybackRate(m_Scene, node, playback_rate));
+    ASSERT_NEAR(playback_rate, dmGui::GetNodeSpinePlaybackRate(m_Scene, node), EPSILON);
+}
+
+TEST_F(dmGuiTest, SpineNodeGetPlaybackRate)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+    float playback_rate = 0.5f;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // play animation
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, playback_rate, 0,0,0));
+
+    // get playback rate
+    ASSERT_NEAR(playback_rate, dmGui::GetNodeSpinePlaybackRate(m_Scene, node), EPSILON);
 }
 
 TEST_F(dmGuiTest, SpineNodeGetBoneNodes)

@@ -22,6 +22,7 @@
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
+           [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
@@ -91,7 +92,26 @@
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc
-                :resource-fields [:spine-scene :material]}])
+                :resource-fields [:spine-scene :material]}
+               {:label "Label"
+                :path "/main/label.label"
+                :pb-class Label$LabelDesc
+                :resource-fields [:font :material]
+                :test-fn (fn [pb targets]
+                           (is (= {:color [1.0 1.0 1.0 1.0],
+                                   :line-break false,
+                                   :scale [1.0 1.0 1.0 0.0],
+                                   :blend-mode :blend-mode-alpha,
+                                   :leading 1.0,
+                                   :font "/builtins/fonts/system_font.fontc",
+                                   :size [128.0 32.0 0.0 0.0],
+                                   :tracking 0.0,
+                                   :material "/builtins/fonts/label.materialc",
+                                   :outline [0.0 0.0 0.0 1.0],
+                                   :pivot :pivot-center,
+                                   :shadow [0.0 0.0 0.0 1.0],
+                                   :text "Label"}
+                                  pb)))}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -120,7 +140,7 @@
                                              ~'build-results))]
        ~@forms)))
 
-(deftest build-game-project
+(deftest build-game-project-pb-cases
   (with-build-results "/game.project"
     (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
           exp-paths   [path

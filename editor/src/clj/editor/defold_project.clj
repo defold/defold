@@ -3,18 +3,14 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [editor.build-errors-view :as build-errors-view]
             [editor.collision-groups :as collision-groups]
             [editor.console :as console]
             [editor.core :as core]
-            [editor.dialogs :as dialogs]
-            [editor.engine :as engine]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
-            [editor.targets :as targets]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [editor.validation :as validation]
@@ -26,19 +22,15 @@
             ;; TODO - HACK
             [internal.graph.types :as gt]
             [clojure.string :as str])
-  (:import [java.io File InputStream]
+  (:import [java.io File]
            [java.nio.file FileSystem FileSystems PathMatcher]
-           [java.lang Process ProcessBuilder]
-           [editor.resource FileResource]
-           [com.defold.editor Platform]))
+           [editor.resource FileResource]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:dynamic *load-cache* nil)
 
 (def ^:private unknown-icon "icons/32/Icons_29-AT-Unknown.png")
-
-(def ^:const hot-reload-url-prefix "/build")
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -169,11 +161,11 @@
 (defn save-data [project]
   (g/node-value project :save-data {:skip-validation true}))
 
-(defn save-all [project {:keys [render-progress! basis cache]
-                         :or {render-progress! progress/null-render-progress!
-                              basis            (g/now)
-                              cache            (g/cache)}
-                         :as opts}]
+(defn write-save-data-to-disk! [project {:keys [render-progress! basis cache]
+                                         :or {render-progress! progress/null-render-progress!
+                                              basis            (g/now)
+                                              cache            (g/cache)}
+                                         :as opts}]
   (try
     (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
       (if-not (g/error? save-data)
@@ -245,7 +237,10 @@
 (defn workspace [project]
   (g/node-value project :workspace))
 
-(defonce ongoing-build-save? (atom false))
+(defonce ^:private ongoing-build-save-atom (atom false))
+
+(defn ongoing-build-save? []
+  @ongoing-build-save-atom)
 
 ;; We want to save any work done by the save/build, so we use our 'save/build cache' as system cache
 ;; if the system cache hasn't changed during the build.
@@ -255,23 +250,23 @@
                        @new-cache
                        current-cache-val))))
 
-(handler/defhandler :save-all :global
-  (enabled? [] (not @ongoing-build-save?))
-  (run [project]
-    (when-not @ongoing-build-save?
-      (reset! ongoing-build-save? true)
-      (let [workspace     (workspace project)
-            old-cache-val @(g/cache)
-            cache         (atom old-cache-val)]
-        (future
-          (try
-            (ui/with-progress [render-fn ui/default-render-progress!]
-              (save-all project {:render-progress! render-fn
-                                 :basis            (g/now)
-                                 :cache            cache})
-              (workspace/update-version-on-disk! workspace)
-              (update-system-cache! old-cache-val cache))
-            (finally (reset! ongoing-build-save? false))))))))
+(defn save-all! [project on-complete-fn]
+  (when-not @ongoing-build-save-atom
+    (reset! ongoing-build-save-atom true)
+    (let [workspace     (workspace project)
+          old-cache-val @(g/cache)
+          cache         (atom old-cache-val)]
+      (future
+        (try
+          (ui/with-progress [render-fn ui/default-render-progress!]
+                            (write-save-data-to-disk! project {:render-progress! render-fn
+                                                               :basis            (g/now)
+                                                               :cache            cache})
+                            (workspace/update-version-on-disk! workspace)
+                            (update-system-cache! old-cache-val cache))
+          (ui/run-later
+            (on-complete-fn))
+          (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -351,25 +346,6 @@
   (let [build-resources (set (map :resource build-results))]
     (reset! cache (into {} (filter (fn [[resource key]] (contains? build-resources resource)) @cache)))))
 
-(defn- pump-engine-output [^InputStream stdout]
-  (let [buf (byte-array 1024)]
-    (loop []
-      (let [n (.read stdout buf)]
-        (when (> n -1)
-          (let [msg (String. buf 0 n)]
-            (console/append-console-message! msg)
-            (recur)))))))
-
-(defn- launch-engine [launch-dir]
-  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)
-        pb     (doto (ProcessBuilder. ^java.util.List (list path))
-                 (.redirectErrorStream true)
-                 (.directory launch-dir))]
-    (let [p  (.start pb)
-          is (.getInputStream p)]
-      (.start (Thread. (fn [] (pump-engine-output is)))))))
-
 (defn build-and-write [project node {:keys [render-progress! basis cache]
                                      :or {render-progress! progress/null-render-progress!
                                           basis            (g/now)
@@ -414,12 +390,6 @@
     (enabled? [project-graph] (g/has-redo? project-graph))
     (run [project-graph] (g/redo! project-graph)))
 
-(ui/extend-menu ::menubar :editor.app-view/open
-                [{:label "Save All"
-                  :id ::save-all
-                  :acc "Shortcut+S"
-                  :command :save-all}])
-
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"
                   :id ::project
@@ -428,14 +398,8 @@
                               :command :build}
                              {:label "Fetch Libraries"
                               :command :fetch-libraries}
-                             {:label :separator}
-                             {:label "Target"
-                              :on-submenu-open targets/update!
-                              :command :target}
-                             {:label "Enter Target IP"
-                              :command :target-ip}
-                             {:label "Target Discovery Log"
-                              :command :target-log}]}])
+                             {:label :separator
+                              :id ::project-end}]}])
 
 (defn- outputs [node]
   (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
@@ -488,7 +452,18 @@
                                 {} to-reload-int)
             old->new (atom {})]
         ;; Internal resources to reload
-        (let [resources-to-create (mapv second to-reload-int)
+        (let [in-use? (fn [resource-node-id]
+                        (some (fn [[target _]]
+                                (and (not= project target)
+                                     (= project-graph (g/node-id->graph-id target))))
+                              (gt/targets (g/now) resource-node-id)))
+              should-create-node? (fn [[operation resource]]
+                                    (or (not= :removed operation)
+                                        (-> resource
+                                            resource/proj-path
+                                            nodes-by-path
+                                            in-use?)))
+              resources-to-create (into [] (comp (filter should-create-node?) (map second)) to-reload-int)
               new-nodes (make-nodes! project resources-to-create)
               new-nodes-by-path (into {} (map (fn [n] (let [r (g/node-value n :resource)]
                                                         [(resource/proj-path r) n]))
@@ -577,10 +552,9 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-
-(defn build-and-save-project [project build-errors-view]
-  (when-not @ongoing-build-save?
-    (reset! ongoing-build-save? true)
+(defn build-and-save-project [project build-options]
+  (when-not @ongoing-build-save-atom
+    (reset! ongoing-build-save-atom true)
     (let [workspace     (workspace project)
           game-project  (get-resource-node project "/game.project")
           old-cache-val @(g/cache)
@@ -588,64 +562,14 @@
       (future
         (try
           (ui/with-progress [render-fn ui/default-render-progress!]
-            (ui/run-later (build-errors-view/clear-build-errors build-errors-view))
+            (ui/run-later ((:clear-errors! build-options)))
             (when-not (empty? (build-and-write project game-project
-                                               {:render-progress! render-fn
-                                                :render-error!    (fn [errors]
-                                                                    (ui/run-later
-                                                                     (build-errors-view/update-build-errors
-                                                                      build-errors-view
-                                                                      errors)))
-                                                :basis            (g/now)
-                                                :cache            cache}))
+                                               (assoc build-options
+                                                      :render-progress! render-fn
+                                                      :basis (g/now)
+                                                      :cache cache)))
               (update-system-cache! old-cache-val cache)))
-          (finally (reset! ongoing-build-save? false)))))))
-
-(defn get-selected-target [prefs]
-  (prefs/get-prefs prefs "last-target" targets/local-target))
-
-(handler/defhandler :build :global
-  (enabled? [] (not @ongoing-build-save?))
-  (run [project prefs web-server build-errors-view]
-    (let [build  (build-and-save-project project build-errors-view)]
-      (when (and (future? build) @build)
-        (or (when-let [target (get-selected-target prefs)]
-              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload-url-prefix)]
-                (engine/reboot (:url target) local-url)))
-            (launch-engine (io/file (workspace/project-path (g/node-value project :workspace)))))))))
-
-(handler/defhandler :target :global
-  (run [user-data prefs]
-    (when user-data
-      (prefs/set-prefs prefs "last-target" user-data)))
-  (state [user-data prefs]
-         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
-           (= user-data last-target)))
-  (options [user-data prefs]
-           (when-not user-data
-             (let [targets     (targets/get-targets)
-                   last-target (when-let [lt (prefs/get-prefs prefs "last-target" nil)]
-                                 [lt])]
-               (mapv (fn [target]
-                       (let [[_ _ ip] (re-matches #"^(http://)([\w\.]+)(:)(.*)$" (:url target))]
-                         {:label     (format "%s (%s)" (:name target) ip)
-                          :command   :target
-                          :check     true
-                          :user-data target}))
-                     (distinct (concat last-target targets)))))))
-
-(handler/defhandler :target-ip :global
-  (run [prefs]
-    (ui/run-later
-     (when-let [ip (dialogs/make-target-ip-dialog)]
-       (let [url (format "http://%s:8001" ip)]
-         (prefs/set-prefs prefs "last-target" {:name "Manual IP"
-                                               :url  url})
-         (ui/invalidate-menus!))))))
-
-(handler/defhandler :target-log :global
-  (run []
-    (ui/run-later (targets/make-target-log-dialog))))
+          (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn settings [project]
   (g/node-value project :settings))
@@ -732,7 +656,8 @@
 
 (deftype ProjectSelectionProvider [project-id]
   handler/SelectionProvider
-  (selection [this] (g/node-value project-id :selected-node-ids)))
+  (selection [this] (g/node-value project-id :selected-node-ids))
+  (succeeding-selection [this] []))
 
 (defn selection-provider [project-id] (ProjectSelectionProvider. project-id))
 
