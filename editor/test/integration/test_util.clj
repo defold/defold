@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
+            [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
@@ -29,7 +30,6 @@
             [editor.particlefx :as particlefx]
             [editor.gui :as gui]
             [editor.json :as json]
-            [editor.mesh :as mesh]
             [editor.model :as model]
             [editor.material :as material]
             [editor.handler :as handler]
@@ -56,6 +56,7 @@
        (concat
         (atlas/register-resource-types workspace)
         (camera/register-resource-types workspace)
+        (collada-scene/register-resource-types workspace)
         (collection/register-resource-types workspace)
         (collection-proxy/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
@@ -70,7 +71,6 @@
         (json/register-resource-types workspace)
         (label/register-resource-types workspace)
         (material/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
