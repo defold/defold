@@ -107,10 +107,10 @@
       (is (= #{} (:untracked (git/status git))))
       (create-file git "/src/util.cpp" "// stuff")
       (is (= #{"src/util.cpp"} (:modified (git/status git))))
-      (is (= #{"src/util.cpp"} (:uncommited-changes (git/status git))))
+      (is (= #{"src/util.cpp"} (:uncommitted-changes (git/status git))))
       (autostage git)
       (is (= #{} (:modified (git/status git))))
-      (is (= #{"src/util.cpp"} (:uncommited-changes (git/status git)))))
+      (is (= #{"src/util.cpp"} (:uncommitted-changes (git/status git)))))
 
     (testing "Create new.cpp"
       (create-file git "/src/new.cpp" "")
