@@ -13,18 +13,20 @@ namespace dmBuffer
 
     enum ValueType
     {
-        BUFFER_TYPE_UINT8,
-        BUFFER_TYPE_UINT16,
-        BUFFER_TYPE_UINT32,
-        BUFFER_TYPE_UINT64,
+        VALUE_TYPE_UINT8     = 0,
+        VALUE_TYPE_UINT16    = 1,
+        VALUE_TYPE_UINT32    = 2,
+        VALUE_TYPE_UINT64    = 3,
 
-        BUFFER_TYPE_INT8,
-        BUFFER_TYPE_INT16,
-        BUFFER_TYPE_INT32,
-        BUFFER_TYPE_INT64,
+        VALUE_TYPE_INT8      = 4,
+        VALUE_TYPE_INT16     = 5,
+        VALUE_TYPE_INT32     = 6,
+        VALUE_TYPE_INT64     = 7,
 
-        BUFFER_TYPE_FLOAT32,
-        BUFFER_TYPE_FLOAT64,
+        VALUE_TYPE_FLOAT32   = 8,
+        VALUE_TYPE_FLOAT64   = 9,
+
+        MAX_VALUE_TYPE_COUNT = 10,
     };
 
     enum Result
@@ -35,11 +37,11 @@ namespace dmBuffer
 
         RESULT_ALLOCATION_ERROR,
 
+        RESULT_BUFFER_INVALID,
         RESULT_BUFFER_SIZE_ERROR,
+
         RESULT_STREAM_SIZE_ERROR,
-
         RESULT_STREAM_DOESNT_EXIST,
-
         RESULT_STREAM_WRONG_TYPE,
         RESULT_STREAM_WRONG_COUNT
     };
@@ -83,6 +85,13 @@ namespace dmBuffer
      * @param buffer Pointer to the buffer to free
      */
     void Free(HBuffer buffer);
+
+    /**
+     * Validate a buffer and its streams.
+     * @param buffer Pointer to the buffer to validate
+     * @return Returns BUFFER_OK if buffer is valid
+     */
+    Result ValidateBuffer(HBuffer buffer);
 
     /**
      * Get a Stream from a Buffer
