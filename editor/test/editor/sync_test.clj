@@ -129,7 +129,7 @@
         (swap! !flow sync/advance-flow progress/null-render-progress!)
         (is (= :push/staging (:state @!flow)))
         (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))
-        (git/stage-change! local-git (git/make-modified-change "src/main.cpp"))
+        (git/stage-change! local-git (git/make-modify-change "src/main.cpp"))
         (swap! !flow sync/refresh-git-state)
         (is (= #{"src/main.cpp"} (:staged @!flow)))
         (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))
