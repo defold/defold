@@ -1,14 +1,14 @@
 (ns editor.sync
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.set :as set]
             [editor
              [dialogs :as dialogs]
              [diff-view :as diff-view]
              [git :as git]
              [handler :as handler]
              [login :as login]
-             [ui :as ui]]
+             [ui :as ui]
+             [vcs-status :as vcs-status]]
             [editor.progress :as progress])
   (:import [org.eclipse.jgit.api Git PullResult]
            [org.eclipse.jgit.revwalk RevCommit]
@@ -216,7 +216,7 @@
     :push/done      flow))
 
 (ui/extend-menu ::conflicts-menu nil
-                [{:label "Show Diff"
+                [{:label "View Diff"
                   :command :show-diff}
                  {:label "Use Ours"
                   :command :use-ours}
@@ -224,13 +224,13 @@
                   :command :use-theirs}])
 
 (ui/extend-menu ::staging-menu nil
-                [{:label "Show Diff"
+                [{:label "View Diff"
                   :command :show-change-diff}
                  {:label "Stage Change"
                   :command :stage-change}])
 
 (ui/extend-menu ::unstaging-menu nil
-                [{:label "Show Diff"
+                [{:label "View Diff"
                   :command :show-change-diff}
                  {:label "Unstage Change"
                   :command :unstage-change}])
@@ -470,7 +470,7 @@
       (ui/context! (:stage push-controls) :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/bind-action! (:stage push-controls) :stage-change)
       (ui/register-context-menu list-view ::staging-menu)
-      (ui/cell-factory! list-view (fn [e] {:text (git/change-path e)})))
+      (ui/cell-factory! list-view vcs-status/render-verbose))
 
     (let [^ListView list-view (:staged push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
@@ -478,7 +478,7 @@
       (ui/context! (:unstage push-controls) :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/bind-action! (:unstage push-controls) :unstage-change)
       (ui/register-context-menu list-view ::unstaging-menu)
-      (ui/cell-factory! list-view (fn [e] {:text (git/change-path e)})))
+      (ui/cell-factory! list-view vcs-status/render-verbose))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
                      (ui/event-handler event
