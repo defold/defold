@@ -263,6 +263,21 @@ TEST_F(GetDataTest, WriteOutsideStream)
     ASSERT_NE((void*)0x0, out_stream);
 }
 
+TEST_F(GetDataTest, Alignment)
+{
+    void *out_stream = 0x0;
+    uint32_t out_stride = 0;
+    uint32_t out_element_count = 0;
+
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
+
+    r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3, &out_stream, &out_stride, &out_element_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
