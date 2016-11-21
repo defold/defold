@@ -9,7 +9,6 @@
 namespace dmBuffer
 {
     typedef struct Buffer* HBuffer;
-    typedef struct StreamDeclaration* BufferDeclaration;
 
     enum ValueType
     {
@@ -53,32 +52,15 @@ namespace dmBuffer
         uint8_t   m_ValueCount;
     };
 
-    struct Buffer
-    {
-        struct Stream
-        {
-            dmhash_t  m_Name;
-            uint32_t  m_Offset; // ~4gb addressable space
-            // uint32_t  m_End;
-            ValueType m_ValueType;
-            uint8_t   m_ValueCount;
-        };
-
-        uint8_t  m_NumStreams;
-        Stream*  m_Streams;
-        uint32_t m_NumElements; // What size is the buffer?
-        void*    m_Data; // All data, including guard bytes. 16 byte aligned
-    };
-
     /**
      * Allocate a new Buffer with a number of different streams
      * @param num_elements The number of elements the buffer should hold. Total byte size will be (num_elements * ( SizeOf(num_decl, decl) + guard bytes) )
-     * @param buffer_decl Array of stream declarations
-     * @param buffer_decl_count Number of stream declarations inside the decl array
+     * @param streams_decl Array of stream declarations
+     * @param streams_decl_count Number of stream declarations inside the decl array (max 256)
      * @param out_buffer Pointer to HBuffer where to store the newly allocated buffer
      * @return Returns BUFFER_OK if buffer was allocated successfully
      */
-    Result Allocate(uint32_t num_elements, const BufferDeclaration buffer_decl, uint8_t buffer_decl_count, HBuffer* out_buffer);
+    Result Allocate(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
 
     /**
      * Frees a Buffer

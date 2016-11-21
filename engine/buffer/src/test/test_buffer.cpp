@@ -15,15 +15,18 @@ class GetDataTest : public ::testing::Test
 {
 public:
     dmBuffer::HBuffer buffer;
+    void*             out_stream;
+    uint32_t          out_stride;
+    uint32_t          out_element_count;
 
 protected:
     virtual void SetUp() {
-        dmBuffer::StreamDeclaration buffer_decl[] = {
+        dmBuffer::StreamDeclaration streams_decl[] = {
             {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
             {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2}
         };
 
-        dmBuffer::Allocate(4, buffer_decl, 2, &buffer);
+        dmBuffer::Allocate(4, streams_decl, 2, &buffer);
     }
 
     virtual void TearDown() {
@@ -31,65 +34,75 @@ protected:
     }
 };
 
+#define CLEAR_OUT_VARS(out_stream, out_stride, out_element_count)\
+    out_stream = 0x0;\
+    out_stride = 0;\
+    out_element_count = 0;\
+
 TEST_F(BufferTest, InvalidAllocation)
 {
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::BufferDeclaration buffer_decl_empty = {0};
-    dmBuffer::StreamDeclaration buffer_decl_filled[] = {
+    dmBuffer::StreamDeclaration streams_decl[] = {
         {dmHashString64("dummy1"), dmBuffer::VALUE_TYPE_UINT8, 3},
-        {dmHashString64("dummy2"), dmBuffer::VALUE_TYPE_UINT8, 1}
+        {dmHashString64("dummy2"), dmBuffer::VALUE_TYPE_UINT8, 1},
+        {dmHashString64("dummy3"), dmBuffer::VALUE_TYPE_UINT8, 0}
     };
 
-    // Empty declaration
-    dmBuffer::Result r = dmBuffer::Allocate(0, buffer_decl_empty, 0, &buffer);
-    ASSERT_NE(dmBuffer::RESULT_OK, r);
-    ASSERT_EQ(0x0, buffer);
-
-    // Valid declaration, zero elements
-    r = dmBuffer::Allocate(0, buffer_decl_filled, 2, &buffer);
-    ASSERT_NE(dmBuffer::RESULT_OK, r);
+    // Empty declaration, zero elements
+    dmBuffer::Result r = dmBuffer::Allocate(0, streams_decl, 0, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
     ASSERT_EQ(0x0, buffer);
 
     // Empty declaration, 1 element
-    r = dmBuffer::Allocate(1, buffer_decl_empty, 0, &buffer);
-    ASSERT_NE(dmBuffer::RESULT_OK, r);
+    r = dmBuffer::Allocate(1, streams_decl, 0, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
+    ASSERT_EQ(0x0, buffer);
+
+    // Valid declaration, zero elements
+    r = dmBuffer::Allocate(0, streams_decl, 2, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
+    ASSERT_EQ(0x0, buffer);
+
+    // Valid sizes, but invalid valuetype count (see "dummy3" above)
+    r = dmBuffer::Allocate(1, streams_decl, 3, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
     ASSERT_EQ(0x0, buffer);
 
     // Valid sizes, but buffer is NULL-pointer
-    r = dmBuffer::Allocate(1, buffer_decl_empty, 1, 0x0);
-    ASSERT_NE(dmBuffer::RESULT_OK, r);
+    r = dmBuffer::Allocate(1, streams_decl, 1, 0x0);
+    ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
     ASSERT_EQ(0x0, buffer);
 
     // Valid sizes, but declaration is NULL-pointer
     r = dmBuffer::Allocate(1, 0x0, 1, &buffer);
-    ASSERT_NE(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
     ASSERT_EQ(0x0, buffer);
 }
 
 TEST_F(BufferTest, ValidAllocation)
 {
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::StreamDeclaration buffer_decl[] = {
+    dmBuffer::StreamDeclaration streams_decl[] = {
         {dmHashString64("position"), dmBuffer::VALUE_TYPE_UINT8, 3},
         {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT8, 1}
     };
 
     // Declaration of 2 streams, with 4 elements
-    dmBuffer::Result r = dmBuffer::Allocate(4, buffer_decl, 2, &buffer);
+    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, buffer);
     dmBuffer::Free(buffer);
     buffer = 0x0;
 
     // Allocation with only the first stream declaration
-    r = dmBuffer::Allocate(4, buffer_decl, 1, &buffer);
+    r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, buffer);
     dmBuffer::Free(buffer);
     buffer = 0x0;
 
     // Larger allocation
-    r = dmBuffer::Allocate(1024*1024, buffer_decl, 2, &buffer);
+    r = dmBuffer::Allocate(1024*1024, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, buffer);
     dmBuffer::Free(buffer);
@@ -98,14 +111,14 @@ TEST_F(BufferTest, ValidAllocation)
 TEST_F(BufferTest, ValueTypes)
 {
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::StreamDeclaration buffer_decl[] = {
+    dmBuffer::StreamDeclaration streams_decl[] = {
         {dmHashString64("dummy"), dmBuffer::VALUE_TYPE_UINT8, 3}
     };
     for (int i = 0; i < dmBuffer::MAX_VALUE_TYPE_COUNT; ++i)
     {
-        buffer_decl[0].m_ValueType = (dmBuffer::ValueType)i;
+        streams_decl[0].m_ValueType = (dmBuffer::ValueType)i;
 
-        dmBuffer::Result r = dmBuffer::Allocate(4, buffer_decl, 1, &buffer);
+        dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
         ASSERT_EQ(dmBuffer::RESULT_OK, r);
         ASSERT_NE((void*)0x0, buffer);
         dmBuffer::Free(buffer);
@@ -116,7 +129,7 @@ TEST_F(BufferTest, ValueTypes)
 TEST_F(BufferTest, ValidateBuffer)
 {
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::StreamDeclaration buffer_decl[] = {
+    dmBuffer::StreamDeclaration streams_decl[] = {
         {dmHashString64("dummy"), dmBuffer::VALUE_TYPE_UINT8, 1}
     };
 
@@ -126,7 +139,7 @@ TEST_F(BufferTest, ValidateBuffer)
 
     // Create valid buffer, but write outside stream boundry
     // Should not be a valid buffer after.
-    r = dmBuffer::Allocate(1, buffer_decl, 1, &buffer);
+    r = dmBuffer::Allocate(1, streams_decl, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     // Get and write outside buffer
@@ -150,10 +163,12 @@ TEST_F(BufferTest, ValidateBuffer)
     dmBuffer::Free(buffer);
 }
 
+
+
 TEST_F(BufferTest, InvalidGetData)
 {
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::StreamDeclaration buffer_decl[] = {
+    dmBuffer::StreamDeclaration streams_decl[] = {
         {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
         {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2}
     };
@@ -162,10 +177,11 @@ TEST_F(BufferTest, InvalidGetData)
     uint32_t out_stride = 0;
     uint32_t out_element_count = 0;
 
-    dmBuffer::Result r = dmBuffer::Allocate(4, buffer_decl, 2, &buffer);
+    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     // Invalid buffer pointer
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(0, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 8, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_INVALID, r);
     ASSERT_EQ(0x0, out_stream);
@@ -173,6 +189,7 @@ TEST_F(BufferTest, InvalidGetData)
     ASSERT_EQ(0, out_element_count);
 
     // Get unknown stream
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("unknown"), dmBuffer::VALUE_TYPE_UINT8, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_DOESNT_EXIST, r);
     ASSERT_EQ(0x0, out_stream);
@@ -180,6 +197,7 @@ TEST_F(BufferTest, InvalidGetData)
     ASSERT_EQ(0, out_element_count);
 
     // Correct stream, but wrong type
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_UINT16, 3, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_WRONG_TYPE, r);
     ASSERT_EQ(0x0, out_stream);
@@ -187,6 +205,7 @@ TEST_F(BufferTest, InvalidGetData)
     ASSERT_EQ(0, out_element_count);
 
     // Correct stream, but wrong value count
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 8, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_WRONG_COUNT, r);
     ASSERT_EQ(0x0, out_stream);
@@ -198,11 +217,8 @@ TEST_F(BufferTest, InvalidGetData)
 
 TEST_F(GetDataTest, ValidGetData)
 {
-    void *out_stream = 0x0;
-    uint32_t out_stride = 0;
-    uint32_t out_element_count = 0;
-
     // Get texcoord stream
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
@@ -218,6 +234,7 @@ TEST_F(GetDataTest, ValidGetData)
     }
 
     // Get stream again
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
@@ -234,13 +251,11 @@ TEST_F(GetDataTest, ValidGetData)
     }
 }
 
+
 TEST_F(GetDataTest, WriteOutsideStream)
 {
-    void *out_stream = 0x0;
-    uint32_t out_stride = 0;
-    uint32_t out_element_count = 0;
-
     // Get texcoord stream
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
@@ -265,10 +280,7 @@ TEST_F(GetDataTest, WriteOutsideStream)
 
 TEST_F(GetDataTest, Alignment)
 {
-    void *out_stream = 0x0;
-    uint32_t out_stride = 0;
-    uint32_t out_element_count = 0;
-
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
@@ -277,6 +289,8 @@ TEST_F(GetDataTest, Alignment)
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
 }
+
+#undef CLEAR_OUT_VARS
 
 int main(int argc, char **argv)
 {
