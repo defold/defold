@@ -153,15 +153,22 @@
        (assoc :state new-state)
        (update :progress #(progress/advance % n)))))
 
+(defn- find-changes [status unified-status status-keys]
+  (into #{}
+        (comp (filter (fn [change]
+                          (some #(contains? (status %)
+                                            (git/change-path change))
+                                status-keys)))
+              (map #(dissoc % :score)))
+        unified-status))
+
+(defn find-git-state [status unified-status]
+  {:staged   (find-changes status unified-status [:added :changed :removed])
+   :modified (find-changes status unified-status [:missing :modified :untracked])})
+
 (defn refresh-git-state [{:keys [git] :as flow}]
-  (let [st (git/status git)]
-    (merge flow
-           {:staged   (set/union (:added st)
-                                 (:removed st)
-                                 (:changed st))
-            :modified (set/union (:missing st)
-                                 (:untracked st)
-                                 (:modified st))})))
+  (merge flow (find-git-state (git/status git)
+                              (git/unified-status git))))
 
 (defn advance-flow [{:keys [git state progress creds conflicts stash-ref message] :as flow} render-progress]
   (render-progress progress)
@@ -196,9 +203,9 @@
 
     :push/start     (advance-flow (tick (refresh-git-state flow) :push/staging) render-progress)
     :push/staging   flow
-    :push/comitting (do
-                      (git/commit git message)
-                      (advance-flow (tick flow :push/pushing) render-progress))
+    :push/committing (do
+                       (git/commit git message)
+                       (advance-flow (tick flow :push/pushing) render-progress))
     :push/pushing   (do
                       (try
                         (git/push git creds)
@@ -209,24 +216,24 @@
     :push/done      flow))
 
 (ui/extend-menu ::conflicts-menu nil
-                [{:label "Show diff"
+                [{:label "Show Diff"
                   :command :show-diff}
-                 {:label "Use ours"
+                 {:label "Use Ours"
                   :command :use-ours}
-                 {:label "Use theirs"
+                 {:label "Use Theirs"
                   :command :use-theirs}])
 
 (ui/extend-menu ::staging-menu nil
-                [{:label "Show diff"
-                  :command :show-file-diff}
-                 {:label "Stage files"
-                  :command :stage-file}])
+                [{:label "Show Diff"
+                  :command :show-change-diff}
+                 {:label "Stage Change"
+                  :command :stage-change}])
 
 (ui/extend-menu ::unstaging-menu nil
-                [{:label "Show diff"
-                  :command :show-file-diff}
-                 {:label "Unstage files"
-                  :command :unstage-file}])
+                [{:label "Show Diff"
+                  :command :show-change-diff}
+                 {:label "Unstage Change"
+                  :command :unstage-change}])
 
 (defn get-theirs [{:keys [git] :as flow} file]
   (String. ^bytes (git/show-file git file)))
@@ -256,10 +263,11 @@
         (diff-view/make-diff-viewer (str "Theirs '" file "'") theirs
                                     (str "Ours '" file "'") ours)))))
 
-(handler/defhandler :show-file-diff :sync
+(handler/defhandler :show-change-diff :sync
   (enabled? [selection] (= 1 (count selection)))
   (run [selection !flow]
-    (let [file   (first selection)
+    (let [change (first selection)
+          file   (git/change-path change)
           ours   (try (slurp (io/file (git/worktree (:git @!flow)) file)) (catch Exception _))
           theirs (try (get-theirs @!flow file) (catch Exception _))]
       (when (and ours theirs)
@@ -282,18 +290,18 @@
         (spit (io/file (git/worktree (:git @!flow)) f) theirs)
         (resolve-file! !flow f)))))
 
-(handler/defhandler :stage-file :sync
+(handler/defhandler :stage-change :sync
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
-    (doseq [f selection]
-      (git/stage-file! (:git @!flow) f))
+    (doseq [change selection]
+      (git/stage-change! (:git @!flow) change))
     (swap! !flow refresh-git-state)))
 
-(handler/defhandler :unstage-file :sync
+(handler/defhandler :unstage-change :sync
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
-    (doseq [f selection]
-      (git/unstage-file! (:git @!flow) f))
+    (doseq [change selection]
+      (git/unstage-change! (:git @!flow) change))
     (swap! !flow refresh-git-state)))
 
 ;; =================================================================================
@@ -383,8 +391,8 @@
                                                    staged-view ^ListView (:staged push-controls)
                                                    changed-selection (vec (ui/selection changed-view))
                                                    staged-selection (vec (ui/selection staged-view))]
-                                               (ui/items! changed-view (sort modified))
-                                               (ui/items! staged-view (sort staged))
+                                               (ui/items! changed-view (sort-by git/change-path modified))
+                                               (ui/items! staged-view (sort-by git/change-path staged))
                                                (ui/disable! (:ok dialog-controls)
                                                             (or (empty? staged)
                                                                 (empty? (ui/text (:message push-controls)))))
@@ -423,7 +431,7 @@
                                              (= :push/staging (:state @!flow))
                                              (swap! !flow #(advance-flow
                                                             (merge %
-                                                                   {:state   :push/comitting
+                                                                   {:state   :push/committing
                                                                     :message (ui/text (:message push-controls))})
                                                             render-progress))
 
@@ -435,7 +443,7 @@
                                                                    :progress (progress/make "push" 4)}))
                                              (swap! !flow advance-flow render-progress)))
 
-    (ui/bind-action! (:diff push-controls) :show-file-diff)
+    (ui/bind-action! (:diff push-controls) :show-change-diff)
 
     (ui/observe (.focusOwnerProperty scene)
                 (fn [_ _ new]
@@ -465,17 +473,17 @@
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
       (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/context! (:stage push-controls) :sync {:!flow !flow} (ui/->selection-provider list-view))
-      (ui/bind-action! (:stage push-controls) :stage-file)
+      (ui/bind-action! (:stage push-controls) :stage-change)
       (ui/register-context-menu list-view ::staging-menu)
-      (ui/cell-factory! list-view (fn [e] {:text e})))
+      (ui/cell-factory! list-view (fn [e] {:text (git/change-path e)})))
 
     (let [^ListView list-view (:staged push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
       (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/context! (:unstage push-controls) :sync {:!flow !flow} (ui/->selection-provider list-view))
-      (ui/bind-action! (:unstage push-controls) :unstage-file)
+      (ui/bind-action! (:unstage push-controls) :unstage-change)
       (ui/register-context-menu list-view ::unstaging-menu)
-      (ui/cell-factory! list-view (fn [e] {:text e})))
+      (ui/cell-factory! list-view (fn [e] {:text (git/change-path e)})))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
                      (ui/event-handler event

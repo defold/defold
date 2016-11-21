@@ -57,7 +57,7 @@
      :missing                 (set (.getMissing s))
      :modified                (set (.getModified s))
      :removed                 (set (.getRemoved s))
-     :uncommited-changes      (set (.getUncommittedChanges s))
+     :uncommitted-changes     (set (.getUncommittedChanges s))
      :untracked               (set (.getUntracked s))
      :untracked-folders       (set (.getUntrackedFolders s))
      :conflicting-stage-state (apply hash-map
@@ -136,13 +136,8 @@
 (defn make-rename-change [old-path new-path]
   {:change-type :rename :old-path old-path :new-path new-path})
 
-(defn- guess-change [git file-path]
-  "DEPRECATED. TODO: Remove remaining calls to this function."
-  ; The stage-change! and unstage-change! functions behave the same for :add
-  ; and :modify changes, so make-modify-change will work for added files.
-  (if (.exists (file git file-path))
-    (make-modify-change file-path)
-    (make-delete-change file-path)))
+(defn change-path [{:keys [old-path new-path]}]
+  (or new-path old-path))
 
 (defn stage-change! [^Git git {:keys [change-type old-path new-path]}]
   (case change-type
@@ -157,14 +152,6 @@
     :delete        (-> git .reset (.addPath old-path) .call)
     :rename        (do (-> git .reset (.addPath new-path) .call)
                        (-> git .reset (.addPath old-path) .call))))
-
-(defn stage-file! [git file-path]
-  "DEPRECATED. TODO: Remove remaining calls to this function."
-  (stage-change! git (guess-change git file-path)))
-
-(defn unstage-file! [git file-path]
-  "DEPRECATED. TODO: Remove remaining calls to this function."
-  (unstage-change! git (guess-change git file-path)))
 
 (defn hard-reset [^Git git ^RevCommit start-ref]
   (-> (.reset git)
