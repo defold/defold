@@ -4,6 +4,7 @@
 .lock-wscript
 /share/ext/build
 /share/ext/download
+/share/extender/build
 /go/pkg
 /go/bin
 
