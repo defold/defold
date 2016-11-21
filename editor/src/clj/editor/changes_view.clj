@@ -5,10 +5,11 @@
             [editor.diff-view :as diff-view]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.sync :as sync]
             [editor.ui :as ui]
             [editor.resource :as resource]
+            [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
-            [editor.sync :as sync]
             [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
@@ -25,26 +26,8 @@
         list-view (g/node-value changes-view :list-view)]
     (refresh-list-view! git list-view)))
 
-(def ^:const status-icons
-  {:add    "icons/32/Icons_M_07_plus.png"
-   :modify "icons/32/Icons_S_06_arrowup.png"
-   :delete "icons/32/Icons_M_06_trash.png"
-   :rename "icons/32/Icons_S_08_arrow-d-right.png"})
-
-(def ^:const status-styles
-  {:add    #{"added-file"}
-   :modify #{"modified-file"}
-   :delete #{"deleted-file"}
-   :rename #{"renamed-file"}})
-
-(defn- status-render [status]
-  {:text (format "%s" (or (:new-path status)
-                          (:old-path status)))
-   :icon (get status-icons (:change-type status))
-   :style (get status-styles (:change-type status) #{})})
-
 (ui/extend-menu ::changes-menu nil
-                [{:label "Diff"
+                [{:label "View Diff"
                   :icon "icons/32/Icons_S_06_arrowup.png"
                   :command :diff}
                  {:label "Revert"
@@ -115,7 +98,7 @@
       (ui/context! parent :changes-view {:git git :list-view list-view :workspace workspace} (ui/->selection-provider list-view) {}
                    {resource/Resource (fn [status] (status->resource workspace status))})
       (ui/register-context-menu list-view ::changes-menu)
-      (ui/cell-factory! list-view status-render)
+      (ui/cell-factory! list-view vcs-status/render)
       (ui/bind-action! diff-button :diff)
       (ui/bind-action! revert-button :revert)
       (ui/disable! diff-button true)
