@@ -31,6 +31,59 @@ namespace dmGameSystem
      * @namespace spine
      */
 
+     /*# spine cursor (number)
+     *
+     * The normalized animation cursor. The type of the property is number.
+     *
+     * @name cursor
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to get the normalized cursor value:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Get the cursor value on component "spine"
+     *  cursor = go.get("#spine", "cursor")
+     * end
+     * </pre>
+     * <p>
+     * How to animate the cursor from 0.0 to 1.0 using linear easing for 2.0 seconds:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Get the current value on component "spine"
+     *  go.set("#spine", "cursor", 0.0)
+     *  -- Animate the cursor value
+     *  go.animate("#spine", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
+     * end
+     * </pre>
+     * Please note that spine events may not fire as expected when the cursor is manipulated directly.
+     */
+
+     /*# spine playback_rate (number)
+     *
+     * The animation playback rate. A multiplier to the animation playback rate. The type of the property is number.
+     *
+     * @name playback_rate
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to set the playback_rate on component "spine" to play at double the current speed:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Get the current value on component "spine"
+     *  playback_rate = go.get("#spine", "playback_rate")
+     *  -- Set the playback_rate to double the previous value.
+     *  go.set("#spine", "playback_rate", playback_rate * 2)
+     * end
+     * </pre>
+     * The playback_rate cannot have a negative value.
+     */
+
     int SpineComp_Play(lua_State* L)
     {
         int top = lua_gettop(L);
