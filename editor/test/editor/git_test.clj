@@ -7,17 +7,14 @@
            org.apache.commons.io.FileUtils
            [org.eclipse.jgit.api Git]))
 
-(defn- git-file [^Git git path]
-  (io/file (str (.getWorkTree (.getRepository git)) "/" path)))
-
 (defn create-file [git path content]
-  (let [f (git-file git path)]
+  (let [f (git/file git path)]
     (io/make-parents f)
     (spit f content)))
 
 (defn move-file [git old-path new-path]
-  (let [old-file (git-file git old-path)
-        new-file (git-file git new-path)]
+  (let [old-file (git/file git old-path)
+        new-file (git/file git new-path)]
     (io/make-parents new-file)
     (.renameTo old-file new-file)))
 
@@ -43,10 +40,10 @@
   (FileUtils/deleteDirectory (.getWorkTree (.getRepository git))))
 
 (defn delete-file [git file]
-  (io/delete-file (git-file git file)))
+  (io/delete-file (git/file git file)))
 
 (defn slurp-file [git file]
-  (slurp (git-file git file)))
+  (slurp (git/file git file)))
 
 (defn- add-src [git]
   (-> git (.add) (.addFilepattern "src") (.call)))

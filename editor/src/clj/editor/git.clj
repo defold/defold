@@ -90,6 +90,9 @@
           (->> (.compute rd (.getObjectReader tw) nil)
                (mapv diff-entry->map)))))))
 
+(defn file ^java.io.File [^Git git file-path]
+  (io/file (str (worktree git) "/" file-path)))
+
 (defn show-file
   ([^Git git name]
    (show-file git name "HEAD"))
@@ -133,10 +136,11 @@
 (defn make-rename-change [old-path new-path]
   {:change-type :rename :old-path old-path :new-path new-path})
 
-(defn guess-change [git file-path]
+(defn- guess-change [git file-path]
+  "DEPRECATED. TODO: Remove remaining calls to this function."
   ; The stage-change! and unstage-change! functions behave the same for :add
   ; and :modify changes, so make-modify-change will work for added files.
-  (if (.exists (io/file (str (worktree git) "/" file-path)))
+  (if (.exists (file git file-path))
     (make-modify-change file-path)
     (make-delete-change file-path)))
 
@@ -216,7 +220,7 @@
   (let [s (status git)]
     (doseq [f files]
       (when (contains? (:untracked s) f)
-        (io/delete-file (str (.getWorkTree (.getRepository git)) "/" f))))))
+        (io/delete-file (file git f))))))
 
 (defn make-clone-monitor [^ProgressBar progress-bar]
   (let [tasks (atom {"remote: Finding sources" 0
