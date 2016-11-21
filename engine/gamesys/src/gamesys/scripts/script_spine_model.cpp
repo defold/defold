@@ -59,7 +59,7 @@ namespace dmGameSystem
      *  go.animate("#spine", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
      * end
      * </pre>
-     * Please note that spine events may not fire as expected when the cursor is manipulated directly.
+     * <p>Please note that spine events may not fire as expected when the cursor is manipulated directly.</p>
      */
 
      /*# spine playback_rate (number)
@@ -81,7 +81,7 @@ namespace dmGameSystem
      *  go.set("#spine", "playback_rate", playback_rate * 2)
      * end
      * </pre>
-     * The playback_rate cannot have a negative value.
+     * <p>The playback_rate cannot have a negative value.</p>
      */
 
     int SpineComp_Play(lua_State* L)
