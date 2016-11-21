@@ -24,6 +24,109 @@
        (= (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider (:creds a))
           (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider (:creds b)))))
 
+(deftest find-git-state-test
+  (let [base-status {:added #{}
+                     :changed #{}
+                     :conflicting #{}
+                     :conflicting-stage-state #{}
+                     :ignored-not-in-index #{".DS_Store"
+                                             ".internal"
+                                             "build"
+                                             "main/.DS_Store"
+                                             "main/images/.DS_Store"}
+                     :missing #{}
+                     :modified #{}
+                     :removed #{}
+                     :uncommitted-changes #{}
+                     :untracked #{}
+                     :untracked-folders #{}}]
+    (testing "Working directory clean"
+      (is (= {:modified #{}
+              :staged #{}}
+             (sync/find-git-state base-status
+                                  []))))
+    (testing "Added file, unstaged"
+      (is (= {:modified #{(git/make-add-change "main/added.script")}
+              :staged #{}}
+             (sync/find-git-state (merge base-status
+                                         {:untracked #{"main/added.script"}})
+                                  [{:change-type :add
+                                    :new-path "main/added.script"
+                                    :old-path nil
+                                    :score 0}]))))
+    (testing "Added file, staged"
+      (is (= {:modified #{}
+              :staged #{(git/make-add-change "main/added.script")}}
+             (sync/find-git-state (merge base-status
+                                         {:added #{"main/added.script"}
+                                          :uncommited-changes #{"main/added.script"}})
+                                  [{:change-type :add
+                                    :new-path "main/added.script"
+                                    :old-path nil
+                                    :score 0}]))))
+    (testing "Deleted file, unstaged"
+      (is (= {:modified #{(git/make-delete-change "main/deleted.script")}
+              :staged #{}}
+             (sync/find-git-state (merge base-status
+                                         {:missing #{"main/deleted.script"}
+                                          :uncommited-changes #{"main/deleted.script"}})
+                                  [{:change-type :delete
+                                    :new-path nil
+                                    :old-path "main/deleted.script"
+                                    :score 0}]))))
+    (testing "Deleted file, staged"
+      (is (= {:modified #{}
+              :staged #{(git/make-delete-change "main/deleted.script")}}
+             (sync/find-git-state (merge base-status
+                                         {:removed #{"main/deleted.script"}
+                                          :uncommited-changes #{"main/deleted.script"}})
+                                  [{:change-type :delete
+                                    :new-path nil
+                                    :old-path "main/deleted.script"
+                                    :score 0}]))))
+    (testing "Modified file, unstaged"
+      (is (= {:modified #{(git/make-modify-change "main/modified.script")}
+              :staged #{}}
+             (sync/find-git-state (merge base-status
+                                         {:modified #{"main/modified.script"}
+                                          :uncommited-changes #{"main/modified.script"}})
+                                  [{:change-type :modify
+                                    :new-path "main/modified.script"
+                                    :old-path "main/modified.script"
+                                    :score 0}]))))
+    (testing "Modified file, staged"
+      (is (= {:modified #{}
+              :staged #{(git/make-modify-change "main/modified.script")}}
+             (sync/find-git-state (merge base-status
+                                         {:changed #{"main/modified.script"}
+                                          :uncommited-changes #{"main/modified.script"}})
+                                  [{:change-type :modify
+                                    :new-path "main/modified.script"
+                                    :old-path "main/modified.script"
+                                    :score 0}]))))
+    (testing "Renamed file, unstaged"
+      (is (= {:modified #{(git/make-rename-change "main/old-name.script" "main/new-name.script")}
+              :staged #{}}
+             (sync/find-git-state (merge base-status
+                                         {:missing #{"main/old-name.script"}
+                                          :uncommited-changes #{"main/old-name.script"}
+                                          :untracked #{"main/new-name.script"}})
+                                  [{:change-type :rename
+                                    :new-path "main/new-name.script"
+                                    :old-path "main/old-name.script"
+                                    :score 100}]))))
+    (testing "Renamed file, staged"
+      (is (= {:modified #{}
+              :staged #{(git/make-rename-change "main/old-name.script" "main/new-name.script")}}
+             (sync/find-git-state (merge base-status
+                                         {:added #{"main/new-name.script"}
+                                          :removed #{"main/old-name.script"}
+                                          :uncommited-changes #{"main/old-name.script" "main/new-name.script"}})
+                                  [{:change-type :rename
+                                    :new-path "main/new-name.script"
+                                    :old-path "main/old-name.script"
+                                    :score 100}]))))))
+
 (deftest flow-in-progress-test
   (is (false? (sync/flow-in-progress? nil)))
   (with-git [git (new-git)]
@@ -131,9 +234,9 @@
         (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))
         (git/stage-change! local-git (git/make-modify-change "src/main.cpp"))
         (swap! !flow sync/refresh-git-state)
-        (is (= #{"src/main.cpp"} (:staged @!flow)))
+        (is (= #{(git/make-modify-change "src/main.cpp")} (:staged @!flow)))
         (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))
-        (swap! !flow merge {:state   :push/comitting
+        (swap! !flow merge {:state   :push/committing
                             :message "foobar"})
         (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))
         (swap! !flow sync/advance-flow progress/null-render-progress!)
