@@ -264,15 +264,10 @@
                                     (str "Ours '" file "'") ours)))))
 
 (handler/defhandler :show-change-diff :sync
-  (enabled? [selection] (= 1 (count selection)))
+  (enabled? [selection] (git/selection-diffable? selection))
   (run [selection !flow]
-    (let [change (first selection)
-          file   (git/change-path change)
-          ours   (try (slurp (io/file (git/worktree (:git @!flow)) file)) (catch Exception _))
-          theirs (try (get-theirs @!flow file) (catch Exception _))]
-      (when (and ours theirs)
-        (diff-view/make-diff-viewer (str "Theirs '" file "'") theirs
-                                    (str "Ours '" file "'") ours)))))
+       (let [{:keys [new new-path old old-path]} (git/selection-diff-data (:git @!flow) selection)]
+         (diff-view/make-diff-viewer old-path old new-path new))))
 
 (handler/defhandler :use-ours :sync
   (enabled? [selection] (pos? (count selection)))
@@ -330,15 +325,15 @@
                                      enabled           (cond
                                                          (and (ui/focus? changed-view)
                                                               (seq changed-selection))
-                                                         (if (next changed-selection)
-                                                           #{:stage}
-                                                           #{:stage :diff})
+                                                         (if (git/selection-diffable? changed-selection)
+                                                           #{:stage :diff}
+                                                           #{:stage})
 
                                                          (and (ui/focus? staged-view)
                                                               (seq staged-selection))
-                                                         (if (next staged-selection)
-                                                           #{:unstage}
-                                                           #{:unstage :diff})
+                                                         (if (git/selection-diffable? staged-selection)
+                                                           #{:unstage :diff}
+                                                           #{:unstage})
 
                                                          :else
                                                          #{})]

@@ -70,17 +70,10 @@
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
-            (and (= 1 (count selection))
-                 (not= :add (:change-type (first selection)))
-                 (not= :delete (:change-type (first selection)))))
+            (git/selection-diffable? selection))
   (run [selection ^Git git list-view]
-       (let [status (first selection)
-             old-name (or (:old-path status) (:new-path status) )
-             new-name (or (:new-path status) (:old-path status) )
-             work-tree (.getWorkTree (.getRepository git))
-             old (String. ^bytes (git/show-file git old-name))
-             new (slurp (io/file work-tree new-name))]
-         (diff-view/make-diff-viewer old-name old new-name new))))
+       (let [{:keys [new new-path old old-path]} (git/selection-diff-data git selection)]
+         (diff-view/make-diff-viewer old-path old new-path new))))
 
 (handler/defhandler :synchronize :global
   (enabled? [changes-view]
