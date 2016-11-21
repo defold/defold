@@ -4,15 +4,28 @@ import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.model.proto";
-option java_outer_classname = "Model";
+option java_outer_classname = "ModelProto";
+
+// TODO: Add documentation for messages, see spine_ddf.proto
 
 message ModelDesc
 {
     required string mesh        = 2 [(resource)=true];
     required string material    = 3 [(resource)=true];
     repeated string textures    = 4 [(resource)=true];
+    optional string skeleton    = 5 [(resource)=true];
+    optional string animations  = 6 [(resource)=true];
+    optional string default_animation  = 7;
 
     optional string name        = 10; // Deprecated
+}
+
+message Model
+{
+    required string rig_scene   = 1 [(resource)=true];
+    required string material    = 2 [(resource)=true];
+    repeated string textures    = 3 [(resource)=true];
+    optional string default_animation  = 4;
 }
 
 message ResetConstant
@@ -24,4 +37,25 @@ message SetTexture
 {
     required uint64 texture_hash = 1;
     required uint32 texture_unit = 2;
+}
+
+message ModelPlayAnimation
+{
+    required uint64 animation_id = 1;
+    // matches dmGameObject::Playback in gameobject.h
+    required uint32 playback = 2;
+    optional float blend_duration = 3 [default = 0.0];
+    optional float offset = 4 [default = 0.0];
+    optional float playback_rate = 5 [default = 1.0];
+}
+
+message ModelCancelAnimation
+{
+}
+
+message ModelAnimationDone
+{
+    required uint64 animation_id = 1;
+    // matches dmGameObject::Playback in gameobject.h
+    required uint32 playback = 2;
 }

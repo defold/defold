@@ -1,4 +1,4 @@
-(ns editor.mesh
+(ns editor.collada-scene
   (:require [clojure.java.io :as io]
             [clojure.xml :as xml]
             [clojure.string :as str]
@@ -15,16 +15,11 @@
             [editor.gl.pass :as pass]
             [editor.geom :as geom]
             [editor.render :as render]
+            [editor.rig :as rig]
             [editor.collada :as collada])
-  (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]))
+  (:import [com.dynamo.rig.proto Rig$MeshSet]
+           [editor.types AABB]
+           [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
 
@@ -103,16 +98,16 @@
 
 (defn- build-mesh [self basis resource dep-resources user-data]
   (let [content (:content user-data)]
-    {:resource resource :content (protobuf/map->bytes Mesh$MeshDesc content)}))
+    {:resource resource :content (protobuf/map->bytes Rig$MeshSet content)}))
 
 (g/defnk produce-build-targets [_node-id resource content]
   [{:node-id _node-id
-   :resource (workspace/make-build-resource resource)
-   :build-fn build-mesh
-   :user-data {:content content}}])
+    :resource (workspace/make-build-resource resource)
+    :build-fn build-mesh
+    :user-data {:content content}}])
 
 (g/defnk produce-content [resource]
-  (collada/->mesh (io/input-stream resource)))
+  (collada/->mesh-set (io/input-stream resource)))
 
 (g/defnk produce-scene [_node-id aabb vbs]
   {:node-id _node-id
@@ -125,20 +120,20 @@
                             :textures {"texture" texture/white-pixel}}
                 :passes [pass/opaque pass/selection pass/outline]}})
 
-(defn- component->vb [c]
-  (let [vcount (* 3 (:primitive-count c))]
+(defn- mesh->vb [m]
+  (let [vcount (count (:positions m))]
     (when (> vcount 0)
       (loop [vb (->vtx-pos-nrm-tex vcount)
-             ps (partition 3 (:positions c))
-             ns (partition 3 (:normals c))
-             ts (partition 2 (:texcoord0 c))]
+             ps (partition 3 (:positions m))
+             ns (partition 3 (:normals m))
+             ts (partition 2 (:texcoord0 m))]
         (if-let [[x y z] (first ps)]
           (let [[nx ny nz] (first ns)
                 [tu tv] (first ts)]
             (recur (conj! vb [x y z nx ny nz tu tv]) (rest ps) (rest ns) (rest ts)))
           (persistent! vb))))))
 
-(g/defnode MeshNode
+(g/defnode ColladaSceneNode
   (inherits project/ResourceNode)
 
   (output content g/Any :cached produce-content)
@@ -149,19 +144,19 @@
                                            (partition 3 (get-in content [:components 0 :positions])))))
   (output build-targets g/Any :cached produce-build-targets)
   (output vbs g/Any :cached (g/fnk [content]
-                                   (loop [components (:components content)
+                                   (loop [meshes (mapcat :meshes (:mesh-entries content))
                                           vbs []]
-                                     (if-let [c (first components)]
-                                       (let [vb (component->vb c)]
-                                         (recur (rest components) (if vb (conj vbs vb) vbs)))
+                                     (if-let [c (first meshes)]
+                                       (let [vb (mesh->vb c)]
+                                         (recur (rest meshes) (if vb (conj vbs vb) vbs)))
                                        vbs))))
   (output scene g/Any :cached produce-scene))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "dae"
-                                    :label "Collada Mesh"
-                                    :build-ext "meshc"
-                                    :node-type MeshNode
+                                    :label "Collada Scene"
+                                    :build-ext "meshsetc"
+                                    :node-type ColladaSceneNode
                                     :icon mesh-icon
                                     :view-types [:scene :text]))

@@ -2351,6 +2351,8 @@ namespace dmGui
         create_params.m_Skeleton         = rig_data.m_Skeleton;
         create_params.m_MeshSet          = rig_data.m_MeshSet;
         create_params.m_AnimationSet     = rig_data.m_AnimationSet;
+        create_params.m_PoseIdxToInfluence = rig_data.m_PoseIdxToInfluence;
+        create_params.m_TrackIdxToPose     = rig_data.m_TrackIdxToPose;
         create_params.m_MeshId           = skin_id;
         create_params.m_DefaultAnimation = default_animation_id;
 
