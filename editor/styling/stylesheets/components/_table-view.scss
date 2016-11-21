@@ -1,0 +1,15 @@
+
+.table-view {
+    .table-column {
+        -fx-background-insets: 0;
+        -fx-border-width: 0 1 0 0;
+        -fx-border-color: $mid-grey;
+    }
+    .filler {
+        -fx-background-insets: 0;
+    }
+    .column-header-background {
+        -fx-border-width: 0 0 1 0;
+        -fx-border-color: $mid-grey;
+    }
+}

@@ -196,7 +196,7 @@
                  (g/transact
                    (g/set-property node :name "new_name"))
                  (is (has-undo? project))
-                 (project/save-all project {})
+                 (project/write-save-data-to-disk! project {})
                  (sync! workspace)
                  (is (has-undo? project)))))))
 
@@ -331,6 +331,31 @@
       (is (some? or-node))
       (write-file workspace "/gui/sub_scene.gui" (read-file workspace "/gui/new_sub_scene.gui"))
       (is (some? (gui-node node-id "sub_scene/sub_box2"))))))
+
+(deftest label
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (let [node-id (project/get-resource-node project "/label/label.label")]
+        (is (= "Original" (g/node-value node-id :text)))
+        (is (= [1.0 1.0 1.0] (g/node-value node-id :scale)))
+        (is (= [1.0 1.0 1.0 1.0] (g/node-value node-id :color)))
+        (is (= [0.0 0.0 0.0 1.0] (g/node-value node-id :outline)))
+        (is (= 1.0 (g/node-value node-id :leading)))
+        (is (= 0.0 (g/node-value node-id :tracking)))
+        (is (= :pivot-center (g/node-value node-id :pivot)))
+        (is (= :blend-mode-alpha (g/node-value node-id :blend-mode)))
+        (is (false? (g/node-value node-id :line-break))))
+      (write-file workspace "/label/label.label" (read-file workspace "/label/new_label.label"))
+      (let [node-id (project/get-resource-node project "/label/label.label")]
+        (is (= "Modified" (g/node-value node-id :text)))
+        (is (= [2.0 3.0 4.0] (g/node-value node-id :scale)))
+        (is (= [1.0 0.0 0.0 1.0] (g/node-value node-id :color)))
+        (is (= [1.0 1.0 1.0 1.0] (g/node-value node-id :outline)))
+        (is (= 2.0 (g/node-value node-id :leading)))
+        (is (= 1.0 (g/node-value node-id :tracking)))
+        (is (= :pivot-n (g/node-value node-id :pivot)))
+        (is (= :blend-mode-add (g/node-value node-id :blend-mode)))
+        (is (true? (g/node-value node-id :line-break)))))))
 
 (deftest game-project
   (with-clean-system

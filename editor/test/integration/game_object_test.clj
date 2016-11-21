@@ -1,20 +1,15 @@
 (ns integration.game-object-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.data :as data]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
-            [editor.collection :as collection]
             [editor.game-object :as game-object]
-            [editor.handler :as handler]
             [editor.defold-project :as project]
+            [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.properties :as properties]
             [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+  (:import (com.dynamo.gameobject.proto GameObject$PrototypeDesc)
+           (java.io StringReader)))
 
 (defn- build-error? [node-id]
   (g/error? (g/node-value node-id :build-targets)))
@@ -41,3 +36,29 @@
                      (is (g/error? (test-util/prop-error factory :id)))
                      (is (g/error? (test-util/prop-error comp-id :id)))
                      (is (build-error? go-id)))))))))
+
+(defn- save-data
+  [project resource]
+  (first (filter #(= resource (:resource %))
+                 (project/save-data project))))
+
+(deftest embedded-components
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          resource-types (game-object/embeddable-component-resource-types workspace)
+          save-data (partial save-data project)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          add-component! (partial test-util/add-embedded-component! project)
+          go-id (project/get-resource-node project "/game_object/test.go")
+          go-resource (g/node-value go-id :resource)]
+      (doseq [resource-type resource-types]
+        (testing (:label resource-type)
+          (with-open [_ (make-restore-point!)]
+            (add-component! resource-type go-id)
+            (let [saved-string (:content (save-data go-resource))
+                  saved-embedded-components (g/node-value go-id :embed-ddf)
+                  loaded-embedded-components (:embedded-components (protobuf/read-text GameObject$PrototypeDesc (StringReader. saved-string)))
+                  [only-in-saved only-in-loaded] (data/diff saved-embedded-components loaded-embedded-components)]
+              (is (nil? only-in-saved))
+              (is (nil? only-in-loaded)))))))))
