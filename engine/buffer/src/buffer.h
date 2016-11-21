@@ -53,8 +53,8 @@ namespace dmBuffer
     };
 
     /**
-     * Allocate a new Buffer with a number of different streams
-     * @param num_elements The number of elements the buffer should hold. Total byte size will be (num_elements * ( SizeOf(num_decl, decl) + guard bytes) )
+     * Allocate a new HBuffer with a number of different streams.
+     * @param num_elements The number of elements the buffer should hold
      * @param streams_decl Array of stream declarations
      * @param streams_decl_count Number of stream declarations inside the decl array (max 256)
      * @param out_buffer Pointer to HBuffer where to store the newly allocated buffer
@@ -63,7 +63,7 @@ namespace dmBuffer
     Result Allocate(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
 
     /**
-     * Frees a Buffer
+     * Frees a HBuffer.
      * @param buffer Pointer to the buffer to free
      */
     void Free(HBuffer buffer);
@@ -76,8 +76,8 @@ namespace dmBuffer
     Result ValidateBuffer(HBuffer buffer);
 
     /**
-     * Get a Stream from a Buffer
-     * @param buffer Pointer to a buffer
+     * Get a stream from a buffer. Output stream is 16 byte aligned.
+     * @param buffer Pointer to a buffer.
      * @param stream_name Hash of stream name to get
      * @param type Value type of expected stream
      * @param type_count Count of values per entry in stream
@@ -89,4 +89,5 @@ namespace dmBuffer
     Result GetStream(HBuffer buffer, dmhash_t stream_name, ValueType type, uint32_t type_count, void** out_stream, uint32_t* out_stride, uint32_t* out_element_count);
 
 }
+
 #endif

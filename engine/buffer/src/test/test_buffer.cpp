@@ -273,9 +273,10 @@ TEST_F(GetDataTest, WriteOutsideStream)
     }
 
     // Get stream again, expecting invalid guard
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_GUARD_INVALID, r);
-    ASSERT_NE((void*)0x0, out_stream);
+    ASSERT_EQ((void*)0x0, out_stream);
 }
 
 TEST_F(GetDataTest, Alignment)
@@ -285,6 +286,7 @@ TEST_F(GetDataTest, Alignment)
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
 
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
