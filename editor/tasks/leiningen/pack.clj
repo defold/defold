@@ -52,6 +52,7 @@
 (def dynamo-home-artifacts
   {"ext/bin/win32/luajit.exe"     "x86-win32/bin/luajit.exe"
    "ext/lib/win32/OpenAL32.dll"   "x86-win32/bin/OpenAL32.dll"
+   "ext/lib/win32/wrap_oal.dll"   "x86-win32/bin/wrap_oal.dll"
    "ext/bin/linux/luajit"         "x86-linux/bin/luajit"
    "ext/bin/x86_64-darwin/luajit" "x86_64-darwin/bin/luajit"
    "ext/bin/x86_64-linux/luajit"  "x86_64-linux/bin/luajit"
