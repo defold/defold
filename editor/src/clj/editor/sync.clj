@@ -411,6 +411,10 @@
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
 
+    ; Disable the window close button, since it is unclear what it means.
+    ; This forces the user to make an active choice between Done or Cancel.
+    (ui/on-closing! stage (fn [_] false))
+
     (ui/on-action! (:cancel dialog-controls) (fn [_]
                                                (cancel-flow! !flow)
                                                (.close stage)))
