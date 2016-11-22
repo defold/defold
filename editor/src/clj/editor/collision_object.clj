@@ -19,6 +19,7 @@
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.types :as types]
+   [editor.util :as util]
    [editor.validation :as validation]
    [editor.workspace :as workspace]
    [editor.scene :as scene]
@@ -643,7 +644,9 @@
                                                      {:node-id _node-id
                                                       :label "Collision Object"
                                                       :icon collision-object-icon
-                                                      :children child-outlines}))
+                                                      :children (vec (sort-by :label util/natural-order child-outlines))
+                                                      :child-reqs [{:node-type Shape
+                                                                    :tx-attach-fn attach-shape-node}]}))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-data g/Any :cached produce-save-data)

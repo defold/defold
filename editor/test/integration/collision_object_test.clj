@@ -38,7 +38,7 @@
             outline   (g/node-value node-id :node-outline)
             scene     (g/node-value node-id :scene)]
         (is (= 3 (count (:children scene))))
-        (is (= ["Collision Object" "Sphere" "Box" "Capsule"] (outline-seq outline)))))))
+        (is (= ["Collision Object" "Box" "Capsule" "Sphere"] (outline-seq outline)))))))
 
 (deftest add-shapes
   (testing "Adding a sphere"
@@ -63,17 +63,12 @@
                (let [r (workspace/resolve-workspace-resource workspace "/nope.convexshape")]
                  (test-util/with-prop [node-id :collision-shape r]
                    (is (g/error? (test-util/prop-error node-id :collision-shape))))))
-      (testing "sphere"
-               (let [shape (:node-id (test-util/outline node-id [0]))]
-                 (test-util/with-prop [shape :diameter -1]
-                   (is (g/error? (test-util/prop-error shape :diameter))))))
-      (testing "box"
-               (let [shape (:node-id (test-util/outline node-id [1]))]
-                 (test-util/with-prop [shape :dimensions [-1 1 1]]
-                   (is (g/error? (test-util/prop-error shape :dimensions))))))
-      (testing "capsule"
-               (let [shape (:node-id (test-util/outline node-id [2]))]
-                 (test-util/with-prop [shape :diameter -1]
-                   (is (g/error? (test-util/prop-error shape :diameter))))
-                 (test-util/with-prop [shape :height -1]
-                   (is (g/error? (test-util/prop-error shape :height)))))))))
+      (doseq [[type index props] [["box" 0 {:dimensions [-1 1 1]}]
+                                  ["capsule" 1 {:diameter -1
+                                                :height -1}]
+                                  ["sphere" 2 {:diameter -1}]]]
+        (testing type
+               (let [shape (:node-id (test-util/outline node-id [index]))]
+                 (doseq [[prop value] props]
+                   (test-util/with-prop [shape prop value]
+                    (is (g/error? (test-util/prop-error shape prop)))))))))))
