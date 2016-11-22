@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
+#include <buffer/buffer.h>
 #include <dlib/vmath.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -144,6 +145,9 @@ namespace dmScript
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
+
+    void PushBuffer(lua_State* L, dmBuffer::HBuffer buffer);
+    dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index);
 
     /**
      * Serialize a table to a buffer

@@ -66,6 +66,7 @@ def configure(conf):
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_SCRIPT'] = 'script'
+    conf.env['STATICLIB_BUFFER'] = 'buffer'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
