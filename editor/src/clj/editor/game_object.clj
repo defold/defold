@@ -298,7 +298,7 @@
   {:node-id _node-id
    :label "Game Object"
    :icon game-object-icon
-   :children (vec (sort-by :label util/natural-order child-outlines))
+   :children (outline/natural-sort child-outlines)
    :child-reqs [{:node-type ReferencedComponent
                  :tx-attach-fn outline-attach-ref-fn}
                 {:node-type EmbeddedComponent
