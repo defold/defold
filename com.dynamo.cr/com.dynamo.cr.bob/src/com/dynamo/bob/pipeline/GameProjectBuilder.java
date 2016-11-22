@@ -371,11 +371,11 @@ public class GameProjectBuilder extends Builder<Void> {
                 String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
 
                 if (projectIdentifier == null) {
-                	throw new CompileExceptionError(input, -1, "game.project has no project.title!");
+                    throw new CompileExceptionError(input, -1, "game.project has no project.title!");
                 } else if (supportedEngineVersionsString == null) {
-                	throw new CompileExceptionError(input, -1, "game.project has no liveupdate.supported_versions!");
+                    throw new CompileExceptionError(input, -1, "game.project has no liveupdate.supported_versions!");
                 } else if (privateKeyFilepath == null) {
-                	throw new CompileExceptionError(input, -1, "game.project has no liveupdate.privatekey!");
+                    throw new CompileExceptionError(input, -1, "game.project has no liveupdate.privatekey!");
                 }
 
                 manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
@@ -384,10 +384,10 @@ public class GameProjectBuilder extends Builder<Void> {
                 manifestBuilder.setProjectIdentifier(projectIdentifier);
                 manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
 
-            	String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
-            	for (String supportedEngineVersion : supportedEngineVersions) {
-            		manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
-            	}
+                String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
+                for (String supportedEngineVersion : supportedEngineVersions) {
+                    manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
+                }
 
                 // Make sure we don't try to archive the .darc or .projectc
                 resources.remove(task.output(0).getAbsPath());

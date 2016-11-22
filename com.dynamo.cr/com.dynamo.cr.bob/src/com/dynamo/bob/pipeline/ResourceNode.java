@@ -10,11 +10,11 @@ public class ResourceNode {
     private final List<ResourceNode> children = new ArrayList<ResourceNode>();
 
     public ResourceNode(final String relativeFilepath, final String absoluteFilepath) {
-    	if (relativeFilepath.startsWith("/")) {
-    		this.relativeFilepath = relativeFilepath;
-    	} else {
-    		this.relativeFilepath = "/" + relativeFilepath;
-    	}
+        if (relativeFilepath.startsWith("/")) {
+            this.relativeFilepath = relativeFilepath;
+        } else {
+            this.relativeFilepath = "/" + relativeFilepath;
+        }
         this.absoluteFilepath = absoluteFilepath;
     }
 
@@ -23,7 +23,7 @@ public class ResourceNode {
     }
 
     public List<ResourceNode> getChildren() {
-    	return this.children;
+        return this.children;
     }
 
     public void print(int indent) {

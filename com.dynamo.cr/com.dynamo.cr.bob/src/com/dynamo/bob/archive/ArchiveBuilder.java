@@ -141,13 +141,13 @@ public class ArchiveBuilder {
         i = 0;
         for (ArchiveEntry e : entries) {
             String ext = FilenameUtils.getExtension(e.fileName);
-            
+
             int size = e.size;
             if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 size = e.compressedSize;
             }
             byte[] buf = new byte[size];
-            
+
             if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
                 outFile.seek(resourcesOffset.get(i));
                 outFile.read(buf);
@@ -160,7 +160,7 @@ public class ArchiveBuilder {
             outFile.seek(resourcesOffset.get(i));
             outFile.read(buf);
             if (manifestBuilder != null) {
-            	manifestBuilder.addResourceEntry(normalisedPath, buf);
+                manifestBuilder.addResourceEntry(normalisedPath, buf);
             }
             ++i;
         }
