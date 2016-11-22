@@ -83,7 +83,7 @@
               (and (= (:pos new-progress) (:size new-progress))
                    (not= (:pos old-progress) (:size old-progress))))))))
 
-(defn- flow-journal-file ^java.io.File [^Git git]
+(defn flow-journal-file ^java.io.File [^Git git]
   (some-> git .getRepository .getWorkTree (io/file ".internal/.sync-in-progress")))
 
 (defn- write-flow-journal! [{:keys [git] :as flow}]
@@ -101,17 +101,32 @@
     (.exists file)
     false))
 
+(defn cancel-flow! [!flow]
+  (remove-watch !flow ::on-flow-changed)
+  (let [{:keys [git start-ref stash-ref]} @!flow
+        file (flow-journal-file git)]
+    (when (.exists file)
+      (io/delete-file file :silently))
+    (git/hard-reset git start-ref)
+    (when stash-ref
+      (git/stash-apply git stash-ref)
+      (git/stash-drop git stash-ref))))
+
 (defn begin-flow! [^Git git prefs]
   (when *login*
     (login/login prefs))
   (let [creds (git/credentials prefs)
         start-ref (git/get-current-commit-ref git)
         stash-ref (git/stash git)
-        flow  (make-flow git creds start-ref stash-ref)
+        flow (make-flow git creds start-ref stash-ref)
         !flow (atom flow)]
-    (write-flow-journal! flow)
-    (add-watch !flow ::on-flow-changed on-flow-changed)
-    !flow))
+    (try
+      (write-flow-journal! flow)
+      (add-watch !flow ::on-flow-changed on-flow-changed)
+      !flow
+      (catch Exception e
+        (cancel-flow! !flow)
+        (throw e)))))
 
 (defn resume-flow [^Git git prefs]
   (when *login*
@@ -124,17 +139,6 @@
         !flow (atom flow)]
     (add-watch !flow ::on-flow-changed on-flow-changed)
     !flow))
-
-(defn cancel-flow! [!flow]
-  (remove-watch !flow ::on-flow-changed)
-  (let [{:keys [git start-ref stash-ref]} @!flow
-        file (flow-journal-file git)]
-    (when (.exists file)
-      (io/delete-file file :silently))
-    (git/hard-reset git start-ref)
-    (when stash-ref
-      (git/stash-apply git stash-ref)
-      (git/stash-drop git stash-ref))))
 
 (defn finish-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
