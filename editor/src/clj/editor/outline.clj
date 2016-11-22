@@ -104,15 +104,19 @@
            false))
        true))))
 
-(defn cut! [src-item-iterators]
-  (let [data     (copy src-item-iterators)
-        root-ids (mapv #(:node-id (value %)) src-item-iterators)]
-    (g/transact
-      (concat
-        (g/operation-label "Cut")
-        (for [id root-ids]
-          (g/delete-node id))))
-    data))
+(defn cut!
+  ([src-item-iterators]
+    (cut! src-item-iterators []))
+  ([src-item-iterators extra-tx-data]
+    (let [data     (copy src-item-iterators)
+          root-ids (mapv #(:node-id (value %)) src-item-iterators)]
+      (g/transact
+        (concat
+          (g/operation-label "Cut")
+          (for [id root-ids]
+            (g/delete-node id))
+          extra-tx-data))
+      data)))
 
 (defn- deserialize
   [text]

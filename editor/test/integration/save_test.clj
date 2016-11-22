@@ -14,6 +14,7 @@
            [com.dynamo.render.proto Font$FontDesc]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
+           [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
@@ -23,6 +24,7 @@
                            "go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
+                           "label" Label$LabelDesc
                            "model" Model$ModelDesc
                            "particlefx" Particle$ParticleFX
                            "spinescene" Spine$SpineSceneDesc
@@ -59,7 +61,9 @@
                  "**/new.tilemap"
                  "**/with_layers.tilemap"
                  "**/test.model"
-                 "**/empty_mesh.model"]]
+                 "**/empty_mesh.model"
+                 "**/test.label"
+                 "**/with_collection.collectionproxy"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)

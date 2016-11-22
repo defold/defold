@@ -160,7 +160,9 @@
 
       (make-boxes left texts-left edits :left)
       (make-boxes right texts-right edits :right)
-      (make-lines markers texts-left texts-right edits))))
+      (make-lines markers texts-left texts-right edits)
+      (.toFront left-group)
+      (.toFront right-group))))
 
 ; TODO: Remove soon
 #_(ui/run-later (make-diff-viewer "" "1\n2\n3\n4\n5\n6\n7\n8....\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n"

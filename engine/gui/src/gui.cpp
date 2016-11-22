@@ -1460,6 +1460,12 @@ namespace dmGui
 
                     lua_newtable(L);
 
+                    if (ia->m_IsGamepad) {
+                        lua_pushliteral(L, "gamepad");
+                        lua_pushnumber(L, ia->m_GamepadIndex);
+                        lua_settable(L, -3);
+                    }
+
                     if (ia->m_ActionId != 0)
                     {
                         lua_pushstring(L, "value");
@@ -2468,6 +2474,19 @@ namespace dmGui
         return n->m_Node.m_SpineSceneHash;
     }
 
+    Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        dmRig::Result result = dmRig::SetMesh(rig_instance, skin_id);
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    dmhash_t GetNodeSpineSkin(HScene scene, HNode node)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        return dmRig::GetMesh(rig_instance);
+    }
+
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2591,7 +2610,63 @@ namespace dmGui
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2)
+    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        dmRig::Result result = dmRig::SetCursor(rig_instance, cursor, true);
+
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    float GetNodeSpineCursor(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            dmLogError("Can only get cursor for spine node");
+            return 0.0f;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        float cursor = dmRig::GetCursor(rig_instance, true);
+        return cursor;
+    }
+
+    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        dmRig::Result result = dmRig::SetPlaybackRate(rig_instance, playback_rate);
+
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    float GetNodeSpinePlaybackRate(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            dmLogError("Can only get playback_rate for spine node");
+            return 0.0f;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        float playback_rate = dmRig::GetPlaybackRate(rig_instance);
+        return playback_rate;
+    }
+
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
@@ -2614,7 +2689,7 @@ namespace dmGui
         } ddf_playback_map;
 
         dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend)) {
+        if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend, offset, playback_rate)) {
             return RESULT_INVAL_ERROR;
         }
 
@@ -2953,11 +3028,9 @@ namespace dmGui
 
             if (pd->m_Component == 0xff) {
                 for (int j = 0; j < 4; ++j) {
-                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
-                    // Only run callback for the first component
-                    animation_complete = 0;
-                    userdata1 = 0;
-                    userdata2 = 0;
+                    // Only run callback for the lastcomponent
+                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay,
+                                    j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
                 }
             } else {
                 AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);

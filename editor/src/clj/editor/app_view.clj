@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.changes-view :as changes-view]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.handler :as handler]
@@ -165,7 +166,7 @@
                  :width  (.getWidth stage)
                  :height (.getHeight stage)}]
     (prefs/set-prefs prefs prefs-window-dimensions dims)))
-  
+
 (defn restore-window-dimensions [^Stage stage prefs]
   (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
     (.setX stage (:x dims))
@@ -243,14 +244,14 @@
     (project/build-and-save-project project build-options)))
 
 (handler/defhandler :build :global
-  (enabled? [] (not @project/ongoing-build-save?))
-  (run [project prefs web-server build-errors-view]
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [workspace project prefs web-server build-errors-view]
     (let [build (build-project project build-errors-view)]
       (when (and (future? build) @build)
         (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
                 (engine/reboot (:url target) local-url)))
-            (engine/launch (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+            (engine/launch prefs workspace (io/file (workspace/project-path (g/node-value project :workspace)))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
@@ -321,6 +322,10 @@
                               :id ::open
                               :acc "Shortcut+O"
                               :command :open}
+                             {:label "Save All"
+                              :id ::save-all
+                              :acc "Shortcut+S"
+                              :command :save-all}
                              {:label :separator}
                              {:label "Open Asset"
                               :acc "Shift+Shortcut+R"
@@ -560,6 +565,11 @@
                        :command   :open-as
                        :user-data {:selected-view-type vt}})
                     (:view-types resource-type))))))
+
+(handler/defhandler :save-all :global
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [project changes-view]
+       (project/save-all! project #(changes-view/refresh! changes-view))))
 
 (handler/defhandler :show-in-desktop :global
   (active? [selection] (selection->single-resource-file selection))

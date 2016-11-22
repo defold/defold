@@ -1,0 +1,25 @@
+#changes-container {
+    -fx-padding: 0 0 17 0;
+    >.tool-bar {
+        -fx-background-color: $dark-grey-light;
+        -fx-border-width: 0;
+        -fx-padding: 10 0 10 15;
+    }
+
+    .list-view {
+        -fx-background-color: $dark-grey-light;
+    }
+
+    .flat-list-view {
+        .list-cell {
+            -fx-background-color: $dark-grey-light;
+
+            &:selected {
+                -fx-border-width: 0 2 0 0;
+                -fx-border-color: $defold-orange;
+                -fx-text-fill: $defold-white;
+                -fx-background-color: $dark-grey-selected;
+            }
+        }
+    }
+}

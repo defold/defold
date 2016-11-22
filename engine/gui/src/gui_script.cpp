@@ -457,7 +457,7 @@ namespace dmGui
      */
     int LuaDeleteNode(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -476,7 +476,7 @@ namespace dmGui
     {
         HScene scene = (HScene)curve->userdata1;
         lua_State* L = scene->m_Context->m_LuaState;
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
 
@@ -492,7 +492,7 @@ namespace dmGui
     void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::SetInstance(L);
@@ -863,7 +863,7 @@ namespace dmGui
      */
     int LuaAnimate(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         Scene* scene = GuiScriptInstance_Check(L);
 
@@ -3289,25 +3289,19 @@ namespace dmGui
         return 1;
     }
 
-    /*# play a spine animation
-     *
-     * @name gui.play_spine
-     * @param node spine node that should play the animation (node)
-     * @param animation_id id of the animation to play (string|hash)
-     * @param playback playback mode (constant)
-     * @param blend_duration duration of a linear blend between the current and new animations
-     * @param [complete_function] function to call when the animation has completed (function)
-     */
     int LuaPlaySpine(lua_State* L)
     {
         int top = lua_gettop(L);
 
         HNode hnode;
         Scene* scene = GuiScriptInstance_Check(L);
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        LuaCheckNode(L, 1, &hnode);
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
         lua_Number blend_duration = luaL_checknumber(L, 4);
+        // default values
+        float offset = 0.0f;
+        float playback_rate = 1.0f;
 
         int node_ref = LUA_NOREF;
         int animation_complete_ref = LUA_NOREF;
@@ -3325,19 +3319,127 @@ namespace dmGui
         }
 
         dmGui::Result res;
-        if (animation_complete_ref == LUA_NOREF) {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, 0, 0, 0);
-        } else {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+        if (animation_complete_ref == LUA_NOREF)
+        {
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, 0);
+        }
+        else
+        {
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
 
-        if (res == RESULT_WRONG_TYPE) {
+        if (res == RESULT_WRONG_TYPE)
+        {
             dmLogError("Could not play spine animation on non-spine node.");
-        } else if (res == RESULT_INVAL_ERROR) {
+        }
+        else if (res == RESULT_INVAL_ERROR)
+        {
             const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
-            if (id_string != 0x0) {
+            if (id_string != 0x0)
+            {
                 dmLogError("Could not find and play spine animation %s.", id_string);
-            } else {
+            }
+            else
+            {
+                dmLogError("Could not find and play spine animation (hash %llu).", anim_id);
+            }
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# play a spine animation
+     *
+     * @name gui.play_spine_anim
+     * @param node spine node that should play the animation (node)
+     * @param animation_id id of the animation to play (string|hash)
+     * @param playback playback mode (constant)
+     * <ul>
+     *   <li><code>gui.PLAYBACK_ONCE_FORWARD</code></li>
+     *   <li><code>gui.PLAYBACK_ONCE_BACKWARD</code></li>
+     *   <li><code>gui.PLAYBACK_ONCE_PINGPONG</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_FORWARD</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_BACKWARD</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_PINGPONG</code></li>
+     * </ul>
+     * @param [play_properties] optional table with properties (table)
+     * <ul>
+     *   <li><code>blend_duration</code> duration of a linear blend between the current and new animation (number)</li>
+     *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
+     *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
+     * </ul>
+     */
+    int LuaPlaySpineAnim(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &hnode);
+
+        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
+        lua_Integer playback = luaL_checkinteger(L, 3);
+        lua_Number blend_duration = 0.0, offset = 0.0, playback_rate = 1.0;
+
+        int node_ref = LUA_NOREF;
+        int animation_complete_ref = LUA_NOREF;
+        if (top > 3) // table with args, parse
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "blend_duration");
+            blend_duration = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (top > 4) // completed cb
+        {
+            if (lua_isfunction(L, 5))
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+                lua_pushvalue(L, 5);
+                animation_complete_ref = dmScript::Ref(L, -2);
+                lua_pushvalue(L, 1);
+                node_ref = dmScript::Ref(L, -2);
+                lua_pop(L, 1);
+            }
+        }
+
+        dmGui::Result res;
+        if (animation_complete_ref == LUA_NOREF)
+        {
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, 0);
+        }
+        else
+        {
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+        }
+
+        if (res == RESULT_WRONG_TYPE)
+        {
+            dmLogError("Could not play spine animation on non-spine node.");
+        }
+        else if (res == RESULT_INVAL_ERROR)
+        {
+            const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
+            if (id_string != 0x0)
+            {
+                dmLogError("Could not find and play spine animation %s.", id_string);
+            }
+            else
+            {
                 dmLogError("Could not find and play spine animation (hash %llu).", anim_id);
             }
         }
@@ -3357,7 +3459,7 @@ namespace dmGui
 
         HNode hnode;
         Scene* scene = GuiScriptInstance_Check(L);
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        LuaCheckNode(L, 1, &hnode);
 
         if (dmGui::CancelNodeSpineAnim(scene, hnode) != RESULT_OK) {
             dmLogError("Could not cancel spine animation on GUI spine node.");
@@ -3420,7 +3522,8 @@ namespace dmGui
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &node);
-        if(dmGui::GetNodeIsBone(scene, node)) {
+        if (dmGui::GetNodeIsBone(scene, node)) 
+        {
             return 0;
         }
 
@@ -3437,7 +3540,7 @@ namespace dmGui
      * This is currently only useful for spine nodes. The spine scene must be mapped to the gui scene in the gui editor.
      *
      * @name gui.get_spine_scene
-     * @param node node to get texture from (node)
+     * @param node node to get spine scene from (node)
      * @return spine scene id (hash)
      */
     int LuaGetSpineScene(lua_State* L)
@@ -3445,10 +3548,178 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        (void)n;
+        LuaCheckNode(L, 1, &hnode);
 
         dmScript::PushHash(L, dmGui::GetNodeSpineSceneId(scene, hnode));
+        return 1;
+    }
+
+    /*# sets the spine skin
+     * Sets the spine skin on a spine node.
+     *
+     * @name gui.set_spine_skin
+     * @param node node to set the spine skin on (node)
+     * @param spine_skin spine skin id (string|hash)
+     */
+    int LuaSetSpineSkin(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot set skin for bone, did you mean to set skin for the spine model?");
+        }
+
+        dmhash_t spine_skin_id = dmScript::CheckHashOrString(L, 2);
+
+        if (RESULT_OK != dmGui::SetNodeSpineSkin(scene, node, spine_skin_id))
+        {
+            return luaL_error(L, "failed to set spine skin for gui node");
+        }
+
+        return 0;
+    }
+
+    /*# gets the skin of a spine node
+     * Gets the spine skin of a spine node
+     *
+     * @name gui.get_spine_skin
+     * @param node node to get spine skin from (node)
+     * @return spine skin id, 0 if no explicit skin is set (hash)
+     */
+    int LuaGetSpineSkin(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1); // hash pushed onto state will increase stack by 1
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot get skin for bone, did you mean to get skin for the spine model?");
+        }
+
+        dmhash_t spine_skin_id = dmGui::GetNodeSpineSkin(scene, node);
+        dmScript::PushHash(L, spine_skin_id);
+
+        return 1;
+    }
+
+    /*# sets the normalized cursor of the animation on a spine node
+     * This is only useful for spine nodes. The cursor is normalized.
+     *
+     * @name gui.set_spine_cursor
+     * @param node spine node to set the cursor for (node)
+     * @param cursor cursor value (number)
+     */
+    int LuaSetSpineCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if(dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot set cursor for bone, did you mean to set cursor for the spine model?");
+        }
+
+        float cursor = luaL_checknumber(L, 2);
+
+        if (RESULT_OK != SetNodeSpineCursor(scene, node, cursor))
+        {
+            return luaL_error(L, "failed to set spine cursor for gui spine node");
+        }
+
+        return 0;
+    }
+
+    /*# gets the normalized cursor of the animation on a spine node
+     * This is only useful for spine nodes. Gets the normalized cursor of the animation on a spine node.
+     *
+     * @name gui.get_spine_cursor
+     * @param node spine node to set the cursor for (node)
+     * @return cursor value (number)
+     */
+    int LuaGetSpineCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot get cursor for bone, did you mean to get cursor for the spine model?");
+        }
+
+        float cursor = dmGui::GetNodeSpineCursor(scene, node);
+        lua_pushnumber(L, cursor);
+
+        return 1;
+    }
+
+    /*# sets the playback rate of the animation on a spine node
+     * This is only useful for spine nodes. Sets the playback rate of the animation on a spine node. Must be positive.
+     *
+     * @name gui.set_spine_playback_rate
+     * @param node spine node to set the cursor for (node)
+     * @param playback_rate playback rate (number)
+     */
+    int LuaSetSpinePlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if(dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot set playback rate for bone, did you mean to set playnack rate for the spine model?");
+        }
+
+        float playback_rate = luaL_checknumber(L, 2);
+
+        if (RESULT_OK != SetNodeSpinePlaybackRate(scene, node, playback_rate))
+        {
+            return luaL_error(L, "failed to set spine playback rate for gui spine node");
+        }
+
+        return 0;
+    }
+
+    /*# gets the playback rate of the animation on a spine node
+     * This is only useful for spine nodes. Gets the playback rate of the animation on a spine node.
+     *
+     * @name gui.get_spine_playback_rate
+     * @param node spine node to set the cursor for (node)
+     * @return playack rate (number)
+     */
+    int LuaGetSpinePlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot get playback rate for bone, did you mean to get playback rate for the spine model?");
+        }
+
+        float playback_rate = dmGui::GetNodeSpinePlaybackRate(scene, node);
+
+        lua_pushnumber(L, playback_rate);
+
         return 1;
     }
 
@@ -3540,10 +3811,17 @@ namespace dmGui
         {"set_size",        LuaSetSize},
         {"get_size",        LuaGetSize},
         {"play_spine",      LuaPlaySpine},
+        {"play_spine_anim", LuaPlaySpineAnim},
         {"cancel_spine",    LuaCancelSpine},
         {"get_spine_bone",  LuaGetSpineBone},
         {"set_spine_scene", LuaSetSpineScene},
         {"get_spine_scene", LuaGetSpineScene},
+        {"set_spine_skin",  LuaSetSpineSkin},
+        {"get_spine_skin",  LuaGetSpineSkin},
+        {"set_spine_cursor", LuaSetSpineCursor},
+        {"get_spine_cursor", LuaGetSpineCursor},
+        {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
+        {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

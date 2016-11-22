@@ -1,0 +1,19 @@
+@mixin colorize-image-view($color) {
+  .image-view { -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0); }
+}
+
+.added-file {
+  @include colorize-image-view($defold-green);
+}
+
+.deleted-file {
+  @include colorize-image-view($defold-red);
+}
+
+.modified-file {
+  .image-view { @include effect-icon-grey(); }
+}
+
+.renamed-file {
+  @include colorize-image-view($defold-yellow);
+}
