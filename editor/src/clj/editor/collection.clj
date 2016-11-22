@@ -151,28 +151,27 @@
   (fn [node-id child-id]
     (f source-id child-id)))
 
-(g/defnk produce-go-outline [_node-id source-id id node-outline-label source-outline source-resource child-outlines]
+(g/defnk produce-go-outline [_node-id source-id id node-outline-label source-outline source-resource child-outlines node-outline-extras]
   (let [coll-id (core/scope _node-id)]
-    (-> source-outline
+    (-> {:node-id _node-id
+         :label node-outline-label
+         :icon (:icon source-outline game-object/game-object-icon)
+         :children (into (vec (sort-by label-sort-by-fn (:children source-outline))) child-outlines)
+         :child-reqs [{:node-type ReferencedGOInstanceNode
+                       :tx-attach-fn (fn [self-id child-id]
+                                       (concat
+                                         (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                         (attach-coll-ref-go coll-id child-id)
+                                         (child-go-go self-id child-id)))}
+                      {:node-type EmbeddedGOInstanceNode
+                       :tx-attach-fn (fn [self-id child-id]
+                                       (concat
+                                         (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                         (attach-coll-embedded-go coll-id child-id)
+                                         (child-go-go self-id child-id)))}]}
+      (merge node-outline-extras)
       (cond->
-        (and source-resource (resource/path source-resource)) (assoc :link source-resource))
-      (merge {:node-id _node-id
-              :label node-outline-label
-              :icon game-object/game-object-icon
-              :children (into (vec (sort-by label-sort-by-fn (:children source-outline))) child-outlines)})
-      (update :child-reqs (fn [c] (-> (mapv (fn [req] (update req :tx-attach-fn dispatch-attach-fn source-id)) c)
-                                    (conj {:node-type ReferencedGOInstanceNode
-                                           :tx-attach-fn (fn [self-id child-id]
-                                                           (concat
-                                                             (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
-                                                             (attach-coll-ref-go coll-id child-id)
-                                                             (child-go-go self-id child-id)))}
-                                          {:node-type EmbeddedGOInstanceNode
-                                           :tx-attach-fn (fn [self-id child-id]
-                                                           (concat
-                                                             (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
-                                                             (attach-coll-embedded-go coll-id child-id)
-                                                             (child-go-go self-id child-id)))})))))))
+        (and source-resource (resource/path source-resource)) (assoc :link source-resource)))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -199,6 +198,7 @@
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-label g/Str (gu/passthrough id))
+  (output node-outline-extras g/Any (g/constantly {}))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
                                      (let [target (assoc (first source-build-targets)
@@ -247,6 +247,8 @@
 
   (input proto-msg g/Any)
   (input source-save-data g/Any)
+  (output node-outline-extras g/Any (g/fnk [source-outline]
+                                           {:alt-outline source-outline}))
   (output build-resource resource/Resource (g/fnk [source-resource source-save-data]
                                                   (some-> source-resource
                                                      (assoc :data (:content source-save-data))
@@ -501,18 +503,12 @@
         (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties) instance-data)))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
-  (-> source-outline
+  (-> {:node-id _node-id
+       :label (format "%s - %s" id (resource/resource->proj-path source-resource))
+       :icon (:icon source-outline collection-icon)
+       :children (:children source-outline)}
     (cond->
-      (and source-resource (resource/path source-resource)) (assoc :link source-resource))
-    (assoc :node-id _node-id
-      :label (format "%s - %s" id (resource/resource->proj-path source-resource))
-      :icon collection-icon)
-    (update :child-reqs (fn [reqs]
-                          (mapv (fn [req] (update req :tx-attach-fn #(fn [self-id child-id]
-                                                                       (% source-id child-id))))
-                            ; TODO - temp blocked because of risk for graph cycles
-                            ; If it's dropped on another instance referencing the same collection, it blows up
-                            (filter (fn [req] (not= CollectionInstanceNode (:node-type req))) reqs))))))
+      (and source-resource (resource/path source-resource)) (assoc :link source-resource))))
 
 (defn- or-coll-traverse? [basis [src-id src-label tgt-id tgt-label]]
   (or

@@ -657,7 +657,8 @@
 (deftype ProjectSelectionProvider [project-id]
   handler/SelectionProvider
   (selection [this] (g/node-value project-id :selected-node-ids))
-  (succeeding-selection [this] []))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (defn selection-provider [project-id] (ProjectSelectionProvider. project-id))
 
