@@ -95,6 +95,9 @@
 (defn- outline-seq [root]
   (tree-seq :children :children (g/node-value root :node-outline)))
 
+(defn- label [root path]
+  (:label (test-util/outline root path)))
+
 (deftest copy-paste-ref-component
   (with-clean-system
     (let [[workspace project] (setup world)
@@ -144,12 +147,15 @@
   (with-clean-system
     (let [[workspace project] (setup world)
           root (test-util/resource-node project "/logic/atlas_sprite.collection")]
+      ; * Collection
+      ;   * main (ref-game-object)
+      ;     * sprite (component)
       ; 1 go instance
       (is (= 1 (child-count root)))
       ; 1 sprite comp
       (is (= 1 (child-count root [0])))
-      (copy! root [0])
-      (paste! project root)
+      (copy! root [0]) ;; copy go-instance
+      (paste! project root) ;; paste into root
       ; 2 go instances
       (is (= 2 (child-count root)))
       ; 1 sprite comp
@@ -157,10 +163,10 @@
       (paste! project root [0])
       ; 1 sprite comp + 1 go instance
       (is (= 2 (child-count root [0])))
-      ; sprite can be cut
-      (is (cut? root [0 0]))
-      (cut! root [0 0])
-      ; 1 go instance
+      ; go instance can be cut
+      (is (cut? root [0 1]))
+      (cut! root [0 1])
+      ; 1 sprite
       (is (= 1 (child-count root [0]))))))
 
 (deftest copy-paste-collection-instance
@@ -188,10 +194,8 @@
       (is (= 2 (child-count root [0])))
       (cut! root [2])
       (paste! project root [0])
-      ; 2 collection instance
-      (is (= 2 (child-count root)))
-      ; 1 go instance
-      (is (= 1 (child-count root [0]))))))
+      ; 2 collection instances + 1 go instances
+      (is (= 3 (child-count root))))))
 
 (deftest dnd-collection
   (with-clean-system
@@ -439,3 +443,71 @@
       (is (= 2 (child-count root)))
       (testing "Cut is disallowed when both `Capsule` and `sprite` are selected"
         (is (false? (cut? root [0 2] [1])))))))
+
+(defn- add-collision-shape [collision-object shape-type]
+  (test-util/handler-run :add [{:name :workbench :env {:selection [collision-object]}}] {:shape-type shape-type}))
+
+(deftest dnd-collision-shape
+  (with-clean-system
+    (testing "dnd between two embedded"
+             (let [[workspace project] (setup world)
+                   root (test-util/resource-node project "/logic/one_embedded.go")
+                   collision-object (-> (test-util/outline root [0]) :alt-outline :node-id)]
+               ; Original tree:
+               ; Game Object
+               ; + collisionobject
+               (copy-paste! project root [0])
+               (add-collision-shape collision-object :type-sphere)
+               ; Game Object
+               ; + collisionobject
+               ;   + sphere
+               ; + collisionobject1
+               (is (= 1 (child-count root [0])))
+               (is (= 0 (child-count root [1])))
+               (drag! root [0 0])
+               (drop! project root [1])
+               ; Game Object
+               ; + collisionobject
+               ; + collisionobject1
+               ;   + sphere
+               (is (= 0 (child-count root [0])))
+               (is (= 1 (child-count root [1])))))
+    (testing "dnd between two references of the same file"
+             (let [[workspace project] (setup world)
+                   root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
+               ; Original tree:
+               ; Game Object
+               ; + collisionobject - ref
+               ;   + Sphere (shape)
+               ;   + Box (shape)
+               ;   + Capsule (shape)
+               ; + sprite
+               (copy-paste! project root [0])
+               ; Current tree:
+               ; Game Object
+               ; + collisionobject - ref
+               ;   + Sphere (shape)
+               ;   + Box (shape)
+               ;   + Capsule (shape)
+               ; + collisionobject1 - ref
+               ;   + Sphere (shape)
+               ;   + Box (shape)
+               ;   + Capsule (shape)
+               ; + sprite
+               (drag! root [0 0])
+               ;; Not possible to drag to the second collisionobject1 since they are references to the same file
+               (is (not (drop? project root [1])))))))
+
+(deftest alt-outlines
+  (with-clean-system
+    (let [[workspace project] (setup world)]
+      (doseq [root (map #(test-util/resource-node project %) [;; Contains both embedded and referenced components
+                                                              "/logic/main.go"
+                                                              ;; Contains referenced sub collections
+                                                              "/collection/sub_defaults.collection"
+                                                              ;; Contains both embedded and referenced game objects
+                                                              "/logic/hierarchy.collection"])]
+        (let [children (-> (g/node-value root :node-outline) :children)
+              node-ids (map :node-id children)
+              alt-node-ids (map (comp :node-id :alt-outline) children)]
+          (is (every? (fn [[nid alt]] (or (nil? alt) (and nid (not= nid alt)))) (map vector node-ids alt-node-ids))))))))

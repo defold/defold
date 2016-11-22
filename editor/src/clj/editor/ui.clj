@@ -668,7 +668,8 @@
 (defn ->selection-provider [view]
   (reify handler/SelectionProvider
     (selection [this] (selection view))
-    (succeeding-selection [this] [])))
+    (succeeding-selection [this] [])
+    (alt-selection [this] [])))
 
 (defn context!
   ([^Node node name env selection-provider]
