@@ -39,6 +39,18 @@ public class ArchiveBuilder {
         ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress);
         entries.add(e);
     }
+    
+    public void add(String fileName, byte[] hashData, boolean doCompress) throws IOException
+    {
+    	ArchiveEntry e = new ArchiveEntry(root, fileName, hashData, doCompress);
+    	entries.add(e);
+    }
+    
+    public void add(String fileName, byte[] hashData, int hashSize) throws IOException
+    {
+    	ArchiveEntry e = new ArchiveEntry(root, fileName, hashData, false);
+    	entries.add(e);
+    }
 
     public void add(String fileName) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, false);
@@ -170,6 +182,133 @@ public class ArchiveBuilder {
         // EntryOffset
         outFile.writeInt(entryOffset);
     }
+    
+    public void write2(RandomAccessFile outFileIndex, RandomAccessFile outFileData) throws IOException {
+        // Version
+        outFileIndex.writeInt(VERSION+1);
+        outFileData.writeInt(VERSION+1);
+        // Pad
+        outFileIndex.writeInt(0);
+        outFileData.writeInt(0);
+        // Userdata
+        outFileIndex.writeLong(0);
+        outFileData.writeLong(0);
+        // StringPoolOffset
+        outFileIndex.writeInt(0);
+        // StringPoolSize
+        outFileIndex.writeInt(0);
+        // HashDigestOffset
+        outFileIndex.writeInt(0);
+        //HashDigestSize
+        outFileIndex.writeInt(0);
+        // EntryCount
+        outFileData.writeInt(0);
+        // EntryOffset
+        outFileData.writeInt(0);
+        
+        /*
+         * Iterate first over entries, and store then to outputFileData in sequence
+         * Then iterate for index file, store stringpool, hashdigest also in sequence
+         * */
+
+        Collections.sort(entries);
+
+        int stringPoolOffset = (int) outFileIndex.getFilePointer();
+        List<Integer> stringsOffset = new ArrayList<Integer>();
+        for (ArchiveEntry e : entries) {
+            // Store offset to string
+            stringsOffset.add((int) (outFileIndex.getFilePointer() - stringPoolOffset));
+            String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+            outFileIndex.write(normalisedPath.getBytes());
+            outFileIndex.writeByte((byte) 0);
+        }
+        int stringPoolSize = (int) (outFileIndex.getFilePointer() - stringPoolOffset);
+        
+        int hashDigestPoolOffset = (int) outFileIndex.getFilePointer();
+        List<Integer> hashDigestOffsets = new ArrayList<Integer>();
+        for(ArchiveEntry e : entries) {
+        	// Store offset to hash digest
+        	hashDigestOffsets.add((int) (outFileIndex.getFilePointer() - hashDigestPoolOffset));
+        	//outFile.writeInt(e.hashDigestSize);
+        	outFileIndex.writeInt(e.hashDigest.length);
+        	outFileIndex.write(e.hashDigest, 0, e.hashDigest.length);
+        }
+        
+        int hashDigestPoolSize = (int) (outFileIndex.getFilePointer() - hashDigestPoolOffset);
+
+        // Copy resources to data file
+        List<Integer> resourcesOffset = new ArrayList<Integer>();
+        for (ArchiveEntry e : entries) {
+            alignBuffer(outFileData, 4);
+            resourcesOffset.add((int) outFileData.getFilePointer());
+            if(e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+                e.compressedSize = compress(e.fileName, e.size, outFileData);
+            } else {
+                copy(e.fileName, outFileData);
+            }
+        }
+
+        // Entry meta data
+        alignBuffer(outFileData, 4);
+        int entryOffset = (int) outFileData.getFilePointer();
+        int i = 0;
+        for (ArchiveEntry e : entries) {
+        	/*outFileData.writeInt(stringsOffset.get(i));
+        	outFileData.writeInt(hashDigestOffsets.get(i));*/
+        	outFileData.writeInt(resourcesOffset.get(i));
+        	outFileData.writeInt(e.size);
+        	outFileData.writeInt(e.compressedSize);
+            String ext = FilenameUtils.getExtension(e.fileName);
+            if (ENCRYPTED_EXTS.indexOf(ext) != -1) {
+                e.flags = ArchiveEntry.FLAG_ENCRYPTED;
+            }
+            outFileData.writeInt(e.flags);
+            ++i;
+        }
+
+        i = 0;
+        for (ArchiveEntry e : entries) {
+            String ext = FilenameUtils.getExtension(e.fileName);
+            if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
+            	outFileData.seek(resourcesOffset.get(i));
+                int size = e.size;
+                if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+                    size = e.compressedSize;
+                }
+                byte[] buf = new byte[size];
+                outFileData.read(buf);
+                byte[] enc = Crypt.encryptCTR(buf, KEY);
+                outFileData.seek(resourcesOffset.get(i));
+                outFileData.write(enc);
+            }
+            ++i;
+        }
+
+        // Reset file and write actual offsets
+        outFileIndex.seek(0);
+        outFileData.seek(0);
+        // Version
+        outFileIndex.writeInt(VERSION+1);
+        outFileData.writeInt(VERSION+1);
+        // Pad
+        outFileIndex.writeInt(0);
+        outFileData.writeInt(0);
+        // Userdata
+        outFileIndex.writeLong(0);
+        outFileData.writeLong(0);
+        // StringPoolOffset
+        outFileIndex.writeInt(stringPoolOffset);
+        // StringPoolSize
+        outFileIndex.writeInt(stringPoolSize);
+        // HashDigestOffset
+        outFileIndex.writeInt(hashDigestPoolOffset);
+        //HashDigestSize
+        outFileIndex.writeInt(hashDigestPoolSize);
+        // EntryCount
+        outFileData.writeInt(entries.size());
+        // EntryOffset
+        outFileData.writeInt(entryOffset);
+    }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
         int pos = (int) outFile.getFilePointer();
@@ -198,7 +337,7 @@ public class ArchiveBuilder {
                 firstFileArg = 2;
             }
         }
-
+        
         ArchiveBuilder ab = new ArchiveBuilder(args[0]);
         for (int i = firstFileArg; i < args.length; ++i) {
             ab.add(args[i], doCompress);

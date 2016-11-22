@@ -24,6 +24,8 @@ public class ArchiveTest {
 
     private String contentRoot;
     private File outputDarc;
+    private File outputIndex;
+    private File outputData;
 
     private String createDummyFile(String dir, String filepath, byte[] data) throws IOException {
         File tmp = new File(Paths.get(FilenameUtils.concat(dir, filepath)).toString());
@@ -41,12 +43,18 @@ public class ArchiveTest {
     public void setUp() throws Exception {
         contentRoot = Files.createTempDirectory(null).toFile().getAbsolutePath();
         outputDarc = Files.createTempFile("tmp.darc", "").toFile();
+        
+        outputIndex = Files.createTempFile("tmp.indexdarc", "").toFile();
+        outputData = Files.createTempFile("tmp.datadarc", "").toFile();
     }
 
     @After
     public void tearDown() throws IOException {
         FileUtils.deleteDirectory(new File(contentRoot));
         FileUtils.deleteQuietly(outputDarc);
+        
+        FileUtils.deleteQuietly(outputIndex);
+        FileUtils.deleteQuietly(outputData);
     }
 
     @Test
@@ -66,6 +74,34 @@ public class ArchiveTest {
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputDarc.getAbsolutePath());
+        ar.read();
+        ar.close();
+    }
+    
+    @Test
+    public void testBuilderAndReader2() throws IOException
+    {
+    	byte[] hash1 = "thebesthash".getBytes();
+    	byte[] hash2 = "apaBEPAc e p a".getBytes();
+    	byte[] hash3 = "åäöåäöasd".getBytes();
+
+    	// Create
+    	ArchiveBuilder ab = new ArchiveBuilder(contentRoot);
+    	ab.add(createDummyFile(contentRoot, "a.txt", "abc123".getBytes()), hash1, hash1.length);
+    	ab.add(createDummyFile(contentRoot, "b.txt", "apaBEPAc e p a".getBytes()), hash2, hash2.length);
+        ab.add(createDummyFile(contentRoot, "c.txt", "åäöåäöasd".getBytes()), hash3, hash3.length);
+        
+        // Write
+        RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
+        RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
+        outFileIndex.setLength(0);
+        outFileData.setLength(0);
+        ab.write2(outFileIndex, outFileData);
+        outFileIndex.close();
+        outFileData.close();
+
+        // Read
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
         ar.read();
         ar.close();
     }
@@ -89,6 +125,35 @@ public class ArchiveTest {
         ArchiveReader ar = new ArchiveReader(outputDarc.getAbsolutePath());
         ar.read();
         List<ArchiveEntry> entries = ar.getEntries();
+        assertEquals(entries.get(0).fileName, "/a.txt");
+        assertEquals(entries.get(1).fileName, "/main/a.txt");
+        assertEquals(entries.get(2).fileName, "/main2/a.txt");
+        ar.close();
+    }
+    
+    @Test
+    public void testEntriesOrder2() throws IOException {
+
+        // Create
+        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot));
+        ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main/a.txt", "abc123".getBytes())), "".getBytes(), 0);
+        ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main2/a.txt", "apaBEPAc e p a".getBytes())), "".getBytes(), 0);
+        ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "a.txt", "åäöåäöasd".getBytes())), "".getBytes(), 0);
+
+        // Write
+        RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
+        RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
+        outFileIndex.setLength(0);
+        outFileData.setLength(0);
+        ab.write2(outFileIndex, outFileData);
+        outFileIndex.close();
+        outFileData.close();
+
+        // Read
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
+        ar.read();
+        List<ArchiveEntry> entries = ar.getEntries();
+        
         assertEquals(entries.get(0).fileName, "/a.txt");
         assertEquals(entries.get(1).fileName, "/main/a.txt");
         assertEquals(entries.get(2).fileName, "/main2/a.txt");

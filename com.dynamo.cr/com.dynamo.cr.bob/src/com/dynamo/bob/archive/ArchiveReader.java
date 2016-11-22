@@ -11,40 +11,91 @@ import java.util.ArrayList;
 import java.io.FileNotFoundException;
 
 public class ArchiveReader {
-
     public static final int VERSION = 4;
 
     private ArrayList<ArchiveEntry> entries = null;
 
     private int stringPoolOffset = 0;
     private int stringPoolSize = 0;
+    private int hashDigestPoolOffset = 0;
+    private int hashDigestPoolSize = 0;
     private int entryCount = 0;
     private int entryOffset = 0;
 
     private String darcPath = null;
     private RandomAccessFile inFile = null;
+    
+    private String indexFilePath = null;
+    private String dataFilePath = null;
+    private RandomAccessFile indexFile = null;
+    private RandomAccessFile dataFile = null;
 
     public ArchiveReader(String darcPath) {
         this.darcPath = darcPath;
     }
+    
+    public ArchiveReader(String indexPath, String dataPath) {
+    	this.indexFilePath = indexPath;
+    	this.dataFilePath = dataPath;
+    }
 
     public void read() throws IOException {
-        if (darcPath == null) {
-            throw new IOException("No DARC path set.");
+    	if (this.darcPath == null) {
+    		if (indexFilePath != null && dataFilePath != null) {
+    			read2();
+    			return;
+    		} else {
+    			throw new IOException("No DARC path set.");
+    		}
         }
 
         if (inFile != null) {
             this.close();
         }
+        
         inFile = new RandomAccessFile(this.darcPath, "r");
 
         // Version
         inFile.seek(0);
         int version = inFile.readInt();
-        if (version != VERSION) {
-            throw new IOException("Invalid DARC format: " + version);
+        if(version == VERSION) {
+        	readDarc();
+        } else {
+        	throw new IOException("Invalid DARC format: " + version);
+        }
+    }
+    
+    private void read2() throws IOException {
+    	if (indexFilePath == null || dataFilePath == null) {
+            throw new IOException("No index or data file path set.");
         }
 
+        if (indexFile != null) {
+            indexFile.close();
+            indexFile = null;
+        }
+        
+        if (dataFile != null) {
+        	dataFile.close();
+        	dataFile = null;
+        }
+        
+        indexFile = new RandomAccessFile(this.indexFilePath, "r");
+        dataFile = new RandomAccessFile(this.dataFilePath, "r");
+        
+        // Version
+        indexFile.seek(0);
+        dataFile.seek(0);
+        int indexVersion = indexFile.readInt();
+        int dataVersion = dataFile.readInt();
+        if (indexVersion == VERSION+1 && dataVersion == VERSION+1) { // files written with hash digests are tagged with VERSION+1
+        	readDarc2();
+        } else {
+        	throw new IOException("Invalid index or data format, index: " + indexVersion + ", data: " + dataVersion);
+        }
+    }
+    
+    private void readDarc() throws IOException {
         // Pad
         inFile.readInt();
 
@@ -55,7 +106,7 @@ public class ArchiveReader {
         stringPoolSize = inFile.readInt();
         entryCount = inFile.readInt();
         entryOffset = inFile.readInt();
-
+        
         // Jump to string pool
         inFile.seek(stringPoolOffset);
 
@@ -77,8 +128,6 @@ public class ArchiveReader {
 
         // Fill entry meta data
         for (int i = 0; i < entryCount; i++) {
-            int stringOffset = inFile.readInt();
-
             ArchiveEntry entry = entries.get(i);
             entry.resourceOffset = inFile.readInt();
             entry.size = inFile.readInt();
@@ -89,6 +138,71 @@ public class ArchiveReader {
             entry.flags = inFile.readInt();
         }
     }
+    
+    private void readDarc2() throws IOException {
+        // Pad
+        indexFile.readInt();
+        dataFile.readInt();
+
+        // Userdata, should be 0
+        indexFile.readLong();
+        dataFile.readLong();
+
+        stringPoolOffset = indexFile.readInt();
+        stringPoolSize = indexFile.readInt();
+        hashDigestPoolOffset = indexFile.readInt();
+        hashDigestPoolSize = indexFile.readInt();
+        entryCount = dataFile.readInt();
+        entryOffset = dataFile.readInt();
+        
+        // Gather entry strings
+        entries = new ArrayList<ArchiveEntry>();
+        
+        // Jump to string pool	
+        indexFile.seek(stringPoolOffset);
+        
+        // Gather entry name strings
+        ArrayList<String> entryNames = new ArrayList<String>(entryCount);
+        for (int i = 0; i < entryCount; i++) {
+            String entryName = "";
+            while (true) {
+                byte b = indexFile.readByte();
+                if (b == (byte)0) {
+                    break;
+                }
+                entryName += (char)b;
+            }
+            entryNames.add(i, entryName);
+        }
+        
+        // Jump to hash pool
+        indexFile.seek(hashDigestPoolOffset);
+        
+        // Gather hash digests and create entries
+        for (int i = 0; i < entryCount; i++) {
+        	int hashDigestSize = indexFile.readInt();
+        	byte[] hashDigest = new byte[hashDigestSize];
+        	 for (int j = 0; j < hashDigestSize; j++) {
+                byte b = indexFile.readByte();
+                hashDigest[j] = b;
+             }
+        	 entries.add(new ArchiveEntry(entryNames.get(i), hashDigest));
+        }
+
+        dataFile.seek(entryOffset);
+
+        // Fill entry meta data
+        for (int i = 0; i < entryCount; i++) {
+            ArchiveEntry entry = entries.get(i);
+            entry.resourceOffset = dataFile.readInt();
+            entry.size = dataFile.readInt();
+            entry.compressedSize = dataFile.readInt();
+            if (entry.compressedSize == ArchiveEntry.FLAG_UNCOMPRESSED) {
+                entry.compressedSize = entry.size;
+            }
+            entry.flags = dataFile.readInt();
+        }
+    }
 
     public List<ArchiveEntry> getEntries() {
         return entries;
@@ -96,8 +210,14 @@ public class ArchiveReader {
 
     public byte[] getEntryContent(ArchiveEntry entry) throws IOException {
         byte[] buf = new byte[entry.size];
-        inFile.seek(entry.resourceOffset);
-        inFile.read(buf, 0, entry.size);
+        
+        if (this.darcPath != null) {
+        	inFile.seek(entry.resourceOffset);
+        	inFile.read(buf, 0, entry.size);
+        } else {
+        	dataFile.seek(entry.resourceOffset);
+        	dataFile.read(buf, 0, entry.size);
+        }
 
         return buf;
     }
@@ -114,9 +234,15 @@ public class ArchiveReader {
             int readSize = entry.compressedSize;
 
             // extract
-            inFile.seek(entry.resourceOffset);
             byte[] buf = new byte[entry.size];
-            inFile.read(buf, 0, readSize);
+            if (this.darcPath != null) {
+            	inFile.seek(entry.resourceOffset);
+            	inFile.read(buf, 0, readSize);
+            } else {
+            	dataFile.seek(entry.resourceOffset);
+            	dataFile.read(buf, 0, readSize);
+            }
+            
             File fo = new File(outdir);
             fo.getParentFile().mkdirs();
             FileOutputStream os = new FileOutputStream(fo);
@@ -126,8 +252,20 @@ public class ArchiveReader {
     }
 
     public void close() throws IOException {
-        inFile.close();
-        inFile = null;
+    	if (inFile != null) {
+    		inFile.close();
+        	inFile = null;
+    	}
+        
+        if (indexFile != null) {
+            indexFile.close();
+            indexFile = null;
+        }
+        
+        if (dataFile != null) {
+        	dataFile.close();
+        	dataFile = null;
+        }
     }
 
     public static void main(String[] args) throws IOException {
