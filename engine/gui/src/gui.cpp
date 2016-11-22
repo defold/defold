@@ -2960,11 +2960,9 @@ namespace dmGui
 
             if (pd->m_Component == 0xff) {
                 for (int j = 0; j < 4; ++j) {
-                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
-                    // Only run callback for the first component
-                    animation_complete = 0;
-                    userdata1 = 0;
-                    userdata2 = 0;
+                    // Only run callback for the lastcomponent
+                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay,
+                                    j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
                 }
             } else {
                 AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
