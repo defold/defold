@@ -51,6 +51,8 @@ import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.label.proto.Label.LabelDesc;
+import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
+import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
@@ -135,6 +137,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(".projectc"));
         if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".darc"));
+            builder.addOutput(input.changeExt(".manifest"));
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
@@ -346,7 +349,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        FileInputStream is = null;
+        FileInputStream darcInputStream = null;
 
         BobProjectProperties properties = new BobProjectProperties();
         IResource input = task.input(0);
@@ -360,46 +363,46 @@ public class GameProjectBuilder extends Builder<Void> {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
-                
+
                 ManifestBuilder manifestBuilder = new ManifestBuilder();
+                manifestBuilder.setDependencies(rootNode);
                 String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", null);
                 String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
                 String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
-                
-                if (projectIdentifier != null) {
-                	manifestBuilder.constructManifestHeader(projectIdentifier);
-                } else {
-                	System.out.println("ERROR: THERE'S NO PROJECT IDENTIFIER!");
+
+                if (projectIdentifier == null) {
+                	throw new CompileExceptionError(input, -1, "game.project has no project.title!");
+                } else if (supportedEngineVersionsString == null) {
+                	throw new CompileExceptionError(input, -1, "game.project has no liveupdate.supported_versions!");
+                } else if (privateKeyFilepath == null) {
+                	throw new CompileExceptionError(input, -1, "game.project has no liveupdate.privatekey!");
                 }
-                
-                if (supportedEngineVersionsString != null) {
-                	String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
-                	for (String supportedEngineVersion : supportedEngineVersions) {
-                		manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
-                	}
-                } else {
-                	System.out.println("ERROR: THERE'S NO SUPPORTED ENGINE VERSIONS!");
-                }
+
+                manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+                manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+                manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+                manifestBuilder.setProjectIdentifier(projectIdentifier);
+                manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
+
+            	String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
+            	for (String supportedEngineVersion : supportedEngineVersions) {
+            		manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
+            	}
 
                 // Make sure we don't try to archive the .darc or .projectc
                 resources.remove(task.output(0).getAbsPath());
                 resources.remove(task.output(1).getAbsPath());
+                resources.remove(task.output(2).getAbsPath());
 
+                // Create output for the darc archive
                 File archiveFile = createArchive(resources, manifestBuilder);
-                
-                manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
-                byte[] manifestFile = manifestBuilder.generateManifestFile();
-                BufferedWriter bwriter = new BufferedWriter(new OutputStreamWriter(
-                        new FileOutputStream("/Users/jakobpogulis/Desktop/manifest.manifest"), "utf-8"));
-                for (byte b : manifestFile) {
-                	bwriter.write((int) b);
-                }
-                bwriter.close();
-                
-                is = new FileInputStream(archiveFile);
-                IResource arcOut = task.getOutputs().get(1);
-                arcOut.setContent(is);
+                darcInputStream = new FileInputStream(archiveFile);
+                task.getOutputs().get(1).setContent(darcInputStream);
                 archiveFile.delete();
+
+                // Create output for the manifest
+                byte[] manifestFile = manifestBuilder.buildManifest();
+                task.getOutputs().get(2).setContent(manifestFile);
             }
 
             IResource in = task.getInputs().get(0);
@@ -407,7 +410,7 @@ public class GameProjectBuilder extends Builder<Void> {
             projOut.setContent(in.getContent());
 
         } finally {
-            IOUtils.closeQuietly(is);
+            IOUtils.closeQuietly(darcInputStream);
         }
     }
 }

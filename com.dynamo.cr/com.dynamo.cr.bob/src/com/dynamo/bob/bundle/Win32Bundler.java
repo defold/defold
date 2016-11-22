@@ -31,7 +31,7 @@ public class Win32Bundler implements IBundler {
         appDir.mkdirs();
 
         // Copy archive and game.projectc
-        for (String name : Arrays.asList("game.projectc", "game.darc")) {
+        for (String name : Arrays.asList("game.projectc", "game.darc", "game.manifest")) {
             FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
 

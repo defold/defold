@@ -159,7 +159,9 @@ public class ArchiveBuilder {
             String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
             outFile.seek(resourcesOffset.get(i));
             outFile.read(buf);
-            manifestBuilder.addResourceEntry(normalisedPath, buf);
+            if (manifestBuilder != null) {
+            	manifestBuilder.addResourceEntry(normalisedPath, buf);
+            }
             ++i;
         }
 

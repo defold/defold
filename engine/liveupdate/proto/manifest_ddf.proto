@@ -20,7 +20,7 @@ enum SignAlgorithm {
 }
 
 message HashDigest {
-    repeated bytes              data = 1;
+    required bytes              data = 1;
 }
 
 message ManifestHeader {
@@ -33,7 +33,7 @@ message ManifestHeader {
 }
 
 message ResourceEntry {
-    repeated string             url = 1;
+    required string             url = 1;
     required HashDigest         hash = 2;
     repeated HashDigest         dependants = 3;
 }
@@ -46,5 +46,5 @@ message ManifestData {
 
 message ManifestFile {
     required ManifestData       data = 1;
-    repeated bytes              signature = 2;
+    required bytes              signature = 2;
 }

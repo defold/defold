@@ -10,14 +10,20 @@ public class ResourceNode {
     private final List<ResourceNode> children = new ArrayList<ResourceNode>();
 
     public ResourceNode(final String relativeFilepath, final String absoluteFilepath) {
-        this.relativeFilepath = relativeFilepath;
+    	if (relativeFilepath.startsWith("/")) {
+    		this.relativeFilepath = relativeFilepath;
+    	} else {
+    		this.relativeFilepath = "/" + relativeFilepath;
+    	}
         this.absoluteFilepath = absoluteFilepath;
-        System.out.println("Creating ResourceNode: " + absoluteFilepath);
     }
 
     public void addChild(ResourceNode childNode) {
-        System.out.println(this.relativeFilepath + " -> " + childNode.relativeFilepath);
         this.children.add(childNode);
+    }
+
+    public List<ResourceNode> getChildren() {
+    	return this.children;
     }
 
     public void print(int indent) {
