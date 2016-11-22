@@ -305,7 +305,7 @@
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
         stage           (ui/make-stage)
         scene           (Scene. root)
-        dialog-controls (ui/collect-controls root [ "ok" "push" "cancel" "dialog-area" "progress-bar"])
+        dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
         push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label" "diff" "stage" "unstage"])
         render-progress (fn [progress]
@@ -379,7 +379,8 @@
                                                 (ui/text! (:main-label pull-controls) "Error getting changes")
                                                 (ui/visible! (:push dialog-controls) false)
                                                 (ui/visible! (:conflict-box pull-controls) false)
-                                                (ui/text! (:ok dialog-controls) "Close"))
+                                                (ui/text! (:ok dialog-controls) "Done")
+                                                (ui/disable! (:ok dialog-controls) true))
                              :push/staging   (let [changed-view ^ListView (:changed push-controls)
                                                    staged-view ^ListView (:staged push-controls)
                                                    changed-selection (vec (ui/selection changed-view))
