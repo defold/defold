@@ -2078,8 +2078,16 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * It can be used to take action on the input, e.g. move the instance according to the input.
      * </p>
      * <p>
-     * For an instance to obtain user input, it must first acquire input focuse through the message <code>acquire_input_focus</code>.
-     * See the documentation of that message for more information.
+     * For an instance to obtain user input, it must first acquire input focus
+     * through the message <code>acquire_input_focus</code>.
+     *
+     * Any instance that has obtained input will be put on top of an 
+     * input stack. Input is sent to all listeners on the stack until the 
+     * end of stack is reached, or a listener returns <code>true</code> 
+     * to signal that it wants input to be consumed.
+     *
+     * See the documentation of <code>acquire_input_focus</code> for more
+     * information.
      * </p>
      * <p>
      * The <code>action</code> parameter is a table containing data about the input mapped to the <code>action_id</code>.
