@@ -170,7 +170,7 @@ public class ManifestBuilder {
 
     }
 
-    public static final int CONST_MAGIC_NUMBER = 0x01;
+    public static final int CONST_MAGIC_NUMBER = 0x43cb6d06;
     public static final int CONST_VERSION = 0x01;
 
     private HashAlgorithm resourceHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
@@ -216,7 +216,7 @@ public class ManifestBuilder {
         this.supportedEngineVersions.add(builder.build());
     }
 
-    public boolean addResourceEntry(String url, byte[] data) {
+    public void addResourceEntry(String url, byte[] data) throws IOException {
         try {
             ResourceEntry.Builder builder = ResourceEntry.newBuilder();
             builder.setUrl(url);
@@ -224,10 +224,8 @@ public class ManifestBuilder {
             builder.setHash(hash);
             this.resourceEntries.add(builder.buildPartial());
         } catch (NoSuchAlgorithmException exception) {
-            return false;
+            throw new IOException("Unable to create Manifest, hashing algorithm is not supported!");
         }
-
-        return true;
     }
 
     public List<String> getDependants(String filepath) throws IOException {

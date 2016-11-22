@@ -364,29 +364,25 @@ public class GameProjectBuilder extends Builder<Void> {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
 
-                ManifestBuilder manifestBuilder = new ManifestBuilder();
-                manifestBuilder.setDependencies(rootNode);
+                ManifestBuilder manifestBuilder = null;
                 String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", null);
                 String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
                 String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
 
-                if (projectIdentifier == null) {
-                    throw new CompileExceptionError(input, -1, "game.project has no project.title!");
-                } else if (supportedEngineVersionsString == null) {
-                    throw new CompileExceptionError(input, -1, "game.project has no liveupdate.supported_versions!");
-                } else if (privateKeyFilepath == null) {
-                    throw new CompileExceptionError(input, -1, "game.project has no liveupdate.privatekey!");
-                }
+                if (projectIdentifier != null && supportedEngineVersionsString != null && privateKeyFilepath != null) {
+                    // We can create a manifest!
+                    manifestBuilder = new ManifestBuilder();
+                    manifestBuilder.setDependencies(rootNode);
+                    manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+                    manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+                    manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+                    manifestBuilder.setProjectIdentifier(projectIdentifier);
+                    manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
 
-                manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-                manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
-                manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
-                manifestBuilder.setProjectIdentifier(projectIdentifier);
-                manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
-
-                String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
-                for (String supportedEngineVersion : supportedEngineVersions) {
-                    manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
+                    String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
+                    for (String supportedEngineVersion : supportedEngineVersions) {
+                        manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
+                    }
                 }
 
                 // Make sure we don't try to archive the .darc or .projectc
@@ -401,14 +397,17 @@ public class GameProjectBuilder extends Builder<Void> {
                 archiveFile.delete();
 
                 // Create output for the manifest
-                byte[] manifestFile = manifestBuilder.buildManifest();
-                task.getOutputs().get(2).setContent(manifestFile);
+                if (manifestBuilder != null) {
+                    byte[] manifestFile = manifestBuilder.buildManifest();
+                    task.getOutputs().get(2).setContent(manifestFile);
+                } else {
+                    // Create an empty manifest for now.
+                    // TODO: This has to be fixed before DEF-2092 is merged.
+                    task.getOutputs().get(2).setContent("".getBytes());
+                }
             }
 
-            IResource in = task.getInputs().get(0);
-            IResource projOut = task.getOutputs().get(0);
-            projOut.setContent(in.getContent());
-
+            task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
         } finally {
             IOUtils.closeQuietly(darcInputStream);
         }
