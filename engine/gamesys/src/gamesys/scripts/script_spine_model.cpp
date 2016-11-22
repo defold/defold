@@ -81,7 +81,7 @@ namespace dmGameSystem
      *  go.set("#spine", "playback_rate", playback_rate * 2)
      * end
      * </pre>
-     * <p>The playback_rate cannot have a negative value.</p>
+     * <p>The playback_rate is a non-negative number, a negative value will be clamped to 0.</p>
      */
 
     int SpineComp_Play(lua_State* L)
