@@ -78,9 +78,6 @@
       (assoc new-scene :children (mapv #(assoc-deep % keyword new-value) (:children scene)))
       new-scene)))
 
-(defn- label-sort-by-fn [v]
-  (when-let [label (:label v)] (util/natural-order-key (str/lower-case label))))
-
 (defn- prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
@@ -156,7 +153,7 @@
     (-> {:node-id _node-id
          :label node-outline-label
          :icon (:icon source-outline game-object/game-object-icon)
-         :children (into (vec (sort-by label-sort-by-fn (:children source-outline))) child-outlines)
+         :children (into (:children source-outline) (outline/natural-sort child-outlines))
          :child-reqs [{:node-type ReferencedGOInstanceNode
                        :tx-attach-fn (fn [self-id child-id]
                                        (concat
@@ -416,32 +413,31 @@
 
 (def CollectionInstanceNode nil)
 
-(defn- outline-sort-by-fn [v]
-  [(not (g/node-instance? CollectionInstanceNode (:node-id v))) (label-sort-by-fn v)])
-
 (g/defnk produce-coll-outline [_node-id child-outlines]
-  {:node-id _node-id
-   :label "Collection"
-   :icon collection-icon
-   :children (vec (sort-by outline-sort-by-fn child-outlines))
-   :child-reqs [{:node-type ReferencedGOInstanceNode
-                 :tx-attach-fn (fn [self-id child-id]
-                                 (concat
-                                   (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
-                                   (attach-coll-ref-go self-id child-id)
-                                   (child-coll-any self-id child-id)))}
-                {:node-type EmbeddedGOInstanceNode
-                 :tx-attach-fn (fn [self-id child-id]
-                                 (concat
-                                   (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
-                                   (attach-coll-embedded-go self-id child-id)
-                                   (child-coll-any self-id child-id)))}
-                {:node-type CollectionInstanceNode
-                 :tx-attach-fn (fn [self-id child-id]
-                                 (concat
-                                   (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
-                                   (attach-coll-coll self-id child-id)
-                                   (child-coll-any self-id child-id)))}]})
+  (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
+                                      [(get outlines false) (get outlines true)])]
+    {:node-id _node-id
+     :label "Collection"
+     :icon collection-icon
+     :children (into (outline/natural-sort coll-outlines) (outline/natural-sort go-outlines))
+     :child-reqs [{:node-type ReferencedGOInstanceNode
+                   :tx-attach-fn (fn [self-id child-id]
+                                   (concat
+                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (attach-coll-ref-go self-id child-id)
+                                     (child-coll-any self-id child-id)))}
+                  {:node-type EmbeddedGOInstanceNode
+                   :tx-attach-fn (fn [self-id child-id]
+                                   (concat
+                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (attach-coll-embedded-go self-id child-id)
+                                     (child-coll-any self-id child-id)))}
+                  {:node-type CollectionInstanceNode
+                   :tx-attach-fn (fn [self-id child-id]
+                                   (concat
+                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (attach-coll-coll self-id child-id)
+                                     (child-coll-any self-id child-id)))}]}))
 
 (g/defnode CollectionNode
   (inherits project/ResourceNode)

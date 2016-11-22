@@ -16,7 +16,7 @@
 
 (defn- alphanum-chunks
   "Returns a vector of groups of consecutive digit or non-digit substrings in
-  string. "
+  string. The strings are converted to lowercase."
   [s]
   (let [s (-> s (string/split #"\s") first)]
     (letfn [(make-sb [c]
@@ -26,7 +26,7 @@
             (complete-chunk [state ^StringBuilder sb]
               (case state
                 :digit (Integer/parseInt (.toString sb))
-                :other (.toString sb)))]
+                :other (string/lower-case (.toString sb))))]
       (loop [[c & cs]          (seq s)
              state             (if (digit? c) :digit :other)
              ^StringBuilder sb (StringBuilder.)
