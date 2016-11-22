@@ -1,6 +1,5 @@
 #include "buffer.h"
 
-#include <dlib/log.h>
 #include <dlib/memory.h>
 
 #include <string.h>
@@ -230,6 +229,15 @@ namespace dmBuffer
         *out_element_count = buffer->m_NumElements;
         *out_stream = (void*)((uintptr_t)buffer->m_Data + stream->m_Offset);
 
+        return RESULT_OK;
+    }
+
+    Result GetElementCount(HBuffer buffer, uint32_t* out_element_count)
+    {
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+        *out_element_count = buffer->m_NumElements;
         return RESULT_OK;
     }
 }

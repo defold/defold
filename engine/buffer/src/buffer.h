@@ -88,6 +88,9 @@ namespace dmBuffer
      */
     Result GetStream(HBuffer buffer, dmhash_t stream_name, ValueType type, uint32_t type_count, void** out_stream, uint32_t* out_stride, uint32_t* out_element_count);
 
+    // TODO document
+    Result GetElementCount(HBuffer buffer, uint32_t* out_element_count);
+
 }
 
 #endif

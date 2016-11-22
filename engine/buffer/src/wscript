@@ -8,7 +8,7 @@ def build(bld):
     buffer = bld.new_task_gen(features = 'cxx cstaticlib',
                               includes = ['.'],
                               target = 'buffer',
-                              uselib = 'DLIB PLATFORM_SOCKET',
+                              uselib = 'DLIB',
                               source = 'buffer.cpp')
 
     bld.install_files('${PREFIX}/include/buffer', 'buffer.h')
