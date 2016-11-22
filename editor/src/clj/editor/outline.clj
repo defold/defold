@@ -5,7 +5,8 @@
             [schema.core :as s]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [editor.util :as util])
   (:import [editor.resource FileResource ZipResource]))
 
 (set! *warn-on-reflection* true)
@@ -221,3 +222,6 @@
               (recur (str index) (inc index))
               id))))
       id)))
+
+(defn natural-sort [items]
+  (->> items (sort-by :label util/natural-order) vec))

@@ -538,7 +538,7 @@
         {:node-id _node-id
          :label id
          :icon emitter-icon
-         :children child-outlines
+         :children (outline/natural-sort child-outlines)
          :child-reqs [{:node-type ModifierNode
                        :tx-attach-fn (fn [self-id child-id]
                                        (attach-modifier pfx-id self-id child-id))}]})))
@@ -659,9 +659,6 @@
     (for [[from to] conns]
       (g/connect emitter-id from self-id to))))
 
-(defn- label-sort-by-fn [v]
-  [(not (g/node-instance? ModifierNode (:node-id v))) (str/lower-case (:label v))])
-
 (g/defnode ParticleFXNode
   (inherits project/ResourceNode)
 
@@ -680,18 +677,20 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
-                                                     {:node-id _node-id
-                                                      :label "ParticleFX"
-                                                      :icon particle-fx-icon
-                                                      :children (vec (sort-by label-sort-by-fn child-outlines))
-                                                      :child-reqs [{:node-type EmitterNode
-                                                                    :tx-attach-fn (fn [self-id child-id]
-                                                                                    (concat
-                                                                                      (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
-                                                                                      (attach-emitter self-id child-id)))}
-                                                                   {:node-type ModifierNode
-                                                                    :tx-attach-fn (fn [self-id child-id]
-                                                                                    (attach-modifier self-id self-id child-id))}]}))
+                                                     (let [[mod-outlines emitter-outlines] (let [outlines (group-by #(g/node-instance? ModifierNode (:node-id %)) child-outlines)]
+                                                                                             [(get outlines true) (get outlines false)])]
+                                                       {:node-id _node-id
+                                                        :label "ParticleFX"
+                                                        :icon particle-fx-icon
+                                                        :children (into (outline/natural-sort mod-outlines) (outline/natural-sort emitter-outlines))
+                                                        :child-reqs [{:node-type EmitterNode
+                                                                      :tx-attach-fn (fn [self-id child-id]
+                                                                                      (concat
+                                                                                        (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                                                                        (attach-emitter self-id child-id)))}
+                                                                     {:node-type ModifierNode
+                                                                      :tx-attach-fn (fn [self-id child-id]
+                                                                                      (attach-modifier self-id self-id child-id))}]})))
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index))))
   (output render-emitter-fn Runnable :cached (g/fnk [emitter-sim-data] (partial render-emitter emitter-sim-data))))
 

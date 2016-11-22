@@ -644,7 +644,7 @@
                                                      {:node-id _node-id
                                                       :label "Collision Object"
                                                       :icon collision-object-icon
-                                                      :children (vec (sort-by :label util/natural-order child-outlines))
+                                                      :children (outline/natural-sort child-outlines)
                                                       :child-reqs [{:node-type Shape
                                                                     :tx-attach-fn attach-shape-node}]}))
 

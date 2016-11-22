@@ -12,6 +12,9 @@
        ;; lexigraphically
        ["a" "b"] ["a" "b"]
        ["b" "a"] ["a" "b"]
+       ;; case insensitive
+       ["aa" "Ab"] ["aa" "Ab"]
+       ["ab" "Aa"] ["Aa" "ab"]
        ;; numbers
        ["a1" "a"] ["a" "a1"]
        ["a1" "a10" "a2"] ["a1" "a2" "a10"]
@@ -20,5 +23,3 @@
        ["a b" "b"] ["a b" "b"]
        ["a2 b" "a1 b"] ["a1 b" "a2 b"]
        ["a1 c" "a b" "b"] ["a b" "a1 c" "b"]))
-
-(natural-order)
