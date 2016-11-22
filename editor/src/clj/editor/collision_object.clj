@@ -465,7 +465,7 @@
    :height h})
 
 (defn make-shape-node
-  [parent {:keys [shape-type] :as shape}]
+  [parent {:keys [shape-type] :as shape} select?]
   (let [graph-id (g/node-id->graph-id parent)
         node-type (case shape-type
                     :type-sphere SphereShape
@@ -475,7 +475,10 @@
     (g/make-nodes
      graph-id
      [shape-node [node-type node-props]]
-     (attach-shape-node parent shape-node))))
+     (attach-shape-node parent shape-node)
+     (when select?
+       (-> (project/get-project parent)
+         (project/select [shape-node]))))))
 
 
 (defn load-collision-object
@@ -499,7 +502,7 @@
        (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
          (let [data (subvec (:data embedded-shape) index (+ index count))
                shape-with-decoded-data (merge shape (decode-shape-data shape data))]
-           (make-shape-node self shape-with-decoded-data)))))))
+           (make-shape-node self shape-with-decoded-data false)))))))
 
 (g/defnk produce-scene
   [_node-id child-scenes]
@@ -681,7 +684,7 @@
   (g/transact
    (concat
     (g/operation-label "Add Shape")
-    (make-shape-node collision-object-node (default-shape shape-type)))))
+    (make-shape-node collision-object-node (default-shape shape-type) true))))
 
 (defn- selection->collision-object [selection]
   (handler/adapt-single selection CollisionObjectNode))
