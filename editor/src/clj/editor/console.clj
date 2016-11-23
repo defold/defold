@@ -68,7 +68,8 @@
 (defrecord DummySelectionProvider []
   handler/SelectionProvider
   (selection [this] [])
-  (succeeding-selection [this] []))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (defn setup-console! [{:keys [^TextArea text ^TextField search ^Button prev ^Button next ^Button clear]}]
   (ui/on-action! clear clear-console!)

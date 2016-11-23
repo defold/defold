@@ -43,7 +43,8 @@
 (defrecord TestSelectionProvider [selection]
   handler/SelectionProvider
   (selection [this] selection)
-  (succeeding-selection [this] []))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (deftest menu-test
   (ui/extend-menu ::my-menu nil
