@@ -65,7 +65,7 @@
           project (test-util/setup-project! workspace)
           curve-view (make-curve-view! project 400 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-          emitter (:node-id (test-util/outline node-id [2]))]
+          emitter (:node-id (test-util/outline node-id [0]))]
       (project/select! project [emitter])
       (mouse-click! curve-view 0.0 0.0)
       (is (= [1] (sub-selection project emitter :particle-key-alpha)))
@@ -99,7 +99,7 @@
           project (test-util/setup-project! workspace)
           curve-view (make-curve-view! project 800 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-          emitter (:node-id (test-util/outline node-id [2]))]
+          emitter (:node-id (test-util/outline node-id [0]))]
       (project/select! project [emitter])
       (mouse-move! curve-view -100.0 -100.0)
       (mouse-move! curve-view 0.0 0.0)
@@ -127,7 +127,7 @@
           project (test-util/setup-project! workspace)
           curve-view (make-curve-view! project 800 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-          emitter (:node-id (test-util/outline node-id [2]))
+          emitter (:node-id (test-util/outline node-id [0]))
           context (handler/->context :curve-view {} (SubSelectionProvider. project))]
       (project/select! project [emitter])
       ; First control point can't be deleted

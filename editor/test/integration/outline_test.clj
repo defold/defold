@@ -164,8 +164,8 @@
       ; 1 sprite comp + 1 go instance
       (is (= 2 (child-count root [0])))
       ; go instance can be cut
-      (is (cut? root [0 1]))
-      (cut! root [0 1])
+      (is (cut? root [0 0]))
+      (cut! root [0 0])
       ; 1 sprite
       (is (= 1 (child-count root [0]))))))
 
@@ -215,8 +215,8 @@
           (drop! project root [0])
           (is (= 1 (child-count root)))
           (is (= 2 (child-count root [0])))
-          (is (= second-id (get (outline root [0 1]) :label)))
-          (drag! root [0 1])
+          (is (= second-id (get (outline root [0 0]) :label)))
+          (drag! root [0 0])
           (drop! project root)
           (is (= 2 (child-count root)))
           (is (= second-id (get (outline root [1]) :label))))))))
