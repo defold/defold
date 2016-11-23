@@ -139,10 +139,12 @@
   (output image Image (g/fnk [_node-id path ^BufferedImage src-image]
                              (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image id] (image->animation image id)))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id path order] {:node-id _node-id
-                                                                                 :label (format "%s - %s" (path->id path) path)
-                                                                                 :order order
-                                                                                 :icon image-icon}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id src-resource order]
+                                                          (cond-> {:node-id _node-id
+                                                                   :label id
+                                                                   :order order
+                                                                   :icon image-icon}
+                                                            src-resource (assoc :link src-resource))))
   (output ddf-message g/Any :cached (g/fnk [path order] {:image path :order order}))
   (output scene g/Any :cached produce-image-scene))
 

@@ -18,8 +18,4 @@
        ;; numbers
        ["a1" "a"] ["a" "a1"]
        ["a1" "a10" "a2"] ["a1" "a2" "a10"]
-       ["a2" "b" "a1"] ["a1" "a2" "b"]
-       ;; only first word is significant
-       ["a b" "b"] ["a b" "b"]
-       ["a2 b" "a1 b"] ["a1 b" "a2 b"]
-       ["a1 c" "a b" "b"] ["a b" "a1 c" "b"]))
+       ["a2" "b" "a1"] ["a1" "a2" "b"]))
