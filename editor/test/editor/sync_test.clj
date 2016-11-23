@@ -186,10 +186,10 @@
 
 (deftest resume-flow-test
   (with-git [git (new-git)]
-    (create-file git "/existing.txt" "A file that already existed in the repo.")
+    (create-file git "src/existing.txt" "A file that already existed in the repo.")
     (commit-src git)
-    (create-file git "/existing.txt" "A file that already existed in the repo, with unstaged changes.")
-    (create-file git "/added.txt" "A file that has been added but not staged.")
+    (create-file git "src/existing.txt" "A file that already existed in the repo, with unstaged changes.")
+    (create-file git "src/added.txt" "A file that has been added but not staged.")
     (let [prefs (make-prefs)
           !flow (sync/begin-flow! git prefs)]
       (is (flow-equal? @!flow @(sync/resume-flow git prefs))))))
