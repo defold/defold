@@ -271,13 +271,13 @@
         y1 height]
     (persistent!
       (doto (->texture-vtx 6)
-           (conj! [x0 y0 0 1 0 1])
-           (conj! [x0 y1 0 1 0 0])
-           (conj! [x1 y1 0 1 1 0])
+           (conj! [x0 y0 0 1 0 0])
+           (conj! [x0 y1 0 1 0 1])
+           (conj! [x1 y1 0 1 1 1])
 
-           (conj! [x1 y1 0 1 1 0])
-           (conj! [x1 y0 0 1 1 1])
-           (conj! [x0 y0 0 1 0 1])))))
+           (conj! [x1 y1 0 1 1 1])
+           (conj! [x1 y0 0 1 1 0])
+           (conj! [x0 y0 0 1 0 0])))))
 
 (g/defnk produce-scene
   [_node-id texture-set-data aabb gpu-texture child-scenes]
@@ -337,9 +337,9 @@
   [^FloatBuffer tex-coords index atlas-width atlas-height]
   (let [quad (->uv-quad index tex-coords)
         x0 (reduce mind (map first quad))
-        y0 (- 1.0 (reduce mind (map second quad)))
+        y0 (reduce mind (map second quad))
         x1 (reduce maxd (map first quad))
-        y1 (- 1.0 (reduce maxd (map second quad)))
+        y1 (reduce maxd (map second quad))
         w (- x1 x0)
         h (- y1 y0)]
     (types/rect (* x0 atlas-width)

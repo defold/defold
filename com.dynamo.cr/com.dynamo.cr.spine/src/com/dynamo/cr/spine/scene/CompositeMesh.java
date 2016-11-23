@@ -7,7 +7,7 @@ import java.util.List;
 import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 
-import com.dynamo.bob.util.RigScene.Mesh;
+import com.dynamo.bob.util.RigUtil.Mesh;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
 import com.dynamo.cr.sceneed.ui.util.IndexBufferObject;
 import com.dynamo.cr.sceneed.ui.util.Shader;

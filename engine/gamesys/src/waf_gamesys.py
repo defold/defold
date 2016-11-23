@@ -7,7 +7,7 @@ from waf_dynamo import new_copy_task
 stderr_lock = Lock()
 
 def configure(conf):
-    conf.find_file('meshc.py', var='MESHC', mandatory = True)
+    pass
 
 def transform_properties(properties, out_properties):
     for property in properties:
@@ -116,6 +116,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
         c.component = c.component.replace('.model', '.modelc')
+        c.component = c.component.replace('.animationset', '.animationsetc')
         c.component = c.component.replace('.script', '.scriptc')
         c.component = c.component.replace('.sound', '.soundc')
         c.component = c.component.replace('.factory', '.factoryc')
@@ -130,12 +131,81 @@ def transform_gameobject(task, msg):
         transform_properties(c.properties, c.property_decls)
     return msg
 
-def transform_model(task, msg):
-    msg.mesh = msg.mesh.replace('.dae', '.meshc')
-    msg.material = msg.material.replace('.material', '.materialc')
-    for i,n in enumerate(msg.textures):
-        msg.textures[i] = transform_texture_name(task, msg.textures[i])
-    return msg
+def compile_model(task):
+    try:
+        import google.protobuf.text_format
+        import model_ddf_pb2
+        import rig.rig_ddf_pb2
+
+        msg = model_ddf_pb2.ModelDesc()
+        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+
+        msg_out = rig.rig_ddf_pb2.RigScene()
+        msg_out.mesh_set = "/" + msg.mesh.replace(".dae", ".meshsetc")
+        msg_out.skeleton = "/" + msg.mesh.replace(".dae", ".skeletonc")
+        msg_out.animation_set = "/" + msg.animations.replace(".dae", ".animationsetc")
+        with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
+            out_f.write(msg_out.SerializeToString())
+
+        msg_out = model_ddf_pb2.Model()
+        msg_out.rig_scene = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
+        for i,n in enumerate(msg.textures):
+            msg_out.textures.append(transform_texture_name(task, msg.textures[i]))
+        msg_out.material = msg.material.replace(".material", ".materialc")
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(msg_out.SerializeToString())
+
+        return 0
+    except google.protobuf.text_format.ParseError,e:
+        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+        return 1
+
+Task.task_type_from_func('model',
+                         func    = compile_model,
+                         color   = 'PINK')
+
+@extension('.model')
+def model_file(self, node):
+    obj_ext = '.modelc'
+    rig_ext = '.rigscenec'
+    task = self.create_task('model')
+    task.set_inputs(node)
+    out_model    = node.change_ext(obj_ext)
+    out_rigscene = node.change_ext(rig_ext)
+    task.set_outputs([out_model, out_rigscene])
+
+def compile_animationset(task):
+    try:
+        import google.protobuf.text_format
+        import rig.rig_ddf_pb2
+        import dlib
+        msg = rig.rig_ddf_pb2.AnimationSetDesc()
+        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+        msg_animset = rig.rig_ddf_pb2.AnimationSet()
+        msg_riganim = msg_animset.animations.add()
+        msg_riganim.id = dlib.dmHashBuffer64(os.path.splitext(os.path.basename(msg.animations[0].animation))[0])
+        msg_riganim.duration = 0.0
+        msg_riganim.sample_rate = 30.0
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(msg_animset.SerializeToString())
+        return 0
+    except google.protobuf.text_format.ParseError,e:
+        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+        return 1
+
+Task.task_type_from_func('animationset',
+                         func    = compile_animationset,
+                         color   = 'PINK')
+
+@extension('.animationset')
+def animationset_file(self, node):
+    out_ext = '.animationsetc'
+    task = self.create_task('animationset')
+    task.set_inputs(node)
+    out_animationset  = node.change_ext(out_ext)
+    task.set_outputs([out_animationset])
 
 def transform_gui(task, msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
@@ -194,8 +264,8 @@ def transform_spine_model(task, msg):
 
 def transform_rig_scene(task, msg):
     msg.skeleton = msg.skeleton.replace('.skeleton', '.skeletonc')
-    msg.animation_set = msg.skeleton.replace('.animationset', '.animationsetc')
-    msg.mesh_set = msg.skeleton.replace('.meshset', '.meshsetc')
+    msg.animation_set = msg.animation_set.replace('.animationset', '.animationsetc')
+    msg.mesh_set = msg.mesh_set.replace('.meshset', '.meshsetc')
     return msg
 
 def transform_label(task, msg):
@@ -318,7 +388,6 @@ def gofile(self, node):
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
 proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.ParticleFX', '.particlefx', '.particlefxc', transform_particlefx)
-proto_compile_task('model', 'model_ddf_pb2', 'ModelDesc', '.model', '.modelc', transform_model)
 proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
 proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobjectc', transform_collisionobject)
 proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic', transform_gui)
@@ -334,7 +403,6 @@ proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegr
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('spinemodel', 'spine_ddf_pb2', 'SpineModelDesc', '.spinemodel', '.spinemodelc', transform_spine_model)
-proto_compile_task('rig', 'rig.rig_ddf_pb2', 'rig_ddf_pb2.RigScene', '.rigscene', '.rigscenec', transform_rig_scene)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 
 new_copy_task('project', '.project', '.projectc')
@@ -421,19 +489,39 @@ def script_file(self, node):
 new_copy_task('wav', '.wav', '.wavc')
 new_copy_task('ogg', '.ogg', '.oggc')
 
-Task.simple_task_type('mesh', 'python ${MESHC} ${SRC} -o ${TGT}',
-                      color='PINK',
-                      after='proto_gen_py',
-                      before='cc cxx',
-                      shell=True)
+def compile_mesh(task):
+    try:
+        import google.protobuf.text_format
+        import rig.rig_ddf_pb2
+
+        # write skeleton, mesh set and animation set files
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(rig.rig_ddf_pb2.Skeleton().SerializeToString())
+        with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
+            out_f.write(rig.rig_ddf_pb2.MeshSet().SerializeToString())
+        with open(task.outputs[2].bldpath(task.env), 'wb') as out_f:
+            out_f.write(rig.rig_ddf_pb2.AnimationSet().SerializeToString())
+
+        return 0
+    except google.protobuf.text_format.ParseError,e:
+        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+        return 1
+
+Task.task_type_from_func('mesh',
+                         func    = compile_mesh,
+                         color   = 'PINK')
 
 @extension('.dae')
 def dae_file(self, node):
-    obj_ext = '.meshc'
     mesh = self.create_task('mesh')
     mesh.set_inputs(node)
-    out = node.change_ext(obj_ext)
-    mesh.set_outputs(out)
+    ext_skeleton      = '.skeletonc'
+    ext_mesh_set      = '.meshsetc'
+    ext_animation_set = '.animationsetc'
+    out_skeleton      = node.change_ext(ext_skeleton)
+    out_mesh_set      = node.change_ext(ext_mesh_set)
+    out_animation_set = node.change_ext(ext_animation_set)
+    mesh.set_outputs([out_skeleton, out_mesh_set, out_animation_set])
 
 @extension('.gui_script')
 def script_file(self, node):
