@@ -739,14 +739,12 @@ namespace dmGameSystem
         gro.m_SortOrder = gui_context->m_NextSortOrder++;
 
         uint32_t vertex_count = 0;
-        uint32_t max_component_vertices = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             uint32_t count = dmRig::GetVertexCount(rig_instance);
             vertex_count += count;
-            max_component_vertices = dmMath::Max(max_component_vertices, count);
         }
 
         ro.Init();

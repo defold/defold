@@ -374,13 +374,11 @@ namespace dmGameSystem
         TextureSetResource* texture_set = first->m_Resource->m_RigScene->m_TextureSet;
 
         uint32_t vertex_count = 0;
-        uint32_t max_component_vertices = 0;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
             uint32_t count = dmRig::GetVertexCount(c->m_RigInstance);
             vertex_count += count;
-            max_component_vertices = dmMath::Max(max_component_vertices, count);
         }
 
         dmArray<dmRig::RigSpineModelVertex> &vertex_buffer = world->m_VertexBufferData;

@@ -7,9 +7,9 @@
 #include <dlib/hash.h>
 #include <dlib/vmath.h>
 #include <dlib/align.h>
+#include <dlib/transform.h>
 
 #include <render/render.h>
-#include <gameobject/gameobject.h>
 
 #include <ddf/ddf.h>
 #include "rig/rig_ddf.h"

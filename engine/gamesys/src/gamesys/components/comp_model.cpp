@@ -2,7 +2,6 @@
 
 #include <string.h>
 #include <float.h>
-#include <algorithm>
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
@@ -22,8 +21,6 @@
 
 #include "gamesys_ddf.h"
 #include "model_ddf.h"
-#include "sprite_ddf.h"
-#include "tile_ddf.h"
 
 using namespace Vectormath::Aos;
 
@@ -102,11 +99,6 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         dmMessage::URL receiver = component->m_Listener;
-        if (!GetSender(component, &sender))
-        {
-            dmLogError("Could not send animation_done to listener because of incomplete component.");
-            return;
-        }
         switch (event_type) {
             case dmRig::RIG_EVENT_TYPE_COMPLETED:
             {
@@ -159,7 +151,6 @@ namespace dmGameSystem
         bool reverse = false;
         ModelResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
-//        dmHashUpdateBuffer32(&state, &resource->m_RigScene->m_TextureSet, sizeof(resource->m_RigScene->m_TextureSet));
         dmHashUpdateBuffer32(&state, &resource->m_Textures[0], sizeof(resource->m_Textures[0])); // only one texture for now. Should we really support up to 32 textures per model?
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
         dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
@@ -349,9 +340,6 @@ namespace dmGameSystem
         DM_PROFILE(Model, "RenderBatch");
 
         const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
-
-        // TextureSetResource* texture_set = first->m_Resource->m_RigScene->m_TextureSet;
-
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
         for (uint32_t *i=begin;i!=end;i++)
@@ -391,7 +379,6 @@ namespace dmGameSystem
         ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_WorldTransform = Matrix4::identity();
-        // ro.m_Textures[0] = texture_set->m_Texture;
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             ro.m_Textures[i] = first->m_Resource->m_Textures[i];
 
