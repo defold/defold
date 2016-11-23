@@ -21,6 +21,7 @@ import com.dynamo.bob.TexcLibrary.ColorSpace;
 import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
+import com.dynamo.bob.TexcLibrary.FlipAxis;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.Platform;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -233,6 +234,10 @@ public class TextureGenerator {
                 if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
+            }
+
+            if (!TexcLibrary.TEXC_Flip(texture, FlipAxis.FLIP_AXIS_Y)) {
+                throw new TextureGeneratorException("could not flip");
             }
 
             if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType)) {
