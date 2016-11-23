@@ -125,7 +125,47 @@
                                   [{:change-type :rename
                                     :new-path "main/new-name.script"
                                     :old-path "main/old-name.script"
-                                    :score 100}]))))))
+                                    :score 100}]))))
+    (testing "Renamed file, only add staged"
+      (is (= {:modified #{(git/make-delete-change "main/old-name.script")}
+              :staged #{(git/make-add-change "main/new-name.script")}}
+             (sync/find-git-state (merge base-status
+                                         {:added #{"main/new-name.script"}
+                                          :missing #{"main/old-name.script"}
+                                          :uncommited-changes #{"main/old-name.script" "main/new-name.script"}})
+                                  [{:change-type :rename
+                                    :new-path "main/new-name.script"
+                                    :old-path "main/old-name.script"
+                                    :score 100}]))))
+    (testing "Renamed file, only delete staged"
+      (is (= {:modified #{(git/make-add-change "main/new-name.script")}
+              :staged #{(git/make-delete-change "main/old-name.script")}}
+             (sync/find-git-state (merge base-status
+                                         {:removed #{"main/old-name.script"}
+                                          :uncommited-changes #{"main/old-name.script" "main/new-name.script"}
+                                          :untracked #{"main/new-name.script"}})
+                                  [{:change-type :rename
+                                    :new-path "main/new-name.script"
+                                    :old-path "main/old-name.script"
+                                    :score 100}]))))
+    (testing "Renamed and modified file, unstaged"
+      (is (= {:modified #{(git/make-delete-change "main/old-name.script")
+                          (git/make-add-change "main/new-name.script")}
+              :staged #{}}
+             (sync/find-git-state (merge base-status
+                                         {:missing #{"main/old-name.script"}
+                                          :uncommited-changes #{"main/old-name.script"}
+                                          :untracked #{"main/new-name.script"}})
+                                  [{:change-type :delete
+                                    :new-path nil
+                                    :old-path "main/old-name.script"
+                                    :score 0}
+                                   {:change-type :add
+                                    :new-path "main/new-name.script"
+                                    :old-path nil
+                                    :score 0}]))))
+    (testing "Renamed and modified file, staged"
+      (is (some? "This is covered by the `Renamed file, staged` case")))))
 
 (deftest flow-in-progress-test
   (is (false? (sync/flow-in-progress? nil)))
