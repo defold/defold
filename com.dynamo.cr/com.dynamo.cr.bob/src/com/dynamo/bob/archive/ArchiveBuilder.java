@@ -184,130 +184,74 @@ public class ArchiveBuilder {
     }
     
     public void write2(RandomAccessFile outFileIndex, RandomAccessFile outFileData) throws IOException {
-        // Version
-        outFileIndex.writeInt(VERSION+1);
-        outFileData.writeInt(VERSION+1);
-        // Pad
-        outFileIndex.writeInt(0);
-        outFileData.writeInt(0);
-        // Userdata
-        outFileIndex.writeLong(0);
-        outFileData.writeLong(0);
-        // StringPoolOffset
-        outFileIndex.writeInt(0);
-        // StringPoolSize
-        outFileIndex.writeInt(0);
-        // HashDigestOffset
-        outFileIndex.writeInt(0);
-        //HashDigestSize
-        outFileIndex.writeInt(0);
-        // EntryCount
-        outFileData.writeInt(0);
-        // EntryOffset
-        outFileData.writeInt(0);
+    	// INDEX
+        outFileIndex.writeInt(VERSION+1); // Version
+        outFileIndex.writeInt(0); // Pad
+        outFileIndex.writeLong(0); // UserData
+        outFileIndex.writeInt(0); // EntryCount
+        outFileIndex.writeInt(0); // ArchiveEntryDataOffset
         
-        /*
-         * Iterate first over entries, and store then to outputFileData in sequence
-         * Then iterate for index file, store stringpool, hashdigest also in sequence
-         * */
+        // -- DATA
+        outFileData.writeInt(VERSION+1); // Version
+        outFileData.writeInt(0); // Pad
+        outFileData.writeLong(0); // UserData
+        outFileData.writeInt(0); // ResourceDataOffset
 
         Collections.sort(entries);
-
-        int stringPoolOffset = (int) outFileIndex.getFilePointer();
-        List<Integer> stringsOffset = new ArrayList<Integer>();
-        for (ArchiveEntry e : entries) {
-            // Store offset to string
-            stringsOffset.add((int) (outFileIndex.getFilePointer() - stringPoolOffset));
-            String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
-            outFileIndex.write(normalisedPath.getBytes());
-            outFileIndex.writeByte((byte) 0);
-        }
-        int stringPoolSize = (int) (outFileIndex.getFilePointer() - stringPoolOffset);
         
-        int hashDigestPoolOffset = (int) outFileIndex.getFilePointer();
-        List<Integer> hashDigestOffsets = new ArrayList<Integer>();
-        for(ArchiveEntry e : entries) {
-        	// Store offset to hash digest
-        	hashDigestOffsets.add((int) (outFileIndex.getFilePointer() - hashDigestPoolOffset));
-        	//outFile.writeInt(e.hashDigestSize);
-        	outFileIndex.writeInt(e.hashDigest.length);
-        	outFileIndex.write(e.hashDigest, 0, e.hashDigest.length);
-        }
-        
-        int hashDigestPoolSize = (int) (outFileIndex.getFilePointer() - hashDigestPoolOffset);
-
-        // Copy resources to data file
-        List<Integer> resourcesOffset = new ArrayList<Integer>();
+        // Write to data file
+        int resourceDataOffset = (int) outFileData.getFilePointer();
         for (ArchiveEntry e : entries) {
-            alignBuffer(outFileData, 4);
-            resourcesOffset.add((int) outFileData.getFilePointer());
+        	// copy resource data to file (compress if flag set)
+        	alignBuffer(outFileData, 4);
+            e.resourceOffset = (int) outFileData.getFilePointer();
             if(e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 e.compressedSize = compress(e.fileName, e.size, outFileData);
             } else {
                 copy(e.fileName, outFileData);
             }
+            
         }
-
-        // Entry meta data
-        alignBuffer(outFileData, 4);
-        int entryOffset = (int) outFileData.getFilePointer();
-        int i = 0;
+        
+        // Write to index file
+        int archiveEntryDataOffset = (int) outFileIndex.getFilePointer();
+        int debug_count = 0;
         for (ArchiveEntry e : entries) {
-        	/*outFileData.writeInt(stringsOffset.get(i));
-        	outFileData.writeInt(hashDigestOffsets.get(i));*/
-        	outFileData.writeInt(resourcesOffset.get(i));
-        	outFileData.writeInt(e.size);
-        	outFileData.writeInt(e.compressedSize);
-            String ext = FilenameUtils.getExtension(e.fileName);
-            if (ENCRYPTED_EXTS.indexOf(ext) != -1) {
-                e.flags = ArchiveEntry.FLAG_ENCRYPTED;
-            }
-            outFileData.writeInt(e.flags);
-            ++i;
+        	String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+        	byte[] normalizedPathBytes = normalisedPath.getBytes();
+        	outFileIndex.writeInt(normalizedPathBytes.length);
+        	outFileIndex.write(normalizedPathBytes);
+        	
+        	// TODO in real impl. we will calc. hash on-the-fly
+        	// based on the resource already copied to the data-file
+        	// at e.resourceOffset in outFileData
+        	byte[] debug_hash = ("wicked hash " + debug_count).getBytes();
+        	outFileIndex.writeInt(debug_hash.length);
+        	outFileIndex.write(debug_hash);
+        	
+        	outFileIndex.writeInt(e.resourceOffset);
+        	outFileIndex.writeInt(e.size);
+        	outFileIndex.writeInt(e.compressedSize);
+        	
+        	outFileIndex.writeInt(e.flags);
+        	
+        	++debug_count;
         }
 
-        i = 0;
-        for (ArchiveEntry e : entries) {
-            String ext = FilenameUtils.getExtension(e.fileName);
-            if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
-            	outFileData.seek(resourcesOffset.get(i));
-                int size = e.size;
-                if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
-                    size = e.compressedSize;
-                }
-                byte[] buf = new byte[size];
-                outFileData.read(buf);
-                byte[] enc = Crypt.encryptCTR(buf, KEY);
-                outFileData.seek(resourcesOffset.get(i));
-                outFileData.write(enc);
-            }
-            ++i;
-        }
-
-        // Reset file and write actual offsets
-        outFileIndex.seek(0);
-        outFileData.seek(0);
-        // Version
-        outFileIndex.writeInt(VERSION+1);
-        outFileData.writeInt(VERSION+1);
-        // Pad
-        outFileIndex.writeInt(0);
-        outFileData.writeInt(0);
-        // Userdata
-        outFileIndex.writeLong(0);
-        outFileData.writeLong(0);
-        // StringPoolOffset
-        outFileIndex.writeInt(stringPoolOffset);
-        // StringPoolSize
-        outFileIndex.writeInt(stringPoolSize);
-        // HashDigestOffset
-        outFileIndex.writeInt(hashDigestPoolOffset);
-        //HashDigestSize
-        outFileIndex.writeInt(hashDigestPoolSize);
-        // EntryCount
-        outFileData.writeInt(entries.size());
-        // EntryOffset
-        outFileData.writeInt(entryOffset);
+        // INDEX
+        outFileIndex.seek(0); // Reset file and write actual offsets
+        outFileIndex.writeInt(VERSION+1); // Version
+        outFileIndex.writeInt(0); // Pad
+        outFileIndex.writeLong(0); // UserData
+        outFileIndex.writeInt(entries.size()); // EntryCount
+        outFileIndex.writeInt(archiveEntryDataOffset); // ArchiveEntryDataOffset
+        
+        // DATA
+        outFileData.seek(0); // Reset file and write actual offsets
+        outFileData.writeInt(VERSION+1); // Version        
+        outFileData.writeInt(0); // Pad
+        outFileData.writeLong(0); // UserData
+        outFileData.writeInt(resourceDataOffset); // ResourceDataOffset
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {

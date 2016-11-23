@@ -14,6 +14,7 @@ public class ArchiveReader {
     public static final int VERSION = 4;
 
     private ArrayList<ArchiveEntry> entries = null;
+    private ArrayList<ArchiveEntryData> entry_datas = null;
 
     private int stringPoolOffset = 0;
     private int stringPoolSize = 0;
@@ -21,6 +22,7 @@ public class ArchiveReader {
     private int hashDigestPoolSize = 0;
     private int entryCount = 0;
     private int entryOffset = 0;
+    private int resourceDataOffset = 0;
 
     private String darcPath = null;
     private RandomAccessFile inFile = null;
@@ -140,72 +142,53 @@ public class ArchiveReader {
     }
     
     private void readDarc2() throws IOException {
-        // Pad
-        indexFile.readInt();
-        dataFile.readInt();
-
-        // Userdata, should be 0
-        indexFile.readLong();
-        dataFile.readLong();
-
-        stringPoolOffset = indexFile.readInt();
-        stringPoolSize = indexFile.readInt();
-        hashDigestPoolOffset = indexFile.readInt();
-        hashDigestPoolSize = indexFile.readInt();
-        entryCount = dataFile.readInt();
-        entryOffset = dataFile.readInt();
+    	// INDEX
+        indexFile.readInt(); // Pad
+        indexFile.readLong(); // UserData, should be 0
+        entryCount = indexFile.readInt();
+        entryOffset = indexFile.readInt();
         
-        // Gather entry strings
-        entries = new ArrayList<ArchiveEntry>();
+        // DATA
+        dataFile.readInt(); // Pad
+        dataFile.readLong(); // UserData
+        resourceDataOffset = dataFile.readInt();
         
-        // Jump to string pool	
-        indexFile.seek(stringPoolOffset);
+        entry_datas = new ArrayList<ArchiveEntryData>(entryCount);
         
-        // Gather entry name strings
-        ArrayList<String> entryNames = new ArrayList<String>(entryCount);
-        for (int i = 0; i < entryCount; i++) {
-            String entryName = "";
-            while (true) {
-                byte b = indexFile.readByte();
-                if (b == (byte)0) {
-                    break;
-                }
-                entryName += (char)b;
-            }
-            entryNames.add(i, entryName);
+        // Jump to entrydata structs
+        indexFile.seek(entryOffset);
+        for (int i=0; i<entryCount; ++i) {
+        	ArchiveEntryData e = new ArchiveEntryData();
+        	
+        	e.pathSize = indexFile.readInt();
+        	e.path = new byte[e.pathSize];
+        	indexFile.read(e.path, 0, e.pathSize);
+        	
+        	e.hashSize = indexFile.readInt();
+        	e.hashDigest = new byte[e.hashSize];
+        	indexFile.read(e.hashDigest, 0, e.hashSize);
+        	
+        	e.resource_offset = indexFile.readInt();
+        	e.resource_size = indexFile.readInt();
+        	e.resource_compressed_size = indexFile.readInt();
+        	
+        	e.flags = indexFile.readInt();
+        	
+        	entry_datas.add(e);
         }
         
-        // Jump to hash pool
-        indexFile.seek(hashDigestPoolOffset);
-        
-        // Gather hash digests and create entries
-        for (int i = 0; i < entryCount; i++) {
-        	int hashDigestSize = indexFile.readInt();
-        	byte[] hashDigest = new byte[hashDigestSize];
-        	 for (int j = 0; j < hashDigestSize; j++) {
-                byte b = indexFile.readByte();
-                hashDigest[j] = b;
-             }
-        	 entries.add(new ArchiveEntry(entryNames.get(i), hashDigest));
-        }
-
-        dataFile.seek(entryOffset);
-
-        // Fill entry meta data
-        for (int i = 0; i < entryCount; i++) {
-            ArchiveEntry entry = entries.get(i);
-            entry.resourceOffset = dataFile.readInt();
-            entry.size = dataFile.readInt();
-            entry.compressedSize = dataFile.readInt();
-            if (entry.compressedSize == ArchiveEntry.FLAG_UNCOMPRESSED) {
-                entry.compressedSize = entry.size;
-            }
-            entry.flags = dataFile.readInt();
-        }
+        // Debugging!
+        /*for (ArchiveEntryData d : entry_datas) {
+        	System.out.println("hash as str: " + new String(d.hashDigest));
+        }*/
     }
 
     public List<ArchiveEntry> getEntries() {
         return entries;
+    }
+    
+    public List<ArchiveEntryData> getEntryDatas() {
+    	return entry_datas;
     }
 
     public byte[] getEntryContent(ArchiveEntry entry) throws IOException {

@@ -18,6 +18,7 @@ import org.junit.Test;
 
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveEntryData;
 import com.dynamo.bob.archive.ArchiveReader;
 
 public class ArchiveTest {
@@ -152,11 +153,11 @@ public class ArchiveTest {
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
         ar.read();
-        List<ArchiveEntry> entries = ar.getEntries();
+        List<ArchiveEntryData> entries = ar.getEntryDatas();
         
-        assertEquals(entries.get(0).fileName, "/a.txt");
-        assertEquals(entries.get(1).fileName, "/main/a.txt");
-        assertEquals(entries.get(2).fileName, "/main2/a.txt");
+        assertEquals(new String(entries.get(0).path), "/a.txt");
+        assertEquals(new String(entries.get(1).path), "/main/a.txt");
+        assertEquals(new String(entries.get(2).path), "/main2/a.txt");
         ar.close();
     }
 }
