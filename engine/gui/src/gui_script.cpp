@@ -2408,7 +2408,7 @@ namespace dmGui
      *
      * @name gui.set_outer_bounds
      * @param node node for which to set the outer bounds mode (node)
-     * @param BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
+     * @param gui.PIEBOUNDS_RECTANGLE or gui.PIEBOUNDS_ELLIPSE
      */
     static int LuaSetOuterBounds(lua_State* L)
     {
@@ -2435,7 +2435,7 @@ namespace dmGui
      *
      * @name gui.get_outer_bounds
      * @param node node from where to get the outer bounds mode (node)
-     * @return BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
+     * @return gui.PIEBOUNDS_RECTANGLE or gui.PIEBOUNDS_ELLIPSE
      */
     static int LuaGetOuterBounds(lua_State* L)
     {
