@@ -77,7 +77,7 @@
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error
-  {:node-id 0
+  {:node-id -1
    :icon ""
    :label ""})
 
@@ -110,16 +110,19 @@
 
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id node-outline-label id source-outline source-properties source-resource]
+    (g/fnk [_node-id id source-outline source-properties source-resource]
       (let [source-outline (or source-outline {:icon unknown-icon})
+            source-id (when-let [source-id (:node-id source-outline)]
+                        (and (not= source-id -1) source-id))
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
-        (-> source-outline
-          (assoc :node-id _node-id
-                 :label node-outline-label
-                 :outline-overridden? overridden?)
+        (-> {:node-id _node-id
+             :label id
+             :icon (:icon source-outline)
+             :outline-overridden? overridden?
+             :children (:children source-outline)}
           (cond->
-            (and source-resource (resource/path source-resource)) (assoc :link source-resource))))))
-  (output node-outline-label g/Str (gu/passthrough id))
+            (and source-resource (resource/path source-resource)) (assoc :link source-resource)
+            source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
@@ -219,8 +222,6 @@
                               :type (:go-prop-type p)
                               :value (properties/go-prop->str (:value p) (:go-prop-type p))}))))))
   (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties)))
-  (output node-outline-label g/Str :cached (g/fnk [id source-resource]
-                                                  (format "%s - %s" id (resource/resource->proj-path source-resource))))
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
                                               (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
 
@@ -261,8 +262,12 @@
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
-(defn- attach-component [self-id comp-id ddf-input]
+(defn- attach-component [self-id comp-id ddf-input resolve-id?]
   (concat
+    (when resolve-id?
+      (->> (g/node-value self-id :component-ids)
+        keys
+        (g/update-property comp-id :id outline/resolve-id)))
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
@@ -275,20 +280,26 @@
       (g/connect self-id from comp-id to))))
 
 (defn- attach-ref-component [self-id comp-id]
-  (attach-component self-id comp-id :ref-ddf))
+  (attach-component self-id comp-id :ref-ddf false))
 
 (defn- attach-embedded-component [self-id comp-id]
-  (attach-component self-id comp-id :embed-ddf))
+  (attach-component self-id comp-id :embed-ddf false))
+
+(defn- outline-attach-ref-fn [self-id comp-id]
+  (attach-component self-id comp-id :embed-ddf true))
+
+(defn- outline-attach-embedded-component [self-id comp-id]
+  (attach-component self-id comp-id :embed-ddf true))
 
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Game Object"
    :icon game-object-icon
-   :children (vec (sort-by :label util/natural-order child-outlines))
+   :children (outline/natural-sort child-outlines)
    :child-reqs [{:node-type ReferencedComponent
-                 :tx-attach-fn attach-ref-component}
+                 :tx-attach-fn outline-attach-ref-fn}
                 {:node-type EmbeddedComponent
-                 :tx-attach-fn attach-embedded-component}]})
+                 :tx-attach-fn outline-attach-embedded-component}]})
 
 (g/defnode GameObjectNode
   (inherits project/ResourceNode)
