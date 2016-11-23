@@ -24,7 +24,6 @@ namespace dmScript
 
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
-#define SCRIPT_TYPE_NAME_STREAM "stream"
 
     bool IsBuffer(lua_State *L, int index)
     {
@@ -45,17 +44,42 @@ namespace dmScript
         return result;
     }
 
+    void PushBuffer(lua_State* L, dmBuffer::HBuffer v)
+    {
+        dmBuffer::HBuffer* vp = (dmBuffer::HBuffer*)lua_newuserdata(L, sizeof(dmBuffer::HBuffer));
+        *vp = v;
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
+        lua_setmetatable(L, -2);
+    }
+
+    dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TUSERDATA)
+        {
+            return (dmBuffer::HBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
+        }
+        luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
+        return 0x0;
+    }
+
     static int Buffer_gc(lua_State *L)
     {
         dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
         dmBuffer::Free(*buffer);
+        *buffer = 0x0;
         return 0;
     }
 
     static int Buffer_tostring(lua_State *L)
     {
         dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
-        lua_pushfstring(L, "buffer.%s(%x)", SCRIPT_TYPE_NAME_BUFFER, *buffer);
+        uint32_t out_element_count = 0;
+        dmBuffer::Result r = dmBuffer::GetElementCount(*buffer, &out_element_count);
+        if (r == dmBuffer::RESULT_OK) {
+            lua_pushfstring(L, "buffer.%s(elements=%d)", SCRIPT_TYPE_NAME_BUFFER, out_element_count);
+        } else {
+            lua_pushfstring(L, "buffer.%s(invalid)", SCRIPT_TYPE_NAME_BUFFER);
+        }
         return 1;
     }
 
@@ -102,7 +126,6 @@ namespace dmScript
         } types[type_count] =
         {
             {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta},
-            // {SCRIPT_TYPE_NAME_STREAM, Stream_methods, Stream_meta},
         };
         for (uint32_t i = 0; i < type_count; ++i)
         {
@@ -125,24 +148,6 @@ namespace dmScript
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
-    }
-
-    void PushBuffer(lua_State* L, dmBuffer::HBuffer v)
-    {
-        dmBuffer::HBuffer* vp = (dmBuffer::HBuffer*)lua_newuserdata(L, sizeof(dmBuffer::HBuffer));
-        *vp = v;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
-        lua_setmetatable(L, -2);
-    }
-
-    dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index)
-    {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            return (dmBuffer::HBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
-        }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
-        return 0x0;
     }
 
 }

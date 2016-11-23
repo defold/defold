@@ -182,14 +182,14 @@ namespace dmBuffer
         }
     }
 
-    static const Buffer::Stream* GetStream(HBuffer buffer, dmhash_t stream_name)
+    static Buffer::Stream* GetStream(HBuffer buffer, dmhash_t stream_name)
     {
         if (!buffer) {
             return 0x0;
         }
 
         for (uint8_t i = 0; i < buffer->m_NumStreams; ++i) {
-            const Buffer::Stream* stream = &buffer->m_Streams[i];
+            Buffer::Stream* stream = &buffer->m_Streams[i];
             if (stream_name == stream->m_Name) {
                 return stream;
             }
@@ -205,7 +205,7 @@ namespace dmBuffer
         }
 
         // Get stream
-        const Buffer::Stream* stream = GetStream(buffer, stream_name);
+        Buffer::Stream* stream = GetStream(buffer, stream_name);
         if (stream == 0x0) {
             return RESULT_STREAM_DOESNT_EXIST;
         }
@@ -222,10 +222,7 @@ namespace dmBuffer
             return RESULT_GUARD_INVALID;
         }
 
-        // Calculate stride
-        uint32_t type_size = GetSizeForValueType(type);
-        *out_stride = type_size * type_count;
-
+        *out_stride = type_count;
         *out_element_count = buffer->m_NumElements;
         *out_stream = (void*)((uintptr_t)buffer->m_Data + stream->m_Offset);
 
