@@ -4,7 +4,8 @@
             [editor.prefs :as prefs]
             [editor.git :as git]
             [editor.sync :as sync]
-            [editor.progress :as progress]))
+            [editor.progress :as progress]
+            [integration.test-util :as test-util]))
 
 (def without-login-prompt
   (fn [f]
@@ -204,6 +205,65 @@
       (sync/cancel-flow! !flow)
       (is (= "void main() {}" (slurp-file git "/src/main.cpp")))
       (is (false? (sync/flow-in-progress? git))))))
+
+(deftest cancel-flow-from-partially-staged-rename-test
+  (let [old-path "src/old-name.txt"
+        new-path "src/new-name.txt"
+        modified-path "src/modified.txt"
+        setup-remote (fn []
+                       (let [git (new-git)]
+                         (create-file git ".gitignore" ".internal")
+                         (create-file git old-path "A file that already existed in the repo, and will be renamed.")
+                         (create-file git modified-path "A file that already existed in the repo.")
+                         (-> git (.add) (.addFilepattern ".gitignore") (.call))
+                         (-> git (.add) (.addFilepattern old-path) (.call))
+                         (-> git (.add) (.addFilepattern modified-path) (.call))
+                         (-> git (.commit) (.setMessage "message") (.call))
+                         git))
+        setup-local (fn [remote-git]
+                      (let [git (clone remote-git)]
+                        (create-file git modified-path "A file that already existed in the repo, with changes.")
+                        (move-file git old-path new-path)
+                        (let [{:keys [missing modified untracked]} (git/status git)]
+                          (is (= #{modified-path} modified))
+                          (is (= #{old-path} missing))
+                          (is (= #{new-path} untracked)))
+                        git))
+        advance! (fn [!flow]
+                   (swap! !flow sync/advance-flow progress/null-render-progress!))
+        run-command! (fn [!flow command selection]
+                       (test-util/handler-run command [{:name :sync :env {:selection selection :!flow !flow}}] {})
+                       @!flow)
+        perform-test! (fn [local-git staged-change unstaged-change]
+                        (git/stage-change! local-git staged-change)
+                        (let [status-before (git/status local-git)
+                              !flow (sync/begin-flow! local-git (make-prefs))]
+                          (is (= :pull/done (:state (advance! !flow))))
+                          (is (= :push/start (:state (swap! !flow assoc :state :push/start))))
+                          (let [{:keys [modified staged state]} (advance! !flow)]
+                            (is (= :push/staging state))
+                            (is (= #{(git/make-modify-change modified-path)
+                                     unstaged-change} modified))
+                            (is (= #{staged-change} staged)))
+                          (let [{:keys [modified staged state]} (run-command! !flow :unstage-change [staged-change])]
+                            (is (= :push/staging state))
+                            (is (= #{(git/make-modify-change modified-path)
+                                     (git/make-rename-change old-path new-path)} modified))
+                            (is (= #{} staged)))
+                          (is (nil? (sync/cancel-flow! !flow)))
+                          (is (= status-before (assoc (git/status local-git) :ignored-not-in-index #{})))))]
+    (testing "Renamed file, only stage add"
+      (with-git [remote-git (setup-remote)
+                 local-git (setup-local remote-git)
+                 staged-change (git/make-add-change new-path)
+                 unstaged-change (git/make-delete-change old-path)]
+        (perform-test! local-git staged-change unstaged-change)))
+    (testing "Renamed file, only stage delete"
+      (with-git [remote-git (setup-remote)
+                 local-git (setup-local remote-git)
+                 staged-change (git/make-delete-change old-path)
+                 unstaged-change (git/make-add-change new-path)]
+        (perform-test! local-git staged-change unstaged-change)))))
 
 (deftest finish-flow-test
   (with-git [git (new-git)]
