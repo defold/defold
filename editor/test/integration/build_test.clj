@@ -49,92 +49,100 @@
                         "skeletonc" Rig$Skeleton
                         "animationsetc" Rig$AnimationSet
                         "meshsetc" Rig$MeshSet
-                        "texturesetc" TextureSetProto$TextureSet})
+                        "texturesetc" TextureSetProto$TextureSet
+                        "collectionproxyc" GameSystem$CollectionProxyDesc
+                        "collectionc" GameObject$CollectionDesc})
 
 (defn- target [path targets]
   (let [ext (FilenameUtils/getExtension path)
         pb-class (get target-pb-classes ext)]
     (protobuf/bytes->map pb-class (get targets path))))
 
-(def pb-cases [{:label    "ParticleFX"
-                :path     "/main/blob.particlefx"
-                :pb-class Particle$ParticleFX
-                :test-fn  (fn [pb targets]
-                            (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
-               {:label           "Sound"
-                :path            "/main/sound.sound"
-                :pb-class        Sound$SoundDesc
-                :resource-fields [:sound]}
-               {:label           "Collision Object"
-                :path            "/collisionobject/tile_map.collisionobject"
-                :pb-class        Physics$CollisionObjectDesc
-                :resource-fields [:collision-shape]}
-               {:label           "Collision Object"
-                :path            "/collisionobject/convex_shape.collisionobject"
-                :pb-class        Physics$CollisionObjectDesc
-                :test-fn (fn [pb targets]
-                           (is (= "" (:collision-shape pb)))
-                           (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
-               {:label           "Tile Source"
-                :path            "/tile_source/simple.tilesource"
-                :pb-class        TextureSetProto$TextureSet
-                :test-fn (fn [pb targets]
-                           (is (= "default" (:collision-group (first (:convex-hulls pb)))))
-                           (is (< 0 (count (:convex-hull-points pb)))))}
-               {:label "Spine Scene"
-                :path "/player/spineboy.spinescene"
-                :pb-class Rig$RigScene
-                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                :test-fn (fn [pb targets]
-                           (is (some? (-> pb :texture-set (target targets) :texture)))
-                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
-               {:label "Spine Model"
-                :path "/player/spineboy.spinemodel"
-                :pb-class Spine$SpineModelDesc
-                :resource-fields [:spine-scene :material]}
-               {:label "Label"
-                :path "/main/label.label"
-                :pb-class Label$LabelDesc
-                :resource-fields [:font :material]
-                :test-fn (fn [pb targets]
-                           (is (= {:color [1.0 1.0 1.0 1.0],
-                                   :line-break false,
-                                   :scale [1.0 1.0 1.0 0.0],
-                                   :blend-mode :blend-mode-alpha,
-                                   :leading 1.0,
-                                   :font "/builtins/fonts/system_font.fontc",
-                                   :size [128.0 32.0 0.0 0.0],
-                                   :tracking 0.0,
-                                   :material "/builtins/fonts/label.materialc",
-                                   :outline [0.0 0.0 0.0 1.0],
-                                   :pivot :pivot-center,
-                                   :shadow [0.0 0.0 0.0 1.0],
-                                   :text "Label"}
-                                  pb)))}
-               {:label "Collada Scene"
-                :path "/model/book_of_defold.dae"
-                :pb-class Rig$MeshSet
-                :test-fn (fn [pb targets]
-                           ;; TODO - id must be 0 currently because of the runtime
-                           ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
-                           (is (= 0 (get-in pb [:mesh-entries 0 :id]))))}
-               {:label "Model"
-                :path "/model/book_of_defold.model"
-                :pb-class ModelProto$Model
-                :resource-fields [:rig-scene :material]
-                :test-fn (fn [pb targets]
-                           ;; TODO - id must be 0 currently because of the runtime
-                           ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
-                           (is (= 0 (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}
+(def pb-cases {"/game.project"
+               [{:label    "ParticleFX"
+                 :path     "/main/blob.particlefx"
+                 :pb-class Particle$ParticleFX
+                 :test-fn  (fn [pb targets]
+                             (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
+                {:label           "Sound"
+                 :path            "/main/sound.sound"
+                 :pb-class        Sound$SoundDesc
+                 :resource-fields [:sound]}
+                {:label           "Collision Object"
+                 :path            "/collisionobject/tile_map.collisionobject"
+                 :pb-class        Physics$CollisionObjectDesc
+                 :resource-fields [:collision-shape]}
+                {:label           "Collision Object"
+                 :path            "/collisionobject/convex_shape.collisionobject"
+                 :pb-class        Physics$CollisionObjectDesc
+                 :test-fn (fn [pb targets]
+                            (is (= "" (:collision-shape pb)))
+                            (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
+                {:label           "Tile Source"
+                 :path            "/tile_source/simple.tilesource"
+                 :pb-class        TextureSetProto$TextureSet
+                 :test-fn (fn [pb targets]
+                            (is (= "default" (:collision-group (first (:convex-hulls pb)))))
+                            (is (< 0 (count (:convex-hull-points pb)))))}
+                {:label "Spine Scene"
+                 :path "/player/spineboy.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (is (some? (-> pb :texture-set (target targets) :texture)))
+                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+                {:label "Spine Model"
+                 :path "/player/spineboy.spinemodel"
+                 :pb-class Spine$SpineModelDesc
+                 :resource-fields [:spine-scene :material]}
+                {:label "Label"
+                 :path "/main/label.label"
+                 :pb-class Label$LabelDesc
+                 :resource-fields [:font :material]
+                 :test-fn (fn [pb targets]
+                            (is (= {:color [1.0 1.0 1.0 1.0],
+                                    :line-break false,
+                                    :scale [1.0 1.0 1.0 0.0],
+                                    :blend-mode :blend-mode-alpha,
+                                    :leading 1.0,
+                                    :font "/builtins/fonts/system_font.fontc",
+                                    :size [128.0 32.0 0.0 0.0],
+                                    :tracking 0.0,
+                                    :material "/builtins/fonts/label.materialc",
+                                    :outline [0.0 0.0 0.0 1.0],
+                                    :pivot :pivot-center,
+                                    :shadow [0.0 0.0 0.0 1.0],
+                                    :text "Label"}
+                                   pb)))}
+                {:label "Collada Scene"
+                 :path "/model/book_of_defold.dae"
+                 :pb-class Rig$MeshSet
+                 :test-fn (fn [pb targets]
+                            ;; TODO - id must be 0 currently because of the runtime
+                            ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
+                            (is (= 0 (get-in pb [:mesh-entries 0 :id]))))}
+                {:label "Model"
+                 :path "/model/book_of_defold.model"
+                 :pb-class ModelProto$Model
+                 :resource-fields [:rig-scene :material]
+                 :test-fn (fn [pb targets]
+                            ;; TODO - id must be 0 currently because of the runtime
+                            ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
+                            (is (= 0 (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}
                {:label "Model with animations"
                 :path "/model/primary.model"
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           (is (< 0 (count (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :meshes first :indices)))))}])
+                           (is (< 0 (count (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :meshes first :indices)))))}]
+               "/collection_proxy/with_collection.collectionproxy"
+               [{:label "Collection proxy"
+                 :path "/collection_proxy/with_collection.collectionproxy"
+                 :pb-class GameSystem$CollectionProxyDesc
+                 :resource-fields [:collection]}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -163,32 +171,11 @@
                                              ~'build-results))]
        ~@forms)))
 
-(deftest build-game-project-pb-cases
-  (with-build-results "/game.project"
-    (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
-          exp-paths   [path
-                       "/main/main.collection"
-                       "/main/main.script"
-                       "/input/game.input_binding"
-                       "/builtins/render/default.render"
-                       "/builtins/render/default.render_script"
-                       "/background/bg.png"
-                       "/tile_source/simple.tilesource"
-                       "/main/blob.tilemap"
-                       "/collisionobject/tile_map.collisionobject"
-                       "/collisionobject/convex_shape.collisionobject"]
-          exp-exts    ["vpc" "fpc" "texturec"]]
-      (doseq [case pb-cases]
-        (run-pb-case case content-by-source content-by-target))
-      (doseq [ext exp-exts]
-        (is (contains? target-exts ext)))
-      (doseq [path exp-paths]
-        (is (contains? content-by-source path)))
-      (let [content (get content-by-source "/main/main.collection")
-            desc    (GameObject$CollectionDesc/parseFrom content)
-            go-ext  (:build-ext (workspace/get-resource-type workspace "go"))]
-        (doseq [inst (.getInstancesList desc)]
-          (is (.endsWith (.getPrototype inst) go-ext)))))))
+(deftest build-pb-cases
+  (doseq [[path cases] pb-cases]
+    (with-build-results path
+      (doseq [case cases]
+        (run-pb-case case content-by-source content-by-target)))))
 
 (deftest build-coll-hierarchy
   (testing "Building collection hierarchies"
@@ -211,13 +198,6 @@
                       (persistent! ids)))]
           (doseq [inst instances]
             (is (every? ids (.getChildrenList inst)))))))))
-
-(deftest build-collection-proxy
-  (testing "Building collection proxy"
-    (with-build-results "/collection_proxy/with_collection.collectionproxy"
-      (let [content (get content-by-source "/collection_proxy/with_collection.collectionproxy")
-            desc    (GameSystem$CollectionProxyDesc/parseFrom content)]
-        (is (= "/collection_proxy/default.collection" (-> desc (.getCollection))))))))
 
 (defn- count-exts [paths ext]
   (count (filter #(.endsWith % ext) paths)))
@@ -493,6 +473,28 @@
 
 (deftest build-game-project
   (with-build-results "/game.project"
+    (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
+          exp-paths   [path
+                       "/main/main.collection"
+                       "/main/main.script"
+                       "/input/game.input_binding"
+                       "/builtins/render/default.render"
+                       "/builtins/render/default.render_script"
+                       "/background/bg.png"
+                       "/tile_source/simple.tilesource"
+                       "/main/blob.tilemap"
+                       "/collisionobject/tile_map.collisionobject"
+                       "/collisionobject/convex_shape.collisionobject"]
+          exp-exts    ["vpc" "fpc" "texturec"]]
+      (doseq [ext exp-exts]
+        (is (contains? target-exts ext)))
+      (doseq [path exp-paths]
+        (is (contains? content-by-source path)))
+      (let [content (get content-by-source "/main/main.collection")
+            desc    (GameObject$CollectionDesc/parseFrom content)
+            go-ext  (:build-ext (workspace/get-resource-type workspace "go"))]
+        (doseq [inst (.getInstancesList desc)]
+          (is (.endsWith (.getPrototype inst) go-ext)))))
     (let [content (get content-by-source "/game.project")]
       (is (some? (re-find #"/main/main\.collectionc" (String. content "UTF-8")))))))
 
