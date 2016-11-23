@@ -59,12 +59,42 @@ namespace dmBuffer
      * @param streams_decl_count Number of stream declarations inside the decl array (max 256)
      * @param out_buffer Pointer to HBuffer where to store the newly allocated buffer
      * @return Returns BUFFER_OK if buffer was allocated successfully
+     * @examples
+     * <pre>
+     * const dmBuffer::StreamDeclaration streams_decl[] = {
+     *     {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
+     *     {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_UINT16, 2},
+     *     {dmHashString64("color"), dmBuffer::VALUE_TYPE_UINT8, 4},
+     * };
+     * dmBuffer::HBuffer buffer = 0x0;
+     * dmBuffer::Result r = dmBuffer::Allocate(1024, streams_decl, 3, &buffer);
+     *
+     * if (r == dmBuffer::RESULT_OK) {
+     *     // success
+     * } else {
+     *     // handle error
+     * }
+     * </pre>
      */
     Result Allocate(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
 
     /**
      * Frees a HBuffer.
      * @param buffer Pointer to the buffer to free
+     * @examples
+     * <pre>
+     * const dmBuffer::StreamDeclaration streams_decl[] = {
+     *     {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
+     * };
+     * dmBuffer::HBuffer buffer = 0x0;
+     * dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
+     *
+     * if (r == dmBuffer::RESULT_OK) {
+     *     dmBuffer::Free(buffer);
+     * } else {
+     *     // handle error
+     * }
+     * </pre>
      */
     void Free(HBuffer buffer);
 
@@ -72,6 +102,18 @@ namespace dmBuffer
      * Validate a buffer and its streams.
      * @param buffer Pointer to the buffer to validate
      * @return Returns BUFFER_OK if buffer is valid
+     * @examples
+     * <pre>
+     * // Pass buffer to third party library that does operations on the buffer or streams.
+     * ThirdPartyLib::PerformOperation(buffer);
+     *
+     * r = dmBuffer::ValidateBuffer(buffer);
+     * if (r == dmBuffer::RESULT_OK) {
+     *     // buffer and streams are valid
+     * } else {
+     *     // the third party lib made the buffer invalid
+     * }
+     * </pre>
      */
     Result ValidateBuffer(HBuffer buffer);
 
@@ -82,13 +124,49 @@ namespace dmBuffer
      * @param type Value type of expected stream
      * @param type_count Count of values per entry in stream
      * @param out_stream Pointer to void* where to store the stream
-     * @param out_stride Pointer to uint32_t where to store the stride
+     * @param out_stride Pointer to uint32_t where to store the stride, where stride is of unit sizeof(type)
      * @param out_element_count Pointer to uint32_t where to store the element count
      * @return Returns BUFFER_OK if the stream was successfully accessed
+     * @examples
+     * <pre>
+     * uint16_t* stream = 0x0;
+     * uint32_t stride = 0;
+     * uint32_t element_count = 0;
+     *
+     * dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("numbers"), dmBuffer::VALUE_TYPE_UINT16, 2, (void*)&stream, &stride, &element_count);
+     *
+     * if (r == dmBuffer::RESULT_OK) {
+     *     for (int i = 0; i < element_count; ++i)
+     *     {
+     *         stream[0] = (uint16_t)i;
+     *         stream[1] = (uint16_t)i;
+     *         stream += stride;
+     *     }
+     * } else {
+     *     // handle error
+     * }
+     * </pre>
      */
     Result GetStream(HBuffer buffer, dmhash_t stream_name, ValueType type, uint32_t type_count, void** out_stream, uint32_t* out_stride, uint32_t* out_element_count);
 
-    // TODO document
+    /**
+     * Get element count for a buffer.
+     * @param buffer Pointer to a buffer.
+     * @param out_element_count Pointer to uint32_t where to store the element count
+     * @return Returns BUFFER_OK if the element count was successfully accessed
+     * @examples
+     * <pre>
+
+     * uint32_t element_count = 0;
+     * dmBuffer::Result r = dmBuffer::GetElementCount(buffer, &element_count);
+     *
+     * if (r == dmBuffer::RESULT_OK) {
+     *     printf("buffer %p has %d number of elemenets", buffer, element_count);
+     * } else {
+     *     // handle error
+     * }
+     * </pre>
+     */
     Result GetElementCount(HBuffer buffer, uint32_t* out_element_count);
 
 }

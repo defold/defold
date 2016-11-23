@@ -222,7 +222,7 @@ TEST_F(GetDataTest, ValidGetData)
     dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
-    ASSERT_EQ(2*sizeof(uint16_t), out_stride);
+    ASSERT_EQ(2, out_stride);
     ASSERT_EQ(4, out_element_count);
 
     uint16_t* ptr = (uint16_t*)out_stream;
@@ -230,7 +230,7 @@ TEST_F(GetDataTest, ValidGetData)
     {
         ptr[0] = i;
         ptr[1] = i;
-        ptr = (uint16_t*)((uintptr_t)ptr + out_stride);
+        ptr += out_stride;
     }
 
     // Get stream again
@@ -238,7 +238,7 @@ TEST_F(GetDataTest, ValidGetData)
     r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
-    ASSERT_EQ(2*sizeof(uint16_t), out_stride);
+    ASSERT_EQ(2, out_stride);
     ASSERT_EQ(4, out_element_count);
 
     // Verify the previously written data
@@ -247,10 +247,9 @@ TEST_F(GetDataTest, ValidGetData)
     {
         ASSERT_EQ(i, ptr[0]);
         ASSERT_EQ(i, ptr[1]);
-        ptr = (uint16_t*)((uintptr_t)ptr + out_stride);
+        ptr += out_stride;
     }
 }
-
 
 TEST_F(GetDataTest, WriteOutsideStream)
 {
@@ -259,7 +258,7 @@ TEST_F(GetDataTest, WriteOutsideStream)
     dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
-    ASSERT_EQ(2*sizeof(uint16_t), out_stride);
+    ASSERT_EQ(2, out_stride);
     ASSERT_EQ(4, out_element_count);
 
     // Write past the number of elements
@@ -269,7 +268,7 @@ TEST_F(GetDataTest, WriteOutsideStream)
     {
         ptr[0] = i;
         ptr[1] = i;
-        ptr = (uint16_t*)((uintptr_t)ptr + out_stride);
+        ptr += out_stride;
     }
 
     // Get stream again, expecting invalid guard
