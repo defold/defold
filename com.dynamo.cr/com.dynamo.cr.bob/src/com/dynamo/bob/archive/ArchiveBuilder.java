@@ -13,6 +13,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.crypt.Crypt;
 
 import net.jpountz.lz4.LZ4Compressor;
@@ -28,10 +29,12 @@ public class ArchiveBuilder {
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
     private String root;
+    private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
 
-    public ArchiveBuilder(String root) {
+    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder) {
         this.root = new File(root).getAbsolutePath();
+        this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
     }
 
@@ -138,17 +141,26 @@ public class ArchiveBuilder {
         i = 0;
         for (ArchiveEntry e : entries) {
             String ext = FilenameUtils.getExtension(e.fileName);
+
+            int size = e.size;
+            if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+                size = e.compressedSize;
+            }
+            byte[] buf = new byte[size];
+
             if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
                 outFile.seek(resourcesOffset.get(i));
-                int size = e.size;
-                if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
-                    size = e.compressedSize;
-                }
-                byte[] buf = new byte[size];
                 outFile.read(buf);
                 byte[] enc = Crypt.encryptCTR(buf, KEY);
                 outFile.seek(resourcesOffset.get(i));
                 outFile.write(enc);
+            }
+
+            String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+            outFile.seek(resourcesOffset.get(i));
+            outFile.read(buf);
+            if (manifestBuilder != null) {
+                manifestBuilder.addResourceEntry(normalisedPath, buf);
             }
             ++i;
         }
@@ -199,7 +211,7 @@ public class ArchiveBuilder {
             }
         }
 
-        ArchiveBuilder ab = new ArchiveBuilder(args[0]);
+        ArchiveBuilder ab = new ArchiveBuilder(args[0], null);
         for (int i = firstFileArg; i < args.length; ++i) {
             ab.add(args[i], doCompress);
         }
