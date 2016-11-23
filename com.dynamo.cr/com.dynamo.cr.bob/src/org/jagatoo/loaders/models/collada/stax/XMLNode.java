@@ -30,6 +30,7 @@
 package org.jagatoo.loaders.models.collada.stax;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.StringTokenizer;
 
 import javax.xml.namespace.QName;
@@ -63,6 +64,164 @@ public class XMLNode {
         NODE,
         JOINT
     }
+    
+    public static enum OperationType {
+        MATRIX,
+        ROTATE,
+        TRANSLATE,
+        SCALE
+    }
+    
+    static public class TransformOperation {
+        String operationId;
+        public OperationType type;
+        
+        Matrix4f matrix;
+        
+        public TransformOperation(OperationType type, String operationId, float[] data) {
+            this.operationId = operationId;
+            
+            switch (type) {
+            case MATRIX:
+                {
+                    matrix = new Matrix4f();
+                    for(int x = 0; x < 4; x++) {
+                        for(int y = 0; y < 4; y++) {
+                            matrix.set(x, y, data[x*4+y]);
+                        }
+                    }
+                }
+                break;
+            case ROTATE:
+                {
+                    Tuple3f rotate = new Tuple3f( data[0], data[1], data[2] );
+                    float angle = FastMath.toRad( data[3] );
+                    rotate.mul( angle );
+                    matrix = MatrixUtils.eulerToMatrix4f(rotate);
+                }
+                break;
+            case TRANSLATE:
+                {
+                    Point3f translate = new Point3f(data[0], data[1], data[2]);
+                    matrix = new Matrix4f();
+                    matrix.setIdentity();
+                    matrix.setTranslation(translate);
+                }
+                break;
+            case SCALE:
+                {
+                    Point3f scale = new Point3f(data[0], data[1], data[2]);
+                    matrix = new Matrix4f(Matrix4f.IDENTITY);
+                    
+                    matrix.mul( 0, 0, scale.getX() );
+                    matrix.mul( 0, 1, scale.getX() );
+                    matrix.mul( 0, 2, scale.getX() );
+                    matrix.mul( 0, 3, scale.getX() );
+                    
+                    matrix.mul( 1, 0, scale.getY() );
+                    matrix.mul( 1, 1, scale.getY() );
+                    matrix.mul( 1, 2, scale.getY() );
+                    matrix.mul( 1, 3, scale.getY() );
+                    
+                    matrix.mul( 2, 0, scale.getZ() );
+                    matrix.mul( 2, 1, scale.getZ() );
+                    matrix.mul( 2, 2, scale.getZ() );
+                    matrix.mul( 2, 3, scale.getZ() );
+                }
+                break;
+            }
+            
+        }
+        
+        TransformOperation(OperationType type, XMLStreamReader parser) throws XMLStreamException {
+            this.type = type;
+            
+            for ( int i = 0; i < parser.getAttributeCount(); i++ )
+            {
+                QName attr = parser.getAttributeName( i );
+                if ( attr.getLocalPart().equals( "sid" ) )
+                {
+                    operationId = parser.getAttributeValue( i );
+                }
+                else
+                {
+                    JAGTLog.exception( "Unsupported ", this.getClass().getSimpleName(), " Attr tag: ", attr.getLocalPart() );
+                }
+            }
+            
+            String data = StAXHelper.parseText( parser );
+            
+            switch (type) {
+            case MATRIX:
+                {
+                    XMLMatrix4x4 tmp = XMLMatrixUtils.readColumnMajor( data );
+                    matrix = tmp.matrix4f;
+                }
+                break;
+                
+            case ROTATE:
+                {
+                    StringTokenizer tknz = new StringTokenizer( data );
+                    Tuple3f rotate = new Tuple3f(
+                            Float.parseFloat(tknz.nextToken()),
+                            Float.parseFloat(tknz.nextToken()),
+                            Float.parseFloat(tknz.nextToken())
+                    );
+                    float angle = FastMath.toRad( Float.parseFloat(tknz.nextToken()) );
+                    rotate.mul( angle );
+                    matrix = MatrixUtils.eulerToMatrix4f(rotate);
+                }
+                break;
+                
+            case TRANSLATE:
+                {
+                    StringTokenizer tknz = new StringTokenizer( data );
+                    Point3f translate = new Point3f(
+                            Float.parseFloat(tknz.nextToken()),
+                            Float.parseFloat(tknz.nextToken()),
+                            Float.parseFloat(tknz.nextToken())
+                    );
+                    matrix = new Matrix4f();
+                    matrix.setIdentity();
+                    matrix.setTranslation(translate);
+                }
+                break;
+            
+            case SCALE:
+                {
+                    StringTokenizer tknz = new StringTokenizer( data );
+                    Point3f scale = new Point3f(
+                            Float.parseFloat(tknz.nextToken()),
+                            Float.parseFloat(tknz.nextToken()),
+                            Float.parseFloat(tknz.nextToken())
+                    );
+
+                    matrix = new Matrix4f(Matrix4f.IDENTITY);
+                    
+                    matrix.mul( 0, 0, scale.getX() );
+                    matrix.mul( 0, 1, scale.getX() );
+                    matrix.mul( 0, 2, scale.getX() );
+                    matrix.mul( 0, 3, scale.getX() );
+                    
+                    matrix.mul( 1, 0, scale.getY() );
+                    matrix.mul( 1, 1, scale.getY() );
+                    matrix.mul( 1, 2, scale.getY() );
+                    matrix.mul( 1, 3, scale.getY() );
+                    
+                    matrix.mul( 2, 0, scale.getZ() );
+                    matrix.mul( 2, 1, scale.getZ() );
+                    matrix.mul( 2, 2, scale.getZ() );
+                    matrix.mul( 2, 3, scale.getZ() );
+                }
+                break;
+            }
+            
+            
+        }
+    }
+    
+    ArrayList<TransformOperation> bindTransformOperations = new ArrayList<TransformOperation>();
+    
     public Type type = Type.NODE;
     public String id = null;
     public String name = null;
@@ -110,6 +269,16 @@ public class XMLNode {
         //JAGTLog.debug( "Mat before rotate : \n", matrix.matrix4f );
         matrix.matrix4f.mul(mat);
         //JAGTLog.debug( "Mat after rotate of "+rotate+" : \n", matrix.matrix4f );
+    }
+    
+    public void applyTransformOperations(Matrix4f matrix, HashMap<String, TransformOperation> overrides) {
+        for (int i = 0; i < bindTransformOperations.size(); i++) {
+            TransformOperation t = bindTransformOperations.get(i);
+            if (overrides != null && overrides.containsKey(t.operationId)) {
+                t = overrides.get(t.operationId);   
+            }
+            matrix = matrix.mul(t.matrix);
+        }
     }
     
     public void applyScale(String str) {
@@ -195,19 +364,23 @@ public class XMLNode {
                     }
                     else if ( localName.equals( "matrix" ) )
                     {
-                        matrix = XMLMatrixUtils.readColumnMajor( StAXHelper.parseText( parser ) );   
+//                        matrix = XMLMatrixUtils.readColumnMajor( StAXHelper.parseText( parser ) );
+                        bindTransformOperations.add(new TransformOperation(OperationType.MATRIX, parser));
                     }
                     else if ( localName.equals( "rotate" ) )
                     {
-                        applyRotate( StAXHelper.parseText( parser ) );
+//                        applyRotate( StAXHelper.parseText( parser ) );
+                        bindTransformOperations.add(new TransformOperation(OperationType.ROTATE, parser));
                     }
                     else if ( localName.equals( "translate" ) )
                     {
-                        applyTranslate( StAXHelper.parseText( parser ) );
+//                        applyTranslate( StAXHelper.parseText( parser ) );
+                        bindTransformOperations.add(new TransformOperation(OperationType.TRANSLATE, parser));
                     }
                     else if ( localName.equals( "scale" ) )
                     {
-                        applyScale( StAXHelper.parseText( parser ) );
+//                        applyScale( StAXHelper.parseText( parser ) );
+                        bindTransformOperations.add(new TransformOperation(OperationType.SCALE, parser));
                     }
                     else if ( localName.equals( "instance_geometry" ) )
                     {
@@ -229,6 +402,8 @@ public class XMLNode {
                 }
                 case XMLStreamConstants.END_ELEMENT:
                 {
+                    matrix.matrix4f = new Matrix4f(Matrix4f.IDENTITY);
+                    applyTransformOperations(matrix.matrix4f, null);
                     if ( parser.getLocalName().equals( "node" ) )
                         return;
                     break;
