@@ -1,5 +1,6 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
@@ -188,6 +189,29 @@
 
 (defn outline [root path]
   (get-in (g/node-value root :node-outline) (interleave (repeat :children) path)))
+
+(defn- outline->str
+  ([outline]
+    (outline->str outline "" true))
+  ([outline prefix recurse?]
+    (if outline
+      (format "%s%s [%d] [%s]%s%s"
+              (if recurse? (str prefix "* ") "")
+              (:label outline "<no-label>")
+              (:node-id outline -1)
+              (some-> (g/node-type* (:node-id outline -1))
+                deref
+                :name)
+              (if (:alt-outline outline) (format " (ALT: %s)" (outline->str (:alt-outline outline) prefix false)) "")
+              (if recurse?
+                (string/join (map #(str "\n" (outline->str % (str prefix "  ") true)) (:children outline)))
+                ""))
+      "")))
+
+(defn dump-outline [root path]
+  (-> (outline root path)
+    outline->str
+    println))
 
 (defn prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))

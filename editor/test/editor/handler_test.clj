@@ -57,12 +57,14 @@
 (defrecord StaticSelection [selection]
   handler/SelectionProvider
   (selection [this] selection)
-  (succeeding-selection [this] []))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (defrecord DynamicSelection [selection-ref]
   handler/SelectionProvider
   (selection [this] @selection-ref)
-  (succeeding-selection [this] []))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (extend-type java.lang.String
   core/Adaptable
@@ -225,3 +227,42 @@
       (is (= [[1] [1] [0]] (eval-selections [local global] true))))
     (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
       (is (= [[1] [1]] (eval-selections [local global] false))))))
+
+(g/defnode ImposterStringNode
+  (input source g/NodeID)
+  (input string g/Str)
+  (output selection-data g/Any (g/fnk [source] (when source {:alt source}))))
+
+(defrecord AltSelection [selection-ref]
+  handler/SelectionProvider
+  (selection [this] @selection-ref)
+  (succeeding-selection [this] [])
+  (alt-selection [this] (let [s (handler/selection this)]
+                          (if-let [s' (handler/adapt-every s ImposterStringNode)]
+                            (->> s'
+                              (keep (fn [nid] (:alt (g/node-value nid :selection-data))))
+                              vec)
+                            []))))
+
+(deftest alternative-selections
+  (handler/defhandler :string-command :global
+      (active? [selection] (handler/adapt-single selection StringNode))
+      (run [selection] (g/node-value (handler/adapt-single selection StringNode) :string)))
+  (with-clean-system
+    (let [[s i lonely-i] (tx-nodes (g/make-nodes world
+                                                 [s [StringNode :string "test"]
+                                                  i ImposterStringNode
+                                                  lonely-i ImposterStringNode]
+                                                 (g/connect s :string i :string)
+                                                 (g/connect s :_node-id i :source)))
+          selection (atom [])
+          select! (fn [s] (reset! selection s))
+          selection-provider (->AltSelection selection)
+          global (handler/->context :global {} selection-provider {} {})]
+      (is (not (enabled? :string-command [global] {})))
+      (select! [s])
+      (is (enabled? :string-command [global] {}))
+      (select! [i])
+      (is (enabled? :string-command [global] {}))
+      (select! [lonely-i])
+      (is (not (enabled? :string-command [global] {}))))))

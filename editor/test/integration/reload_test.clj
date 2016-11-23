@@ -272,32 +272,39 @@
       (copy-file workspace "/tmp.atlas" atlas-path)
       (is (no-error? (g/node-value node-id :scene))))))
 
-(defn- image-label [atlas]
+(defn- image-link [atlas]
   (let [outline (g/node-value atlas :node-outline)]
-    (:label (first (:children outline)))))
+    (:link (first (:children outline)))))
 
 (deftest refactoring
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
           node-id (project/get-resource-node project "/atlas/single.atlas")
           img-path "/test_img.png"
-          new-img-path "/test_img2.png"]
+          img-res (workspace/resolve-workspace-resource workspace img-path)
+          new-img-path "/test_img2.png"
+          new-img-res (workspace/resolve-workspace-resource workspace new-img-path)]
       (add-img workspace img-path 64 64)
-      (is (.endsWith (image-label node-id) img-path))
+      (is (= (image-link node-id) img-res))
       (move-file workspace img-path new-img-path)
-      (is (.endsWith (image-label node-id) new-img-path))
+      (is (= (image-link node-id) new-img-res))
       (move-file workspace new-img-path img-path)
-      (is (.endsWith (image-label node-id) img-path)))))
+      (is (= (image-link node-id) img-res)))))
+
+(defn- coll-link [coll]
+  (get-in (g/node-value coll :node-outline) [:children 0 :link]))
 
 (deftest refactoring-sub-collection
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
           node-id (project/get-resource-node project "/collection/sub_defaults.collection")
           coll-path "/collection/props.collection"
-          new-coll-path "/collection/props2.collection"]
-      (is (= (format "props - %s" coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label])))
+          coll-res (workspace/resolve-workspace-resource workspace coll-path)
+          new-coll-path "/collection/props2.collection"
+          new-coll-res (workspace/resolve-workspace-resource workspace new-coll-path)]
+      (is (= coll-res (coll-link node-id)))
       (move-file workspace coll-path new-coll-path)
-      (is (= (format "props - %s" new-coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label]))))))
+      (is (= new-coll-res (coll-link node-id))))))
 
 (deftest project-with-missing-parts-can-be-saved
   ;; missing embedded game object, sub collection

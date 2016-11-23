@@ -230,14 +230,16 @@
    (when-let [label (:label v)] (util/natural-order-key (str/lower-case label)))])
 
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
-  {:node-id _node-id
-   :label "Tile Source"
-   :icon tile-source-icon
-   :children (vec (sort-by outline-sort-by-fn child-outlines))
-   :child-reqs [{:node-type TileAnimationNode
-                 :tx-attach-fn attach-animation-node}
-                {:node-type CollisionGroupNode
-                 :tx-attach-fn attach-collision-group-node}]})
+  (let [[coll-outlines anim-outlines] (let [outlines (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
+                                        [(get outlines true) (get outlines false)])]
+    {:node-id _node-id
+     :label "Tile Source"
+     :icon tile-source-icon
+     :children (into (outline/natural-sort coll-outlines) (outline/natural-sort anim-outlines))
+     :child-reqs [{:node-type TileAnimationNode
+                   :tx-attach-fn attach-animation-node}
+                  {:node-type CollisionGroupNode
+                   :tx-attach-fn attach-collision-group-node}]}))
 
 (g/defnk produce-aabb
   [tile-source-attributes]
