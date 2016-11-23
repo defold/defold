@@ -148,12 +148,12 @@
   (fn [node-id child-id]
     (f source-id child-id)))
 
-(g/defnk produce-go-outline [_node-id source-id id node-outline-label source-outline source-resource child-outlines node-outline-extras]
+(g/defnk produce-go-outline [_node-id source-id id source-outline source-resource child-outlines node-outline-extras]
   (let [coll-id (core/scope _node-id)]
     (-> {:node-id _node-id
-         :label node-outline-label
+         :label id
          :icon (:icon source-outline game-object/game-object-icon)
-         :children (into (:children source-outline) (outline/natural-sort child-outlines))
+         :children (into (outline/natural-sort child-outlines) (:children source-outline))
          :child-reqs [{:node-type ReferencedGOInstanceNode
                        :tx-attach-fn (fn [self-id child-id]
                                        (concat
@@ -194,7 +194,6 @@
 
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
-  (output node-outline-label g/Str (gu/passthrough id))
   (output node-outline-extras g/Any (g/constantly {}))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
@@ -340,7 +339,6 @@
 
   (display-order [:id :url :path scene/ScalableSceneNode])
 
-  (output node-outline-label g/Str (g/fnk [id source-resource] (format "%s - %s" id (resource/resource->proj-path source-resource))))
   (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource position rotation scale ddf-component-properties]
                                            (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
   (output build-error g/Err (g/fnk [_node-id source-resource]
@@ -500,7 +498,7 @@
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id
-       :label (format "%s - %s" id (resource/resource->proj-path source-resource))
+       :label id
        :icon (:icon source-outline collection-icon)
        :children (:children source-outline)}
     (cond->
