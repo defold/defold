@@ -39,7 +39,7 @@ public class HTML5Bundler implements IBundler {
     private static final String[] SplitFileNames = {
         "game.projectc",
         "game.darc",
-        "game.manifest"
+        "game.dmanifest"
     };
 
     class SplitFile {

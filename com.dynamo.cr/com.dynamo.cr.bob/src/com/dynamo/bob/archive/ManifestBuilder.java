@@ -229,6 +229,22 @@ public class ManifestBuilder {
     }
 
     public List<String> getDependants(String filepath) throws IOException {
+        /* This function first tries to find the correct resource in the
+           dependency tree. Since there is no index we have to iterate over
+           the structure and match the relative filepaths that identifies the
+           resource.
+
+           Once a candidate has been found the children, the children, and so
+           on are added to the list of dependants. If a CollectionProxy is
+           found that resource itself is added to the list of dependants, but
+           it is seen as a leaf and the Collection that it points to is ignored.
+
+           The reason children of a CollectionProxy is ignored is that they are
+           not required to load the parent Collection. This allows us to
+           exclude an entire Collection that is loaded through a CollectionProxy
+           and thus create a partial archive that has to be updated (through
+           LiveUpdate) before that CollectionProxy can be loaded.
+        */
         ResourceNode candidate = null;
         List<ResourceNode> queue = new LinkedList<ResourceNode>();
         queue.add(this.dependencies);

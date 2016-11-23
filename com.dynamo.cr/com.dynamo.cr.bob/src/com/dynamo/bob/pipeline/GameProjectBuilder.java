@@ -137,7 +137,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(".projectc"));
         if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".darc"));
-            builder.addOutput(input.changeExt(".manifest"));
+            builder.addOutput(input.changeExt(".dmanifest"));
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
