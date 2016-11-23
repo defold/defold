@@ -1,9 +1,13 @@
 package com.dynamo.bob.archive;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -78,7 +82,7 @@ public class ArchiveBuilder {
         IOUtils.closeQuietly(is);
     }
 
-    public void write(RandomAccessFile outFile) throws IOException {
+    public void write(RandomAccessFile outFile, Path assetBundleDirectory) throws IOException {
         // Version
         outFile.writeInt(VERSION);
         // Pad
@@ -137,19 +141,47 @@ public class ArchiveBuilder {
 
         i = 0;
         for (ArchiveEntry e : entries) {
-            String ext = FilenameUtils.getExtension(e.fileName);
+            outFile.seek(resourcesOffset.get(i));
+            int size = (e.compressedSize == ArchiveEntry.FLAG_UNCOMPRESSED) ? e.size : e.compressedSize;
+            byte[] buffer = new byte[size];
+            outFile.read(buffer);
+            
             if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
+                byte[] ciphertext = Crypt.encryptCTR(buffer, KEY);
                 outFile.seek(resourcesOffset.get(i));
-                int size = e.size;
-                if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
-                    size = e.compressedSize;
-                }
-                byte[] buf = new byte[size];
-                outFile.read(buf);
-                byte[] enc = Crypt.encryptCTR(buf, KEY);
-                outFile.seek(resourcesOffset.get(i));
-                outFile.write(enc);
+                outFile.write(ciphertext);
+                buffer = Arrays.copyOf(ciphertext, ciphertext.length);
             }
+            
+            // buffer contains the data for the specific resource.
+            String filename = ""; // TODO: This should be the hex representation of the resource HashDigest
+            File fhandle = null;
+            FileOutputStream outputStream = null;
+            try {
+            	fhandle = new File(assetBundleDirectory.toString(), filename);
+            	if (!fhandle.exists()) {
+            		if (fhandle.canWrite()) {
+            			outputStream = new FileOutputStream(fhandle);
+            			outputStream.write(buffer);
+            		} else {
+            			// This is an error, we wont be able to export asset bundle :(
+            		}
+            	} else {
+            		
+            	}
+            } catch (IOException exception) {
+            	// We were unable to export asset bundle :(
+            } finally {
+            	if (outputStream != null) {
+            		try {
+            			outputStream.close();
+            		} catch (IOException exception) {
+            			// There's nothing we can do at this point
+            		}
+            	}
+            }
+            
+            
             ++i;
         }
 
@@ -206,7 +238,7 @@ public class ArchiveBuilder {
 
         RandomAccessFile outFile = new RandomAccessFile(args[1], "rw");
         outFile.setLength(0);
-        ab.write(outFile);
+        ab.write(outFile, null);
         outFile.close();
     }
 }
