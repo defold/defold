@@ -196,12 +196,12 @@ public class ColladaUtilTest {
         assertNrm(nrm, 4, 0, 0, 1);
         assertNrm(nrm, 5, 0, 0, 1);
 
-        assertUV(uvs, 0, 0, 1);
-        assertUV(uvs, 1, 1, 1);
-        assertUV(uvs, 2, 0, 0);
-        assertUV(uvs, 3, 0, 0);
-        assertUV(uvs, 4, 1, 1);
-        assertUV(uvs, 5, 1, 0);
+        assertUV(uvs, 0, 0, 0);
+        assertUV(uvs, 1, 1, 0);
+        assertUV(uvs, 2, 0, 1);
+        assertUV(uvs, 3, 0, 1);
+        assertUV(uvs, 4, 1, 0);
+        assertUV(uvs, 5, 1, 1);
     }
 
     @Test

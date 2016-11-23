@@ -25,23 +25,59 @@ namespace dmGameSystem
      * @namespace model
      */
 
-    /*# play an animation on a model
+    /*# model cursor (number)
      *
-     * @name model.play
-     * @param url the model for which to play the animation (url)
-     * @param animation_id id of the animation to play (string|hash)
-     * @param playback playback mode of the animation (constant)
-     * <ul>
-     *   <li><code>go.PLAYBACK_ONCE_FORWARD</code></li>
-     *   <li><code>go.PLAYBACK_ONCE_BACKWARD</code></li>
-     *   <li><code>go.PLAYBACK_ONCE_PINGPONG</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_FORWARD</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
-     * </ul>
-     * @param blend_duration duration of a linear blend between the current and new animations
-     * @param [complete_function] function to call when the animation has completed (function)
+     * The normalized animation cursor. The type of the property is number.
+     *
+     * @name cursor
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to get the normalized cursor value:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Get the cursor value on component "model"
+     *  cursor = go.get("#model", "cursor")
+     * end
+     * </pre>
+     * <p>
+     * How to animate the cursor from 0.0 to 1.0 using linear easing for 2.0 seconds:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Get the current value on component "model"
+     *  go.set("#model", "cursor", 0.0)
+     *  -- Animate the cursor value
+     *  go.animate("#model", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
+     * end
+     * </pre>
+     * <p>Please note that model events may not fire as expected when the cursor is manipulated directly.</p>
      */
+
+    /*# model playback_rate (number)
+     *
+     * The animation playback rate. A multiplier to the animation playback rate. The type of the property is number.
+     *
+     * @name playback_rate
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to set the playback_rate on component "model" to play at double the current speed:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Get the current value on component "model"
+     *  playback_rate = go.get("#model", "playback_rate")
+     *  -- Set the playback_rate to double the previous value.
+     *  go.set("#model", "playback_rate", playback_rate * 2)
+     * end
+     * </pre>
+     * <p>The playback_rate is a non-negative number, a negative value will be clamped to 0.</p>
+     */
+
     int LuaModelComp_Play(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -365,8 +401,6 @@ namespace dmGameSystem
             {"play_anim", LuaModelComp_PlayAnim},
             {"cancel",  LuaModelComp_Cancel},
             {"get_go",  LuaModelComp_GetGO},
-            // {"set_ik_target_position", ModelComp_SetIKTargetPosition},
-            // {"set_ik_target",   ModelComp_SetIKTarget},
             {"set_constant",    LuaModelComp_SetConstant},
             {"reset_constant",  LuaModelComp_ResetConstant},
             {0, 0}

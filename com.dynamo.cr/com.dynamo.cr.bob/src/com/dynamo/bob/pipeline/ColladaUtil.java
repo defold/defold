@@ -567,7 +567,7 @@ public class ColladaUtil {
             texcoord_list = new ArrayList<Float>(texcoords.floatArray.count);
             for (int i = 0; i < texcoords.floatArray.count; i += 2 ) {
                 texcoord_list.add(texcoords.floatArray.floats[i]);
-                texcoord_list.add(1-texcoords.floatArray.floats[i+1]);
+                texcoord_list.add(texcoords.floatArray.floats[i+1]);
             }
         }
 
