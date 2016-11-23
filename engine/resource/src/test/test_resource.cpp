@@ -10,6 +10,7 @@
 #include <ddf/ddf.h>
 #include "resource_ddf.h"
 #include "../resource.h"
+#include "../resource_private.h"
 #include "test/test_resource_ddf.h"
 
 extern unsigned char TEST_ARC[];
@@ -1071,6 +1072,68 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
             dmResource::Release(m_Factory, resource);
         }
     }
+}
+
+TEST_F(ResourceTest, IsShared)
+{
+    ASSERT_EQ(true, dmResource::IsShared("/a/b/c.png") );
+    ASSERT_EQ(true, dmResource::IsShared("/a/b/c:d.png") ); // the separator is still a valid filename character
+
+    // This resource is not shared
+    ASSERT_EQ(false, dmResource::IsShared("/a/b/c.png:") );
+}
+
+TEST(GetPath, GetPath)
+{
+    const char* test_dir = "build/default/src/test";
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 8;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::Result e;
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+
+    int* resource1;
+    e = dmResource::Get(factory, "/test01.foo", (void**) &resource1);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    int* resource2;
+    e = dmResource::Get(factory, "/test02.foo", (void**) &resource2);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    int* resource3;
+    //e = dmResource::Get(factory, "/test02.foo:", (void**) &resource3);
+    //ASSERT_EQ(dmResource::RESULT_OK, e);
+
+
+    char canonical_path[dmResource::RESOURCE_PATH_MAX];
+
+
+    uint64_t hash = 0;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::GetPath(factory, 0, &hash) );
+
+    hash = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
+    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    ASSERT_EQ( dmHashString64(canonical_path), hash );
+
+    hash = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
+    GetCanonicalPath(factory, "/test02.foo", canonical_path);
+    ASSERT_EQ( dmHashString64(canonical_path), hash );
+
+    //hash = 0;
+    //ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource3, &hash) );
+    //GetCanonicalPath(factory, "/test02.foo_1", canonical_path);
+    //ASSERT_EQ( dmHashString64(canonical_path), hash );
+
+
+    dmResource::Release(factory, resource1);
+    dmResource::Release(factory, resource2);
 }
 
 int main(int argc, char **argv)

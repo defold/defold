@@ -52,6 +52,8 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
+const char SHARED_NAME_CHARACTER = ':';
+
 struct ResourceReloadedCallbackPair
 {
     ResourceReloadedCallback    m_Callback;
@@ -475,7 +477,7 @@ static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive arch
 }
 
 // Assumes m_LoadMutex is already held
-Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     DM_PROFILE(Resource, "LoadResource");
 
@@ -603,6 +605,8 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
 
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+
+printf("CANONICALPATH: %s\n", canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
@@ -1073,5 +1077,26 @@ void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallba
         }
     }
 }
+
+
+// If the path ends with ":", the path is not shared, i.e. you can later update to a unique resource
+bool IsShared(const char* name)
+{
+    assert(name);
+    int len = strlen(name);
+    return name[len-1] != SHARED_NAME_CHARACTER;
+}
+
+Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
+{
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t)resource);
+    if( resource_hash ) {
+        *hash = *resource_hash;
+        return RESULT_OK;
+    }
+    *hash = 0llu;
+    return RESULT_RESOURCE_NOT_FOUND;
+}
+
 
 }

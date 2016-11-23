@@ -427,6 +427,22 @@ namespace dmResource
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
+
+    /**
+     * Determines if the resource should be shared or not.
+     * @param name Resource name
+    */
+    bool IsShared(const char* name);
+
+
+    /**
+     * Returns the hashed name of a resource
+     * @param factory Factory handle
+     * @param resource Resource
+    */
+    Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
+
+    
 }
 
 #endif // RESOURCE_H
