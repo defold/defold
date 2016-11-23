@@ -899,6 +899,7 @@
           @invalidate-menus?
           (not= menu (user-data control ::menu))
           (not= command-contexts (user-data control ::command-contexts)))
+
      (reset! invalidate-menus? false)
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
@@ -907,26 +908,27 @@
      (user-data! control ::command-contexts command-contexts))))
 
 (defn- refresh-menu-state [^Menu menu command-contexts]
-  (doseq [m (.getItems menu)]
-    (cond
-      (instance? Menu m)
-      (refresh-menu-state m command-contexts)
+  (when (not (.isShowing menu))
+    (doseq [m (.getItems menu)]
+      (cond
+        (instance? Menu m)
+        (refresh-menu-state m command-contexts)
 
-      (instance? CheckMenuItem m)
-      (let [m         ^CheckMenuItem m
-            command   (keyword (.getId ^MenuItem m))
-            user-data (user-data m ::menu-user-data)
-            handler-ctx (handler/active command command-contexts user-data)]
-        (doto m
-          (.setDisable (not (handler/enabled? handler-ctx)))
-          (.setSelected (boolean (handler/state handler-ctx)))))
+        (instance? CheckMenuItem m)
+        (let [m         ^CheckMenuItem m
+              command   (keyword (.getId ^MenuItem m))
+              user-data (user-data m ::menu-user-data)
+              handler-ctx (handler/active command command-contexts user-data)]
+          (doto m
+            (.setDisable (not (handler/enabled? handler-ctx)))
+            (.setSelected (boolean (handler/state handler-ctx)))))
 
-      (instance? MenuItem m)
-      (let [m ^MenuItem m]
-        (.setDisable m (not (-> (handler/active (keyword (.getId m))
-                                                command-contexts
-                                                (user-data m ::menu-user-data))
-                              handler/enabled?)))))))
+        (instance? MenuItem m)
+        (let [m ^MenuItem m]
+          (.setDisable m (not (-> (handler/active (keyword (.getId m))
+                                                  command-contexts
+                                                  (user-data m ::menu-user-data))
+                                handler/enabled?))))))))
 
 (defn- refresh-menubar-state [^MenuBar menubar command-contexts]
   (doseq [m (.getMenus menubar)]
