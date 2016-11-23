@@ -5,8 +5,100 @@ import logging
 import sys
 import StringIO
 from optparse import OptionParser
+from markdown import Markdown
+from markdown import Extension
+from markdown.util import etree
+from markdown.inlinepatterns import Pattern
 
 import script_doc_ddf_pb2
+
+#
+#   This extension allows the use of [ref:go.animate] reference tags in source
+#
+class RefExtensionException(Exception):
+    pass
+
+class RefExtension(Extension):
+    def extendMarkdown(self, md, md_globals):
+        pattern = r'\[(?P<prefix>ref:)(?P<type>.+?)\]'
+        tp = RefPattern(pattern)
+        tp.md = md
+        tp.ext = self
+        # Add inline pattern before "reference" pattern
+        md.inlinePatterns.add("ref", tp, "<reference")
+
+class RefPattern(Pattern):
+    def getCompiledRegExp(self):
+        return re.compile("^(.*?)%s(.*)$" % self.pattern, re.DOTALL | re.UNICODE | re.IGNORECASE)
+
+    def handleMatch(self, m):
+        ref = m.group(3)
+        (ns, name) = ref.split('.')
+        refurl = ('/ref/%s#%s') % (ns, ref)
+        el = etree.Element('a')
+        el.text = ref
+        el.set('href', refurl)
+        return el
+
+#
+#   This extension allows the use of [icon:icon_type] tags in source
+#
+class IconExtensionException(Exception):
+    pass
+
+class IconExtension(Extension):
+    def extendMarkdown(self, md, md_globals):
+        pattern = r'\[(?P<prefix>icon:)(?P<type>[\w| ]+)\]'
+        tp = IconPattern(pattern)
+        tp.md = md
+        tp.ext = self
+        # Add inline pattern before "reference" pattern
+        md.inlinePatterns.add("icon", tp, "<reference")
+
+class IconPattern(Pattern):
+    def getCompiledRegExp(self):
+        return re.compile("^(.*?)%s(.*)$" % self.pattern, re.DOTALL | re.UNICODE | re.IGNORECASE)
+
+    def handleMatch(self, m):
+        el = etree.Element('span')
+        el.set('class', 'icon-' + m.group(3).lower())
+        return el
+
+#
+#   This extension allows the use of [type:some_type] tags in source
+#
+class TypeExtensionException(Exception):
+    pass
+
+class TypeExtension(Extension):
+    def extendMarkdown(self, md, md_globals):
+        pattern = r'\[(?P<prefix>type:)(?P<type>.+?)\]'
+        tp = TypePattern(pattern)
+        tp.md = md
+        tp.ext = self
+        # Add inline pattern before "reference" pattern
+        md.inlinePatterns.add("type", tp, "<reference")
+
+class TypePattern(Pattern):
+    def getCompiledRegExp(self):
+        return re.compile("^(.*?)%s(.*)$" % self.pattern, re.DOTALL | re.UNICODE | re.IGNORECASE)
+
+    def handleMatch(self, m):
+        el = etree.Element('span')
+        el.set('class', 'type')
+        types = m.group(3)
+         # Make sure types are shown as type1 | type2
+        types = re.sub(' or ', ' | ', types)
+        types = re.sub(r'(?<=\w)[|](?=\w)', ' | ', types)
+        el.text = types
+        return el
+
+#
+#   Instance a markdown converter with some useful extensions
+#
+md = Markdown(extensions=['markdown.extensions.fenced_code',
+    'markdown.extensions.def_list', 'markdown.extensions.codehilite',
+    TypeExtension(), IconExtension(), RefExtension()])
 
 def _strip_comment_stars(str):
     lines = str.split('\n')
@@ -65,11 +157,12 @@ def _parse_comment(str):
         # A regular element
         element.type = element_type
 
-    element.brief = brief
-    element.description = description
+    element.brief = md.convert(brief)
+    element.description = md.convert(description)
 
     for (tag, value) in lst:
         value = value.strip()
+        md.reset()
         if tag == 'name':
             element.name = value
         elif tag == 'return':
@@ -78,20 +171,20 @@ def _parse_comment(str):
                 tmp = [tmp[0], '']
             ret = element.returnvalues.add()
             ret.name = tmp[0]
-            ret.doc = tmp[1]            
+            ret.doc = md.convert(tmp[1])
         elif tag == 'param':
             tmp = value.split(' ', 1)
             if len(tmp) < 2:
                 tmp = [tmp[0], '']
             param = element.parameters.add()
             param.name = tmp[0]
-            param.doc = tmp[1]
+            param.doc = md.convert(tmp[1])
         elif tag == 'note':
-            element.note = value
+            element.note = md.convert(value)
         elif tag == 'examples':
-            element.examples = value
+            element.examples = md.convert(value)
         elif tag == 'deprecated':
-            element.deprecated = value
+            element.deprecated = md.convert(value)
         elif tag == 'namespace':
             element.namespace = value
     return element
@@ -154,6 +247,7 @@ if __name__ == '__main__':
     if len(args) < 2:
         parser.error('At least two arguments required')
 
+        rstneiarstrstnei
     doc_str = ''
     for name in args[:-1]:
         f = open(name, 'rb')
@@ -163,7 +257,7 @@ if __name__ == '__main__':
     doc = parse_document(doc_str)
     if doc:
         output_file = args[-1]
-        f = open(output_file, "wb")
+        f = open(output_file, 'wb')
         if options.type == 'protobuf':
             f.write(doc.SerializeToString())
         elif options.type == 'json':
@@ -173,5 +267,3 @@ if __name__ == '__main__':
             print 'Unknown type: %s' % options.type
             sys.exit(5)
         f.close()
-
-

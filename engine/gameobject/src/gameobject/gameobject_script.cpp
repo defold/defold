@@ -37,7 +37,7 @@ namespace dmGameObject
     /*# Game object API documentation
      *
      * Functions, core hooks, messages and constants for manipulation of
-     * game objects. The "go" namespace is accessible from game object script 
+     * game objects. The "go" namespace is accessible from game object script
      * files.
      *
      * @name Game object
@@ -90,7 +90,7 @@ namespace dmGameObject
 
     /*# game object euler rotation (vector3)
      *
-     * The rotation of the game object expressed in euler angles.
+     * The rotation of the game object expressed in Euler angles.
      * Euler angles are specified in degrees.
      * The type of the property is vector3.
      *

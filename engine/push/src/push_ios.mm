@@ -494,8 +494,8 @@ int Push_SetBadgeCount(lua_State* L)
 
 /*# Schedule a local push notification to be triggered at a specific time in the future
  *
- * Local push notifications are scheduled with this function. 
- * The returned `id` value is uniquely identifying the scheduled notification 
+ * Local push notifications are scheduled with this function.
+ * The returned `id` value is uniquely identifying the scheduled notification
  * and can be stored for later reference.
  *
  * @name push.schedule
@@ -514,8 +514,10 @@ int Push_SetBadgeCount(lua_State* L)
  * badge_count [icon:iOS]
  * :    [type:number] The numeric value of the icon badge.
  *
+ * [deprecated]
  * badge_number
  * :    Deprecated! Use badge_count instead
+ * [/deprecated]
  *
  * priority [icon:android]
  * :    [type:number]

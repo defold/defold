@@ -1049,7 +1049,7 @@ int Facebook_EnableEventUsage(lua_State* L)
  * that Facebook won't be able to use event data for ad-tracking. Events will
  * still be sent to Facebook for insights.
  *
- * <b>NOTE!</b> Event usage cannot be controlled and is always enabled for the
+ * @note Event usage cannot be controlled and is always enabled for the
  * Facebook Canvas platform, therefore this function has no effect on Facebook
  * Canvas.
  *
@@ -1070,7 +1070,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  * type. Note that some parameters are mandatory. Below is the list of available dialogs and
  * where to find Facebook's developer documentation on parameters and response data.
  *
- * <code>apprequests</code>
+ * ## `apprequests`
  *
  * Shows a Game Request dialog. Game Requests allows players to invite their friends to play a
  * game. Available parameters:
@@ -1095,7 +1095,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  *
  * Details for each parameter: <a href='https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters'>https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters</a>
  *
- * <code>feed</code>
+ * ## `feed`
  *
  * The Feed Dialog allows people to publish individual stories to their timeline.
  *
@@ -1116,7 +1116,7 @@ int Facebook_DisableEventUsage(lua_State* L)
  *
  * Details for each parameter: <a href='https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params'>https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params</a>
  *
- * <code>appinvite</code>
+ * ## `appinvite`
  *
  * The App Invite dialog is available only on iOS and Android. Note that the <code>url</code> parameter
  * corresponds to the appLinkURL (iOS) and setAppLinkUrl (Android) properties.
