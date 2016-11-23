@@ -193,7 +193,7 @@ public class AndroidBundler implements IBundler {
                 inE = zipIn.getNextEntry();
             }
 
-            for (String name : Arrays.asList("game.projectc", "game.darc")) {
+            for (String name : Arrays.asList("game.projectc", "game.darc", "game.dmanifest")) {
                 File source = new File(new File(projectRoot, contentRoot), name);
                 ZipEntry ze = new ZipEntry(normalize("assets/" + name, true));
                 zipOut.putNextEntry(ze);
@@ -269,7 +269,7 @@ public class AndroidBundler implements IBundler {
                 // Some files need to be STORED instead of DEFLATED to
                 // get "correct" memory mapping at runtime.
                 int zipMethod = ZipEntry.DEFLATED;
-                if (Arrays.asList("assets/game.projectc", "assets/game.darc").contains(inE.getName())) {
+                if (Arrays.asList("assets/game.projectc", "assets/game.darc", "assets/game.dmanifest").contains(inE.getName())) {
                     // Set up uncompresed file, unfortunately need to calculate crc32 and other data for this to work.
                     // https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
                     crc = new CRC32();
