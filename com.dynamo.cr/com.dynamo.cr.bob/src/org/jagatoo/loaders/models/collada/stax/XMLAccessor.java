@@ -101,6 +101,7 @@ public class XMLAccessor
                     {
                         XMLParam param = new XMLParam();
                         param.parse( parser );
+                        params.add(param);
                     }
                     else
                     {

@@ -17,6 +17,7 @@
 #include <render/render_ddf.h>
 
 #include "comp_gui.h"
+#include "comp_spine_model.h"
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
@@ -742,7 +743,8 @@ namespace dmGameSystem
         {
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            vertex_count += dmRig::GetVertexCount(rig_instance);
+            uint32_t count = dmRig::GetVertexCount(rig_instance);
+            vertex_count += count;
         }
 
         ro.Init();
@@ -775,20 +777,11 @@ namespace dmGameSystem
         // Fill in vertex buffer
         BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
         BoxVertex *vb_end = vb_begin;
-
-        dmRig::RigGenVertexDataParams params;
         for (uint32_t i = 0; i < node_count; ++i)
         {
-
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-            params.m_ModelMatrix = node_transforms[i];
-            params.m_VertexData = (void**)&vb_end;
-            params.m_VertexStride = sizeof(BoxVertex);
-            params.m_Color = Vector4(color.getXYZ() * node_opacities[i], node_opacities[i]); // Pre-multiplied alpha
-
-            vb_end = (BoxVertex *)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, params);
+            vb_end = (BoxVertex*)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, node_transforms[i], Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
@@ -853,7 +846,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
-        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
@@ -904,8 +897,8 @@ namespace dmGameSystem
                     us[uI[2]] = tc[2] - (su * slice9.getY());
                     us[uI[3]] = tc[2];
                     vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] + (sv * slice9.getX());
-                    vs[vI[2]] = tc[5] - (sv * slice9.getZ());
+                    vs[vI[1]] = tc[1] - (sv * slice9.getX());
+                    vs[vI[2]] = tc[5] + (sv * slice9.getZ());
                     vs[vI[3]] = tc[5];
                 }
                 else
@@ -917,8 +910,8 @@ namespace dmGameSystem
                     us[uI[2]] = tc[4] - (su * slice9.getZ());
                     us[uI[3]] = tc[4];
                     vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] - (sv * slice9.getW());
-                    vs[vI[2]] = tc[3] + (sv * slice9.getY());
+                    vs[vI[1]] = tc[1] + (sv * slice9.getW());
+                    vs[vI[2]] = tc[3] - (sv * slice9.getY());
                     vs[vI[3]] = tc[3];
                 }
             }
@@ -929,10 +922,10 @@ namespace dmGameSystem
                 us[1] = su * slice9.getX();
                 us[2] = 1 - su * slice9.getZ();
                 us[3] = 1;
-                vs[0] = 1;
-                vs[1] = 1 - sv * slice9.getW();
-                vs[2] = sv * slice9.getY();
-                vs[3] = 0;
+                vs[0] = 0;
+                vs[1] = sv * slice9.getW();
+                vs[2] = 1 - sv * slice9.getY();
+                vs[3] = 1;
             }
 
             xs[1] = sx * slice9.getX();
@@ -1071,7 +1064,7 @@ namespace dmGameSystem
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
-        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
@@ -1141,8 +1134,8 @@ namespace dmGameSystem
                 uv_rotated = false;
                 u0 = 0.0f;
                 su = 1.0f;
-                v0 = 0.0f;
-                sv = 1.0f;
+                v0 = 1.0f;
+                sv = -1.0f;
             }
 
             uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
@@ -1421,6 +1414,8 @@ namespace dmGameSystem
         out_data->m_AnimationSet = rig_res->m_AnimationSetRes->m_AnimationSet;
         out_data->m_Texture = rig_res->m_TextureSet->m_Texture;
         out_data->m_TextureSet = rig_res->m_TextureSet->m_TextureSet;
+        out_data->m_PoseIdxToInfluence = &rig_res->m_PoseIdxToInfluence;
+        out_data->m_TrackIdxToPose     = &rig_res->m_TrackIdxToPose;
 
         return true;
     }

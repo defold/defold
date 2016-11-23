@@ -126,6 +126,8 @@ namespace dmGui
         dmRigDDF::Skeleton*      m_Skeleton;
         dmRigDDF::MeshSet*       m_MeshSet;
         dmRigDDF::AnimationSet*  m_AnimationSet;
+        const dmArray<uint32_t>* m_PoseIdxToInfluence;
+        const dmArray<uint32_t>* m_TrackIdxToPose;
         void*                    m_Texture;
         void*                    m_TextureSet;
     };
@@ -541,11 +543,12 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size);
+    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Delete dynamic texture
@@ -562,11 +565,24 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size);
+    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+
+    /**
+     * Get texture data for a dynamic texture
+     * @param scene
+     * @param texture_name
+     * @param out_width
+     * @param out_height
+     * @param out_type
+     * @param out_buffer
+     * @return
+     */
+    Result GetDynamicTextureData(HScene scene, const char* texture_name, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer);
 
     /**
      * Adds a font with the specified name to the scene.
