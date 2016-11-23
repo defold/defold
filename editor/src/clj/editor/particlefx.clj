@@ -682,7 +682,7 @@
                                                        {:node-id _node-id
                                                         :label "ParticleFX"
                                                         :icon particle-fx-icon
-                                                        :children (into (outline/natural-sort mod-outlines) (outline/natural-sort emitter-outlines))
+                                                        :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
                                                         :child-reqs [{:node-type EmitterNode
                                                                       :tx-attach-fn (fn [self-id child-id]
                                                                                       (concat

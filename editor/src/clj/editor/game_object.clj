@@ -110,20 +110,19 @@
 
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id node-outline-label id source-outline source-properties source-resource]
+    (g/fnk [_node-id id source-outline source-properties source-resource]
       (let [source-outline (or source-outline {:icon unknown-icon})
             source-id (when-let [source-id (:node-id source-outline)]
                         (and (not= source-id -1) source-id))
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
         (-> {:node-id _node-id
-             :label node-outline-label
+             :label id
              :icon (:icon source-outline)
              :outline-overridden? overridden?
              :children (:children source-outline)}
           (cond->
             (and source-resource (resource/path source-resource)) (assoc :link source-resource)
             source-id (assoc :alt-outline source-outline))))))
-  (output node-outline-label g/Str (gu/passthrough id))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
@@ -223,8 +222,6 @@
                               :type (:go-prop-type p)
                               :value (properties/go-prop->str (:value p) (:go-prop-type p))}))))))
   (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties)))
-  (output node-outline-label g/Str :cached (g/fnk [id source-resource]
-                                                  (format "%s - %s" id (resource/resource->proj-path source-resource))))
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
                                               (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
 

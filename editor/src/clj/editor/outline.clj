@@ -4,9 +4,9 @@
             [editor.core :as core]
             [schema.core :as s]
             [editor.resource :as resource]
+            [editor.util :as util]
             [editor.workspace :as workspace]
-            [service.log :as log]
-            [editor.util :as util])
+            [service.log :as log])
   (:import [editor.resource FileResource ZipResource]))
 
 (set! *warn-on-reflection* true)
@@ -39,8 +39,10 @@
 
 (defn- find-target-item [item-iterator root-nodes]
   (if item-iterator
-    (->> (mapcat #(let [item (value %)] [item (:alt-outline item)])
-                 (take-while some? (iterate parent item-iterator)))
+    (->> item-iterator
+      (iterate parent)
+      (take-while some?)
+      (mapcat #(let [item (value %)] [item (:alt-outline item)]))
       (some (partial match-reqs root-nodes)))
     nil))
 
