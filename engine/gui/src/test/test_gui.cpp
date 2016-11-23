@@ -62,7 +62,7 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
-static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color) 
+static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color)
 {
     mesh_entry.m_Id = id;
     mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
@@ -411,28 +411,7 @@ private:
         ik_target.m_Mix      = 1.0f;
 
         // Calculate bind pose
-        // (code from res_rig_scene.h)
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmRig::RigBone* bind_bone = &m_BindPose[i];
-            dmRigDDF::Bone* bone = &m_Skeleton->m_Bones[i];
-            bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-            if (i > 0)
-            {
-                bind_bone->m_LocalToModel = dmTransform::Mul(m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-                if (!bone->m_InheritScale)
-                {
-                    bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-                }
-            }
-            else
-            {
-                bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-            }
-            bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
-            bind_bone->m_ParentIndex = bone->m_Parent;
-            bind_bone->m_Length = bone->m_Length;
-        }
+        dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
 
         // Bone animations
         uint32_t animation_count = 2;
@@ -4582,36 +4561,6 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
 
 }
 
-static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton* skeleton)
-{
-    // Calculate bind pose
-    // (code from res_rig_scene.h)
-    uint32_t bone_count = skeleton->m_Bones.m_Count;
-    bind_pose->SetCapacity(bone_count);
-    bind_pose->SetSize(bone_count);
-    for (uint32_t i = 0; i < bone_count; ++i)
-    {
-        dmRig::RigBone* bind_bone = &(*bind_pose)[i];
-        dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
-        bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-        if (i > 0)
-        {
-            bind_bone->m_LocalToModel = dmTransform::Mul((*bind_pose)[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-            if (!bone->m_InheritScale)
-            {
-                bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-            }
-        }
-        else
-        {
-            bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-        }
-        bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
-        bind_bone->m_ParentIndex = bone->m_Parent;
-        bind_bone->m_Length = bone->m_Length;
-    }
-}
-
 static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
     dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
@@ -4647,7 +4596,7 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
     dummy_data->m_MeshSet = mesh_set;
     dummy_data->m_AnimationSet = animation_set;
 
-    BuildBindPose(dummy_data->m_BindPose, skeleton);
+    dmRig::CreateBindPose(*skeleton, *dummy_data->m_BindPose);
 
     if(num_dummy_mesh_entries > 0)
     {

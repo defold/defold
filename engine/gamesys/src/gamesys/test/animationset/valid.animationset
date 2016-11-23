@@ -1,0 +1,3 @@
+animations {
+    animation: "/mesh/valid.dae"
+}
