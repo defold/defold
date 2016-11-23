@@ -1462,6 +1462,7 @@ namespace dmGui
      *   <li><code>"l"</code> - LUMINANCE</li>
      * </ul>
      * @param buffer texture data (string)
+     * @param flip flip texture vertically (boolean)
      * @return texture creation was successful (boolean)
      * @examples
      * <pre>
@@ -1498,8 +1499,20 @@ namespace dmGui
         const char* buffer = lua_tolstring(L, 5, &buffer_size);
         Scene* scene = GuiScriptInstance_Check(L);
 
+        bool flip = false;
+        if (top > 5) {
+            luaL_checktype(L, 6, LUA_TBOOLEAN);
+            flip = (bool)lua_toboolean(L, 6);
+        }
+
+        // If we don't flip the image, it will appear upside down using OGL texture coords,
+        // since we will upload the data top-row first instead of bottom-row first.
+        // This is actually what users expect the flip switch to mean, so we invert the
+        // flip here so the default case will be to "correctly" flip the image.
+        flip = !flip;
+
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = NewDynamicTexture(scene, name, width, height, type, buffer, buffer_size);
+        Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
         if (r == RESULT_OK) {
             lua_pushboolean(L, 1);
         } else {
@@ -1561,6 +1574,7 @@ namespace dmGui
      *   <li><code>"l"</code> - LUMINANCE</li>
      * </ul>
      * @param buffer texture data (string)
+     * @param flip flip texture vertically (boolean)
      * @return setting the data was successful (boolean)
      * @examples
      * <pre>
@@ -1603,8 +1617,20 @@ namespace dmGui
         const char* buffer = lua_tolstring(L, 5, &buffer_size);
         Scene* scene = GuiScriptInstance_Check(L);
 
+        bool flip = false;
+        if (top > 5) {
+            luaL_checktype(L, 6, LUA_TBOOLEAN);
+            flip = (bool)lua_toboolean(L, 6);
+        }
+
+        // If we don't flip the image, it will appear upside down using OGL texture coords,
+        // since we will upload the data top-row first instead of bottom-row first.
+        // This is actually what users expect the flip switch to mean, so we invert the
+        // flip here so the default case will be to "correctly" flip the image.
+        flip = !flip;
+
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = SetDynamicTextureData(scene, name, width, height, type, buffer, buffer_size);
+        Result r = SetDynamicTextureData(scene, name, width, height, type, flip, buffer, buffer_size);
         if (r == RESULT_OK) {
             lua_pushboolean(L, 1);
         } else {
