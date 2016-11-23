@@ -65,7 +65,9 @@ public class XMLParam
         /** IDREF (String) */
         _IDREF,
         /** 4x4 float matrix */
-        _float4x4
+        _float4x4,
+        /** _name (String) */
+        _name
     }
 
     public XMLParam.Type type = null;
@@ -101,7 +103,24 @@ public class XMLParam
         /** Weight */
         WEIGHT,
         /** Joint */
-        JOINT
+        JOINT,
+
+        /** The following enums is not implemented by Xith jagatoo and is added to support reading of animation (Anims and Bones) */
+        INTERPOLATION,
+        TRANSFORM,
+        IN_TANGENT,
+        OUT_TANGENT,
+
+        /** The following enums is not implemented by Xith jagatoo and is added for compatibility above Collada 1.4.0 */
+        VERTEX,
+        NORMAL,
+        TEXCOORD,
+        COLOR,
+        INPUT,
+        OUTPUT,
+        INV_BIND_MATRIX,
+        POSITION,
+        OTHER
     }
 
     public Name name = null;

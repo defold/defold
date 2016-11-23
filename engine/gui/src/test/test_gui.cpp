@@ -62,7 +62,7 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
-static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color) 
+static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color)
 {
     mesh_entry.m_Id = id;
     mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
@@ -411,28 +411,7 @@ private:
         ik_target.m_Mix      = 1.0f;
 
         // Calculate bind pose
-        // (code from res_rig_scene.h)
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmRig::RigBone* bind_bone = &m_BindPose[i];
-            dmRigDDF::Bone* bone = &m_Skeleton->m_Bones[i];
-            bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-            if (i > 0)
-            {
-                bind_bone->m_LocalToModel = dmTransform::Mul(m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-                if (!bone->m_InheritScale)
-                {
-                    bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-                }
-            }
-            else
-            {
-                bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-            }
-            bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
-            bind_bone->m_ParentIndex = bone->m_Parent;
-            bind_bone->m_Length = bone->m_Length;
-        }
+        dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
 
         // Bone animations
         uint32_t animation_count = 2;
@@ -975,16 +954,16 @@ TEST_F(dmGuiTest, DynamicTexture)
 
     // Test creation/deletion in the same frame (case 2355)
     dmGui::Result r;
-    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
     r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
     ASSERT_EQ(r, dmGui::RESULT_OK);
     dmGui::RenderScene(m_Scene, rp, &count);
 
-    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -1003,20 +982,106 @@ TEST_F(dmGuiTest, DynamicTexture)
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Recreate the texture again (without RenderScene)
-    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Set data on deleted texture
-    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
     dmGui::DeleteNode(m_Scene, node);
 
     dmGui::RenderScene(m_Scene, rp, &count);
 }
+
+
+#define ASSERT_BUFFER(exp, act, count)\
+    for (int i = 0; i < count; ++i) {\
+        ASSERT_EQ((exp)[i], (act)[i]);\
+    }\
+
+TEST_F(dmGuiTest, DynamicTextureFlip)
+{
+    const int width = 2;
+    const int height = 2;
+
+    // Test data tuples (regular image data & and flipped counter part)
+    const uint8_t data_lum[width * height * 1] = {
+            255, 0,
+            0, 255,
+        };
+    const uint8_t data_lum_flip[width * height * 1] = {
+            0, 255,
+            255, 0,
+        };
+    const uint8_t data_rgb[width * height * 3] = {
+            255, 0, 0,  0, 255, 0,
+            0, 0, 255,  255, 255, 255,
+        };
+    const uint8_t data_rgb_flip[width * height * 3] = {
+            0, 0, 255,  255, 255, 255,
+            255, 0, 0,  0, 255, 0,
+        };
+    const uint8_t data_rgba[width * height * 4] = {
+            255, 0, 0, 255,  0, 255, 0, 255,
+            0, 0, 255, 255,  255, 255, 255, 255,
+        };
+    const uint8_t data_rgba_flip[width * height * 4] = {
+            0, 0, 255, 255,  255, 255, 255, 255,
+            255, 0, 0, 255,  0, 255, 0, 255,
+        };
+
+    // Vars to fetch data results
+    uint32_t out_width = 0;
+    uint32_t out_height = 0;
+    dmImage::Type out_type = dmImage::TYPE_LUMINANCE;
+    const uint8_t* out_buffer = NULL;
+
+    // Create and upload RGB image + flip
+    dmGui::Result r;
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, true, data_rgb, sizeof(data_rgb));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // Get buffer, verify same as input but flipped
+    r = dmGui::GetDynamicTextureData(m_Scene, "t1", &out_width, &out_height, &out_type, (const void**)&out_buffer);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(width, out_width);
+    ASSERT_EQ(height, out_height);
+    ASSERT_EQ(dmImage::TYPE_RGB, out_type);
+    ASSERT_BUFFER(data_rgb_flip, out_buffer, width*height*3);
+
+    // Upload RGBA data and flip
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGBA, true, data_rgba, sizeof(data_rgba));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // Verify flipped result
+    r = dmGui::GetDynamicTextureData(m_Scene, "t1", &out_width, &out_height, &out_type, (const void**)&out_buffer);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(width, out_width);
+    ASSERT_EQ(height, out_height);
+    ASSERT_EQ(dmImage::TYPE_RGBA, out_type);
+    ASSERT_BUFFER(data_rgba_flip, out_buffer, width*height*4);
+
+    // Upload luminance data and flip
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_LUMINANCE, true, data_lum, sizeof(data_lum));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // Verify flipped result
+    r = dmGui::GetDynamicTextureData(m_Scene, "t1", &out_width, &out_height, &out_type, (const void**)&out_buffer);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(width, out_width);
+    ASSERT_EQ(height, out_height);
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE, out_type);
+    ASSERT_BUFFER(data_lum_flip, out_buffer, width*height);
+
+    r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+}
+
+#undef ASSERT_BUFFER
 
 TEST_F(dmGuiTest, ScriptFlipbookAnim)
 {
@@ -4496,36 +4561,6 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
 
 }
 
-static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton* skeleton)
-{
-    // Calculate bind pose
-    // (code from res_rig_scene.h)
-    uint32_t bone_count = skeleton->m_Bones.m_Count;
-    bind_pose->SetCapacity(bone_count);
-    bind_pose->SetSize(bone_count);
-    for (uint32_t i = 0; i < bone_count; ++i)
-    {
-        dmRig::RigBone* bind_bone = &(*bind_pose)[i];
-        dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
-        bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-        if (i > 0)
-        {
-            bind_bone->m_LocalToModel = dmTransform::Mul((*bind_pose)[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-            if (!bone->m_InheritScale)
-            {
-                bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-            }
-        }
-        else
-        {
-            bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-        }
-        bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
-        bind_bone->m_ParentIndex = bone->m_Parent;
-        bind_bone->m_Length = bone->m_Length;
-    }
-}
-
 static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
     dmRigDDF::Skeleton* skeleton          = new dmRigDDF::Skeleton();
@@ -4561,7 +4596,7 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
     dummy_data->m_MeshSet = mesh_set;
     dummy_data->m_AnimationSet = animation_set;
 
-    BuildBindPose(dummy_data->m_BindPose, skeleton);
+    dmRig::CreateBindPose(*skeleton, *dummy_data->m_BindPose);
 
     if(num_dummy_mesh_entries > 0)
     {
