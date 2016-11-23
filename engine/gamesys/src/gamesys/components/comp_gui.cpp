@@ -897,8 +897,8 @@ namespace dmGameSystem
                     us[uI[2]] = tc[2] - (su * slice9.getY());
                     us[uI[3]] = tc[2];
                     vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] + (sv * slice9.getX());
-                    vs[vI[2]] = tc[5] - (sv * slice9.getZ());
+                    vs[vI[1]] = tc[1] - (sv * slice9.getX());
+                    vs[vI[2]] = tc[5] + (sv * slice9.getZ());
                     vs[vI[3]] = tc[5];
                 }
                 else
@@ -910,8 +910,8 @@ namespace dmGameSystem
                     us[uI[2]] = tc[4] - (su * slice9.getZ());
                     us[uI[3]] = tc[4];
                     vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] - (sv * slice9.getW());
-                    vs[vI[2]] = tc[3] + (sv * slice9.getY());
+                    vs[vI[1]] = tc[1] + (sv * slice9.getW());
+                    vs[vI[2]] = tc[3] - (sv * slice9.getY());
                     vs[vI[3]] = tc[3];
                 }
             }
@@ -922,10 +922,10 @@ namespace dmGameSystem
                 us[1] = su * slice9.getX();
                 us[2] = 1 - su * slice9.getZ();
                 us[3] = 1;
-                vs[0] = 1;
-                vs[1] = 1 - sv * slice9.getW();
-                vs[2] = sv * slice9.getY();
-                vs[3] = 0;
+                vs[0] = 0;
+                vs[1] = sv * slice9.getW();
+                vs[2] = 1 - sv * slice9.getY();
+                vs[3] = 1;
             }
 
             xs[1] = sx * slice9.getX();
@@ -1134,8 +1134,8 @@ namespace dmGameSystem
                 uv_rotated = false;
                 u0 = 0.0f;
                 su = 1.0f;
-                v0 = 0.0f;
-                sv = 1.0f;
+                v0 = 1.0f;
+                sv = -1.0f;
             }
 
             uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();

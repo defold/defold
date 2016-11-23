@@ -91,8 +91,8 @@ public class GuiTextureNode {
         }
 
         if(animation == null) {
-            uvTransform.translation = new Point2d(0,0);
-            uvTransform.scale = new Vector2d(1,1);
+            uvTransform.translation = new Point2d(0,1);
+            uvTransform.scale = new Vector2d(1,-1);
             uvTransform.rotated = false;
             uvTransform.flipX = false;
             uvTransform.flipY = false;
