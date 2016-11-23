@@ -106,6 +106,9 @@ struct SResourceFactory
     // Resource archive
     dmResourceArchive::HArchive                  m_Archive;
     void*                                        m_ArchiveMountInfo;
+
+    // Shared resources
+    uint32_t                                    m_NonSharedCount; // a running number, helping id the potentially non shared assets
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -314,6 +317,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+    factory->m_NonSharedCount = 0;
     factory->m_ResourceTypesCount = 0;
 
     const uint32_t table_size = dmMath::Max(1u, (3 * params->m_MaxResources) / 4);
@@ -419,7 +423,8 @@ Result RegisterType(HFactory factory,
                            FResourcePreload preload_function,
                            FResourceCreate create_function,
                            FResourceDestroy destroy_function,
-                           FResourceRecreate recreate_function)
+                           FResourceRecreate recreate_function,
+                           FResourceDuplicate duplicate_function)
 {
     if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
         return RESULT_OUT_OF_RESOURCES;
@@ -441,6 +446,7 @@ Result RegisterType(HFactory factory,
     resource_type.m_CreateFunction = create_function;
     resource_type.m_DestroyFunction = destroy_function;
     resource_type.m_RecreateFunction = recreate_function;
+    resource_type.m_DuplicateFunction = duplicate_function;
 
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
@@ -593,6 +599,107 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
     return r;
 }
 
+
+static const char* GetExtFromPath(const char* name, char* buffer, uint32_t buffersize)
+{
+    const char* ext = strrchr(name, '.');
+    if( !ext )
+        return 0;
+
+    int result = dmStrlCpy(buffer, ext, buffersize);
+    if( result >= 0 )
+    {
+        if( buffer[result-1] == SHARED_NAME_CHARACTER )
+        {
+            buffer[result-1] = 0;
+        }
+        return buffer;
+    }
+    return 0;
+}
+
+/*
+Tagged ("unique") resources:
+
+A) if the original resource already exists, create a duplicate resource which points to the old resource
+B) if the original does not exist: create it, and then make a duplicate
+*/
+
+static Result CreateDuplicateResource(HFactory factory, const char* canonical_path, SResourceDescriptor* rd, void** resource)
+{
+    if (factory->m_Resources->Full())
+    {
+        dmLogError("The max number of resources (%d) has been passed, tweak \"%s\" in the config file.", factory->m_Resources->Capacity(), MAX_RESOURCES_KEY);
+        return RESULT_OUT_OF_RESOURCES;
+    }
+
+    char extbuffer[64];
+    const char* ext = GetExtFromPath(canonical_path, extbuffer, sizeof(extbuffer));
+
+    ext++;
+    SResourceType* resource_type = FindResourceType(factory, ext);
+    if (resource_type == 0)
+    {
+        dmLogError("Unknown resource type: %s", ext);
+        return RESULT_UNKNOWN_RESOURCE_TYPE;
+    }
+
+    if (!resource_type->m_DuplicateFunction)
+    {
+        dmLogError("The resource type '%s' does not support duplication", ext);
+        return RESULT_NOT_SUPPORTED;
+    }
+
+    char tagged_path[RESOURCE_PATH_MAX];    // The constructed unique path (if needed). E.g. "/my/icon.texturec_123"
+    {
+        size_t len = dmStrlCpy(tagged_path, canonical_path, sizeof(tagged_path));
+        int result = DM_SNPRINTF(tagged_path+len, sizeof(tagged_path)-len, "_%u", factory->m_NonSharedCount);
+        assert(result != -1 );
+
+        ++factory->m_NonSharedCount;
+    }
+
+    printf("tagged_path: %s\n", tagged_path);
+    uint64_t tagged_path_hash = dmHashBuffer64(tagged_path, strlen(tagged_path));
+
+    SResourceDescriptor tmp_resource;
+    memset(&tmp_resource, 0, sizeof(tmp_resource));
+    tmp_resource.m_NameHash = tagged_path_hash;
+    tmp_resource.m_OriginalNameHash = rd->m_NameHash;
+    tmp_resource.m_ReferenceCount = 1;
+    tmp_resource.m_ResourceType = (void*) resource_type;
+    tmp_resource.m_SharedState = SHARE_STATE_INSTANCE;
+
+    ResourceDuplicateParams params;
+    params.m_Factory = factory;
+    params.m_Context = resource_type->m_Context;
+    params.m_OriginalResource = rd;
+    params.m_Resource = &tmp_resource;
+
+    Result duplicate_result = resource_type->m_DuplicateFunction(params);
+    if( duplicate_result != RESULT_OK )
+    {
+        dmLogError("Failed to duplicate resource '%s'", tagged_path);
+        return duplicate_result;
+    }
+
+    ++rd->m_ReferenceCount;
+
+    Result insert_error = InsertResource(factory, tagged_path, tagged_path_hash, &tmp_resource);
+    if (insert_error != RESULT_OK)
+    {
+        ResourceDestroyParams params;
+        params.m_Factory = factory;
+        params.m_Context = resource_type->m_Context;
+        params.m_Resource = &tmp_resource;
+        resource_type->m_DestroyFunction(params);
+        return insert_error;
+    }
+
+    *resource = tmp_resource.m_Resource;
+    return RESULT_OK;
+}
+
 // Assumes m_LoadMutex is already held
 static Result DoGet(HFactory factory, const char* name, void** resource)
 {
@@ -603,10 +710,15 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
 
     *resource = 0;
 
-    char canonical_path[RESOURCE_PATH_MAX];
+    char canonical_path[RESOURCE_PATH_MAX]; // The actual resource path. E.g. "/my/icon.texturec"
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
 
-printf("CANONICALPATH: %s\n", canonical_path);
+    bool is_shared = !IsPathTagged(name);
+    if( !is_shared )
+    {
+        int len = strlen(canonical_path);
+        canonical_path[len-1] = 0;
+    }
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
@@ -614,9 +726,14 @@ printf("CANONICALPATH: %s\n", canonical_path);
     if (rd)
     {
         assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
-        rd->m_ReferenceCount++;
-        *resource = rd->m_Resource;
-        return RESULT_OK;
+        if( is_shared )
+        {
+            rd->m_ReferenceCount++;
+            *resource = rd->m_Resource;
+            return RESULT_OK;
+        }
+        
+        return CreateDuplicateResource(factory, canonical_path, rd, resource);
     }
 
     if (factory->m_Resources->Full())
@@ -625,7 +742,8 @@ printf("CANONICALPATH: %s\n", canonical_path);
         return RESULT_OUT_OF_RESOURCES;
     }
 
-    const char* ext = strrchr(name, '.');
+    char extbuffer[64];
+    const char* ext = GetExtFromPath(canonical_path, extbuffer, sizeof(extbuffer));
     if (ext)
     {
         ext++;
@@ -653,8 +771,10 @@ printf("CANONICALPATH: %s\n", canonical_path);
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
         tmp_resource.m_NameHash = canonical_path_hash;
+        tmp_resource.m_OriginalNameHash = 0;
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
+        tmp_resource.m_SharedState = SHARE_STATE_ALL;
 
         void *preload_data = 0;
         Result create_error = RESULT_OK;
@@ -696,18 +816,28 @@ printf("CANONICALPATH: %s\n", canonical_path);
             Result insert_error = InsertResource(factory, name, canonical_path_hash, &tmp_resource);
             if (insert_error == RESULT_OK)
             {
-                *resource = tmp_resource.m_Resource;
-                return RESULT_OK;
+                if( is_shared )
+                {
+                    *resource = tmp_resource.m_Resource;
+                    return RESULT_OK;
+                }
+
+                Result duplicate_error = CreateDuplicateResource(factory, canonical_path, &tmp_resource, resource);
+                if( duplicate_error == RESULT_OK )
+                {
+                    return RESULT_OK;
+                }
+
+                // If we succeeded to create the resource, but failed to duplicate it, we fail.
+                insert_error = duplicate_error;
             }
-            else
-            {
-                ResourceDestroyParams params;
-                params.m_Factory = factory;
-                params.m_Context = resource_type->m_Context;
-                params.m_Resource = &tmp_resource;
-                resource_type->m_DestroyFunction(params);
-                return insert_error;
-            }
+
+            ResourceDestroyParams params;
+            params.m_Factory = factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_Resource = &tmp_resource;
+            resource_type->m_DestroyFunction(params);
+            return insert_error;
         }
         else
         {
@@ -1009,6 +1139,17 @@ void IncRef(HFactory factory, void* resource)
     ++rd->m_ReferenceCount;
 }
 
+// For unit testing
+uint32_t GetRefCount(HFactory factory, void* resource)
+{
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    assert(resource_hash);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    return rd->m_ReferenceCount;
+}
+
 void Release(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
@@ -1037,6 +1178,13 @@ void Release(HFactory factory, void* resource)
             factory->m_ResourceHashToFilename->Erase(*resource_hash);
             assert(s);
             free((void*) *s);
+        }
+
+        if( rd->m_OriginalNameHash )
+        {
+            SResourceDescriptor* originalrd = factory->m_Resources->Get(rd->m_OriginalNameHash);
+            assert(originalrd);
+            Release(factory, originalrd->m_Resource);
         }
     }
 }
@@ -1080,11 +1228,11 @@ void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallba
 
 
 // If the path ends with ":", the path is not shared, i.e. you can later update to a unique resource
-bool IsShared(const char* name)
+bool IsPathTagged(const char* name)
 {
     assert(name);
     int len = strlen(name);
-    return name[len-1] != SHARED_NAME_CHARACTER;
+    return name[len-1] == SHARED_NAME_CHARACTER;
 }
 
 Result GetPath(HFactory factory, const void* resource, uint64_t* hash)

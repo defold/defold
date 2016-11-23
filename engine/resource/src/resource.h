@@ -59,14 +59,25 @@ namespace dmResource
         KIND_POINTER, //!< KIND_POINTER
     };
 
+    /**
+    * Tells the destroy function what data it should delete.
+    * ALL -> delete all data
+    * INSTANCE -> delete the data that was instanced in the duplicate function
+    */
+    enum ShareState
+    {
+        SHARE_STATE_ALL = 0,
+        SHARE_STATE_INSTANCE = 1,
+    };
+
     /// Resource descriptor
     struct SResourceDescriptor
     {
         /// Hash of resource name
         uint64_t m_NameHash;
 
-        /// Resource kind
-        Kind     m_ResourceKind;
+        /// Name of original resource
+        uint64_t m_OriginalNameHash;
 
         /// Union of DDF descriptor and resource name
         union
@@ -78,11 +89,17 @@ namespace dmResource
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
 
+        /// For internal use only
+        void*    m_ResourceType;        // For internal use.
+
         /// Reference count
         uint32_t m_ReferenceCount;
 
-        /// For internal use only
-        void*    m_ResourceType;        // For internal use.
+        /// Resource kind
+        Kind     m_ResourceKind;
+
+        /// The shared state tells who owns what data
+        uint8_t  m_SharedState:1;        // 0 == shared, 1 == "instanced" (not full copy), 2 == New copy of original resource . For internal use.
     };
 
     /**
@@ -205,6 +222,29 @@ namespace dmResource
     typedef Result (*FResourceRecreate)(const ResourceRecreateParams& params);
 
     /**
+     * Parameters to ResourceDuplicate callback.
+     */
+    struct ResourceDuplicateParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// Resource descriptor to copy from
+        SResourceDescriptor* m_OriginalResource;
+        /// Resource descriptor to write into
+        SResourceDescriptor* m_Resource;
+    };
+
+    /**
+     * Resource duplicate function. Used to create a new resource, while still using the same payload (if possible)
+     * @params params Parameters for resource creation
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef Result (*FResourceDuplicate)(const ResourceDuplicateParams& params);
+
+
+    /**
      * Parameters to ResourceReloaded callback.
      */
     struct ResourceReloadedParams
@@ -294,7 +334,8 @@ namespace dmResource
                                FResourcePreload preload_function,
                                FResourceCreate create_function,
                                FResourceDestroy destroy_function,
-                               FResourceRecreate recreate_function);
+                               FResourceRecreate recreate_function,
+                               FResourceDuplicate duplicate_function);
 
     /**
      * Get a resource from factory
@@ -429,10 +470,10 @@ namespace dmResource
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
 
     /**
-     * Determines if the resource should be shared or not.
+     * Determines if the resource could be unique
      * @param name Resource name
     */
-    bool IsShared(const char* name);
+    bool IsPathTagged(const char* name);
 
 
     /**
