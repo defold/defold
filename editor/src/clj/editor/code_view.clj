@@ -481,6 +481,7 @@
                       [selected-text]
                       []))
   (succeeding-selection [this] [])
+  (alt-selection [this] [])
 
   cvx/TextContainer
   (text! [this s]

@@ -83,7 +83,7 @@
               (and (= (:pos new-progress) (:size new-progress))
                    (not= (:pos old-progress) (:size old-progress))))))))
 
-(defn- flow-journal-file ^java.io.File [^Git git]
+(defn flow-journal-file ^java.io.File [^Git git]
   (some-> git .getRepository .getWorkTree (io/file ".internal/.sync-in-progress")))
 
 (defn- write-flow-journal! [{:keys [git] :as flow}]
@@ -101,17 +101,32 @@
     (.exists file)
     false))
 
+(defn cancel-flow! [!flow]
+  (remove-watch !flow ::on-flow-changed)
+  (let [{:keys [git start-ref stash-ref]} @!flow
+        file (flow-journal-file git)]
+    (when (.exists file)
+      (io/delete-file file :silently))
+    (git/hard-reset git start-ref)
+    (when stash-ref
+      (git/stash-apply git stash-ref)
+      (git/stash-drop git stash-ref))))
+
 (defn begin-flow! [^Git git prefs]
   (when *login*
     (login/login prefs))
   (let [creds (git/credentials prefs)
         start-ref (git/get-current-commit-ref git)
         stash-ref (git/stash git)
-        flow  (make-flow git creds start-ref stash-ref)
+        flow (make-flow git creds start-ref stash-ref)
         !flow (atom flow)]
-    (write-flow-journal! flow)
-    (add-watch !flow ::on-flow-changed on-flow-changed)
-    !flow))
+    (try
+      (write-flow-journal! flow)
+      (add-watch !flow ::on-flow-changed on-flow-changed)
+      !flow
+      (catch Exception e
+        (cancel-flow! !flow)
+        (throw e)))))
 
 (defn resume-flow [^Git git prefs]
   (when *login*
@@ -124,17 +139,6 @@
         !flow (atom flow)]
     (add-watch !flow ::on-flow-changed on-flow-changed)
     !flow))
-
-(defn cancel-flow! [!flow]
-  (remove-watch !flow ::on-flow-changed)
-  (let [{:keys [git start-ref stash-ref]} @!flow
-        file (flow-journal-file git)]
-    (when (.exists file)
-      (io/delete-file file :silently))
-    (git/revert-to-revision! git start-ref)
-    (when stash-ref
-      (git/stash-apply git stash-ref)
-      (git/stash-drop git stash-ref))))
 
 (defn finish-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
@@ -328,7 +332,7 @@
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
         stage           (ui/make-stage)
         scene           (Scene. root)
-        dialog-controls (ui/collect-controls root [ "ok" "push" "cancel" "dialog-area" "progress-bar"])
+        dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
         push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label" "diff" "stage" "unstage"])
         render-progress (fn [progress]
@@ -402,7 +406,8 @@
                                                 (ui/text! (:main-label pull-controls) "Error getting changes")
                                                 (ui/visible! (:push dialog-controls) false)
                                                 (ui/visible! (:conflict-box pull-controls) false)
-                                                (ui/text! (:ok dialog-controls) "Close"))
+                                                (ui/text! (:ok dialog-controls) "Done")
+                                                (ui/disable! (:ok dialog-controls) true))
                              :push/staging   (let [changed-view ^ListView (:changed push-controls)
                                                    staged-view ^ListView (:staged push-controls)
                                                    changed-selection (vec (ui/selection changed-view))
@@ -433,6 +438,10 @@
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
+
+    ; Disable the window close button, since it is unclear what it means.
+    ; This forces the user to make an active choice between Done or Cancel.
+    (ui/on-closing! stage (fn [_] false))
 
     (ui/on-action! (:cancel dialog-controls) (fn [_]
                                                (cancel-flow! !flow)

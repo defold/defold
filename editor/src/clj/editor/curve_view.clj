@@ -637,7 +637,8 @@
 (defrecord SubSelectionProvider [project]
   handler/SelectionProvider
   (selection [this] (g/node-value project :sub-selection))
-  (succeeding-selection [this] []))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (defn- on-list-selection [project values]
   (when-not *programmatic-selection*
