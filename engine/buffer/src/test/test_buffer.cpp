@@ -34,6 +34,31 @@ protected:
     }
 };
 
+struct AlignmentTestParams
+{
+    uint32_t element_count;
+    dmBuffer::StreamDeclaration streams_decl[dmBuffer::MAX_VALUE_TYPE_COUNT];
+    uint32_t streams_decl_count;
+};
+
+class AlignmentTest : public ::testing::TestWithParam<AlignmentTestParams>
+{
+public:
+    dmBuffer::HBuffer buffer;
+    void*             out_stream;
+    uint32_t          out_stride;
+    uint32_t          out_element_count;
+
+protected:
+    virtual void SetUp() {
+        buffer = 0x0;
+    }
+
+    virtual void TearDown() {
+        dmBuffer::Free(buffer);
+    }
+};
+
 #define CLEAR_OUT_VARS(out_stream, out_stride, out_element_count)\
     out_stream = 0x0;\
     out_stride = 0;\
@@ -278,20 +303,156 @@ TEST_F(GetDataTest, WriteOutsideStream)
     ASSERT_EQ((void*)0x0, out_stream);
 }
 
-TEST_F(GetDataTest, Alignment)
+TEST_F(GetDataTest, CheckUniquePointers)
 {
+
+    // Get position stream
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3, &out_stream, &out_stride, &out_element_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    void* position_ptr = out_stream;
+
+    // Get texcoord again
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
+    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    void* texcoord_ptr = out_stream;
+
+    ASSERT_NE(texcoord_ptr, position_ptr);
+}
+
+TEST_F(GetDataTest, CheckOverwrite)
+{
+    const uint16_t magic_number = 0xC0DE;
+
+    // Get texcoord stream
     CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
 
+    // Write magic number to texcoord stream
+    uint16_t* ptr_u16 = (uint16_t*)out_stream;
+    for (int i = 0; i < out_element_count; ++i)
+    {
+        ptr_u16[0] = magic_number;
+        ptr_u16[1] = magic_number;
+        ptr_u16 += out_stride;
+    }
+
+    // Get position stream
     CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3, &out_stream, &out_stride, &out_element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
+
+    // Write different data to position stream
+    float* ptr_f32 = (float*)out_stream;
+    for (int i = 0; i < out_element_count; ++i)
+    {
+        ptr_f32[0] = 1.0f;
+        ptr_f32[1] = 2.0f;
+        ptr_f32[1] = -3.0f;
+        ptr_f32 += out_stride;
+    }
+
+    // Read back texcoord stream and verify magic number
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
+    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    // Write magic number to texcoord stream
+    ptr_u16 = (uint16_t*)out_stream;
+    for (int i = 0; i < out_element_count; ++i)
+    {
+        ASSERT_EQ(magic_number, ptr_u16[0]);
+        ASSERT_EQ(magic_number, ptr_u16[1]);
+        ptr_u16 += out_stride;
+    }
+}
+
+TEST_P(AlignmentTest, CheckAlignment)
+{
+    const AlignmentTestParams& p = GetParam();
+
+    dmBuffer::Result r = dmBuffer::Allocate(p.element_count, p.streams_decl, p.streams_decl_count, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(0, ((uintptr_t)buffer) % 16);
+
+    for (uint32_t i = 0; i < p.streams_decl_count; ++i)
+    {
+        CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
+        const dmBuffer::StreamDeclaration& stream_decl = p.streams_decl[i];
+        r = dmBuffer::GetStream(buffer, stream_decl.m_Name, stream_decl.m_ValueType, stream_decl.m_ValueCount, &out_stream, &out_stride, &out_element_count);
+        ASSERT_EQ(dmBuffer::RESULT_OK, r);
+        ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
+    }
 }
 
 #undef CLEAR_OUT_VARS
+
+const AlignmentTestParams valid_stream_setups[] = {
+    // All value types
+    {1115, {
+            {dmHashString64("VALUE_TYPE_UINT8"),   dmBuffer::VALUE_TYPE_UINT8,   5},
+            {dmHashString64("VALUE_TYPE_UINT16"),  dmBuffer::VALUE_TYPE_UINT16,  5},
+            {dmHashString64("VALUE_TYPE_UINT32"),  dmBuffer::VALUE_TYPE_UINT32,  5},
+            {dmHashString64("VALUE_TYPE_UINT64"),  dmBuffer::VALUE_TYPE_UINT64,  5},
+            {dmHashString64("VALUE_TYPE_INT8"),    dmBuffer::VALUE_TYPE_INT8,    5},
+            {dmHashString64("VALUE_TYPE_INT16"),   dmBuffer::VALUE_TYPE_INT16,   5},
+            {dmHashString64("VALUE_TYPE_INT32"),   dmBuffer::VALUE_TYPE_INT32,   5},
+            {dmHashString64("VALUE_TYPE_INT64"),   dmBuffer::VALUE_TYPE_INT64,   5},
+            {dmHashString64("VALUE_TYPE_FLOAT32"), dmBuffer::VALUE_TYPE_FLOAT32, 5},
+            {dmHashString64("VALUE_TYPE_FLOAT64"), dmBuffer::VALUE_TYPE_FLOAT64, 5},
+        }, dmBuffer::MAX_VALUE_TYPE_COUNT
+    },
+
+    // All value types, reversed order
+    {1115, {
+            {dmHashString64("VALUE_TYPE_FLOAT64"), dmBuffer::VALUE_TYPE_FLOAT64, 5},
+            {dmHashString64("VALUE_TYPE_FLOAT32"), dmBuffer::VALUE_TYPE_FLOAT32, 5},
+            {dmHashString64("VALUE_TYPE_INT64"),   dmBuffer::VALUE_TYPE_INT64,   5},
+            {dmHashString64("VALUE_TYPE_INT32"),   dmBuffer::VALUE_TYPE_INT32,   5},
+            {dmHashString64("VALUE_TYPE_INT16"),   dmBuffer::VALUE_TYPE_INT16,   5},
+            {dmHashString64("VALUE_TYPE_INT8"),    dmBuffer::VALUE_TYPE_INT8,    5},
+            {dmHashString64("VALUE_TYPE_UINT64"),  dmBuffer::VALUE_TYPE_UINT64,  5},
+            {dmHashString64("VALUE_TYPE_UINT32"),  dmBuffer::VALUE_TYPE_UINT32,  5},
+            {dmHashString64("VALUE_TYPE_UINT16"),  dmBuffer::VALUE_TYPE_UINT16,  5},
+            {dmHashString64("VALUE_TYPE_UINT8"),   dmBuffer::VALUE_TYPE_UINT8,   5},
+        }, dmBuffer::MAX_VALUE_TYPE_COUNT
+    },
+
+    // All value types, different value counts
+    {1024*720, {
+            {dmHashString64("VALUE_TYPE_UINT8"),   dmBuffer::VALUE_TYPE_UINT8,   1},
+            {dmHashString64("VALUE_TYPE_UINT16"),  dmBuffer::VALUE_TYPE_UINT16,  2},
+            {dmHashString64("VALUE_TYPE_UINT32"),  dmBuffer::VALUE_TYPE_UINT32,  3},
+            {dmHashString64("VALUE_TYPE_UINT64"),  dmBuffer::VALUE_TYPE_UINT64,  4},
+            {dmHashString64("VALUE_TYPE_INT8"),    dmBuffer::VALUE_TYPE_INT8,    5},
+            {dmHashString64("VALUE_TYPE_INT16"),   dmBuffer::VALUE_TYPE_INT16,   6},
+            {dmHashString64("VALUE_TYPE_INT32"),   dmBuffer::VALUE_TYPE_INT32,   7},
+            {dmHashString64("VALUE_TYPE_INT64"),   dmBuffer::VALUE_TYPE_INT64,   8},
+            {dmHashString64("VALUE_TYPE_FLOAT32"), dmBuffer::VALUE_TYPE_FLOAT32, 9},
+            {dmHashString64("VALUE_TYPE_FLOAT64"), dmBuffer::VALUE_TYPE_FLOAT64, 10},
+        }, dmBuffer::MAX_VALUE_TYPE_COUNT
+    },
+
+    // Random data tests
+    {139, {
+            {dmHashString64("VALUE_TYPE_UINT8"),   dmBuffer::VALUE_TYPE_UINT8,   5},
+            {dmHashString64("VALUE_TYPE_FLOAT64"), dmBuffer::VALUE_TYPE_FLOAT64, 199},
+            {dmHashString64("VALUE_TYPE_UINT16"),  dmBuffer::VALUE_TYPE_UINT16,  5},
+        }, 3
+    },
+    {1000, {
+            {dmHashString64("VALUE_TYPE_UINT8"),   dmBuffer::VALUE_TYPE_UINT8, 254}
+        }, 1
+    },
+    {1000, {
+            {dmHashString64("VALUE_TYPE_FLOAT64"),   dmBuffer::VALUE_TYPE_UINT8, 254}
+        }, 1
+    }
+};
+
+INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, ::testing::ValuesIn(valid_stream_setups));
 
 int main(int argc, char **argv)
 {
