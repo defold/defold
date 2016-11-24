@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
-#include <buffer/buffer.h>
+#include <dlib/buffer.h>
 #include <dlib/vmath.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
