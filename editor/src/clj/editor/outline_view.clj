@@ -139,6 +139,14 @@
 (defn- item->value [^TreeItem item]
   (.getValue item))
 
+(defn- alt-selection [selection]
+  (let [alt-selection (mapv (fn [item]
+                              (:alt-outline item item))
+                            selection)]
+    (if (not= selection alt-selection)
+      alt-selection
+      [])))
+
 (g/defnode OutlineView
   (property raw-tree-view TreeView)
 
@@ -154,7 +162,9 @@
   (output succeeding-tree-selection g/Any :cached (g/fnk [tree-view tree-selection-root-its]
                                                          (->> tree-selection-root-its
                                                            (mapv :tree-item)
-                                                           (ui/succeeding-selection tree-view)))))
+                                                           (ui/succeeding-selection tree-view))))
+  (output alt-tree-selection g/Any :cached (g/fnk [tree-selection]
+                                                  (alt-selection tree-selection))))
 
 (ui/extend-menu ::outline-menu nil
                 [{:label "Add"
@@ -359,8 +369,11 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))                                                                    
-                     (let [{:keys [label icon color outline-overridden?]} item]
-                       (proxy-super setText label)
+                     (let [{:keys [label icon color outline-overridden? link]} item]
+                       (let [label (if link
+                                     (format "%s - %s" label (resource/resource->proj-path link))
+                                     label)]
+                         (proxy-super setText label))
                        (proxy-super setGraphic (jfx/get-image-view icon 16))
                        (if outline-overridden?
                          (ui/add-style! this "overridden")
@@ -381,7 +394,9 @@
   (selection [this]
     (g/node-value outline-view :tree-selection))
   (succeeding-selection [this]
-    (g/node-value outline-view :succeeding-tree-selection)))
+    (g/node-value outline-view :succeeding-tree-selection))
+  (alt-selection [this]
+    (g/node-value outline-view :alt-tree-selection)))
 
 (defn- propagate-selection [^ListChangeListener$Change change project]
   (when-not *programmatic-selection*

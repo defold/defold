@@ -322,6 +322,8 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
+        create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
+        create_params.m_TrackIdxToPose     = &rig_resource->m_TrackIdxToPose;
         create_params.m_MeshId           = dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
@@ -375,25 +377,21 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-            vertex_count += dmRig::GetVertexCount(c->m_RigInstance);
+            uint32_t count = dmRig::GetVertexCount(c->m_RigInstance);
+            vertex_count += count;
         }
 
-        dmArray<SpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
+        dmArray<dmRig::RigSpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
         if (vertex_buffer.Remaining() < vertex_count)
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
         // Fill in vertex buffer
-        SpineModelVertex *vb_begin = vertex_buffer.End();
-        SpineModelVertex *vb_end = vb_begin;
-        dmRig::RigGenVertexDataParams params;
+        dmRig::RigSpineModelVertex *vb_begin = vertex_buffer.End();
+        dmRig::RigSpineModelVertex *vb_end = vb_begin;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-            params.m_ModelMatrix = c->m_World;
-            params.m_VertexData = (void**)&vb_end;
-            params.m_VertexStride = sizeof(SpineModelVertex);
-
-            vb_end = (SpineModelVertex *)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, params);
+            vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -528,7 +526,7 @@ namespace dmGameSystem
             {
                 dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
                 world->m_RenderObjects.SetSize(0);
-                dmArray<SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
+                dmArray<dmRig::RigSpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
                 vertex_buffer.SetSize(0);
                 break;
             }
@@ -539,9 +537,9 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpineModelVertex) * world->m_VertexBufferData.Size(),
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(dmRig::RigSpineModelVertex) * world->m_VertexBufferData.Size(),
                                                 world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(SpineModelVertex));
+                DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(dmRig::RigSpineModelVertex));
                 break;
             }
             default:
@@ -728,6 +726,8 @@ namespace dmGameSystem
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes->m_AnimationSet;
+        create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
+        create_params.m_TrackIdxToPose     = &rig_resource->m_TrackIdxToPose;
         create_params.m_MeshId           = dmHashString64(component->m_Resource->m_Model->m_Skin);
         create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
 
