@@ -47,14 +47,19 @@
                        (:pb-msg user-data)
                        (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource
-     :content (protobuf/map->bytes GameSystem$CollectionProxyDesc (:pb-msg user-data))}))
+     :content (protobuf/map->bytes GameSystem$CollectionProxyDesc pb-msg)}))
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-collection-proxy
-    :user-data {:pb-msg pb-msg}}])
+  [_node-id resource pb-msg dep-build-targets collection]
+  (let [dep-build-targets (flatten dep-build-targets)
+        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:collection collection]])]
+    [{:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-collection-proxy
+      :user-data {:pb-msg pb-msg
+                  :dep-resources dep-resources}
+      :deps dep-build-targets}]))
 
 (defn load-collection-proxy
   [project self resource]
