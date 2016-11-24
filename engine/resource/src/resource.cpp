@@ -659,7 +659,6 @@ static Result CreateDuplicateResource(HFactory factory, const char* canonical_pa
         ++factory->m_NonSharedCount;
     }
 
-    printf("tagged_path: %s\n", tagged_path);
     uint64_t tagged_path_hash = dmHashBuffer64(tagged_path, strlen(tagged_path));
 
     SResourceDescriptor tmp_resource;
@@ -668,7 +667,7 @@ static Result CreateDuplicateResource(HFactory factory, const char* canonical_pa
     tmp_resource.m_OriginalNameHash = rd->m_NameHash;
     tmp_resource.m_ReferenceCount = 1;
     tmp_resource.m_ResourceType = (void*) resource_type;
-    tmp_resource.m_SharedState = SHARE_STATE_INSTANCE;
+    tmp_resource.m_SharedState = DATA_SHARE_STATE_SHALLOW;
 
     ResourceDuplicateParams params;
     params.m_Factory = factory;
@@ -774,7 +773,7 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
         tmp_resource.m_OriginalNameHash = 0;
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
-        tmp_resource.m_SharedState = SHARE_STATE_ALL;
+        tmp_resource.m_SharedState = DATA_SHARE_STATE_NONE;
 
         void *preload_data = 0;
         Result create_error = RESULT_OK;
@@ -1056,6 +1055,58 @@ Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** 
         dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
 
     return result;
+}
+
+Result Set(HFactory factory, uint64_t hashed_name, uint32_t buffersize, const void* buffer)
+{
+    DM_PROFILE(Resource, "Set");
+
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+
+    assert(buffer);
+    assert(buffersize > 0);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
+    if (!rd) {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+    if (!resource_type->m_RecreateFunction)
+        return RESULT_NOT_SUPPORTED;
+
+    ResourceRecreateParams params;
+    params.m_Factory = factory;
+    params.m_Context = resource_type->m_Context;
+    params.m_Buffer = buffer;
+    params.m_BufferSize = buffersize;
+    params.m_Resource = rd;
+    params.m_Filename = 0;
+    params.m_NameHash = hashed_name;
+    Result create_result = resource_type->m_RecreateFunction(params);
+    if (create_result == RESULT_OK)
+    {
+        if (factory->m_ResourceReloadedCallbacks)
+        {
+            for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
+            {
+                ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
+                ResourceReloadedParams params;
+                params.m_UserData = pair.m_UserData;
+                params.m_Resource = rd;
+                params.m_Name = 0;
+                params.m_NameHash = hashed_name;
+                pair.m_Callback(params);
+            }
+        }
+        return RESULT_OK;
+    }
+    else
+    {
+        return create_result;
+    }
+
+    return RESULT_OK;
 }
 
 Result GetType(HFactory factory, void* resource, ResourceType* type)

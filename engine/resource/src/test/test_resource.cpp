@@ -1093,9 +1093,6 @@ dmResource::Result SharedResourceCreate(const dmResource::ResourceCreateParams& 
         params.m_Resource->m_Resource = (void*) resource;
         params.m_Resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
 
-
-    printf("CREATE: %s  %p->%p\n", params.m_Filename, resource, resource->m_Value);
-
         return dmResource::RESULT_OK;
     } else {
         return dmResource::RESULT_OUT_OF_MEMORY;
@@ -1106,12 +1103,10 @@ dmResource::Result SharedResourceDestroy(const dmResource::ResourceDestroyParams
 {
 
     ResourceHolder* resource = (ResourceHolder*) params.m_Resource->m_Resource;
-    if( params.m_Resource->m_SharedState == dmResource::SHARE_STATE_ALL )
+    if( params.m_Resource->m_SharedState == dmResource::DATA_SHARE_STATE_NONE )
     {
-printf("destroy: %p\n", resource->m_Value);
         delete resource->m_Value;
     }
-printf("DESTROY: %p\n", resource);
 
     delete resource;
     return dmResource::RESULT_OK;
@@ -1122,13 +1117,17 @@ dmResource::Result SharedResourceRecreate(const dmResource::ResourceRecreatePara
     ResourceHolder* resource = (ResourceHolder*) params.m_Resource->m_Resource;
     assert(resource);
 
-    printf("RECREATE: %p\n", params.m_Resource->m_Resource);
+    if( params.m_Resource->m_SharedState == dmResource::DATA_SHARE_STATE_SHALLOW )
+    {
+        resource->m_Value = new int;
+    }
 
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
     if (params.m_BufferSize < TMP_BUFFER_SIZE) {
         memcpy(tmp, params.m_Buffer, params.m_BufferSize);
         tmp[params.m_BufferSize] = '\0';
+
         *(resource->m_Value) = atoi(tmp);
         return dmResource::RESULT_OK;
     } else {
@@ -1143,9 +1142,6 @@ dmResource::Result SharedResourceDuplicate(const dmResource::ResourceDuplicatePa
     ResourceHolder* resource = new ResourceHolder;
     resource->m_Value = oldresource->m_Value;
     params.m_Resource->m_Resource = (void*)resource;
-
-    printf("DUPLICATE: %p->%p ----> %p->%p\n", oldresource, oldresource->m_Value, resource, resource->m_Value);
-
     return dmResource::RESULT_OK;
 }
 
@@ -1159,7 +1155,7 @@ TEST_F(ResourceTest, IsShared)
     ASSERT_EQ(true, dmResource::IsPathTagged("/a/b/c.png:") );
 }
 
-TEST(GetPath, GetPath)
+TEST(DynamicResources, GetPath)
 {
     const char* test_dir = "build/default/src/test";
 
@@ -1216,7 +1212,59 @@ TEST(GetPath, GetPath)
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
     dmResource::Release(factory, resource2);
     dmResource::Release(factory, resource1);
+    dmResource::DeleteFactory(factory);
+}
 
+TEST(DynamicResources, Set)
+{
+    const char* test_dir = "build/default/src/test";
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 8;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::Result e;
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    ResourceHolder* resource1;
+    e = dmResource::Get(factory, "/test01.foo", (void**) &resource1);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    ResourceHolder* resource2;
+    e = dmResource::Get(factory, "/test01.foo:", (void**) &resource2);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
+    ASSERT_EQ(2U, dmResource::GetRefCount(factory, resource1));
+
+
+    ASSERT_NE(resource1, resource2);
+    ASSERT_EQ(resource1->m_Value, resource2->m_Value);
+
+
+    uint64_t hash = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
+    e = dmResource::Set(factory, hash, 3, "123");
+    
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(resource1->m_Value, resource2->m_Value); // The pointers are still the same
+    ASSERT_EQ(*resource1->m_Value, *resource2->m_Value);
+    ASSERT_EQ(123, *resource2->m_Value);
+
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
+    e = dmResource::Set(factory, hash, 2, "42");
+
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE(resource1->m_Value, resource2->m_Value);
+    ASSERT_NE(*resource1->m_Value, *resource2->m_Value);
+    ASSERT_EQ(123, *resource1->m_Value);
+    ASSERT_EQ(42, *resource2->m_Value);
+
+    dmResource::Release(factory, resource2);
+    dmResource::Release(factory, resource1);
     dmResource::DeleteFactory(factory);
 }
 

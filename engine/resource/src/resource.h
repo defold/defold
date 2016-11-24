@@ -59,15 +59,15 @@ namespace dmResource
         KIND_POINTER, //!< KIND_POINTER
     };
 
-    /**
-    * Tells the destroy function what data it should delete.
-    * ALL -> delete all data
-    * INSTANCE -> delete the data that was instanced in the duplicate function
+    /** Data share state
+    * Describes the ownage of the resource/data
+    * NONE -> The descriptor owns all data -> delete/update all data
+    * SHALLOW -> The descriptor owns the "topmost" data, i.e. what's been previously duplicated -> delete the data that was instanced in the duplicate function
     */
-    enum ShareState
+    enum DataShareState
     {
-        SHARE_STATE_ALL = 0,
-        SHARE_STATE_INSTANCE = 1,
+        DATA_SHARE_STATE_NONE = 0,
+        DATA_SHARE_STATE_SHALLOW = 1,
     };
 
     /// Resource descriptor
@@ -204,6 +204,8 @@ namespace dmResource
         HFactory m_Factory;
         /// Resource context
         void* m_Context;
+        /// File name hash of the data
+        uint64_t m_NameHash;
         /// File name of the loaded file
         const char* m_Filename;
         /// Data buffer containing the loaded file
@@ -255,6 +257,8 @@ namespace dmResource
         SResourceDescriptor* m_Resource;
         /// Name of the resource, same as provided to Get() when the resource was obtained
         const char* m_Name;
+        /// Hashed name of the resource
+        uint64_t m_NameHash;
     };
 
     /**
@@ -356,6 +360,16 @@ namespace dmResource
      * @return RESULT_OK on success
      */
     Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
+
+    /**
+     * Updates a preexisting resource with new data
+     * @param factory Factory handle
+     * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
+     * @param buffer_size The size of the buffer
+     * @param buffer The buffer
+     * @return RESULT_OK on success
+     */
+    Result Set(HFactory factory, uint64_t hashed_name, uint32_t buffer_size, const void* buffer);
 
     /**
      * Reload a specific resource
