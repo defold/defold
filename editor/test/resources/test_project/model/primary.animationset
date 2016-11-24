@@ -1,0 +1,6 @@
+animations {
+  animation: "/main/multi_example/tresure_chest3.dae"
+}
+animations {
+  animation: "/main/sub_animation.animationset"
+}

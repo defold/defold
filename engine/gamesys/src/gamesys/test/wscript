@@ -12,10 +12,10 @@ else:
     os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto:../src"
 
 def configure(conf):
-    conf.find_file('meshc.py', [os.path.abspath('tools')], var = 'MESHC', mandatory = True)
+    pass
 
 def build(bld):
-    dirs = [
+    dirs = ['animationset',
             'camera',
             'collection_proxy',
             'collision_object',
@@ -43,7 +43,8 @@ def build(bld):
             'texture',
             'vertex_program',
             'window']
-    exts = ['camera',
+    exts = ['animationset',
+            'camera',
             'collisionobject',
             'convexshape',
             'emitter',

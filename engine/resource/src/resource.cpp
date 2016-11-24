@@ -1293,7 +1293,7 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
         *hash = *resource_hash;
         return RESULT_OK;
     }
-    *hash = 0llu;
+    *hash = 0;
     return RESULT_RESOURCE_NOT_FOUND;
 }
 

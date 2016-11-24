@@ -148,6 +148,15 @@
             name="Display Profiles Editor">
       </editor>
       <editor
+            class="com.dynamo.cr.ddfeditor.AnimationSetEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="animationset"
+            icon="icons/linechart.png"
+            id="com.dynamo.cr.ddfeditor.animationseteditor"
+            name="Animationset Editor">
+      </editor>
+      <editor
             class="com.dynamo.cr.ddfeditor.LabelEditor"
             contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
@@ -259,6 +268,13 @@
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.AnimationSetNewWizard"
+            icon="icons/linechart.png"
+            id="com.dynamo.cr.ddfeditor.wizards.AnimationSetNewWizard"
+            name="Animation Set File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard"
             icon="icons/text_allcaps.png"
             id="com.dynamo.cr.ddfeditor.wizards.LabelNewWizard"
@@ -270,6 +286,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.ModelNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.AnimationSetNewWizard">
          <enablement></enablement>
       </commonWizard>
       <commonWizard
@@ -335,7 +356,7 @@
             file-extension="model"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Model"
             name="Model"
-            proto-message-class="com.dynamo.model.proto.Model$ModelDesc"
+            proto-message-class="com.dynamo.model.proto.ModelProto$ModelDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.ModelRefactorParticipant"
             template-data="name: &apos;unnamed&apos; mesh: &apos;&apos; material: &apos;&apos;"
             type-class="component">
@@ -348,6 +369,9 @@
             </reference-type-class>
             <reference-type-class
                   type-class="mesh">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="animationsetdesc">
             </reference-type-class>
          </references>
       </resource-type>
@@ -599,6 +623,22 @@
             file-extension="ogg"
             id="com.dynamo.cr.ddfeditor.resourcetypes.OggSound"
             name="Ogg sound">
+      </resource-type>
+      <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.AnimationSetEditSupport"
+            embeddable="false"
+            file-extension="animationset"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.AnimationSetDesc"
+            name="Animation Set"
+            proto-message-class="com.dynamo.rig.proto.Rig$AnimationSetDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.AnimationSetRefactorParticipant"
+            template-data="animations {  animation: &apos;&apos; }"
+            type-class="animationsetdesc">
+         <references>
+            <reference-type-class
+                  type-class="mesh">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             embeddable="true"

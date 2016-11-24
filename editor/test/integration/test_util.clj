@@ -1,8 +1,10 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
+            [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
@@ -29,7 +31,6 @@
             [editor.particlefx :as particlefx]
             [editor.gui :as gui]
             [editor.json :as json]
-            [editor.mesh :as mesh]
             [editor.model :as model]
             [editor.material :as material]
             [editor.handler :as handler]
@@ -56,6 +57,7 @@
        (concat
         (atlas/register-resource-types workspace)
         (camera/register-resource-types workspace)
+        (collada-scene/register-resource-types workspace)
         (collection/register-resource-types workspace)
         (collection-proxy/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
@@ -70,7 +72,6 @@
         (json/register-resource-types workspace)
         (label/register-resource-types workspace)
         (material/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
@@ -188,6 +189,29 @@
 
 (defn outline [root path]
   (get-in (g/node-value root :node-outline) (interleave (repeat :children) path)))
+
+(defn- outline->str
+  ([outline]
+    (outline->str outline "" true))
+  ([outline prefix recurse?]
+    (if outline
+      (format "%s%s [%d] [%s]%s%s"
+              (if recurse? (str prefix "* ") "")
+              (:label outline "<no-label>")
+              (:node-id outline -1)
+              (some-> (g/node-type* (:node-id outline -1))
+                deref
+                :name)
+              (if (:alt-outline outline) (format " (ALT: %s)" (outline->str (:alt-outline outline) prefix false)) "")
+              (if recurse?
+                (string/join (map #(str "\n" (outline->str % (str prefix "  ") true)) (:children outline)))
+                ""))
+      "")))
+
+(defn dump-outline [root path]
+  (-> (outline root path)
+    outline->str
+    println))
 
 (defn prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))

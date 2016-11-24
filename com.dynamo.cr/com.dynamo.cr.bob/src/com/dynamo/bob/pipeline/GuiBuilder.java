@@ -24,9 +24,10 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
-import com.dynamo.bob.util.RigScene;
-import com.dynamo.bob.util.RigScene.LoadException;
-import com.dynamo.bob.util.RigScene.UVTransformProvider;
+import com.dynamo.bob.util.RigUtil;
+import com.dynamo.bob.util.RigUtil.LoadException;
+import com.dynamo.bob.util.RigUtil.UVTransformProvider;
+import com.dynamo.bob.util.SpineSceneUtil;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
@@ -515,7 +516,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
                     IResource jsonRes = builder.project.getResource(spineSceneBuilder.getSpineJson());
                     try {
-                        RigScene rigScene = RigScene.loadJson(new ByteArrayInputStream(jsonRes.getContent()), new UVTransformProvider() {
+                        SpineSceneUtil rigScene = SpineSceneUtil.loadJson(new ByteArrayInputStream(jsonRes.getContent()), new UVTransformProvider() {
                             @Override
                             public UVTransform getUVTransform(String animId) {
                                 return new UVTransform();
@@ -525,9 +526,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                         Vector4 oneV4 = Vector4.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).setW(0.0f).build();
                         Vector4 zeroV4 = Vector4.newBuilder().setX(0.0f).setY(0.0f).setZ(0.0f).setW(0.0f).build();
 
-                        HashMap<RigScene.Bone,String> boneToId = new HashMap<RigScene.Bone, String>();
+                        HashMap<RigUtil.Bone,String> boneToId = new HashMap<RigUtil.Bone, String>();
                         for (int b = 0; b < rigScene.bones.size(); b++) {
-                            RigScene.Bone bone = rigScene.bones.get(b);
+                            RigUtil.Bone bone = rigScene.bones.get(b);
                             NodeDesc.Builder boneNodeBuilder = NodeDesc.newBuilder();
 
                             String id = spineNodeId + "/" + bone.name;
@@ -554,7 +555,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             }
                         }
 
-                    } catch (LoadException e) {
+                    } catch (SpineSceneUtil.LoadException e) {
                         throw new CompileExceptionError(builder.project.getResource(input), 0, "Error while loading spine scene when building GUI: " + e.getLocalizedMessage());
                     }
 

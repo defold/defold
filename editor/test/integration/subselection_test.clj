@@ -155,7 +155,7 @@
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
           pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-          emitter (doto (:node-id (test-util/outline pfx-id [2]))
+          emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
                                                                               [1.0 1.0 1.0 0.0]])))
@@ -178,7 +178,7 @@
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
           pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-          emitter (doto (:node-id (test-util/outline pfx-id [2]))
+          emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
                                                                               [1.0 1.0 1.0 0.0]])))
@@ -209,7 +209,7 @@
     (let [workspace (test-util/setup-workspace! world)
          project   (test-util/setup-project! workspace)
          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-         emitter (doto (:node-id (test-util/outline pfx-id [2]))
+         emitter (doto (:node-id (test-util/outline pfx-id [0]))
                    (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 0.5 0.5]
                                                                              [0.5 0.5 0.5 0.5]
                                                                              [1.0 1.0 0.5 0.5]])))
