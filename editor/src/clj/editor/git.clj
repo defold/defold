@@ -153,10 +153,16 @@
     :rename        (do (-> git .reset (.addPath new-path) .call)
                        (-> git .reset (.addPath old-path) .call))))
 
-(defn hard-reset [^Git git ^RevCommit start-ref]
+(defn revert-to-revision! [^Git git ^RevCommit start-ref]
+  "High-level revert. Resets the working directory to the state it would have
+  after a clean checkout of the specified start-ref. Performs the equivalent of
+  git reset --hard
+  git clean --force"
   (-> (.reset git)
       (.setMode ResetCommand$ResetType/HARD)
       (.setRef (.name start-ref))
+      (.call))
+  (-> (.clean git)
       (.call)))
 
 (defn stash [^Git git]
