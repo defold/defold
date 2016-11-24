@@ -1,8 +1,10 @@
 (ns editor.outline
-  (:require [dynamo.graph :as g]
+  (:require [clojure.set :as set]
+            [dynamo.graph :as g]
             [editor.core :as core]
             [schema.core :as s]
             [editor.resource :as resource]
+            [editor.util :as util]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [editor.resource FileResource ZipResource]))
@@ -24,22 +26,24 @@
   [fragment]
   (g/write-graph fragment (core/write-handlers)))
 
-(defn- match-reqs [target-item root-nodes]
-  (let [all-reqs (:child-reqs target-item)]
+(defn- match-reqs [root-nodes target-item]
+  (when-let [all-reqs (:child-reqs target-item)]
     (loop [root-nodes root-nodes
            matched-reqs []]
       (if-let [node (first root-nodes)]
         (if-let [match (find-req node all-reqs)]
           (recur (rest root-nodes) (conj matched-reqs match))
           nil)
-        matched-reqs))))
+        (when (seq matched-reqs)
+          [target-item matched-reqs])))))
 
 (defn- find-target-item [item-iterator root-nodes]
   (if item-iterator
-    (let [item (value item-iterator)]
-      (if-let [reqs (match-reqs item root-nodes)]
-        [item reqs]
-        (recur (parent item-iterator) root-nodes)))
+    (->> item-iterator
+      (iterate parent)
+      (take-while some?)
+      (mapcat #(let [item (value %)] [item (:alt-outline item)]))
+      (some (partial match-reqs root-nodes)))
     nil))
 
 (g/deftype OutlineData {:node-id                              s/Int
@@ -95,12 +99,18 @@
 
 (defn cut? [src-item-iterators]
   (and (delete? src-item-iterators)
-    (loop [src-item-iterators src-item-iterators]
+    (loop [src-item-iterators src-item-iterators
+           common-node-types nil]
      (if-let [item-it (first src-item-iterators)]
        (let [root-nodes [(g/node-by-id (:node-id (value item-it)))]
-             parent (parent item-it)]
-         (if (find-target-item parent root-nodes)
-           (recur (rest src-item-iterators))
+             parent (parent item-it)
+             [_ reqs] (find-target-item parent root-nodes)
+             node-types (set (map :node-type reqs))
+             common-node-types (if common-node-types
+                                 (set/intersection common-node-types node-types)
+                                 node-types)]
+         (if (and reqs (seq common-node-types))
+           (recur (rest src-item-iterators) common-node-types)
            false))
        true))))
 
@@ -138,6 +148,11 @@
           (tx-attach-fn target node)
           [])))))
 
+(defn- paste-target [graph item-iterator data]
+  (let [paste-data (paste graph data)
+        root-nodes (root-nodes paste-data)]
+    (find-target-item item-iterator root-nodes)))
+
 (defn paste! [graph item-iterator data select-fn]
   (let [paste-data (paste graph data)
         root-nodes (root-nodes paste-data)]
@@ -150,9 +165,7 @@
 
 (defn paste? [graph item-iterator data]
   (try
-    (let [paste-data (paste graph data)
-         root-nodes (root-nodes paste-data)]
-     (some? (find-target-item item-iterator root-nodes)))
+    (some? (paste-target graph item-iterator data))
     (catch Exception e
       (log/warn :exception e)
       ; TODO - ignore
@@ -170,16 +183,16 @@
 
 (defn drop? [graph src-item-iterators item-iterator data]
   (and
-    ; target is not parent of source
-    (let [tgt (value item-iterator)]
-      (not (reduce (fn [parent? it] (or parent? (= (value (parent it)) tgt))) false src-item-iterators)))
     ; src is not descendant of target
     (not
       (reduce (fn [desc? it] (or desc?
                                  (descendant? (value it) item-iterator)))
               false src-item-iterators))
     ; pasting is allowed
-    (paste? graph item-iterator data)))
+    (when-let [[tgt _] (paste-target graph item-iterator data)]
+      (not (reduce (fn [parent? it]
+                     (let [parent-item (value (parent it))]
+                       (or parent? (= parent-item tgt) (= (:alt-outline parent-item) tgt)))) false src-item-iterators)))))
 
 (defn drop! [graph src-item-iterators item-iterator data select-fn]
   (when (drop? graph src-item-iterators item-iterator data)
@@ -211,3 +224,6 @@
               (recur (str index) (inc index))
               id))))
       id)))
+
+(defn natural-sort [items]
+  (->> items (sort-by :label util/natural-order) vec))

@@ -521,7 +521,8 @@
     (let [tree-view (g/node-value asset-browser :tree-view)
           path-fn (comp #(string/split % #"/") item->path)]
       (->> (ui/selection-root-items tree-view path-fn item->path)
-        (ui/succeeding-selection tree-view)))))
+        (ui/succeeding-selection tree-view))))
+  (alt-selection [this] []))
 
 (defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)

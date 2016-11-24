@@ -422,7 +422,9 @@
 
 (defrecord DummySelectionProvider []
   handler/SelectionProvider
-  (selection [this] []))
+  (selection [this] [])
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (defn- make-title
   ([] "Defold Editor 2.0")

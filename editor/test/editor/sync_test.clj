@@ -1,5 +1,6 @@
 (ns editor.sync-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [editor.git-test :refer :all]
             [editor.prefs :as prefs]
             [editor.git :as git]
@@ -184,6 +185,36 @@
     (is (nil? (:stash-ref flow)))
     (is (true? (sync/flow-in-progress? git)))
     (is (flow-equal? flow @(sync/resume-flow git prefs)))))
+
+(deftest begin-flow-critical-failure-test
+  (testing "Local changes are restored in case an error occurs inside begin-flow!"
+    (with-git [git (new-git)
+               prefs (make-prefs)
+               added-path "/added.txt"
+               added-contents "A file that has been added but not staged."
+               existing-path "/existing.txt"
+               existing-contents "A file that already existed in the repo, with unstaged changes."
+               deleted-path "/deleted.txt"]
+      ; Create some local changes.
+      (create-file git existing-path "A file that already existed in the repo.")
+      (create-file git deleted-path "A file that existed in the repo, but will be deleted.")
+      (commit-src git)
+      (create-file git existing-path existing-contents)
+      (create-file git added-path added-contents)
+      (delete-file git deleted-path)
+
+      ; Create a directory where the flow journal file is expected to be
+      ; in order to cause an Exception inside the begin-flow! function.
+      ; Verify that the local changes remain afterwards.
+      (let [journal-file (sync/flow-journal-file git)
+            status-before (git/status git)]
+        (.mkdirs journal-file)
+        (is (thrown? java.io.IOException (sync/begin-flow! git prefs)))
+        (io/delete-file (str (git/worktree git) "/.internal") :silently)
+        (is (= status-before (git/status git)))
+        (when (= status-before (git/status git))
+          (is (= added-contents (slurp-file git added-path)))
+          (is (= existing-contents (slurp-file git existing-path))))))))
 
 (deftest resume-flow-test
   (with-git [git (new-git)]
