@@ -32,7 +32,6 @@ def configure(conf):
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_BUFFER'] = 'buffer'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
 

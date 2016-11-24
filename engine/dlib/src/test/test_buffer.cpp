@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include <dlib/log.h>
-#include <dlib/hash.h>
 
-#include "../buffer.h"
+#include "../dlib/log.h"
+#include "../dlib/hash.h"
+#include "../dlib/buffer.h"
 
 #define RIG_EPSILON 0.0001f
 
