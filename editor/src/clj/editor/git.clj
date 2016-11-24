@@ -157,7 +157,7 @@
   "High-level revert. Resets the working directory to the state it would have
   after a clean checkout of the specified start-ref. Performs the equivalent of
   git reset --hard
-  git clean --force"
+  git clean --force -d"
   (-> (.reset git)
       (.setMode ResetCommand$ResetType/HARD)
       (.setRef (.name start-ref))
