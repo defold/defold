@@ -2,8 +2,11 @@ package com.dynamo.bob.archive;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,7 +16,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
-import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.crypt.Crypt;
 
 import net.jpountz.lz4.LZ4Compressor;
@@ -81,7 +83,7 @@ public class ArchiveBuilder {
         IOUtils.closeQuietly(is);
     }
 
-    public void write(RandomAccessFile outFile) throws IOException {
+    public void write(RandomAccessFile outFile, Path resourcePackDirectory) throws IOException {
         // Version
         outFile.writeInt(VERSION);
         // Pad
@@ -139,31 +141,60 @@ public class ArchiveBuilder {
         }
 
         i = 0;
+        int duplicate_size = 0;
         for (ArchiveEntry e : entries) {
-            String ext = FilenameUtils.getExtension(e.fileName);
+            int size = (e.compressedSize == ArchiveEntry.FLAG_UNCOMPRESSED) ? e.size : e.compressedSize;
+            byte[] buffer = new byte[size];
 
-            int size = e.size;
-            if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
-                size = e.compressedSize;
-            }
-            byte[] buf = new byte[size];
-
-            if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
-                outFile.seek(resourcesOffset.get(i));
-                outFile.read(buf);
-                byte[] enc = Crypt.encryptCTR(buf, KEY);
-                outFile.seek(resourcesOffset.get(i));
-                outFile.write(enc);
-            }
-
-            String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
             outFile.seek(resourcesOffset.get(i));
-            outFile.read(buf);
-            if (manifestBuilder != null) {
-                manifestBuilder.addResourceEntry(normalisedPath, buf);
+            outFile.read(buffer);
+
+            // Encrypt content
+            if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
+                byte[] ciphertext = Crypt.encryptCTR(buffer, KEY);
+                outFile.seek(resourcesOffset.get(i));
+                outFile.write(ciphertext);
+                buffer = Arrays.copyOf(ciphertext, ciphertext.length);
             }
+
+            // Write an entry to the manifest
+            if (manifestBuilder != null) {
+                String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+                manifestBuilder.addResourceEntry(normalisedPath, buffer);
+
+                // Write the entry to the Resource pack directory
+                byte[] hashDigest;
+				try {
+					hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+				} catch (NoSuchAlgorithmException exception) {
+					throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
+				}
+                String filename = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
+                FileOutputStream outputStream = null;
+                try {
+                	File fhandle = new File(resourcePackDirectory.toString(), filename);
+                	if (!fhandle.exists()) {
+                        outputStream = new FileOutputStream(fhandle);
+                        outputStream.write(buffer);
+                    } else {
+                        duplicate_size += buffer.length;
+                    	System.out.println("The resource has already been created: " + filename);
+                    }
+                } finally {
+                    if (outputStream != null) {
+                        try {
+                            outputStream.close();
+                        } catch (IOException exception) {
+                            // There's nothing we can do at this point
+                        }
+                    }
+                }
+            }
+
             ++i;
         }
+        
+        System.out.println("Storage size saved from removing duplicates: " + Integer.toString(duplicate_size) + " byte(s).");
 
         // Reset file and write actual offsets
         outFile.seek(0);
@@ -218,7 +249,7 @@ public class ArchiveBuilder {
 
         RandomAccessFile outFile = new RandomAccessFile(args[1], "rw");
         outFile.setLength(0);
-        ab.write(outFile);
+        ab.write(outFile, null);
         outFile.close();
     }
 }

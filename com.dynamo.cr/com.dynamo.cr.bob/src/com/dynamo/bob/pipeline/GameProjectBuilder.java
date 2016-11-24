@@ -9,6 +9,9 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -18,6 +21,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -80,7 +85,7 @@ import com.google.protobuf.Message;
  *
  */
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
-public class GameProjectBuilder extends Builder<Void> {
+public class GameProjectBuilder extends Builder<Void> { 
 
     private static Map<String, Class<? extends GeneratedMessage>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessage>>();
     private static Set<String> leafResourceTypes = new HashSet<String>();
@@ -138,6 +143,7 @@ public class GameProjectBuilder extends Builder<Void> {
         if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".darc"));
             builder.addOutput(input.changeExt(".dmanifest"));
+            builder.addOutput(input.changeExt("resourcepack.zip"));
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
@@ -199,7 +205,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private File createArchive(Collection<String> resources, ManifestBuilder manifestBuilder) throws IOException {
+    private File createArchive(Collection<String> resources, ManifestBuilder manifestBuilder, ZipOutputStream zipOutputStream) throws IOException {
         RandomAccessFile outFile = null;
         File tempArchiveFile = File.createTempFile("tmp", "darc");
         tempArchiveFile.deleteOnExit();
@@ -227,8 +233,31 @@ public class GameProjectBuilder extends Builder<Void> {
             ab.add(s, compress);
         }
 
-        ab.write(outFile);
+        Path resourcePackDirectory = Files.createTempDirectory("def_res_pack_");
+        ab.write(outFile, resourcePackDirectory);
         outFile.close();
+        
+        // Populate the zip archive with the resource pack
+        for (File filepath : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
+        	if (filepath.isFile()) {
+        		ZipEntry currentEntry = new ZipEntry(filepath.getName());
+        		zipOutputStream.putNextEntry(currentEntry);
+        		
+        		FileInputStream currentInputStream = new FileInputStream(filepath);
+        		int currentOffset = 0;
+        		int currentLength = 0;
+        		byte[] currentBuffer = new byte[1024];
+        		while ((currentLength = currentInputStream.read(currentBuffer)) > 0) {
+        			zipOutputStream.write(currentBuffer, currentOffset, currentLength);
+        			currentOffset += currentLength;
+        		}
+        		
+        		currentInputStream.close();
+        		zipOutputStream.closeEntry();
+        	}
+        }
+        zipOutputStream.close();
+        
         return tempArchiveFile;
     }
 
@@ -390,8 +419,14 @@ public class GameProjectBuilder extends Builder<Void> {
                 resources.remove(task.output(1).getAbsPath());
                 resources.remove(task.output(2).getAbsPath());
 
+                // Create zip archive to store resource pack
+                File resourcePackZip = File.createTempFile("def_res_pack_", ".zip");
+                resourcePackZip.deleteOnExit();
+                FileOutputStream resourcePackOutputStream = new FileOutputStream(resourcePackZip);
+                ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
+                
                 // Create output for the darc archive
-                File archiveFile = createArchive(resources, manifestBuilder);
+                File archiveFile = createArchive(resources, manifestBuilder, zipOutputStream);
                 darcInputStream = new FileInputStream(archiveFile);
                 task.getOutputs().get(1).setContent(darcInputStream);
                 archiveFile.delete();
@@ -404,6 +439,16 @@ public class GameProjectBuilder extends Builder<Void> {
                     // Create an empty manifest for now.
                     // TODO: This has to be fixed before DEF-2092 is merged.
                     task.getOutputs().get(2).setContent("".getBytes());
+                }
+                
+                // Create output for the resource pack
+                if (manifestBuilder != null) {
+                	FileInputStream resourcePackInputStream = new FileInputStream(resourcePackZip);
+                	task.getOutputs().get(3).setContent(resourcePackInputStream);
+                	resourcePackZip.delete();
+                } else {
+                    // TODO: This has to be fixed before DEF-2092 is merged.
+                	task.getOutputs().get(3).setContent("".getBytes());
                 }
             }
 

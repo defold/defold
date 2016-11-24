@@ -61,7 +61,7 @@ public class ArchiveTest {
         // Write
         RandomAccessFile outFile = new RandomAccessFile(outputDarc, "rw");
         outFile.setLength(0);
-        ab.write(outFile);
+        ab.write(outFile, null);
         outFile.close();
 
         // Read
@@ -82,7 +82,7 @@ public class ArchiveTest {
         // Write
         RandomAccessFile outFile = new RandomAccessFile(outputDarc, "rw");
         outFile.setLength(0);
-        ab.write(outFile);
+        ab.write(outFile, null);
         outFile.close();
 
         // Read
