@@ -3,8 +3,8 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-#include <buffer/buffer.h>
 
+#include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 
