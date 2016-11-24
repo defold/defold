@@ -320,14 +320,37 @@
       (is (= #{} changed))
       (is (= #{"src/main.cpp"} modified)))))
 
-(deftest hard-reset-test
+(deftest revert-to-revision-test
   (with-git [git (new-git)]
-    (create-file git "src/main.cpp" "void main() {}")
+    (create-file git "src/modified.txt" "A file that already existed in the repo. Will be modified, but not staged.")
+    (create-file git "src/changed.txt" "A file that already existed in the repo. Will be modified, then staged.")
+    (create-file git "src/missing.txt" "A file that already existed in the repo. Will be deleted, but not staged.")
+    (create-file git "src/removed.txt" "A file that already existed in the repo. Will be deleted, then staged.")
     (let [ref (commit-src git)]
-      (create-file git "src/main.cpp" "void main() {FOO}")
-      (is (= #{"src/main.cpp"} (:modified (git/status git))))
-      (git/hard-reset git ref)
-      (is (= #{} (:modified (git/status git)))))))
+      (create-file git "src/modified.txt" "A file that already existed in the repo, with unstaged changes.")
+      (create-file git "src/changed.txt" "A file that already existed in the repo, with staged changes.")
+      (delete-file git "src/missing.txt")
+      (delete-file git "src/removed.txt")
+      (create-file git "src/untracked.txt" "A file that was added, but not staged.")
+      (create-file git "src/added.txt" "A file that was added, then staged.")
+      (git/stage-change! git (git/make-modify-change "src/changed.txt"))
+      (git/stage-change! git (git/make-delete-change "src/removed.txt"))
+      (git/stage-change! git (git/make-add-change "src/added.txt"))
+      (let [status-before (git/status git)]
+        (is (= #{"src/added.txt"} (:added status-before)))
+        (is (= #{"src/changed.txt"} (:changed status-before)))
+        (is (= #{"src/missing.txt"} (:missing status-before)))
+        (is (= #{"src/modified.txt"} (:modified status-before)))
+        (is (= #{"src/removed.txt"} (:removed status-before)))
+        (is (= #{"src/untracked.txt"} (:untracked status-before))))
+      (git/revert-to-revision! git ref)
+      (let [status-after (git/status git)]
+        (is (= #{} (:added status-after)))
+        (is (= #{} (:changed status-after)))
+        (is (= #{} (:missing status-after)))
+        (is (= #{} (:modified status-after)))
+        (is (= #{} (:removed status-after)))
+        (is (= #{} (:untracked status-after)))))))
 
 (deftest stash-test
   (with-git [git (new-git)]
