@@ -6,6 +6,7 @@
 #include "script.h"
 #include "script_buffer.h"
 
+#include <dlib/buffer.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
