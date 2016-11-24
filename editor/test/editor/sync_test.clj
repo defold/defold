@@ -238,8 +238,8 @@
       (is (false? (sync/flow-in-progress? git))))))
 
 (deftest cancel-flow-from-partially-staged-rename-test
-  (let [old-path "src/old-name.txt"
-        new-path "src/new-name.txt"
+  (let [old-path "src/old-dir/file.txt"
+        new-path "src/new-dir/file.txt"
         modified-path "src/modified.txt"
         setup-remote (fn []
                        (let [git (new-git)]
@@ -260,6 +260,8 @@
                           (is (= #{old-path} missing))
                           (is (= #{new-path} untracked)))
                         git))
+        file-status (fn [git]
+                      (select-keys (git/status git) [:added :changed :missing :modified :removed :untracked]))
         advance! (fn [!flow]
                    (swap! !flow sync/advance-flow progress/null-render-progress!))
         run-command! (fn [!flow command selection]
@@ -267,7 +269,7 @@
                        @!flow)
         perform-test! (fn [local-git staged-change unstaged-change]
                         (git/stage-change! local-git staged-change)
-                        (let [status-before (git/status local-git)
+                        (let [status-before (file-status local-git)
                               !flow (sync/begin-flow! local-git (make-prefs))]
                           (is (= :pull/done (:state (advance! !flow))))
                           (is (= :push/start (:state (swap! !flow assoc :state :push/start))))
@@ -281,8 +283,8 @@
                             (is (= #{(git/make-modify-change modified-path)
                                      (git/make-rename-change old-path new-path)} modified))
                             (is (= #{} staged)))
-                          (is (nil? (sync/cancel-flow! !flow)))
-                          (is (= status-before (assoc (git/status local-git) :ignored-not-in-index #{})))))]
+                          (sync/cancel-flow! !flow)
+                          (is (= status-before (file-status local-git)))))]
     (testing "Renamed file, only stage add"
       (with-git [remote-git (setup-remote)
                  local-git (setup-local remote-git)
