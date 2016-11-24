@@ -163,6 +163,7 @@
       (.setRef (.name start-ref))
       (.call))
   (-> (.clean git)
+      (.setCleanDirectories true)
       (.call)))
 
 (defn stash [^Git git]

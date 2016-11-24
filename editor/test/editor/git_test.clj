@@ -7,6 +7,10 @@
            org.apache.commons.io.FileUtils
            [org.eclipse.jgit.api Git]))
 
+(defn create-dir [git path]
+  (let [f (git/file git path)]
+    (.mkdirs f)))
+
 (defn create-file [git path content]
   (let [f (git/file git path)]
     (io/make-parents f)
@@ -320,37 +324,49 @@
       (is (= #{} changed))
       (is (= #{"src/main.cpp"} modified)))))
 
+(defn setup-modification-zoo [git]
+  (create-file git "src/modified/file.txt" "A file that already existed in the repo. Will be modified, but not staged.")
+  (create-file git "src/changed/file.txt" "A file that already existed in the repo. Will be modified, then staged.")
+  (create-file git "src/missing/file.txt" "A file that already existed in the repo. Will be deleted, but not staged.")
+  (create-file git "src/removed/file.txt" "A file that already existed in the repo. Will be deleted, then staged.")
+  (create-file git "src/old-location-unstaged/file.txt" "A file that already existed in the repo. Will be moved, but not staged.")
+  (create-file git "src/old-location-staged/file.txt" "A file that already existed in the repo. Will be moved, then staged.")
+  (let [start-ref (commit-src git)]
+    (create-dir git "src/empty-dir")
+    (create-file git "src/modified/file.txt" "A file that already existed in the repo, with unstaged changes.")
+    (create-file git "src/changed/file.txt" "A file that already existed in the repo, with staged changes.")
+    (delete-file git "src/missing/file.txt")
+    (delete-file git "src/removed/file.txt")
+    (create-file git "src/untracked/file.txt" "A file that was added, but not staged.")
+    (create-file git "src/added/file.txt" "A file that was added, then staged.")
+    (move-file git "src/old-location-unstaged/file.txt" "src/new-location-unstaged/file.txt")
+    (move-file git "src/old-location-staged/file.txt" "src/new-location-staged/file.txt")
+    (git/stage-change! git (git/make-modify-change "src/changed/file.txt"))
+    (git/stage-change! git (git/make-delete-change "src/removed/file.txt"))
+    (git/stage-change! git (git/make-add-change "src/added/file.txt"))
+    (git/stage-change! git (git/make-rename-change "src/old-location-staged/file.txt" "src/new-location-staged/file.txt"))
+    (let [status-before (git/status git)]
+      (is (= #{"src/added/file.txt" "src/new-location-staged/file.txt"} (:added status-before)))
+      (is (= #{"src/changed/file.txt"} (:changed status-before)))
+      (is (= #{"src/missing/file.txt" "src/old-location-unstaged/file.txt"} (:missing status-before)))
+      (is (= #{"src/modified/file.txt"} (:modified status-before)))
+      (is (= #{"src/removed/file.txt" "src/old-location-staged/file.txt"} (:removed status-before)))
+      (is (= #{"src/untracked/file.txt" "src/new-location-unstaged/file.txt"} (:untracked status-before)))
+      (is (= #{"src/untracked" "src/new-location-unstaged" "src/empty-dir"} (:untracked-folders status-before))))
+    start-ref))
+
 (deftest revert-to-revision-test
-  (with-git [git (new-git)]
-    (create-file git "src/modified.txt" "A file that already existed in the repo. Will be modified, but not staged.")
-    (create-file git "src/changed.txt" "A file that already existed in the repo. Will be modified, then staged.")
-    (create-file git "src/missing.txt" "A file that already existed in the repo. Will be deleted, but not staged.")
-    (create-file git "src/removed.txt" "A file that already existed in the repo. Will be deleted, then staged.")
-    (let [ref (commit-src git)]
-      (create-file git "src/modified.txt" "A file that already existed in the repo, with unstaged changes.")
-      (create-file git "src/changed.txt" "A file that already existed in the repo, with staged changes.")
-      (delete-file git "src/missing.txt")
-      (delete-file git "src/removed.txt")
-      (create-file git "src/untracked.txt" "A file that was added, but not staged.")
-      (create-file git "src/added.txt" "A file that was added, then staged.")
-      (git/stage-change! git (git/make-modify-change "src/changed.txt"))
-      (git/stage-change! git (git/make-delete-change "src/removed.txt"))
-      (git/stage-change! git (git/make-add-change "src/added.txt"))
-      (let [status-before (git/status git)]
-        (is (= #{"src/added.txt"} (:added status-before)))
-        (is (= #{"src/changed.txt"} (:changed status-before)))
-        (is (= #{"src/missing.txt"} (:missing status-before)))
-        (is (= #{"src/modified.txt"} (:modified status-before)))
-        (is (= #{"src/removed.txt"} (:removed status-before)))
-        (is (= #{"src/untracked.txt"} (:untracked status-before))))
-      (git/revert-to-revision! git ref)
-      (let [status-after (git/status git)]
-        (is (= #{} (:added status-after)))
-        (is (= #{} (:changed status-after)))
-        (is (= #{} (:missing status-after)))
-        (is (= #{} (:modified status-after)))
-        (is (= #{} (:removed status-after)))
-        (is (= #{} (:untracked status-after)))))))
+  (with-git [git (new-git)
+             start-ref (setup-modification-zoo git)]
+    (git/revert-to-revision! git start-ref)
+    (let [status-after (git/status git)]
+      (is (= #{} (:added status-after)))
+      (is (= #{} (:changed status-after)))
+      (is (= #{} (:missing status-after)))
+      (is (= #{} (:modified status-after)))
+      (is (= #{} (:removed status-after)))
+      (is (= #{} (:untracked status-after)))
+      (is (= #{} (:untracked-folders status-after))))))
 
 (deftest stash-test
   (with-git [git (new-git)]
