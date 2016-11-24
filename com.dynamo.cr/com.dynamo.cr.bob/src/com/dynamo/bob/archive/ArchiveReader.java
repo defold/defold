@@ -18,8 +18,6 @@ public class ArchiveReader {
 
     private int stringPoolOffset = 0;
     private int stringPoolSize = 0;
-    private int hashDigestPoolOffset = 0;
-    private int hashDigestPoolSize = 0;
     private int entryCount = 0;
     private int entryOffset = 0;
     private int resourceDataOffset = 0;
@@ -160,25 +158,29 @@ public class ArchiveReader {
         for (int i=0; i<entryCount; ++i) {
         	ArchiveEntryData e = new ArchiveEntryData();
         	
-        	e.pathSize = indexFile.readInt();
-        	e.path = new byte[e.pathSize];
-        	indexFile.read(e.path, 0, e.pathSize);
-        	
-        	e.hashSize = indexFile.readInt();
-        	e.hashDigest = new byte[e.hashSize];
-        	indexFile.read(e.hashDigest, 0, e.hashSize);
-        	
         	e.resource_offset = indexFile.readInt();
         	e.resource_size = indexFile.readInt();
         	e.resource_compressed_size = indexFile.readInt();
         	
         	e.flags = indexFile.readInt();
         	
+        	e.pathSize = indexFile.readInt();
+        	e.hashSize = indexFile.readInt();
+        	
+        	e.path = new byte[e.pathSize];
+        	indexFile.read(e.path, 0, e.pathSize);
+        	e.hashDigest = new byte[e.hashSize];
+        	indexFile.read(e.hashDigest, 0, e.hashSize);
+        	
         	entry_datas.add(e);
         }
         
-        // Debugging!
+        // Debug
         /*for (ArchiveEntryData d : entry_datas) {
+        	System.out.println("--------");
+        	System.out.println("pathSize = " + d.pathSize);
+        	System.out.println("path: " + new String(d.path));
+        	System.out.println("hashSize = " + d.hashSize);
         	System.out.println("hash as str: " + new String(d.hashDigest));
         }*/
     }

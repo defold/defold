@@ -13,6 +13,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.crypt.Crypt;
 
 import net.jpountz.lz4.LZ4Compressor;
@@ -28,28 +29,18 @@ public class ArchiveBuilder {
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
     private String root;
+    private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
 
-    public ArchiveBuilder(String root) {
+    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder) {
         this.root = new File(root).getAbsolutePath();
+        this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
     }
 
     public void add(String fileName, boolean doCompress) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress);
         entries.add(e);
-    }
-    
-    public void add(String fileName, byte[] hashData, boolean doCompress) throws IOException
-    {
-    	ArchiveEntry e = new ArchiveEntry(root, fileName, hashData, doCompress);
-    	entries.add(e);
-    }
-    
-    public void add(String fileName, byte[] hashData, int hashSize) throws IOException
-    {
-    	ArchiveEntry e = new ArchiveEntry(root, fileName, hashData, false);
-    	entries.add(e);
     }
 
     public void add(String fileName) throws IOException {
@@ -150,17 +141,26 @@ public class ArchiveBuilder {
         i = 0;
         for (ArchiveEntry e : entries) {
             String ext = FilenameUtils.getExtension(e.fileName);
+
+            int size = e.size;
+            if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+                size = e.compressedSize;
+            }
+            byte[] buf = new byte[size];
+
             if ((e.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED) {
                 outFile.seek(resourcesOffset.get(i));
-                int size = e.size;
-                if (e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
-                    size = e.compressedSize;
-                }
-                byte[] buf = new byte[size];
                 outFile.read(buf);
                 byte[] enc = Crypt.encryptCTR(buf, KEY);
                 outFile.seek(resourcesOffset.get(i));
                 outFile.write(enc);
+            }
+
+            String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+            outFile.seek(resourcesOffset.get(i));
+            outFile.read(buf);
+            if (manifestBuilder != null) {
+                manifestBuilder.addResourceEntry(normalisedPath, buf);
             }
             ++i;
         }
@@ -217,23 +217,25 @@ public class ArchiveBuilder {
         int archiveEntryDataOffset = (int) outFileIndex.getFilePointer();
         int debug_count = 0;
         for (ArchiveEntry e : entries) {
-        	String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
-        	byte[] normalizedPathBytes = normalisedPath.getBytes();
-        	outFileIndex.writeInt(normalizedPathBytes.length);
-        	outFileIndex.write(normalizedPathBytes);
-        	
-        	// TODO in real impl. we will calc. hash on-the-fly
-        	// based on the resource already copied to the data-file
-        	// at e.resourceOffset in outFileData
-        	byte[] debug_hash = ("wicked hash " + debug_count).getBytes();
-        	outFileIndex.writeInt(debug_hash.length);
-        	outFileIndex.write(debug_hash);
-        	
         	outFileIndex.writeInt(e.resourceOffset);
         	outFileIndex.writeInt(e.size);
         	outFileIndex.writeInt(e.compressedSize);
         	
         	outFileIndex.writeInt(e.flags);
+        	
+        	String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+        	byte[] normalizedPathBytes = normalisedPath.getBytes();
+        	
+        	// TODO in real impl. we will calc. hash on-the-fly
+        	// based on the resource already copied to the data-file
+        	// at e.resourceOffset in outFileData
+        	byte[] debug_hash = ("wicked hash " + debug_count).getBytes();
+        	
+        	outFileIndex.writeInt(normalizedPathBytes.length);
+        	outFileIndex.writeInt(debug_hash.length);
+        	
+        	outFileIndex.write(normalizedPathBytes);
+        	outFileIndex.write(debug_hash);
         	
         	++debug_count;
         }
@@ -281,8 +283,8 @@ public class ArchiveBuilder {
                 firstFileArg = 2;
             }
         }
-        
-        ArchiveBuilder ab = new ArchiveBuilder(args[0]);
+
+        ArchiveBuilder ab = new ArchiveBuilder(args[0], null);
         for (int i = firstFileArg; i < args.length; ++i) {
             ab.add(args[i], doCompress);
         }

@@ -47,39 +47,6 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
         this.fileName = fileName;
     }
-    
-    public ArchiveEntry(String fileName, byte[] hashDigest) throws IOException {
-        this.fileName = fileName;
-        this.hashDigest = hashDigest;
-    }
-    
-    public ArchiveEntry(String root, String fileName, byte[] hashDigest, boolean compress) throws IOException {
-        File file = new File(fileName);
-        if (!file.exists()) {
-            throw new IOException(String.format("File %s doens't exists",
-                    fileName));
-        }
-
-        fileName = file.getAbsolutePath();
-        if (!fileName.startsWith(root)) {
-            throw new IOException(String.format(
-                    "File %s isn't relative to root directory %s",
-                    fileName, root));
-        }
-
-        this.size = (int) file.length();
-        if(compress) {
-            // Will be set to real value after compression
-            this.compressedSize = 0;
-        } else {
-            this.compressedSize = FLAG_UNCOMPRESSED;
-        }
-
-        this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
-        this.fileName = fileName;
-        
-        this.hashDigest = hashDigest;
-    }
 
     @Override
     public int compareTo(ArchiveEntry other) {
