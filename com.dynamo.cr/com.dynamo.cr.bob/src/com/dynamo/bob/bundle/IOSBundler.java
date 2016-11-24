@@ -67,7 +67,7 @@ public class IOSBundler implements IBundler {
 
         if (useArchive) {
             // Copy archive and game.projectc
-            for (String name : Arrays.asList("game.projectc", "game.darc")) {
+            for (String name : Arrays.asList("game.projectc", "game.darc", "game.dmanifest")) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
             }
         } else {

@@ -38,7 +38,8 @@ public class HTML5Bundler implements IBundler {
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static final String[] SplitFileNames = {
         "game.projectc",
-        "game.darc"
+        "game.darc",
+        "game.dmanifest"
     };
 
     class SplitFile {

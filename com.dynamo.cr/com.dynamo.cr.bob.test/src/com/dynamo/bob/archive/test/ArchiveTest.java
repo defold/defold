@@ -53,7 +53,7 @@ public class ArchiveTest {
     public void testBuilderAndReader() throws IOException {
 
         // Create
-        ArchiveBuilder ab = new ArchiveBuilder(contentRoot);
+        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, null);
         ab.add(createDummyFile(contentRoot, "a.txt", "abc123".getBytes()));
         ab.add(createDummyFile(contentRoot, "b.txt", "apaBEPAc e p a".getBytes()));
         ab.add(createDummyFile(contentRoot, "c.txt", "åäöåäöasd".getBytes()));
@@ -74,7 +74,7 @@ public class ArchiveTest {
     public void testEntriesOrder() throws IOException {
 
         // Create
-        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot));
+        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), null);
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main/a.txt", "abc123".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main2/a.txt", "apaBEPAc e p a".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "a.txt", "åäöåäöasd".getBytes())));

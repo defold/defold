@@ -1,9 +1,12 @@
 package com.dynamo.bob.pipeline;
 
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -29,6 +32,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Project.OutputFlags;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.camera.proto.Camera.CameraDesc;
@@ -47,6 +51,8 @@ import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.label.proto.Label.LabelDesc;
+import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
+import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
@@ -131,6 +137,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(".projectc"));
         if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".darc"));
+            builder.addOutput(input.changeExt(".dmanifest"));
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
@@ -192,7 +199,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private File createArchive(Collection<String> resources) throws IOException {
+    private File createArchive(Collection<String> resources, ManifestBuilder manifestBuilder) throws IOException {
         RandomAccessFile outFile = null;
         File tempArchiveFile = File.createTempFile("tmp", "darc");
         tempArchiveFile.deleteOnExit();
@@ -200,7 +207,7 @@ public class GameProjectBuilder extends Builder<Void> {
         outFile.setLength(0);
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-        ArchiveBuilder ab = new ArchiveBuilder(root);
+        ArchiveBuilder ab = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
         boolean compress;
@@ -225,7 +232,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return tempArchiveFile;
     }
 
-    private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
+    private static void findResources(Project project, Message node, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
         List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
 
         for (FieldDescriptor fieldDescriptor : fields) {
@@ -234,25 +241,25 @@ public class GameProjectBuilder extends Builder<Void> {
             boolean isResource = (Boolean) options.getField(resourceDesc);
             Object value = node.getField(fieldDescriptor);
             if (value instanceof Message) {
-                findResources(project, (Message) value, resources);
+                findResources(project, (Message) value, resources, parentNode);
 
             } else if (value instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) value;
                 for (Object v : list) {
                     if (v instanceof Message) {
-                        findResources(project, (Message) v, resources);
+                        findResources(project, (Message) v, resources, parentNode);
                     } else if (isResource && v instanceof String) {
-                        findResources(project, project.getResource((String) v), resources);
+                        findResources(project, project.getResource((String) v), resources, parentNode);
                     }
                 }
             } else if (isResource && value instanceof String) {
-                findResources(project, project.getResource((String) value), resources);
+                findResources(project, project.getResource((String) value), resources, parentNode);
             }
         }
     }
 
-    private static void findResources(Project project, IResource resource, Collection<String> resources) throws CompileExceptionError {
+    private static void findResources(Project project, IResource resource, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
         if (resource.getPath().equals("") || resource.getPath().startsWith("/builtins")) {
             return;
         }
@@ -260,7 +267,11 @@ public class GameProjectBuilder extends Builder<Void> {
         if (resources.contains(resource.output().getAbsPath())) {
             return;
         }
+
         resources.add(resource.output().getAbsPath());
+
+        ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
+        parentNode.addChild(currentNode);
 
         int i = resource.getPath().lastIndexOf(".");
         if (i == -1) {
@@ -284,7 +295,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
                 builder.mergeFrom(content);
                 Object message = builder.build();
-                findResources(project, (Message) message, resources);
+                findResources(project, (Message) message, resources, currentNode);
 
             } catch(CompileExceptionError e) {
                 throw e;
@@ -297,7 +308,7 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
 
-    public static HashSet<String> findResources(Project project) throws CompileExceptionError {
+    public static HashSet<String> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
         HashSet<String> resources = new HashSet<String>();
 
         if (project.option("keep-unused", "false").equals("true")) {
@@ -313,7 +324,7 @@ public class GameProjectBuilder extends Builder<Void> {
             for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}, {"input", "gamepads"}, {"display", "display_profiles"}}) {
                 String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
                 if (path != null) {
-                    findResources(project, project.getResource(path), resources);
+                    findResources(project, project.getResource(path), resources, rootNode);
                 }
             }
 
@@ -338,7 +349,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        FileInputStream is = null;
+        FileInputStream darcInputStream = null;
 
         BobProjectProperties properties = new BobProjectProperties();
         IResource input = task.input(0);
@@ -350,25 +361,55 @@ public class GameProjectBuilder extends Builder<Void> {
 
         try {
             if (project.option("archive", "false").equals("true")) {
-                HashSet<String> resources = findResources(project);
+                ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
+                HashSet<String> resources = findResources(project, rootNode);
+
+                ManifestBuilder manifestBuilder = null;
+                String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", null);
+                String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
+                String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
+
+                if (projectIdentifier != null && supportedEngineVersionsString != null && privateKeyFilepath != null) {
+                    // We can create a manifest!
+                    manifestBuilder = new ManifestBuilder();
+                    manifestBuilder.setDependencies(rootNode);
+                    manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+                    manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+                    manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+                    manifestBuilder.setProjectIdentifier(projectIdentifier);
+                    manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
+
+                    String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
+                    for (String supportedEngineVersion : supportedEngineVersions) {
+                        manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
+                    }
+                }
 
                 // Make sure we don't try to archive the .darc or .projectc
                 resources.remove(task.output(0).getAbsPath());
                 resources.remove(task.output(1).getAbsPath());
+                resources.remove(task.output(2).getAbsPath());
 
-                File archiveFile = createArchive(resources);
-                is = new FileInputStream(archiveFile);
-                IResource arcOut = task.getOutputs().get(1);
-                arcOut.setContent(is);
+                // Create output for the darc archive
+                File archiveFile = createArchive(resources, manifestBuilder);
+                darcInputStream = new FileInputStream(archiveFile);
+                task.getOutputs().get(1).setContent(darcInputStream);
                 archiveFile.delete();
+
+                // Create output for the manifest
+                if (manifestBuilder != null) {
+                    byte[] manifestFile = manifestBuilder.buildManifest();
+                    task.getOutputs().get(2).setContent(manifestFile);
+                } else {
+                    // Create an empty manifest for now.
+                    // TODO: This has to be fixed before DEF-2092 is merged.
+                    task.getOutputs().get(2).setContent("".getBytes());
+                }
             }
 
-            IResource in = task.getInputs().get(0);
-            IResource projOut = task.getOutputs().get(0);
-            projOut.setContent(in.getContent());
-
+            task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
         } finally {
-            IOUtils.closeQuietly(is);
+            IOUtils.closeQuietly(darcInputStream);
         }
     }
 }

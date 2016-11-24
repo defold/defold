@@ -25,12 +25,12 @@ For Eclipse:
 * Windows:
     - [Visual C++ 2010 Express](https://drive.google.com/open?id=0BxFxQdv6jzseVG5ELWNRUVB5bnM)
 
-        Newer versions have not been properly tested and might not be recognized by waf.  
+        Newer versions have not been properly tested and might not be recognized by waf.
 
     - [Python](https://www.python.org/downloads/windows/)
 
         Install the 32-bit [2.7.12](https://www.python.org/ftp/python/2.7.12/python-2.7.12.msi) (latest tested version). We only build 32-bit versions of Defold on Windows, and during the build process a python script needs to load a defold library. A 64-bit version of python will get you pretty far and then fail. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually.
-  
+
     - [easy_install](https://pypi.python.org/pypi/setuptools#id3) - [ez_setup](https://bootstrap.pypa.io/ez_setup.py)
 
         Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
@@ -38,7 +38,7 @@ For Eclipse:
     - [MSYS/MinGW](http://www.mingw.org/download/installer)
 
         This will get you a shell that behaves like Linux and is much easier to build Defold through. Run `mingw-get.exe` (from C:\MinGW\bin), add `mingw32-base` (bin) from `MinGW Base System` and `msys-base` (bin) and `msys-bash` from `MSYS Base System` then Installation > Apply Changes. You also need to install wget, from a cmd command line run
-        
+
                 mingw-get install msys-wget-bin.
 
     - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
@@ -53,11 +53,11 @@ For Eclipse:
         - If you don't have an SSH Key, press Generate Key
         - Add the public key to your Github profile
         - You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
-        
+
         Now you should be able to clone the defold repo from a cmd prompt:
-        
+
                 git clone git@github.com:defold/defold.git
-        
+
         If this won't work, you can try cloning using Github Desktop.
 
 * OSX:
@@ -182,7 +182,7 @@ If eclipse doesn’t get the JDK setup automatically:
 
     - `which git` points to the git from the windows installation instructions above
     - `which javac` points to the `javac.exe` in the JDK directory
-    - `which python` points to `/c/Python27/python.exe` 
+    - `which python` points to `/c/Python27/python.exe`
 
     Note that your C: drive is mounted to /c under MinGW/MSYS
 
@@ -611,5 +611,15 @@ How to package a new Android Facebook SDK:
 ### Extensions / modules
 
 * For debugging our IAP (in app purchase) extension: [DefoldIAPTester](https://docs.google.com/a/king.com/document/d/1j-2m-YMcAryNO8il1P7m4cjNhrCTzS0QOsQODwvnTww/edit?usp=sharing)
+
+## LiveUpdate
+
+We're currently (November 2016) only supporting the RSA algorithm for manifest signatures. Both the private and the public key is stored as binary (DER encoded). The usual practise is to store private keys as PKCS#8 and public keys as base64 (DER encoded), but since these files are meant only for liveupdate we do not need the container information.
+
+To generate a public/private key-pair
+$ openssl genrsa -out private.pem 1024
+$ openssl pkcs8 -topk8 -inform PEM -outform DER -in private.pem -out private.der -nocrypt
+$ openssl rsa -in private.pem -out public.der -outform DER -pubout
+$ rm -f private.pem # This is optional!
 
 
