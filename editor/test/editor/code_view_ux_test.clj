@@ -823,3 +823,10 @@
         (undo! source-viewer viewer-node code-node)
         (refresh-viewer viewer-node)
         (is (= "s" (text-selection source-viewer)))))))
+
+(deftest tab-indents
+  (with-clean-system
+    (with-code lua/lua "\tlocal a = 1"
+      (select-line! source-viewer)
+      (tab! source-viewer)
+      (is (= "local a = 1" (text source-viewer))))))
