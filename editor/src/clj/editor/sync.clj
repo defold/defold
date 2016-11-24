@@ -107,7 +107,7 @@
         file (flow-journal-file git)]
     (when (.exists file)
       (io/delete-file file :silently))
-    (git/hard-reset git start-ref)
+    (git/revert-to-revision! git start-ref)
     (when stash-ref
       (git/stash-apply git stash-ref)
       (git/stash-drop git stash-ref))))
