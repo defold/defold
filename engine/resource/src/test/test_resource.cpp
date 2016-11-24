@@ -1269,6 +1269,35 @@ TEST(DynamicResources, Set)
 }
 
 
+TEST(DynamicResources, RefCount)
+{
+    const char* test_dir = "build/default/src/test";
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 8;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::Result e;
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    ResourceHolder* resource1;
+    e = dmResource::Get(factory, "/test01.foo:", (void**) &resource1);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
+
+
+    char canonical_path[dmResource::RESOURCE_PATH_MAX];
+    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    uint64_t hash = dmHashString64(canonical_path);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, hash));
+
+    dmResource::Release(factory, resource1);
+    dmResource::DeleteFactory(factory);
+}
+
+
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();

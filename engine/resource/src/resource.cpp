@@ -1086,6 +1086,8 @@ Result Set(HFactory factory, uint64_t hashed_name, uint32_t buffersize, const vo
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
+        rd->m_SharedState = DATA_SHARE_STATE_NONE; // The resource creator should now fully own the created resources
+
         if (factory->m_ResourceReloadedCallbacks)
         {
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
@@ -1197,6 +1199,13 @@ uint32_t GetRefCount(HFactory factory, void* resource)
     assert(resource_hash);
 
     SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    return rd->m_ReferenceCount;
+}
+
+uint32_t GetRefCount(HFactory factory, uint64_t resource_hash)
+{
+    SResourceDescriptor* rd = factory->m_Resources->Get(resource_hash);
     assert(rd);
     return rd->m_ReferenceCount;
 }
