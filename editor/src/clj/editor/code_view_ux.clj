@@ -1131,18 +1131,6 @@
         (when found-idx
           (select-found-text source-viewer doc found-idx tlen))))))
 
-(handler/defhandler :tab :code-view
-  (enabled? [source-viewer] (editable? source-viewer))
-  (run [source-viewer]
-    (when (editable? source-viewer)
-      (if (has-snippet-tab-trigger? source-viewer)
-        (let [np (caret source-viewer)
-              doc (text source-viewer)]
-          (next-tab-trigger source-viewer np)
-          (typing-changes! source-viewer))
-        (do (enter-key-text source-viewer "\t")
-            (typing-changes! source-viewer))))))
-
 (handler/defhandler :backwards-tab-trigger :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
@@ -1295,6 +1283,24 @@
         (let [line-num (line-num-at-offset source-viewer (caret source-viewer))]
           (do-indent-line source-viewer line-num)))
       (typing-changes! source-viewer))))
+
+(handler/defhandler :tab :code-view
+  (enabled? [source-viewer] (editable? source-viewer))
+  (run [source-viewer]
+    (when (editable? source-viewer)
+      (if (has-snippet-tab-trigger? source-viewer)
+        (let [np (caret source-viewer)
+              doc (text source-viewer)]
+          (next-tab-trigger source-viewer np)
+          (typing-changes! source-viewer))
+        (if (pos? (selection-length source-viewer))
+          (let [region-start (selection-offset source-viewer)
+                region-len (selection-length source-viewer)
+                region-end (+ region-start region-len)]
+            (do-indent-region source-viewer region-start region-end))
+          (do
+            (enter-key-text source-viewer "\t")
+            (typing-changes! source-viewer)))))))
 
 (handler/defhandler :enter :code-view
   (enabled? [source-viewer] (editable? source-viewer))
