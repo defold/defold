@@ -3364,13 +3364,12 @@ namespace dmGui
      *   <li><code>gui.PLAYBACK_LOOP_PINGPONG</code></li>
      * </ul>
      * @param [play_properties] optional table with properties (table) 
-     * @param [complete_function] function to call when the animation has completed (function)
-
      * <ul>
      *   <li><code>blend_duration</code> duration of a linear blend between the current and new animation (number)</li>
      *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
      *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
      * </ul>
+     * @param [complete_function] function to call when the animation has completed (function)
      */
     int LuaPlaySpineAnim(lua_State* L)
     {
