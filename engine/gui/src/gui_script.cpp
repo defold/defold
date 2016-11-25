@@ -3363,7 +3363,9 @@ namespace dmGui
      *   <li><code>gui.PLAYBACK_LOOP_BACKWARD</code></li>
      *   <li><code>gui.PLAYBACK_LOOP_PINGPONG</code></li>
      * </ul>
-     * @param [play_properties] optional table with properties (table)
+     * @param [play_properties] optional table with properties (table) 
+     * @param [complete_function] function to call when the animation has completed (function)
+
      * <ul>
      *   <li><code>blend_duration</code> duration of a linear blend between the current and new animation (number)</li>
      *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
