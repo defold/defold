@@ -336,7 +336,12 @@ namespace dmGameSystem
         ReHash(component);
 
         // Create GO<->bone representation
-        CreateGOBones(world, component);
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in spine model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
+            DestroyComponent(world, index);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -701,7 +706,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component)
+    static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component, int index)
     {
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
@@ -741,16 +746,23 @@ namespace dmGameSystem
 
         // Create GO<->bone representation
         dmGameObject::DeleteBones(component->m_Instance);
-        CreateGOBones(world, component);
+        if(!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects during reload for bones in spine model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
+            DestroyComponent(world, index);
+            return false;
+        }
+
         return true;
     }
 
     void CompSpineModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
-        SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
+        int index = *params.m_UserData;
+        SpineModelComponent* component = world->m_Components.Get(index);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
-        (void)OnResourceReloaded(world, component);
+        (void)OnResourceReloaded(world, component, index);
     }
 
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -835,7 +847,7 @@ namespace dmGameSystem
         {
             SpineModelComponent* component = components[i];
             if (component->m_Resource != 0x0 && component->m_Resource->m_RigScene == params.m_Resource->m_Resource)
-                OnResourceReloaded(world, component);
+                OnResourceReloaded(world, component, i);
         }
     }
 
