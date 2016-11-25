@@ -143,6 +143,7 @@ namespace dmGameSystem
      *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
      *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
      * </ul>
+     * @param [complete_function] function to call when the animation has completed (function)
      * @examples
      * <p>
      * The following examples assumes that the spine model has id "spinemodel".
@@ -155,7 +156,7 @@ namespace dmGameSystem
      *     local url = msg.url("#spinemodel")
      *     local play_properties = { blend_duration = 0.1 }
      *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
-     *     spine.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
+     *     spine.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self, message_id, message, sender)
      *         local properties = { blend_duration = 0.2 }
      *         spine.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties)
      *     end)
