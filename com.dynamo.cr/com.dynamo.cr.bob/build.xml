@@ -71,6 +71,10 @@
             <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
+    	
+    	<exec dir="." executable="python">
+    	        <arg line="engine_version_generator.py" />
+    	</exec>
 
         <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
             <fileset dir="${env.DYNAMO_HOME}/share">
