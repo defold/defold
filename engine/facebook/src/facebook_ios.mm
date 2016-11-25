@@ -704,7 +704,7 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
     }
 
     @try {
-        [g_Facebook.m_Login setDefaultAudience: audience];
+        [g_Facebook.m_Login setDefaultAudience: convertDefaultAudience(audience)];
         [g_Facebook.m_Login logInWithPublishPermissions: ns_permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
             PrepareCallback(thread, result, error);
         }];

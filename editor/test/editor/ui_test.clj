@@ -2,8 +2,8 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [editor.handler :as handler]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.menu :as menu]
+            [editor.ui :as ui])
   (:import [javafx.fxml FXMLLoader]
            [javafx.scene Scene]
            [javafx.scene.control ListView Menu MenuBar MenuItem SelectionMode]
@@ -18,7 +18,7 @@
     stage))
 
 (defn fixture [f]
-  (with-redefs [ui/*menus* (atom {})
+  (with-redefs [menu/*menus* (atom {})
                 handler/*handlers* (atom {})
                 ui/*main-stage* (atom (ui/run-now (make-fake-stage)))]
     (f)))
@@ -34,15 +34,16 @@
                   [{:label "Save"}])
   (ui/extend-menu ::quit-menu ::new
                   [{:label "Quit"}])
-  (is (= (#'ui/realize-menu ::menubar) [{:label "File"
-                                         :children [{:label "New"
-                                                    :id ::new}
-                                                    {:label "Save"}
-                                                    {:label "Quit"}]}])))
+  (is (= (#'menu/realize-menu ::menubar) [{:label "File"
+                                           :children [{:label "New"
+                                                      :id ::new}
+                                                      {:label "Save"}
+                                                      {:label "Quit"}]}])))
 
 (defrecord TestSelectionProvider [selection]
-  workspace/SelectionProvider
-  (selection [this] selection))
+  handler/SelectionProvider
+  (selection [this] selection)
+  (succeeding-selection [this] []))
 
 (deftest menu-test
   (ui/extend-menu ::my-menu nil
@@ -65,7 +66,7 @@
         scene (ui/run-now (Scene. root))
         selection-provider (TestSelectionProvider. [])
         command-context {:name :global :env {:selection []}}]
-   (let [menu-items (#'ui/make-menu-items (#'ui/realize-menu ::my-menu) [command-context])]
+   (let [menu-items (#'ui/make-menu-items scene (#'menu/realize-menu ::my-menu) [command-context])]
      (is (= 1 (count menu-items)))
      (is (instance? Menu (first menu-items)))
      (is (= 2 (count (.getItems (first menu-items)))))
@@ -88,7 +89,7 @@
                                                :user-data 2}])))
 
   (let [command-context {:name :global :env {}}]
-    (let [menu-items (#'ui/make-menu-items (#'ui/realize-menu ::my-menu) [command-context])]
+    (let [menu-items (#'ui/make-menu-items nil (#'menu/realize-menu ::my-menu) [command-context])]
       (is (= 1 (count menu-items)))
       (is (= 1 (count (.getItems (first menu-items))))))))
 

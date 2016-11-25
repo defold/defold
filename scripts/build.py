@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform, math
+import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -20,10 +20,10 @@ PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847".split()
 PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1 luajit-2.0.3".split()
 PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3".split()
-PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3".split()
+PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223a67482df2226622be372921847".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -355,7 +355,7 @@ class Configuration(object):
         if not outfile:
             outfile = tempfile.NamedTemporaryFile(delete = False)
 
-        zip = zipfile.ZipFile(outfile, 'w')
+        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
         for root, dirs, files in os.walk(path):
             for f in files:
                 p = os.path.join(root, f)
@@ -367,8 +367,64 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
+    def _add_files_to_zip(self, zip, paths, directory=None, topfolder=None):
+        for p in paths:
+            if not os.path.isfile(p):
+                continue
+            an = p
+            if directory:
+                an = os.path.relpath(p, directory)
+            if topfolder:
+                an = os.path.join(topfolder, an)
+            zip.write(p, an)
+
     def is_cross_platform(self):
         return self.host != self.target_platform
+
+    # package the native SDK, return the path to the zip file
+    def _package_platform_sdk(self, platform):
+        outfile = tempfile.NamedTemporaryFile(delete = False)
+
+        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+
+        topfolder = 'defoldsdk'
+        defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
+
+        # Includes
+        includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
+        includes = [os.path.join(self.dynamo_home, x) for x in includes]
+        self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
+
+        # Configs
+        configs = ['extender/build.yml']
+        configs = [os.path.join(self.dynamo_home, x) for x in configs]
+        self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
+
+        def _findlibs(libdir):
+            paths = os.listdir(libdir)
+            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+            return paths
+
+        # Dynamo libs
+        libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
+        paths = _findlibs(libdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+        # External libs
+        libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
+        paths = _findlibs(libdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+        zip.close()
+        return outfile.name
+
+    def build_platform_sdk(self):
+        # Helper function to make it easier to build a platform sdk locally
+        try:
+            path = self._package_platform_sdk(self.target_platform)
+        except Exception, e:
+            print "Failed to package sdk for platform %s: %s" % (self.target_platform, e)
+        else:
+            print "Wrote %s" % path
 
     def archive_engine(self):
         exe_prefix = ''
@@ -447,6 +503,9 @@ class Configuration(object):
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
             self.upload_file(lib_path, '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext))
 
+        sdkpath = self._package_platform_sdk(self.target_platform)
+        self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
+
     def build_engine(self):
         supported_tests = {}
         supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
@@ -486,6 +545,12 @@ class Configuration(object):
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
             self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
+        cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
+        for lib in ('extender',):
+            self._log('Building %s' % lib)
+            cwd = join(self.defold_root, 'share/%s' % lib)
+            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
+
     def build_go(self):
         # TODO: shell=True is required only on windows otherwise it fails. WHY?
 
@@ -523,6 +588,44 @@ class Configuration(object):
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                           cwd = cwd,
                           shell = True)
+
+    def build_sdk(self):
+        tempdir = tempfile.mkdtemp() # where the sdk ends up
+
+        sha1 = self._git_sha1()
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+
+        root = urlparse.urlparse(self.archive_path).path[1:]
+        base_prefix = os.path.join(root, sha1)
+
+        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
+        for platform in platforms:
+            platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
+
+            prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
+            entry = bucket.get_key(prefix)
+
+            if entry is None:
+                raise Exception("Could not find sdk: %s" % prefix)
+
+            platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
+            print "Downloading", entry.key
+            entry.get_contents_to_filename(platform_sdk_zip.name)
+            print "Downloaded", entry.key, "to", platform_sdk_zip.name
+
+            self._extract_zip(platform_sdk_zip.name, tempdir)
+            print "Extracted", platform_sdk_zip.name, "to", tempdir
+
+            os.unlink(platform_sdk_zip.name)
+            print ""
+
+        treepath = os.path.join(tempdir, 'defoldsdk')
+        sdkpath = self._ziptree(treepath, directory=tempdir)
+        print "Packaged defold sdk"
+
+        sdkurl = join(self.archive_path, sha1, 'engine').replace('\\', '/')
+        self.upload_file(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -950,14 +1053,33 @@ instructions.configure=\
         prefix = self._get_s3_archive_prefix()
         bucket_items = bucket.list(prefix=prefix)
 
-        candidate = None
+        candidates = {}
+        print("Searching for editor signing candidates ...")
         for entry in bucket_items:
-            if 'Defold-macosx.cocoa.x86_64.zip' in entry.key:
-                candidate = entry
-            if 'Defold-macosx.cocoa.x86_64.dmg' in entry.key:
-                return True # The editor has already been signed
+            entrypath = os.path.dirname(entry.key)
+            if entry.key.endswith('Defold-macosx.cocoa.x86_64.zip'):
+                if entrypath not in candidates.keys():
+                    candidates[entrypath] = {}
+                candidates[entrypath]['zip'] = entry
+            if entry.key.endswith('Defold-macosx.cocoa.x86_64.dmg'):
+                if entrypath not in candidates.keys():
+                    candidates[entrypath] = {}
+                candidates[entrypath]['dmg'] = entry
 
-        if candidate is not None:
+        print("Found %d candidate(s) for editor signing ..." % len(candidates.keys()))
+        for candidate in candidates.keys():
+            if 'zip' in candidates[candidate].keys():
+                if 'dmg' in candidates[candidate].keys():
+                    print("Pruning candidate, dmg found: %s" % candidate)
+                    del candidates[candidate]
+            elif 'dmg' in candidates[candidate].keys():
+                print("Pruning candidate, dmg found but zip missing: %s" % candidate)
+                del candidates[candidate]
+
+        print("Found %d true candidate(s) for editor signing ..." % (len(candidates.keys())))
+        result = False
+        for candidate in candidates.keys():
+            candidate = candidates[candidate]['zip']
             root = None
             builddir = None
             try:
@@ -993,7 +1115,7 @@ instructions.configure=\
                 # Upload the signed container to S3
                 target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
                 self.upload_file(fp_defold_dmg, target)
-                return True
+                result = True
             finally:
                 self.wait_uploads()
                 if root is not None:
@@ -1002,7 +1124,7 @@ instructions.configure=\
                             os.unlink(os.path.join(builddir, 'Applications'))
                     shutil.rmtree(root)
 
-        return False
+        return result
 
     def _sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
@@ -1099,7 +1221,12 @@ instructions.configure=\
                 self._log('Uploaded %s -> %s' % (path, url))
 
             def upload_multipart():
-                mp = bucket.initiate_multipart_upload(p)
+                headers = {}
+                contenttype, _ = mimetypes.guess_type(path)
+                if contenttype is not None:
+                    headers['Content-Type'] = contenttype
+
+                mp = bucket.initiate_multipart_upload(p, headers=headers)
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB

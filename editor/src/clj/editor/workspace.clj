@@ -24,9 +24,6 @@ ordinary paths."
 (defn version-on-disk-outdated? [workspace]
   (not= @version-on-disk (g/graph-version workspace)))
 
-(defprotocol SelectionProvider
-  (selection [this]))
-
 (def build-dir "/build/default/")
 
 (defn project-path [workspace]
@@ -38,10 +35,11 @@ ordinary paths."
 (defrecord BuildResource [resource prefix]
   resource/Resource
   (children [this] nil)
+  (ext [this] (:build-ext (resource/resource-type this) "unknown"))
   (resource-type [this] (resource/resource-type resource))
   (source-type [this] (resource/source-type resource))
   (read-only? [this] false)
-  (path [this] (let [ext (:build-ext (resource/resource-type this) "unknown")
+  (path [this] (let [ext (resource/ext this)
                      suffix (format "%x" (resource/resource-hash this))]
                  (if-let [path (resource/path resource)]
                    (str (FilenameUtils/removeExtension path) "." ext)
@@ -133,13 +131,20 @@ ordinary paths."
   ([workspace tag]
     (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
+(defn- template-path [resource-type]
+  (or (:template resource-type)
+      (some->> resource-type :ext (str "templates/template."))))
+
+(defn has-template? [resource-type]
+  (some? (some-> resource-type template-path io/resource)))
+
 (defn template [resource-type]
-  (when-let [template-path (or (:template resource-type) (str "templates/template." (:ext resource-type)))]
+  (when-let [template-path (template-path resource-type)]
     (when-let [resource (io/resource template-path)]
       (with-open [f (io/reader resource)]
         (slurp f)))))
 
-(def default-icons {:file "icons/32/Icons_29-AT-Unkown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
+(def default-icons {:file "icons/32/Icons_29-AT-Unknown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
 
 (defn resource-icon [resource]
   (when resource
@@ -149,9 +154,12 @@ ordinary paths."
       (or (:icon (resource/resource-type resource))
           (get default-icons (resource/source-type resource))))))
 
-(defn file-resource [workspace path]
-  (let [root (g/node-value workspace :root)]
-    (FileResource. workspace root (File. (str root path)) [])))
+(defn file-resource [workspace path-or-file]
+  (let [root (g/node-value workspace :root)
+        f (if (instance? File path-or-file)
+            path-or-file
+            (File. (str root path-or-file)))]
+    (FileResource. workspace root f [])))
 
 (defn find-resource [workspace proj-path]
   (get (g/node-value workspace :resource-map) proj-path))

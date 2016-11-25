@@ -365,7 +365,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "This will be the first line, this will be the second and this will be the third"
-  font: "test"
+  font: "highscore"
   id: "multi_line_text"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE

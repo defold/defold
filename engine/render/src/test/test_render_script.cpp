@@ -639,7 +639,7 @@ TEST_F(dmRenderScriptTest, TestDrawText)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
-    ASSERT_EQ(0u, m_Context->m_TextContext.m_VertexIndex);
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextEntries.Size());
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
@@ -647,21 +647,21 @@ TEST_F(dmRenderScriptTest, TestDrawText)
     // First update: A "draw_text" message is sent
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
-    dmRender::FlushTexts(m_Context, 0, true);
+    dmRender::FlushTexts(m_Context, 0, 0, true);
 
     // Second update: "draw_text" is processed, but no glyphs are in font cache,
     //                they are marked as missing and uploaded. A new "draw_text" also is sent.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
-    dmRender::FlushTexts(m_Context, 0, true);
+    dmRender::FlushTexts(m_Context, 0, 0, true);
 
     // Third update: The second "draw_text" is processed, this time the glyphs are uploaded
     //               and the text is drawn.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
-    dmRender::FlushTexts(m_Context, 0, true);
+    dmRender::FlushTexts(m_Context, 0, 0, true);
 
-    ASSERT_NE(0u, m_Context->m_TextContext.m_VertexIndex);
+    ASSERT_NE(0u, m_Context->m_TextContext.m_TextEntries.Size());
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

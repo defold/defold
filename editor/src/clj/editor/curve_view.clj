@@ -20,7 +20,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.handler :as handler]
-            [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
             [editor.ui :as ui]
             [editor.scene :as scene]
@@ -636,8 +635,9 @@
            :fov-x 1.2)))
 
 (defrecord SubSelectionProvider [project]
-  workspace/SelectionProvider
-  (selection [this] (g/node-value project :sub-selection)))
+  handler/SelectionProvider
+  (selection [this] (g/node-value project :sub-selection))
+  (succeeding-selection [this] []))
 
 (defn- on-list-selection [project values]
   (when-not *programmatic-selection*

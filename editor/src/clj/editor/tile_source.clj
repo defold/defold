@@ -850,8 +850,11 @@
     (g/transact
       (make-collision-group-node self project true collision-group))))
 
-(handler/defhandler :add :global
-  (active? [selection] (handler/single-selection? selection TileSourceNode))
+(defn- selection->tile-source [selection]
+  (handler/adapt-single selection TileSourceNode))
+
+(handler/defhandler :add :workbench
+  (active? [selection] (selection->tile-source selection))
   (label [selection user-data]
          (if-not user-data
            "Add"
@@ -868,7 +871,7 @@
                :user-data {:action add-collision-group-node!}}
               ]))
   (run [selection user-data]
-    ((:action user-data) (first selection))))
+    ((:action user-data) (selection->tile-source selection))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

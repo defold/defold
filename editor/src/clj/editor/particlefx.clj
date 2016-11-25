@@ -434,9 +434,13 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-(defn- prop-anim-missing? [animation anim-data]
-  (when (and (some? anim-data) (not (contains? anim-data animation)))
+(defn- prop-anim-missing? [animation anim-ids]
+  (when (and anim-ids (not-any? #(= animation %) anim-ids))
     (format "'%s' could not be found in the specified image" animation)))
+
+(defn- sort-anim-ids
+  [anim-ids]
+  (sort-by str/lower-case anim-ids))
 
 (g/defnode EmitterNode
   (inherits scene/SceneNode)
@@ -459,25 +463,37 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :tile-source-resource]
+                                                [:build-targets :dep-build-targets]
                                                 [:texture-set-data :texture-set-data]
                                                 [:gpu-texture :gpu-texture]
-                                                [:anim-data :anim-data])))
+                                                [:anim-ids :anim-ids])))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["atlas" "tilesource"]}))
             (dynamic error (g/fnk [_node-id tile-source]
                                   (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
 
   (property animation g/Str
-            (dynamic error (g/fnk [_node-id animation anim-data]
-                                  (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
-                                      (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-data))))
+            (value (g/fnk [animation anim-ids]
+                     (if (and (nil? animation) (seq anim-ids))
+                       (first (sort-anim-ids anim-ids))
+                       animation)))
+            (dynamic error (g/fnk [_node-id animation anim-ids]
+                             (when animation
+                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
+                                   (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-ids)))))
             (dynamic edit-type
-                     (g/fnk [anim-data] {:type :choicebox
-                                         :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
+                     (g/fnk [anim-ids] {:type :choicebox
+                                        :options (or (and anim-ids (not (g/error? anim-ids)) (zipmap anim-ids anim-ids)) {})})))
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource])))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["material"]}))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error :fatal _node-id :material material "Material"))))
 
@@ -500,7 +516,17 @@
   (input material-resource resource/Resource)
   (input texture-set-data g/Any)
   (input gpu-texture g/Any)
-  (input anim-data g/Any)
+  (input dep-build-targets g/Any :array)
+  (output build-targets g/Any (g/fnk [_node-id tile-source material animation anim-ids dep-build-targets]
+                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
+                                                            (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
+                                                            (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-ids)]
+                                                           (remove nil?)
+                                                           (seq))]
+                                      (g/error-aggregate errors))
+                                    dep-build-targets)))
+  (input anim-ids g/Any)
   (input child-scenes g/Any :array)
   (input modifier-msgs g/Any :array)
 
@@ -628,7 +654,8 @@
                [:scene :child-scenes]
                [:pb-msg :emitter-msgs]
                [:emitter-sim-data :emitter-sim-data]
-               [:id :ids]]]
+               [:id :ids]
+               [:build-targets :dep-build-targets]]]
     (for [[from to] conns]
       (g/connect emitter-id from self-id to))))
 
@@ -714,15 +741,18 @@
         (g/operation-label "Add Modifier")
         (make-modifier self parent-id modifier true)))))
 
-(handler/defhandler :add-secondary :global
+(defn- selection->emitter [selection]
+  (handler/adapt-single selection EmitterNode))
+
+(defn- selection->particlefx [selection]
+  (handler/adapt-single selection ParticleFXNode))
+
+(handler/defhandler :add-secondary :workbench
   (label [user-data] (if-not user-data
                        "Add Modifier"
                        (get-in user-data [:modifier-data :label])))
-  (active? [selection] (and (= 1 (count selection))
-                            (let [node-id (first selection)
-                                  type (g/node-type (g/node-by-id node-id))]
-                              (or (emitter? node-id)
-                                  (pfx? node-id type)))))
+  (active? [selection] (or (selection->emitter selection)
+                           (selection->particlefx selection)))
   (run [user-data]
        (let [parent-id (:_node-id user-data)
              self (if (emitter? parent-id)
@@ -731,7 +761,7 @@
          (add-modifier-handler self parent-id (:modifier-type user-data))))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (let [node-id (first selection)
+             (let [self (let [node-id (handler/selection->node-id selection)
                               type (g/node-type (g/node-by-id node-id))]
                           (or (emitter? node-id)
                               (pfx? node-id type)))]
@@ -785,18 +815,15 @@
             (g/operation-label "Add Emitter")
             (make-emitter self (assoc emitter :type type) true))))))
 
-(handler/defhandler :add :global
+(handler/defhandler :add :workbench
   (label [user-data] (if-not user-data
                        "Add Emitter"
                        (get-in user-data [:emitter-data :label])))
-  (active? [selection] (and (= 1 (count selection))
-                            (let [node-id (first selection)
-                                  type (g/node-type (g/node-by-id node-id))]
-                              (pfx? node-id type))))
+  (active? [selection] (selection->particlefx selection))
   (run [user-data] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data)))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (let [node-id (first selection)
+             (let [self (let [node-id (selection->particlefx selection)
                               type (g/node-type (g/node-by-id node-id))]
                           (pfx? node-id type))]
                (mapv (fn [[type data]] {:label (:label data)

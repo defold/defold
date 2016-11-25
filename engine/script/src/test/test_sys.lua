@@ -1,6 +1,6 @@
 function test_sys()
     local filename = "save001.save"
-    local max_table_size = 128*1024
+    local max_table_size = 512 * 1024
     local file = sys.get_save_file("my_game", filename)
     -- Get file again, test mkdir
     file = sys.get_save_file("my_game", filename)

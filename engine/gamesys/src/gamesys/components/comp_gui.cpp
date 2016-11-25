@@ -660,7 +660,6 @@ namespace dmGameSystem
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
             params.m_Text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
-            params.m_Depth = 0;
             params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
@@ -710,10 +709,10 @@ namespace dmGameSystem
                 params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
                 break;
             }
-            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
+            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), 0, 0, params);
         }
 
-        dmRender::FlushTexts(gui_context->m_RenderContext, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
+        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     void RenderSpineNodes(dmGui::HScene scene,
@@ -1571,6 +1570,8 @@ namespace dmGameSystem
             gui_input_action.m_ScreenY = params.m_InputAction->m_ScreenY;
             gui_input_action.m_ScreenDX = params.m_InputAction->m_ScreenDX;
             gui_input_action.m_ScreenDY = params.m_InputAction->m_ScreenDY;
+            gui_input_action.m_GamepadIndex = params.m_InputAction->m_GamepadIndex;
+            gui_input_action.m_IsGamepad = params.m_InputAction->m_IsGamepad;
 
             gui_input_action.m_TouchCount = params.m_InputAction->m_TouchCount;
             int tc = params.m_InputAction->m_TouchCount;

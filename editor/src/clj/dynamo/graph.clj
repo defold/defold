@@ -25,7 +25,7 @@
 
 (namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate worse-than])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
@@ -243,15 +243,13 @@
 (deftype IdPair     [(s/one s/Str "id") (s/one s/Int "node-id")])
 (deftype Dict       {s/Str s/Int})
 (deftype Properties
-    {:properties {s/Keyword {:node-id                              gt/NodeID
+    {:properties {s/Keyword {:node-id                              s/Int
                              (s/optional-key :validation-problems) s/Any
                              :value                                (s/either s/Any ErrorValue)
                              :type                                 s/Any
                              s/Keyword                             s/Any}}
      (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
 (deftype Err ErrorValue)
-
-
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -1160,6 +1158,12 @@
   [graph-id]
   (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
     (not (empty? undo-stack))))
+
+(defn undo-stack-count
+  "Returns the number of entries in the undo stack for `graph-id`"
+  [graph-id]
+  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
+    (count undo-stack)))
 
 (defn redo!
   "Given a `graph-id` reverts an undo of the graph

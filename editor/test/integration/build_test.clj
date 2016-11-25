@@ -12,6 +12,7 @@
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+           [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
@@ -22,6 +23,7 @@
            [com.dynamo.model.proto Model$ModelDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
+           [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
@@ -91,7 +93,26 @@
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc
-                :resource-fields [:spine-scene :material]}])
+                :resource-fields [:spine-scene :material]}
+               {:label "Label"
+                :path "/main/label.label"
+                :pb-class Label$LabelDesc
+                :resource-fields [:font :material]
+                :test-fn (fn [pb targets]
+                           (is (= {:color [1.0 1.0 1.0 1.0],
+                                   :line-break false,
+                                   :scale [1.0 1.0 1.0 0.0],
+                                   :blend-mode :blend-mode-alpha,
+                                   :leading 1.0,
+                                   :font "/builtins/fonts/system_font.fontc",
+                                   :size [128.0 32.0 0.0 0.0],
+                                   :tracking 0.0,
+                                   :material "/builtins/fonts/label.materialc",
+                                   :outline [0.0 0.0 0.0 1.0],
+                                   :pivot :pivot-center,
+                                   :shadow [0.0 0.0 0.0 1.0],
+                                   :text "Label"}
+                                  pb)))}])
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -120,7 +141,7 @@
                                              ~'build-results))]
        ~@forms)))
 
-(deftest build-game-project
+(deftest build-game-project-pb-cases
   (with-build-results "/game.project"
     (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
           exp-paths   [path
@@ -168,6 +189,13 @@
                       (persistent! ids)))]
           (doseq [inst instances]
             (is (every? ids (.getChildrenList inst)))))))))
+
+(deftest build-collection-proxy
+  (testing "Building collection proxy"
+    (with-build-results "/collection_proxy/with_collection.collectionproxy"
+      (let [content (get content-by-source "/collection_proxy/with_collection.collectionproxy")
+            desc    (GameSystem$CollectionProxyDesc/parseFrom content)]
+        (is (= "/collection_proxy/default.collection" (-> desc (.getCollection))))))))
 
 (defn- count-exts [paths ext]
   (count (filter #(.endsWith % ext) paths)))

@@ -4,7 +4,8 @@
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [schema.core :as s]
-            [editor.core :as core])
+            [editor.core :as core]
+            [editor.handler :as handler])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -16,6 +17,7 @@
 
 (defprotocol Resource
   (children [this])
+  (ext [this])
   (resource-type [this])
   (source-type [this])
   (exists? [this])
@@ -43,7 +45,8 @@
 (defrecord FileResource [workspace root ^File file children]
   Resource
   (children [this] children)
-  (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension (.getPath file))))
+  (ext [this] (FilenameUtils/getExtension (.getPath file)))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (ext this)))
   (source-type [this] (if (.isDirectory file) :folder :file))
   (exists? [this] (.exists file))
   (read-only? [this] (not (.canWrite file)))
@@ -82,6 +85,7 @@
 (defrecord MemoryResource [workspace ext data]
   Resource
   (children [this] nil)
+  (ext [this] ext)
   (resource-type [this] (get (g/node-value workspace :resource-types) ext))
   (source-type [this] :file)
   (exists? [this] true)
@@ -111,7 +115,8 @@
 (defrecord ZipResource [workspace name path data children]
   Resource
   (children [this] children)
-  (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension name)))
+  (ext [this] (FilenameUtils/getExtension name))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (ext this)))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? data)))
   (read-only? [this] true)
@@ -200,3 +205,15 @@
     ""))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
+
+(defn node-id->resource [node-id]
+  (when (g/node-instance? ResourceNode node-id) (g/node-value node-id :resource)))
+
+(defn temp-path [resource]
+  (when (and resource (= :file (source-type resource)))
+    (let [^File f (doto (File/createTempFile "tmp" (format ".%s" (ext resource)))
+                    (.deleteOnExit))]
+      (with-open [in (io/input-stream resource)
+                  out (io/output-stream f)]
+        (IOUtils/copy in out))
+      (.getAbsolutePath f))))

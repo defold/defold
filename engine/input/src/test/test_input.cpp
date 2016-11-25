@@ -295,72 +295,72 @@ TEST_F(InputTest, Gamepad)
 
     dmHID::Update(m_HidContext);
 
-    ASSERT_GT(dmHID::GetGamepadAxisCount(binding->m_GamepadBinding->m_Gamepad), index);
+    ASSERT_GT(dmHID::GetGamepadAxisCount(binding->m_GamepadBindings[0]->m_Gamepad), index);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(0.0f, dmInput::GetValue(binding, action_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding->m_GamepadBindings[0], action_id));
 
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 1.0f);
-
-    dmHID::Update(m_HidContext);
-    dmInput::UpdateBinding(binding, m_DT);
-
-    ASSERT_EQ(1.0f, dmInput::GetValue(binding, action_id));
-    ASSERT_TRUE(dmInput::Pressed(binding, action_id));
-    ASSERT_FALSE(dmInput::Released(binding, action_id));
-
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 0.0f);
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, index, 1.0f);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_FALSE(dmInput::Pressed(binding, action_id));
-    ASSERT_TRUE(dmInput::Released(binding, action_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding->m_GamepadBindings[0], action_id));
+    ASSERT_TRUE(dmInput::Pressed(binding->m_GamepadBindings[0], action_id));
+    ASSERT_FALSE(dmInput::Released(binding->m_GamepadBindings[0], action_id));
+
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, index, 0.0f);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_FALSE(dmInput::Pressed(binding, action_id));
-    ASSERT_FALSE(dmInput::Released(binding, action_id));
+    ASSERT_FALSE(dmInput::Pressed(binding->m_GamepadBindings[0], action_id));
+    ASSERT_TRUE(dmInput::Released(binding->m_GamepadBindings[0], action_id));
+
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_FALSE(dmInput::Pressed(binding->m_GamepadBindings[0], action_id));
+    ASSERT_FALSE(dmInput::Released(binding->m_GamepadBindings[0], action_id));
 
     // Test modifiers
 
     dmhash_t up_id = dmHashString64("GAMEPAD_RSTICK_UP");
     dmhash_t down_id = dmHashString64("GAMEPAD_RSTICK_DOWN");
 
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, 2, 1.0f);
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, 2, 1.0f);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(0.0f, dmInput::GetValue(binding, up_id));
-    ASSERT_EQ(1.0f, dmInput::GetValue(binding, down_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding->m_GamepadBindings[0], up_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding->m_GamepadBindings[0], down_id));
 
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, 2, -1.0f);
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, 2, -1.0f);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(1.0f, dmInput::GetValue(binding, up_id));
-    ASSERT_EQ(0.0f, dmInput::GetValue(binding, down_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding->m_GamepadBindings[0], up_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding->m_GamepadBindings[0], down_id));
 
     dmInput::SetBinding(binding, m_Test2DDF);
 
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 1.0f);
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, index, 1.0f);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(0.0f, dmInput::GetValue(binding, action_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding->m_GamepadBindings[0], action_id));
 
     input = dmInputDDF::GAMEPAD_LSTICK_DOWN;
     index = map->m_Inputs[input].m_Index;
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, -1.0f);
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, index, -1.0f);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(1.0f, dmInput::GetValue(binding, action_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding->m_GamepadBindings[0], action_id));
 
     dmInput::DeleteBinding(binding);
 }
@@ -544,26 +544,26 @@ TEST_F(InputTest, DeadZone)
 
     uint32_t index = config->m_Inputs[input].m_Index;
 
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 0.05f);
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, index, 0.05f);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(0.0f, dmInput::GetValue(binding, action_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding->m_GamepadBindings[0], action_id));
 
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 0.1f);
-
-    dmHID::Update(m_HidContext);
-    dmInput::UpdateBinding(binding, m_DT);
-
-    ASSERT_EQ(0.0f, dmInput::GetValue(binding, action_id));
-
-    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 1.0f);
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, index, 0.1f);
 
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(1.0f, dmInput::GetValue(binding, action_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding->m_GamepadBindings[0], action_id));
+
+    dmHID::SetGamepadAxis(binding->m_GamepadBindings[0]->m_Gamepad, index, 1.0f);
+
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding->m_GamepadBindings[0], action_id));
 
     dmInput::DeleteBinding(binding);
 }

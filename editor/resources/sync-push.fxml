@@ -33,7 +33,24 @@
                <children>
                   <Label id="changed-files" text="Changed Files" />
                   <ListView id="changed" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
-                  <Label text="Files to Commit">
+                  <HBox BorderPane.alignment="CENTER">
+                     <padding>
+                        <Insets top="16.0" />
+                     </padding>
+                     <children>
+                        <Pane HBox.hgrow="ALWAYS">
+                           <children>
+                              <Button id="diff" mnemonicParsing="false" prefWidth="80.0" text="View Diff" />
+                           </children>
+                        </Pane>
+                        <Button id="stage" mnemonicParsing="false" prefWidth="80.0" text="&#x25bc; Stage" />
+                        <Button id="unstage" mnemonicParsing="false" prefWidth="80.0" text="&#x25b2; Unstage" />
+                     </children>
+                     <padding>
+                        <Insets bottom="0.0" left="16.0" right="16.0" top="26.0" />
+                     </padding>
+                  </HBox>
+                  <Label text="Files Staged for Commit">
                      <padding>
                         <Insets top="16.0" />
                      </padding>
@@ -44,7 +61,7 @@
                         <Insets top="16.0" />
                      </padding>
                   </Label>
-                  <TextArea id="message" prefHeight="200.0" prefWidth="200.0" />
+                  <TextArea id="message" prefHeight="200.0" prefWidth="200.0" promptText="Describe Your Changes" />
                </children>
             </VBox>
          </children>

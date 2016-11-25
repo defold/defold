@@ -14,7 +14,7 @@
            [org.eclipse.jgit.revwalk RevCommit]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [javafx.scene Parent Scene]
-           [javafx.scene.control SelectionMode ListView TextArea]
+           [javafx.scene.control Button SelectionMode ListView TextArea]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.stage Modality]))
 
@@ -84,7 +84,7 @@
                    (not= (:pos old-progress) (:size old-progress))))))))
 
 (defn- flow-journal-file ^java.io.File [^Git git]
-  (io/file (.. git getRepository getWorkTree) ".internal/.sync-in-progress"))
+  (some-> git .getRepository .getWorkTree (io/file ".internal/.sync-in-progress")))
 
 (defn- write-flow-journal! [{:keys [git] :as flow}]
   (let [file (flow-journal-file git)
@@ -97,7 +97,9 @@
     (write-flow-journal! new-flow)))
 
 (defn flow-in-progress? [^Git git]
-  (.exists (flow-journal-file git)))
+  (if-let [file (flow-journal-file git)]
+    (.exists file)
+    false))
 
 (defn begin-flow! [^Git git prefs]
   (when *login*
@@ -301,10 +303,43 @@
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root [ "ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
-        push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label"])
+        push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label" "diff" "stage" "unstage"])
         render-progress (fn [progress]
                           (ui/run-later
-                           (ui/update-progress-controls! progress (:progress-bar dialog-controls) nil)))
+                            (ui/update-progress-controls! progress (:progress-bar dialog-controls) nil)))
+        update-push-buttons! (fn []
+                               ;; The stage, unstage and diff buttons are enabled
+                               ;; if the changed or staged views have input focus
+                               ;; and something selected. The diff button is
+                               ;; disabled if more than one item is selected.
+                               (let [changed-view      (:changed push-controls)
+                                     changed-selection (ui/selection changed-view)
+                                     staged-view       (:staged push-controls)
+                                     staged-selection  (ui/selection staged-view)
+                                     enabled           (cond
+                                                         (and (ui/focus? changed-view)
+                                                              (seq changed-selection))
+                                                         (if (next changed-selection)
+                                                           #{:stage}
+                                                           #{:stage :diff})
+
+                                                         (and (ui/focus? staged-view)
+                                                              (seq staged-selection))
+                                                         (if (next staged-selection)
+                                                           #{:unstage}
+                                                           #{:unstage :diff})
+
+                                                         :else
+                                                         #{})]
+                                 (ui/disable! (:diff push-controls) (not (:diff enabled)))
+                                 (ui/disable! (:stage push-controls) (not (:stage enabled)))
+                                 (ui/disable! (:unstage push-controls) (not (:unstage enabled)))
+
+                                 (when (:diff enabled)
+                                   (if-let [focused-list-view (cond (ui/focus? changed-view) changed-view
+                                                                    (ui/focus? staged-view) staged-view
+                                                                    :else nil)]
+                                     (ui/context! (:diff push-controls) :sync {:!flow !flow} (ui/->selection-provider focused-list-view))))))
         update-controls (fn [{:keys [state conflicts resolved modified staged] :as flow}]
                           (ui/run-later
                            (if (= "pull" (namespace state))
@@ -341,14 +376,25 @@
                                                 (ui/visible! (:push dialog-controls) false)
                                                 (ui/visible! (:conflict-box pull-controls) false)
                                                 (ui/text! (:ok dialog-controls) "Close"))
-
-                             :push/staging   (do
-                                               (ui/items! (:changed push-controls) (sort modified))
-                                               (ui/items! (:staged push-controls) (sort staged))
+                             :push/staging   (let [changed-view ^ListView (:changed push-controls)
+                                                   staged-view ^ListView (:staged push-controls)
+                                                   changed-selection (vec (ui/selection changed-view))
+                                                   staged-selection (vec (ui/selection staged-view))]
+                                               (ui/items! changed-view (sort modified))
+                                               (ui/items! staged-view (sort staged))
                                                (ui/disable! (:ok dialog-controls)
                                                             (or (empty? staged)
-                                                                (empty? (ui/text (:message push-controls))))))
+                                                                (empty? (ui/text (:message push-controls)))))
 
+                                               ;; The stage, unstage and diff buttons start off disabled, but
+                                               ;; might be enabled by the event handler triggered by select!
+                                               (ui/disable! (:diff push-controls) true)
+                                               (ui/disable! (:stage push-controls) true)
+                                               (ui/disable! (:unstage push-controls) true)
+                                               (doseq [item changed-selection]
+                                                 (ui/select! changed-view item))
+                                               (doseq [item staged-selection]
+                                                 (ui/select! staged-view item)))
                              :push/done    (do
                                              (ui/text! (:main-label push-controls) "Done!")
                                              (ui/visible! (:content-box push-controls) false)
@@ -386,26 +432,45 @@
                                                                    :progress (progress/make "push" 4)}))
                                              (swap! !flow advance-flow render-progress)))
 
+    (ui/bind-action! (:diff push-controls) :show-file-diff)
+
+    (ui/observe (.focusOwnerProperty scene)
+                (fn [_ _ new]
+                  (when-not (instance? Button new)
+                    (update-push-buttons!))))
+
+    (ui/observe-selection ^ListView (:changed push-controls)
+                          (fn [_ _]
+                            (update-push-buttons!)))
+
+    (ui/observe-selection ^ListView (:staged push-controls)
+                          (fn [_ _]
+                            (update-push-buttons!)))
+
     (ui/observe (.textProperty ^TextArea (:message push-controls))
                 (fn [_ _ _]
                   (update-controls @!flow)))
 
     (let [^ListView list-view (:conflicting pull-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
       (ui/register-context-menu list-view ::conflicts-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
     (ui/cell-factory! (:resolved pull-controls) (fn [e] {:text e}))
 
     (let [^ListView list-view (:changed push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
+      (ui/context! (:stage push-controls) :sync {:!flow !flow} (ui/->selection-provider list-view))
+      (ui/bind-action! (:stage push-controls) :stage-file)
       (ui/register-context-menu list-view ::staging-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
 
     (let [^ListView list-view (:staged push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! list-view :sync {:!flow !flow} list-view)
+      (ui/context! list-view :sync {:!flow !flow} (ui/->selection-provider list-view))
+      (ui/context! (:unstage push-controls) :sync {:!flow !flow} (ui/->selection-provider list-view))
+      (ui/bind-action! (:unstage push-controls) :unstage-file)
       (ui/register-context-menu list-view ::unstaging-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
 

@@ -22,7 +22,7 @@
 (set! *warn-on-reflection* true)
 
 ;; TODO - missing icon
-(def json-icon "icons/32/Icons_29-AT-Unkown.png")
+(def json-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (defonce ^:private json-loaders (atom {}))
 
