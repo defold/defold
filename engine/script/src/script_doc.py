@@ -96,8 +96,8 @@ class TypePattern(Pattern):
 #
 #   Instance a markdown converter with some useful extensions
 #
-md = Markdown(extensions=['markdown.extensions.fenced_code',
-    'markdown.extensions.def_list', 'markdown.extensions.codehilite',
+md = Markdown(extensions=['markdown.extensions.fenced_code','markdown.extensions.def_list',
+    'markdown.extensions.codehilite','markdown.extensions.tables',
     TypeExtension(), IconExtension(), RefExtension()])
 
 def _strip_comment_stars(str):

@@ -4212,69 +4212,61 @@ namespace dmGui
      */
 
     /*# called when user input is received
-     * <p>
      * This is a callback-function, which is called by the engine when user input is sent to the instance of the gui component.
      * It can be used to take action on the input, e.g. modify the gui according to the input.
-     * </p>
-     * <p>
+     *
      * For an instance to obtain user input, it must first acquire input
-     * focus through the message <code>acquire_input_focus</code>.
+     * focus through the message `acquire_input_focus`.
      *
      * Any instance that has obtained input will be put on top of an
      * input stack. Input is sent to all listeners on the stack until the
-     * end of stack is reached, or a listener returns <code>true</code>
+     * end of stack is reached, or a listener returns `true`
      * to signal that it wants input to be consumed.
      *
-     * See the documentation of <code>acquire_input_focus</code> for more
+     * See the documentation of [ref:go.acquire_input_focus] for more
      * information.
-     * </p>
-     * <p>
-     * The <code>action</code> parameter is a table containing data about the input mapped to the <code>action_id</code>.
+     *
+     * The `action` parameter is a table containing data about the input mapped to the
+     * `action_id`.
      * For mapped actions it specifies the value of the input and if it was just pressed or released.
      * Actions are mapped to input in an input_binding-file.
-     * </p>
-     * <p>
-     * Mouse movement is specifically handled and uses <code>nil</code> as its <code>action_id</code>.
-     * The <code>action</code> only contains positional parameters in this case, such as x and y of the pointer.
-     * </p>
-     * <p>
-     * Here is a brief description of the available table fields:
-     * </p>
-     * <table>
-     *   <th>Field</th>
-     *   <th>Description</th>
-     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_x</code></td><td>The screen space x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_y</code></td><td>The screen space y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_dx</code></td><td>The change in screen space x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_dy</code></td><td>The change in screen space y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>touch</code></td><td>List of touch input, one element per finger, if present. See table below about touch input</td></tr>
-     * </table>
      *
-     * <p>
+     * Mouse movement is specifically handled and uses `nil` as its `action_id`.
+     * The `action` only contains positional parameters in this case, such as x and y of the pointer.
+     *
+     * Here is a brief description of the available table fields:
+     *
+     * Field       | Description
+     * -------------------------------------------------------------------------
+     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
+     * `pressed`   | If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.
+     * `released`  | If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.
+     * `repeated`  | If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
+     * `x`         | The x value of a pointer device, if present.
+     * `y`         | The y value of a pointer device, if present.
+     * `screen_x`  | The screen space x value of a pointer device, if present.
+     * `screen_y`  | The screen space y value of a pointer device, if present.
+     * `dx`        | The change in x value of a pointer device, if present.
+     * `dy`        | The change in y value of a pointer device, if present.
+     * `screen_dx` | The change in screen space x value of a pointer device, if present.
+     * `screen_dy` | The change in screen space y value of a pointer device, if present.
+     * `gamepad`   | The index of the gamepad device that provided the input.
+     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     *
      * Touch input table:
-     * </p>
-     * <table>
-     *   <th>Field</th>
-     *   <th>Description</th>
-     *   <tr><td><code>pressed</code></td><td>True if the finger was pressed this frame.</td></tr>
-     *   <tr><td><code>released</code></td><td>True if the finger was released this frame.</td></tr>
-     *   <tr><td><code>tap_count</code></td><td>Number of taps, one for single, two for double-tap, etc</td></tr>
-     *   <tr><td><code>x</code></td><td>The x touch location.</td></tr>
-     *   <tr><td><code>y</code></td><td>The y touch location.</td></tr>
-     *   <tr><td><code>dx</code></td><td>The change in x value.</td></tr>
-     *   <tr><td><code>dy</code></td><td>The change in y value.</td></tr>
-     *   <tr><td><code>acc_x</code></td><td>Accelerometer x value (if present).</td></tr>
-     *   <tr><td><code>acc_y</code></td><td>Accelerometer y value (if present).</td></tr>
-     *   <tr><td><code>acc_z</code></td><td>Accelerometer z value (if present).</td></tr>
-     * </table>
+     *
+     * Field       | Description
+     * -------------------------------------------------------------------------
+     * `pressed´   | True if the finger was pressed this frame.
+     * `released`  | True if the finger was released this frame.
+     * `tap_count` | Number of taps, one for singledouble-tap, etc.
+     * `x`         | The x touch location.
+     * `y`         | The y touch location.
+     * `dx`        | The change in x value.
+     * `dy`        | The change in y value.
+     * `acc_x`     | Accelerometer x value (if present).
+     * `acc_y`     | Accelerometer y value (if present).
+     * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
      * @param self [type:object] reference to the script state to be used for storing data
