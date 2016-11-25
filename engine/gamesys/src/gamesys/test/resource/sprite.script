@@ -1,0 +1,7 @@
+function init(self)
+    -- pass
+end
+
+function update(self, dt)
+    -- pass
+end
