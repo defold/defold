@@ -143,6 +143,7 @@ namespace dmGameSystem
      *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
      *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
      * </ul>
+     * @param [complete_function] function to call when the animation has completed (function)
      * @examples
      * <p>
      * The following examples assumes that the spine model has id "spinemodel".
