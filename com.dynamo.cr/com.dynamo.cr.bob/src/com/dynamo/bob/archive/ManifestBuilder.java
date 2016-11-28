@@ -1,11 +1,15 @@
 package com.dynamo.bob.archive;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -112,6 +116,60 @@ public class ManifestBuilder {
             HashDigest.Builder builder = HashDigest.newBuilder();
             builder.setData(ByteString.copyFrom(hashDigest));
             return builder.build();
+        }
+
+        public static void generateKeyPair(SignAlgorithm algorithm, String privateKeyFilepath, String publicKeyFilepath) throws NoSuchAlgorithmException, IOException {
+            byte[] privateKeyContent = null;
+            byte[] publicKeyContent = null;
+            if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
+                KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+                generator.initialize(1024);
+                KeyPair keyPair = generator.generateKeyPair();
+
+                // Private key
+                PKCS8EncodedKeySpec privateSpecification = new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded());
+                privateKeyContent = privateSpecification.getEncoded();
+
+                // Public key
+                X509EncodedKeySpec publicSpecification = new X509EncodedKeySpec(keyPair.getPublic().getEncoded());
+                publicKeyContent = publicSpecification.getEncoded();
+            } else {
+                throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
+            }
+
+            // Private key
+            FileOutputStream privateOutputStream = null;
+            try {
+                privateOutputStream = new FileOutputStream(privateKeyFilepath);
+                privateOutputStream.write(privateKeyContent);
+            } catch (IOException exception) {
+                throw new IOException("Unable to create asymmetric keypair, cannot write to file: " + privateKeyFilepath);
+            } finally {
+                if (privateOutputStream != null) {
+                    try {
+                        privateOutputStream.close();
+                    } catch (Exception exception) {
+                        // Nothing to do at this point
+                    }
+                }
+            }
+
+            // Public key
+            FileOutputStream publicOutputStream = null;
+            try {
+                publicOutputStream = new FileOutputStream(publicKeyFilepath);
+                publicOutputStream.write(publicKeyContent);
+            } catch (IOException exception) {
+                throw new IOException("Unable to create asymmetric keypair, cannot write to file: " + publicKeyFilepath);
+            } finally {
+                if (publicOutputStream != null) {
+                    try {
+                        publicOutputStream.close();
+                    } catch (Exception exception) {
+                        // Nothing to do at this point
+                    }
+                }
+            }
         }
 
         public static PrivateKey createPrivateKey(String filepath, SignAlgorithm algorithm) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
