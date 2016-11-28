@@ -3,12 +3,13 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -142,6 +143,7 @@ public class GameProjectBuilder extends Builder<Void> {
             builder.addOutput(input.changeExt(".darc"));
             builder.addOutput(input.changeExt(".dmanifest"));
             builder.addOutput(input.changeExt(".resourcepack.zip"));
+            builder.addOutput(input.changeExt(".public.der"));
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
@@ -379,10 +381,11 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) {
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
         String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
+        String publicKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "publickey", null);
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setDependencies(rootNode);
@@ -390,7 +393,25 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
+
+        if (privateKeyFilepath == null || publicKeyFilepath == null) {
+            File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
+            privateKeyFileHandle.deleteOnExit();
+
+            File publicKeyFileHandle = File.createTempFile("defold.public_", ".der");
+            publicKeyFileHandle.deleteOnExit();
+
+            privateKeyFilepath = privateKeyFileHandle.getAbsolutePath();
+            publicKeyFilepath = publicKeyFileHandle.getAbsolutePath();
+            try {
+            	ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
+            } catch (NoSuchAlgorithmException exception) {
+            	throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
+            }
+
+        }
         manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
+        manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
         manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
         if (supportedEngineVersionsString != null) {
@@ -406,6 +427,8 @@ public class GameProjectBuilder extends Builder<Void> {
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream darcInputStream = null;
+        FileInputStream resourcePackInputStream = null;
+        FileInputStream publicKeyInputStream = null;
 
         BobProjectProperties properties = new BobProjectProperties();
         IResource input = task.input(0);
@@ -448,14 +471,17 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
 
                 task.getOutputs().get(2).setContent(manifestFile);
-                FileInputStream resourcePackInputStream = new FileInputStream(resourcePackZip);
+                resourcePackInputStream = new FileInputStream(resourcePackZip);
                 task.getOutputs().get(3).setContent(resourcePackInputStream);
-                resourcePackZip.delete();
+                publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
+                task.getOutputs().get(4).setContent(publicKeyInputStream);
             }
 
             task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
         } finally {
             IOUtils.closeQuietly(darcInputStream);
+            IOUtils.closeQuietly(resourcePackInputStream);
+            IOUtils.closeQuietly(publicKeyInputStream);
         }
     }
 }

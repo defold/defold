@@ -1,6 +1,5 @@
 package com.dynamo.bob.archive;
 
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -185,7 +184,7 @@ public class ManifestBuilder {
             }
         }
 
-        public static PrivateKey createPrivateKey(String filepath, SignAlgorithm algorithm) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        public static PrivateKey loadPrivateKey(String filepath, SignAlgorithm algorithm) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
             PrivateKey result = null;
             byte[] data = null;
             try {
@@ -212,7 +211,7 @@ public class ManifestBuilder {
             return result;
         }
 
-        public static PublicKey createPublicKey(String filepath, SignAlgorithm algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
+        public static PublicKey loadPublicKey(String filepath, SignAlgorithm algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
             PublicKey result = null;
             byte[] data = null;
             try {
@@ -248,6 +247,7 @@ public class ManifestBuilder {
     private HashAlgorithm signatureHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
     private SignAlgorithm signatureSignAlgorithm = SignAlgorithm.SIGN_UNKNOWN;
     private String privateKeyFilepath = null;
+    private String publicKeyFilepath = null;
     private String projectIdentifier = null;
     private ResourceNode dependencies = null;
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
@@ -287,6 +287,18 @@ public class ManifestBuilder {
 
     public void setPrivateKeyFilepath(String filepath) {
         this.privateKeyFilepath = filepath;
+    }
+
+    public String getPrivateKeyFilepath() {
+        return this.privateKeyFilepath;
+    }
+
+    public void setPublicKeyFilepath(String filepath) {
+        this.publicKeyFilepath = filepath;
+    }
+
+    public String getPublicKeyFilepath() {
+        return this.publicKeyFilepath;
     }
 
     public void setProjectIdentifier(String projectIdentifier) {
@@ -424,7 +436,7 @@ public class ManifestBuilder {
 
         PrivateKey privateKey = null;
         try {
-            privateKey = CryptographicOperations.createPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);
+            privateKey = CryptographicOperations.loadPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);
             byte[] signature = CryptographicOperations.sign(manifestData.toByteArray(), this.signatureHashAlgorithm, this.signatureSignAlgorithm, privateKey);
             builder.setSignature(ByteString.copyFrom(signature));
         } catch (NoSuchAlgorithmException exception) {
