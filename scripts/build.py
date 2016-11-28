@@ -241,8 +241,6 @@ class Configuration(object):
 
         url = urls[self.host]
         path = self._download(url)
-
-        print("Installing go...")
         
         self._extract(path, self.ext)
 
@@ -257,55 +255,67 @@ class Configuration(object):
             self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
+        print("Installing go...")
         self._install_go()
 
         print("Installing common packages...")
-
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
+
+        # Target platform packages should take precendence when for instance
+        # extracting headers for a non-default version of PVRTexLib (windows, linux)
+        # For this reason we extract packages for other platforms first, followed by
+        # base platform packages, and finally target platform packages.
 
         platform_packages = {
             'win32':        PACKAGES_WIN32,
             'x86_64-win32': PACKAGES_WIN32_64,
             'linux':        PACKAGES_LINUX,
             'x86_64-linux': PACKAGES_LINUX_64,
-            'darwin':       PACKAGES_DARWIN_64
+            'darwin':       PACKAGES_DARWIN_64,
+            'armv7-darwin': PACKAGES_IOS,
+            'arm64-darwin': PACKAGES_IOS_64,
+            'armv7-android': PACKAGES_ANDROID,
+            'js-web': PACKAGES_EMSCRIPTEN
         }
+
+        base_platforms = self.get_base_platforms()
+        target_platform = self.target_platform
+        other_platforms = set(platform_packages.keys()).difference(set(base_platforms), set([target_platform]))
 
         installed_packages = set()
 
+        for platform in other_platforms:
+            packages = platform_packages.get(platform, [])
+            package_paths = self._make_package_paths(platform, packages)
+            print("Installing %s packages" % platform)
+            for path in package_paths:
+                self._extract_tgz(path, self.ext)
+            installed_packages.update(package_paths)
+
         for base_platform in self.get_base_platforms():
-            print("Installing base platform packages for %s..." % base_platform)
+            print("Installing %s base platform packages" % base_platform)
             packages = list(PACKAGES_HOST)
             packages.extend(platform_packages.get(base_platform, []))
             package_paths = self._make_package_paths(base_platform, packages)
+            package_paths = [path for path in package_paths if not path in installed_packages]
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
 
-        package_paths = self._make_package_paths(self.target_platform, platform_packages.get(self.target_platform, []))
-        package_paths = [path for path in package_paths if not path in installed_packages]
-        if len(package_paths) != 0:
-            print("Installing %s packages..." % self.target_platform)
-            for path in package_paths:
+        target_packages = platform_packages.get(self.target_platform, [])
+        target_package_paths = self._make_package_paths(self.target_platform, target_packages)
+        target_package_paths = [path for path in target_package_paths if not path in installed_packages]
+        if len(target_package_paths) != 0:
+            print("Installing %s packages" % self.target_platform)
+            for path in target_package_paths:
                 self._extract_tgz(path, self.ext)
-            installed_packages.update(package_paths)
+                installed_packages.update(target_package_paths)
+        else:
+            print("Packages for %s already installed" % self.target_platform)
 
-        print("Installing IOS packages...")
-
-        self._extract_packages('armv7-darwin', PACKAGES_IOS)
-        self._extract_packages('arm64-darwin', PACKAGES_IOS_64)
-        
-        print("Installing android packages...")
-
-        self._extract_packages('armv7-android', PACKAGES_ANDROID)
-
-        print("Installing emscripten packages...")
-
-        self._extract_packages('js-web', PACKAGES_EMSCRIPTEN)
-
+        # Is as3-web a supported platform? doesn't say so in --platform?
         print("Installing flash packages...")
-
         self._extract_packages('as3-web', PACKAGES_FLASH)
 
         print("Installing python eggs...")
@@ -314,7 +324,6 @@ class Configuration(object):
             self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
         print("Installing javascripts...")            
-
         for n in 'js-web-pre.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
@@ -322,7 +331,6 @@ class Configuration(object):
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         print("Installing profiles etc...")
-
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
@@ -495,14 +503,14 @@ class Configuration(object):
         return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'eclipse':eclipse}
 
     def get_base_platforms(self):
-        # Base platforms is the set of platforms to build the base libs for
-        # The base libs are the libs needed to build bob, i.e. contains compiler code
+        # Base platforms is the platforms to build the base libs for.
+        # The base libs are the libs needed to build bob, i.e. contains compiler code.
 
         platform_dependencies = {'darwin': ['darwin', 'x86_64-darwin'], # x86_64-darwin from IOS fix 3dea8222
                                  'x86_64-linux': [],
                                  'x86_64-win32': ['win32']}
 
-        platforms = list(platform_dependencies.get(self.host, self.host))
+        platforms = list(platform_dependencies.get(self.host, [self.host]))
 
         if not self.host in platforms:
             platforms.append(self.host)
@@ -1398,5 +1406,9 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         f = getattr(c, cmd, None)
         if not f:
             parser.error('Unknown command %s' % cmd)
-        f()
-        c.wait_uploads()
+        else:
+            print('Running: %s' % cmd)
+            f()
+            c.wait_uploads()
+
+    print('Done')
