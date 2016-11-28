@@ -2,8 +2,9 @@
   (:require [clojure.java.io :as io]
             [editor.core :as core]
             [schema.core :as s]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.protobuf :as protobuf]
             [editor.graph-util :as gu]
             [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
@@ -619,10 +620,7 @@
 (defn- selection->collection [selection]
   (handler/adapt-single selection CollectionNode))
 
-(defn- selection->embedded-instance [selection]
-  (handler/adapt-single selection EmbeddedGOInstanceNode))
-
-(defn add-game-object-file [coll-node resource]
+(defn add-game-object-file [coll-node resource select-fn]
   (let [project (project/get-project coll-node)
         base (FilenameUtils/getBaseName (resource/resource-name resource))
         id (gen-instance-id coll-node base)
@@ -638,28 +636,22 @@
       (concat
         (g/operation-sequence op-seq)
         (g/operation-label "Add Game Object")
-        (project/select project [go-node])))))
+        (select-fn [go-node])))))
 
 (handler/defhandler :add-from-file :workbench
-  (active? [selection] (or (selection->collection selection)
-                           (selection->embedded-instance selection)))
-  (label [selection] (cond
-                       (selection->collection selection) "Add Game Object File"
-                       (selection->embedded-instance selection) "Add Component File"))
-  (run [workspace project selection]
-       (let [collection (selection->collection selection)
-             embedded-instance (selection->embedded-instance selection)]
-         (cond
-           collection (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
-                        (add-game-object-file collection resource))
-           embedded-instance (game-object/add-component-handler workspace project (g/node-value embedded-instance :source-id))))))
+  (active? [selection] (selection->collection selection))
+  (label [selection] "Add Game Object File")
+  (run [workspace project app-view selection]
+    (let [collection (selection->collection selection)]
+      (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
+        (add-game-object-file collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
-(defn- make-embedded-go [self project type data id position rotation scale child? select? overrides]
+(defn- make-embedded-go [self project type data id position rotation scale child? select-fn overrides]
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project type data)]
     (g/make-nodes graph [go-node [EmbeddedGOInstanceNode :id id :position position :rotation rotation :scale scale]]
-      (if select?
-        (project/select project [go-node])
+      (if select-fn
+        (select-fn [go-node])
         [])
       (let [tx-data (project/make-resource-node graph project resource true
                                                 {go-node [[:_node-id :source-id]
@@ -683,7 +675,7 @@
                 (child-coll-any self go-node)
                 []))))))))
 
-(defn- add-game-object [coll-node]
+(defn- add-game-object [coll-node select-fn]
   (let [project       (project/get-project coll-node)
         workspace     (:workspace (g/node-value coll-node :resource))
         ext           "go"
@@ -693,21 +685,14 @@
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] true true {})))))
+        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] true select-fn {})))))
 
 (handler/defhandler :add :workbench
-  (active? [selection] (or (selection->collection selection)
-                           (selection->embedded-instance selection)))
-  (label [selection user-data] (cond
-                                 (selection->collection selection) "Add Game Object"
-                                 (selection->embedded-instance selection) (game-object/add-embedded-component-label user-data)))
-  (options [selection user-data] (when-let [embedded-instance (selection->embedded-instance selection)]
-                                   (let [source (g/node-value embedded-instance :source-id)
-                                         workspace (:workspace (g/node-value source :resource))]
-                                     (game-object/add-embedded-component-options source workspace user-data))))
-  (run [selection user-data] (if-let [collection (selection->collection selection)]
-                               (add-game-object collection)
-                               (game-object/add-embedded-component-handler user-data))))
+  (active? [selection] (selection->collection selection))
+  (label [selection user-data] "Add Game Object")
+  (run [selection user-data app-view]
+    (let [collection (selection->collection selection)]
+      (add-game-object collection (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn add-collection-instance [self source-resource id position rotation scale overrides]
   (let [project (project/get-project self)]
@@ -720,7 +705,7 @@
 (handler/defhandler :add-secondary-from-file :workbench
   (active? [selection] (selection->collection selection))
   (label [] "Add Collection File")
-  (run [selection project]
+  (run [selection project app-view]
        (let [coll-node     (selection->collection selection)
              project       (project/get-project coll-node)
              workspace     (:workspace (g/node-value coll-node :resource))
@@ -741,7 +726,7 @@
                (concat
                  (g/operation-sequence op-seq)
                  (g/operation-label "Add Collection")
-                 (project/select project [coll-inst-node]))))))))
+                 (app-view/select app-view [coll-inst-node]))))))))
 
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]
@@ -776,7 +761,7 @@
                                  (make-embedded-go self project "go" (:data embedded) (:id embedded)
                                    (:position embedded)
                                    (:rotation embedded)
-                                   scale false false (:component-properties embedded)))))
+                                   scale false nil (:component-properties embedded)))))
             new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))

@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
+            [editor.app-view :as app-view]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
             [editor.scene :as scene]
@@ -55,18 +56,17 @@
     (filterv (fn [[nid prop sub-sel]] (and (= node-id nid) (= property prop) sub-sel)))
     (mapv last)))
 
-(defn- make-curve-view! [project width height]
-  (doto (curve-view/make-view! project (test-util/make-view-graph!) nil nil {} false)
+(defn- make-curve-view! [app-view width height]
+  (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil {} false)
     (g/set-property! :viewport (types/->Region 0 width 0 height))))
 
 (deftest selection
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          curve-view (make-curve-view! project 400 400)
+    (let [[workspace project app-view] (test-util/setup! world)
+          curve-view (make-curve-view! app-view 400 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))]
-      (project/select! project [emitter])
+      (app-view/select! app-view [emitter])
       (mouse-click! curve-view 0.0 0.0)
       (is (= [1] (sub-selection project emitter :particle-key-alpha)))
       (mouse-click! curve-view 0.11 0.99)
@@ -95,12 +95,11 @@
 
 (deftest move-control-point
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          curve-view (make-curve-view! project 800 400)
+    (let [[workspace project app-view] (test-util/setup! world)
+          curve-view (make-curve-view! app-view 800 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))]
-      (project/select! project [emitter])
+      (app-view/select! app-view [emitter])
       (mouse-move! curve-view -100.0 -100.0)
       (mouse-move! curve-view 0.0 0.0)
       (mouse-drag! curve-view 0.0 0.0 0.1 0.1)
@@ -123,13 +122,12 @@
 
 (deftest add-delete-control-point
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          curve-view (make-curve-view! project 800 400)
+    (let [[workspace project app-view] (test-util/setup! world)
+          curve-view (make-curve-view! app-view 800 400)
           node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))
           context (handler/->context :curve-view {} (SubSelectionProvider. project))]
-      (project/select! project [emitter])
+      (app-view/select! app-view [emitter])
       ; First control point can't be deleted
       (mouse-dbl-click! curve-view 0.0 0.0)
       (is (cp? [0.0 0.0] (cp emitter :particle-key-alpha 1)))

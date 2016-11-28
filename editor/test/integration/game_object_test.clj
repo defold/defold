@@ -30,7 +30,7 @@
                    (is (g/error? (test-util/prop-error comp-id :path))))))
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
-                 (game-object/add-embedded-component-handler {:_node-id go-id :resource-type r-type})
+                 (game-object/add-embedded-component-handler {:_node-id go-id :resource-type r-type} nil)
                  (let [factory (:node-id (test-util/outline go-id [0]))]
                    (test-util/with-prop [factory :id "script"]
                      (is (g/error? (test-util/prop-error factory :id)))
@@ -49,7 +49,7 @@
           resource-types (game-object/embeddable-component-resource-types workspace)
           save-data (partial save-data project)
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
-          add-component! (partial test-util/add-embedded-component! project)
+          add-component! (partial test-util/add-embedded-component! project nil)
           go-id (project/get-resource-node project "/game_object/test.go")
           go-resource (g/node-value go-id :resource)]
       (doseq [resource-type resource-types]

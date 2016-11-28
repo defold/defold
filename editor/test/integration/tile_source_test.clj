@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
+            [editor.app-view :as app-view]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.tile-source :as tile-source]
@@ -31,26 +32,25 @@
                  (is (g/error? (g/node-value node-id :build-targets)))
                  (is (not (g/error? (g/node-value node-id :save-data)))))))))
 
-(defn- add-collision-group! [project node-id]
-  (tile-source/add-collision-group-node! node-id)
-  (first (g/node-value project :selected-node-ids)))
+(defn- add-collision-group! [app-view node-id]
+  (tile-source/add-collision-group-node! node-id (fn [node-ids] (app-view/select app-view node-ids)))
+  (first (g/node-value app-view :selected-node-ids)))
 
-(defn- add-animation! [project node-id]
-  (tile-source/add-animation-node! node-id)
-  (first (g/node-value project :selected-node-ids)))
+(defn- add-animation! [app-view node-id]
+  (tile-source/add-animation-node! node-id (fn [node-ids] (app-view/select app-view node-ids)))
+  (first (g/node-value app-view :selected-node-ids)))
 
 (deftest collision-group-validation
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/tilesource/valid.tilesource")]
-      (project/select! project [node-id])
+      (app-view/select! app-view [node-id])
       (testing "collision-group-id"
-               (let [group (add-collision-group! project node-id)]
+               (let [group (add-collision-group! app-view node-id)]
                  (test-util/with-prop [group :id ""]
                    (is (g/error? (test-util/prop-error group :id))))))
       (testing "collision-group-max"
-               (let [groups (mapv (fn [_] (add-collision-group! project node-id)) (range 17))]
+               (let [groups (mapv (fn [_] (add-collision-group! app-view node-id)) (range 17))]
                  (is (every? #(test-util/prop-error % :id) groups))
                  (g/transact
                    (for [group groups]
@@ -58,16 +58,16 @@
 
 (deftest animation-validation
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
+    (let [[workspace project app-view] (test-util/setup! world)
           project (test-util/setup-project! workspace)
           node-id (test-util/resource-node project "/tilesource/valid.tilesource")]
-      (project/select! project [node-id])
+      (app-view/select! app-view [node-id])
       (testing "animation-id"
-               (let [anim (add-animation! project node-id)]
+               (let [anim (add-animation! app-view node-id)]
                  (test-util/with-prop [anim :id ""]
                    (is (some? (test-util/prop-error anim :id))))))
       (testing "animation-tile-ranges"
-               (let [anim (add-animation! project node-id)]
+               (let [anim (add-animation! app-view node-id)]
                  (test-util/with-prop [anim :start-tile 2000]
                    (is (some? (test-util/prop-error anim :start-tile)))
                    (is (g/error? (g/node-value node-id :build-targets)))
@@ -77,8 +77,7 @@
 
 (deftest missing-tilesource-image
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (project/get-resource-node project "/tilesource/invalid.tilesource")]
       (is (g/error? (test-util/prop-error node-id :image)))
       ;; collision being nil is not an error

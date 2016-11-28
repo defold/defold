@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.graph-util :as gu]
             [editor.colors :as colors]
             [editor.math :as math]
@@ -711,8 +712,8 @@
 
 (defn- make-modifier
   ([self parent-id modifier]
-    (make-modifier self parent-id modifier false))
-  ([self parent-id modifier select?]
+    (make-modifier self parent-id modifier nil))
+  ([self parent-id modifier select-fn]
     (let [graph-id (g/node-id->graph-id self)]
       (g/make-nodes graph-id
                     [mod-node [ModifierNode :position (:position modifier) :rotation (:rotation modifier)
@@ -728,17 +729,16 @@
                                                                  (props/->curve (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)))
                                                                  props/default-curve))))
                     (attach-modifier self parent-id mod-node)
-                    (if select?
-                      (let [project (project/get-project self)]
-                        (project/select project [mod-node]))
+                    (if select-fn
+                      (select-fn [mod-node])
                       [])))))
 
-(defn- add-modifier-handler [self parent-id type]
+(defn- add-modifier-handler [self parent-id type select-fn]
   (when-let [modifier (get-in mod-types [type :template])]
     (g/transact
       (concat
         (g/operation-label "Add Modifier")
-        (make-modifier self parent-id modifier true)))))
+        (make-modifier self parent-id modifier select-fn)))))
 
 (defn- selection->emitter [selection]
   (handler/adapt-single selection EmitterNode))
@@ -752,12 +752,12 @@
                        (get-in user-data [:modifier-data :label])))
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
-  (run [user-data]
+  (run [user-data app-view]
        (let [parent-id (:_node-id user-data)
              self (if (emitter? parent-id)
                     (core/scope parent-id)
                     parent-id)]
-         (add-modifier-handler self parent-id (:modifier-type user-data))))
+         (add-modifier-handler self parent-id (:modifier-type user-data)) (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]
            (when (not user-data)
              (let [self (let [node-id (handler/selection->node-id selection)
@@ -771,8 +771,8 @@
 
 (defn- make-emitter
   ([self emitter]
-    (make-emitter self emitter false))
-  ([self emitter select?]
+    (make-emitter self emitter nil))
+  ([self emitter select-fn]
     (let [project   (project/get-project self)
           workspace (project/workspace project)
           graph-id (g/node-id->graph-id self)
@@ -802,24 +802,24 @@
                     (attach-emitter self emitter-node)
                     (for [modifier (:modifiers emitter)]
                       (make-modifier self emitter-node modifier))
-                    (if select?
-                      (project/select project [emitter-node])
+                    (if select-fn
+                      (select-fn [emitter-node])
                       [])))))
 
-(defn- add-emitter-handler [self type]
+(defn- add-emitter-handler [self type select-fn]
   (when-let [resource (io/resource emitter-template)]
       (let [emitter (protobuf/read-text Particle$Emitter resource)]
         (g/transact
           (concat
             (g/operation-label "Add Emitter")
-            (make-emitter self (assoc emitter :type type) true))))))
+            (make-emitter self (assoc emitter :type type) select-fn))))))
 
 (handler/defhandler :add :workbench
   (label [user-data] (if-not user-data
                        "Add Emitter"
                        (get-in user-data [:emitter-data :label])))
   (active? [selection] (selection->particlefx selection))
-  (run [user-data] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data)))
+  (run [user-data app-view] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data) (fn [node-ids] (app-view/select node-ids))))
   (options [selection user-data]
            (when (not user-data)
              (let [self (let [node-id (selection->particlefx selection)
