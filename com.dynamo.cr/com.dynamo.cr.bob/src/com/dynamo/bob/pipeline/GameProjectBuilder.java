@@ -6,6 +6,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -15,7 +18,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
@@ -28,6 +34,7 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -134,6 +141,7 @@ public class GameProjectBuilder extends Builder<Void> {
         if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".darc"));
             builder.addOutput(input.changeExt(".dmanifest"));
+            builder.addOutput(input.changeExt(".resourcepack.zip"));
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
@@ -195,7 +203,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private File createArchive(Collection<String> resources, ManifestBuilder manifestBuilder) throws IOException {
+    private File createArchive(Collection<String> resources, ManifestBuilder manifestBuilder, ZipOutputStream zipOutputStream) throws IOException {
         RandomAccessFile outFile = null;
         File tempArchiveFile = File.createTempFile("tmp", "darc");
         tempArchiveFile.deleteOnExit();
@@ -223,8 +231,36 @@ public class GameProjectBuilder extends Builder<Void> {
             ab.add(s, compress);
         }
 
-        ab.write(outFile);
+        Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
+        ab.write(outFile, resourcePackDirectory);
         outFile.close();
+
+        // Populate the zip archive with the resource pack
+        for (File filepath : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
+            if (filepath.isFile()) {
+                ZipEntry currentEntry = new ZipEntry(filepath.getName());
+                zipOutputStream.putNextEntry(currentEntry);
+
+                FileInputStream currentInputStream = new FileInputStream(filepath);
+                int currentOffset = 0;
+                int currentLength = 0;
+                byte[] currentBuffer = new byte[1024];
+                while ((currentLength = currentInputStream.read(currentBuffer)) > 0) {
+                    zipOutputStream.write(currentBuffer, currentOffset, currentLength);
+                    currentOffset += currentLength;
+                }
+
+                currentInputStream.close();
+                zipOutputStream.closeEntry();
+            }
+        }
+        zipOutputStream.close();
+
+        File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
+        if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
+            FileUtils.deleteDirectory(resourcePackDirectoryHandle);
+        }
+
         return tempArchiveFile;
     }
 
@@ -343,6 +379,30 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) {
+        String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
+        String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
+        String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
+
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setDependencies(rootNode);
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+        manifestBuilder.setProjectIdentifier(projectIdentifier);
+        manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
+
+        manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
+        if (supportedEngineVersionsString != null) {
+            String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
+            for (String supportedEngineVersion : supportedEngineVersions) {
+                manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
+            }
+        }
+
+        return manifestBuilder;
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream darcInputStream = null;
@@ -359,48 +419,38 @@ public class GameProjectBuilder extends Builder<Void> {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
+                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode);
 
-                ManifestBuilder manifestBuilder = null;
-                String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", null);
-                String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
-                String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
-
-                if (projectIdentifier != null && supportedEngineVersionsString != null && privateKeyFilepath != null) {
-                    // We can create a manifest!
-                    manifestBuilder = new ManifestBuilder();
-                    manifestBuilder.setDependencies(rootNode);
-                    manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-                    manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
-                    manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
-                    manifestBuilder.setProjectIdentifier(projectIdentifier);
-                    manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
-
-                    String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
-                    for (String supportedEngineVersion : supportedEngineVersions) {
-                        manifestBuilder.addSupportedEngineVersion(supportedEngineVersion.trim());
-                    }
-                }
-
-                // Make sure we don't try to archive the .darc or .projectc
+                // Make sure we don't try to archive the .darc, .projectc, .dmanifest, .resourcepack.zip
                 resources.remove(task.output(0).getAbsPath());
                 resources.remove(task.output(1).getAbsPath());
                 resources.remove(task.output(2).getAbsPath());
+                resources.remove(task.output(3).getAbsPath());
+
+                // Create zip archive to store resource pack
+                File resourcePackZip = File.createTempFile("defold.resourcepack_", ".zip");
+                resourcePackZip.deleteOnExit();
+                FileOutputStream resourcePackOutputStream = new FileOutputStream(resourcePackZip);
+                ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
 
                 // Create output for the darc archive
-                File archiveFile = createArchive(resources, manifestBuilder);
+                File archiveFile = createArchive(resources, manifestBuilder, zipOutputStream);
                 darcInputStream = new FileInputStream(archiveFile);
                 task.getOutputs().get(1).setContent(darcInputStream);
                 archiveFile.delete();
 
-                // Create output for the manifest
-                if (manifestBuilder != null) {
-                    byte[] manifestFile = manifestBuilder.buildManifest();
-                    task.getOutputs().get(2).setContent(manifestFile);
-                } else {
-                    // Create an empty manifest for now.
-                    // TODO: This has to be fixed before DEF-2092 is merged.
-                    task.getOutputs().get(2).setContent("".getBytes());
+                byte[] manifestFile = { 0x0 };
+                try {
+                    manifestFile = manifestBuilder.buildManifest();
+                } catch (IOException exception) {
+                    System.out.println("Unable to build manifest :'(");
+                    // TODO: We will have to create a private key in case one isn't supplied!
                 }
+
+                task.getOutputs().get(2).setContent(manifestFile);
+                FileInputStream resourcePackInputStream = new FileInputStream(resourcePackZip);
+                task.getOutputs().get(3).setContent(resourcePackInputStream);
+                resourcePackZip.delete();
             }
 
             task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
