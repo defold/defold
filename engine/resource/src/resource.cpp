@@ -950,8 +950,6 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
 
-    printf("canonical_path: %s\n", canonical_path);
-
     void* buffer;
     uint32_t file_size;
     Result result = LoadResource(factory, canonical_path, name, &buffer, &file_size);
