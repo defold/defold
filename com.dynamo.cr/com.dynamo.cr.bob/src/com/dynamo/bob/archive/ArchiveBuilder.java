@@ -164,21 +164,21 @@ public class ArchiveBuilder {
 
                 // Write the entry to the Resource pack directory
                 byte[] hashDigest;
-				try {
-					hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
-				} catch (NoSuchAlgorithmException exception) {
-					throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
-				}
+                try {
+                    hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+                } catch (NoSuchAlgorithmException exception) {
+                    throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
+                }
                 String filename = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
                 FileOutputStream outputStream = null;
                 try {
-                	File fhandle = new File(resourcePackDirectory.toString(), filename);
-                	if (!fhandle.exists()) {
+                    File fhandle = new File(resourcePackDirectory.toString(), filename);
+                    if (!fhandle.exists()) {
                         outputStream = new FileOutputStream(fhandle);
                         outputStream.write(buffer);
                     } else {
                         duplicate_size += buffer.length;
-                    	System.out.println("The resource has already been created: " + filename);
+                        System.out.println("The resource has already been created: " + filename);
                     }
                 } finally {
                     if (outputStream != null) {
@@ -193,7 +193,7 @@ public class ArchiveBuilder {
 
             ++i;
         }
-        
+
         System.out.println("Storage size saved from removing duplicates: " + Integer.toString(duplicate_size) + " byte(s).");
 
         // Reset file and write actual offsets
