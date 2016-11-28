@@ -3,6 +3,11 @@
 
 #include <ddf/ddf.h>
 
+namespace dmBuffer
+{
+    typedef struct Buffer* HBuffer;
+}
+
 namespace dmResource
 {
     /**
@@ -361,15 +366,18 @@ namespace dmResource
      */
     Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
 
+
+Result GetBuffer(HFactory factory, const char* name, dmBuffer::HBuffer* buffer);
+
+
     /**
      * Updates a preexisting resource with new data
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
-     * @param buffer_size The size of the buffer
      * @param buffer The buffer
      * @return RESULT_OK on success
      */
-    Result Set(HFactory factory, uint64_t hashed_name, uint32_t buffer_size, const void* buffer);
+    Result Set(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
 
     /**
      * Reload a specific resource
@@ -496,8 +504,6 @@ namespace dmResource
      * @param resource Resource
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
-
-    
 }
 
 #endif // RESOURCE_H

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <dlib/buffer.h>
 #include <dlib/socket.h>
 #include <dlib/http_client.h>
 #include <dlib/hash.h>
@@ -1242,20 +1243,41 @@ TEST(DynamicResources, Set)
     ASSERT_NE(resource1, resource2);
     ASSERT_EQ(resource1->m_Value, resource2->m_Value);
 
+    // Create buffer
+    dmBuffer::StreamDeclaration streams_decl[] = {
+        {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1}
+    };
 
+    uint32_t element_count = 32;
+    dmBuffer::HBuffer buffer = 0;
+    dmBuffer::Allocate(element_count, streams_decl, 1, &buffer);
+
+    uint8_t* data = 0;
+    uint32_t datasize = 0;
+    dmBuffer::Result r = dmBuffer::GetBytes(buffer, (void**)&data, &datasize);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_NE(0U, (uintptr_t)data);
+    ASSERT_EQ(32U, datasize);
+
+    strcpy((char*)data, "123");
+
+
+    // Set buffer
     uint64_t hash = 0;
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
-    e = dmResource::Set(factory, hash, 3, "123");
-    
+    e = dmResource::Set(factory, hash, buffer);
+
+
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_EQ(resource1->m_Value, resource2->m_Value); // The pointers are still the same
     ASSERT_EQ(*resource1->m_Value, *resource2->m_Value);
     ASSERT_EQ(123, *resource2->m_Value);
 
+    strcpy((char*)data, "42");
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
-    e = dmResource::Set(factory, hash, 2, "42");
+    e = dmResource::Set(factory, hash, buffer);
 
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_NE(resource1->m_Value, resource2->m_Value);
@@ -1263,6 +1285,8 @@ TEST(DynamicResources, Set)
     ASSERT_EQ(123, *resource1->m_Value);
     ASSERT_EQ(42, *resource2->m_Value);
 
+
+    dmBuffer::Free(buffer);
     dmResource::Release(factory, resource2);
     dmResource::Release(factory, resource1);
     dmResource::DeleteFactory(factory);

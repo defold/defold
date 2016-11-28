@@ -150,6 +150,31 @@ namespace dmBuffer
     Result GetStream(HBuffer buffer, dmhash_t stream_name, ValueType type, uint32_t type_count, void** out_stream, uint32_t* out_stride, uint32_t* out_element_count);
 
     /**
+     * Gets the buffer as a byte array. If the buffer contains multiple streams, only the first one is returned
+     * @param buffer Pointer to a buffer.
+     * @param out_buffer Pointer to void* where to store the bytes
+     * @param out_size Pointer to uint32_t where to store the array size
+     * @return Returns BUFFER_OK if the buffer was successfully accessed
+     * @examples
+     * <pre>
+     * uint8_t* bytes = 0x0;
+     * uint32_t size = 0;
+     *
+     * dmBuffer::Result r = dmBuffer::GetBytes(buffer, (void*)&bytes, &size);
+     *
+     * if (r == dmBuffer::RESULT_OK) {
+     *     for (int i = 0; i < size; ++i)
+     *     {
+     *         stream[i] = (uint8_t)(i & 0xFF);
+     *     }
+     * } else {
+     *     // handle error
+     * }
+     * </pre>
+     */
+    Result GetBytes(HBuffer buffer, void** out_bytes, uint32_t* out_size);
+
+    /**
      * Get element count for a buffer.
      * @param buffer Pointer to a buffer.
      * @param out_element_count Pointer to uint32_t where to store the element count

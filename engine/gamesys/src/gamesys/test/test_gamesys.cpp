@@ -688,6 +688,24 @@ INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, ::testing::ValuesIn(invalid_la
 
 
 
+// Test that go.delete() does not influence other sprite animations in progress
+TEST_F(ResourceTest, SetTexture)
+{
+    // Spawn a go with a sprite and a script
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/resource/sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // The update loop should hold up to create texture, and set texture multiple times
+    for( int i = 0; i < 3; ++i )
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+
 
 int main(int argc, char **argv)
 {

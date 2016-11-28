@@ -229,6 +229,28 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
+
+    Result GetBytes(HBuffer buffer, void** out_buffer, uint32_t* out_size)
+    {
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+
+        Buffer::Stream* stream = &buffer->m_Streams[0];
+
+        // Validate guards
+        if (!dmBuffer::ValidateStream(buffer, *stream)) {
+            return RESULT_GUARD_INVALID;
+        }
+
+        uint32_t stream_size = stream->m_ValueCount * buffer->m_NumElements * GetSizeForValueType(stream->m_ValueType);
+
+        *out_size = stream_size;
+        *out_buffer = (void*)((uintptr_t)buffer->m_Data + stream->m_Offset);
+
+        return RESULT_OK;
+    }
+
     Result GetElementCount(HBuffer buffer, uint32_t* out_element_count)
     {
         if (!buffer) {

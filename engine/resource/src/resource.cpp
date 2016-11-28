@@ -12,6 +12,7 @@
 #include <sys/param.h>
 #endif
 
+#include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
@@ -1057,14 +1058,13 @@ Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** 
     return result;
 }
 
-Result Set(HFactory factory, uint64_t hashed_name, uint32_t buffersize, const void* buffer)
+Result Set(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer)
 {
     DM_PROFILE(Resource, "Set");
 
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
     assert(buffer);
-    assert(buffersize > 0);
 
     SResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
     if (!rd) {
@@ -1075,11 +1075,18 @@ Result Set(HFactory factory, uint64_t hashed_name, uint32_t buffersize, const vo
     if (!resource_type->m_RecreateFunction)
         return RESULT_NOT_SUPPORTED;
 
+    uint32_t datasize = 0;
+    void* data = 0;
+    dmBuffer::GetBytes(buffer, &data, &datasize);
+
+    assert(data);
+    assert(datasize > 0);
+
     ResourceRecreateParams params;
     params.m_Factory = factory;
     params.m_Context = resource_type->m_Context;
-    params.m_Buffer = buffer;
-    params.m_BufferSize = buffersize;
+    params.m_Buffer = data;
+    params.m_BufferSize = datasize;
     params.m_Resource = rd;
     params.m_Filename = 0;
     params.m_NameHash = hashed_name;
