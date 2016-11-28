@@ -1,6 +1,7 @@
 (ns editor.form-view
   (:require [dynamo.graph :as g]
             [editor.form :as form]
+            [editor.field-expression :as field-expression]
             [editor.ui :as ui]
             [editor.jfx :as jfx]            
             [editor.dialogs :as dialogs]
@@ -19,7 +20,6 @@
            [javafx.beans.value ChangeListener]
            [javafx.beans.binding Bindings]
            [javafx.scene.layout Region AnchorPane Pane GridPane HBox VBox Priority ColumnConstraints]
-           [com.sun.javafx.tk Toolkit]
            [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
            [com.defold.control ListCell TableCell]))
 
@@ -35,24 +35,29 @@
 ;; see:  https://bugs.openjdk.java.net/browse/JDK-8089514
 ;; possible workaround: http://stackoverflow.com/questions/24694616/how-to-enable-commit-on-focuslost-for-tableview-treetableview
 
+(def ^:private default-value-alignments
+  {:number Pos/CENTER_RIGHT
+   :integer Pos/CENTER_RIGHT
+   :boolean Pos/CENTER
+   :vec4 Pos/CENTER})
+
 (defn- value-alignment [field-info]
-  (let [default-alignments {:number Pos/CENTER_RIGHT
-                            :integer Pos/CENTER_RIGHT
-                            :boolean Pos/CENTER
-                            :vec4 Pos/CENTER}]
-    (get default-alignments (:type field-info) Pos/CENTER_LEFT)))
+  (get default-value-alignments (:type field-info) Pos/CENTER_LEFT))
 
-(defn- text-field-content-width [^TextField text-field sample-content]
-  (let [left-inset (.snappedLeftInset text-field)
-        right-inset (.snappedRightInset text-field)
-        font (.getFont text-field)
-        font-metrics (.. Toolkit getToolkit getFontLoader (getFontMetrics font))
-        sample-width (.computeStringWidth font-metrics sample-content)]
-    (+ sample-width left-inset right-inset)))
+(def ^:private default-field-widths
+  {:number 80
+   :integer 80
+   :string 300
+   :resource 300
+   :list 300})
 
-(defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]} sample-content]
+(defn- field-width [field-info]
+  (get default-field-widths (:type field-info) 100))
+
+(defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [tf (TextField.)]
-    (.setMinWidth tf (text-field-content-width tf sample-content))
+    (.setPrefWidth tf (field-width field-info))
+    (.setMinWidth tf Control/USE_PREF_SIZE)
     (ui/on-action! tf (fn [_]
                          (when-let [val (parse (ui/text tf))]
                            (set path val))))
@@ -70,25 +75,13 @@
          :edit #(doto tf (.requestFocus) (.selectAll))}]))
 
 (defmethod create-field-control :string [field-info field-ops ctxt]
-  (create-text-field-control identity identity field-info field-ops "reasonable content for a string"))
-
-(defn- to-int [str]
-  (try
-    (Integer/parseInt str)
-    (catch Throwable _
-      nil)))
+  (create-text-field-control identity identity field-info field-ops))
 
 (defmethod create-field-control :integer [field-info field-ops ctxt]
-  (create-text-field-control to-int str field-info field-ops "12345"))
-
-(defn- to-number [str]
-  (try
-    (Double/parseDouble str)
-    (catch Throwable _
-      nil)))
+  (create-text-field-control field-expression/to-int str field-info field-ops))
 
 (defmethod create-field-control :number [field-info field-ops ctxt]
-  (create-text-field-control to-number str field-info field-ops "3.14159265"))
+  (create-text-field-control field-expression/to-double str field-info field-ops))
 
 (defmethod create-field-control :boolean [{:keys [path help]} {:keys [set cancel]} ctxt]
   (let [check (CheckBox.)
@@ -123,7 +116,6 @@
         cb (doto (ComboBox.)
              (-> (.getItems) (.addAll (object-array (map first options))))
              (.setConverter converter)
-             (.setMinWidth Control/USE_PREF_SIZE)
              (ui/cell-factory! (fn [val] {:text (option-map val)})))
         update-fn (fn [value]
                     (reset! internal-change true)
@@ -144,7 +136,7 @@
     [cb {:update update-fn
          :edit #(do (ui/request-focus! cb) (.show cb))}]))
 
-(defmethod create-field-control :resource [{:keys [filter path help]} {:keys [set cancel]} {:keys [workspace project]}]
+(defmethod create-field-control :resource [{:keys [filter path help] :as field-info} {:keys [set cancel]} {:keys [workspace project]}]
   (let [box (GridPane.)
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
@@ -153,7 +145,8 @@
                       (.setMaxWidth 26)
                        (ui/add-style! "button-small"))
         text (let [tf (TextField.)]
-               (.setMinWidth tf (text-field-content-width tf "/path/to/some/deeply/nested/resource.res"))
+               (.setPrefWidth tf (field-width field-info))
+               (.setMinWidth tf Control/USE_PREF_SIZE)
                (GridPane/setFillWidth tf true)
                tf)
         update-fn (fn [value] (ui/text! text value))]
@@ -205,10 +198,10 @@
                         ctrls))
     box))
 
-(defn- create-multi-number-field-control [labels {:keys [path help]} {:keys [set cancel]}]
+(defn- create-multi-number-field-control [labels {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [text-fields (mapv (fn [l]
                             (let [tf (TextField.)]
-                              (.setMinWidth tf (text-field-content-width tf "12345.6"))
+                              (.setMinWidth tf (field-width field-info))
                               (GridPane/setFillWidth tf true)
                               tf))
                             labels)
@@ -220,7 +213,7 @@
                     (doseq [[tf value-part] (zipmap text-fields value)]
                       (ui/text! tf (str value-part))))
         parse-val (fn []
-                    (let [val (mapv (comp to-number ui/text) text-fields)]
+                    (let [val (mapv (comp field-expression/to-double ui/text) text-fields)]
                       (when (not (some #{nil} val))
                         val)))
         setter (fn [] (if-let [val (parse-val)]
@@ -277,10 +270,10 @@
     [(AnchorPane. (into-array Node [control])) api]))
 
 (defn- resize-column-to-fit-control [^TableColumn table-column ^Node ctrl]
-  (let [pref-width (.minWidth ctrl -1)
+  (let [min-width (.minWidth ctrl -1)
         curr-width (.getWidth table-column)]
-    (when (< curr-width pref-width)
-      (.impl_setWidth table-column pref-width))))
+    (when (< curr-width min-width)
+      (.impl_setWidth table-column min-width))))
 
 (defn- create-table-cell-factory [column-info ctxt]
   (reify Callback
@@ -515,6 +508,9 @@
                                                    (.getNewValue event)))))
     (.setEditable list-view true)
 
+    (.setPrefWidth list-view (field-width field-info))
+    (.setMinWidth list-view Control/USE_PREF_SIZE)
+
     (set-context-menu! list-view [["Add" on-add-row (constantly default-row)]
                                   ["Remove" on-remove-row #(get-selected-index list-view)]])
 
@@ -598,7 +594,7 @@
     (HBox/setHgrow grid Priority/ALWAYS)
 
     (ui/children! hbox [list-view grid])
-    (.setSpacing hbox 20)
+    (.setSpacing hbox 10) ; same as inset of outer VBox
 
     (.setCellFactory list-view (create-list-cell-factory panel-key-info ctxt))
 
