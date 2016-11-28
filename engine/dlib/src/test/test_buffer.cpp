@@ -15,6 +15,7 @@ class GetDataTest : public ::testing::Test
 {
 public:
     dmBuffer::HBuffer buffer;
+    uint32_t          element_count;
     void*             out_stream;
     uint32_t          out_stride;
     uint32_t          out_element_count;
@@ -26,7 +27,8 @@ protected:
             {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2}
         };
 
-        dmBuffer::Allocate(4, streams_decl, 2, &buffer);
+        element_count = 4;
+        dmBuffer::Allocate(element_count, streams_decl, 2, &buffer);
     }
 
     virtual void TearDown() {
@@ -275,6 +277,43 @@ TEST_F(GetDataTest, ValidGetData)
         ptr += out_stride;
     }
 }
+
+
+TEST_F(GetDataTest, ValidGetBytes)
+{
+    // Get texcoord stream
+    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3, &out_stream, &out_stride, &out_element_count);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_NE((void*)0x0, out_stream);
+    ASSERT_EQ(3, out_stride);
+    ASSERT_EQ(4, out_element_count);
+
+    uint8_t* ptr = (uint8_t*)out_stream;
+    for (uint8_t i = 0; i < out_element_count*3*sizeof(float); ++i)
+    {
+        ptr[0] = (uint8_t)(i & 0xff);
+        ++ptr;
+    }
+
+    // Get stream again
+    uint8_t* data = 0;
+    uint32_t datasize = 0;
+    r = dmBuffer::GetBytes(buffer, (void**)&data, &datasize);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_NE((void*)0x0, data);
+    ASSERT_EQ(out_stream, data);
+    ASSERT_EQ(element_count * sizeof(float) * 3, datasize);
+
+    // Verify the previously written data
+    ptr = (uint8_t*)out_stream;
+    for (int i = 0; i < datasize; ++i)
+    {
+        ASSERT_EQ( (uint8_t)(i & 0xFF), ptr[0]);
+        ++ptr;
+    }
+}
+
 
 TEST_F(GetDataTest, WriteOutsideStream)
 {
