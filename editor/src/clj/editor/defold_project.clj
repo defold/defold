@@ -614,53 +614,10 @@
                             attach-fn))
       [])))
 
-(defn select
-  [project-id node-ids]
-  (assert (not-any? nil? node-ids) "Attempting to select nil values")
-  (concat
-    (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
-      (g/disconnect node-id label project-id :selected-node-ids))
-    (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
-      (g/disconnect node-id label project-id :selected-node-properties))
-    (for [node-id (distinct node-ids)]
-      (concat
-        (g/connect node-id :_node-id    project-id :selected-node-ids)
-        (g/connect node-id :_properties project-id :selected-node-properties)))))
-
-(defn select!
-  ([project node-ids]
-    (select! project node-ids (gensym)))
-  ([project node-ids op-seq]
-    (let [old-nodes (g/node-value project :selected-node-ids)]
-      (when (not= node-ids old-nodes)
-        (g/transact
-          (concat
-            (g/operation-sequence op-seq)
-            (g/operation-label "Select")
-            (select project node-ids)))))))
-
-(defn sub-select!
-  ([project sub-selection]
-    (sub-select! project sub-selection (gensym)))
-  ([project sub-selection op-seq]
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Select")
-        (g/set-property project :sub-selection sub-selection)))))
-
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))
-
-(deftype ProjectSelectionProvider [project-id]
-  handler/SelectionProvider
-  (selection [this] (g/node-value project-id :selected-node-ids))
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
-
-(defn selection-provider [project-id] (ProjectSelectionProvider. project-id))
 
 (defn make-project [graph workspace-id]
   (let [project-id

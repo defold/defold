@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
             [editor.collada-scene :as collada-scene]
@@ -113,16 +114,31 @@
     (not (nil? (some #{tgt-node-id} sel)))))
 
 (g/defnode DummyAppView
+  (inherits app-view/AppView)
   (property active-tool g/Keyword)
   (property active-tab Tab))
 
 (defn make-view-graph! []
   (g/make-graph! :history false :volatility 2))
 
-(defn setup-app-view! []
-  (let [view-graph (make-view-graph!)
-        app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph DummyAppView :active-tool :move))))]
-    app-view))
+(defn setup-app-view! [project]
+  (let [view-graph (make-view-graph!)]
+    (-> (g/make-nodes view-graph [app-view [DummyAppView :active-tool :move]]
+          (g/connect project :_node-id app-view :project-id)
+          (for [label [:selected-node-ids :selected-node-properties :sub-selection]]
+            (g/connect project label app-view label)))
+      g/transact
+      g/tx-nodes-added
+      first)))
+
+(defn setup!
+  ([graph]
+    (setup! graph project-path))
+  ([graph project-path]
+    (let [workspace (setup-workspace! graph project-path)
+          project   (setup-project! workspace)
+          app-view  (setup-app-view! project)]
+      [workspace project app-view])))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
@@ -237,8 +253,10 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
-(defn selection [project]
-  (handler/selection (project/selection-provider project)))
+(defn selection [app-view]
+  (-> app-view
+    app-view/->selection-provider
+    handler/selection))
 
 ;; Extension library server
 
@@ -357,6 +375,6 @@
   "Adds a new instance of an embedded component to the specified
   game object node inside a transaction and makes it the current
   selection. Returns the id of the added EmbeddedComponent node."
-  [project resource-type go-id]
-  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type})
+  [project select-fn resource-type go-id]
+  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
   (first (selection project)))
