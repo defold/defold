@@ -1,6 +1,7 @@
 (ns editor.scene
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.background :as background]
             [editor.camera :as c]
             [editor.scene-selection :as selection]
@@ -740,7 +741,7 @@
     (concat
       (g/make-nodes view-graph
                     [background      background/Gradient
-                     selection       [selection/SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
+                     selection       [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/select! app-view-id selection op-seq))]
                      camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
                      grid            grid-type
                      tool-controller tool-controller-type
@@ -783,7 +784,7 @@
                     (g/connect view-id :viewport rulers :viewport)
                     (g/connect view-id :cursor-pos rulers :cursor-pos))
       (when-let [node-id (:select-node opts)]
-        (project/select project [node-id])))))
+        (app-view/select app-view-id [node-id])))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]

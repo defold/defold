@@ -2,6 +2,7 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.gl.pass :as pass]
@@ -76,13 +77,11 @@
 
 (deftest label-batch-render
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           go (project/get-resource-node project "/game_object/test.go")
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
-          add-label-component! (partial test-util/add-embedded-component! project (workspace/get-resource-type workspace "label"))
-          render-calls (let [app-view (test-util/setup-app-view!)
-                             view (test-util/open-scene-view! project app-view go 128 128)]
+          add-label-component! (partial test-util/add-embedded-component! project (fn [node-ids] (app-view/select app-view node-ids)) (workspace/get-resource-type workspace "label"))
+          render-calls (let [view (test-util/open-scene-view! project app-view go 128 128)]
                          (fn [selection key-fn]
                            (get-render-calls-by-pass (g/node-value go :scene)
                                                      (g/node-value view :camera)
