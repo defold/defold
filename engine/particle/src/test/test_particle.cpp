@@ -950,17 +950,35 @@ float g_TexCoords[] =
         0.75f,0.5f, 1.0f,0.5f, 1.0f,1.0f, 0.75f,1.0f
 };
 
+// Series of two float pairs of dimensions representing quad texture width and height in texels.
+// See texture_set_ddf.proto
+float g_TexDims[] =
+{
+        // 2 x 4 tiles
+        32.0f, 16.0f,
+        16.0f, 32.0f,
+        32.0f, 16.0f,
+        16.0f, 32.0f,
+        32.0f, 16.0f,
+        16.0f, 32.0f,
+        32.0f, 16.0f,
+        16.0f, 32.0f
+};
+
+
 struct TileSource
 {
     TileSource()
     : m_Texture((void*)0xBAADF00D)
     , m_TexCoords(g_TexCoords)
+    , m_TexDims(g_TexDims)
     {
 
     }
 
     void* m_Texture;
     float* m_TexCoords;
+    float* m_TexDims;
 };
 
 dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
@@ -972,6 +990,7 @@ dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhas
     TileSource* ts = (TileSource*)tile_source;
     out_data->m_Texture = ts->m_Texture;
     out_data->m_TexCoords = ts->m_TexCoords;
+    out_data->m_TexDims = ts->m_TexDims;
     out_data->m_TileWidth = 2;
     out_data->m_TileHeight = 3;
     out_data->m_StartTile = 0;
@@ -1040,7 +1059,19 @@ TEST_F(ParticleTest, Animation)
                 int index = tile - 1;
                 bool rotated = 6 < index;
                 VerifyVertexTexCoords(vb, g_TexCoords, index, rotated);
-                VerifyVertexDims(vb, 1, 1.0f, 2, 3);
+
+                if(type == 1)
+                {
+                    // auto-size mode
+                    if(tile & 1)
+                        VerifyVertexDims(vb, 1, 32.0f, 2, 1);
+                    else
+                        VerifyVertexDims(vb, 1, 32.0f, 1, 2);
+                }
+                else
+                {
+                    VerifyVertexDims(vb, 1, 1.0f, 2, 3);
+                }
                 vb += 6;
             }
         }

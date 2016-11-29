@@ -304,11 +304,11 @@ namespace dmGameSystem
 
             dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype, &emitter_state_changed_data);
 
-            if (prototype->m_AddedToUpdate) 
+            if (prototype->m_AddedToUpdate)
             {
                 dmParticle::StartInstance(context, instance);
             }
-            
+
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
             world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
             dmParticle::SetPosition(context, instance, Point3(world_transform.GetTranslation()));
@@ -466,6 +466,7 @@ namespace dmGameSystem
             }
             out_data->m_Texture = texture_set_res->m_Texture;
             out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
+            out_data->m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];
             out_data->m_FPS = animation->m_Fps;
             out_data->m_TileWidth = animation->m_Width;

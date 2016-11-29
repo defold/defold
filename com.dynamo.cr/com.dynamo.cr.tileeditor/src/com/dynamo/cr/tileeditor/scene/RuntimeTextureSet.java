@@ -29,6 +29,7 @@ public class RuntimeTextureSet {
     private VertexBufferObject atlasVertexBuffer = new VertexBufferObject();
     private VertexBufferObject outlineVertexBuffer = new VertexBufferObject();
     private ByteBuffer texCoordsBuffer = ByteBuffer.allocateDirect(0);
+    private ByteBuffer texDimsBuffer = ByteBuffer.allocateDirect(0);
     private List<UVTransform> uvTransforms;
 
     public RuntimeTextureSet() {
@@ -64,6 +65,10 @@ public class RuntimeTextureSet {
         texCoordsBuffer = ByteBuffer.allocateDirect(textureSet.getTexCoords().size());
         texCoordsBuffer.put(textureSet.getTexCoords().asReadOnlyByteBuffer());
         texCoordsBuffer.flip();
+
+        texDimsBuffer = ByteBuffer.allocateDirect(textureSet.getTexDims().size());
+        texDimsBuffer.put(textureSet.getTexDims().asReadOnlyByteBuffer());
+        texDimsBuffer.flip();
 
         this.uvTransforms = new ArrayList<UVTransform>(uvTransforms);
     }
@@ -105,6 +110,16 @@ public class RuntimeTextureSet {
      */
     public ByteBuffer getTexCoords() {
         return texCoordsBuffer;
+    }
+
+    /**
+     * Get texture dimensions in texels for images/animations frames.
+     * @note The texture form describes width and height.
+     * i.e. one pairs of floats.
+     * @return {@link ByteBuffer} with texture dimensions
+     */
+    public ByteBuffer getTexDims() {
+        return texDimsBuffer;
     }
 
     /**
