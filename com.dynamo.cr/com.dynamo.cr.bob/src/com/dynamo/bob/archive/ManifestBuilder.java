@@ -1,11 +1,14 @@
 package com.dynamo.bob.archive;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -127,7 +130,61 @@ public class ManifestBuilder {
             return builder.build();
         }
 
-        public static PrivateKey createPrivateKey(String filepath, SignAlgorithm algorithm) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        public static void generateKeyPair(SignAlgorithm algorithm, String privateKeyFilepath, String publicKeyFilepath) throws NoSuchAlgorithmException, IOException {
+            byte[] privateKeyContent = null;
+            byte[] publicKeyContent = null;
+            if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
+                KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+                generator.initialize(1024);
+                KeyPair keyPair = generator.generateKeyPair();
+
+                // Private key
+                PKCS8EncodedKeySpec privateSpecification = new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded());
+                privateKeyContent = privateSpecification.getEncoded();
+
+                // Public key
+                X509EncodedKeySpec publicSpecification = new X509EncodedKeySpec(keyPair.getPublic().getEncoded());
+                publicKeyContent = publicSpecification.getEncoded();
+            } else {
+                throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
+            }
+
+            // Private key
+            FileOutputStream privateOutputStream = null;
+            try {
+                privateOutputStream = new FileOutputStream(privateKeyFilepath);
+                privateOutputStream.write(privateKeyContent);
+            } catch (IOException exception) {
+                throw new IOException("Unable to create asymmetric keypair, cannot write to file: " + privateKeyFilepath);
+            } finally {
+                if (privateOutputStream != null) {
+                    try {
+                        privateOutputStream.close();
+                    } catch (Exception exception) {
+                        // Nothing to do at this point
+                    }
+                }
+            }
+
+            // Public key
+            FileOutputStream publicOutputStream = null;
+            try {
+                publicOutputStream = new FileOutputStream(publicKeyFilepath);
+                publicOutputStream.write(publicKeyContent);
+            } catch (IOException exception) {
+                throw new IOException("Unable to create asymmetric keypair, cannot write to file: " + publicKeyFilepath);
+            } finally {
+                if (publicOutputStream != null) {
+                    try {
+                        publicOutputStream.close();
+                    } catch (Exception exception) {
+                        // Nothing to do at this point
+                    }
+                }
+            }
+        }
+
+        public static PrivateKey loadPrivateKey(String filepath, SignAlgorithm algorithm) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
             PrivateKey result = null;
             byte[] data = null;
             try {
@@ -154,7 +211,7 @@ public class ManifestBuilder {
             return result;
         }
 
-        public static PublicKey createPublicKey(String filepath, SignAlgorithm algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
+        public static PublicKey loadPublicKey(String filepath, SignAlgorithm algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
             PublicKey result = null;
             byte[] data = null;
             try {
@@ -190,6 +247,7 @@ public class ManifestBuilder {
     private HashAlgorithm signatureHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
     private SignAlgorithm signatureSignAlgorithm = SignAlgorithm.SIGN_UNKNOWN;
     private String privateKeyFilepath = null;
+    private String publicKeyFilepath = null;
     private String projectIdentifier = null;
     private ResourceNode dependencies = null;
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
@@ -229,6 +287,18 @@ public class ManifestBuilder {
 
     public void setPrivateKeyFilepath(String filepath) {
         this.privateKeyFilepath = filepath;
+    }
+
+    public String getPrivateKeyFilepath() {
+        return this.privateKeyFilepath;
+    }
+
+    public void setPublicKeyFilepath(String filepath) {
+        this.publicKeyFilepath = filepath;
+    }
+
+    public String getPublicKeyFilepath() {
+        return this.publicKeyFilepath;
     }
 
     public void setProjectIdentifier(String projectIdentifier) {
@@ -366,7 +436,7 @@ public class ManifestBuilder {
 
         PrivateKey privateKey = null;
         try {
-            privateKey = CryptographicOperations.createPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);
+            privateKey = CryptographicOperations.loadPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);
             byte[] signature = CryptographicOperations.sign(manifestData.toByteArray(), this.signatureHashAlgorithm, this.signatureSignAlgorithm, privateKey);
             builder.setSignature(ByteString.copyFrom(signature));
         } catch (NoSuchAlgorithmException exception) {

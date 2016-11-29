@@ -1,17 +1,15 @@
 package com.dynamo.bob.pipeline;
 
-import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -32,10 +30,9 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Project.OutputFlags;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.EngineVersion;
@@ -45,9 +42,9 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.camera.proto.Camera.CameraDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
-import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -56,23 +53,23 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.gui.proto.Gui;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
-import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.label.proto.Label.LabelDesc;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
+import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.proto.DdfExtensions;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Material.MaterialDesc;
-import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
-import com.dynamo.sound.proto.Sound.SoundDesc;
-import com.dynamo.spine.proto.Spine.SpineModelDesc;
+import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.Skeleton;
+import com.dynamo.sound.proto.Sound.SoundDesc;
+import com.dynamo.spine.proto.Spine.SpineModelDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile.TileGrid;
@@ -146,6 +143,7 @@ public class GameProjectBuilder extends Builder<Void> {
             builder.addOutput(input.changeExt(".darc"));
             builder.addOutput(input.changeExt(".dmanifest"));
             builder.addOutput(input.changeExt(".resourcepack.zip"));
+            builder.addOutput(input.changeExt(".public.der"));
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
@@ -383,10 +381,11 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) {
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
         String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
+        String publicKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "publickey", null);
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setDependencies(rootNode);
@@ -394,7 +393,25 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
+
+        if (privateKeyFilepath == null || publicKeyFilepath == null) {
+            File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
+            privateKeyFileHandle.deleteOnExit();
+
+            File publicKeyFileHandle = File.createTempFile("defold.public_", ".der");
+            publicKeyFileHandle.deleteOnExit();
+
+            privateKeyFilepath = privateKeyFileHandle.getAbsolutePath();
+            publicKeyFilepath = publicKeyFileHandle.getAbsolutePath();
+            try {
+                ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
+            } catch (NoSuchAlgorithmException exception) {
+                throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
+            }
+
+        }
         manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
+        manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
         manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
         if (supportedEngineVersionsString != null) {
@@ -410,6 +427,8 @@ public class GameProjectBuilder extends Builder<Void> {
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream darcInputStream = null;
+        FileInputStream resourcePackInputStream = null;
+        FileInputStream publicKeyInputStream = null;
 
         BobProjectProperties properties = new BobProjectProperties();
         IResource input = task.input(0);
@@ -425,11 +444,10 @@ public class GameProjectBuilder extends Builder<Void> {
                 HashSet<String> resources = findResources(project, rootNode);
                 ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode);
 
-                // Make sure we don't try to archive the .darc, .projectc, .dmanifest, .resourcepack.zip
-                resources.remove(task.output(0).getAbsPath());
-                resources.remove(task.output(1).getAbsPath());
-                resources.remove(task.output(2).getAbsPath());
-                resources.remove(task.output(3).getAbsPath());
+                // Make sure we don't try to archive the .darc, .projectc, .dmanifest, .resourcepack.zip, .public.der
+                for (IResource resource : task.getOutputs()) {
+                    resources.remove(resource.getAbsPath());
+                }
 
                 // Create zip archive to store resource pack
                 File resourcePackZip = File.createTempFile("defold.resourcepack_", ".zip");
@@ -452,14 +470,17 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
 
                 task.getOutputs().get(2).setContent(manifestFile);
-                FileInputStream resourcePackInputStream = new FileInputStream(resourcePackZip);
+                resourcePackInputStream = new FileInputStream(resourcePackZip);
                 task.getOutputs().get(3).setContent(resourcePackInputStream);
-                resourcePackZip.delete();
+                publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
+                task.getOutputs().get(4).setContent(publicKeyInputStream);
             }
 
             task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
         } finally {
             IOUtils.closeQuietly(darcInputStream);
+            IOUtils.closeQuietly(resourcePackInputStream);
+            IOUtils.closeQuietly(publicKeyInputStream);
         }
     }
 }
