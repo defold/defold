@@ -51,6 +51,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.openmali.FastMath;
+import org.openmali.vecmath2.util.MatrixUtils;
 
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
@@ -171,17 +172,29 @@ public class ColladaUtil {
     }
 
     private static void ExtractMatrixKeys(Bone bone, Matrix4d parentToLocal, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
+
+        Vector3d bindP = new Vector3d();
+        Quat4d bindR = new Quat4d();
+        Vector3d bindS = new Vector3d();
+        MathUtil.decompose(parentToLocal, bindP, bindR, bindS);
+        bindR.inverse();
+
         int keyCount = animation.getInput().length;
         float[] time = animation.getInput();
         float[] values = animation.getOutput();
         for (int key = 0; key < keyCount; ++key) {
             int index = key * 16;
             Matrix4d m = MathUtil.floatToDouble(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
-            m.mul(parentToLocal, m);
             Vector3d p = new Vector3d();
             Quat4d r = new Quat4d();
             Vector3d s = new Vector3d();
             MathUtil.decompose(m, p, r, s);
+
+            // Get pose relative transform
+            p.set(p.getX() - bindP.getX(), p.getY() - bindP.getY(), p.getZ() - bindP.getZ());
+            r.mul(bindR, r);
+            s.set(s.getX() / bindS.getX(), s.getY() / bindS.getY(), s.getZ() / bindS.getZ());
+
             float t = time[key];
             AnimationKey posKey = createKey(t, false, 3);
             toFloats(p, posKey.value);
@@ -211,7 +224,7 @@ public class ColladaUtil {
     }
 
     private static Matrix4d getBoneParentToLocal(Bone bone) {
-        return MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.invBindMatrix));
+        return MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
     }
 
     private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {

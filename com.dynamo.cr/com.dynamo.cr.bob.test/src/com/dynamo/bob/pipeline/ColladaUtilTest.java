@@ -26,7 +26,9 @@ import org.junit.Test;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
+import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.rig.proto.Rig;
+import com.dynamo.rig.proto.Rig.RigAnimation;
 
 public class ColladaUtilTest {
 
@@ -693,6 +695,67 @@ public class ColladaUtilTest {
             Long meshBone = meshSetBuilder.getBoneList(i);
             Long animBone = animSetBuilder.getBoneList(meshBoneListCount-i-1);
             assertEquals(meshBone, animBone);
+        }
+    }
+
+    /*
+     *  Test collada file with a bone animation that includes both translation and rotation.
+     */
+    @Test
+    public void testTranslationRotation() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("translate_rot_test.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        RigAnimation animation = animSetBuilder.getAnimations(0);
+
+        /*
+         *  We go through all tracks and verify they behave as expected.
+         *  - Positions will decrease on Z axis
+         *  - Rotation don't change, is static the inverse of bind pose.
+         */
+        int trackCount = animation.getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animation.getTracks(trackIndex);
+
+            if (track.getBoneIndex() == 1) {
+
+                if (track.getRotationsCount() > 0) {
+
+                    // Rotation don't change, but is the inverse of the bind pose
+                    Quat bindPoseRot = skeletonBuilder.getBones(track.getBoneIndex()).getRotation();
+                    Quat4d bindPoseInverse = new Quat4d(bindPoseRot.getX(), bindPoseRot.getY(), bindPoseRot.getZ(), bindPoseRot.getW());
+                    bindPoseInverse.inverse();
+
+                    int rotCount = track.getRotationsCount() / 4;
+                    for (int i = 0; i < rotCount; i++) {
+                        assertEquals(bindPoseInverse.getX(), track.getRotations(i*4), EPSILON);
+                        assertEquals(bindPoseInverse.getY(), track.getRotations(i*4+1), EPSILON);
+                        assertEquals(bindPoseInverse.getZ(), track.getRotations(i*4+2), EPSILON);
+                        assertEquals(bindPoseInverse.getW(), track.getRotations(i*4+3), EPSILON);
+                    }
+                } else if (track.getPositionsCount() > 0) {
+
+                    // Position changes only in negative Z
+                    float lastZ = track.getPositions(2);
+                    int posCount = track.getPositionsCount() / 3;
+                    for (int i = 1; i < posCount; i++) {
+                        assertEquals(0.0f, track.getPositions(i*3), EPSILON);
+                        assertEquals(0.0f, track.getPositions(i*3+1), EPSILON);
+                        float currentZ = track.getPositions(i*3+2);
+                        if (lastZ <= currentZ) {
+                            fail("Position not decreasing on Z, last value was " + lastZ + ", current is " + currentZ + ".");
+                        }
+
+                        lastZ = currentZ;
+                    }
+
+                }
+            } else {
+                fail("Invalid bone index!");
+            }
         }
     }
 

@@ -301,7 +301,12 @@ public class RigUtil {
         @Override
         public Point3d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
-            return new Point3d(v[0], v[1], 0.0);
+            if (v.length == 3) {
+                return new Point3d(v[0], v[1], v[2]);
+            } else {
+                return new Point3d(v[0], v[1], 0.0);
+            }
+
         }
     }
 
