@@ -51,7 +51,6 @@ import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.openmali.FastMath;
-import org.openmali.vecmath2.util.MatrixUtils;
 
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
@@ -171,7 +170,7 @@ public class ColladaUtil {
         f[3] = (float)v.getW();
     }
 
-    private static void ExtractMatrixKeys(Bone bone, Matrix4d parentToLocal, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
+    private static void ExtractMatrixKeys(Bone bone, Matrix4d parentToLocal, Matrix4d upAxisMatrix, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
 
         Vector3d bindP = new Vector3d();
         Quat4d bindR = new Quat4d();
@@ -185,6 +184,10 @@ public class ColladaUtil {
         for (int key = 0; key < keyCount; ++key) {
             int index = key * 16;
             Matrix4d m = MathUtil.floatToDouble(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
+            if (upAxisMatrix != null) {
+                m.mul(upAxisMatrix, m);
+            }
+
             Vector3d p = new Vector3d();
             Quat4d r = new Quat4d();
             Vector3d s = new Vector3d();
@@ -208,7 +211,7 @@ public class ColladaUtil {
         }
     }
 
-    private static void ExtractKeys(Bone bone, Matrix4d parentToLocal, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
+    private static void ExtractKeys(Bone bone, Matrix4d parentToLocal, Matrix4d upAxisMatrix, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
         switch (animation.getType()) {
         case TRANSLATE:
         case SCALE:
@@ -216,7 +219,7 @@ public class ColladaUtil {
             throw new LoaderException("Currently only collada files with matrix animations are supported.");
         case TRANSFORM:
         case MATRIX:
-            ExtractMatrixKeys(bone, parentToLocal, animation, posTrack, rotTrack, scaleTrack);
+            ExtractMatrixKeys(bone, parentToLocal, upAxisMatrix, animation, posTrack, rotTrack, scaleTrack);
             break;
         default:
             throw new LoaderException(String.format("Animations of type %s are not supported.", animation.getType().name()));
@@ -282,6 +285,10 @@ public class ColladaUtil {
             if (boneToAnimations.containsKey(boneId) && refIndex != null)
             {
                 Matrix4d parentToLocal = getBoneParentToLocal(bone);
+                Matrix4d upAxisMatrix = null;
+                if (bi == 0) {
+                    upAxisMatrix = MathUtil.floatToDouble(createUpAxisMatrix(collada.asset.upAxis));
+                }
 
                 // search the animations for each bone
                 ArrayList<XMLAnimation> anims = boneToAnimations.get(boneId);
@@ -297,7 +304,7 @@ public class ColladaUtil {
                     RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
                     scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
-                    ExtractKeys(bone, parentToLocal, animation, posTrack, rotTrack, scaleTrack);
+                    ExtractKeys(bone, parentToLocal, upAxisMatrix, animation, posTrack, rotTrack, scaleTrack);
 
                     samplePosTrack(animBuilder, refIndex, posTrack, duration, sampleRate, spf, true, false);
                     sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sampleRate, spf, true, true);
@@ -648,15 +655,21 @@ public class ColladaUtil {
         loadSkeleton(loadDAE(is), skeletonBuilder, boneIds);
     }
 
-    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds) {
-        Bone newBone = new Bone(node, node.sid, node.name, node.matrix.matrix4f, new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
+    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, Matrix4f upAxisMatrix) {
+
+        Matrix4f boneBindMatrix = MathUtil.vecmath2ToVecmath1(node.matrix.matrix4f);
+        if (upAxisMatrix != null) {
+            boneBindMatrix.mul(upAxisMatrix, boneBindMatrix);
+        }
+
+        Bone newBone = new Bone(node, node.sid, node.name, MathUtil.vecmath1ToVecmath2(boneBindMatrix), new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
 
         boneList.add(newBone);
         boneIds.add(newBone.getSourceId());
 
         for(XMLNode childNode : node.childrenList) {
             if(childNode.type == XMLNode.Type.JOINT) {
-                Bone childBone = loadBone(childNode, boneList, boneIds);
+                Bone childBone = loadBone(childNode, boneList, boneIds, null);
                 newBone.addChild(childBone);
             }
         }
@@ -721,7 +734,7 @@ public class ColladaUtil {
          * Create the Bone hierarchy based on depth first recursion of the skeleton tree.
          */
         ArrayList<Bone> boneList = new ArrayList<Bone>();
-        loadBone(rootNode, boneList, boneIds);
+        loadBone(rootNode, boneList, boneIds, createUpAxisMatrix(collada.asset.upAxis));
         return boneList;
     }
 
@@ -764,14 +777,6 @@ public class ColladaUtil {
         b.setId(MurmurHash.hash64(bone.getSourceId()));
 
         Matrix4d matrix = MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
-
-        /*
-         *  If there is an up-axis matrix we apply it on the bone matrix
-         *  before we decompose and serialize to DDF.
-         */
-        if (upAxisMatrix != null) {
-            matrix.mul(new Matrix4d(upAxisMatrix), matrix);
-        }
 
         /*
          * Decompose pos, rot and scale from bone matrix.

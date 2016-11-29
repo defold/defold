@@ -566,8 +566,12 @@ private:
 
             anim_track1.m_Positions.m_Data = new float[samples*3];
             anim_track1.m_Positions.m_Count = samples*3;
-            ((Vector3*)anim_track1.m_Positions.m_Data)[0] = Vector3(10.0f, 0.0f, 0.0f);
-            ((Vector3*)anim_track1.m_Positions.m_Data)[1] = Vector3(10.0f, 0.0f, 0.0f);
+            anim_track1.m_Positions.m_Data[0] = 10.0f;
+            anim_track1.m_Positions.m_Data[1] = 0.0f;
+            anim_track1.m_Positions.m_Data[2] = 0.0f;
+            anim_track1.m_Positions.m_Data[3] = 10.0f;
+            anim_track1.m_Positions.m_Data[4] = 0.0f;
+            anim_track1.m_Positions.m_Data[5] = 0.0f;
         }
 
         // Meshes / skins
