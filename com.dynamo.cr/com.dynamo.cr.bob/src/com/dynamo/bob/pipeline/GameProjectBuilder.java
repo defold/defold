@@ -404,9 +404,9 @@ public class GameProjectBuilder extends Builder<Void> {
             privateKeyFilepath = privateKeyFileHandle.getAbsolutePath();
             publicKeyFilepath = publicKeyFileHandle.getAbsolutePath();
             try {
-            	ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
+                ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
             } catch (NoSuchAlgorithmException exception) {
-            	throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
+                throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
             }
 
         }
@@ -444,11 +444,10 @@ public class GameProjectBuilder extends Builder<Void> {
                 HashSet<String> resources = findResources(project, rootNode);
                 ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode);
 
-                // Make sure we don't try to archive the .darc, .projectc, .dmanifest, .resourcepack.zip
-                resources.remove(task.output(0).getAbsPath());
-                resources.remove(task.output(1).getAbsPath());
-                resources.remove(task.output(2).getAbsPath());
-                resources.remove(task.output(3).getAbsPath());
+                // Make sure we don't try to archive the .darc, .projectc, .dmanifest, .resourcepack.zip, .public.der
+                for (IResource resource : task.getOutputs()) {
+                    resources.remove(resource.getAbsPath());
+                }
 
                 // Create zip archive to store resource pack
                 File resourcePackZip = File.createTempFile("defold.resourcepack_", ".zip");
