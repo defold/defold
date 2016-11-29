@@ -14,13 +14,13 @@ public class ArchiveReader {
     public static final int VERSION = 4;
 
     private ArrayList<ArchiveEntry> entries = null;
-    private ArrayList<ArchiveEntryData> entry_datas = null;
 
     private int stringPoolOffset = 0;
     private int stringPoolSize = 0;
     private int entryCount = 0;
     private int entryOffset = 0;
-    private int resourceDataOffset = 0;
+    private int hashOffset = 0;
+    private int hashLength = 0;
 
     private String darcPath = null;
     private RandomAccessFile inFile = null;
@@ -87,11 +87,10 @@ public class ArchiveReader {
         indexFile.seek(0);
         dataFile.seek(0);
         int indexVersion = indexFile.readInt();
-        int dataVersion = dataFile.readInt();
-        if (indexVersion == VERSION+1 && dataVersion == VERSION+1) { // files written with hash digests are tagged with VERSION+1
+        if (indexVersion == VERSION) { // files written with hash digests are tagged with VERSION+1
         	readDarc2();
         } else {
-        	throw new IOException("Invalid index or data format, index: " + indexVersion + ", data: " + dataVersion);
+        	throw new IOException("Invalid index or data format, version: " + indexVersion);
         }
     }
     
@@ -145,52 +144,27 @@ public class ArchiveReader {
         indexFile.readLong(); // UserData, should be 0
         entryCount = indexFile.readInt();
         entryOffset = indexFile.readInt();
+        hashOffset = indexFile.readInt();
+        hashLength = indexFile.readInt();
         
-        // DATA
-        dataFile.readInt(); // Pad
-        dataFile.readLong(); // UserData
-        resourceDataOffset = dataFile.readInt();
+        entries = new ArrayList<ArchiveEntry>(entryCount);
         
-        entry_datas = new ArrayList<ArchiveEntryData>(entryCount);
-        
-        // Jump to entrydata structs
+        // seek to entries
         indexFile.seek(entryOffset);
         for (int i=0; i<entryCount; ++i) {
-        	ArchiveEntryData e = new ArchiveEntryData();
+        	ArchiveEntry e = new ArchiveEntry("");
         	
-        	e.resource_offset = indexFile.readInt();
-        	e.resource_size = indexFile.readInt();
-        	e.resource_compressed_size = indexFile.readInt();
-        	
+        	e.resourceOffset = indexFile.readInt();
+        	e.size = indexFile.readInt();
+        	e.compressedSize = indexFile.readInt();
         	e.flags = indexFile.readInt();
-        	
-        	e.pathSize = indexFile.readInt();
-        	e.hashSize = indexFile.readInt();
-        	
-        	e.path = new byte[e.pathSize];
-        	indexFile.read(e.path, 0, e.pathSize);
-        	e.hashDigest = new byte[e.hashSize];
-        	indexFile.read(e.hashDigest, 0, e.hashSize);
-        	
-        	entry_datas.add(e);
+
+        	entries.add(e);
         }
-        
-        // Debug
-        /*for (ArchiveEntryData d : entry_datas) {
-        	System.out.println("--------");
-        	System.out.println("pathSize = " + d.pathSize);
-        	System.out.println("path: " + new String(d.path));
-        	System.out.println("hashSize = " + d.hashSize);
-        	System.out.println("hash as str: " + new String(d.hashDigest));
-        }*/
     }
 
-    public List<ArchiveEntry> getEntries() {
+	public List<ArchiveEntry> getEntries() {
         return entries;
-    }
-    
-    public List<ArchiveEntryData> getEntryDatas() {
-    	return entry_datas;
     }
 
     public byte[] getEntryContent(ArchiveEntry entry) throws IOException {

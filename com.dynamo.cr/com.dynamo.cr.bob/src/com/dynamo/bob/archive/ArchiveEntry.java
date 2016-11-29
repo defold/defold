@@ -10,13 +10,13 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public static final int FLAG_UNCOMPRESSED = 0xFFFFFFFF;
 
     // Member vars, TODO make these private and add getters/setters
-    public int size;
+    public int size; 
     public int compressedSize;
     public int resourceOffset;
     public int flags;
     public String relName;
     public String fileName;
-    public byte[] hashDigest;
+    public byte[] hash = null;
 
     public ArchiveEntry(String fileName) throws IOException {
         this.fileName = fileName;
@@ -50,7 +50,18 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
 
     @Override
     public int compareTo(ArchiveEntry other) {
-        return relName.compareTo(other.relName);
+    	if(this.hash == null)
+    		return relName.compareTo(other.relName);
+    	else
+    	{
+    		// compare using hash
+    		for (int i = 0; i < this.hash.length; i++) {
+				if(this.hash[i] > other.hash[i])
+					return 1;
+				else if(this.hash[i] < other.hash[i])
+					return -1;
+			}
+    		return 0;
+    	}
     }
-
 }

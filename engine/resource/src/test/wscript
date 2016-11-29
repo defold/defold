@@ -32,6 +32,19 @@ def build(bld):
                                use_compression=True,
                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
+# --- START darc2
+    archive2 = bld.new_task_gen(features = 'archive2',
+                               archive_target_index='test.arci',
+                               archive_target_data='test.arcd',
+                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+    
+    compressed_archive2 = bld.new_task_gen(features = 'archive2',
+                               archive_target_index='test_compressed.arci',
+                               archive_target_data='test_compressed.arcd',
+                               use_compression=True,
+                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+# --- END darc2
+
     # Same as above but created with the java-based archive builder
     jarchive = bld.new_task_gen(features = 'jarchive',
                                 archive_target='test.jarc',
@@ -61,6 +74,17 @@ def build(bld):
 
     test_resource_arc.install_path = None
 
+# --- START darc2
+    test_resource_arc2 = bld.new_task_gen(featers='archive2',
+                                          source = bld.path.ant_glob('*.*_pb'),
+                                          archive_target_index='test.arci',
+                                          archive_target_data='test.arcd',
+                                          #embed_source = 'test.arci test.arcd test_compressed.arci test_compressed.arcd'
+                                          )
+
+    test_resource_arc2.install_path = None
+# --- END darc2
+
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src',
                                              uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
@@ -68,9 +92,7 @@ def build(bld):
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',
                                              source = 'test_resource_archive.cpp',
-                                             embed_source = 'test.arc test_compressed.arc')
+                                             #embed_source = 'test.arc test_compressed.arc')
+                                             embed_source = 'test.arc test_compressed.arc test.arci test.arcd test_compressed.arci test_compressed.arcd')
 
     test_resource_archive.install_path = None
-
-
-

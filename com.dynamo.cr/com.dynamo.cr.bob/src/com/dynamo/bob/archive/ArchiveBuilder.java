@@ -1,6 +1,7 @@
 package com.dynamo.bob.archive;
 
 import java.io.File;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -22,6 +23,8 @@ import net.jpountz.lz4.LZ4Factory;
 public class ArchiveBuilder {
 
     public static final int VERSION = 4;
+    public static final int HASH_MAX_LENGTH = 64;
+    public static final int HASH_LENGTH = 18;
 
     private static final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
 
@@ -185,22 +188,17 @@ public class ArchiveBuilder {
     
     public void write2(RandomAccessFile outFileIndex, RandomAccessFile outFileData) throws IOException {
     	// INDEX
-        outFileIndex.writeInt(VERSION+1); // Version
+        outFileIndex.writeInt(VERSION); // Version
         outFileIndex.writeInt(0); // Pad
         outFileIndex.writeLong(0); // UserData
         outFileIndex.writeInt(0); // EntryCount
-        outFileIndex.writeInt(0); // ArchiveEntryDataOffset
-        
-        // -- DATA
-        outFileData.writeInt(VERSION+1); // Version
-        outFileData.writeInt(0); // Pad
-        outFileData.writeLong(0); // UserData
-        outFileData.writeInt(0); // ResourceDataOffset
+        outFileIndex.writeInt(0); // EntryOffset
+        outFileIndex.writeInt(0); // HashOffset
+        outFileIndex.writeInt(HASH_LENGTH); // HashLength
 
-        Collections.sort(entries);
+        int entryCount = entries.size();
         
         // Write to data file
-        int resourceDataOffset = (int) outFileData.getFilePointer();
         for (ArchiveEntry e : entries) {
         	// copy resource data to file (compress if flag set)
         	alignBuffer(outFileData, 4);
@@ -210,50 +208,46 @@ public class ArchiveBuilder {
             } else {
                 copy(e.fileName, outFileData);
             }
-            
         }
         
-        // Write to index file
-        int archiveEntryDataOffset = (int) outFileIndex.getFilePointer();
-        int debug_count = 0;
+        // TODO after merge, we should use manifestBuilder to create proper hash.
+        // Write hashes to index file
+        int debug_count = entryCount;
+        int hashOffset = (int) outFileIndex.getFilePointer();
+        for (int i = 0; i < entryCount; i++) {
+        	byte[] full_hash = new byte[HASH_MAX_LENGTH];
+        	byte[] debug_hash = ("wicked hash " + debug_count).getBytes();
+        	for (int j = 0; j < debug_hash.length; j++) {
+				full_hash[j] = debug_hash[j];
+			}
+        	
+        	ArchiveEntry e = entries.get(i);
+        	e.hash = full_hash;
+        	debug_count -= 1;
+		}
+
+        // sort on hash here
+        Collections.sort(entries);
+
+        // Write entries to index file
+        int entryOffset = (int) outFileIndex.getFilePointer();
+        debug_count = 0;
         for (ArchiveEntry e : entries) {
         	outFileIndex.writeInt(e.resourceOffset);
         	outFileIndex.writeInt(e.size);
         	outFileIndex.writeInt(e.compressedSize);
-        	
         	outFileIndex.writeInt(e.flags);
-        	
-        	String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
-        	byte[] normalizedPathBytes = normalisedPath.getBytes();
-        	
-        	// TODO in real impl. we will calc. hash on-the-fly
-        	// based on the resource already copied to the data-file
-        	// at e.resourceOffset in outFileData
-        	byte[] debug_hash = ("wicked hash " + debug_count).getBytes();
-        	
-        	outFileIndex.writeInt(normalizedPathBytes.length);
-        	outFileIndex.writeInt(debug_hash.length);
-        	
-        	outFileIndex.write(normalizedPathBytes);
-        	outFileIndex.write(debug_hash);
-        	
-        	++debug_count;
         }
 
         // INDEX
         outFileIndex.seek(0); // Reset file and write actual offsets
-        outFileIndex.writeInt(VERSION+1); // Version
+        outFileIndex.writeInt(VERSION);
         outFileIndex.writeInt(0); // Pad
         outFileIndex.writeLong(0); // UserData
-        outFileIndex.writeInt(entries.size()); // EntryCount
-        outFileIndex.writeInt(archiveEntryDataOffset); // ArchiveEntryDataOffset
-        
-        // DATA
-        outFileData.seek(0); // Reset file and write actual offsets
-        outFileData.writeInt(VERSION+1); // Version        
-        outFileData.writeInt(0); // Pad
-        outFileData.writeLong(0); // UserData
-        outFileData.writeInt(resourceDataOffset); // ResourceDataOffset
+        outFileIndex.writeInt(entryCount);
+        outFileIndex.writeInt(entryOffset);
+        outFileIndex.writeInt(hashOffset);
+        outFileIndex.writeInt(HASH_LENGTH); 
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
