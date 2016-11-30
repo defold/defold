@@ -363,7 +363,7 @@ namespace dmGameSystem
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
             Matrix4 normal_matrix = inverse(c->m_World);
             normal_matrix = transpose(normal_matrix);
-            vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, normal_matrix, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
+            vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, normal_matrix, Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
