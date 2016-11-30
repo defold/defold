@@ -390,11 +390,6 @@ namespace dmGameSystem
             dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
         }
 
-
-        ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-        ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        ro.m_SetBlendFactors = 1;
-
         dmRender::AddToRender(render_context, &ro);
     }
 
