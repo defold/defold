@@ -9,13 +9,14 @@
             [integration.test-util :as test-util]))
 
 (deftest open-editor
-  (testing "Opening editor does not alter undo history"
+  (testing "Opening editor only alters undo history by selection"
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
                    proj-graph (g/node-id->graph-id project)
                    _          (is (not (g/has-undo? proj-graph)))
-                   atlas-node (test-util/resource-node project "/switcher/fish.atlas")
-                   view       (test-util/open-scene-view! project app-view atlas-node 128 128)]
+                   [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
+               (is (g/has-undo? proj-graph))
+               (g/undo! proj-graph)
                (is (not (g/has-undo? proj-graph)))))))
 
 (deftest undo-node-deletion-reconnects-editor
@@ -23,8 +24,7 @@
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
                    project-graph        (g/node-id->graph-id project)
-                   atlas-node           (test-util/resource-node project "/switcher/fish.atlas")
-                   view                 (test-util/open-scene-view! project app-view atlas-node 128 128)
+                   [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)
                    check-conn           #(not (empty? (g/node-value view :scene)))
                    connected-after-open (check-conn)]
                (g/transact (g/delete-node atlas-node))

@@ -106,8 +106,8 @@
 
 ;; Commands
 
-(defn delete! [project]
-  (let [s (selection project)]
+(defn delete! [app-view]
+  (let [s (selection app-view)]
     (g/transact (reduce (fn [tx-data v]
                           (if (sequential? v)
                             (let [[nid props] v]
@@ -154,7 +154,7 @@
 (deftest delete-mixed
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
-          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+          pfx-id   (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
@@ -166,7 +166,7 @@
           box [[0.5 0.5] [0.9 0.9]]]
       (box-select! view box)
       (is (not (empty? (selection app-view))))
-      (delete! project)
+      (delete! app-view)
       (let [view (-> view
                    render-clear
                    (render-all [model emitter]))]
@@ -176,16 +176,18 @@
 (deftest move-mixed
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
-          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+          pfx-id   (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
                                                                               [1.0 1.0 1.0 0.0]])))
-          proj-graph (g/node-id->graph-id project)
-          [model
-           manip] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]
-                                                      manip MoveManip]
-                              (g/connect project :sub-selection manip :selection)))
+          model (-> (g/make-nodes (g/node-id->graph-id project) [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]])
+                  tx-nodes
+                  first)
+          manip (-> (g/make-nodes (g/node-id->graph-id app-view) [manip MoveManip]
+                      (g/connect app-view :sub-selection manip :selection))
+                  tx-nodes
+                  first)
           view (-> (->view (fn [s] (select! app-view s)))
                  (render-all [model emitter]))
           box [[0.5 0.5] [0.9 0.9]]]

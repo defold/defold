@@ -43,7 +43,7 @@
 (deftest collision-group-validation
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/tilesource/valid.tilesource")]
+          node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
       (app-view/select! app-view [node-id])
       (testing "collision-group-id"
                (let [group (add-collision-group! app-view node-id)]
@@ -59,8 +59,7 @@
 (deftest animation-validation
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/tilesource/valid.tilesource")]
+          node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
       (app-view/select! app-view [node-id])
       (testing "animation-id"
                (let [anim (add-animation! app-view node-id)]
