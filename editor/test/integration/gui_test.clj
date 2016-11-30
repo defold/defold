@@ -222,8 +222,7 @@
 (deftest gui-layers
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/layers.gui")
-          view (test-util/open-scene-view! project app-view node-id 16 16)]
+          [node-id view] (test-util/open-scene-view! project app-view "/gui/layers.gui" 16 16)]
       (is (= ["box" "pie" "box1" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "layer1")
       (is (= ["box1" "box" "pie" "text"] (render-order view)))
@@ -335,7 +334,7 @@
 (deftest gui-template-selection
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/super_scene.gui")
+          node-id (test-util/open-tab! project app-view "/gui/super_scene.gui")
           tmpl-node (gui-node node-id "scene/sub_scene")]
       (app-view/select! app-view [tmpl-node])
       (let [props (g/node-value project :selected-node-properties)]

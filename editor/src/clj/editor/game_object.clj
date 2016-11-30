@@ -142,7 +142,9 @@
                                                                                 :transform transform})])
                                                [])))
   (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
-                                                  (merge-with into _declared-properties source-properties))))
+                                                  (-> _declared-properties
+                                                    (update :properties into (:properties source-properties))
+                                                    (update :display-order into (:display-order source-properties))))))
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)

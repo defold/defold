@@ -510,6 +510,7 @@
 
   (property build-cache g/Any)
   (property fs-build-cache g/Any)
+  (property all-selections g/Any)
   (property sub-selection g/Any)
 
   (input selected-node-ids g/Any :array)
@@ -523,11 +524,23 @@
   (input display-profiles g/Any)
   (input collision-group-nodes g/Any :array)
 
-  (output selected-node-ids g/Any :cached (gu/passthrough selected-node-ids))
-  (output selected-node-properties g/Any :cached (gu/passthrough selected-node-properties))
-  (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
-                                             (let [nids (set selected-node-ids)]
-                                               (filterv (comp nids first) sub-selection))))
+  (output all-selected-node-ids g/Any :cached (g/fnk [selected-node-ids all-selections]
+                                                (let [selected-node-ids (set selected-node-ids)]
+                                                  (->> all-selections
+                                                    (map (fn [[key vals]] [key (filterv selected-node-ids vals)]))
+                                                    (into {})))))
+  (output all-selected-node-properties g/Any :cached (g/fnk [selected-node-properties all-selections]
+                                                       (let [props (->> selected-node-properties
+                                                                     (map (fn [p] [(:node-id p) p]))
+                                                                     (into {}))]
+                                                         (->> all-selections
+                                                           (map (fn [[key vals]] [key (vec (keep props vals))]))
+                                                           (into {})))))
+  (output all-sub-selections g/Any :cached (g/fnk [selected-node-ids sub-selection]
+                                                  (let [nids (set selected-node-ids)]
+                                                    (->> sub-selection
+                                                      (map (fn [[key vals]] [key (filterv (comp nids first) vals)]))
+                                                      (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))

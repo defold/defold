@@ -47,8 +47,7 @@
              (with-clean-system
                (let [[workspace project app-view] (test-util/setup! world)]
                  (doseq [[path test-fn] cases]
-                   (let [node (test-util/resource-node project path)
-                         view (test-util/open-scene-view! project app-view node 128 128)]
+                   (let [[node view] (test-util/open-scene-view! project app-view path 128 128)]
                      (is (not (nil? node)) (format "Could not find '%s'" path))
                      (test-fn node))))))))
 
@@ -57,8 +56,7 @@
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
                    path          "/sprite/small_atlas.sprite"
-                   resource-node (test-util/resource-node project path)
-                   view          (test-util/open-scene-view! project app-view resource-node 128 128)
+                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    renderables   (g/node-value view :renderables)]
                (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
@@ -67,10 +65,9 @@
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
                    path          "/logic/atlas_sprite.collection"
-                   resource-node (test-util/resource-node project path)
-                   view          (test-util/open-scene-view! project app-view resource-node 128 128)
+                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-node       (ffirst (g/sources-of resource-node :child-scenes))]
-               (is (test-util/empty-selection? project))
+               (is (test-util/selected? app-view resource-node))
                ; Press
                (test-util/mouse-press! view 32 32)
                (is (test-util/selected? app-view go-node))
@@ -95,10 +92,9 @@
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
                    path          "/logic/two_atlas_sprites.collection"
-                   resource-node (test-util/resource-node project path)
-                   view          (test-util/open-scene-view! project app-view resource-node 128 128)
+                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-nodes      (map first (g/sources-of resource-node :child-scenes))]
-               (is (test-util/empty-selection? project))
+               (is (test-util/selected? app-view resource-node))
                ; Drag entire screen
                (test-util/mouse-drag! view 0 0 128 128)
                (is (every? #(test-util/selected? app-view %) go-nodes))))))
@@ -116,10 +112,9 @@
              (let [[workspace project app-view] (test-util/setup! world)
                    project-graph (g/node-id->graph-id project)
                    path          "/logic/atlas_sprite.collection"
-                   resource-node (test-util/resource-node project path)
-                   view          (test-util/open-scene-view! project app-view resource-node 128 128)
+                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-node       (ffirst (g/sources-of resource-node :child-scenes))]
-               (is (test-util/empty-selection? project))
+               (is (test-util/selected? app-view resource-node))
                ; Initial selection
                (test-util/mouse-click! view 64 64)
                (is (test-util/selected? app-view go-node))
@@ -148,10 +143,9 @@
              (let [[workspace project app-view] (test-util/setup! world)
                    project-graph (g/node-id->graph-id project)
                    path          "/logic/atlas_sprite.collection"
-                   resource-node (test-util/resource-node project path)
-                   view          (test-util/open-scene-view! project app-view resource-node 128 128)
+                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-node       (ffirst (g/sources-of resource-node :child-scenes))]
-               (is (test-util/empty-selection? project))
+               (is (test-util/selected? app-view resource-node))
                ; Click
                (test-util/mouse-click! view 32 32)
                (is (test-util/selected? app-view go-node))
@@ -176,10 +170,9 @@
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
                    path          "/collection/empty_go.collection"
-                   resource-node (test-util/resource-node project path)
-                   view          (test-util/open-scene-view! project app-view resource-node 128 128)
+                   [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-node       (ffirst (g/sources-of resource-node :child-scenes))]
-               (is (test-util/empty-selection? project))
+               (is (test-util/selected? app-view resource-node))
                ; Initial selection (empty go's are not selectable in the view)
                (app-view/select! app-view [go-node])
                (is (test-util/selected? app-view go-node))
