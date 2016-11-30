@@ -71,6 +71,7 @@ public class ParticleFXNode extends ComponentTypeNode {
             if (animation != null) {
                 data.texture = new Pointer(emitterIndex + 1);
                 data.texCoords = textureSetNode.getRuntimeTextureSet().getTexCoords().asFloatBuffer();
+                data.texDims = textureSetNode.getRuntimeTextureSet().getTexDims().asFloatBuffer();
                 switch (animation.getPlayback()) {
                 case PLAYBACK_NONE:
                     data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_NONE;
