@@ -68,6 +68,7 @@ namespace dmGameSystem
     , m_RenderContext(0)
     , m_GuiContext(0)
     , m_ScriptContext(0)
+    , m_MaxGuiComponents(0)
     {
         m_Worlds.SetCapacity(128);
     }
