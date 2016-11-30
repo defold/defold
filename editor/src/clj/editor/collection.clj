@@ -76,7 +76,7 @@
   (let [prev-node-id (:node-id scene)
         new-scene (-> scene
                     (assoc :node-id node-id)
-                    (update :node-path (fn [p] (cons prev-node-id (or p [])))))]
+                    (update :node-path (fn [p] (into [prev-node-id] p))))]
     (if (:children scene)
       (assoc new-scene :children (mapv #(claim-scene % node-id) (:children scene)))
       new-scene)))
