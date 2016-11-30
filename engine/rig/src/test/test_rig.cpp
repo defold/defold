@@ -3,7 +3,8 @@
 
 #include <../rig.h>
 
-#define RIG_EPSILON 0.0001f
+#define RIG_EPSILON_FLOAT 0.0001f
+#define RIG_EPSILON_BYTE (1.0f / 255.0f)
 
 class RigContextTest : public ::testing::Test
 {
@@ -330,7 +331,7 @@ private:
         dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
 
         // Bone animations
-        uint32_t animation_count = 7;
+        uint32_t animation_count = 8;
         m_AnimationSet->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         m_AnimationSet->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
@@ -340,6 +341,7 @@ private:
         dmRigDDF::RigAnimation& anim4 = m_AnimationSet->m_Animations.m_Data[4];
         dmRigDDF::RigAnimation& anim5 = m_AnimationSet->m_Animations.m_Data[5];
         dmRigDDF::RigAnimation& anim6 = m_AnimationSet->m_Animations.m_Data[6];
+        dmRigDDF::RigAnimation& anim7 = m_AnimationSet->m_Animations.m_Data[7];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
@@ -382,6 +384,12 @@ private:
         anim6.m_EventTracks.m_Count = 0;
         anim6.m_MeshTracks.m_Count  = 0;
         anim6.m_IkTracks.m_Count    = 0;
+        anim7.m_Id = dmHashString64("mesh_colors");
+        anim7.m_Duration            = 3.0f;
+        anim7.m_SampleRate          = 1.0f;
+        anim7.m_EventTracks.m_Count = 0;
+        anim7.m_Tracks.m_Count      = 0;
+        anim7.m_IkTracks.m_Count    = 0;
 
         // Animation 0: "valid"
         {
@@ -574,6 +582,39 @@ private:
             anim_track1.m_Positions.m_Data[5] = 0.0f;
         }
 
+        // Animation 7: "mesh_colors"
+        {
+            uint32_t track_count = 1;
+            anim7.m_MeshTracks.m_Data = new dmRigDDF::MeshAnimationTrack[track_count];
+            anim7.m_MeshTracks.m_Count = track_count;
+            dmRigDDF::MeshAnimationTrack& anim_track0 = anim7.m_MeshTracks.m_Data[0];
+
+            anim_track0.m_MeshIndex           = 0;
+            anim_track0.m_MeshId              = dmHashString64("secondary_skin");
+            anim_track0.m_OrderOffset.m_Count = 0;
+            anim_track0.m_Visible.m_Count     = 0;
+
+            uint32_t samples = 4;
+            anim_track0.m_Colors.m_Data = new float[samples*4];
+            anim_track0.m_Colors.m_Count = samples*4;
+            anim_track0.m_Colors.m_Data[0] = 1.0f;
+            anim_track0.m_Colors.m_Data[1] = 0.5f;
+            anim_track0.m_Colors.m_Data[2] = 0.0f;
+            anim_track0.m_Colors.m_Data[3] = 1.0f;
+            anim_track0.m_Colors.m_Data[4] = 0.0f;
+            anim_track0.m_Colors.m_Data[5] = 0.5f;
+            anim_track0.m_Colors.m_Data[6] = 1.0f;
+            anim_track0.m_Colors.m_Data[7] = 0.5f;
+            anim_track0.m_Colors.m_Data[8] = 0.0f;
+            anim_track0.m_Colors.m_Data[9] = 0.5f;
+            anim_track0.m_Colors.m_Data[10] = 1.0f;
+            anim_track0.m_Colors.m_Data[11] = 0.5f;
+            anim_track0.m_Colors.m_Data[12] = 0.0f;
+            anim_track0.m_Colors.m_Data[13] = 0.5f;
+            anim_track0.m_Colors.m_Data[14] = 1.0f;
+            anim_track0.m_Colors.m_Data[15] = 0.5f;
+        }
+
         // Meshes / skins
         m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
         m_MeshSet->m_MeshEntries.m_Count = 2;
@@ -605,11 +646,9 @@ private:
             if (anim_track.m_Positions.m_Count) {
                 delete [] anim_track.m_Positions.m_Data;
             }
-
             if (anim_track.m_Rotations.m_Count) {
                 delete [] anim_track.m_Rotations.m_Data;
             }
-
             if (anim_track.m_Scale.m_Count) {
                 delete [] anim_track.m_Scale.m_Data;
             }
@@ -621,9 +660,21 @@ private:
             if (anim_iktrack.m_Mix.m_Count) {
                 delete [] anim_iktrack.m_Mix.m_Data;
             }
-
             if (anim_iktrack.m_Positive.m_Count) {
                 delete [] anim_iktrack.m_Positive.m_Data;
+            }
+        }
+
+        for (uint32_t t = 0; t < anim.m_MeshTracks.m_Count; ++t) {
+            dmRigDDF::MeshAnimationTrack& anim_meshtrack = anim.m_MeshTracks.m_Data[t];
+            if (anim_meshtrack.m_OrderOffset.m_Count) {
+                delete [] anim_meshtrack.m_OrderOffset.m_Data;
+            }
+            if (anim_meshtrack.m_Visible.m_Count) {
+                delete [] anim_meshtrack.m_Visible.m_Data;
+            }
+            if (anim_meshtrack.m_Colors.m_Count) {
+                delete [] anim_meshtrack.m_Colors.m_Data;
             }
         }
 
@@ -632,6 +683,9 @@ private:
         }
         if (anim.m_IkTracks.m_Count) {
             delete [] anim.m_IkTracks.m_Data;
+        }
+        if (anim.m_MeshTracks.m_Count) {
+            delete [] anim.m_MeshTracks.m_Data;
         }
     }
 
@@ -818,7 +872,7 @@ TEST_F(RigInstanceTest, MaxBoneCount)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
     dmRig::RigModelVertex data[3];
     dmRig::RigModelVertex* data_end = data + 3;
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
 
     // m_ScratchInfluenceMatrixBuffer should be able to contain the instance max bone count, which is the max of the used skeleton and meshset
     // MaxBoneCount is set to BoneCount + 1 for testing.
@@ -833,15 +887,21 @@ TEST_F(RigInstanceTest, MaxBoneCount)
 
 
 #define ASSERT_VEC3(exp, act)\
-    ASSERT_NEAR(exp.getX(), act.getX(), RIG_EPSILON);\
-    ASSERT_NEAR(exp.getY(), act.getY(), RIG_EPSILON);\
-    ASSERT_NEAR(exp.getZ(), act.getZ(), RIG_EPSILON);\
+    ASSERT_NEAR(exp.getX(), act.getX(), RIG_EPSILON_FLOAT);\
+    ASSERT_NEAR(exp.getY(), act.getY(), RIG_EPSILON_FLOAT);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), RIG_EPSILON_FLOAT);\
 
 #define ASSERT_VEC4(exp, act)\
-    ASSERT_NEAR(exp.getX(), act.getX(), RIG_EPSILON);\
-    ASSERT_NEAR(exp.getY(), act.getY(), RIG_EPSILON);\
-    ASSERT_NEAR(exp.getZ(), act.getZ(), RIG_EPSILON);\
-    ASSERT_NEAR(exp.getW(), act.getW(), RIG_EPSILON);\
+    ASSERT_NEAR(exp.getX(), act.getX(), RIG_EPSILON_FLOAT);\
+    ASSERT_NEAR(exp.getY(), act.getY(), RIG_EPSILON_FLOAT);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), RIG_EPSILON_FLOAT);\
+    ASSERT_NEAR(exp.getW(), act.getW(), RIG_EPSILON_FLOAT);\
+
+#define ASSERT_VEC4_NEAR(exp, act, eps)\
+    ASSERT_NEAR(exp.getX(), act.getX(), eps);\
+    ASSERT_NEAR(exp.getY(), act.getY(), eps);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), eps);\
+    ASSERT_NEAR(exp.getW(), act.getW(), eps);\
 
 TEST_F(RigInstanceTest, PoseNoAnim)
 {
@@ -970,6 +1030,19 @@ TEST_F(RigInstanceTest, GetVertexCount)
 #define ASSERT_VERT_NORM(exp, act)\
     ASSERT_VEC3(exp, Vector3(act.nx, act.ny, act.nz));
 
+#define ASSERT_VERT_COLOR(exp, act)\
+    {\
+        uint32_t r = (act & 255);\
+        uint32_t g = ((act >> 8) & 255);\
+        uint32_t b = ((act >> 16) & 255);\
+        uint32_t a = ((act >> 24) & 255);\
+        float rf = r/255.0f;\
+        float gf = g/255.0f;\
+        float bf = b/255.0f;\
+        float af = a/255.0f;\
+        ASSERT_VEC4_NEAR(exp, Vector4(rf, gf, bf, af), RIG_EPSILON_BYTE);\
+    }
+
 TEST_F(RigInstanceTest, GenerateVertexData)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
@@ -978,21 +1051,21 @@ TEST_F(RigInstanceTest, GenerateVertexData)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
-    // // sample 1
+    // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
 
-    // // sample 2
+    // sample 2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(0.0f, 1.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[2]); // v2
@@ -1009,24 +1082,74 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
     ASSERT_VERT_NORM(n_up, data[0]); // v0
     ASSERT_VERT_NORM(n_up, data[1]); // v1
     ASSERT_VERT_NORM(n_up, data[2]); // v2
 
-    // // sample 1
+    // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
     ASSERT_VERT_NORM(n_up,        data[0]); // v0
     ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
 
-    // // sample 2
+    // sample 2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
     ASSERT_VERT_NORM(n_neg_right, data[0]); // v0
     ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
+}
+
+TEST_F(RigInstanceTest, GenerateColorData)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("secondary_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("mesh_colors"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    dmRig::RigSpineModelVertex data[3];
+    dmRig::RigSpineModelVertex* data_end = data + 3;
+
+    // Trigger update which will recalculate mesh properties
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_COLOR(Vector4(1.0f, 0.5f, 0.0f, 1.0f), data[0].rgba);
+
+    // sample 1
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_COLOR(Vector4(0.0f, 0.5f, 1.0f, 0.5f), data[0].rgba);
+
+    // sample 2, color has been changed for the model
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(0.5), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_COLOR(Vector4(0.0f, 0.25f, 0.5f, 0.25f), data[0].rgba);
+}
+
+TEST_F(RigInstanceTest, GenerateColorDataPremultiply)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("secondary_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("mesh_colors"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    dmRig::RigSpineModelVertex data[3];
+    dmRig::RigSpineModelVertex* data_end = data + 3;
+
+    // Trigger update which will recalculate mesh properties
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_COLOR(Vector4(1.0f, 0.5f, 0.0f, 1.0f), data[0].rgba);
+
+    // sample 1
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_COLOR(Vector4(0.0f, 0.25f, 0.5f, 0.5f), data[0].rgba);
+
+    // sample 2, color has been changed for the model
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(0.5), true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_COLOR(Vector4(0.0f, 0.125f, 0.25f, 0.25f), data[0].rgba);
 }
 
 // Test Spine 2.x skeleton that has scaling relative to the bone local space.
@@ -1040,14 +1163,14 @@ TEST_F(RigInstanceTest, LocalBoneScaling)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 2.0f, 0.0), data[2]); // v2
@@ -1063,14 +1186,14 @@ TEST_F(RigInstanceTest, BoneScaling)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[1]); // v1
 
@@ -1087,7 +1210,7 @@ TEST_F(RigInstanceTest, SetMeshInvalid)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     dmhash_t new_mesh = dmHashString64("not_a_valid_skin");
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(dmHashString64("test"), dmRig::GetMesh(m_Instance));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
@@ -1095,7 +1218,7 @@ TEST_F(RigInstanceTest, SetMeshInvalid)
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
@@ -1110,7 +1233,7 @@ TEST_F(RigInstanceTest, SetMeshValid)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     dmhash_t new_mesh = dmHashString64("secondary_skin");
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(new_mesh, dmRig::GetMesh(m_Instance));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
@@ -1118,7 +1241,7 @@ TEST_F(RigInstanceTest, SetMeshValid)
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
@@ -1128,15 +1251,15 @@ TEST_F(RigInstanceTest, CursorNoAnim)
 {
 
     // no anim
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
 
     // no anim + set cursor
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 100.0f, false));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
 
 }
 
@@ -1145,25 +1268,25 @@ TEST_F(RigInstanceTest, CursorGet)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(1.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(1.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(2.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(2.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
     // "half a sample"
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.5f));
-    ASSERT_NEAR(2.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(2.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(2.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(2.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
     // animation restarted/looped
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.5f));
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
 }
 
@@ -1172,31 +1295,31 @@ TEST_F(RigInstanceTest, CursorSet)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(1.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(1.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
-    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.0f, false), RIG_EPSILON);
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.0f, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
-    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.5f, false), RIG_EPSILON);
-    ASSERT_NEAR(0.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(0.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.5f, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
-    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.0f, true), RIG_EPSILON);
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.0f, true), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
-    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.5f, true), RIG_EPSILON);
-    ASSERT_NEAR(3.0f * 0.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(0.5f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.5f, true), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(3.0f * 0.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.5f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_NEAR(2.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
-    ASSERT_NEAR(2.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(2.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(2.5f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 }
 
 TEST_F(RigInstanceTest, CursorSetOutside)
@@ -1204,17 +1327,17 @@ TEST_F(RigInstanceTest, CursorSetOutside)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
-    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 4.0f, false), RIG_EPSILON);
-    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 4.0f, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
 
-    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, -4.0f, false), RIG_EPSILON);
-    ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, -4.0f, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
 
-    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 4.0f / 3.0f, true), RIG_EPSILON);
-    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 4.0f / 3.0f, true), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
 
-    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, -4.0f / 3.0f, true), RIG_EPSILON);
-    ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, -4.0f / 3.0f, true), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
 }
 
 static Vector3 IKTargetPositionCallback(void* user_data, void*)
@@ -1228,7 +1351,7 @@ TEST_F(RigInstanceTest, CursorOffset)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
 
-    ASSERT_NEAR(offset, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(offset, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 }
 
 TEST_F(RigInstanceTest, CursorOffsetOutside)
@@ -1239,7 +1362,7 @@ TEST_F(RigInstanceTest, CursorOffsetOutside)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
 
-    ASSERT_NEAR(offset_normalized, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(offset_normalized, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
     offset = -0.3;
     offset_normalized = 0.7f;
@@ -1247,23 +1370,23 @@ TEST_F(RigInstanceTest, CursorOffsetOutside)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, offset, 1.0f));
 
-    ASSERT_NEAR(offset_normalized, dmRig::GetCursor(m_Instance, true), RIG_EPSILON);
+    ASSERT_NEAR(offset_normalized, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 }
 
 TEST_F(RigInstanceTest, PlaybackRateNoAnim)
 {
     float default_playback_rate = 1.0f;
     // no anim
-    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
 
     // no anim + set playback rate
     float playback_rate = 2.0f;
-    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, playback_rate));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
 }
 
 TEST_F(RigInstanceTest, PlaybackRateGet)
@@ -1274,15 +1397,15 @@ TEST_F(RigInstanceTest, PlaybackRateGet)
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, default_playback_rate));
-    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(default_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, double_playback_rate));
-    ASSERT_NEAR(double_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(double_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, negative_playback_rate));
-    ASSERT_NEAR(0.0f, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
 }
 
 TEST_F(RigInstanceTest, PlaybackRateSet)
@@ -1296,13 +1419,13 @@ TEST_F(RigInstanceTest, PlaybackRateSet)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, default_playback_rate));
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, zero_playback_rate));
-    ASSERT_NEAR(zero_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(zero_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, double_playback_rate));
-    ASSERT_NEAR(double_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(double_playback_rate, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, negative_playback_rate));
-    ASSERT_NEAR(0.0f, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON);
+    ASSERT_NEAR(0.0f, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
 }
 
 TEST_F(RigInstanceTest, InvalidIKTarget)
@@ -1372,7 +1495,7 @@ TEST_F(RigInstanceTest, InvalidTrackBone)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
@@ -1381,7 +1504,7 @@ TEST_F(RigInstanceTest, InvalidTrackBone)
     // There should be no changes to the pose/vertices since
     // the animation includes a track for a bone that does not exist.
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
@@ -1400,6 +1523,10 @@ TEST_F(RigInstanceTest, BoneTranslationRotation)
 
 #undef ASSERT_VEC3
 #undef ASSERT_VEC4
+#undef ASSERT_VEC4_NEAR
+#undef ASSERT_VERT_POS
+#undef ASSERT_VERT_NORM
+#undef ASSERT_VERT_COLOR
 
 int main(int argc, char **argv)
 {
