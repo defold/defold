@@ -56,7 +56,7 @@ namespace dmGameSystem
             dmLogWarning("The gui world could not be stored since the buffer is full (%d). Reload will not work for the scenes in this world.", gui_context->m_Worlds.Size());
         }
 
-        gui_world->m_Components.SetCapacity(64);
+        gui_world->m_Components.SetCapacity(gui_context->m_MaxGuiComponents);
 
         dmGraphics::VertexElement ve[] =
         {
