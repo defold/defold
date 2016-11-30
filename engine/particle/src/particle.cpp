@@ -980,7 +980,7 @@ namespace dmParticle
 
             // Evaluate anim frame
             uint32_t tile = 0;
-            float size = particle->GetSize();
+            float size;
             if (anim_playing)
             {
                 float anim_cursor = particle->GetMaxLifeTime() - particle->GetTimeLeft() - half_dt;
@@ -1001,24 +1001,21 @@ namespace dmParticle
                 if (anim_bwd)
                     tile = tile_count - tile - 1;
 
+                size = particle->GetScale();
                 if(anim_auto_size)
                 {
                     const float* td = &tex_dims[(start_tile + tile) << 1];
-                    float s = size/particle->GetSourceSize();
-                    if (td[0] > td[1])
-                    {
-                        size = td[0];
-                        width_factor = 0.5f;
-                        height_factor = (td[1] / td[0])*0.5f;
-                    }
-                    else
-                    {
-                        size = td[1];
-                        width_factor =  (td[0] / td[1])*0.5f;
-                        height_factor = 0.5f;
-                    }
-                    size *= s;
+                    width_factor = td[0] * 0.5;
+                    height_factor = td[1] * 0.5;
                 }
+                else
+                {
+                    size *= particle->GetSourceSize();
+                }
+            }
+            else
+            {
+                size = particle->GetScale() * particle->GetSourceSize();
             }
             tile += start_tile;
             float* tex_coord = &tex_coords[tile << 3];
@@ -1173,7 +1170,7 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
 
             Vector4 c = particle->GetSourceColor();
-            particle->SetSize(particle->GetSourceSize() * properties[PARTICLE_KEY_SCALE]);
+            particle->SetScale(properties[PARTICLE_KEY_SCALE]);
             particle->SetColor(Vector4(dmMath::Clamp(c.getX() * properties[PARTICLE_KEY_RED], 0.0f, 1.0f),
                     dmMath::Clamp(c.getY() * properties[PARTICLE_KEY_GREEN], 0.0f, 1.0f),
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
