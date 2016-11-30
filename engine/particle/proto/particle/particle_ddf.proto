@@ -103,6 +103,12 @@ enum BlendMode
     BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
 }
 
+enum SizeMode
+{
+    SIZE_MODE_MANUAL    = 0 [(displayName) = "Manual"];
+    SIZE_MODE_AUTO      = 1 [(displayName) = "Auto"];
+}
+
 enum ParticleOrientation
 {
     PARTICLE_ORIENTATION_DEFAULT = 0 [(displayName) = "Default"];
@@ -147,6 +153,8 @@ message Emitter
     repeated ParticleProperty       particle_properties     = 17;
 
     repeated Modifier               modifiers               = 18;
+
+    optional SizeMode size_mode                             = 19 [default = SIZE_MODE_MANUAL];
 }
 
 message ParticleFX
