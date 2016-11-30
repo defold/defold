@@ -818,7 +818,7 @@ TEST_F(RigInstanceTest, MaxBoneCount)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
     dmRig::RigModelVertex data[3];
     dmRig::RigModelVertex* data_end = data + 3;
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
 
     // m_ScratchInfluenceMatrixBuffer should be able to contain the instance max bone count, which is the max of the used skeleton and meshset
     // MaxBoneCount is set to BoneCount + 1 for testing.
@@ -978,21 +978,21 @@ TEST_F(RigInstanceTest, GenerateVertexData)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
-    // // sample 1
+    // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
 
-    // // sample 2
+    // sample 2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(0.0f, 1.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[2]); // v2
@@ -1009,21 +1009,21 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
     ASSERT_VERT_NORM(n_up, data[0]); // v0
     ASSERT_VERT_NORM(n_up, data[1]); // v1
     ASSERT_VERT_NORM(n_up, data[2]); // v2
 
-    // // sample 1
+    // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
     ASSERT_VERT_NORM(n_up,        data[0]); // v0
     ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
 
-    // // sample 2
+    // sample 2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
     ASSERT_VERT_NORM(n_neg_right, data[0]); // v0
     ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
@@ -1040,14 +1040,14 @@ TEST_F(RigInstanceTest, LocalBoneScaling)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 2.0f, 0.0), data[2]); // v2
@@ -1063,14 +1063,14 @@ TEST_F(RigInstanceTest, BoneScaling)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(0.0f, 2.0f, 0.0), data[1]); // v1
 
@@ -1087,7 +1087,7 @@ TEST_F(RigInstanceTest, SetMeshInvalid)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     dmhash_t new_mesh = dmHashString64("not_a_valid_skin");
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(dmHashString64("test"), dmRig::GetMesh(m_Instance));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
@@ -1095,7 +1095,7 @@ TEST_F(RigInstanceTest, SetMeshInvalid)
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
@@ -1110,7 +1110,7 @@ TEST_F(RigInstanceTest, SetMeshValid)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     dmhash_t new_mesh = dmHashString64("secondary_skin");
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, new_mesh));
     ASSERT_EQ(new_mesh, dmRig::GetMesh(m_Instance));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
@@ -1118,7 +1118,7 @@ TEST_F(RigInstanceTest, SetMeshValid)
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(1.0f, 1.0f, 0.0), data[2]); // v2
@@ -1372,7 +1372,7 @@ TEST_F(RigInstanceTest, InvalidTrackBone)
     dmRig::RigSpineModelVertex* data_end = data + 3;
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
@@ -1381,7 +1381,7 @@ TEST_F(RigInstanceTest, InvalidTrackBone)
     // There should be no changes to the pose/vertices since
     // the animation includes a track for a bone that does not exist.
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
