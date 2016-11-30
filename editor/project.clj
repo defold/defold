@@ -52,8 +52,7 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
 
-  :source-paths      ["src/clj"
-                      "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
+  :source-paths      ["src/clj"]
 
   :java-source-paths ["src/java"]
 
