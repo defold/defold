@@ -736,7 +736,6 @@
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource]
                                                 [:shader :material-shader]
-                                                [:sampler-data :sampler-data]
                                                 [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"}))
             (dynamic error (g/fnk [_node-id material]
@@ -774,8 +773,6 @@
   (input anim-data g/Any)
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (input sampler-data g/KeywordMap)
-  (output sampler-data g/KeywordMap (gu/passthrough sampler-data))
   (output scene g/Any :cached (gu/passthrough spine-scene-scene))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-data g/Any :cached produce-model-save-data)
