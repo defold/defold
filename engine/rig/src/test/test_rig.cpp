@@ -241,6 +241,20 @@ private:
 
             Used to test bone rotation slerp.
 
+        ------------------------------------
+
+            Animation 6 (id: "trans_rot")
+
+                Rotation and translation on bone 0.
+
+            A:
+                       ^
+                       |
+                       |
+              x - - - (0)
+
+            0: Pos; (10,0), rotation: 90 degrees around Z
+
         */
 
         uint32_t bone_count = 5;
@@ -316,7 +330,7 @@ private:
         dmRig::CreateBindPose(*m_Skeleton, m_BindPose);
 
         // Bone animations
-        uint32_t animation_count = 6;
+        uint32_t animation_count = 7;
         m_AnimationSet->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         m_AnimationSet->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
@@ -325,6 +339,7 @@ private:
         dmRigDDF::RigAnimation& anim3 = m_AnimationSet->m_Animations.m_Data[3];
         dmRigDDF::RigAnimation& anim4 = m_AnimationSet->m_Animations.m_Data[4];
         dmRigDDF::RigAnimation& anim5 = m_AnimationSet->m_Animations.m_Data[5];
+        dmRigDDF::RigAnimation& anim6 = m_AnimationSet->m_Animations.m_Data[6];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
@@ -361,6 +376,12 @@ private:
         anim5.m_EventTracks.m_Count = 0;
         anim5.m_MeshTracks.m_Count  = 0;
         anim5.m_IkTracks.m_Count    = 0;
+        anim6.m_Id = dmHashString64("trans_rot");
+        anim6.m_Duration            = 1.0f;
+        anim6.m_SampleRate          = 1.0f;
+        anim6.m_EventTracks.m_Count = 0;
+        anim6.m_MeshTracks.m_Count  = 0;
+        anim6.m_IkTracks.m_Count    = 0;
 
         // Animation 0: "valid"
         {
@@ -520,6 +541,39 @@ private:
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
         }
 
+        // Animation 6: "trans_rot"
+        {
+            uint32_t track_count = 2;
+            uint32_t samples = 2;
+
+            anim6.m_Tracks.m_Data = new dmRigDDF::AnimationTrack[track_count];
+            anim6.m_Tracks.m_Count = track_count;
+            dmRigDDF::AnimationTrack& anim_track0 = anim6.m_Tracks.m_Data[0];
+            dmRigDDF::AnimationTrack& anim_track1 = anim6.m_Tracks.m_Data[1];
+
+            anim_track0.m_BoneIndex         = 4;
+            anim_track0.m_Positions.m_Count = 0;
+            anim_track0.m_Scale.m_Count     = 0;
+
+            anim_track0.m_Rotations.m_Data = new float[samples*4];
+            anim_track0.m_Rotations.m_Count = samples*4;
+            ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ((float)M_PI / 2.0f);
+            ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
+
+            anim_track1.m_BoneIndex         = 4;
+            anim_track1.m_Rotations.m_Count = 0;
+            anim_track1.m_Scale.m_Count     = 0;
+
+            anim_track1.m_Positions.m_Data = new float[samples*3];
+            anim_track1.m_Positions.m_Count = samples*3;
+            anim_track1.m_Positions.m_Data[0] = 10.0f;
+            anim_track1.m_Positions.m_Data[1] = 0.0f;
+            anim_track1.m_Positions.m_Data[2] = 0.0f;
+            anim_track1.m_Positions.m_Data[3] = 10.0f;
+            anim_track1.m_Positions.m_Data[4] = 0.0f;
+            anim_track1.m_Positions.m_Data[5] = 0.0f;
+        }
+
         // Meshes / skins
         m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
         m_MeshSet->m_MeshEntries.m_Count = 2;
@@ -543,24 +597,51 @@ private:
 
     }
 
+    static void DeleteAnimationData(dmRigDDF::RigAnimation& anim) {
+
+        for (uint32_t t = 0; t < anim.m_Tracks.m_Count; ++t) {
+            dmRigDDF::AnimationTrack& anim_track = anim.m_Tracks.m_Data[t];
+
+            if (anim_track.m_Positions.m_Count) {
+                delete [] anim_track.m_Positions.m_Data;
+            }
+
+            if (anim_track.m_Rotations.m_Count) {
+                delete [] anim_track.m_Rotations.m_Data;
+            }
+
+            if (anim_track.m_Scale.m_Count) {
+                delete [] anim_track.m_Scale.m_Data;
+            }
+        }
+
+        for (uint32_t t = 0; t < anim.m_IkTracks.m_Count; ++t) {
+            dmRigDDF::IKAnimationTrack& anim_iktrack = anim.m_IkTracks.m_Data[t];
+
+            if (anim_iktrack.m_Mix.m_Count) {
+                delete [] anim_iktrack.m_Mix.m_Data;
+            }
+
+            if (anim_iktrack.m_Positive.m_Count) {
+                delete [] anim_iktrack.m_Positive.m_Data;
+            }
+        }
+
+        if (anim.m_Tracks.m_Count) {
+            delete [] anim.m_Tracks.m_Data;
+        }
+        if (anim.m_IkTracks.m_Count) {
+            delete [] anim.m_IkTracks.m_Data;
+        }
+    }
+
     void TearDownSimpleSpine() {
 
-        delete [] m_AnimationSet->m_Animations.m_Data[5].m_Tracks.m_Data[0].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[5].m_Tracks.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[4].m_Tracks.m_Data[0].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[4].m_Tracks.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[3].m_Tracks.m_Data[0].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[3].m_Tracks.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[2].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[1].m_Scale.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data[0].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[2].m_Tracks.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Positive.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Mix.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
-        delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
+        for (int anim_idx = 0; anim_idx < m_AnimationSet->m_Animations.m_Count; ++anim_idx)
+        {
+            dmRigDDF::RigAnimation& anim = m_AnimationSet->m_Animations.m_Data[anim_idx];
+            DeleteAnimationData(anim);
+        }
         delete [] m_AnimationSet->m_Animations.m_Data;
         delete [] m_Skeleton->m_Bones.m_Data;
         delete [] m_Skeleton->m_Iks.m_Data;
@@ -1304,6 +1385,17 @@ TEST_F(RigInstanceTest, InvalidTrackBone)
     ASSERT_VERT_POS(Vector3(0.0f),            data[0]); // v0
     ASSERT_VERT_POS(Vector3(1.0f, 0.0f, 0.0), data[1]); // v1
     ASSERT_VERT_POS(Vector3(2.0f, 0.0f, 0.0), data[2]); // v2
+}
+
+TEST_F(RigInstanceTest, BoneTranslationRotation)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("trans_rot"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
+
+    ASSERT_VEC3(Vector3(10.0f, 0.0f, 0.0f), pose[0].GetTranslation());
+    ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[0].GetRotation());
 }
 
 #undef ASSERT_VEC3
