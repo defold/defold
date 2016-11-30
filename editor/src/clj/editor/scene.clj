@@ -750,18 +750,18 @@
                     (g/connect resource-node        :scene                     view-id          :scene)
                     (g/set-graph-value view-graph   :camera                    camera)
 
-                    (g/connect background           :renderable                view-id         :aux-renderables)
+                    (g/connect background           :renderable                view-id          :aux-renderables)
 
-                    (g/connect camera               :camera                    view-id         :camera)
+                    (g/connect camera               :camera                    view-id          :camera)
                     (g/connect camera               :input-handler             view-id          :input-handlers)
                     (g/connect view-id              :viewport                  camera           :viewport)
 
-                    (g/connect project              :selected-node-ids         view-id          :selection)
+                    (g/connect app-view-id          :selected-node-ids         view-id          :selection)
 
                     (g/connect app-view-id          :active-tool               view-id          :active-tool)
 
                     (g/connect tool-controller      :input-handler             view-id          :input-handlers)
-                    (g/connect tool-controller      :renderables               view-id         :tool-renderables)
+                    (g/connect tool-controller      :renderables               view-id          :tool-renderables)
                     (g/connect view-id              :active-tool               tool-controller  :active-tool)
                     (g/connect view-id              :viewport                  tool-controller  :viewport)
                     (g/connect camera               :camera                    tool-controller  :camera)
