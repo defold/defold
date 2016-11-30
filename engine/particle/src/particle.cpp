@@ -530,7 +530,7 @@ namespace dmParticle
 
         UpdateParticles(instance, emitter, emitter_ddf, dt);
 
-        UpdateEmitterState(instance, emitter, emitter_prototype, emitter_ddf, dt);        
+        UpdateEmitterState(instance, emitter, emitter_prototype, emitter_ddf, dt);
 
         GenerateKeys(emitter, emitter_prototype->m_MaxParticleLifeTime);
         SortParticles(emitter);
@@ -921,19 +921,11 @@ namespace dmParticle
         uint32_t tile_count = interval;
         AnimPlayback playback = anim_data.m_Playback;
         float* tex_coords = anim_data.m_TexCoords;
-        float width_factor = 1.0f;
-        float height_factor = 1.0f;
-        if (anim_data.m_TileWidth > anim_data.m_TileHeight)
-        {
-            height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
-        }
-        else if (anim_data.m_TileHeight > 0)
-        {
-            width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
-        }
+        float* tex_dims = anim_data.m_TexDims;
         bool hFlip = anim_data.m_HFlip != 0;
         bool vFlip = anim_data.m_VFlip != 0;
         bool anim_playing = playback != ANIM_PLAYBACK_NONE && tile_count > 1;
+        bool anim_auto_size = (ddf->m_SizeMode == SIZE_MODE_AUTO) && (anim_data.m_TexDims != 0x0) && anim_playing;
         bool anim_once = playback == ANIM_PLAYBACK_ONCE_FORWARD || playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_ONCE_PINGPONG;
         bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
         bool anim_ping_pong = playback == ANIM_PLAYBACK_ONCE_PINGPONG || playback == ANIM_PLAYBACK_LOOP_PINGPONG;
@@ -941,9 +933,6 @@ namespace dmParticle
             tile_count = dmMath::Max(1u, tile_count * 2 - 2);
         }
         float inv_anim_length = anim_data.m_FPS / (float)tile_count;
-        // Extent for each vertex, scale by half
-        width_factor *= 0.5f;
-        height_factor *= 0.5f;
         // Used to sample anim tiles in the "frame center"
         float half_dt = dt * 0.5f;
 
@@ -967,26 +956,31 @@ namespace dmParticle
         uint32_t max_vertex_count = vertex_buffer_size / sizeof(Vertex);
         uint32_t particle_count = emitter->m_Particles.Size();
         uint32_t j;
+
+        float width_factor = 1.0f;
+        float height_factor = 1.0f;
+        if(!anim_auto_size)
+        {
+            if (anim_data.m_TileWidth > anim_data.m_TileHeight)
+            {
+                height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
+            }
+            else if (anim_data.m_TileHeight > 0)
+            {
+                width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
+            }
+            // Extent for each vertex, scale by half
+            width_factor *= 0.5f;
+            height_factor *= 0.5f;
+        }
+
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
 
-            float size = particle->GetSize();
-            particle_transform.SetTranslation(Vector3(particle->GetPosition()));
-            particle_transform.SetRotation(particle->GetRotation());
-            particle_transform.SetScale(size);
-            particle_transform = dmTransform::Mul(emission_transform, particle_transform);
-
-            Vector3 x = dmTransform::Apply(particle_transform, Vector3(width_factor, 0.0f, 0.0f));
-            Vector3 y = dmTransform::Apply(particle_transform, Vector3(0.0f, height_factor, 0.0f));
-
-            Vector3 p0 = -x - y + particle_transform.GetTranslation();
-            Vector3 p1 = -x + y + particle_transform.GetTranslation();
-            Vector3 p2 = x - y + particle_transform.GetTranslation();
-            Vector3 p3 = x + y + particle_transform.GetTranslation();
-
             // Evaluate anim frame
             uint32_t tile = 0;
+            float size;
             if (anim_playing)
             {
                 float anim_cursor = particle->GetMaxLifeTime() - particle->GetTimeLeft() - half_dt;
@@ -1006,9 +1000,39 @@ namespace dmParticle
                 }
                 if (anim_bwd)
                     tile = tile_count - tile - 1;
+
+                size = particle->GetScale();
+                if(anim_auto_size)
+                {
+                    const float* td = &tex_dims[(start_tile + tile) << 1];
+                    width_factor = td[0] * 0.5;
+                    height_factor = td[1] * 0.5;
+                }
+                else
+                {
+                    size *= particle->GetSourceSize();
+                }
+            }
+            else
+            {
+                size = particle->GetScale() * particle->GetSourceSize();
             }
             tile += start_tile;
-            float* tex_coord = &tex_coords[tile * 8];
+            float* tex_coord = &tex_coords[tile << 3];
+
+            particle_transform.SetTranslation(Vector3(particle->GetPosition()));
+            particle_transform.SetRotation(particle->GetRotation());
+            particle_transform.SetScale(size);
+            particle_transform = dmTransform::Mul(emission_transform, particle_transform);
+
+            Vector3 x = dmTransform::Apply(particle_transform, Vector3(width_factor, 0.0f, 0.0f));
+            Vector3 y = dmTransform::Apply(particle_transform, Vector3(0.0f, height_factor, 0.0f));
+
+            Vector3 p0 = -x - y + particle_transform.GetTranslation();
+            Vector3 p1 = -x + y + particle_transform.GetTranslation();
+            Vector3 p2 = x - y + particle_transform.GetTranslation();
+            Vector3 p3 = x + y + particle_transform.GetTranslation();
+
             uint32_t flip_flag = 0;
             if (hFlip)
             {
@@ -1146,7 +1170,7 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
 
             Vector4 c = particle->GetSourceColor();
-            particle->SetSize(particle->GetSourceSize() * properties[PARTICLE_KEY_SCALE]);
+            particle->SetScale(properties[PARTICLE_KEY_SCALE]);
             particle->SetColor(Vector4(dmMath::Clamp(c.getX() * properties[PARTICLE_KEY_RED], 0.0f, 1.0f),
                     dmMath::Clamp(c.getY() * properties[PARTICLE_KEY_GREEN], 0.0f, 1.0f),
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),

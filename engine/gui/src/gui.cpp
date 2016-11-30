@@ -53,6 +53,22 @@ namespace dmGui
         "on_reload"
     };
 
+    // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
+    static struct PlaybackTranslation
+    {
+        dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
+        PlaybackTranslation()
+        {
+            m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
+            m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
+            m_Table[dmGui::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
+            m_Table[dmGui::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
+        }
+    } ddf_playback_map;
+
 #define PROP(name, prop)\
     { dmHashString64(#name), prop, 0xff }, \
     { dmHashString64(#name ".x"), prop, 0 }, \
@@ -2674,21 +2690,6 @@ namespace dmGui
         if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
             return RESULT_WRONG_TYPE;
         }
-
-        static struct PlaybackTranslation
-        {
-            dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
-            PlaybackTranslation()
-            {
-                m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
-                m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
-                m_Table[dmGui::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
-                m_Table[dmGui::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
-            }
-        } ddf_playback_map;
 
         dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
         if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend, offset, playback_rate)) {
