@@ -680,6 +680,9 @@ private:
         if (anim.m_IkTracks.m_Count) {
             delete [] anim.m_IkTracks.m_Data;
         }
+        if (anim.m_MeshTracks.m_Count) {
+            delete [] anim.m_MeshTracks.m_Data;
+        }
     }
 
     void TearDownSimpleSpine() {
