@@ -83,6 +83,7 @@ namespace dmGameSystem
         dmGui::HContext             m_GuiContext;
         dmScript::HContext          m_ScriptContext;
         dmRig::HRigContext          m_RigContext;
+        uint32_t                    m_MaxGuiComponents;
     };
 
     struct SpriteContext
