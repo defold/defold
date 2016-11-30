@@ -396,7 +396,7 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-            vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
+            vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -661,7 +661,21 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
-                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
+                static struct PlaybackTranslation
+                {
+                    dmRig::RigPlayback m_Table[dmGameObject::PLAYBACK_COUNT];
+                    PlaybackTranslation()
+                    {
+                        m_Table[dmGameObject::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
+                        m_Table[dmGameObject::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
+                        m_Table[dmGameObject::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
+                        m_Table[dmGameObject::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
+                        m_Table[dmGameObject::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
+                        m_Table[dmGameObject::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
+                        m_Table[dmGameObject::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
+                    }
+                } ddf_playback_map;
+                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, ddf_playback_map.m_Table[ddf->m_Playback], ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
