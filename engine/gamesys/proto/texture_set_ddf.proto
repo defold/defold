@@ -49,28 +49,31 @@ message TextureSet
     // tile_width and tile_height should only be used in tilemap
     optional uint32 tile_width              = 4;
     optional uint32 tile_height             = 5;
+    optional uint32 tile_count              = 6;
 
-    required bytes vertices                 = 6;
-    repeated uint32 vertex_start            = 7;
-    repeated uint32 vertex_count            = 8;
+    required bytes vertices                 = 7;
+    repeated uint32 vertex_start            = 8;
+    repeated uint32 vertex_count            = 9;
 
     // Used to preview atlases, allowing for rotation of image components.
-    required bytes atlas_vertices           = 9;
-    repeated uint32 atlas_vertex_start      = 10;
-    repeated uint32 atlas_vertex_count      = 11;
+    required bytes atlas_vertices           = 10;
+    repeated uint32 atlas_vertex_start      = 11;
+    repeated uint32 atlas_vertex_count      = 12;
 
-    required bytes outline_vertices         = 12;
-    repeated uint32 outline_vertex_start    = 13;
-    repeated uint32 outline_vertex_count    = 14;
+    required bytes outline_vertices         = 13;
+    repeated uint32 outline_vertex_start    = 14;
+    repeated uint32 outline_vertex_count    = 15;
 
-    repeated float convex_hull_points       = 15;
-    repeated string collision_groups        = 16;
+    repeated float convex_hull_points       = 16;
+    repeated string collision_groups        = 17;
 
-    // A series of four pairs of UV coords, representing quad texture coordinates and
+    // A series of four float pairs of UV coords, representing quad texture coordinates and
     // allowing for rotation on texture atlases.
     // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
     // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
     // (See TextureSetGenerator.java)
-    required bytes tex_coords               = 17;
-    required uint32 tile_count              = 18;
+    required bytes tex_coords               = 18;
+    // A series of two float pairs of dimensions representing quad texture width and height in texels.
+    // Unused for tilemap
+    optional bytes tex_dims                 = 19;
 }
