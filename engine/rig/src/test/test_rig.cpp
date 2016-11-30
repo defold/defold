@@ -594,7 +594,7 @@ private:
             anim_track0.m_OrderOffset.m_Count = 0;
             anim_track0.m_Visible.m_Count     = 0;
 
-            uint32_t samples = 3;
+            uint32_t samples = 4;
             anim_track0.m_Colors.m_Data = new float[samples*4];
             anim_track0.m_Colors.m_Count = samples*4;
             anim_track0.m_Colors.m_Data[0] = 1.0f;
@@ -609,6 +609,10 @@ private:
             anim_track0.m_Colors.m_Data[9] = 0.5f;
             anim_track0.m_Colors.m_Data[10] = 1.0f;
             anim_track0.m_Colors.m_Data[11] = 0.5f;
+            anim_track0.m_Colors.m_Data[12] = 0.0f;
+            anim_track0.m_Colors.m_Data[13] = 0.5f;
+            anim_track0.m_Colors.m_Data[14] = 1.0f;
+            anim_track0.m_Colors.m_Data[15] = 0.5f;
         }
 
         // Meshes / skins
