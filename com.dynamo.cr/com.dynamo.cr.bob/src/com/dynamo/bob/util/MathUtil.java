@@ -94,6 +94,21 @@ public class MathUtil {
         }
         return mv1;
     }
+    
+    /**
+     * Convert a Matrix4f between different vecmath versions.
+     * @param m Matrix4f of vecmath1 flavor
+     * @return A new vecmath2 Matrix4f
+     */
+    public static org.openmali.vecmath2.Matrix4f vecmath1ToVecmath2(Matrix4f mv1) {
+        org.openmali.vecmath2.Matrix4f mv2 = new org.openmali.vecmath2.Matrix4f();
+        for (int r = 0; r < 4; ++r) {
+            for (int c = 0; c < 4; ++c) {
+                mv2.set(r, c, mv1.getElement(r, c));
+            }
+        }
+        return mv2;
+    }
 
     public static Matrix4d floatToDouble(Matrix4f mf) {
         Matrix4d md = new Matrix4d();
