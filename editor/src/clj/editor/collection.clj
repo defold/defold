@@ -624,8 +624,10 @@
 (defn- selection->embedded-instance [selection]
   (handler/adapt-single selection EmbeddedGOInstanceNode))
 
-(defn- selection->go-instance [selection]
-  (handler/adapt-single selection GameObjectInstanceNode))
+(defn- selection->local-go-instance [selection]
+  (when-let [go (handler/adapt-single selection GameObjectInstanceNode)]
+    (when (nil? (g/override-original go))
+      go)))
 
 (defn add-game-object-file [coll-node parent resource]
   (let [project (project/get-project coll-node)
@@ -727,16 +729,16 @@
                   (child-coll-any self coll-node))))
 
 (handler/defhandler :add-secondary :workbench
-  (active? [selection] (selection->go-instance selection))
+  (active? [selection] (selection->local-go-instance selection))
   (label [] "Add Game Object")
   (run [selection project workspace]
-       (let [go-node (selection->go-instance selection)
+       (let [go-node (selection->local-go-instance selection)
              collection (core/scope go-node)]
          (add-game-object workspace project collection go-node))))
 
 (handler/defhandler :add-secondary-from-file :workbench
   (active? [selection] (or (selection->collection selection)
-                         (selection->go-instance selection)))
+                         (selection->local-go-instance selection)))
   (label [selection] (if (selection->collection selection)
                        "Add Collection File"
                        "Add Game Object File"))
@@ -763,7 +765,7 @@
                    (g/operation-label "Add Collection")
                    (project/select project [coll-inst-node]))))))
          (when-let [resource (select-go-file workspace project)]
-           (let [go-node (selection->go-instance selection)
+           (let [go-node (selection->local-go-instance selection)
                  coll-node (core/scope go-node)]
              (add-game-object-file coll-node go-node resource))))))
 
