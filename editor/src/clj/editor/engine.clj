@@ -115,6 +115,7 @@
         client (Client/create cc)
         platform "x86-osx"
         ^WebResource resource (.resource ^Client client (URI. server-url))
+        ; TODO: Make sure we can have a debug mode using DYNAMO_HOME here
         ^WebResource build-resource (.path resource (format "/build/%s" platform))
         ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
         resources (g/node-value workspace :resource-list)
