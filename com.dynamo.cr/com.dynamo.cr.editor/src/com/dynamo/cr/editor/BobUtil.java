@@ -145,15 +145,12 @@ public class BobUtil {
                             }
                         }
                         for (String root : roots) {
-                            URI libUri = new URI("zip", null, "/" + includeBaseDir + root, lib.getLocationURI().toString(), null);
                             IFolder rootFolder = contentRoot.getFolder(root);
-                            rootFolder.createLink(libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
+                            rootFolder.createLink( new Path("/" + includeBaseDir + root), IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
                         }
                     } finally {
                         zip.close();
                     }
-                } catch (URISyntaxException e) {
-                    throw wrapCoreException(e);
                 } catch (IOException e) {
                     throw wrapCoreException(e);
                 } catch (ParseException e) {
