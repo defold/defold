@@ -8,6 +8,9 @@
   }
 
   #markers {
+    -fx-min-width: 40px;
+    -fx-max-width: 40px;
+    -fx-pref-width: 40px;
     -fx-background-color: $dark-grey;
   }
 
