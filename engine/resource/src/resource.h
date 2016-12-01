@@ -217,6 +217,8 @@ namespace dmResource
         const void* m_Buffer;
         /// Size of data buffer
         uint32_t m_BufferSize;
+        /// Pointer holding a precreated message
+        const void* m_Message;
         /// Resource descriptor to write into
         SResourceDescriptor* m_Resource;
     };
@@ -366,10 +368,6 @@ namespace dmResource
      */
     Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
 
-
-Result GetBuffer(HFactory factory, const char* name, dmBuffer::HBuffer* buffer);
-
-
     /**
      * Updates a preexisting resource with new data
      * @param factory Factory handle
@@ -378,6 +376,16 @@ Result GetBuffer(HFactory factory, const char* name, dmBuffer::HBuffer* buffer);
      * @return RESULT_OK on success
      */
     Result Set(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
+
+    /**
+     * Updates a preexisting resource with new data
+     * @param factory Factory handle
+     * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
+     * @param buffer The buffer
+     * @return RESULT_OK on success
+     */
+    Result SetResource(HFactory factory, uint64_t hashed_name, void* message);
+
 
     /**
      * Reload a specific resource

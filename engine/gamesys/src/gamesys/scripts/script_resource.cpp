@@ -3,8 +3,10 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <resource/resource.h>
+#include <graphics/graphics_ddf.h>
 #include <script/script.h>
 #include "../gamesys.h"
+
 
 namespace dmGameSystem
 {
@@ -16,7 +18,6 @@ namespace dmGameSystem
  * @name Resource
  * @namespace resource
  */
-
 
 
 struct ResourceModule
@@ -69,15 +70,6 @@ static int Set(lua_State* L)
     {
         ReportPathError(L, r, path_hash);
     }
-    return 0;
-}
-
-// Resource specific hooks
-static int CreateTexture(lua_State* L)
-{
-    //uint64_t path_hash, struct dmBuffer::Buffer**
-    dmLogWarning("resource.create_texture is not implemented yet!");
-
     return 0;
 }
 
@@ -137,13 +129,127 @@ static int Load(lua_State* L)
     return 1;
 }
 
+static int CheckTableNumber(lua_State* L, int index, const char* name)
+{
+    int result = -1;
+    lua_pushstring(L, name);
+    lua_gettable(L, index);
+    if (lua_isnumber(L, -1)) {
+        result = lua_tointeger(L, -1);
+    } else {
+        char msg[256];
+        DM_SNPRINTF(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
+        luaL_error(L, msg);
+    }
+    lua_pop(L, 1);
+    return result;
+}
+
+static int GraphicsTextureFormatToImageFormat(int textureformat)
+{
+    switch(textureformat)
+    {
+        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:          return dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE;
+        case dmGraphics::TEXTURE_FORMAT_RGB:                return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB;
+        case dmGraphics::TEXTURE_FORMAT_RGBA:               return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1;
+    };
+    assert(false);
+    return -1;
+}
+
+static int GraphicsTextureTypeToImageType(int texturetype)
+{
+    switch(texturetype)
+    {
+        case dmGraphics::TEXTURE_TYPE_2D:          return dmGraphics::TextureImage::TYPE_2D;
+        case dmGraphics::TEXTURE_TYPE_CUBE_MAP:    return dmGraphics::TextureImage::TYPE_CUBEMAP;
+    };
+    assert(false);
+    return -1;
+}
+
+static int SetTexture(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    uint32_t type = (uint32_t)CheckTableNumber(L, 2, "type");
+    uint32_t width = (uint32_t)CheckTableNumber(L, 2, "width");
+    uint32_t height = (uint32_t)CheckTableNumber(L, 2, "height");
+    uint32_t format = (uint32_t)CheckTableNumber(L, 2, "format");
+    uint32_t num_mip_maps = (uint32_t)CheckTableNumber(L, 2, "num_mip_maps");
+
+    num_mip_maps = 1;
+
+    dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 3);
+
+    uint8_t* data = 0;
+    uint32_t datasize = 0;
+    dmBuffer::GetBytes(*buffer, (void**)&data, &datasize);
+
+    dmGraphics::TextureImage* texture_image = new dmGraphics::TextureImage;
+    texture_image->m_Alternatives.m_Data = new dmGraphics::TextureImage::Image[1];
+    texture_image->m_Alternatives.m_Count = 1;
+    texture_image->m_Type = (dmGraphics::TextureImage::Type)GraphicsTextureTypeToImageType(type);
+    
+    for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
+    {
+        dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
+        image->m_Width = width;
+        image->m_Height = height;
+        image->m_OriginalWidth = width;
+        image->m_OriginalHeight = height;
+        image->m_Format = (dmGraphics::TextureImage::TextureFormat)GraphicsTextureFormatToImageFormat(format);
+        image->m_CompressionType = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        image->m_CompressionFlags = 0;
+        image->m_Data.m_Data = data;
+        image->m_Data.m_Count = datasize;
+        image->m_MipMapOffset.m_Data = new uint32_t[num_mip_maps];
+        image->m_MipMapOffset.m_Count = num_mip_maps;
+
+        image->m_MipMapSize.m_Data = new uint32_t[num_mip_maps];
+        image->m_MipMapSize.m_Count = num_mip_maps;
+
+        for( uint32_t mip = 0; mip < num_mip_maps; ++mip )
+        {
+            image->m_MipMapOffset[mip] = 0; // TODO: Fix mip offsets
+            image->m_MipMapSize[mip] = datasize;
+        }
+    }
+
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*)texture_image);
+
+    // cleanup memory
+
+    for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
+    {
+        dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
+        delete[] image->m_MipMapSize.m_Data;
+        delete[] image->m_MipMapOffset.m_Data;
+    }
+    delete[] texture_image->m_Alternatives.m_Data;
+    delete texture_image;
+
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+    return 0;
+}
 
 
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
-    {"create_texture", CreateTexture},
+    {"set_texture", SetTexture},
     {0, 0}
 };
 
@@ -151,6 +257,32 @@ static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
     luaL_register(L, "resource", Module_methods);
+
+#define SETGRAPHICSCONSTANT(name) \
+    lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
+    lua_setfield(L, -2, #name); \
+
+    SETGRAPHICSCONSTANT(TEXTURE_TYPE_2D);
+    SETGRAPHICSCONSTANT(TEXTURE_TYPE_CUBE_MAP);
+
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_LUMINANCE);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_DEPTH);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_STENCIL);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_ETC1);
+    /* DEF-994 We don't support these internally yet
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_DXT1);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT1);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT3);
+    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_DXT5);
+    */
+
+#undef SETGRAPHICSCONSTANT
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
@@ -166,4 +298,4 @@ void ScriptResourceFinalize(const ScriptLibContext& context)
 {
 }
 
-}
+} // namespace dmGameSystem
