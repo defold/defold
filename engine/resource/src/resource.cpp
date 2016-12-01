@@ -992,6 +992,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     ResourceRecreateParams params;
     params.m_Factory = factory;
     params.m_Context = resource_type->m_Context;
+    params.m_Message = 0;
     params.m_Buffer = buffer;
     params.m_BufferSize = file_size;
     params.m_Resource = rd;
