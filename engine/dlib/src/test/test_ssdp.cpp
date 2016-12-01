@@ -302,6 +302,7 @@ TEST(dmSSDP, JavaClient)
     dmSSDP::Update(server2, false);
     WaitPackage();
 
+    /* DEBUG */ printf("(%lu) Starting Java SSDPTest ...\n", (unsigned long) time(NULL));
     char* dynamo_home = getenv("DYNAMO_HOME");
     char command[1024];
     DM_SNPRINTF(command, sizeof(command),
@@ -309,11 +310,14 @@ TEST(dmSSDP, JavaClient)
 
     const char* mode = "r";
     FILE* f = popen(command, mode);
+    /* DEBUG */ printf("(%lu) Started Java SSDPTest!\n", (unsigned long) time(NULL));
     fd_set set;
     timeval timeout;
     timeout.tv_sec = 0;
     timeout.tv_usec = 5 * 1000;
     int fd = fileno(f);
+
+    /* DEBUG */ printf("(%lu) Starting to broadcast SSDP Updates ...\n", (unsigned long) time(NULL));
     while (true) {
         FD_ZERO(&set);
         FD_SET(fd, &set);
@@ -328,8 +332,10 @@ TEST(dmSSDP, JavaClient)
         dmSSDP::Update(server1, false);
         dmSSDP::Update(server2, false);
     }
-
+    /* DEBUG */ printf("(%lu) Done broadcasting SSDP Updates!\n", (unsigned long) time(NULL));
+    /* DEBUG */ printf("(%lu) Closing Java SSDPTest ...\n", (unsigned long) time(NULL));
     int ret = pclose(f);
+    /* DEBUG */ printf("(%lu) Closed Java SSDPTest!\n", (unsigned long) time(NULL));
     ASSERT_EQ(0, ret);
 
     r = dmSSDP::DeregisterDevice(server1, "my_root_device1");
