@@ -1,0 +1,35 @@
+.diff-view {
+  Line {
+    -fx-stroke: $mid-grey;
+  }
+
+  Text {
+    -fx-fill: $bright-grey-light;
+  }
+
+  AnchorPane {
+    -fx-border-width: 0;
+  }
+
+  #markers {
+    -fx-background-color: $dark-grey;
+  }
+
+  .code-view {
+    -fx-min-height: 300px;
+    -fx-pref-width: 300px;
+    -fx-background-color: $bright-black;
+  }
+
+  .code-view-header {
+    -fx-font-weight: bold;
+    -fx-text-fill: $bright-grey;
+    -fx-min-height: 40px;
+    -fx-alignment: center;
+  }
+
+  .diff-box {
+    -fx-fill: $mid-grey;
+    -fx-stroke: $mid-grey;
+  }
+}
