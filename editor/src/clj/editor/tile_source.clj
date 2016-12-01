@@ -6,6 +6,7 @@
    [editor.colors :as colors]
    [editor.collision-groups :as collision-groups]
    [editor.graph-util :as gu]
+   [editor.image :as image]
    [editor.workspace :as workspace]
    [editor.resource :as resource]
    [editor.defold-project :as project]
@@ -491,9 +492,17 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :image-resource]
                                             [:content :image-content])))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
                                       (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
+  (property size types/Vec2
+    (value (g/fnk [^BufferedImage image-content]
+             (if image-content
+               [(.getWidth image-content) (.getHeight image-content)]
+               [0 0])))
+    (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+    (dynamic read-only? (g/constantly true)))
 
   (property tile-width g/Int
             (default 0)
@@ -521,6 +530,7 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :collision-resource]
                                             [:content :collision-content])))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
                                   (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
 
