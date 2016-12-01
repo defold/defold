@@ -72,10 +72,13 @@
    :scale3 scale
    :component-properties ddf-component-properties})
 
-(defn- assoc-deep [scene keyword new-value]
-  (let [new-scene (assoc scene keyword new-value)]
+(defn- claim-scene [scene node-id]
+  (let [prev-node-id (:node-id scene)
+        new-scene (-> scene
+                    (assoc :node-id node-id)
+                    (update :node-path (fn [p] (into [prev-node-id] p))))]
     (if (:children scene)
-      (assoc new-scene :children (mapv #(assoc-deep % keyword new-value) (:children scene)))
+      (assoc new-scene :children (mapv #(claim-scene % node-id) (:children scene)))
       new-scene)))
 
 (defn- prop-id-duplicate? [id-counts id]
@@ -207,7 +210,7 @@
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (assoc-deep scene :node-id _node-id)
+                                       (-> (claim-scene scene _node-id)
                                          (assoc :transform transform
                                                 :aabb aabb
                                                 :renderable {:passes [pass/selection]})
@@ -588,7 +591,7 @@
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc (assoc-deep scene :node-id _node-id)
+                                     (assoc (claim-scene scene _node-id)
                                            :transform transform
                                            :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
                                            :renderable {:passes [pass/selection]})))
