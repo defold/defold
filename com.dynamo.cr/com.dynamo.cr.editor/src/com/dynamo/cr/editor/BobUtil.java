@@ -146,11 +146,14 @@ public class BobUtil {
                         }
                         for (String root : roots) {
                             IFolder rootFolder = contentRoot.getFolder(root);
-                            rootFolder.createLink( new Path("/" + includeBaseDir + root), IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
+                            URI libUri = new URI("zip", null, "/" + includeBaseDir + root, "file://" + lib.getLocation().toString(), null);
+                            rootFolder.createLink( libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
                         }
                     } finally {
                         zip.close();
                     }
+                } catch (URISyntaxException e) {
+                    throw wrapCoreException(e);
                 } catch (IOException e) {
                     throw wrapCoreException(e);
                 } catch (ParseException e) {
