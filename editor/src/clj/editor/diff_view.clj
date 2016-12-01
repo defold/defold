@@ -73,7 +73,7 @@
     (if (= begin end) (Rectangle. 10 0) t)))
 
 (defn- make-texts [^Group box lines edits selector]
-  (let [font (Font. "Courier New" 13)
+  (let [font (Font. "Dejavu Sans Mono" 13)
         texts (mapv (fn [e] (make-text font lines (selector e))) edits)
         heights (reductions (fn [sum t] (+ sum (:height (ui/local-bounds t)))) 0 texts)]
     (doseq [[t y] (map vector texts heights)]
