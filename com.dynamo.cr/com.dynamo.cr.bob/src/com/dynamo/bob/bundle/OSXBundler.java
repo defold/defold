@@ -48,7 +48,7 @@ public class OSXBundler implements IBundler {
         BundleHelper helper = new BundleHelper(project, Platform.X86Darwin, bundleDir, ".app");
 
         // Copy archive and game.projectc
-        for (String name : Arrays.asList("game.projectc", "game.darc", "game.dmanifest")) {
+        for (String name : Arrays.asList("game.projectc", "game.darc", "game.dmanifest", "game.public.der")) {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
         }
 
