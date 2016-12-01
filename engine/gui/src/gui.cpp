@@ -54,10 +54,10 @@ namespace dmGui
     };
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
-    static struct PlaybackGUIToRig
+    static struct PlaybackGuiToRig
     {
         dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
-        PlaybackGUIToRig()
+        PlaybackGuiToRig()
         {
             m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
             m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
