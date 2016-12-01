@@ -992,6 +992,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     ResourceRecreateParams params;
     params.m_Factory = factory;
     params.m_Context = resource_type->m_Context;
+    params.m_Message = 0;
     params.m_Buffer = buffer;
     params.m_BufferSize = file_size;
     params.m_Resource = rd;
@@ -1085,8 +1086,63 @@ Result Set(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer)
     ResourceRecreateParams params;
     params.m_Factory = factory;
     params.m_Context = resource_type->m_Context;
+    params.m_Message = 0;
     params.m_Buffer = data;
     params.m_BufferSize = datasize;
+    params.m_Resource = rd;
+    params.m_Filename = 0;
+    params.m_NameHash = hashed_name;
+    Result create_result = resource_type->m_RecreateFunction(params);
+    if (create_result == RESULT_OK)
+    {
+        rd->m_SharedState = DATA_SHARE_STATE_NONE; // The resource creator should now fully own the created resources
+
+        if (factory->m_ResourceReloadedCallbacks)
+        {
+            for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
+            {
+                ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
+                ResourceReloadedParams params;
+                params.m_UserData = pair.m_UserData;
+                params.m_Resource = rd;
+                params.m_Name = 0;
+                params.m_NameHash = hashed_name;
+                pair.m_Callback(params);
+            }
+        }
+        return RESULT_OK;
+    }
+    else
+    {
+        return create_result;
+    }
+
+    return RESULT_OK;
+}
+
+Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
+{
+    DM_PROFILE(Resource, "SetResource");
+
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+
+    assert(message);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
+    if (!rd) {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+    if (!resource_type->m_RecreateFunction)
+        return RESULT_NOT_SUPPORTED;
+
+    ResourceRecreateParams params;
+    params.m_Factory = factory;
+    params.m_Context = resource_type->m_Context;
+    params.m_Message = message;
+    params.m_Buffer = 0;
+    params.m_BufferSize = 0;
     params.m_Resource = rd;
     params.m_Filename = 0;
     params.m_NameHash = hashed_name;
