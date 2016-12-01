@@ -102,7 +102,7 @@
   (let [lines
         (for [[t-left t-right edit] (map vector texts-left texts-right edits)
               :when (not= (:type edit) :nop)]
-          (make-line t-left t-right 1 40))]
+          (make-line t-left t-right 0 40))]
     (ui/children! box lines)))
 
 (defn- clip-control! [^Control control]
