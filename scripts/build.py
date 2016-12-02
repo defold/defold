@@ -255,10 +255,10 @@ class Configuration(object):
             self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
-        print("Installing go...")
+        print("Installing go")
         self._install_go()
 
-        print("Installing common packages...")
+        print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
 
@@ -322,22 +322,22 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         # Is as3-web a supported platform? doesn't say so in --platform?
-        print("Installing flash packages...")
+        print("Installing flash packages")
         self._extract_packages('as3-web', PACKAGES_FLASH)
 
-        print("Installing python eggs...")
+        print("Installing python eggs")
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
-        print("Installing javascripts...")            
+        print("Installing javascripts")            
         for n in 'js-web-pre.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         for n in 'js-web-pre-engine.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
-        print("Installing profiles etc...")
+        print("Installing profiles etc")
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
@@ -606,7 +606,7 @@ class Configuration(object):
                               shell = True)
 
     def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        self._log('Building libs...')
+        self._log('Building libs')
         libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject rig gui sound gamesys tools record iap push iac adtruth webview facebook crash engine".split()
         for lib in libs:
             self._log('Building %s' % lib)
