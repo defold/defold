@@ -76,12 +76,6 @@ Links:
   -fx-font-size: 9pt;
   -fx-font-family: "Dejavu Sans Mono"; }
 
-/* diff viewer */
-.diff-box {
-  -fx-fill: rgba(204, 204, 204, 0.2);
-  -fx-stroke: #000000;
-}
-
 /* Modules - Major panes in the editor */
 #properties HBox {
   -fx-spacing: 0; }

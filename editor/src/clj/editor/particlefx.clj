@@ -259,7 +259,7 @@
                                                                     (geom/scale [max-distance max-distance 1] dash-circle))}})
 
 (g/defnk produce-modifier-scene
-  [_node-id transform aabb type magnitude max-distance]
+  [_node-id transform aabb type magnitude max-distance scene-updatable]
   (let [mod-type (mod-types type)
         magnitude (props/sample magnitude)
         max-distance (props/sample max-distance)]
@@ -271,7 +271,8 @@
                   :select-batch-key _node-id
                   :user-data {:geom-data-screen ((:geom-data-screen mod-type) magnitude max-distance)
                               :geom-data-world ((:geom-data-world mod-type) magnitude max-distance)}
-                  :passes [pass/outline pass/selection]}}))
+                  :passes [pass/outline pass/selection]}
+     :updatable scene-updatable}))
 
 (g/defnode ModifierNode
   (inherits scene/SceneNode)
@@ -282,6 +283,8 @@
             (dynamic visible (g/constantly false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
+
+  (input scene-updatable g/Any)
 
   (output pb-msg g/Any :cached produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
@@ -350,7 +353,7 @@
                                                      (geom/scale [size-x size-y 1] box-geom-data))}})
 
 (g/defnk produce-emitter-scene
-  [_node-id transform aabb type emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
+  [_node-id transform aabb type emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes scene-updatable]
   (let [emitter-type (emitter-types type)]
     {:node-id _node-id
      :transform transform
@@ -362,6 +365,7 @@
                               :geom-data-world (apply (:geom-data-world emitter-type)
                                                  (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}
                   :passes [pass/outline pass/selection]}
+     :updatable scene-updatable
      :children child-scenes}))
 
 (g/defnode EmitterProperties
@@ -422,9 +426,10 @@
 
 (defn- attach-modifier [self-id parent-id modifier-id]
   (concat
-    (let [conns [[:_node-id :nodes]]]
-      (for [[from to] conns]
-        (g/connect modifier-id from self-id to)))
+    (for [[from to] [[:_node-id :nodes]]]
+      (g/connect modifier-id from self-id to))
+    (for [[from to] [[:scene-updatable :scene-updatable]]]
+      (g/connect self-id from modifier-id to))
     (let [conns [[:node-outline :child-outlines]
                  [:scene :child-scenes]
                  [:pb-msg :modifier-msgs]]]
@@ -530,6 +535,7 @@
   (input anim-ids g/Any)
   (input child-scenes g/Any :array)
   (input modifier-msgs g/Any :array)
+  (input scene-updatable g/Any)
 
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
@@ -634,14 +640,10 @@
                         (.mul (camera/camera-projection-matrix camera) (camera/camera-view-matrix camera)))]
         (plib/render pfx-sim (partial render-emitter-fn gl render-args vtx-binding view-proj))))))
 
-(g/defnk produce-scene [_node-id child-scenes rt-pb-data fetch-anim-fn render-emitter-fn]
+(g/defnk produce-scene [_node-id child-scenes render-emitter-fn scene-updatable]
   {:node-id _node-id
    :node-path [_node-id]
-   :updatable {:update-fn (g/fnk [dt world-transform]
-                                 (let [data [max-emitter-count max-particle-count rt-pb-data world-transform]
-                                       pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
-                                   (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])))
-               :name "ParticleFX"}
+   :updatable scene-updatable
    :renderable {:render-fn render-pfx
                 :batch-key nil
                 :user-data {:render-emitter-fn render-emitter-fn}
@@ -649,16 +651,26 @@
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
+(g/defnk produce-scene-updatable [_node-id rt-pb-data fetch-anim-fn]
+  {:node-id _node-id
+   :name "ParticleFX"
+   :update-fn (g/fnk [dt world-transform]
+                (let [data [max-emitter-count max-particle-count rt-pb-data world-transform]
+                      pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
+                  (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])))})
+
 (defn- attach-emitter [self-id emitter-id]
-  (let [conns [[:_node-id :nodes]
-               [:node-outline :child-outlines]
-               [:scene :child-scenes]
-               [:pb-msg :emitter-msgs]
-               [:emitter-sim-data :emitter-sim-data]
-               [:id :ids]
-               [:build-targets :dep-build-targets]]]
-    (for [[from to] conns]
-      (g/connect emitter-id from self-id to))))
+  (concat
+    (for [[from to] [[:_node-id :nodes]
+                     [:node-outline :child-outlines]
+                     [:scene :child-scenes]
+                     [:pb-msg :emitter-msgs]
+                     [:emitter-sim-data :emitter-sim-data]
+                     [:id :ids]
+                     [:build-targets :dep-build-targets]]]
+      (g/connect emitter-id from self-id to))
+    (for [[from to] [[:scene-updatable :scene-updatable]]]
+      (g/connect self-id from emitter-id to))))
 
 (g/defnode ParticleFXNode
   (inherits project/ResourceNode)
@@ -677,6 +689,7 @@
   (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
+  (output scene-updatable g/Any :cached produce-scene-updatable)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
                                                      (let [[mod-outlines emitter-outlines] (let [outlines (group-by #(g/node-instance? ModifierNode (:node-id %)) child-outlines)]
                                                                                              [(get outlines true) (get outlines false)])]

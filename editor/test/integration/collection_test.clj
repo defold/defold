@@ -68,7 +68,7 @@
                ; Select the collection node
                (app-view/select! app-view [node-id])
                ; Run the add handler
-               (test-util/handler-run :add [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {})
+               (test-util/handler-run :add [{:name :workbench :env {:workspace workspace :project project :app-view app-view :selection [node-id]}}] {})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
@@ -136,7 +136,7 @@
           go-id     (test-util/resource-node project "/game_object/test.go")
           script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-      (collection/add-game-object-file coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
+      (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
       (is (nil? (test-util/outline coll-id [0 0])))
       (let [inst (first (test-util/selection app-view))]
         (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script") select-fn)

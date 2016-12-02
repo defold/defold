@@ -401,10 +401,10 @@
                   :children [{:label "Profiler"
                               :children [{:label "Measure"
                                           :command :profile
-                                          :acc "Shortcut+P"}
+                                          :acc "Shortcut+Alt+X"}
                                          {:label "Measure and Show"
                                           :command :profile-show
-                                          :acc "Shift+Shortcut+P"}]}
+                                          :acc "Shift+Shortcut+Alt+X"}]}
                              {:label "Reload Stylesheet"
                               :acc "F5"
                               :command :reload-stylesheet}
