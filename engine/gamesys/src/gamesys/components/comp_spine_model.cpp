@@ -39,6 +39,22 @@ namespace dmGameSystem
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
     static void DestroyComponent(SpineModelWorld* world, uint32_t index);
 
+    // Translation table to translate from dmGameObject playback mode into dmRig playback mode.
+    static struct PlaybackGameObjectToRig
+    {
+        dmRig::RigPlayback m_Table[dmGameObject::PLAYBACK_COUNT];
+        PlaybackGameObjectToRig()
+        {
+            m_Table[dmGameObject::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
+            m_Table[dmGameObject::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
+            m_Table[dmGameObject::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
+            m_Table[dmGameObject::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
+            m_Table[dmGameObject::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
+            m_Table[dmGameObject::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
+            m_Table[dmGameObject::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
+        }
+    } ddf_playback_map;
+
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpineModelContext* context = (SpineModelContext*)params.m_Context;
@@ -336,7 +352,12 @@ namespace dmGameSystem
         ReHash(component);
 
         // Create GO<->bone representation
-        CreateGOBones(world, component);
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in spine model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
+            DestroyComponent(world, index);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -391,7 +412,7 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-            vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, Matrix4::identity(), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
+            vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -656,7 +677,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
-                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
+                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, ddf_playback_map.m_Table[ddf->m_Playback], ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
@@ -701,7 +722,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component)
+    static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component, int index)
     {
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
@@ -741,16 +762,23 @@ namespace dmGameSystem
 
         // Create GO<->bone representation
         dmGameObject::DeleteBones(component->m_Instance);
-        CreateGOBones(world, component);
+        if(!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects during reload for bones in spine model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
+            DestroyComponent(world, index);
+            return false;
+        }
+
         return true;
     }
 
     void CompSpineModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
-        SpineModelComponent* component = world->m_Components.Get(*params.m_UserData);
+        int index = *params.m_UserData;
+        SpineModelComponent* component = world->m_Components.Get(index);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
-        (void)OnResourceReloaded(world, component);
+        (void)OnResourceReloaded(world, component, index);
     }
 
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -835,7 +863,7 @@ namespace dmGameSystem
         {
             SpineModelComponent* component = components[i];
             if (component->m_Resource != 0x0 && component->m_Resource->m_RigScene == params.m_Resource->m_Resource)
-                OnResourceReloaded(world, component);
+                OnResourceReloaded(world, component, i);
         }
     }
 

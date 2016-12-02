@@ -1106,7 +1106,7 @@ instructions.configure=\
 
                 # Create a signature for Defold.app and the container
                 # This certificate must be installed on the computer performing the operation
-                certificate = 'Developer ID Application: Midasplayer AB (YFY47KYJ6N)'
+                certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
                 self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
                 self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
                 self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)

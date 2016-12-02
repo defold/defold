@@ -32,6 +32,7 @@ import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.particle.proto.Particle.PlayMode;
+import com.dynamo.particle.proto.Particle.SizeMode;
 import com.dynamo.particle.proto.Particle.SplinePoint;
 import com.jogamp.common.nio.Buffers;
 import com.sun.jna.Pointer;
@@ -83,6 +84,7 @@ public class ParticleSystemTest {
                         .setTX(1.0f)
                         .setTY(0.0f));
         Emitter.Builder eb = Emitter.newBuilder()
+                .setSizeMode(SizeMode.SIZE_MODE_AUTO)
                 .setMode(PlayMode.PLAY_MODE_ONCE)
                 .setSpace(EmissionSpace.EMISSION_SPACE_WORLD)
                 .setPosition(com.dynamo.proto.DdfMath.Point3.newBuilder().setX(1).setY(2).setZ(3).build())
@@ -119,6 +121,8 @@ public class ParticleSystemTest {
             .put(1.0f/255.0f).put(2.0f/255.0f)
             .put(3.0f/255.0f).put(2.0f/255.0f)
             .put(3.0f/255.0f).put(4.0f/255.0f);
+        final FloatBuffer texDims = Buffers.newDirectFloatBuffer(2);
+        texDims.put(1.0f).put(1.0f);
         IntByReference outSize = new IntByReference(1234);
         final int vertexBufferSize = ParticleLibrary.Particle_GetVertexBufferSize(MAX_PARTICLE_COUNT);
         final ByteBuffer vertexBuffer = Buffers.newDirectByteBuffer(vertexBufferSize);
@@ -132,6 +136,7 @@ public class ParticleSystemTest {
                         long h = ParticleLibrary.Particle_Hash("anim");
                         assertTrue(hash == h);
                         data.texCoords = texCoords;
+                        data.texDims = texDims;
                         data.texture = originalTexture;
                         data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_FORWARD;
                         data.startTile = 0;
