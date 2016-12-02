@@ -1,14 +1,16 @@
 (ns editor.form-view
   (:require [dynamo.graph :as g]
             [editor.form :as form]
+            [editor.field-expression :as field-expression]
             [editor.ui :as ui]
+            [editor.jfx :as jfx]            
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.types :as types])
   (:import [javafx.animation AnimationTimer]
-           [java.util Collection]
-           [javafx.scene Parent Group]
+           [java.util List Collection]
+           [javafx.scene Parent Group Node]
            [javafx.scene.text Text]
            [javafx.scene.input KeyCode KeyEvent ContextMenuEvent]
            [javafx.geometry Insets Pos HPos VPos]
@@ -17,11 +19,14 @@
            [javafx.beans.property ReadOnlyObjectWrapper]
            [javafx.beans.value ChangeListener]
            [javafx.beans.binding Bindings]
-           [javafx.scene.layout Pane GridPane HBox VBox Priority]
+           [javafx.scene.layout Region AnchorPane Pane GridPane HBox VBox Priority ColumnConstraints]
            [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
            [com.defold.control ListCell TableCell]))
 
 (set! *warn-on-reflection* true)
+
+(def grid-hgap 4)
+(def grid-vgap 6)
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
@@ -30,15 +35,29 @@
 ;; see:  https://bugs.openjdk.java.net/browse/JDK-8089514
 ;; possible workaround: http://stackoverflow.com/questions/24694616/how-to-enable-commit-on-focuslost-for-tableview-treetableview
 
-(defn- value-alignment [field-info]
-  (let [default-alignments {:number Pos/CENTER_RIGHT
-                            :integer Pos/CENTER_RIGHT
-                            :boolean Pos/CENTER
-                            :vec4 Pos/CENTER}]
-    (get default-alignments (:type field-info) Pos/CENTER_LEFT)))
+(def ^:private default-value-alignments
+  {:number Pos/CENTER_RIGHT
+   :integer Pos/CENTER_RIGHT
+   :boolean Pos/CENTER
+   :vec4 Pos/CENTER})
 
-(defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]} _]
+(defn- value-alignment [field-info]
+  (get default-value-alignments (:type field-info) Pos/CENTER_LEFT))
+
+(def ^:private default-field-widths
+  {:number 80
+   :integer 80
+   :string 300
+   :resource 300
+   :list 300})
+
+(defn- field-width [field-info]
+  (get default-field-widths (:type field-info) 100))
+
+(defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [tf (TextField.)]
+    (.setPrefWidth tf (field-width field-info))
+    (.setMinWidth tf Control/USE_PREF_SIZE)
     (ui/on-action! tf (fn [_]
                          (when-let [val (parse (ui/text tf))]
                            (set path val))))
@@ -55,26 +74,14 @@
     [tf {:update #(ui/text! tf (serialize %))
          :edit #(doto tf (.requestFocus) (.selectAll))}]))
 
-(defmethod create-field-control :string [field-info field-ops  ctxt]
-  (create-text-field-control identity identity field-info field-ops ctxt))
-
-(defn- to-int [str]
-  (try
-    (Integer/parseInt str)
-    (catch Throwable _
-      nil)))
+(defmethod create-field-control :string [field-info field-ops ctxt]
+  (create-text-field-control identity identity field-info field-ops))
 
 (defmethod create-field-control :integer [field-info field-ops ctxt]
-  (create-text-field-control to-int str field-info field-ops ctxt))
-
-(defn- to-number [str]
-  (try
-    (Double/parseDouble str)
-    (catch Throwable _
-      nil)))
+  (create-text-field-control field-expression/to-int str field-info field-ops))
 
 (defmethod create-field-control :number [field-info field-ops ctxt]
-  (create-text-field-control to-number str field-info field-ops ctxt))
+  (create-text-field-control field-expression/to-double str field-info field-ops))
 
 (defmethod create-field-control :boolean [{:keys [path help]} {:keys [set cancel]} ctxt]
   (let [check (CheckBox.)
@@ -129,53 +136,91 @@
     [cb {:update update-fn
          :edit #(do (ui/request-focus! cb) (.show cb))}]))
 
-(defmethod create-field-control :resource [{:keys [filter path help]} {:keys [set cancel]} {:keys [workspace project]}]
-  (let [hbox (HBox.)
-        button (doto (Button. "...") (ui/add-style! "small-button"))
-        text (TextField.)
+(defmethod create-field-control :resource [{:keys [filter path help] :as field-info} {:keys [set cancel]} {:keys [workspace project]}]
+  (let [box (GridPane.)
+        browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
+                        (.setPrefWidth 26)
+                        (ui/add-style! "button-small"))
+        open-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
+                      (.setMaxWidth 26)
+                       (ui/add-style! "button-small"))
+        text (let [tf (TextField.)]
+               (.setPrefWidth tf (field-width field-info))
+               (.setMinWidth tf Control/USE_PREF_SIZE)
+               (GridPane/setFillWidth tf true)
+               tf)
         update-fn (fn [value] (ui/text! text value))]
-    (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext (when filter [filter])}))]
-                                    (set path resource))))
+    (ui/add-style! box "composite-property-control-container")
+    (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext (when filter [filter])}))]
+                                           (set path resource))))
+    (ui/on-action! open-button (fn [_] (when-let [resource (workspace/resolve-workspace-resource workspace (workspace/to-absolute-path (ui/text text)))]
+                                         (ui/run-command open-button :open {:resources [resource]}))))
     (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
                                       resource (workspace/resolve-workspace-resource workspace rpath)]
                                   (when-let [resource-path (and resource (resource/proj-path resource))]
-                                    (set path resource)
+                                    (set path resource-path)
                                     (update-fn resource-path)))))
     (ui/on-key! text (fn [key]
                        (when (= key KeyCode/ESCAPE)
                          (cancel))))
 
-    (ui/children! hbox [ text button])
+    (ui/children! box [text open-button browse-button])
+    (GridPane/setConstraints text 0 0)
+    (GridPane/setConstraints open-button 1 0)
+    (GridPane/setConstraints browse-button 2 0)
+
+    ; Merge the facing borders of the open and browse buttons.
+    (GridPane/setMargin open-button (Insets. 0 -1 0 0))
+    (.setOnMousePressed open-button (ui/event-handler _ (.toFront open-button)))
+    (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
+
+    (doto (.. box getColumnConstraints)
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/ALWAYS)))
+      (.add (doto (ColumnConstraints.)
+              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+              (.setHgrow Priority/NEVER)))
+      (.add (doto (ColumnConstraints.)
+              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+              (.setHgrow Priority/NEVER))))
+
     (ui/tooltip! text help)
-    [hbox {:update update-fn
-           :edit #(ui/request-focus! text)}]))
+    
+    [box {:update update-fn
+          :edit #(ui/request-focus! text)}]))
 
-(defn- to-double [s]
- (try
-   (Double/parseDouble s)
-   (catch Throwable _
-     nil)))
+(defn- create-field-component [ctrls]
+  (let [box (doto (GridPane.)
+              (ui/add-style! "property-component")
+              (ui/children! ctrls))]
+    (doall (map-indexed (fn [idx c]
+                          (GridPane/setConstraints c idx 0))
+                        ctrls))
+    box))
 
-(defn- create-multi-text-field-control [labels {:keys [path help]} {:keys [set cancel]}]
-  (let [text-fields (mapv (fn [l] (TextField.)) labels)
-        box (doto (HBox.)
-              (.setAlignment (Pos/BASELINE_LEFT)))
+(defn- create-multi-number-field-control [labels {:keys [path help] :as field-info} {:keys [set cancel]}]
+  (let [text-fields (mapv (fn [l]
+                            (let [tf (TextField.)]
+                              (.setMinWidth tf (field-width field-info))
+                              (GridPane/setFillWidth tf true)
+                              tf))
+                            labels)
+        box (doto (GridPane.)
+              (.setHgap grid-hgap))
         current-value (atom nil)
         update-fn (fn [value]
                     (reset! current-value value)
                     (doseq [[tf value-part] (zipmap text-fields value)]
                       (ui/text! tf (str value-part))))
         parse-val (fn []
-                    (let [val (mapv (comp to-double ui/text) text-fields)]
+                    (let [val (mapv (comp field-expression/to-double ui/text) text-fields)]
                       (when (not (some #{nil} val))
                         val)))
         setter (fn [] (if-let [val (parse-val)]
                         (do
                           (reset! current-value val)
                           (set path @current-value))
-                        (update-fn @current-value)))
-        ]
-    (.setSpacing box 6)
+                        (update-fn @current-value)))]
     (doseq [tf text-fields]
       (ui/on-action! tf (fn [_] (setter)))
       (ui/on-key! tf (fn [key]
@@ -188,17 +233,20 @@
 ;;                              (when (not (some #{focd} text-fields))
 ;;                                (setter))))))
       (ui/tooltip! tf help))
-    (doseq [[tf label] (map vector text-fields labels)]
-      (HBox/setHgrow tf Priority/SOMETIMES)
-      (.setPrefWidth ^TextField tf 60)
-      (doto (.getChildren box)
-        (.add (Label. label))
-        (.add tf)))
+    (doall (map-indexed (fn [idx [tf label]]
+                          (let [label-ctrl (doto (Label. label)
+                                             (.setMinWidth 25))
+                                comp (create-field-component [label-ctrl tf])]
+                            (ui/add-child! box comp)
+                            (GridPane/setConstraints comp idx 0)
+                            (GridPane/setFillWidth comp true)))
+                        (map vector text-fields labels)))
+
     [box {:update update-fn
           :edit #(doto ^TextField (first text-fields) (.requestFocus) (.selectAll))}]))
 
 (defmethod create-field-control :vec4 [field-info field-ops _]
-  (create-multi-text-field-control ["x" "y" "z" "w"] field-info field-ops))
+  (create-multi-number-field-control ["x" "y" "z" "w"] field-info field-ops))
 
 (defmulti get-value-string-fn (fn [field-info] (:type field-info)))
 
@@ -211,18 +259,21 @@
 (defmethod get-value-string-fn :default [_]
   str)
 
-(defn- kill-border [column-info]
-  (some #{(:type column-info)} '(:string :integer :number)))
-
 (defn- create-cell-field-control [^Cell cell column-info ctxt]
   (let [field-ops {:set (fn [_ value] (.commitEdit cell value))
                    :cancel #(.cancelEdit cell)
                    }
         [^Control control api] (create-field-control column-info field-ops ctxt)] ; column-info ~ field-info
-    (.setMinWidth control (- (.getWidth cell) (* 2 (.getGraphicTextGap cell))))
-    (when (kill-border column-info)
-      (ui/add-style! control "inline-editor"))
-    [control api]))
+    (GridPane/setConstraints control 0 0)
+    (GridPane/setFillWidth control true)
+    (ui/fill-control control)
+    [(AnchorPane. (into-array Node [control])) api]))
+
+(defn- resize-column-to-fit-control [^TableColumn table-column ^Node ctrl]
+  (let [min-width (.minWidth ctrl -1)
+        curr-width (.getWidth table-column)]
+    (when (< curr-width min-width)
+      (.impl_setWidth table-column min-width))))
 
 (defn- create-table-cell-factory [column-info ctxt]
   (reify Callback
@@ -239,9 +290,12 @@
                        (ui/add-style! this "editing-cell")
                        (.setText this nil)
                        (.setGraphic this (first @ctrl-data))
-                       (when-let [start-edit (:edit (second @ctrl-data))]
-                         (ui/run-later
-                          (start-edit))))))
+                       (let [start-edit (:edit (second @ctrl-data))
+                             table-column (.getTableColumn this)]
+                       (ui/run-later
+                        (resize-column-to-fit-control table-column (first @ctrl-data))
+                        (when [start-edit]
+                          (start-edit)))))))
                  (cancelEdit []
                    (let [this ^TableCell this]
                      (proxy-super cancelEdit)
@@ -265,8 +319,7 @@
                                (.setText this (get-value-string (.getItem this)))
                                (.setGraphic this nil))))))))]
         (doto tc
-          (.setAlignment (value-alignment column-info)))
-          ))))
+          (.setAlignment (value-alignment column-info)))))))
 
 (defn- create-cell-value-factory [column-info]
   (reify Callback
@@ -313,7 +366,6 @@
                                             (.show cm ctrl (.getScreenX event) (.getScreenY event))
                                             (.consume event)))))))
 
-
 (defmethod create-field-control :table [field-info {:keys [set cancel] :as field-ops} ctxt]
   (assert (not cancel) "no support for nested tables")
   (let [table (TableView.)
@@ -336,11 +388,11 @@
                         (swap! content remove-table-row (selected-row))
                         (set (:path field-info) @content))]
 
-    (.setFixedCellSize table 25)
+    (.setFixedCellSize table 26)
     (.bind (.prefHeightProperty table)
            (.add (.multiply (Bindings/size (.getItems table))
                             (.getFixedCellSize table))
-                 50))
+                 52))
 
     (.setEditable table true)
     (.setAll (.getColumns table)
@@ -348,6 +400,8 @@
 
     (set-context-menu! table [["Add" on-add-row (constantly default-row)]
                               ["Remove" on-remove-row selected-row]])
+
+    (GridPane/setFillWidth table true)
 
     [table {:update update-fn}]))
 
@@ -417,11 +471,11 @@
 
 (defn- create-fixed-cell-size-list-view ^ListView []
   (let [list-view (ListView.)]
-    (.setFixedCellSize list-view 25)
+    (.setFixedCellSize list-view 26)
     (.bind (.prefHeightProperty list-view)
            (.add (.multiply (Bindings/size (.getItems list-view))
                             (.getFixedCellSize list-view))
-                 50))
+                 52))
   list-view))
 
 (defmethod create-field-control :list [field-info {:keys [set cancel] :as field-ops} ctxt]
@@ -454,13 +508,16 @@
                                                    (.getNewValue event)))))
     (.setEditable list-view true)
 
+    (.setPrefWidth list-view (field-width field-info))
+    (.setMinWidth list-view Control/USE_PREF_SIZE)
+
     (set-context-menu! list-view [["Add" on-add-row (constantly default-row)]
                                   ["Remove" on-remove-row #(get-selected-index list-view)]])
 
     [list-view {:update update-fn}]))
 
 (declare create-section-grid-rows)
-(declare add-grid-rows)
+(declare ^GridPane create-form-grid)
 (declare update-fields)
 
 (defn- wipe-fields [updaters]
@@ -474,7 +531,8 @@
              field-value-map))
 
 (defmethod create-field-control :2panel [field-info field-ops ctxt]
-  (let [list-view (create-fixed-cell-size-list-view)
+  (let [list-view (doto (create-fixed-cell-size-list-view)
+                    (.setMinWidth Control/USE_PREF_SIZE))
         hbox (HBox.)
         content (atom nil)
         nested-field-ops {:set (fn [path val]
@@ -490,8 +548,7 @@
                           }
         grid-rows (mapcat (fn [section-info] (create-section-grid-rows section-info nested-field-ops ctxt)) (:sections (:panel-form field-info)))
         updaters (into {} (keep :update-ui-fn grid-rows))
-        grid (doto (GridPane.)
-               (add-grid-rows grid-rows))
+        grid (create-form-grid grid-rows)
         panel-key-info (:panel-key field-info)
         internal-select-change (atom false)
         update-list-and-form (fn []
@@ -534,12 +591,10 @@
                             ((:on-remove field-info) v)
                             ((:set field-ops) (:path field-info) @content))))]
     (ui/user-data! grid ::ui-update-fns updaters)
-    (.setHgap grid 4)
-    (.setVgap grid 6)
     (HBox/setHgrow grid Priority/ALWAYS)
 
     (ui/children! hbox [list-view grid])
-    (.setSpacing hbox 6)
+    (.setSpacing hbox 10) ; same as inset of outer VBox
 
     (.setCellFactory list-view (create-list-cell-factory panel-key-info ctxt))
 
@@ -560,6 +615,8 @@
                   (when-not @internal-select-change
                     (update-list-and-form))))
 
+    (GridPane/setFillWidth hbox true)
+
     [hbox {:update update-fn}]))
 
 
@@ -574,21 +631,40 @@
 (defn- create-field-grid-row [field-info {:keys [set clear] :as field-ops} ctxt]
   (let [path (:path field-info)
         label (create-field-label (:label field-info))
-        reset-btn (doto (Button. "x")
-                    (ui/add-styles! ["clear-button" "small-button"])
+        reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
+                    (ui/add-styles! ["clear-button" "button-small"])
                     (ui/on-action! (fn [_] (clear path))))
         [control api] (create-field-control field-info field-ops ctxt)
+        label-box (let [box (GridPane.)]
+                    (GridPane/setFillWidth label true)
+                    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
+                                                        (.setHgrow Priority/ALWAYS))))
+                    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
+                                                        (.setHgrow Priority/NEVER))))
+                    box)
+        update-label-box (fn [overridden?]
+                           (if overridden?
+                             (do
+                               (ui/children! label-box [label reset-btn])
+                               (GridPane/setConstraints label 0 0)
+                               (GridPane/setConstraints reset-btn 1 0))
+                             (do
+                               (ui/children! label-box [label])
+                               (GridPane/setConstraints label 0 0))))
+                           
         update-ui-fn (fn [{:keys [value source]}]
                        (let [value (condp = source
                                          :explicit value
                                          :default (form/field-default field-info)
-                                         nil)]
-                         ((:update api) value))
-                       (.setVisible reset-btn (and (boolean (:optional field-info))
-                                                   (= source :explicit))))]
-    (GridPane/setValignment label (field-label-valign field-info))
-    (GridPane/setHalignment label HPos/RIGHT)
-    {:ctrls [label control reset-btn] :col-spans [1 1 1] :update-ui-fn [path update-ui-fn]}))
+                                         nil)
+                             overridden? (and (boolean (:optional field-info)) (= source :explicit))]
+                         ((:update api) value)
+                         (update-label-box overridden?)))]
+
+    (GridPane/setFillWidth label-box true)
+    (GridPane/setValignment label-box (field-label-valign field-info))
+    (GridPane/setHalignment label-box HPos/RIGHT)
+    {:ctrls [label-box control] :col-spans [1 1] :update-ui-fn [path update-ui-fn]}))
 
 (defn- create-title-label [title]
   (let [label (Label. title)]
@@ -605,9 +681,9 @@
     (when (> (count fields) 0)
       (concat
        (when title
-         [{:ctrls [(create-title-label title)] :col-spans [3]}])
+         [{:ctrls [(create-title-label title)] :col-spans [2]}])
        (when help
-         [{:ctrls [(create-help-text help)] :col-spans [3]}])
+         [{:ctrls [(create-help-text help)] :col-spans [2]}])
        (map (fn [field-info] (create-field-grid-row field-info field-ops ctxt)) fields)))))
 
 (defn- update-fields [updaters field-values]
@@ -642,23 +718,33 @@
             (fn [path] (form/clear-value! form-ops path)))
    })
 
+(defn- create-form-grid [grid-rows]
+  (let [grid (doto (GridPane.)
+               (.setHgap grid-hgap)
+               (.setVgap grid-vgap))
+        cc1  (doto (ColumnConstraints.) (.setHgrow Priority/NEVER))
+        cc2  (doto (ColumnConstraints.) (.setHgrow Priority/ALWAYS) (.setFillWidth false))]
+    (.. grid getColumnConstraints (add cc1))
+    (.. grid getColumnConstraints (add cc2))
+    (ui/add-style! grid "form")
+    (add-grid-rows grid grid-rows)
+    grid))
+
 (defn- create-form [form-data ctxt]
   (let [base-field-ops (make-base-field-ops (:form-ops form-data))
         grid-rows (mapcat (fn [section-info] (create-section-grid-rows section-info base-field-ops ctxt)) (:sections form-data))
-        updaters (into {} (keep :update-ui-fn grid-rows))]
-    (let [grid (GridPane.)
-          vbox (VBox. (double 10.0))
-          scroll-pane (ScrollPane. vbox)]
-      (.setHgap grid 4)
-      (.setVgap grid 6)
-      (add-grid-rows grid grid-rows)
-      (ui/children! vbox [grid])
-      (.setPadding vbox (Insets. 10 10 10 10))
-      (ui/fill-control scroll-pane)
-      (.setFitToWidth scroll-pane true)
-      (ui/user-data! scroll-pane ::update-ui-fns updaters)
-      (ui/user-data! scroll-pane ::form-data form-data)
-      scroll-pane)))
+        updaters (into {} (keep :update-ui-fn grid-rows))
+        grid (create-form-grid grid-rows)
+        vbox (doto (VBox. (double 10.0))
+               (.setPadding (Insets. 10 10 10 10))
+               (.setFillWidth true)
+               (ui/children! [grid]))
+        scroll-pane (doto (ScrollPane. vbox)
+                      (ui/fill-control)
+                      (.setFitToWidth true))]
+    (ui/user-data! scroll-pane ::update-ui-fns updaters)
+    (ui/user-data! scroll-pane ::form-data form-data)
+    scroll-pane))
 
 (defn- same-form-structure [form-data1 form-data2]
   (= (select-keys form-data1 [:form-ops :sections])
@@ -671,7 +757,6 @@
       (update-form prev-form form-data)
       (let [form (create-form form-data {:workspace workspace :project project})]
         (update-form form form-data)
-        (ui/add-style! form "form")
         (ui/children! parent-view [form])
         (g/set-property! _node-id :prev-form form)
         form))))
