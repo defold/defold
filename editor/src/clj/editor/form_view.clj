@@ -54,6 +54,12 @@
 (defn- field-width [field-info]
   (get default-field-widths (:type field-info) 100))
 
+(defn- install-escape-handler! [ctrl cancel]
+  (when cancel
+    (ui/on-key! ctrl (fn [key]
+                       (when (= key KeyCode/ESCAPE)
+                         (cancel))))))
+
 (defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [tf (TextField.)]
     (.setPrefWidth tf (field-width field-info))
@@ -61,9 +67,7 @@
     (ui/on-action! tf (fn [_]
                          (when-let [val (parse (ui/text tf))]
                            (set path val))))
-    (ui/on-key! tf (fn [key]
-                     (when (= key KeyCode/ESCAPE)
-                       (cancel))))
+    (install-escape-handler! tf cancel)
 ;; See FIXME above.
 ;;     (ui/on-focus! tf (fn [got-focus]
 ;;                        (when (not got-focus)
@@ -93,9 +97,7 @@
                         (.setSelected value))))]
 
     (ui/on-action! check (fn [_] (set path (.isSelected check))))
-    (ui/on-key! check (fn [key]
-                        (when (= key KeyCode/ESCAPE)
-                          (cancel))))
+    (install-escape-handler! check cancel)
 ;; See FIXME above.
 ;;     (ui/on-focus! check (fn [got-focus]
 ;;                           (when (not got-focus)
@@ -125,9 +127,7 @@
                 (fn [observable old-val new-val]
                   (when-not @internal-change
                     (set path new-val))))
-    (ui/on-key! cb (fn [key]
-                     (when (= key KeyCode/ESCAPE)
-                       (cancel))))
+    (install-escape-handler! cb cancel)
 ;; See FIXME above.
 ;;     (ui/on-focus! cb (fn [got-focus]
 ;;                        (when (not got-focus)
@@ -160,10 +160,7 @@
                                   (when-let [resource-path (and resource (resource/proj-path resource))]
                                     (set path resource-path)
                                     (update-fn resource-path)))))
-    (ui/on-key! text (fn [key]
-                       (when (= key KeyCode/ESCAPE)
-                         (cancel))))
-
+    (install-escape-handler! text cancel)
     (ui/children! box [text open-button browse-button])
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints open-button 1 0)
@@ -223,9 +220,7 @@
                         (update-fn @current-value)))]
     (doseq [tf text-fields]
       (ui/on-action! tf (fn [_] (setter)))
-      (ui/on-key! tf (fn [key]
-                       (when (= key KeyCode/ESCAPE)
-                         (cancel))))
+      (install-escape-handler! tf cancel)
 ;; See FIXME above.
 ;;       (ui/on-focus! tf (fn [got-focus]
 ;;                          (when (not got-focus)
