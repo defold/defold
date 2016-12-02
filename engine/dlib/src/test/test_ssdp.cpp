@@ -11,39 +11,22 @@
 #include "../dlib/socket.h"
 
 static const char* DEVICE_DESC_STATIC =
-"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-"<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
-"    <specVersion>\n"
-"        <major>1</major>\n"
-"        <minor>0</minor>\n"
-"    </specVersion>\n"
-"    <device>\n"
-"        <deviceType>upnp:rootdevice</deviceType>\n"
-"        <friendlyName>Defold System</friendlyName>\n"
-"        <manufacturer>Defold</manufacturer>\n"
-"        <modelName>Defold Engine 1.0</modelName>\n"
-"        <UDN>uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8</UDN>\n"
-"    </device>\n"
-"</root>\n";
+    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+    "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
+    "    <specVersion>\n"
+    "        <major>1</major>\n"
+    "        <minor>0</minor>\n"
+    "    </specVersion>\n"
+    "    <device>\n"
+    "        <deviceType>upnp:rootdevice</deviceType>\n"
+    "        <friendlyName>Defold System</friendlyName>\n"
+    "        <manufacturer>Defold</manufacturer>\n"
+    "        <modelName>Defold Engine 1.0</modelName>\n"
+    "        <UDN>uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8</UDN>\n"
+    "    </device>\n"
+    "</root>\n";
 
-void create_random_number(char* string, unsigned int size)
-{
-    for (unsigned int i = 0; i < size; ++i) {
-        int ascii = 48 + rand() % 10; // ASCII 48 = '0'
-        string[i] = (char) ascii;
-    }
-}
-
-void create_random_udn(char* string, unsigned int size)
-{
-    char device_id[9] = { 0 };
-    create_random_number(device_id, 8);
-    DM_SNPRINTF(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", device_id);
-}
-
-void create_device_description_xml(char* string, const char* udn, unsigned int size)
-{
-    const char* DEVICE_DESC =
+static const char* DEVICE_DESC =
     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
     "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
     "    <specVersion>\n"
@@ -58,6 +41,26 @@ void create_device_description_xml(char* string, const char* udn, unsigned int s
     "        <UDN>%s</UDN>\n"
     "    </device>\n"
     "</root>\n";
+
+void CreateRandomNumberString(char* string, unsigned int size)
+{
+    for (unsigned int i = 0; i < (size - 1); ++i) {
+        int ascii = '0' + (rand() % 10);
+        string[i] = (char) ascii;
+    }
+
+    string[size - 1] = 0x0;
+}
+
+void CreateRandomUDN(char* string, unsigned int size)
+{
+    char device_id[9] = { 0 };
+    CreateRandomNumberString(device_id, 9);
+    DM_SNPRINTF(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", device_id);
+}
+
+void CreateDeviceDescriptionXML(char* string, const char* udn, unsigned int size)
+{
     DM_SNPRINTF(string, size, DEVICE_DESC, udn);
 }
 
@@ -80,15 +83,15 @@ public:
     dmSSDP::HSSDP m_Server;
     dmSSDP::HSSDP m_Client;
 
-    char* device_udn;
-    char* device_usn;
-    char* device_description;
-    dmhash_t device_usn_hash;
+    char* m_DeviceUDN;
+    char* m_DeviceUSN;
+    char* m_DeviceDescriptionXML;
+    dmhash_t m_DeviceUSNHash;
     dmSSDP::DeviceDesc m_DeviceDesc;
 
     bool TestDeviceDiscovered()
     {
-        return m_ClientDevices.find(device_usn_hash) != m_ClientDevices.end();
+        return m_ClientDevices.find(m_DeviceUSNHash) != m_ClientDevices.end();
     }
 
     void UpdateClient(bool search = false)
@@ -141,31 +144,31 @@ public:
 
     virtual void SetUp()
     {
-        device_udn = (char*) malloc(sizeof(char) * 43);
-        device_usn = (char*) malloc(sizeof(char) * 60);
-        device_description = (char*) malloc(sizeof(char) * 513);
+        m_DeviceUDN = (char*) malloc(sizeof(char) * 43);
+        m_DeviceUSN = (char*) malloc(sizeof(char) * 60);
+        m_DeviceDescriptionXML = (char*) malloc(sizeof(char) * 513);
 
-        memset(device_udn, 0x0, 43);
-        memset(device_usn, 0x0, 60);
-        memset(device_description, 0x0, 513);
+        memset(m_DeviceUDN, 0x0, 43);
+        memset(m_DeviceUSN, 0x0, 60);
+        memset(m_DeviceDescriptionXML, 0x0, 513);
 
-        create_random_udn(device_udn, 43);
+        CreateRandomUDN(m_DeviceUDN, 43);
 
-        dmStrlCat(device_usn, device_udn, 60);
-        dmStrlCat(device_usn, "::upnp:rootdevice", 60);
+        dmStrlCat(m_DeviceUSN, m_DeviceUDN, 60);
+        dmStrlCat(m_DeviceUSN, "::upnp:rootdevice", 60);
 
-        device_usn_hash = dmHashString64(device_usn);
+        m_DeviceUSNHash = dmHashString64(m_DeviceUSN);
 
-        create_device_description_xml(device_description, device_udn, 513);
+        CreateDeviceDescriptionXML(m_DeviceDescriptionXML, m_DeviceUDN, 513);
 
-        printf("(SETUP) Using UDN = \"%s\"\n", device_udn);
-        printf("(SETUP) Using USN = \"%s\"\n", device_usn);
-        printf("(SETUP) Using USN_HASH = \"%llu\"\n", device_usn_hash);
+        printf("(SETUP) Using UDN = \"%s\"\n", m_DeviceUDN);
+        printf("(SETUP) Using USN = \"%s\"\n", m_DeviceUSN);
+        printf("(SETUP) Using USN_HASH = \"%llu\"\n", m_DeviceUSNHash);
 
         m_DeviceDesc.m_Id = "my_root_device";
-        m_DeviceDesc.m_DeviceDescription = device_description;
+        m_DeviceDesc.m_DeviceDescription = m_DeviceDescriptionXML;
         m_DeviceDesc.m_DeviceType = "upnp:rootdevice";
-        dmStrlCpy(m_DeviceDesc.m_UDN, device_udn, sizeof(m_DeviceDesc.m_UDN));
+        dmStrlCpy(m_DeviceDesc.m_UDN, m_DeviceUDN, sizeof(m_DeviceDesc.m_UDN));
 
         m_Client = 0;
         m_Server = 0;
@@ -188,10 +191,10 @@ public:
             ASSERT_EQ(dmSSDP::RESULT_OK, r);
         }
 
-        device_usn_hash = 0;
-        free(device_udn);
-        free(device_usn);
-        free(device_description);
+        m_DeviceUSNHash = 0;
+        free(m_DeviceUDN);
+        free(m_DeviceUSN);
+        free(m_DeviceDescriptionXML);
     }
 };
 
@@ -325,15 +328,15 @@ TEST_F(dmSSDPTest, JavaClient)
 
     char device1_udn[43] = { 0 };
     char device1_usn[60] = { 0 };
-    create_random_udn(device1_udn, sizeof(device1_udn) / sizeof(device1_udn[0]));
-    dmStrlCat(device1_usn, device1_udn, sizeof(device1_usn));
-    dmStrlCat(device1_usn, "::upnp:rootdevice", sizeof(device1_usn));
+    CreateRandomUDN(device1_udn, 43);
+    dmStrlCat(device1_usn, device1_udn, 60);
+    dmStrlCat(device1_usn, "::upnp:rootdevice", 60);
 
     char device2_udn[43] = { 0 };
     char device2_usn[60] = { 0 };
-    create_random_udn(device2_udn, sizeof(device2_udn) / sizeof(device2_udn[0]));
-    dmStrlCat(device2_usn, device2_udn, sizeof(device2_usn));
-    dmStrlCat(device2_usn, "::upnp:rootdevice", sizeof(device2_usn));
+    CreateRandomUDN(device2_udn, 43);
+    dmStrlCat(device2_usn, device2_udn, 60);
+    dmStrlCat(device2_usn, "::upnp:rootdevice", 60);
 
     dmSSDP::Result r;
     dmSSDP::NewParams server_params1;
