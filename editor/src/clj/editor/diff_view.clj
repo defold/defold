@@ -73,7 +73,7 @@
     (if (= begin end) (Rectangle. 10 0) t)))
 
 (defn- make-texts [^Group box lines edits selector]
-  (let [font (Font. "Courier New" 13)
+  (let [font (Font. "Dejavu Sans Mono" 13)
         texts (mapv (fn [e] (make-text font lines (selector e))) edits)
         heights (reductions (fn [sum t] (+ sum (:height (ui/local-bounds t)))) 0 texts)]
     (doseq [[t y] (map vector texts heights)]
@@ -102,7 +102,7 @@
   (let [lines
         (for [[t-left t-right edit] (map vector texts-left texts-right edits)
               :when (not= (:type edit) :nop)]
-          (make-line t-left t-right 1 40))]
+          (make-line t-left t-right 0 40))]
     (ui/children! box lines)))
 
 (defn- clip-control! [^Control control]
