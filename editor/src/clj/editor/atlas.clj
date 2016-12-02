@@ -47,10 +47,6 @@
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def image-icon "icons/32/Icons_25-AT-Image.png")
 
-(defn render-overlay
-  [^GL2 gl width height]
-  (scene/overlay-text gl (format "Size: %dx%d" width height) 12.0 -22.0))
-
 (vtx/defvertex texture-vtx
   (vec4 position)
   (vec2 texcoord0))
@@ -127,6 +123,13 @@
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
 
+  (property size types/Vec2
+    (value (g/fnk [^BufferedImage src-image]
+             (if src-image
+               [(.getWidth src-image) (.getHeight src-image)]
+               [0 0])))
+    (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+    (dynamic read-only? (g/constantly true)))
   (property order g/Int (dynamic visible (g/constantly false)) (default 0))
 
   (input src-resource resource/Resource)
@@ -290,11 +293,8 @@
         vertex-binding (vtx/use-with _node-id vertex-buffer atlas-shader)]
     {:aabb aabb
      :renderable {:render-fn (fn [gl render-args renderables count]
-                               (let [pass (:pass render-args)]
-                                 (cond
-                                   (= pass pass/overlay)     (render-overlay gl width height)
-                                   (= pass pass/transparent) (render-texture-set gl render-args vertex-binding gpu-texture))))
-                  :passes [pass/overlay pass/transparent]}
+                               (render-texture-set gl render-args vertex-binding gpu-texture))
+                  :passes [pass/transparent]}
      :children child-scenes}))
 
 (g/defnk produce-texture-set-data [_node-id animations images margin inner-padding extrude-borders]
@@ -380,6 +380,13 @@
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
+  (property size types/Vec2
+    (value (g/fnk [texture-set-data]
+             (if-let [^BufferedImage img (:image texture-set-data)]
+               [(.getWidth img) (.getHeight img)]
+               [0 0])))
+    (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+    (dynamic read-only? (g/constantly true)))
   (property margin g/Int
             (default 0)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? margin)))

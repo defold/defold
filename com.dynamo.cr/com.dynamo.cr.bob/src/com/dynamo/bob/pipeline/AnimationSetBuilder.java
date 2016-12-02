@@ -14,6 +14,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.rig.proto.Rig.AnimationSet;
@@ -27,12 +28,38 @@ public class AnimationSetBuilder extends Builder<Void>  {
 
     ArrayList<String> animFiles;
 
+    public static void collectAnimations(Task.TaskBuilder<Void> taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
+        for(AnimationInstanceDesc instance : animSetDescBuilder.getAnimationsList()) {
+            IResource animFile = BuilderUtil.checkResource(project, owner, "animationset", instance.getAnimation());
+            taskBuilder.addInput(animFile);
+
+            if(instance.getAnimation().endsWith(".animationset")) {
+                ByteArrayInputStream animFileIS = new ByteArrayInputStream(animFile.getContent());
+                InputStreamReader subAnimSetDescBuilderISR = new InputStreamReader(animFileIS);
+                AnimationSetDesc.Builder subAnimSetDescBuilder = AnimationSetDesc.newBuilder();
+                TextFormat.merge(subAnimSetDescBuilderISR, subAnimSetDescBuilder);
+                collectAnimations(taskBuilder, project, owner, subAnimSetDescBuilder);
+            }
+        }
+    }
+
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())
             .addInput(input);
         taskBuilder.addOutput(input.changeExt(params.outExt()));
+
+        if( input.getAbsPath().endsWith(".animationset") ) {
+            ByteArrayInputStream animFileIS = new ByteArrayInputStream(input.getContent());
+            InputStreamReader animSetDescBuilderISR = new InputStreamReader(animFileIS);
+            AnimationSetDesc.Builder animSetDescBuilder = AnimationSetDesc.newBuilder();
+            TextFormat.merge(animSetDescBuilderISR, animSetDescBuilder);
+
+            AnimationSetBuilder.collectAnimations(taskBuilder, this.project, input, animSetDescBuilder);
+        }
+
         return taskBuilder.build();
     }
 
