@@ -107,12 +107,12 @@
 (defn resource-node [project path]
   (project/get-resource-node project path))
 
-(defn empty-selection? [project]
-  (let [sel (g/node-value project :selected-node-ids)]
+(defn empty-selection? [app-view]
+  (let [sel (g/node-value app-view :selected-node-ids)]
     (empty? sel)))
 
-(defn selected? [project tgt-node-id]
-  (let [sel (g/node-value project :selected-node-ids)]
+(defn selected? [app-view tgt-node-id]
+  (let [sel (g/node-value app-view :selected-node-ids)]
     (not (nil? (some #{tgt-node-id} sel)))))
 
 (g/defnode MockAppView
@@ -129,7 +129,7 @@
   (let [view-graph (make-view-graph!)]
     (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
           (g/connect project :_node-id app-view :project-id)
-          (for [label [:all-selected-node-ids :all-selected-node-properties :all-sub-selections]]
+          (for [label [:selected-node-ids-by-resource :selected-node-properties-by-resource :sub-selections-by-resource]]
             (g/connect project label app-view label)))
       g/transact
       g/tx-nodes-added
@@ -403,6 +403,6 @@
   "Adds a new instance of an embedded component to the specified
   game object node inside a transaction and makes it the current
   selection. Returns the id of the added EmbeddedComponent node."
-  [project select-fn resource-type go-id]
+  [app-view select-fn resource-type go-id]
   (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
-  (first (selection project)))
+  (first (selection app-view)))

@@ -511,10 +511,10 @@
   (property build-cache g/Any)
   (property fs-build-cache g/Any)
   (property all-selections g/Any)
-  (property sub-selection g/Any)
+  (property all-sub-selections g/Any)
 
-  (input selected-node-ids g/Any :array)
-  (input selected-node-properties g/Any :array)
+  (input all-selected-node-ids g/Any :array)
+  (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-map g/Any)
   (input resource-types g/Any)
@@ -524,23 +524,23 @@
   (input display-profiles g/Any)
   (input collision-group-nodes g/Any :array)
 
-  (output all-selected-node-ids g/Any :cached (g/fnk [selected-node-ids all-selections]
-                                                (let [selected-node-ids (set selected-node-ids)]
-                                                  (->> all-selections
-                                                    (map (fn [[key vals]] [key (filterv selected-node-ids vals)]))
-                                                    (into {})))))
-  (output all-selected-node-properties g/Any :cached (g/fnk [selected-node-properties all-selections]
-                                                       (let [props (->> selected-node-properties
-                                                                     (map (fn [p] [(:node-id p) p]))
-                                                                     (into {}))]
-                                                         (->> all-selections
-                                                           (map (fn [[key vals]] [key (vec (keep props vals))]))
-                                                           (into {})))))
-  (output all-sub-selections g/Any :cached (g/fnk [selected-node-ids sub-selection]
-                                                  (let [nids (set selected-node-ids)]
-                                                    (->> sub-selection
-                                                      (map (fn [[key vals]] [key (filterv (comp nids first) vals)]))
-                                                      (into {})))))
+  (output selected-node-ids-by-resource g/Any :cached (g/fnk [all-selected-node-ids all-selections]
+                                                        (let [selected-node-id-set (set all-selected-node-ids)]
+                                                          (->> all-selections
+                                                            (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
+                                                            (into {})))))
+  (output selected-node-properties-by-resource g/Any :cached (g/fnk [all-selected-node-properties all-selections]
+                                                               (let [props (->> all-selected-node-properties
+                                                                             (map (fn [p] [(:node-id p) p]))
+                                                                             (into {}))]
+                                                                 (->> all-selections
+                                                                   (map (fn [[key vals]] [key (vec (keep props vals))]))
+                                                                   (into {})))))
+  (output sub-selections-by-resource g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
+                                                          (let [selected-node-id-set (set all-selected-node-ids)]
+                                                            (->> all-sub-selections
+                                                              (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
+                                                              (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
