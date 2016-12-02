@@ -12,44 +12,43 @@ import com.dynamo.upnp.SSDP;
 
 public class SSDPTest {
     ISSDP ssdp;
-    final static String USN1 = "uuid:00000001-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
-    final static String USN2 = "uuid:00000002-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
 
-    private static void debug_info(String message) {
-        long timestamp = System.currentTimeMillis() / 1000;
-        System.out.println("(" + Long.toString(timestamp) + ") [JAVA] " + message);
-    }
+    private static String USN1 = "uuid:00000001-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
+    private static String USN2 = "uuid:00000002-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
 
     @BeforeClass
     public static void setUpBaseClass() {
-        SSDPTest.debug_info("Starting SSDPTest ...");
+        if (System.getProperty("USN1") != null) {
+            SSDPTest.USN1 = System.getProperty("USN1");
+        }
+
+        if (System.getProperty("USN2") != null) {
+            SSDPTest.USN2 = System.getProperty("USN2");
+        }
+
+        System.out.println("(JAVA) USN1 = '" + SSDPTest.USN1 + "'");
+        System.out.println("(JAVA) USN2 = '" + SSDPTest.USN2 + "'");
     }
 
     @Before
     public void setUp() throws Exception {
-        SSDPTest.debug_info("Starting setup of test ...");
         ssdp = new SSDP();
         ssdp.setup();
         Thread.sleep(100);
         ssdp.update(false);
         ssdp.clearDiscovered();
-        SSDPTest.debug_info("Completed setup of test!");
     }
 
     @After
     public void tearDown() throws Exception {
-        SSDPTest.debug_info("Started teardown of test ...");
         ssdp.dispose();
-        SSDPTest.debug_info("Completed teardown of test!");
     }
 
     void assertDevice(String d) {
-        SSDPTest.debug_info("Assert \"" + d + "\" is not null");
         assertNotNull(ssdp.getDeviceInfo(d));
     }
 
     void assertNotDevice(String d) {
-        SSDPTest.debug_info("Assert \"" + d + "\" is null");
         assertNull(ssdp.getDeviceInfo(d));
     }
 
@@ -61,7 +60,6 @@ public class SSDPTest {
 
     @Test
     public void testSearch() throws Exception {
-        SSDPTest.debug_info("Starting test \"testSearch\" ...");
         ssdp.update(false);
         assertNotDevice(USN2);
 
@@ -71,12 +69,10 @@ public class SSDPTest {
             Thread.sleep(100);
         }
         assertDevice(USN2);
-        SSDPTest.debug_info("Completed test \"testSearch\"!");
     }
 
     @Test
     public void testAnnounce() throws Exception {
-        SSDPTest.debug_info("Starting test \"testAnnounce\" ...");
         assertNotDevice(USN1);
 
         for (int i = 0; i < 15; ++i) {
@@ -84,12 +80,10 @@ public class SSDPTest {
             ssdp.update(false);
         }
         assertDevice(USN1);
-        SSDPTest.debug_info("Completed test \"testAnnounce\"!");
     }
 
     @Test
     public void testExpiration() throws Exception {
-        SSDPTest.debug_info("Starting test \"testExpiration\" ...");
         ssdp.update(false);
         assertNotDevice(USN2);
 
@@ -105,7 +99,6 @@ public class SSDPTest {
         // NOTE: If someone else on the network would issue a M-SEARCH
         // this test might fail. A bit fragile.
         assertNotDevice(USN2);
-        SSDPTest.debug_info("Completed test \"testExpiration\"!");
     }
 }
 
