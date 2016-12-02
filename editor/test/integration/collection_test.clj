@@ -68,7 +68,7 @@
                ; Select the collection node
                (project/select! project [node-id])
                ; Run the add handler
-               (test-util/handler-run :add [{:name :workbench :env {:selection [node-id]}}] {})
+               (test-util/handler-run :add [{:name :workbench :env {:workspace workspace :project project :selection [node-id]}}] {})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
@@ -139,7 +139,7 @@
           coll-id   (test-util/resource-node project "/collection/test.collection")
           go-id     (test-util/resource-node project "/game_object/test.go")
           script-id (test-util/resource-node project "/script/props.script")]
-      (collection/add-game-object-file coll-id (test-util/resource workspace "/game_object/test.go"))
+      (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go"))
       (is (nil? (test-util/outline coll-id [0 0])))
       (let [inst (first (test-util/selection project))]
         (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script"))

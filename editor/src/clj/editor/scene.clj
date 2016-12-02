@@ -295,10 +295,16 @@
                                                                            (:aabb scene)
                                                                            (reduce geom/aabb-union (geom/null-aabb) (map :aabb selected-renderables)))))
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
-                                                   (into {} [(first (map (fn [r] [(:node-id r) r]) (filter :updatable selected-renderables)))])))
+                                              (some (fn [r]
+                                                      (when-let [u (:updatable r)]
+                                                        {(:node-id u) u})) selected-renderables)))
   (output updatables g/Any :cached (g/fnk [renderables]
                                           (let [flat-renderables (apply concat (map second renderables))]
-                                            (into {} (map (fn [r] [(:node-id r) r]) (filter :updatable flat-renderables)))))))
+                                            (into {} (keep (fn [r]
+                                                             (when-let [u (:updatable r)]
+                                                               (when (or (= (:node-id u) (:node-id r)) (= (:node-id u) (last (:node-path r))))
+                                                                 [(:node-id u) (assoc u :world-transform (:world-transform r))])))
+                                                       flat-renderables))))))
 
 (g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera all-renderables ^AsyncCopier async-copier active-updatables play-mode]
   (when async-copier
@@ -307,10 +313,8 @@
                       (let [dt 1/60
                             context {:dt (if (= play-mode :playing) dt 0)}]
                         (doseq [updatable active-updatables
-                                :let [node-path (:node-path updatable)
-                                      context (assoc context
-                                                     :world-transform (:world-transform updatable))]]
-                          ((get-in updatable [:updatable :update-fn]) context))))
+                                :let [context (assoc context :world-transform (:world-transform updatable))]]
+                          ((get updatable :update-fn) context))))
     (profiler/profile "render" -1
                       (when-let [^GLContext context (.getContext drawable)]
                         (let [gl ^GL2 (.getGL context)]
@@ -497,8 +501,7 @@
 
 (handler/defhandler :scene-stop :global
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
-                         (let [active (g/node-value view :active-updatables)]
-                           (not (empty? (g/node-value view :active-updatables))))))
+                         (seq (g/node-value view :active-updatables))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 

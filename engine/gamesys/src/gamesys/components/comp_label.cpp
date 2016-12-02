@@ -88,7 +88,7 @@ namespace dmGameSystem
         LabelWorld* world = (LabelWorld*)params.m_World;
 
         LabelComponent* components = world->m_Components.m_Objects.Begin();
-        for (int i = 0; i < world->m_Components.m_Objects.Capacity(); ++i )
+        for (int i = 0; i < world->m_Components.m_Objects.Size(); ++i )
         {
             LabelComponent& component = components[i];
             if (component.m_UserAllocatedText)
@@ -214,16 +214,11 @@ namespace dmGameSystem
         LabelWorld* world = (LabelWorld*)params.m_World;
         uint32_t index = *params.m_UserData;
 
-        dmArray<LabelComponent>& components = world->m_Components.m_Objects;
-        uint32_t n = components.Size();
-        for (uint32_t i = 0; i < n; ++i)
+        LabelComponent& component = world->m_Components.Get(index);
+        if (component.m_UserAllocatedText)
         {
-            LabelComponent* component = &components[i];
-            if (component->m_UserAllocatedText)
-            {
-                component->m_UserAllocatedText = 0;
-                free((void*)component->m_Text);
-            }
+            component.m_UserAllocatedText = 0;
+            free((void*)component.m_Text);
         }
 
         world->m_Components.Free(index, true);
