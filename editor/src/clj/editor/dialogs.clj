@@ -1,6 +1,5 @@
 (ns editor.dialogs
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+  (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.handler :as handler]
@@ -9,22 +8,19 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.defold-project :as project]
-            [service.log :as log]
-            [clojure.string :as str])
+            [editor.util :as util]
+            [service.log :as log])
   (:import [java.io File]
            [java.nio.file Path Paths]
-           [javafx.beans.binding StringBinding]
-           [javafx.event Event ActionEvent EventHandler]
+           [java.util.concurrent BlockingQueue LinkedBlockingQueue]
+           [javafx.event Event ActionEvent]
            [javafx.collections FXCollections ObservableList]
-           [javafx.fxml FXMLLoader]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button TextField TreeView TreeItem ListView SelectionMode]
+           [javafx.scene.control TextField TreeView TreeItem ListView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
-           [javafx.scene.web WebView]
-           [javafx.stage Stage StageStyle Modality DirectoryChooser]
-           [org.apache.commons.io FilenameUtils]))
+           [javafx.stage Stage StageStyle Modality DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
 
@@ -179,9 +175,9 @@
          (ui/request-focus! node))))
 
 (defn- default-filter-fn [cell-fn text items]
-  (let [text (string/lower-case text)
-        str-fn (comp string/lower-case :text cell-fn)]
-    (filter (fn [item] (string/starts-with? (str-fn item) text)) items)))
+  (let [text (str/lower-case text)
+        str-fn (comp str/lower-case :text cell-fn)]
+    (filter (fn [item] (str/starts-with? (str-fn item) text)) items)))
 
 (defn make-select-list-dialog [items options]
   (let [^Parent root (ui/load-fxml "select-list.fxml")
@@ -372,7 +368,7 @@
       (update tree :children (fn [children]
                                (map #(append-match-snippet-nodes % matching-resources) children))))))
 
-(defn- update-search-dialog [^TreeView tree-view workspace matching-resources]
+#_(defn- update-search-dialog [^TreeView tree-view workspace matching-resources]
   (let [resource-tree  (g/node-value workspace :resource-tree)
         [_ new-tree]   (workspace/filter-resource-tree resource-tree (set (map :resource matching-resources)))
         tree-with-hits (append-match-snippet-nodes new-tree (group-by :resource matching-resources))]
@@ -385,35 +381,97 @@
                                 first)]
       (.select (.getSelectionModel tree-view) first-match))))
 
-(defn make-search-in-files-dialog [workspace search-fn]
-  (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
+(def ^:private tree-item-comparator
+  (comparator (fn [^TreeItem item-a ^TreeItem item-b]
+                (let [a (.getValue item-a)
+                      b (.getValue item-b)]
+                  (compare (:path a) (:path b))))))
+
+(defn- insert-search-result [^ObservableList tree-items search-result]
+  (let [{:keys [file-path matches]} search-result
+        new-child (TreeItem. file-path) ; TODO: Add children
+        insert-index (util/find-insert-index tree-items new-child tree-item-comparator)]
+    (.add tree-items insert-index new-child)))
+
+(defn- make-save-data-future [project]
+  (let [basis (g/now)
+        cache (atom (deref (g/cache)))
+        options {:basis basis :cache cache :skip-validation true}]
+    (future
+      (g/node-value project :save-data options))))
+
+(defn- start-search-thread [save-data-future term exts produce-fn]
+  (future
+    (println term "search thread started")
+    (try
+      (let [save-data (deref save-data-future)]
+        ; TODO: Produce actual search results.
+        (doseq [{:keys [resource content]} (take 10 save-data)]
+          (when (Thread/interrupted)
+            (throw (InterruptedException.)))
+          (produce-fn {:resource resource
+                       :matches []})
+          (Thread/sleep (rand-int 100))))
+      (catch InterruptedException _
+        ; future-cancel was invoked from another thread.
+        ))
+    (println term "search thread terminated")))
+
+(defn- start-tree-update-timer [^TreeView tree-view consume-fn]
+  (let [tree-items (.getChildren (.getRoot tree-view))
+        timer (ui/->timer 30 "tree-update-timer"
+                          (fn [_]
+                            (when-let [search-result (consume-fn)]
+                              (println "tree update timer got search-result.")
+                              (insert-search-result tree-items search-result))))]
+    (ui/timer-start! timer)
+    timer))
+
+(defn- make-file-searcher [save-data-future ^TreeView tree-view]
+  (let [pending-search-atom (atom nil)
+        abort-search! (fn [pending-search]
+                        (some-> pending-search :thread future-cancel)
+                        (some-> pending-search :timer ui/timer-stop!)
+                        (println "clearing tree...")
+                        (.clear (.getChildren (.getRoot tree-view))))
+        start-search! (fn [pending-search term exts]
+                        (abort-search! pending-search)
+                        (if (seq term)
+                          (let [queue (LinkedBlockingQueue. 10)
+                                thread (start-search-thread save-data-future term exts #(.put queue %))
+                                timer (start-tree-update-timer tree-view #(.poll queue))]
+                            {:thread thread
+                             :timer timer})))]
+    {:abort-search! #(swap! pending-search-atom abort-search!)
+     :start-search! (partial swap! pending-search-atom start-search!)}))
+
+(defn make-search-in-files-dialog [workspace project search-fn]
+  (let [save-data-future (make-save-data-future project)
+        root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         stage     (ui/make-stage)
         scene     (Scene. root)
         controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
         return    (atom nil)
-        term      (atom nil)
-        exts      (atom nil)
         close     (fn [] (reset! return (ui/selection (:resources-tree controls))) (.close stage))
-        tree-view ^TreeView (:resources-tree controls)]
+        term-field ^TextField (:search controls)
+        exts-field ^TextField (:types controls)
+        tree-view ^TreeView (:resources-tree controls)
+        {:keys [abort-search! start-search!]} (make-file-searcher save-data-future tree-view)
+        on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))]
     (observe-focus stage)
     (.initOwner stage (ui/main-stage))
-    (ui/title! stage "Search in files")
+    (ui/title! stage "Search in Files")
+    (.setRoot tree-view (TreeItem.))
 
+    (ui/on-closed! stage (fn on-closed! [_] (abort-search!)))
     (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
     (ui/on-double! (:resources-tree controls) (fn on-double! [_] (close)))
 
     (ui/cell-factory! (:resources-tree controls) (fn [r] {:text (resource/resource-name r)
                                                           :icon (workspace/resource-icon r)}))
 
-    (ui/observe (.textProperty ^TextField (:search controls))
-                (fn observe [_ _ ^String new]
-                  (reset! term new)
-                  (update-search-dialog tree-view workspace (search-fn @exts @term))))
-
-    (ui/observe (.textProperty ^TextField (:types controls))
-                (fn observe [_ _ ^String new]
-                  (reset! exts new)
-                  (update-search-dialog tree-view workspace (search-fn @exts @term))))
+    (ui/observe (.textProperty term-field) on-input-changed!)
+    (ui/observe (.textProperty exts-field) on-input-changed!)
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
       (ui/event-handler event
@@ -672,7 +730,7 @@
         close (fn [v] (do (deliver result v) (.close stage)))
         ^ListView list-view  (:proposals controls)
         filter-text (atom target)
-        filter-fn (fn [i] (string/starts-with? (:name i) @filter-text))
+        filter-fn (fn [i] (str/starts-with? (:name i) @filter-text))
         update-items (fn [] (try (let [new-items (filter filter-fn proposals)]
                                   (if (empty? new-items)
                                     (close nil)
