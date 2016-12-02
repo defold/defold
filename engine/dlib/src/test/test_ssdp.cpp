@@ -54,9 +54,9 @@ void CreateRandomNumberString(char* string, unsigned int size)
 
 void CreateRandomUDN(char* string, unsigned int size)
 {
-    char device_id[9] = { 0 };
-    CreateRandomNumberString(device_id, 9);
-    DM_SNPRINTF(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", device_id);
+    char deviceId[9] = { 0 };
+    CreateRandomNumberString(deviceId, 9);
+    DM_SNPRINTF(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", deviceId);
 }
 
 void CreateDeviceDescriptionXML(char* string, const char* udn, unsigned int size)
@@ -144,13 +144,9 @@ public:
 
     virtual void SetUp()
     {
-        m_DeviceUDN = (char*) malloc(sizeof(char) * 43);
-        m_DeviceUSN = (char*) malloc(sizeof(char) * 60);
-        m_DeviceDescriptionXML = (char*) malloc(sizeof(char) * 513);
-
-        memset(m_DeviceUDN, 0x0, 43);
-        memset(m_DeviceUSN, 0x0, 60);
-        memset(m_DeviceDescriptionXML, 0x0, 513);
+        m_DeviceUDN = (char*) calloc(43, sizeof(char));
+        m_DeviceUSN = (char*) calloc(60, sizeof(char));
+        m_DeviceDescriptionXML = (char*) calloc(513, sizeof(char));
 
         CreateRandomUDN(m_DeviceUDN, 43);
 
