@@ -49,7 +49,7 @@ def shutdown():
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
-    proc = subprocess.Popen("python -m SimpleHTTPServer 6123",
+    proc = subprocess.Popen(["python", "-m", "SimpleHTTPServer", "6123"],
                             shell = False,
                             cwd = "build/default/src/test")
     atexit.register(kill_proc, proc)
