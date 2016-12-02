@@ -44,12 +44,11 @@
 
 (deftest embedded-components
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           resource-types (game-object/embeddable-component-resource-types workspace)
           save-data (partial save-data project)
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
-          add-component! (partial test-util/add-embedded-component! project nil)
+          add-component! (partial test-util/add-embedded-component! app-view nil)
           go-id (project/get-resource-node project "/game_object/test.go")
           go-resource (g/node-value go-id :resource)]
       (doseq [resource-type resource-types]

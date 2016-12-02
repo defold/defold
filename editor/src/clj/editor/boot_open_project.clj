@@ -240,7 +240,7 @@
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
-          (for [label [:all-selected-node-ids :all-selected-node-properties :all-sub-selections]]
+          (for [label [:selected-node-ids-by-resource :selected-node-properties-by-resource :sub-selections-by-resource]]
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
           (g/connect app-view :selected-node-ids outline-view :selection)

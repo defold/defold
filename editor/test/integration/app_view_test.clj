@@ -53,11 +53,11 @@
       (let [[workspace project app-view] (test-util/setup! world)
             root-node-0 (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")]
         (is (= [root-node-0] (g/node-value app-view :selected-node-ids)))
-        (is (= 1 (count (g/node-value project :selected-node-ids))))
+        (is (= 1 (count (g/node-value project :selected-node-ids-by-resource))))
         (let [root-node-1 (test-util/open-tab! project app-view "/logic/hierarchy.collection")]
           (is (= [root-node-1] (g/node-value app-view :selected-node-ids)))
-          (is (= 2 (count (g/node-value project :selected-node-ids))))
+          (is (= 2 (count (g/node-value project :selected-node-ids-by-resource))))
           (test-util/close-tab! project app-view "/logic/hierarchy.collection")
           ;; New selection to clean out the lingering data from the previous tab
           (app-view/select! app-view [root-node-0])
-          (is (= 1 (count (g/node-value project :selected-node-ids)))))))))
+          (is (= 1 (count (g/node-value project :selected-node-ids-by-resource)))))))))
