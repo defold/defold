@@ -36,10 +36,10 @@ namespace dmGameSystem
     bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
-    static struct PlaybackTranslation
+    static struct PlaybackGuiToRig
     {
         dmGui::Playback m_Table[dmGui::PLAYBACK_COUNT];
-        PlaybackTranslation()
+        PlaybackGuiToRig()
         {
             m_Table[dmGameSystemDDF::PLAYBACK_NONE]            = dmGui::PLAYBACK_NONE;
             m_Table[dmGameSystemDDF::PLAYBACK_ONCE_FORWARD]    = dmGui::PLAYBACK_ONCE_FORWARD;

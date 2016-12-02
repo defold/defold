@@ -1,0 +1,21 @@
+name: "go_pfx"
+embedded_instances {
+    id: "go"
+    data: "components {\n"
+    "  id: \"particlefx\"\n"
+    "  component: \"/particlefx/fireworks_big.particlefx\"\n"
+    "  position {\n"
+    "    x: 0.0\n"
+    "    y: 0.0\n"
+    "    z: 0.0\n"
+    "  }\n"
+    "  rotation {\n"
+    "    x: 0.0\n"
+    "    y: 0.0\n"
+    "    z: 0.0\n"
+    "    w: 1.0\n"
+    "  }\n"
+    "}\n"
+    ""
+    scale3 {x: 1.0 y: 1.0 z: 1.0}
+}

@@ -40,10 +40,10 @@ namespace dmGameSystem
     static void DestroyComponent(SpineModelWorld* world, uint32_t index);
 
     // Translation table to translate from dmGameObject playback mode into dmRig playback mode.
-    static struct PlaybackTranslation
+    static struct PlaybackGameObjectToRig
     {
         dmRig::RigPlayback m_Table[dmGameObject::PLAYBACK_COUNT];
-        PlaybackTranslation()
+        PlaybackGameObjectToRig()
         {
             m_Table[dmGameObject::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
             m_Table[dmGameObject::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;

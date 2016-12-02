@@ -181,3 +181,14 @@
                (is (= 0.0 (.x (pos go-node))))
                (test-util/mouse-drag! view 64 64 68 64)
                (is (not= 0.0 (.x (pos go-node))))))))
+
+(deftest select-component-part-in-collection
+  (testing "Transform tools and manipulator interactions"
+           (with-clean-system
+             (let [[workspace project app-view] (test-util/setup! world)
+                   path "/collection/go_pfx.collection"
+                   [resource-node view]          (test-util/open-scene-view! project app-view path 128 128)
+                   emitter (:node-id (test-util/outline resource-node [0 0 0]))]
+               (is (not (seq (g/node-value view :selected-renderables))))
+               (app-view/select! app-view [emitter])
+               (is (seq (g/node-value view :selected-renderables)))))))

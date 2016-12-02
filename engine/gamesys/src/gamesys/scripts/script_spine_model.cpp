@@ -289,11 +289,6 @@ namespace dmGameSystem
         SpineModelWorld* world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
 
-        if(user_data >= world->m_Components.Size())
-        {
-            return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
-        }
-
         SpineModelComponent* component = world->m_Components.Get(user_data);
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
