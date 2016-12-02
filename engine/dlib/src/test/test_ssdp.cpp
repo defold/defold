@@ -145,6 +145,10 @@ public:
         device_usn = (char*) malloc(sizeof(char) * 60);
         device_description = (char*) malloc(sizeof(char) * 513);
 
+        memset(device_udn, 0x0, 43);
+        memset(device_usn, 0x0, 60);
+        memset(device_description, 0x0, 513);
+
         create_random_udn(device_udn, 43);
 
         dmStrlCat(device_usn, device_udn, 60);
