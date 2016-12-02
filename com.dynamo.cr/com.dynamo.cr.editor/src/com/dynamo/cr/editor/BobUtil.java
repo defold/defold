@@ -146,8 +146,8 @@ public class BobUtil {
                         }
                         for (String root : roots) {
                             IFolder rootFolder = contentRoot.getFolder(root);
-                            URI libUri = new URI("zip", null, "/" + includeBaseDir + root, "file://" + lib.getLocation().toString(), null);
-                            rootFolder.createLink( libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
+                            URI libUri = new URI("zip", null, "/" + includeBaseDir + root, lib.getLocationURI().toString(), null);
+                            rootFolder.createLink( libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL | IResource.BACKGROUND_REFRESH, monitor);
                         }
                     } finally {
                         zip.close();
