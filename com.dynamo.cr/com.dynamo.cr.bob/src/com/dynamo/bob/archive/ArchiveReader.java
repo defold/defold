@@ -12,6 +12,7 @@ import java.io.FileNotFoundException;
 
 public class ArchiveReader {
     public static final int VERSION = 4;
+    public static final int HASH_MAX_LENGTH = 64; // 512 bits
 
     private ArrayList<ArchiveEntry> entries = null;
 
@@ -149,17 +150,25 @@ public class ArchiveReader {
         
         entries = new ArrayList<ArchiveEntry>(entryCount);
         
+        indexFile.seek(hashOffset);
+        // Read hash into entries
+        for (int i=0; i<entryCount; ++i) {
+        	indexFile.seek(hashOffset + i * HASH_MAX_LENGTH);
+        	ArchiveEntry e = new ArchiveEntry("");
+        	e.hash = new byte[HASH_MAX_LENGTH];
+        	indexFile.read(e.hash, 0, hashLength);
+        	entries.add(e);
+        }
+
         // seek to entries
         indexFile.seek(entryOffset);
         for (int i=0; i<entryCount; ++i) {
-        	ArchiveEntry e = new ArchiveEntry("");
+        	ArchiveEntry e = entries.get(i);
         	
         	e.resourceOffset = indexFile.readInt();
         	e.size = indexFile.readInt();
         	e.compressedSize = indexFile.readInt();
         	e.flags = indexFile.readInt();
-
-        	entries.add(e);
         }
     }
 

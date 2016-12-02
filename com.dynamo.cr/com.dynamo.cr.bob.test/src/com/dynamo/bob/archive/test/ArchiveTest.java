@@ -7,6 +7,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
@@ -19,6 +20,8 @@ import org.junit.Test;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
+import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
 public class ArchiveTest {
 
@@ -26,6 +29,9 @@ public class ArchiveTest {
     private File outputDarc;
     private File outputIndex;
     private File outputData;
+    private Path resourcePackDir;
+    
+    private ManifestBuilder manifestBuilder;
 
     private String createDummyFile(String dir, String filepath, byte[] data) throws IOException {
         File tmp = new File(Paths.get(FilenameUtils.concat(dir, filepath)).toString());
@@ -38,6 +44,27 @@ public class ArchiveTest {
 
         return tmp.getAbsolutePath();
     }
+    
+    private int bitwiseCompare(byte b1, byte b2)
+    {
+    	// Need to compare bit by bit since the byte value is unsigned, but Java has
+    	// no unsigned types. Use masking to filter out sign extension when shifting
+    	// (https://en.wikipedia.org/wiki/Sign_extension).
+    	int ones = 0xFF;
+    	for(int i=7; i>=0; i--)
+    	{
+    		int mask = ones >> i;
+    		byte b1_shift = (byte) ((b1 >> i) & mask);
+    		byte b2_shift = (byte) ((b2 >> i) & mask);
+    		//System.out.println("b1_shift: " + b1_shift + ", b2_shift: " + b2_shift);
+    		if(b1_shift > b2_shift)
+				return 1;
+			else if(b1_shift < b2_shift)
+				return -1;
+    	}
+    	
+    	return 0;
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -46,6 +73,11 @@ public class ArchiveTest {
         
         outputIndex = Files.createTempFile("tmp.arci", "").toFile();
         outputData = Files.createTempFile("tmp.arcd", "").toFile();
+        
+        resourcePackDir = Files.createTempDirectory("tmp.defold.resourcepack_");
+        
+        manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
     }
 
     @After
@@ -59,7 +91,6 @@ public class ArchiveTest {
 
     @Test
     public void testBuilderAndReader() throws IOException {
-
         // Create
         ArchiveBuilder ab = new ArchiveBuilder(contentRoot, null);
         ab.add(createDummyFile(contentRoot, "a.txt", "abc123".getBytes()));
@@ -69,7 +100,7 @@ public class ArchiveTest {
         // Write
         RandomAccessFile outFile = new RandomAccessFile(outputDarc, "rw");
         outFile.setLength(0);
-        ab.write(outFile);
+        ab.write(outFile, null);
         outFile.close();
 
         // Read
@@ -82,7 +113,7 @@ public class ArchiveTest {
     public void testBuilderAndReader2() throws IOException
     {
     	// Create
-    	ArchiveBuilder ab = new ArchiveBuilder(contentRoot, null);
+    	ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder);
     	ab.add(createDummyFile(contentRoot, "a.txt", "abc123".getBytes()));
     	ab.add(createDummyFile(contentRoot, "b.txt", "apaBEPAc e p a".getBytes()));
         ab.add(createDummyFile(contentRoot, "c.txt", "åäöåäöasd".getBytes()));
@@ -92,7 +123,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write2(outFileIndex, outFileData);
+        ab.write2(outFileIndex, outFileData, resourcePackDir);
         outFileIndex.close();
         outFileData.close();
 
@@ -114,7 +145,7 @@ public class ArchiveTest {
         // Write
         RandomAccessFile outFile = new RandomAccessFile(outputDarc, "rw");
         outFile.setLength(0);
-        ab.write(outFile);
+        ab.write(outFile, null);
         outFile.close();
 
         // Read
@@ -131,7 +162,7 @@ public class ArchiveTest {
     public void testEntriesOrder2() throws IOException {
 
         // Create
-        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), null);
+        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main/a.txt", "abc123".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main2/a.txt", "apaBEPAc e p a".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "a.txt", "åäöåäöasd".getBytes())));
@@ -141,18 +172,30 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write2(outFileIndex, outFileData);
+        ab.write2(outFileIndex, outFileData, resourcePackDir);
         outFileIndex.close();
         outFileData.close();
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
         ar.read();
-        /*List<ArchiveEntryData> entries = ar.getEntryDatas();
-        assertEquals(new String(entries.get(0).path), "/a.txt");
-        assertEquals(new String(entries.get(1).path), "/main/a.txt");
-        assertEquals(new String(entries.get(2).path), "/main2/a.txt");*/
-        // TODO should check ordering on hash here instead. Can we even check/control this?
+        List<ArchiveEntry> entries = ar.getEntries();
+        
+        Boolean correctOrder = false;
+        for(int i=1; i<entries.size(); i++) {
+        	ArchiveEntry ePrev = entries.get(i-1);
+        	ArchiveEntry eCurr = entries.get(i);
+        	correctOrder = false;
+
+        	for (int j = 0; j < eCurr.hash.length; j++) {
+				correctOrder = bitwiseCompare(eCurr.hash[j], ePrev.hash[j]) == 1;
+
+				if(correctOrder)
+					break;
+			}
+        	assertEquals(correctOrder, true);
+        }
+        
         ar.close();
     }
 }

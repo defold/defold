@@ -47,6 +47,29 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
         this.fileName = fileName;
     }
+    
+    private int bitwiseCompare(byte b1, byte b2)
+    {
+    	// Need to compare bit by bit since the byte value is unsigned, but Java has
+    	// no unsigned types. We use masking to filter out sign extension when shifting
+    	// (https://en.wikipedia.org/wiki/Sign_extension).
+    	int ones = 0xFF;
+    	for(int i=7; i>=0; i--)
+    	{
+    		int mask = ones >> i;
+    		byte b1_shift = (byte) ((b1 >> i) & mask);
+    		byte b2_shift = (byte) ((b2 >> i) & mask);
+    		
+    		//System.out.println("b1_shift: " + b1_shift + ", b2_shift: " + b2_shift + ", mask = " + mask);
+    		
+    		if(b1_shift > b2_shift)
+				return 1;
+			else if(b1_shift < b2_shift)
+				return -1;
+    	}
+    	
+    	return 0;
+    }
 
     @Override
     public int compareTo(ArchiveEntry other) {
@@ -54,12 +77,15 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     		return relName.compareTo(other.relName);
     	else
     	{
+    		//System.out.println("-------------");
     		// compare using hash
     		for (int i = 0; i < this.hash.length; i++) {
-				if(this.hash[i] > other.hash[i])
-					return 1;
-				else if(this.hash[i] < other.hash[i])
-					return -1;
+    			//System.out.println("this: " + this.hash[i]);
+    			//System.out.println("other: " + other.hash[i]);
+    			int cmp = bitwiseCompare(this.hash[i], other.hash[i]);
+    			if(cmp != 0) {
+    				return cmp;
+    			}
 			}
     		return 0;
     	}
