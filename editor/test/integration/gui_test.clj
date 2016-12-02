@@ -337,7 +337,7 @@
           node-id (test-util/open-tab! project app-view "/gui/super_scene.gui")
           tmpl-node (gui-node node-id "scene/sub_scene")]
       (app-view/select! app-view [tmpl-node])
-      (let [props (g/node-value project :selected-node-properties)]
+      (let [props (g/node-value app-view :selected-node-properties)]
         (is (not (empty? (keys props))))))))
 
 (deftest gui-template-set-leak
