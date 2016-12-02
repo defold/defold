@@ -1,16 +1,12 @@
 (ns editor.diff-view
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [editor.ui :as ui])
-  (:import [javafx.fxml FXMLLoader]
-           [javafx.scene Parent Scene Group]
+  (:import [javafx.scene Group Parent Scene]
            [javafx.scene.control Control ScrollBar]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout Pane]
-           [javafx.scene.paint Paint]
            [javafx.scene.shape Line Rectangle]
            [javafx.scene.text Font Text]
-           [javafx.stage Stage]
            [org.eclipse.jgit.diff Edit Edit$Type HistogramDiff RawTextComparator RawText]))
 
 (set! *warn-on-reflection* true)
@@ -66,15 +62,18 @@
         edits' (insert-nop-edits nop-edit edits)]
     (remove redundant? edits')))
 
-(defn- make-text [font lines {begin :begin end :end}]
-  (let [s (str/join "\n" (subvec lines begin end))
+(defn- make-text [font lines edit selector]
+  (let [{:keys [begin end]} (selector edit)
+        s (str/join "\n" (subvec lines begin end))
         t (Text. s)]
     (.setFont t font)
-    (if (= begin end) (Rectangle. 10 0) t)))
+    (let [node (if (= begin end) (Rectangle. 10 0) t)]
+      (ui/add-style! node (name (:type edit)))
+      node)))
 
 (defn- make-texts [^Group box lines edits selector]
   (let [font (Font. "Dejavu Sans Mono" 13)
-        texts (mapv (fn [e] (make-text font lines (selector e))) edits)
+        texts (mapv (fn [edit] (make-text font lines edit selector)) edits)
         heights (reductions (fn [sum t] (+ sum (:height (ui/local-bounds t)))) 0 texts)]
     (doseq [[t y] (map vector texts heights)]
       (let [y' (+ (- (:miny (ui/local-bounds t))) y)]
@@ -84,25 +83,27 @@
     (ui/children! box texts)
     texts))
 
-(defn- make-boxes [^Pane box texts edits selector]
+(defn- make-boxes [^Pane box texts edits]
   (doseq [[text edit] (map vector texts edits)]
     (when-not (= (:type edit) :nop)
       (let [b (ui/local-bounds text)
             r (Rectangle. (:minx b) (:miny b) (:width b) (:height b))]
-        (ui/add-style! r "diff-box")
+        (ui/add-styles! r ["diff-box" (name (:type edit))])
         (.bind (.widthProperty r) (.widthProperty box))
         (.add (.getChildren box) r)))))
 
-(defn- make-line [^Text r1 ^Text r2 left right]
+(defn- make-line [^Text r1 ^Text r2 left right type]
   (let [b1 (ui/local-bounds r1)
         b2 (ui/local-bounds r2)]
-    (Line. left (+ (:miny b1) (* 0.5 (:height b1))) right (+ (:miny b2) (* 0.5 (:height b2))))))
+    (let [line (Line. left (+ (:miny b1) (* 0.5 (:height b1))) right (+ (:miny b2) (* 0.5 (:height b2))))]
+      (ui/add-style! line (name type))
+      line)))
 
 (defn- make-lines [^Pane box texts-left texts-right edits]
   (let [lines
         (for [[t-left t-right edit] (map vector texts-left texts-right edits)
               :when (not= (:type edit) :nop)]
-          (make-line t-left t-right 0 40))]
+          (make-line t-left t-right 0 40 (:type edit)))]
     (ui/children! box lines)))
 
 (defn- clip-control! [^Control control]
@@ -158,8 +159,8 @@
                                                (.setTranslateX left-group (- new))
                                                (.setTranslateX right-group (- new)))))
 
-      (make-boxes left texts-left edits :left)
-      (make-boxes right texts-right edits :right)
+      (make-boxes left texts-left edits)
+      (make-boxes right texts-right edits)
       (make-lines markers texts-left texts-right edits)
       (.toFront left-group)
       (.toFront right-group))))
