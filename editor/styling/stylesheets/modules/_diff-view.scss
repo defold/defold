@@ -1,6 +1,17 @@
+$diff-insert: #1e5537;
+$diff-delete: #6e2a33;
+
 .diff-view {
   Line {
     -fx-stroke: $mid-grey;
+
+    &.insert {
+      -fx-stroke: $diff-insert;
+    }
+
+    &.delete {
+      -fx-stroke: $diff-delete;
+    }
   }
 
   Text {
@@ -29,5 +40,15 @@
   .diff-box {
     -fx-fill: $mid-grey;
     -fx-stroke: $mid-grey;
+
+    &.insert {
+      -fx-fill: $diff-insert;
+      -fx-stroke: $diff-insert;
+    }
+
+    &.delete {
+      -fx-fill: $diff-delete;
+      -fx-stroke: $diff-delete;
+    }
   }
 }
