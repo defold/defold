@@ -11,9 +11,7 @@
             [editor.scene :as scene]
             [editor.sprite :as sprite]
             [editor.resource :as resource]
-            [integration.test-util :as test-util])
-  (:import [java.io File]
-           [javax.imageio ImageIO]))
+            [integration.test-util :as test-util]))
 
 (deftest workspace-tree
   (testing "The file system can be retrieved as a tree"
@@ -27,7 +25,7 @@
     (let [queries ["**/atlas.atlas" "**/env.cubemap"
                    "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
       (with-clean-system
-        (let [[workspace project app-view]  (test-util/setup! world)
+        (let [[workspace project app-view] (test-util/setup! world)
               view-graph (g/make-graph! :history false :volatility 2)]
           (doseq [query queries
                   :let [results (project/find-resources project query)]]

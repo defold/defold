@@ -4,7 +4,6 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
-            [editor.game-object :as game-object]
             [editor.gl.pass :as pass]
             [editor.label :as label]
             [editor.math :as math]

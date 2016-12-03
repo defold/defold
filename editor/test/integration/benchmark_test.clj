@@ -26,8 +26,7 @@
             go-node-output (first (g/sources-of node :child-scenes))]
         (g/invalidate! [[(first go-node-output) (second go-node-output)]])
         (let [scene (g/node-value node :scene)
-              camera (g/node-value view :camera)
-              viewport (g/node-value view :viewport)]
+              camera (g/node-value view :camera)]
           (doseq [i (range jit-retry-count)]
             (System/gc)
             (scene/produce-render-data scene #{1 2 3} [] camera)))))))
