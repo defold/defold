@@ -456,7 +456,7 @@
                          (update-selection open-resources active-resource node-ids))
         all-node-ids (->> all-selections
                        vals
-                       (mapcat identity)
+                       (reduce into [])
                        distinct
                        vec)]
     (concat
