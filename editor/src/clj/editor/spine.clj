@@ -392,9 +392,10 @@
   [_node-id resource spine-scene-pb atlas dep-build-targets]
   (rig/make-rig-scene-build-targets _node-id
                                     resource
-                                    spine-scene-pb
+                                    (assoc spine-scene-pb
+                                           :texture-set atlas)
                                     dep-build-targets
-                                    [[:texture-set atlas]]))
+                                    [:texture-set]))
 
 (defn- connect-atlas [project node-id atlas]
   (if-let [atlas-node (project/get-resource-node project atlas)]
