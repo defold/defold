@@ -659,7 +659,7 @@
                       pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
                   (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])))})
 
-(defn- attach-emitter [self-id emitter-id]
+(defn- attach-emitter [self-id emitter-id resolve-id?]
   (concat
     (for [[from to] [[:_node-id :nodes]
                      [:node-outline :child-outlines]
@@ -670,7 +670,9 @@
                      [:build-targets :dep-build-targets]]]
       (g/connect emitter-id from self-id to))
     (for [[from to] [[:scene-updatable :scene-updatable]]]
-      (g/connect self-id from emitter-id to))))
+      (g/connect self-id from emitter-id to))
+    (when resolve-id?
+      (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))
 
 (g/defnode ParticleFXNode
   (inherits project/ResourceNode)
@@ -699,26 +701,12 @@
                                                         :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
                                                         :child-reqs [{:node-type EmitterNode
                                                                       :tx-attach-fn (fn [self-id child-id]
-                                                                                      (concat
-                                                                                        (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
-                                                                                        (attach-emitter self-id child-id)))}
+                                                                                      (attach-emitter self-id child-id true))}
                                                                      {:node-type ModifierNode
                                                                       :tx-attach-fn (fn [self-id child-id]
                                                                                       (attach-modifier self-id self-id child-id))}]})))
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index))))
   (output render-emitter-fn Runnable :cached (g/fnk [emitter-sim-data] (partial render-emitter emitter-sim-data))))
-
-(defn- emitter? [node-id]
-  (when (g/node-instance? EmitterNode node-id)
-    node-id))
-
-(defn- pfx? [node-id node-type]
-  (if (g/node-instance? ParticleFXNode node-id)
-    node-id
-    (when (contains? (g/declared-inputs node-type) :source-id)
-      (when-let [source-id (g/node-value node-id :source-id)]
-        (when (g/node-instance? ParticleFXNode source-id)
-          source-id)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
@@ -760,32 +748,28 @@
   (handler/adapt-single selection ParticleFXNode))
 
 (handler/defhandler :add-secondary :workbench
-  (label [user-data] (if-not user-data
-                       "Add Modifier"
-                       (get-in user-data [:modifier-data :label])))
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
-  (run [user-data app-view]
-       (let [parent-id (:_node-id user-data)
-             self (if (emitter? parent-id)
-                    (core/scope parent-id)
-                    parent-id)]
-         (add-modifier-handler self parent-id (:modifier-type user-data)) (fn [node-ids] (app-view/select app-view node-ids))))
+  (label [user-data] (if-not user-data
+                       "Add Modifier"
+                       (->> user-data :modifier-type mod-types :label)))
+  (run [selection user-data app-view]
+    (let [[self parent-id] (if-let [pfx (selection->particlefx selection)]
+                             [pfx pfx]
+                             (let [emitter (selection->emitter selection)]
+                               [(core/scope emitter) emitter]))]
+      (add-modifier-handler self parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
-           (when (not user-data)
-             (let [self (let [node-id (handler/selection->node-id selection)
-                              type (g/node-type (g/node-by-id node-id))]
-                          (or (emitter? node-id)
-                              (pfx? node-id type)))]
-               (mapv (fn [[type data]] {:label (:label data)
-                                        :icon modifier-icon
-                                        :command :add-secondary
-                                        :user-data {:_node-id self :modifier-type type :modifier-data data}}) mod-types)))))
+    (when (not user-data)
+      (mapv (fn [[type data]] {:label (:label data)
+                               :icon modifier-icon
+                               :command :add-secondary
+                               :user-data {:modifier-type type}}) mod-types))))
 
 (defn- make-emitter
   ([self emitter]
-    (make-emitter self emitter nil))
-  ([self emitter select-fn]
+    (make-emitter self emitter nil false))
+  ([self emitter select-fn resolve-id?]
     (let [project   (project/get-project self)
           workspace (project/workspace project)
           graph-id (g/node-id->graph-id self)
@@ -812,7 +796,7 @@
                                   curve (props/->curve (map #(let [{:keys [x y t-x t-y]} %]
                                                                [x y t-x t-y]) (:points p)))]]
                         (g/set-property emitter-node key curve)))
-                    (attach-emitter self emitter-node)
+                    (attach-emitter self emitter-node resolve-id?)
                     (for [modifier (:modifiers emitter)]
                       (make-modifier self emitter-node modifier))
                     (if select-fn
@@ -825,23 +809,22 @@
         (g/transact
           (concat
             (g/operation-label "Add Emitter")
-            (make-emitter self (assoc emitter :type type) select-fn))))))
+            (make-emitter self (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :add :workbench
+  (active? [selection] (selection->particlefx selection))
   (label [user-data] (if-not user-data
                        "Add Emitter"
-                       (get-in user-data [:emitter-data :label])))
-  (active? [selection] (selection->particlefx selection))
-  (run [user-data app-view] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data) (fn [node-ids] (app-view/select node-ids))))
+                       (->> user-data :emitter-type (get emitter-types) :label)))
+  (run [selection user-data app-view] (let [pfx (selection->particlefx selection)]
+                                        (add-emitter-handler pfx (:emitter-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (let [node-id (selection->particlefx selection)
-                              type (g/node-type (g/node-by-id node-id))]
-                          (pfx? node-id type))]
+             (let [self (selection->particlefx selection)]
                (mapv (fn [[type data]] {:label (:label data)
                                         :icon emitter-icon
                                         :command :add
-                                        :user-data {:_node-id self :emitter-type type :emitter-data data}}) emitter-types)))))
+                                        :user-data {:emitter-type type}}) emitter-types)))))
 
 (defn- connect-build-targets [self project path]
   (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
