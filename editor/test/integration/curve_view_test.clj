@@ -67,14 +67,14 @@
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))]
       (app-view/select! app-view [emitter])
-      (mouse-click! curve-view 0.0 0.0)
-      (is (= [1] (sub-selection app-view emitter :particle-key-alpha)))
-      (mouse-click! curve-view 0.11 0.99)
-      (is (= [2] (sub-selection app-view emitter :particle-key-alpha)))
-      (mouse-click! curve-view 0.0 0.0 [:shift])
-      (is (every? #{2 1} (sub-selection app-view emitter :particle-key-alpha)))
-      (mouse-click! curve-view 0.11 0.99 [:shift])
-      (is (= [1] (sub-selection app-view emitter :particle-key-alpha))))))
+      (are [x y mods selection] (do (if mods
+                                      (mouse-click! curve-view x y mods)
+                                      (mouse-click! curve-view x y))
+                                  (= selection (sub-selection app-view emitter :particle-key-alpha)))
+        0.0 0.0 nil [1]
+        0.11 0.99 nil [2]
+        0.0 0.0 [:shift] [1 2]
+        0.11 0.99 [:shift] [1]))))
 
 (defn- cp [nid property idx]
   (let [c (g/node-value nid property)]

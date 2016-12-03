@@ -13,10 +13,8 @@
 
 (defn load-test-project!
   [world]
-  (let [workspace            (test-util/setup-workspace! world)
-        project              (test-util/setup-project! workspace)
+  (let [[workspace project app-view] (test-util/setup! world)
         project-graph        (g/node-id->graph-id project)
-        app-view             (test-util/setup-app-view!)
         [atlas-node view]    (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
     {:project-graph project-graph
      :app-view      app-view
