@@ -17,6 +17,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.pipeline :as pipeline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
@@ -254,19 +255,16 @@
                                            :compression-level :fast}]
                                 :mipmaps false}]})
 
-(defn- build-texture-set [self basis resource dep-resources user-data]
-  (let [tex-set (assoc (:proto user-data) :texture (resource/proj-path (second (first dep-resources))))]
-    {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
-
 (g/defnk produce-build-targets [_node-id resource texture-set-data save-data]
-  (let [project          (project/get-project _node-id)
-        workspace        (project/workspace project)
-        texture-target   (image/make-texture-build-target workspace _node-id (:image texture-set-data))]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-texture-set
-      :user-data {:proto (:texture-set texture-set-data)}
-      :deps [texture-target]}]))
+  (let [project           (project/get-project _node-id)
+        workspace         (project/workspace project)
+        texture-target    (image/make-texture-build-target workspace _node-id (:image texture-set-data))
+        pb-msg            (:texture-set texture-set-data)
+        dep-build-targets [texture-target]]
+    [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
+                                          TextureSetProto$TextureSet
+                                          (assoc pb-msg :texture (-> texture-target :resource :resource))
+                                          [:texture])]))
 
 (defn gen-renderable-vertex-buffer
   [width height]
