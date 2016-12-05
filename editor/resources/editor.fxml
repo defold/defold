@@ -213,7 +213,7 @@
                                                   <content>
                                                     <AnchorPane prefHeight="180.0" prefWidth="200.0">
                                                          <children>
-                                                            <VBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                            <VBox spacing="5" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                                                <children>
                                                                   <Button id="graph-refresh" mnemonicParsing="false" text="Refresh" />
                                                                   <ScrollPane prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
