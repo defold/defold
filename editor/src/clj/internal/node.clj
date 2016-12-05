@@ -1474,9 +1474,10 @@
      ~forms))
 
 (defn- assemble-properties-map
-  [value-sym display-sym]
+  [nodeid-sym value-sym display-sym]
   `(hash-map :properties    ~value-sym
-             :display-order ~display-sym))
+             :display-order ~display-sym
+             :node-id       ~nodeid-sym))
 
 (defn property-dynamics
   [self-name ctx-name nodeid-sym description property-name property-type value-form]
@@ -1509,7 +1510,7 @@
                 ~(collect-validation-problems self-name ctx-name nodeid-sym description value-map validation-map
                    (merge-values-and-validation-problems value-map validation-map
                      (collect-display-order self-name ctx-name description display-order
-                       (assemble-properties-map value-map display-order))))))
+                       (assemble-properties-map nodeid-sym value-map display-order))))))
            `(fn [~self-name ~ctx-name]
               (let [~nodeid-sym    (gt/node-id ~self-name)
                     node-type-sym# (gt/node-type ~self-name (:basis ~ctx-name))
@@ -1517,7 +1518,7 @@
                                            (for [[p _] (filter (comp external-property? val) props)]
                                              {p (property-value-exprs self-name ctx-name nodeid-sym description p (get props p))}))]
                 ~(collect-display-order self-name ctx-name description display-order
-                   (assemble-properties-map value-map display-order))))))))
+                   (assemble-properties-map nodeid-sym value-map display-order))))))))
 
 (defn node-input-value-function
   [description input]
