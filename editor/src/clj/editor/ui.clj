@@ -367,7 +367,10 @@
 (extend-type Tab
   HasUserData
   (user-data [this key] (get (.getUserData this) key))
-  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val)))
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
 
 (defprotocol HasAction
   (on-action! [this fn]))

@@ -2,9 +2,11 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.git :as git]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system]])
+  (:import [java.io File]))
 
 (deftest open-editor
   (testing "Opening editor only alters undo history by selection"
@@ -66,3 +68,43 @@
           ;; New selection to clean out the lingering data from the previous tab
           (app-view/select! app-view [root-node-0])
           (is (has-selection? "/logic/two_atlas_sprites.collection")))))))
+
+(defn- init-git [path]
+  (let [git (git/init path)]
+    ;; Add project content
+    (-> git (.add) (.addFilepattern ".") (.call))
+    (-> git (.commit) (.setMessage "init repo") (.call))
+    git))
+
+(defn- path->file [workspace ^String path]
+  (File. ^File (workspace/project-path workspace) path))
+
+(defn- rename! [workspace ^String from ^String to]
+  (let [from-file (path->file workspace from)
+        to-file (path->file workspace to)]
+    (.renameTo from-file to-file)
+    (workspace/resource-sync! workspace true [[from-file to-file]])))
+
+(defn- revert-all! [workspace git]
+  (let [status (git/unified-status git)
+        moved-files (->> status
+                      (filter #(= (:change-type %) :rename))
+                      (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %)))))]
+    (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) status))
+    (workspace/resource-sync! workspace true moved-files)))
+
+(deftest revert-rename-of-opened-file
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_project")
+          project (test-util/setup-project! workspace)
+          app-view (test-util/setup-app-view! project)
+          atlas (test-util/open-tab! project app-view "/atlas/single.atlas")
+          proj-path (.getAbsolutePath (workspace/project-path workspace))
+          git (init-git proj-path)]
+      (prn "first" (git/unified-status git))
+      (rename! workspace "/atlas/single.atlas" "/atlas/single2.atlas")
+      (prn "second" (git/unified-status git))
+      (revert-all! workspace git)
+      (prn "third" (git/unified-status git))
+      ;; WIP test
+      (is false))))

@@ -148,9 +148,7 @@
 
 (defn- handle-resource-changes! [changes changes-view editor-tabs]
   (ui/run-later
-    (changes-view/refresh! changes-view)
-    (doseq [resource (:removed changes)]
-      (app-view/remove-resource-tab editor-tabs resource))))
+    (changes-view/refresh! changes-view)))
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -181,7 +179,7 @@
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
+          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
@@ -246,9 +244,11 @@
           (g/connect app-view :selected-node-ids outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
-          (for [view [outline-view asset-browser]]
-            (g/update-property app-view :auto-pulls conj [view :tree-view]))
-          (g/update-property app-view :auto-pulls conj [properties-view :pane])))
+          (let [auto-pulls (into [[properties-view :pane]
+                                  [app-view :refresh-tab-pane]]
+                             (for [view [outline-view asset-browser]]
+                               [view :tree-view]))]
+            (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))

@@ -6,6 +6,7 @@
              [prefs :as prefs]
              [ui :as ui]])
   (:import javafx.scene.control.ProgressBar
+           [java.io File]
            [org.eclipse.jgit.api Git ResetCommand ResetCommand$ResetType]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
@@ -255,3 +256,6 @@
      :new-path new-path
      :old old
      :old-path old-path}))
+
+(defn init [^String path]
+  (-> (Git/init) (.setDirectory (File. path)) (.call)))
