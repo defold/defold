@@ -707,6 +707,9 @@
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
+
+(def ^:private ^:dynamic *pending-node-value* nil)
+
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
   The value may be cached or it may be computed on demand. This is
@@ -725,19 +728,30 @@
   ([node-id label]
    (node-value node-id label {:cache (cache) :basis (now)}))
   ([node-id label options]
-   (let [options (cond-> options
-                   (it/in-transaction?)
-                   (assoc :in-transaction? true)
+   #_(assert (nil? *pending-node-value*) "nested call to node-value")
+   (when-some [[pending-node-id pending-label] *pending-node-value*]
+     (let [ex-data {:pending {:node-id pending-node-id
+                              :node-type (node-type* pending-node-id)
+                              :label pending-label}
+                    :current {:node-id node-id
+                              :node-type (node-type* node-id)
+                              :label label}}]
+       (clojure.pprint/pprint ex-data)
+       (throw (ex-info "nested call to node-value" ex-data))))
+   (binding [*pending-node-value* [node-id label]]
+     (let [options (cond-> options
+                     (it/in-transaction?)
+                     (assoc :in-transaction? true)
 
-                   (not (:cache options))
-                   (assoc :cache (cache))
+                     (not (:cache options))
+                     (assoc :cache (cache))
 
-                   (not (:basis options))
-                   (assoc :basis (now))
+                     (not (:basis options))
+                     (assoc :basis (now))
 
-                   (:no-cache options)
-                   (dissoc :cache))]
-      (in/node-value node-id label options))))
+                     (:no-cache options)
+                     (dissoc :cache))]
+       (in/node-value node-id label options)))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.

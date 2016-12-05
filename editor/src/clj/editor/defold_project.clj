@@ -37,6 +37,9 @@
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
+  (output node+resource g/Any :cached (g/fnk [_node-id resource]
+                                        {:node-id _node-id
+                                         :resource resource}))
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
@@ -68,8 +71,12 @@
               (g/connect node-id :save-data project :save-data)))
           (catch Exception e
             (log/warn :exception e)
-            (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
-        (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
+            (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource))
+                                                               {:type :invalid-content
+                                                                :resource resource}))))
+        (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource))
+                                                           {:type :file-not-found
+                                                            :resource resource})))
       [])))
 
 (defn load-resource-nodes [basis project node-ids render-progress!]
@@ -115,6 +122,7 @@
                           []))
                       (concat
                         (g/connect node :_node-id project :nodes)
+                        (g/connect node :node+resource project :nodes+resources)
                         (if attach-fn
                           (attach-fn node)
                           [])))))))
@@ -127,7 +135,8 @@
               resource resources]
           (if (not= (resource/source-type resource) :folder)
             (make-resource-node project-graph project resource false {project [[:_node-id :nodes]
-                                                                               [:resource :node-resources]]})
+                                                                               [:resource :node-resources]
+                                                                               [:node+resource :nodes+resources]]})
             []))))))
 
 (defn get-resource-node [project path-or-resource]
@@ -144,6 +153,7 @@
   ([project resources]
    (load-project project resources progress/null-render-progress!))
   ([project resources render-progress!]
+   (def p project)
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
      (let [nodes (make-nodes! project resources)]
        (load-nodes! project nodes render-progress!)
@@ -435,7 +445,8 @@
             (for [resource (:added changes)
                   :when (not (contains? nodes-by-path (resource/proj-path resource)))]
               (make-resource-node project-graph project resource true {project [[:_node-id :nodes]
-                                                                                [:resource :node-resources]]})))))
+                                                                                [:resource :node-resources]
+                                                                                [:node+resource :nodes+resources]]})))))
       (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
             res->node (comp nodes-by-path resource/proj-path)
             known? (fn [r] (contains? nodes-by-path (resource/proj-path r)))
@@ -512,6 +523,14 @@
   (property fs-build-cache g/Any)
   (property sub-selection g/Any)
 
+  (input nodes+resources g/Any :array :substitute (fn [nodes+resources]
+                                                    (into [] (map (fn [val]
+                                                                    (if (g/error? val)
+                                                                      (case (-> val :user-data :type)
+                                                                        (:file-not-found :invalid-content)
+                                                                        {:node-id (-> val :_node-id)
+                                                                         :resource (-> val :user-data :resource)})
+                                                                      val))) nodes+resources)))
   (input selected-node-ids g/Any :array)
   (input selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -529,7 +548,13 @@
                                              (let [nids (set selected-node-ids)]
                                                (filterv (comp nids first) sub-selection))))
   (output resource-map g/Any (gu/passthrough resource-map))
-  (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
+  (output nodes-by-resource-path-old g/Any :cached (g/fnk [nodes]
+                                                 (into {} (map (fn [n]
+                                                                 [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
+  
+  (output nodes-by-resource-path g/Any :cached (g/fnk [nodes+resources #_nodes-by-resource-path-old]
+                                                 (into {} (map (fn [{:keys [node-id resource]}]
+                                                                 [(resource/proj-path resource) node-id]) nodes+resources))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
@@ -609,7 +634,8 @@
             (attach-fn node)
             []))
         (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]
-                                                                                          [:resource :node-resources]]
+                                                                                          [:resource :node-resources]
+                                                                                          [:node+resource :nodes+resources]]
                                                                                  consumer-node connections}
                             attach-fn))
       [])))
