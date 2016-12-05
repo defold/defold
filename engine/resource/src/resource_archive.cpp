@@ -158,7 +158,7 @@ namespace dmResourceArchive
             ++filename_count;
         }
 
-        char path_data[filename_count+1];
+        char path_data[DMPATH_MAX_PATH];
         uint32_t entry_count = 0, entry_offset = 0, hash_len = 0, hash_offset = 0;
         uint32_t debug_read_count = 0;
         FILE* f_index = fopen(path_index, "rb");
@@ -202,7 +202,7 @@ namespace dmResourceArchive
 
         // TODO check that arcd file exists also?
         // Data file has same path and filename as index file, but extension .arcd instead of .arci.
-        memcpy(path_data, path_index, filename_count+1); // copy NULL terminator as well
+        memcpy(&path_data, path_index, filename_count+1); // copy NULL terminator as well
         path_data[filename_count-1] = 'd';
         f_data = fopen(path_data, "rb");
 
