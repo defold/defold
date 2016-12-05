@@ -12,15 +12,15 @@
     }
 
     .console-buttons-base {
-        -fx-background-color: $mid-grey-light;
+        -fx-background-color: $mid-grey;
         -fx-background-position: center;
         -fx-background-repeat: no-repeat;
         -fx-background-size: 9 14;
         -fx-border-width: 0;
         -fx-border-color: transparent;
         -fx-width: 50px;
-        &:armed {
-            -fx-background-color: $bright-grey;
+        &:hover {
+            -fx-background-color: $grey;
         }
     }
     #prev-console {
@@ -31,6 +31,9 @@
         &:hover {
             -fx-background-image: url('icons/left-arrow-on.png');
         }
+        &:armed {
+            -fx-background-color: $dark-grey-header;
+        }
         
     }
     #next-console {
@@ -38,6 +41,9 @@
         -fx-background-image: url('icons/right-arrow.png');
         &:hover {
             -fx-background-image: url('icons/right-arrow-on.png');
+        }
+        &:armed {
+            -fx-background-color: $dark-grey-header;
         }
     }
     .list-view {

@@ -3,17 +3,17 @@
   -fx-border-radius: 0;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: $mid-grey-light;
+  -fx-background-color: $mid-grey;
   -fx-background-insets: 0;
   -fx-border-color: $mid-grey-light;
   -fx-border-width: 0;
   -fx-text-fill: $defold-white;
   -fx-font-size: 12px;
   &:hover {
-    -fx-background-color: $dark-grey;
+    -fx-background-color: $grey;
   }
   &:armed {
-    -fx-background-color: $bright-grey;
+    -fx-background-color: $dark-grey-header;
     -fx-border-color: $defold-white;
   }
   &.low-prio {
@@ -55,18 +55,21 @@
 .clear-button {
   -fx-background-radius: 0;
   -fx-border-radius: 0;
-  -fx-background-color: transparent;
+  -fx-background-color: $mid-grey;
   -fx-padding: 0;
   -fx-min-width: 27px;
   -fx-max-width: 27px;
   -fx-min-height: 27px;
   -fx-max-height: 27px;
   -fx-border-width: 0;
-  -fx-text-fill: $defold-blue; }
-  .clear-button:hover {
-    -fx-background-color: transparent; }
-  .clear-button:armed {
-    -fx-background-color: transparent; }
+  -fx-text-fill: $defold-white;
+  &:hover {
+      -fx-background-color: $grey !important; 
+  }
+  &:armed {
+      -fx-background-color: $dark-grey-header !important;
+  }
+}
 
 .toggle-button,
 .color-picker.split-button > .color-picker-label {
