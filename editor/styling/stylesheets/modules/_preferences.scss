@@ -1,0 +1,33 @@
+/* Preferences dialog window */
+#prefs {
+    .tab-header-area {
+        .tab-header-background {
+            //-fx-background-color: $dark-grey-light;//red !important;
+        }
+        .tab {
+            -fx-padding: 0 6 0 10;
+            //-fx-background-color: $dark-grey-light;
+            .tab-label {
+                -fx-padding: 0 2 0 0;
+            }
+            &:selected {
+                -fx-padding: 0 6 0 10;
+            }
+        }
+    }
+    .tab-content-area {
+        -fx-background-color: $dark-grey-light;
+        -fx-padding: 5;
+    }
+
+    .color-picker {
+        .arrow-button {
+            -fx-padding: 5 7;
+        }
+    }
+    .choice-box {
+        .open-button {
+            -fx-padding: 5 7;
+        }
+    }
+}
