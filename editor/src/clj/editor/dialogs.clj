@@ -8,11 +8,11 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.defold-project :as project]
+            [editor.defold-project-search :as project-search]
             [editor.util :as util]
             [service.log :as log])
   (:import [java.io File]
            [java.nio.file Path Paths]
-           [java.util.concurrent BlockingQueue LinkedBlockingQueue]
            [javafx.event Event ActionEvent]
            [javafx.collections FXCollections ObservableList]
            [javafx.geometry Point2D]
@@ -393,61 +393,19 @@
         insert-index (util/find-insert-index tree-items new-child tree-item-comparator)]
     (.add tree-items insert-index new-child)))
 
-(defn- make-save-data-future [project]
-  (let [basis (g/now)
-        cache (atom (deref (g/cache)))
-        options {:basis basis :cache cache :skip-validation true}]
-    (future
-      (g/node-value project :save-data options))))
-
-(defn- start-search-thread [save-data-future term exts produce-fn]
-  (future
-    (println term "search thread started")
-    (try
-      (let [save-data (deref save-data-future)]
-        ; TODO: Produce actual search results.
-        (doseq [{:keys [resource content]} (take 10 save-data)]
-          (when (Thread/interrupted)
-            (throw (InterruptedException.)))
-          (produce-fn {:resource resource
-                       :matches []})
-          (Thread/sleep (rand-int 100))))
-      (catch InterruptedException _
-        ; future-cancel was invoked from another thread.
-        ))
-    (println term "search thread terminated")))
-
-(defn- start-tree-update-timer [^TreeView tree-view consume-fn]
+(defn- start-tree-update-timer! [^TreeView tree-view poll-fn]
   (let [tree-items (.getChildren (.getRoot tree-view))
         timer (ui/->timer 30 "tree-update-timer"
                           (fn [_]
-                            (when-let [search-result (consume-fn)]
+                            (when-let [search-result (poll-fn)]
                               (println "tree update timer got search-result.")
                               (insert-search-result tree-items search-result))))]
+    (.clear tree-items)
     (ui/timer-start! timer)
     timer))
 
-(defn- make-file-searcher [save-data-future ^TreeView tree-view]
-  (let [pending-search-atom (atom nil)
-        abort-search! (fn [pending-search]
-                        (some-> pending-search :thread future-cancel)
-                        (some-> pending-search :timer ui/timer-stop!)
-                        (println "clearing tree...")
-                        (.clear (.getChildren (.getRoot tree-view))))
-        start-search! (fn [pending-search term exts]
-                        (abort-search! pending-search)
-                        (if (seq term)
-                          (let [queue (LinkedBlockingQueue. 10)
-                                thread (start-search-thread save-data-future term exts #(.put queue %))
-                                timer (start-tree-update-timer tree-view #(.poll queue))]
-                            {:thread thread
-                             :timer timer})))]
-    {:abort-search! #(swap! pending-search-atom abort-search!)
-     :start-search! (partial swap! pending-search-atom start-search!)}))
-
-(defn make-search-in-files-dialog [workspace project search-fn]
-  (let [save-data-future (make-save-data-future project)
-        root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
+(defn make-search-in-files-dialog [project]
+  (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         stage     (ui/make-stage)
         scene     (Scene. root)
         controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
@@ -456,7 +414,10 @@
         term-field ^TextField (:search controls)
         exts-field ^TextField (:types controls)
         tree-view ^TreeView (:resources-tree controls)
-        {:keys [abort-search! start-search!]} (make-file-searcher save-data-future tree-view)
+        start-consumer! (partial start-tree-update-timer! tree-view)
+        stop-consumer! ui/timer-stop!
+        report-error! (fn [error] (ui/run-later (throw error)))
+        {:keys [abort-search! start-search!]} (project-search/make-file-searcher project start-consumer! stop-consumer! report-error!)
         on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))]
     (observe-focus stage)
     (.initOwner stage (ui/main-stage))
@@ -486,7 +447,7 @@
 
     (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
-    (ui/show-and-wait! stage)
+    (ui/show-and-wait-throwing! stage)
 
     (let [resource (and @return
                         (update @return :children

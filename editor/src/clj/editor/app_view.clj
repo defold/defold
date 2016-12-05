@@ -9,6 +9,7 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
+            [editor.defold-project-search :as project-search]
             [editor.github :as github]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -638,11 +639,7 @@
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
 (defn- make-search-in-files-dialog [workspace project app-view]
-  (let [[resource opts] (dialogs/make-search-in-files-dialog
-                         workspace
-                         project
-                         (fn [exts term]
-                           (project/search-in-files project exts term)))]
+  (let [[resource opts] (dialogs/make-search-in-files-dialog project)]
     (when resource
       (open-resource app-view workspace project resource opts))))
 

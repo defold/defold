@@ -58,15 +58,6 @@
         (is (= 3 @load-counter))
         (is (= "t" (g/node-value a1 :value-piece)))))))
 
-(deftest comple-find-in-files-regex-test
-  (is (= "^(.*)(foo)(.*)$" (str (project/compile-find-in-files-regex "foo"))))
-  (testing "* is handled correctly"
-    (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar")))))
-  (testing "other wildcard chars are stripped"
-    (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar[]().$^")))))
-  (testing "case insensitive search strings"
-    (is (= "^(.*)(fooo)(.*)$" (str (project/compile-find-in-files-regex "fOoO"))))))
-
 (deftest select-test
   (testing "asserts that all node-ids are non-nil"
     (with-clean-system
