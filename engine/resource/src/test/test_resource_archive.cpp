@@ -2,8 +2,6 @@
 #include <gtest/gtest.h>
 #include "../resource_archive.h"
 
-#include <dlib/log.h> // FOR DEBUG ONLY
-
 extern unsigned char TEST_ARC[];
 extern uint32_t TEST_ARC_SIZE;
 extern unsigned char TEST_COMPRESSED_ARC[];
@@ -128,7 +126,6 @@ TEST(dmResourceArchive, LoadFromDisk2)
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
         r = dmResourceArchive::FindEntry2(archive, (uint8_t*)hashes[i], &e);
-        //dmLogInfo("TEST offset: %u, size: %u, compressed_size: %u, flags: %u", (e.m_ResourceDataOffset), (e.m_ResourceSize), (e.m_ResourceCompressedSize), (e.m_Flags));
         ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, dmResourceArchive::Read2(archive, &e, buf));
         ASSERT_TRUE(strncmp(data[i], (const char*) buf, strlen(data[i])) == 0);
@@ -184,7 +181,6 @@ TEST(dmResourceArchive, LoadFromDiskCompressed2)
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
         r = dmResourceArchive::FindEntry2(archive, (uint8_t*)hashes[i], &e);
-        dmLogInfo("TEST offset: %u, size: %u, compressed_size: %u, flags: %u", (e.m_ResourceDataOffset), (e.m_ResourceSize), (e.m_ResourceCompressedSize), (e.m_Flags));
         ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, dmResourceArchive::Read2(archive, &e, buf));
         ASSERT_TRUE(strncmp(data[i], (const char*) buf, strlen(data[i])) == 0);

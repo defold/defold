@@ -138,7 +138,6 @@ def compile(input_files, options):
 
         # write resource data to datafile
         num_input_files = len(input_files)
-        print num_input_files
         for i,f in enumerate(input_files):
             align_file(out_data, 4)
             e = EntryData(options.root, f, options.compress, num_input_files - i)
@@ -157,8 +156,6 @@ def compile(input_files, options):
         i = 0
         while i < entry_count:
             e = entry_datas[i]
-            print 'len hash: ' + str(len(e.hash))
-            print 'hash: "' + str(e.hash) + '"'
             out_index.write(e.hash)
             i += 1
 
@@ -172,8 +169,6 @@ def compile(input_files, options):
         i = 0
         while i < entry_count:
             e = entry_datas[i]
-            print 'len hash: ' + str(len(e.hash))
-            print 'hash: "' + str(e.hash) + '"'
             out_index.write(struct.pack('!I', e.resource_offset))
             out_index.write(struct.pack('!I', e.size))
             out_index.write(struct.pack('!I', e.compressed_size))
@@ -191,10 +186,7 @@ def compile(input_files, options):
         out_index.close()
 
     else:
-        print 'FINLAND'
         # this is relative here (to destination path in build/ dir), in my code about it is absolut
-        print 'output: ' + options.output_file # prints: default/src/test/test.arc
-
         out_file = open(options.output_file, 'wb')
         # Version
         out_file.write(struct.pack('!I', VERSION))

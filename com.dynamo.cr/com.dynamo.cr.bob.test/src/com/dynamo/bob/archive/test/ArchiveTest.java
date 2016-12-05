@@ -48,18 +48,17 @@ public class ArchiveTest {
     private int bitwiseCompare(byte b1, byte b2)
     {
     	// Need to compare bit by bit since the byte value is unsigned, but Java has
-    	// no unsigned types. Use masking to filter out sign extension when shifting
+    	// no unsigned types. We use masking to filter out sign extension when shifting
     	// (https://en.wikipedia.org/wiki/Sign_extension).
     	int ones = 0xFF;
     	for(int i=7; i>=0; i--)
     	{
     		int mask = ones >> i;
-    		byte b1_shift = (byte) ((b1 >> i) & mask);
-    		byte b2_shift = (byte) ((b2 >> i) & mask);
-    		//System.out.println("b1_shift: " + b1_shift + ", b2_shift: " + b2_shift);
-    		if(b1_shift > b2_shift)
+    		byte b1Shift = (byte) ((b1 >> i) & mask);
+    		byte b2Shift = (byte) ((b2 >> i) & mask);
+    		if(b1Shift > b2Shift)
 				return 1;
-			else if(b1_shift < b2_shift)
+			else if(b1Shift < b2Shift)
 				return -1;
     	}
     	
@@ -186,10 +185,9 @@ public class ArchiveTest {
         	ArchiveEntry ePrev = entries.get(i-1);
         	ArchiveEntry eCurr = entries.get(i);
         	correctOrder = false;
-
         	for (int j = 0; j < eCurr.hash.length; j++) {
 				correctOrder = bitwiseCompare(eCurr.hash[j], ePrev.hash[j]) == 1;
-
+				
 				if(correctOrder)
 					break;
 			}

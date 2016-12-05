@@ -5,7 +5,6 @@
 #include "resource_archive.h"
 #include <dlib/lz4.h>
 #include <dlib/crypt.h>
-#include <dlib/log.h> // FOR DEBUGGING ONLY
 #include <dlib/path.h>
 
 // Maximum hash length convention. This size should large enough.
@@ -167,8 +166,6 @@ namespace dmResourceArchive
         Result r = RESULT_OK;
         *archive = 0;
 
-        dmLogInfo("path_index: %s", path_index);
-
         if (!f_index)
         {
             r = RESULT_IO_ERROR;
@@ -187,9 +184,7 @@ namespace dmResourceArchive
         entry_offset = htonl(ai->m_EntryDataOffset);
         hash_len = htonl(ai->m_HashLength);
         hash_offset = htonl(ai->m_HashOffset);
-        //ai->m_ResourceData = 0;
 
-        dmLogInfo("entry_count = %u, entry_offset = %u", entry_count, entry_offset);
         fseek(f_index, hash_offset, SEEK_SET);
         ai->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
         READ_AND_BAIL2(ai->m_Hashes, entry_count * DMRESOURCE_MAX_HASH)
@@ -200,7 +195,6 @@ namespace dmResourceArchive
 
         ai->m_Userdata = FILE_LOADED_INDICATOR;
 
-        // TODO check that arcd file exists also?
         // Data file has same path and filename as index file, but extension .arcd instead of .arci.
         memcpy(&path_data, path_index, filename_count+1); // copy NULL terminator as well
         path_data[filename_count-1] = 'd';
@@ -310,7 +304,6 @@ bail:
 
             if (archive->m_FileResourceData)
             {
-                dmLogInfo("Closing resource file");
                 fclose(archive->m_FileResourceData);
             }
             delete archive;
@@ -333,9 +326,6 @@ bail:
         uint8_t* hashes = 0;
         EntryData* entries = 0;
 
-        /*dmLogInfo("entry_count = %u, entry_offset = %u", entry_count, entry_offset);
-        dmLogInfo("hash_len = %u, hash_offset = %u", hash_len, hash_offset);*/
-
         if (archive->m_Userdata == FILE_LOADED_INDICATOR)
         {
             hashes = archive->m_Hashes;
@@ -343,27 +333,9 @@ bail:
         }
         else
         {
-            dmLogInfo("mem-mapped");
             hashes = (uint8_t*)(uintptr_t(archive) + hash_offset);
             entries = (EntryData*)(uintptr_t(archive) + entry_offset);
         }
-
-        // debug print
-        /*char* buf = new char[hash_len+1];
-        memcpy(buf, hash, hash_len);
-        buf[hash_len] = '\0';
-        dmLogInfo("looking for hash; %s", buf);
-        delete[] buf;
-
-        // debug print all hashes in file
-        for (int i = 0; i < entry_count; ++i)
-        {
-            char* b = new char[hash_len+1];
-            memcpy(b, hashes + DMRESOURCE_MAX_HASH * i, hash_len);
-            b[hash_len] = '\0';
-            dmLogInfo("hash at index %i; %s", i, b);
-            delete[] b;
-        }*/
         
         // Search for hash with binary search (entries are sorted on hash)
         int first = 0;

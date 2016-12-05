@@ -79,7 +79,6 @@ def build(bld):
                                           source = bld.path.ant_glob('*.*_pb'),
                                           archive_target_index='test.arci',
                                           archive_target_data='test.arcd',
-                                          #embed_source = 'test.arci test.arcd test_compressed.arci test_compressed.arcd'
                                           )
 
     test_resource_arc2.install_path = None
@@ -92,7 +91,6 @@ def build(bld):
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',
                                              source = 'test_resource_archive.cpp',
-                                             #embed_source = 'test.arc test_compressed.arc')
                                              embed_source = 'test.arc test_compressed.arc test.arci test.arcd test_compressed.arci test_compressed.arcd')
 
     test_resource_archive.install_path = None

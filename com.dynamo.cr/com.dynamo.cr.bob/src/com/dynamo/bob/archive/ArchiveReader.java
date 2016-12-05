@@ -88,7 +88,7 @@ public class ArchiveReader {
         indexFile.seek(0);
         dataFile.seek(0);
         int indexVersion = indexFile.readInt();
-        if (indexVersion == VERSION) { // files written with hash digests are tagged with VERSION+1
+        if (indexVersion == VERSION) {
         	readDarc2();
         } else {
         	throw new IOException("Invalid index or data format, version: " + indexVersion);
