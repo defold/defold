@@ -83,18 +83,15 @@
 
 (defn make-file-searcher [project start-consumer! stop-consumer! report-error!]
   (let [unfiltered-save-data-future (make-file-resource-save-data-future report-error! project)
-        pending-filter-atom (atom nil)
-        abort-filter! (fn [pending-filter]
-                        (when (some? pending-filter)
-                          (future-cancel pending-filter))
-                        nil)
-        start-filter! (let [filter-fn! (thread-util/cached-future-fn (partial filter-save-data-future report-error! unfiltered-save-data-future))]
-                        (fn [exts]
-                          (reset! pending-filter-atom (filter-fn! exts))))
+        [start-filter! abort-filter!] (let [filter-fn (partial filter-save-data-future report-error! unfiltered-save-data-future)
+                                            start-filter! (thread-util/make-cached-future-fn filter-fn)
+                                            abort-filter! #(thread-util/cancel-cached-future-fn start-filter!)]
+                                        [start-filter! abort-filter!])
         pending-search-atom (atom nil)
         abort-search! (fn [pending-search]
                         (some-> pending-search :thread future-cancel)
-                        (some-> pending-search :consumer stop-consumer!))
+                        (some-> pending-search :consumer stop-consumer!)
+                        nil)
         start-search! (fn [pending-search term exts]
                         (abort-search! pending-search)
                         (let [filtered-save-data-future (start-filter! exts)]
@@ -110,4 +107,4 @@
     {:start-search! (partial swap! pending-search-atom start-search!)
      :abort-search! (fn []
                       (swap! pending-search-atom abort-search!)
-                      (swap! pending-filter-atom abort-filter!))}))
+                      (abort-filter!))}))
