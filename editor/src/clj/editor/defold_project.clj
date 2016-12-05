@@ -185,19 +185,7 @@
       (ui/run-later
         (throw e)))))
 
-(defn compile-find-in-files-regex
-  "Convert a search-string to a java regex"
-  [search-str]
-  (let [clean-str (str/replace search-str #"[\<\(\[\{\\\^\-\=\$\!\|\]\}\)\?\+\.\>]" "")]
-    (re-pattern (format "^(.*)(%s)(.*)$"
-                        (str/lower-case
-                         (str/replace clean-str #"\*" ".*"))))))
-
-(defn- line->caret-pos [content line]
-  (let [line-counts (map (comp inc count) (str/split-lines content))]
-    (reduce + (take line line-counts))))
-
-(defn search-in-files
+#_(defn search-in-files
   "Returns a list of {:resource resource :content content :matches [{:line :snippet}]}
   with resources that matches the search-str"
   [project file-extensions-str search-str]
@@ -233,6 +221,8 @@
                                                                         (apply str (take 24 (str/trimr post))))}))))
                               (take 10)))))
            (filter #(seq (:matches %)))))))
+
+
 
 (defn workspace [project]
   (g/node-value project :workspace))
