@@ -65,13 +65,25 @@
   (future
     (println term "search thread started")
     (try
-      (let [save-data (deref filtered-save-data-future)]
-        ; TODO: Produce actual search results.
-        (doseq [{:keys [resource content]} (take 10 save-data)]
-          (thread-util/throw-if-interrupted!)
-          (produce-fn {:resource resource
-                       :matches []})
-          (Thread/sleep (rand-int 100)))
+      (let [pattern (compile-find-in-files-regex term)
+            xform (comp (map thread-util/abortable-identity!)
+                        (filter :content)
+                        (map (fn [{:keys [content] :as hit}]
+                               (assoc hit :matches
+                                          (->> (string/split-lines (:content hit))
+                                               (map string/lower-case)
+                                               (keep-indexed (fn [idx l]
+                                                               (let [[_ pre m post] (re-matches pattern l)]
+                                                                 (when m
+                                                                   {:line           idx
+                                                                    :caret-position (line->caret-pos (:content hit) idx)
+                                                                    :match          (str (apply str (take-last 24 (string/triml pre)))
+                                                                                         m
+                                                                                         (apply str (take 24 (string/trimr post))))}))))
+                                               (take 10)))))
+                        (filter #(seq (:matches %))))]
+        (doseq [entry (sequence xform (deref filtered-save-data-future))]
+          (produce-fn entry))
         (println term "search thread completed"))
       (catch InterruptedException _
         ; future-cancel was invoked from another thread.

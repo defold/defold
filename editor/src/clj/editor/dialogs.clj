@@ -388,17 +388,16 @@
                   (compare (:path a) (:path b))))))
 
 (defn- insert-search-result [^ObservableList tree-items search-result]
-  (let [{:keys [file-path matches]} search-result
-        new-child (TreeItem. file-path) ; TODO: Add children
+  (let [{:keys [resource matches]} search-result
+        new-child (TreeItem. resource) ; TODO: Add children
         insert-index (util/find-insert-index tree-items new-child tree-item-comparator)]
     (.add tree-items insert-index new-child)))
 
 (defn- start-tree-update-timer! [^TreeView tree-view poll-fn]
   (let [tree-items (.getChildren (.getRoot tree-view))
-        timer (ui/->timer 30 "tree-update-timer"
+        timer (ui/->timer "tree-update-timer"
                           (fn [_]
                             (when-let [search-result (poll-fn)]
-                              (println "tree update timer got search-result.")
                               (insert-search-result tree-items search-result))))]
     (.clear tree-items)
     (ui/timer-start! timer)
@@ -422,7 +421,9 @@
     (observe-focus stage)
     (.initOwner stage (ui/main-stage))
     (ui/title! stage "Search in Files")
-    (.setRoot tree-view (TreeItem.))
+    (.setShowRoot tree-view false)
+    (.setRoot tree-view (doto (TreeItem.)
+                          (.setExpanded true)))
 
     (ui/on-closed! stage (fn on-closed! [_] (abort-search!)))
     (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
