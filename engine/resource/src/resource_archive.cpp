@@ -97,7 +97,7 @@ namespace dmResourceArchive
 
         uint32_t m_Version;
         uint32_t m_Pad;
-        uint64_t m_Userdata;
+        uint64_t m_Userdata; // Used in runtime to distinguish between archive loaded from file or memory-mapped.
         uint32_t m_EntryDataCount;
         uint32_t m_EntryDataOffset;
         uint32_t m_HashOffset;
@@ -136,13 +136,23 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    #define READ_AND_BAIL2(p, n) \
-        debug_read_count = fread(p, 1, n, f_index);\
-        if (debug_read_count != n)\
-        {\
-            r = RESULT_IO_ERROR;\
-            goto bail2;\
-        }\
+    void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndex* archive)
+    {
+        if (index_file)
+        {
+            fclose(index_file);
+        }
+
+        if (data_file)
+        {
+            fclose(data_file);
+        }
+
+        if (archive)
+        {
+            delete archive;
+        }
+    }
 
     Result LoadArchive2(const char* path_index, HArchiveIndex* archive)
     {
@@ -158,8 +168,7 @@ namespace dmResourceArchive
         }
 
         char path_data[DMPATH_MAX_PATH];
-        uint32_t entry_count = 0, entry_offset = 0, hash_len = 0, hash_offset = 0;
-        uint32_t debug_read_count = 0;
+        uint32_t entry_count = 0, entry_offset = 0, hash_len = 0, hash_offset = 0, hash_total_size = 0, entries_total_size = 0;
         FILE* f_index = fopen(path_index, "rb");
         FILE* f_data = 0;
         ArchiveIndex* ai = 0;
@@ -168,16 +177,21 @@ namespace dmResourceArchive
 
         if (!f_index)
         {
-            r = RESULT_IO_ERROR;
-            goto bail2;
+            CleanupResources(f_index, f_data, ai);
+            return RESULT_IO_ERROR;
         }
 
         ai = new ArchiveIndex;
-        READ_AND_BAIL2(ai, sizeof(ArchiveIndex))
+        if (fread(ai, 1, sizeof(ArchiveIndex), f_index) != sizeof(ArchiveIndex))
+        {
+            CleanupResources(f_index, f_data, ai);
+            return RESULT_IO_ERROR;
+        }
+
         if(htonl(ai->m_Version) != VERSION)
         {
-            r = RESULT_VERSION_MISMATCH;
-            goto bail2;
+            CleanupResources(f_index, f_data, ai);
+            return RESULT_VERSION_MISMATCH;
         }
 
         entry_count = htonl(ai->m_EntryDataCount);
@@ -187,12 +201,23 @@ namespace dmResourceArchive
 
         fseek(f_index, hash_offset, SEEK_SET);
         ai->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
-        READ_AND_BAIL2(ai->m_Hashes, entry_count * DMRESOURCE_MAX_HASH)
+        hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
+        if (fread(ai->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
+        {
+            CleanupResources(f_index, f_data, ai);
+            return RESULT_IO_ERROR;
+        }
 
-        ai->m_Entries = new EntryData[entry_count];
         fseek(f_index, entry_offset, SEEK_SET);
-        READ_AND_BAIL2(ai->m_Entries, entry_count * sizeof(EntryData));
+        ai->m_Entries = new EntryData[entry_count];
+        entries_total_size = entry_count * sizeof(EntryData);
+        if (fread(ai->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
+        {
+            CleanupResources(f_index, f_data, ai);
+            return RESULT_IO_ERROR;
+        }
 
+        // Mark that this archive was loaded from file, and not memory-mapped
         ai->m_Userdata = FILE_LOADED_INDICATOR;
 
         // Data file has same path and filename as index file, but extension .arcd instead of .arci.
@@ -202,30 +227,12 @@ namespace dmResourceArchive
 
         if (!f_data)
         {
-            r = RESULT_IO_ERROR;
-            goto bail2;
+            CleanupResources(f_index, f_data, ai);
+            return RESULT_IO_ERROR;
         }
 
         ai->m_FileResourceData = f_data;
         *archive = ai;
-
-        return r;
-
-bail2:
-        if (f_index)
-        {
-            fclose(f_index);
-        }
-
-        if (f_data)
-        {
-            fclose(f_data);
-        }
-
-        if (ai)
-        {
-            delete ai;
-        }
 
         return r;
     }
@@ -321,11 +328,14 @@ bail:
 
     Result FindEntry2(HArchiveIndex archive, const uint8_t* hash, EntryData* entry)
     {
-        uint32_t entry_count = htonl(archive->m_EntryDataCount), entry_offset = htonl(archive->m_EntryDataOffset);
-        uint32_t hash_offset = htonl(archive->m_HashOffset), hash_len = htonl(archive->m_HashLength);
+        uint32_t entry_count = htonl(archive->m_EntryDataCount);
+        uint32_t entry_offset = htonl(archive->m_EntryDataOffset);
+        uint32_t hash_offset = htonl(archive->m_HashOffset);
+        uint32_t hash_len = htonl(archive->m_HashLength);
         uint8_t* hashes = 0;
         EntryData* entries = 0;
 
+        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
         if (archive->m_Userdata == FILE_LOADED_INDICATOR)
         {
             hashes = archive->m_Hashes;

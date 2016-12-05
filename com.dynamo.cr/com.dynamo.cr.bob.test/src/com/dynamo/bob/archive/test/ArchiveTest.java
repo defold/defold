@@ -70,8 +70,8 @@ public class ArchiveTest {
         contentRoot = Files.createTempDirectory(null).toFile().getAbsolutePath();
         outputDarc = Files.createTempFile("tmp.darc", "").toFile();
         
-        outputIndex = Files.createTempFile("tmp.arci", "").toFile();
-        outputData = Files.createTempFile("tmp.arcd", "").toFile();
+        outputIndex = Files.createTempFile("tmp.defold", "arci").toFile();
+        outputData = Files.createTempFile("tmp.defold", "arcd").toFile();
         
         resourcePackDir = Files.createTempDirectory("tmp.defold.resourcepack_");
         
@@ -128,7 +128,7 @@ public class ArchiveTest {
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
-        ar.read();
+        ar.read2();
         ar.close();
     }
 
@@ -177,21 +177,21 @@ public class ArchiveTest {
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
-        ar.read();
+        ar.read2();
         List<ArchiveEntry> entries = ar.getEntries();
         
         Boolean correctOrder = false;
         for(int i=1; i<entries.size(); i++) {
-        	ArchiveEntry ePrev = entries.get(i-1);
-        	ArchiveEntry eCurr = entries.get(i);
-        	correctOrder = false;
-        	for (int j = 0; j < eCurr.hash.length; j++) {
-				correctOrder = bitwiseCompare(eCurr.hash[j], ePrev.hash[j]) == 1;
-				
-				if(correctOrder)
-					break;
-			}
-        	assertEquals(correctOrder, true);
+            ArchiveEntry ePrev = entries.get(i-1);
+            ArchiveEntry eCurr = entries.get(i);
+            correctOrder = false;
+            for (int j = 0; j < eCurr.hash.length; j++) {
+                correctOrder = bitwiseCompare(eCurr.hash[j], ePrev.hash[j]) == 1;
+                
+                if(correctOrder)
+                    break;
+            }
+            assertEquals(correctOrder, true);
         }
         
         ar.close();

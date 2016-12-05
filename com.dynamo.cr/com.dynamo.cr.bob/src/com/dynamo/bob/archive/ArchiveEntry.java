@@ -50,38 +50,38 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     
     private int bitwiseCompare(byte b1, byte b2)
     {
-    	// Need to compare bit by bit since the byte value is unsigned, but Java has
-    	// no unsigned types. We use masking to filter out sign extension when shifting
-    	// (https://en.wikipedia.org/wiki/Sign_extension).
-    	int ones = 0xFF;
-    	for(int i=7; i>=0; i--)
-    	{
-    		int mask = ones >> i;
-    		byte b1Shift = (byte) ((b1 >> i) & mask);
-    		byte b2Shift = (byte) ((b2 >> i) & mask);
-    		if(b1Shift > b2Shift)
-				return 1;
-			else if(b1Shift < b2Shift)
-				return -1;
-    	}
-    	
-    	return 0;
+        // Need to compare bit by bit since the byte value is unsigned, but Java has
+        // no unsigned types. We use masking to filter out sign extension when shifting
+        // (https://en.wikipedia.org/wiki/Sign_extension).
+        int ones = 0xFF;
+        for(int i=7; i>=0; i--)
+        {
+            int mask = ones >> i;
+            byte b1Shift = (byte) ((b1 >> i) & mask);
+            byte b2Shift = (byte) ((b2 >> i) & mask);
+            if(b1Shift > b2Shift)
+                return 1;
+            else if(b1Shift < b2Shift)
+                return -1;
+        }
+
+        return 0;
     }
 
     @Override
     public int compareTo(ArchiveEntry other) {
-    	if(this.hash == null)
-    		return relName.compareTo(other.relName);
-    	else
-    	{
-    		// compare using hash
-    		for (int i = 0; i < this.hash.length; i++) {
-    			int cmp = bitwiseCompare(this.hash[i], other.hash[i]);
-    			if(cmp != 0) {
-    				return cmp;
-    			}
-			}
-    		return 0;
-    	}
+        if(this.hash == null)
+            return relName.compareTo(other.relName);
+        else
+        {
+            // compare using hash
+            for (int i = 0; i < this.hash.length; i++) {
+                int cmp = bitwiseCompare(this.hash[i], other.hash[i]);
+                if(cmp != 0) {
+                    return cmp;
+                }
+            }
+            return 0;
+        }
     }
 }

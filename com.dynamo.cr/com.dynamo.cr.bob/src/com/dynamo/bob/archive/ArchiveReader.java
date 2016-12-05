@@ -36,18 +36,13 @@ public class ArchiveReader {
     }
     
     public ArchiveReader(String indexPath, String dataPath) {
-    	this.indexFilePath = indexPath;
-    	this.dataFilePath = dataPath;
+        this.indexFilePath = indexPath;
+        this.dataFilePath = dataPath;
     }
 
     public void read() throws IOException {
-    	if (this.darcPath == null) {
-    		if (indexFilePath != null && dataFilePath != null) {
-    			read2();
-    			return;
-    		} else {
-    			throw new IOException("No DARC path set.");
-    		}
+        if (this.darcPath == null) {
+            throw new IOException("No DARC path set.");
         }
 
         if (inFile != null) {
@@ -60,15 +55,19 @@ public class ArchiveReader {
         inFile.seek(0);
         int version = inFile.readInt();
         if(version == VERSION) {
-        	readDarc();
+            readDarc();
         } else {
-        	throw new IOException("Invalid DARC format: " + version);
+            throw new IOException("Invalid DARC version: " + version);
         }
     }
     
-    private void read2() throws IOException {
-    	if (indexFilePath == null || dataFilePath == null) {
-            throw new IOException("No index or data file path set.");
+    public void read2() throws IOException {
+        if (indexFilePath == null) {
+            throw new IOException("No index file path set.");
+        }
+
+        if (dataFilePath == null) {
+            throw new IOException("No data file path set.");
         }
 
         if (indexFile != null) {
@@ -77,8 +76,8 @@ public class ArchiveReader {
         }
         
         if (dataFile != null) {
-        	dataFile.close();
-        	dataFile = null;
+            dataFile.close();
+            dataFile = null;
         }
         
         indexFile = new RandomAccessFile(this.indexFilePath, "r");
@@ -89,9 +88,9 @@ public class ArchiveReader {
         dataFile.seek(0);
         int indexVersion = indexFile.readInt();
         if (indexVersion == VERSION) {
-        	readDarc2();
+            readDarc2();
         } else {
-        	throw new IOException("Invalid index or data format, version: " + indexVersion);
+            throw new IOException("Invalid index or data format, version: " + indexVersion);
         }
     }
     
@@ -140,7 +139,7 @@ public class ArchiveReader {
     }
     
     private void readDarc2() throws IOException {
-    	// INDEX
+        // INDEX
         indexFile.readInt(); // Pad
         indexFile.readLong(); // UserData, should be 0
         entryCount = indexFile.readInt();
@@ -150,29 +149,32 @@ public class ArchiveReader {
         
         entries = new ArrayList<ArchiveEntry>(entryCount);
         
+        // Hashes are stored linearly in memory instead of within each entry, so the hashes are read in a separate loop.
+        // Once the hashes are read, the rest of the entries are read.
+        
         indexFile.seek(hashOffset);
-        // Read hash into entries
+        // Read entry hashes
         for (int i=0; i<entryCount; ++i) {
-        	indexFile.seek(hashOffset + i * HASH_MAX_LENGTH);
-        	ArchiveEntry e = new ArchiveEntry("");
-        	e.hash = new byte[HASH_MAX_LENGTH];
-        	indexFile.read(e.hash, 0, hashLength);
-        	entries.add(e);
+            indexFile.seek(hashOffset + i * HASH_MAX_LENGTH);
+            ArchiveEntry e = new ArchiveEntry("");
+            e.hash = new byte[HASH_MAX_LENGTH];
+            indexFile.read(e.hash, 0, hashLength);
+            entries.add(e);
         }
 
-        // seek to entries
+        // Read entries
         indexFile.seek(entryOffset);
         for (int i=0; i<entryCount; ++i) {
-        	ArchiveEntry e = entries.get(i);
-        	
-        	e.resourceOffset = indexFile.readInt();
-        	e.size = indexFile.readInt();
-        	e.compressedSize = indexFile.readInt();
-        	e.flags = indexFile.readInt();
+            ArchiveEntry e = entries.get(i);
+
+            e.resourceOffset = indexFile.readInt();
+            e.size = indexFile.readInt();
+            e.compressedSize = indexFile.readInt();
+            e.flags = indexFile.readInt();
         }
     }
 
-	public List<ArchiveEntry> getEntries() {
+    public List<ArchiveEntry> getEntries() {
         return entries;
     }
 
@@ -180,11 +182,11 @@ public class ArchiveReader {
         byte[] buf = new byte[entry.size];
         
         if (this.darcPath != null) {
-        	inFile.seek(entry.resourceOffset);
-        	inFile.read(buf, 0, entry.size);
+            inFile.seek(entry.resourceOffset);
+            inFile.read(buf, 0, entry.size);
         } else {
-        	dataFile.seek(entry.resourceOffset);
-        	dataFile.read(buf, 0, entry.size);
+            dataFile.seek(entry.resourceOffset);
+            dataFile.read(buf, 0, entry.size);
         }
 
         return buf;
@@ -204,13 +206,13 @@ public class ArchiveReader {
             // extract
             byte[] buf = new byte[entry.size];
             if (this.darcPath != null) {
-            	inFile.seek(entry.resourceOffset);
-            	inFile.read(buf, 0, readSize);
+                inFile.seek(entry.resourceOffset);
+                inFile.read(buf, 0, readSize);
             } else {
-            	dataFile.seek(entry.resourceOffset);
-            	dataFile.read(buf, 0, readSize);
+                dataFile.seek(entry.resourceOffset);
+                dataFile.read(buf, 0, readSize);
             }
-            
+
             File fo = new File(outdir);
             fo.getParentFile().mkdirs();
             FileOutputStream os = new FileOutputStream(fo);
@@ -220,19 +222,19 @@ public class ArchiveReader {
     }
 
     public void close() throws IOException {
-    	if (inFile != null) {
-    		inFile.close();
-        	inFile = null;
-    	}
+        if (inFile != null) {
+            inFile.close();
+            inFile = null;
+        }
         
         if (indexFile != null) {
             indexFile.close();
             indexFile = null;
         }
-        
+
         if (dataFile != null) {
-        	dataFile.close();
-        	dataFile = null;
+            dataFile.close();
+            dataFile = null;
         }
     }
 

@@ -166,6 +166,16 @@ TEST(dmResourceArchive, LoadFromDisk)
     }
 }
 
+TEST(dmResourceArchive, LoadNonExistentArchiveFromDisk2)
+{
+    dmResourceArchive::HArchiveIndex archive = 0;
+
+    const char* archives[] = { "build/default/src/test/this-file-does-not-exist.arci" };
+
+    dmResourceArchive::Result r = dmResourceArchive::LoadArchive2(archives[0], &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, r);
+}
+
 TEST(dmResourceArchive, LoadFromDiskCompressed2)
 {
     dmResourceArchive::HArchiveIndex archive = 0;

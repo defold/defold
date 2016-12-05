@@ -216,11 +216,47 @@ public class ArchiveBuilder {
         outFile.writeInt(entryOffset);
     }
     
+    private void WriteToManifest(ManifestBuilder manifestBuilder, ArchiveEntry e, Path resourcePackDirectory) throws IOException {
+        int size = (e.compressedSize == ArchiveEntry.FLAG_UNCOMPRESSED) ? e.size : e.compressedSize;
+        byte[] buffer = new byte[size];
+        e.hash = new byte[HASH_MAX_LENGTH];
+        String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+        manifestBuilder.addResourceEntry(normalisedPath, buffer);
+
+        // Write the entry to the Resource pack directory
+        byte[] hashDigest;
+        try {
+            hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+            for (int j = 0; j < hashDigest.length; j++) {
+                e.hash[j] = hashDigest[j];
+            }
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
+        }
+        String filename = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
+        FileOutputStream outputStream = null;
+        try {
+            File fhandle = new File(resourcePackDirectory.toString(), filename);
+            if (!fhandle.exists()) {
+                outputStream = new FileOutputStream(fhandle);
+                outputStream.write(buffer);
+            }
+        } finally {
+            if (outputStream != null) {
+                try {
+                    outputStream.close();
+                } catch (IOException exception) {
+                    // There's nothing we can do at this point
+                }
+            }
+        }
+    }
+    
     public void write2(RandomAccessFile outFileIndex, RandomAccessFile outFileData, Path resourcePackDirectory) throws IOException {
-    	// INDEX
+        // INDEX
         outFileIndex.writeInt(VERSION); // Version
         outFileIndex.writeInt(0); // Pad
-        outFileIndex.writeLong(0); // UserData
+        outFileIndex.writeLong(0); // UserData, used in runtime to distinguish between if the index and resources are memory mapped or loaded from disk
         outFileIndex.writeInt(0); // EntryCount
         outFileIndex.writeInt(0); // EntryOffset
         outFileIndex.writeInt(0); // HashOffset
@@ -230,63 +266,22 @@ public class ArchiveBuilder {
         
         // Write to data file
         for (ArchiveEntry e : entries) {
-        	// copy resource data to file (compress if flag set)
-        	alignBuffer(outFileData, 4);
+            // copy resource data to file (compress if flag set)
+            alignBuffer(outFileData, 4);
             e.resourceOffset = (int) outFileData.getFilePointer();
             if(e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 e.compressedSize = compress(e.fileName, e.size, outFileData);
             } else {
                 copy(e.fileName, outFileData);
             }
+            
+            if(manifestBuilder != null) {
+            	WriteToManifest(manifestBuilder, e, resourcePackDirectory);
+            }
         }
         
-        // TODO after merge, we should use manifestBuilder to create proper hash.
         // Write hashes to index file
-        int debug_count = entryCount;
         int hashOffset = (int) outFileIndex.getFilePointer();
-        
-        // Write an entry to the manifest and generate hash
-        if (manifestBuilder != null) {
-        	int duplicate_size = 0;
-        	for (ArchiveEntry e : entries) {
-        		int size = (e.compressedSize == ArchiveEntry.FLAG_UNCOMPRESSED) ? e.size : e.compressedSize;
-        		byte[] buffer = new byte[size];
-        		e.hash = new byte[HASH_MAX_LENGTH];
-	            String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
-	            manifestBuilder.addResourceEntry(normalisedPath, buffer);
-	
-	            // Write the entry to the Resource pack directory
-	            byte[] hashDigest;
-	            try {
-	                hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
-	                for (int j = 0; j < hashDigest.length; j++) {
-	                	e.hash[j] = hashDigest[j];
-	    			}
-	            } catch (NoSuchAlgorithmException exception) {
-	                throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
-	            }
-	            String filename = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
-	            FileOutputStream outputStream = null;
-	            try {
-	                File fhandle = new File(resourcePackDirectory.toString(), filename);
-	                if (!fhandle.exists()) {
-	                    outputStream = new FileOutputStream(fhandle);
-	                    outputStream.write(buffer);
-	                } else {
-	                    duplicate_size += buffer.length;
-	                    System.out.println("The resource has already been created: " + filename);
-	                }
-	            } finally {
-	                if (outputStream != null) {
-	                    try {
-	                        outputStream.close();
-	                    } catch (IOException exception) {
-	                        // There's nothing we can do at this point
-	                    }
-	                }
-	            }
-        	}
-        }
         
         // sort on hash
         Collections.sort(entries);
@@ -300,10 +295,14 @@ public class ArchiveBuilder {
         int entryOffset = (int) outFileIndex.getFilePointer();
         alignBuffer(outFileIndex, 4);
         for (ArchiveEntry e : entries) {
-        	outFileIndex.writeInt(e.resourceOffset);
-        	outFileIndex.writeInt(e.size);
-        	outFileIndex.writeInt(e.compressedSize);
-        	outFileIndex.writeInt(e.flags);
+            outFileIndex.writeInt(e.resourceOffset);
+            outFileIndex.writeInt(e.size);
+            outFileIndex.writeInt(e.compressedSize);
+            String ext = FilenameUtils.getExtension(e.fileName);
+            if (ENCRYPTED_EXTS.indexOf(ext) != -1) {
+                e.flags = ArchiveEntry.FLAG_ENCRYPTED;
+            }
+            outFileIndex.writeInt(e.flags);
         }
 
         // INDEX
