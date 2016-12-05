@@ -20,7 +20,7 @@
     (id->node id)))
 
 (defn- add-box! [project scene parent]
-  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) :type-box))
+  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) :type-box nil))
 
 (defn- add-clipper!
   ([project scene parent]
@@ -45,7 +45,7 @@
 (defn- add-layers! [project scene layers]
   (let [parent (g/node-value scene :layers-node)]
     (doseq [layer layers]
-      (gui/add-layer! project scene parent layer))))
+      (gui/add-layer! project scene parent layer nil))))
 
 (defn- set-layer! [node-id layer]
   (g/set-property! node-id :layer layer))
