@@ -317,7 +317,7 @@
   resource/Resource
   (children [this]      [])
   (ext [this]           (resource/ext parent-resource))
-  (resource-name [this] (format "%d: %s" line match))
+  (resource-name [this] (format "%d: %s" (inc line) match))
   (resource-type [this] (resource/resource-type parent-resource))
   (source-type [this]   (resource/source-type parent-resource))
   (read-only? [this]    (resource/read-only? parent-resource))
@@ -339,8 +339,8 @@
     (-> resource-item .getChildren (.addAll ^Collection match-items))
     (.add tree-items resource-item)))
 
-(defn- fps->nanoseconds [fps]
-  (long (* 1000000000 (/ 1 fps))))
+(defn- seconds->nanoseconds [seconds]
+  (long (* 1000000000 seconds)))
 
 (defn- start-tree-update-timer! [^TreeView tree-view poll-fn]
   (let [tree-items (.getChildren (.getRoot tree-view))
@@ -348,7 +348,7 @@
         timer (ui/->timer "tree-update-timer"
                           (fn [_]
                             (let [start-time (System/nanoTime)
-                                  end-time (+ start-time (fps->nanoseconds 60))]
+                                  end-time (+ start-time (seconds->nanoseconds (/ 1 90)))]
                               (loop []
                                 (when-let [search-result (poll-fn)]
                                   (insert-search-result tree-items search-result)
@@ -374,7 +374,8 @@
         start-consumer! (partial start-tree-update-timer! tree-view)
         stop-consumer! ui/timer-stop!
         report-error! (fn [error] (ui/run-later (throw error)))
-        {:keys [abort-search! start-search!]} (project-search/make-file-searcher project start-consumer! stop-consumer! report-error!)
+        file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
+        {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
         on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))]
     (observe-focus stage)
     (.initOwner stage (ui/main-stage))
