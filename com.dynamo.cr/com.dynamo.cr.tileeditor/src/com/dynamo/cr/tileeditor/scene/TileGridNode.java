@@ -225,12 +225,11 @@ public class TileGridNode extends ComponentTypeNode {
 
                     Vector2f minUV = rts.getMin(tile);
                     Vector2f maxUV = rts.getMax(tile);
-                    y1 = 1.0f - y1;
-                    y0 = 1.0f - y0;
-                    v.put(minUV.x); v.put(maxUV.y); v.put(x0); v.put(y0); v.put(z);
-                    v.put(minUV.x); v.put(minUV.y); v.put(x0); v.put(y1); v.put(z);
-                    v.put(maxUV.x); v.put(minUV.y); v.put(x1); v.put(y1); v.put(z);
-                    v.put(maxUV.x); v.put(maxUV.y); v.put(x1); v.put(y0); v.put(z);
+
+                    v.put(minUV.x); v.put(maxUV.y); v.put(x0); v.put(y1); v.put(z);
+                    v.put(minUV.x); v.put(minUV.y); v.put(x0); v.put(y0); v.put(z);
+                    v.put(maxUV.x); v.put(minUV.y); v.put(x1); v.put(y0); v.put(z);
+                    v.put(maxUV.x); v.put(maxUV.y); v.put(x1); v.put(y1); v.put(z);
 
                     aabb.union(x0, y0, z);
                     aabb.union(x1, y1, z);

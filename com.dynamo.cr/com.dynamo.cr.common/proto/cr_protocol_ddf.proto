@@ -114,6 +114,53 @@ message ProjectInfo {
     optional string trackingId = 11 [default = ""];
 }
 
+message ProjectSite {
+    optional string name = 1;
+    optional string description = 2;
+    optional string studio_url = 3;
+    optional string studio_name = 4;
+    optional string cover_image_url = 5;
+    optional string store_front_image_url = 6;
+    optional string dev_log_url = 7;
+    optional string review_url = 8;
+    repeated AppStoreReference app_store_references = 9;
+    repeated Screenshot screenshots = 10;
+    repeated UserInfo members = 11;
+    optional int64 project_id = 12;
+
+    message AppStoreReference {
+        required int64 id = 1;
+        required string label = 2;
+        required string url = 3;
+    }
+
+    message Screenshot {
+        required int64 id = 1;
+        required string url = 2;
+        required ScreenshotMediaType media_type = 3;
+    }
+}
+
+message NewAppStoreReference {
+    required string label = 1;
+    required string url = 2;
+}
+
+message NewScreenshot {
+    required string url = 1;
+    required ScreenshotMediaType media_type = 2;
+}
+
+enum ScreenshotMediaType {
+    IMAGE = 1;
+    YOUTUBE = 2;
+    VIMEO = 3;
+}
+
+message ProjectSiteList {
+    repeated ProjectSite sites = 1;
+}
+
 message ProjectInfoList {
     repeated ProjectInfo projects = 1;
 }
