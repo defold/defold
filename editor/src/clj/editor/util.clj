@@ -1,7 +1,6 @@
 (ns editor.util
   (:require [clojure.string :as string])
   (:import
-    [java.util Comparator]
     [java.io File]))
 
 (defmacro spy
@@ -63,25 +62,3 @@
 
 (defn to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
-
-
-(defn- ->insert-index [binary-search-result]
-  ; Collections/binarySearch returns a non-negative value if an exact match is
-  ; found. Otherwise it returns (-(insertion point) - 1). The insertion point
-  ; is defined as the point at which the key would be inserted into the list:
-  ; the index of the first element greater than the key, or list.size() if all
-  ; elements in the list are less than the specified key.
-  (if (neg? binary-search-result)
-    (Math/abs (inc binary-search-result))
-    (inc binary-search-result)))
-
-(defn find-insert-index
-  "Finds the insertion index in an ordered collection. If the collection is not
-  ordered, the result is undefined. New items will be inserted after exact
-  matches, or between two non-exact matches that each compare differently to
-  item using the supplied comparator."
-  ([coll item]
-   (find-insert-index coll item compare))
-  ([^java.util.List coll item ^java.util.Comparator comparator]
-   (let [search-result (java.util.Collections/binarySearch coll item comparator)]
-     (->insert-index search-result))))

@@ -5,13 +5,14 @@
             [util.thread-util :as thread-util])
   (:import (java.util.concurrent LinkedBlockingQueue)))
 
+(set! *warn-on-reflection* true)
+
 (defn compile-find-in-files-regex
-  "Convert a search-string to a java regex"
+  "Convert a search-string to a case-insensitive java regex"
   [search-str]
   (let [clean-str (string/replace search-str #"[\<\(\[\{\\\^\-\=\$\!\|\]\}\)\?\+\.\>]" "")]
-    (re-pattern (format "^(.*)(%s)(.*)$"
-                        (string/lower-case
-                          (string/replace clean-str #"\*" ".*"))))))
+    (re-pattern (format "(?i)^(.*)(%s)(.*)$"
+                        (string/replace clean-str #"\*" ".*")))))
 
 (defn- line->caret-pos [content line]
   (let [line-counts (map (comp inc count) (string/split-lines content))]
@@ -32,7 +33,6 @@
   (some-> entry :resource resource/proj-path))
 
 (defn- filter-save-data-future [report-error! unfiltered-save-data-future exts]
-  (println exts "filter save-data thread started")
   (try
     (let [file-ext-pats (into []
                               (comp (remove empty?)
@@ -51,11 +51,9 @@
                                                        (some #(re-matches % rext) file-ext-pats)))))
                                      unfiltered-save-data))
           sorted-filtered-save-data (sort-by save-data-sort-key filtered-save-data)]
-      (println exts "filter save-data thread completed")
       sorted-filtered-save-data)
     (catch InterruptedException _
       ; future-cancel was invoked from another thread.
-      (println exts "filter save-data thread interrupted")
       nil)
     (catch Throwable error
       (report-error! error)
@@ -63,32 +61,28 @@
 
 (defn- start-search-thread [report-error! filtered-save-data-future term produce-fn]
   (future
-    (println term "search thread started")
     (try
       (let [pattern (compile-find-in-files-regex term)
             xform (comp (map thread-util/abortable-identity!)
                         (filter :content)
                         (map (fn [{:keys [content] :as hit}]
                                (assoc hit :matches
-                                          (->> (string/split-lines (:content hit))
-                                               (map string/lower-case)
+                                          (->> (string/split-lines content)
                                                (keep-indexed (fn [idx l]
                                                                (let [[_ pre m post] (re-matches pattern l)]
                                                                  (when m
                                                                    {:line           idx
-                                                                    :caret-position (line->caret-pos (:content hit) idx)
+                                                                    :caret-position (line->caret-pos content idx)
                                                                     :match          (str (apply str (take-last 24 (string/triml pre)))
                                                                                          m
                                                                                          (apply str (take 24 (string/trimr post))))}))))
                                                (take 10)))))
                         (filter #(seq (:matches %))))]
         (doseq [entry (sequence xform (deref filtered-save-data-future))]
-          (produce-fn entry))
-        (println term "search thread completed"))
+          (produce-fn entry)))
       (catch InterruptedException _
         ; future-cancel was invoked from another thread.
-        (println term "search thread interrupted")
-        )
+        nil)
       (catch Throwable error
         (report-error! error)
         nil))))
@@ -108,7 +102,7 @@
                         (abort-search! pending-search)
                         (let [filtered-save-data-future (start-filter! exts)]
                           (if (seq term)
-                            (let [queue (LinkedBlockingQueue. 10)
+                            (let [queue (LinkedBlockingQueue. 64)
                                   thread (start-search-thread report-error! filtered-save-data-future term #(.put queue %))
                                   consumer (start-consumer! #(.poll queue))]
                               {:thread thread
