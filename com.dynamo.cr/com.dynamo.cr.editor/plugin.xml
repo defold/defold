@@ -216,12 +216,7 @@
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleWin32"
-                  label="Windows x86 Application..."
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.target.commands.bundleWin64"
-                  label="Windows x64 Application..."
+                  label="Windows Application..."
                   style="push">
             </command>
             <command
