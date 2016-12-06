@@ -1,6 +1,5 @@
 import os, sys, subprocess, shutil, re, stat, glob
 import pickle
-import platform as platformlib
 import Build, Options, Utils, Task, Logs
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
@@ -1170,10 +1169,7 @@ def detect(conf):
     elif sys.platform == "linux2":
         build_platform = "linux"
     elif sys.platform == "win32":
-        if platformlib.machine().endswith("64"):
-            build_platform = "x86_64-win32"
-        else:
-            build_platform = "win32"
+        build_platform = "win32"
     else:
         conf.fatal("Unable to determine host platform")
 
