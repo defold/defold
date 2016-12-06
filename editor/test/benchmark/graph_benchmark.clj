@@ -17,8 +17,7 @@
         project              (test-util/setup-project! workspace)
         project-graph        (g/node-id->graph-id project)
         app-view             (test-util/setup-app-view!)
-        atlas-node           (test-util/resource-node project "/switcher/fish.atlas")
-        view                 (test-util/open-scene-view! project app-view atlas-node 128 128)]
+        [atlas-node view]    (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
     {:project-graph project-graph
      :app-view      app-view
      :resource-node atlas-node

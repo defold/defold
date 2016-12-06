@@ -3,31 +3,28 @@
             [clojure.walk :as walk]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
+            [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.outline :as outline]
             [integration.test-util :as test-util]))
 
 (deftest open-editor
-  (testing "Opening editor does not alter undo history"
+  (testing "Opening editor only alters undo history by selection"
            (with-clean-system
-             (let [workspace  (test-util/setup-workspace! world)
-                   project    (test-util/setup-project! workspace)
+             (let [[workspace project app-view] (test-util/setup! world)
                    proj-graph (g/node-id->graph-id project)
-                   app-view   (test-util/setup-app-view!)
                    _          (is (not (g/has-undo? proj-graph)))
-                   atlas-node (test-util/resource-node project "/switcher/fish.atlas")
-                   view       (test-util/open-scene-view! project app-view atlas-node 128 128)]
+                   [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
+               (is (g/has-undo? proj-graph))
+               (g/undo! proj-graph)
                (is (not (g/has-undo? proj-graph)))))))
 
 (deftest undo-node-deletion-reconnects-editor
   (testing "Undoing the deletion of a node reconnects it to its editor"
            (with-clean-system
-             (let [workspace            (test-util/setup-workspace! world)
-                   project              (test-util/setup-project! workspace)
+             (let [[workspace project app-view] (test-util/setup! world)
                    project-graph        (g/node-id->graph-id project)
-                   app-view             (test-util/setup-app-view!)
-                   atlas-node           (test-util/resource-node project "/switcher/fish.atlas")
-                   view                 (test-util/open-scene-view! project app-view atlas-node 128 128)
+                   [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)
                    check-conn           #(not (empty? (g/node-value view :scene)))
                    connected-after-open (check-conn)]
                (g/transact (g/delete-node atlas-node))
@@ -101,7 +98,7 @@
           form))
       outline)))
 
-(defn- add-component! [project go-node-id]
+(defn- add-component! [project go-node-id select-fn]
   (let [op-seq     (gensym)
         proj-graph (g/node-id->graph-id project)
         component  (first
@@ -117,19 +114,17 @@
      (concat
       (g/operation-sequence op-seq)
       (g/operation-label "Add Component")
-      (project/select project [component])))
+      (select-fn [component])))
     component))
 
 (deftest undo-redo-undo-redo
  (with-clean-system
-   (let [workspace  (test-util/setup-workspace! world)
-         project    (test-util/setup-project! workspace)
+   (let [[workspace project app-view] (test-util/setup! world)
          proj-graph (g/node-id->graph-id project)
-         app-view   (test-util/setup-app-view!)
          view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
          outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
-         component  (add-component! project go-node)]
+         component  (add-component! project go-node (fn [node-ids] (app-view/select app-view node-ids)))]
 
      (g/transact (g/connect go-node :node-outline outline-id :outline))
 
@@ -175,16 +170,14 @@
 
 (deftest add-undo-updated-outline
  (with-clean-system
-   (let [workspace  (test-util/setup-workspace! world)
-         project    (test-util/setup-project! workspace)
+   (let [[workspace project app-view] (test-util/setup! world)
          proj-graph (g/node-id->graph-id project)
-         app-view   (test-util/setup-app-view!)
          view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
          outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))]
      (g/transact (g/connect go-node :node-outline outline-id :outline))
      (is (= 1 (child-count outline-id)))
-     (let [component (add-component! project go-node)]
+     (let [component (add-component! project go-node (fn [node-ids] (app-view/select app-view node-ids)))]
        (is (= 2 (child-count outline-id)))
        (g/undo! proj-graph)
        (is (= 1 (child-count outline-id)))))))

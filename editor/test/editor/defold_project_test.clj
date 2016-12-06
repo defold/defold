@@ -66,34 +66,3 @@
     (is (= "^(.*)(foo.*bar)(.*)$" (str (project/compile-find-in-files-regex "foo*bar[]().$^")))))
   (testing "case insensitive search strings"
     (is (= "^(.*)(fooo)(.*)$" (str (project/compile-find-in-files-regex "fOoO"))))))
-
-(deftest select-test
-  (testing "asserts that all node-ids are non-nil"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            [node-1 node-2] (tx-nodes (g/make-node world ANode)
-                                      (g/make-node world ANode))]
-        (is (thrown? java.lang.AssertionError (project/select project [node-1 nil node-2]))))))
-  (testing "preserves selection order"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            [node-1 node-2 node-3] (tx-nodes (g/make-node world ANode)
-                                             (g/make-node world ANode)
-                                             (g/make-node world ANode))]
-        (g/transact (project/select project [node-2 node-3 node-1]))
-        (is (= [node-2 node-3 node-1] (g/node-value project :selected-node-ids)))
-        (g/transact (project/select project [node-3 node-1 node-2]))
-        (is (= [node-3 node-1 node-2] (g/node-value project :selected-node-ids))))))
-  (testing "ensures selected nodes are distinct, preserving order"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            [node-1 node-2 node-3] (tx-nodes (g/make-node world ANode)
-                                             (g/make-node world ANode)
-                                             (g/make-node world ANode))]
-        (g/transact (project/select project [node-2 node-3 node-2 node-1 node-3 node-3 node-1]))
-        (is (= [node-2 node-3 node-1] (g/node-value project :selected-node-ids)))
-        (g/transact (project/select project [node-1 node-3 node-2 node-1 node-3 node-2 node-2]))
-        (is (= [node-1 node-3 node-2] (g/node-value project :selected-node-ids)))))))

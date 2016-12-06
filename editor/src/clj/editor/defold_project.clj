@@ -510,6 +510,7 @@
 
   (property build-cache g/Any)
   (property fs-build-cache g/Any)
+  (property all-selections g/Any)
   (property sub-selection g/Any)
 
   (input selected-node-ids g/Any :array)
@@ -523,11 +524,23 @@
   (input display-profiles g/Any)
   (input collision-group-nodes g/Any :array)
 
-  (output selected-node-ids g/Any :cached (gu/passthrough selected-node-ids))
-  (output selected-node-properties g/Any :cached (gu/passthrough selected-node-properties))
-  (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
-                                             (let [nids (set selected-node-ids)]
-                                               (filterv (comp nids first) sub-selection))))
+  (output all-selected-node-ids g/Any :cached (g/fnk [selected-node-ids all-selections]
+                                                (let [selected-node-ids (set selected-node-ids)]
+                                                  (->> all-selections
+                                                    (map (fn [[key vals]] [key (filterv selected-node-ids vals)]))
+                                                    (into {})))))
+  (output all-selected-node-properties g/Any :cached (g/fnk [selected-node-properties all-selections]
+                                                       (let [props (->> selected-node-properties
+                                                                     (map (fn [p] [(:node-id p) p]))
+                                                                     (into {}))]
+                                                         (->> all-selections
+                                                           (map (fn [[key vals]] [key (vec (keep props vals))]))
+                                                           (into {})))))
+  (output all-sub-selections g/Any :cached (g/fnk [selected-node-ids sub-selection]
+                                                  (let [nids (set selected-node-ids)]
+                                                    (->> sub-selection
+                                                      (map (fn [[key vals]] [key (filterv (comp nids first) vals)]))
+                                                      (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
@@ -614,53 +627,10 @@
                             attach-fn))
       [])))
 
-(defn select
-  [project-id node-ids]
-  (assert (not-any? nil? node-ids) "Attempting to select nil values")
-  (concat
-    (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
-      (g/disconnect node-id label project-id :selected-node-ids))
-    (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
-      (g/disconnect node-id label project-id :selected-node-properties))
-    (for [node-id (distinct node-ids)]
-      (concat
-        (g/connect node-id :_node-id    project-id :selected-node-ids)
-        (g/connect node-id :_properties project-id :selected-node-properties)))))
-
-(defn select!
-  ([project node-ids]
-    (select! project node-ids (gensym)))
-  ([project node-ids op-seq]
-    (let [old-nodes (g/node-value project :selected-node-ids)]
-      (when (not= node-ids old-nodes)
-        (g/transact
-          (concat
-            (g/operation-sequence op-seq)
-            (g/operation-label "Select")
-            (select project node-ids)))))))
-
-(defn sub-select!
-  ([project sub-selection]
-    (sub-select! project sub-selection (gensym)))
-  ([project sub-selection op-seq]
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Select")
-        (g/set-property project :sub-selection sub-selection)))))
-
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))
-
-(deftype ProjectSelectionProvider [project-id]
-  handler/SelectionProvider
-  (selection [this] (g/node-value project-id :selected-node-ids))
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
-
-(defn selection-provider [project-id] (ProjectSelectionProvider. project-id))
 
 (defn make-project [graph workspace-id]
   (let [project-id

@@ -182,8 +182,8 @@
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* outline project)
-          properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
+          outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
+          properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler project)})
@@ -194,10 +194,10 @@
                                                                                                    (g/node-value project :workspace)
                                                                                                    project
                                                                                                    resource)
-                                                                           (project/select! project node-id)))
+                                                                           (app-view/select! app-view node-id)))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
-          curve-view           (curve-view/make-view! project *view-graph*
+          curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
@@ -237,10 +237,13 @@
                          :asset-browser     asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
-        (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
+        (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
-          (g/connect project :selected-node-ids outline-view :selection)
+          (for [label [:all-selected-node-ids :all-selected-node-properties :all-sub-selections]]
+            (g/connect project label app-view label))
+          (g/connect project :_node-id app-view :project-id)
+          (g/connect app-view :selected-node-ids outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
           (for [view [outline-view asset-browser]]

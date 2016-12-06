@@ -1,6 +1,7 @@
 (ns editor.scene
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.background :as background]
             [editor.camera :as c]
             [editor.scene-selection :as selection]
@@ -740,7 +741,7 @@
     (concat
       (g/make-nodes view-graph
                     [background      background/Gradient
-                     selection       [selection/SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
+                     selection       [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/select! app-view-id selection op-seq))]
                      camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
                      grid            grid-type
                      tool-controller tool-controller-type
@@ -749,18 +750,18 @@
                     (g/connect resource-node        :scene                     view-id          :scene)
                     (g/set-graph-value view-graph   :camera                    camera)
 
-                    (g/connect background           :renderable                view-id         :aux-renderables)
+                    (g/connect background           :renderable                view-id          :aux-renderables)
 
-                    (g/connect camera               :camera                    view-id         :camera)
+                    (g/connect camera               :camera                    view-id          :camera)
                     (g/connect camera               :input-handler             view-id          :input-handlers)
                     (g/connect view-id              :viewport                  camera           :viewport)
 
-                    (g/connect project              :selected-node-ids         view-id          :selection)
+                    (g/connect app-view-id          :selected-node-ids         view-id          :selection)
 
                     (g/connect app-view-id          :active-tool               view-id          :active-tool)
 
                     (g/connect tool-controller      :input-handler             view-id          :input-handlers)
-                    (g/connect tool-controller      :renderables               view-id         :tool-renderables)
+                    (g/connect tool-controller      :renderables               view-id          :tool-renderables)
                     (g/connect view-id              :active-tool               tool-controller  :active-tool)
                     (g/connect view-id              :viewport                  tool-controller  :viewport)
                     (g/connect camera               :camera                    tool-controller  :camera)
@@ -783,7 +784,7 @@
                     (g/connect view-id :viewport rulers :viewport)
                     (g/connect view-id :cursor-pos rulers :cursor-pos))
       (when-let [node-id (:select-node opts)]
-        (project/select project [node-id])))))
+        (app-view/select app-view-id [node-id])))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
