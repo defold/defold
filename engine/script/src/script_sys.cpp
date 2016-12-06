@@ -50,6 +50,7 @@ union SaveLoadBuffer
      * Functions and messages for using system resources, controlling the engine
      * and for debugging.
      *
+     * @document
      * @name System
      * @namespace sys
      */

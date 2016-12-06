@@ -20,6 +20,7 @@ namespace dmScript
      *
      * Manipulation of JSON data strings.
      *
+     * @document
      * @name JSON
      * @namespace json
      */

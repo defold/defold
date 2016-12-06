@@ -31,6 +31,7 @@ namespace dmScript
      *
      * Functions for performing HTTP and HTTPS requests.
      *
+     * @document
      * @name HTTP
      * @namespace http
      */

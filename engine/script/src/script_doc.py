@@ -122,7 +122,7 @@ def _parse_comment(str):
     lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
 
     name_found = False
-    docinfo_comment = False
+    document_comment = False
     element_type = script_doc_ddf_pb2.FUNCTION
     for (tag, value) in lst:
         tag = tag.strip()
@@ -135,9 +135,8 @@ def _parse_comment(str):
             element_type = script_doc_ddf_pb2.MESSAGE
         elif tag == 'property':
             element_type = script_doc_ddf_pb2.PROPERTY
-        elif tag == 'namespace':
-            # The namespace tag makes the comment apply to the whole doc.
-            docinfo_comment = True
+        elif tag == 'document':
+            document_comment = True
 
     if not name_found:
         logging.warn('Missing tag @name in "%s"' % str)
@@ -150,15 +149,14 @@ def _parse_comment(str):
 
     element = script_doc_ddf_pb2.Element()
 
-    # Is this element a doc info?
-    if docinfo_comment:
+    if document_comment:
         element = script_doc_ddf_pb2.Info()
+        element.brief = md.convert(brief)
+        element.description = md.convert(description)
     else:
-        # A regular element
         element.type = element_type
-
-    element.brief = md.convert(brief)
-    element.description = md.convert(description)
+        element.brief = md.convert(brief)
+        element.description = md.convert(description)
 
     for (tag, value) in lst:
         value = value.strip()
@@ -187,6 +185,7 @@ def _parse_comment(str):
             element.deprecated = md.convert(value)
         elif tag == 'namespace':
             element.namespace = value
+
     return element
 
 def parse_document(doc_str):
@@ -202,7 +201,11 @@ def parse_document(doc_str):
             doc_info = element
 
     if not doc_info:
-        logging.error('Missing @namespace in document')
+        logging.error('Missing @document comment.')
+        return
+
+    if not doc_info.namespace:
+        logging.error('Missing @namespace tag in @document comment.')
         return
 
     element_list.sort(cmp = lambda x,y: cmp(x.name, y.name))

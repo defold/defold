@@ -3224,19 +3224,14 @@ namespace dmGui
 
     /*# gets the node color
      * Returns the color of the supplied node. The components
-     * of the vector4 contains the color channel values:
+     * of the [type:vector4] contains the color channel values:
      *
-     * x
-     * : Red value
-     *
-     * y
-     * : Green value
-     *
-     * z
-     * : Blue value
-     *
-     * w
-     * : Alpha value
+     * Component | Color value
+     * --------- | -------------
+     * x         | Red value
+     * y         | Green value
+     * z         | Blue value
+     * w         | Alpha value
      *
      * @name gui.get_color
      * @param node [type:node] node to get the color from
@@ -3245,19 +3240,14 @@ namespace dmGui
 
     /*# sets the node color
      * Sets the color of the supplied node. The components
-     * of the supplied vector3 or vector4 should contain the color channel values:
+     * of the supplied [type:vector3] or [type:vector4] should contain the color channel values:
      *
-     * x
-     * : Red value
-     *
-     * y
-     * : Green value
-     *
-     * z
-     * : Blue value
-     *
-     * w (for [type:vector4])
-     * : Alpha value
+     * Component        | Color value
+     * ---------------- | -------------
+     * x                | Red value
+     * y                | Green value
+     * z                | Blue value
+     * w [type:vector4] | Alpha value
      *
      * @name gui.set_color
      * @param node [type:node] node to set the color for
@@ -3505,13 +3495,16 @@ namespace dmGui
      * - `gui.PLAYBACK_LOOP_BACKWARD`
      * - `gui.PLAYBACK_LOOP_PINGPONG`
      *
-     * @param [play_properties] optional table with properties (table)
+     * @param [play_properties] [type:table] optional table with properties
      *
-     * Field            | Description
-     * --------------------------------------------------------------------
-     * `blend_duration` | [type:number] The duration of a linear blend between the current and new animation
-     * `offset`         | [type:number] The normalized initial value of the animation cursor when the animation starts playing
-     * `playback_rate`  | [type:number] The rate with which the animation will be played. Must be positive
+     * `blend_duration`
+     * : [type:number] The duration of a linear blend between the current and new animation
+     *
+     * `offset`
+     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing
+     *
+     * `playback_rate`
+     * : [type:number] The rate with which the animation will be played. Must be positive
      *
      * @param [complete_function] [type:function(self, node)] function to call when the animation has completed
      */
@@ -4519,7 +4512,7 @@ namespace dmGui
      * Here is a brief description of the available table fields:
      *
      * Field       | Description
-     * -------------------------------------------------------------------------
+     * ----------- | ----------------------------------------------------------
      * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
      * `pressed`   | If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.
      * `released`  | If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.
@@ -4538,8 +4531,8 @@ namespace dmGui
      * Touch input table:
      *
      * Field       | Description
-     * -------------------------------------------------------------------------
-     * `pressed´   | True if the finger was pressed this frame.
+     * ----------- | ----------------------------------------------------------
+     * `pressed`   | True if the finger was pressed this frame.
      * `released`  | True if the finger was released this frame.
      * `tap_count` | Number of taps, one for singledouble-tap, etc.
      * `x`         | The x touch location.

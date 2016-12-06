@@ -14,8 +14,9 @@ struct Push;
 
 /*# Push notifications API documentation
  *
- * Functions and constants for interacting with local, as well as 
- * Apple's and Google's push notification services.
+ * Functions and constants for interacting with local, as well as
+ * Apple's and Google's push notification services. These API:s only exist on mobile platforms.
+ * [icon:ios] [icon:android]
  *
  * @name Push notifications
  * @namespace push
@@ -300,7 +301,7 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
  * :        [type:table] A table containing eventual error information.
  *
  * @examples
- * 
+ *
  * Register for push notifications on iOS. Note that the token needs to be converted on this platform.
  *
  * ```lua
@@ -411,7 +412,7 @@ int Push_Register(lua_State* L)
  *
  * @name push.set_listener
  * @param listener [type:function(self, payload, origin, activated)] listener callback function.
- * 
+ *
  * self
  * :    [type:object] The current object
  *
@@ -422,13 +423,13 @@ int Push_Register(lua_State* L)
  * :    [type:constant] push.ORIGIN_LOCAL or push.ORIGIN_REMOTE
  *
  * activated
- * :    [type:boolean] true or false depending on if the application was 
+ * :    [type:boolean] true or false depending on if the application was
  *      activated via the notification.
  *
  * @examples
- * 
+ *
  * Set the push notification listener.
- * 
+ *
  * ```lua
  * local function push_listener(self, payload, origin, activated)
  *      -- The payload arrives here.
@@ -477,10 +478,10 @@ int Push_SetListener(lua_State* L)
     return 0;
 }
 
-/*# set badge icon count
+/*# set badge icon count [icon:iOS]
  *
- * [icon:iOS] Set the badge count for application icon. 
- * This function is only available on iOS.
+ * Set the badge count for application icon.
+ * This function is only available on iOS. [icon:iOS]
  *
  * @name push.set_badge_count
  * @param count [type:number] badge count
@@ -507,29 +508,27 @@ int Push_SetBadgeCount(lua_State* L)
  *
  * action [icon:iOS]
  * :    [type:string]
- *      The alert action string to be used as the title of the right button of the 
+ *      The alert action string to be used as the title of the right button of the
  *      alert or the value of the unlock slider, where the value replaces
  *      "unlock" in "slide to unlock" text.
  *
  * badge_count [icon:iOS]
  * :    [type:number] The numeric value of the icon badge.
  *
- * [deprecated]
- * badge_number
+ * <s>badge_number</s>
  * :    Deprecated! Use badge_count instead
- * [/deprecated]
  *
  * priority [icon:android]
  * :    [type:number]
  *      The priority is a hint to the device UI about how the notification
- *      should be displayed. There are five priority levels, from -2 to 2 where -1 is the 
- *      lowest priority and 2 the highest. Unless specified, a default priority level of 2 
+ *      should be displayed. There are five priority levels, from -2 to 2 where -1 is the
+ *      lowest priority and 2 the highest. Unless specified, a default priority level of 2
  *      is used.
- * 
+ *
  * @return id [type:number] unique id that can be used to cancel or inspect the notification
  * @return err [type:string] error string if something went wrong, otherwise nil
  * @examples
- * 
+ *
  * This example demonstrates how to schedule a local notification:
  *
  * ```lua
@@ -541,7 +540,7 @@ int Push_SetBadgeCount(lua_State* L)
  *      ...
  * end
  * ```
- * 
+ *
  */
 int Push_Schedule(lua_State* L)
 {

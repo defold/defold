@@ -19,7 +19,8 @@ namespace dmScript
     /*# Built-ins API documentation
      *
      * Built-in scripting functions.
-     * 
+     *
+     * @document
      * @name Built-ins
      * @namespace builtins
      */
