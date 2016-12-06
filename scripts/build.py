@@ -265,7 +265,7 @@ class Configuration(object):
         # Target platform packages should take precendence when for instance
         # extracting headers for a non-default version of PVRTexLib (windows, linux)
         # For this reason we extract packages for other platforms first, followed by
-        # host packages, base platform packages, and finally target platform packages.
+        # host/base platform packages, and finally target platform packages.
 
         platform_packages = {
             'win32':          PACKAGES_WIN32,
@@ -293,16 +293,9 @@ class Configuration(object):
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
 
-        host_package_paths = [path for path in self._make_package_paths(self.host, PACKAGES_HOST) if path not in installed_packages]
-
-        if len(host_package_paths) != 0:
-            print("Installing host (%s) packages" % self.host)
-            for path in host_package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(host_package_paths)
-
         for base_platform in self.get_base_platforms():
-            packages = platform_packages.get(base_platform, [])
+            packages = list(PACKAGES_HOST)
+            packages.extend(platform_packages.get(base_platform, []))
             package_paths = self._make_package_paths(base_platform, packages)
             package_paths = [path for path in package_paths if path not in installed_packages]
             if len(package_paths) != 0:
