@@ -827,19 +827,14 @@ namespace dmGameSystem
             Vector3 size = GetSize(component);
             result = GetProperty(out_value, get_property, size, SPRITE_PROP_SIZE);
         }
-        else if (SPRITE_PROP_TEXTURE0 == get_property)
+        else if (get_property == SPRITE_PROP_TEXTURE0)
         {
             dmhash_t hash_path;
             dmResource::Result r = dmResource::GetPath(component->m_Resource->m_Factory, component->m_Resource->m_TextureSet->m_Texture, &hash_path);
             if (r == dmResource::RESULT_OK)
             {
-                out_value.m_ValuePtr = 0x0;
-                out_value.m_Variant.m_Type = dmGameObject::PROPERTY_TYPE_HASH;
-                out_value.m_Variant.m_Hash = hash_path;
-                result = dmGameObject::PROPERTY_RESULT_OK;
-            } else {
-                dmLogError("Could not get ???");
-                result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+                out_value.m_Variant = dmGameObject::PropertyVar(hash_path);
+                return dmGameObject::PROPERTY_RESULT_OK;
             }
         }
 

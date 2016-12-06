@@ -33,6 +33,7 @@ namespace dmGameSystem
     static const dmhash_t PROP_ANIMATION = dmHashString64("animation");
     static const dmhash_t PROP_CURSOR = dmHashString64("cursor");
     static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
+    static const dmhash_t PROP_TEXTURE0 = dmHashString64("texture0");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
     static void DestroyComponent(ModelWorld* world, uint32_t index);
@@ -723,6 +724,16 @@ namespace dmGameSystem
         {
             out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetPlaybackRate(component->m_RigInstance));
             return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == PROP_TEXTURE0)
+        {
+            dmhash_t hash_path;
+            dmResource::Result r = dmResource::GetPath(component->m_Resource->m_Factory, component->m_Resource->m_Textures[0], &hash_path);
+            if (r == dmResource::RESULT_OK)
+            {
+                out_value.m_Variant = dmGameObject::PropertyVar(hash_path);
+                return dmGameObject::PROPERTY_RESULT_OK;
+            }
         }
         return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompModelGetConstantCallback, component);
     }

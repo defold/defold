@@ -35,6 +35,7 @@ namespace dmGameSystem
         }
         memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
+        resource->m_Factory = factory;
         return result;
     }
 
