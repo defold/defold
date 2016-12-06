@@ -18,19 +18,21 @@
   (let [line-counts (map (comp inc count) (string/split-lines content))]
     (reduce + (take line line-counts))))
 
-(defn- make-file-resource-save-data-future [report-error! project]
+(defn- save-data-sort-key [entry]
+  (some-> entry :resource resource/proj-path))
+
+(defn make-file-resource-save-data-future [report-error! project]
   (let [basis (g/now)
         cache (atom (deref (g/cache)))
         options {:basis basis :cache cache :skip-validation true}]
     (future
       (try
-        (filterv #(some-> % :resource resource/source-type (= :file))
-                 (g/node-value project :save-data options))
+        (->> (g/node-value project :save-data options)
+             (filter #(some-> % :resource resource/source-type (= :file)))
+             (sort-by save-data-sort-key))
         (catch Throwable error
-          (report-error! error))))))
-
-(defn- save-data-sort-key [entry]
-  (some-> entry :resource resource/proj-path))
+          (report-error! error)
+          nil)))))
 
 (defn- filter-save-data-future [report-error! unfiltered-save-data-future exts]
   (try
@@ -41,17 +43,15 @@
                               (some-> exts
                                       (string/replace #" " "")
                                       (string/split #",")))
-          unfiltered-save-data (deref unfiltered-save-data-future)
-          filtered-save-data (if (empty? file-ext-pats)
-                               unfiltered-save-data
-                               (into []
-                                     (comp (map thread-util/abortable-identity!)
-                                           (filter (fn [entry]
-                                                     (let [rext (-> entry :resource resource/ext)]
-                                                       (some #(re-matches % rext) file-ext-pats)))))
-                                     unfiltered-save-data))
-          sorted-filtered-save-data (sort-by save-data-sort-key filtered-save-data)]
-      sorted-filtered-save-data)
+          unfiltered-save-data (deref unfiltered-save-data-future)]
+      (if (empty? file-ext-pats)
+        unfiltered-save-data
+        (into []
+              (comp (map thread-util/abortable-identity!)
+                    (filter (fn [entry]
+                              (let [rext (-> entry :resource resource/ext)]
+                                (some #(re-matches % rext) file-ext-pats)))))
+              unfiltered-save-data)))
     (catch InterruptedException _
       ; future-cancel was invoked from another thread.
       nil)
@@ -87,9 +87,8 @@
         (report-error! error)
         nil))))
 
-(defn make-file-searcher [project start-consumer! stop-consumer! report-error!]
-  (let [unfiltered-save-data-future (make-file-resource-save-data-future report-error! project)
-        [start-filter! abort-filter!] (let [filter-fn (partial filter-save-data-future report-error! unfiltered-save-data-future)
+(defn make-file-searcher [file-resource-save-data-future start-consumer! stop-consumer! report-error!]
+  (let [[start-filter! abort-filter!] (let [filter-fn (partial filter-save-data-future report-error! file-resource-save-data-future)
                                             start-filter! (thread-util/make-cached-future-fn filter-fn)
                                             abort-filter! #(thread-util/cancel-cached-future-fn start-filter!)]
                                         [start-filter! abort-filter!])
@@ -108,9 +107,18 @@
                               {:thread thread
                                :consumer consumer})
                             (let [consumer (start-consumer! (constantly nil))]
-                                (stop-consumer! consumer)
-                                nil))))]
-    {:start-search! (partial swap! pending-search-atom start-search!)
+                              (stop-consumer! consumer)
+                              nil))))]
+    {:start-search! (fn [term exts]
+                      (try
+                        (swap! pending-search-atom start-search! term exts)
+                        (catch Throwable error
+                          (report-error! error)))
+                      nil)
      :abort-search! (fn []
-                      (swap! pending-search-atom abort-search!)
-                      (abort-filter!))}))
+                      (try
+                        (swap! pending-search-atom abort-search!)
+                        (abort-filter!)
+                        (catch Throwable error
+                          (report-error! error)))
+                      nil)}))
