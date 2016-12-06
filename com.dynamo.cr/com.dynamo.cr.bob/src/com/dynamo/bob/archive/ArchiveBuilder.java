@@ -24,6 +24,8 @@ import net.jpountz.lz4.LZ4Factory;
 public class ArchiveBuilder {
 
     public static final int VERSION = 4;
+    public static final int HASH_MAX_LENGTH = 64; // 512 bits
+    public static final int HASH_LENGTH = 20;
 
     private static final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
 
@@ -212,6 +214,106 @@ public class ArchiveBuilder {
         outFile.writeInt(entries.size());
         // EntryOffset
         outFile.writeInt(entryOffset);
+    }
+    
+    private void WriteToManifest(ManifestBuilder manifestBuilder, ArchiveEntry e, Path resourcePackDirectory) throws IOException {
+        int size = (e.compressedSize == ArchiveEntry.FLAG_UNCOMPRESSED) ? e.size : e.compressedSize;
+        byte[] buffer = new byte[size];
+        e.hash = new byte[HASH_MAX_LENGTH];
+        String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+        manifestBuilder.addResourceEntry(normalisedPath, buffer);
+
+        // Write the entry to the Resource pack directory
+        byte[] hashDigest;
+        try {
+            hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+            for (int j = 0; j < hashDigest.length; j++) {
+                e.hash[j] = hashDigest[j];
+            }
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
+        }
+        String filename = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
+        FileOutputStream outputStream = null;
+        try {
+            File fhandle = new File(resourcePackDirectory.toString(), filename);
+            if (!fhandle.exists()) {
+                outputStream = new FileOutputStream(fhandle);
+                outputStream.write(buffer);
+            }
+        } finally {
+            if (outputStream != null) {
+                try {
+                    outputStream.close();
+                } catch (IOException exception) {
+                    // There's nothing we can do at this point
+                }
+            }
+        }
+    }
+    
+    public void write2(RandomAccessFile outFileIndex, RandomAccessFile outFileData, Path resourcePackDirectory) throws IOException {
+        // INDEX
+        outFileIndex.writeInt(VERSION); // Version
+        outFileIndex.writeInt(0); // Pad
+        outFileIndex.writeLong(0); // UserData, used in runtime to distinguish between if the index and resources are memory mapped or loaded from disk
+        outFileIndex.writeInt(0); // EntryCount
+        outFileIndex.writeInt(0); // EntryOffset
+        outFileIndex.writeInt(0); // HashOffset
+        outFileIndex.writeInt(HASH_LENGTH); // HashLength
+
+        int entryCount = entries.size();
+        
+        // Write to data file
+        for (ArchiveEntry e : entries) {
+            // copy resource data to file (compress if flag set)
+            alignBuffer(outFileData, 4);
+            e.resourceOffset = (int) outFileData.getFilePointer();
+            if(e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+                e.compressedSize = compress(e.fileName, e.size, outFileData);
+            } else {
+                copy(e.fileName, outFileData);
+            }
+            
+            if(manifestBuilder != null) {
+            	WriteToManifest(manifestBuilder, e, resourcePackDirectory);
+            }
+        }
+        
+        // Write hashes to index file
+        int hashOffset = (int) outFileIndex.getFilePointer();
+        
+        // sort on hash
+        Collections.sort(entries);
+
+        // Write sorted hashes to index file
+        for(ArchiveEntry e : entries) {
+        	outFileIndex.write(e.hash);
+        }
+
+        // Write entries (now sorted on hash) to index file
+        int entryOffset = (int) outFileIndex.getFilePointer();
+        alignBuffer(outFileIndex, 4);
+        for (ArchiveEntry e : entries) {
+            outFileIndex.writeInt(e.resourceOffset);
+            outFileIndex.writeInt(e.size);
+            outFileIndex.writeInt(e.compressedSize);
+            String ext = FilenameUtils.getExtension(e.fileName);
+            if (ENCRYPTED_EXTS.indexOf(ext) != -1) {
+                e.flags = ArchiveEntry.FLAG_ENCRYPTED;
+            }
+            outFileIndex.writeInt(e.flags);
+        }
+
+        // INDEX
+        outFileIndex.seek(0); // Reset file and write actual offsets
+        outFileIndex.writeInt(VERSION);
+        outFileIndex.writeInt(0); // Pad
+        outFileIndex.writeLong(0); // UserData
+        outFileIndex.writeInt(entryCount);
+        outFileIndex.writeInt(entryOffset);
+        outFileIndex.writeInt(hashOffset);
+        outFileIndex.writeInt(HASH_LENGTH); 
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
