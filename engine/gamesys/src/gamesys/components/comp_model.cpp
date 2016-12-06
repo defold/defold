@@ -727,13 +727,8 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_TEXTURE0)
         {
-            dmhash_t hash_path;
-            dmResource::Result r = dmResource::GetPath(component->m_Resource->m_Factory, component->m_Resource->m_Textures[0], &hash_path);
-            if (r == dmResource::RESULT_OK)
-            {
-                out_value.m_Variant = dmGameObject::PropertyVar(hash_path);
-                return dmGameObject::PROPERTY_RESULT_OK;
-            }
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Resource->m_TexturePaths[0]);
+            return dmGameObject::PROPERTY_RESULT_OK;
         }
         return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompModelGetConstantCallback, component);
     }

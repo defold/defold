@@ -829,13 +829,8 @@ namespace dmGameSystem
         }
         else if (get_property == SPRITE_PROP_TEXTURE0)
         {
-            dmhash_t hash_path;
-            dmResource::Result r = dmResource::GetPath(component->m_Resource->m_Factory, component->m_Resource->m_TextureSet->m_Texture, &hash_path);
-            if (r == dmResource::RESULT_OK)
-            {
-                out_value.m_Variant = dmGameObject::PropertyVar(hash_path);
-                return dmGameObject::PROPERTY_RESULT_OK;
-            }
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Resource->m_TextureSet->m_TexturePath);
+            result = dmGameObject::PROPERTY_RESULT_OK;
         }
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)

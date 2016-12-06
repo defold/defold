@@ -18,7 +18,6 @@ namespace dmGameSystem
         TextureSetResource* m_TextureSet;
         dmGameSystemDDF::SpriteDesc* m_DDF;
         dmRender::HMaterial m_Material;
-        dmResource::HFactory m_Factory;
     };
 
     dmResource::Result ResSpritePreload(const dmResource::ResourcePreloadParams& params);

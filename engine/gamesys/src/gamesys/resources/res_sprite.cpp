@@ -40,7 +40,6 @@ namespace dmGameSystem
         }
         else
         {
-            resource->m_Factory = factory;
             return dmResource::RESULT_OK;
         }
     }
