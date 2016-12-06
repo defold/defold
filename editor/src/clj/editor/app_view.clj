@@ -43,7 +43,6 @@
            [javafx.stage Stage FileChooser WindowEvent]
            [javafx.util Callback]
            [java.io File ByteArrayOutputStream]
-           [java.net URI]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
@@ -310,13 +309,13 @@
     (ui/show! stage)))
 
 (handler/defhandler :documentation :global
-  (run [] (.browse (Desktop/getDesktop) (URI. "http://www.defold.com/learn/"))))
+  (run [] (ui/browse-url "http://www.defold.com/learn/")))
 
 (handler/defhandler :report-issue :global
-  (run [] (.browse (Desktop/getDesktop) (github/new-issue-link))))
+  (run [] (ui/browse-url (github/new-issue-link))))
 
 (handler/defhandler :report-praise :global
-  (run [] (.browse (Desktop/getDesktop) (github/new-praise-link))))
+  (run [] (ui/browse-url (github/new-praise-link))))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
