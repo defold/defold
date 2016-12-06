@@ -1,6 +1,8 @@
 #ifndef RESOURCE_ARCHIVE_H
 #define RESOURCE_ARCHIVE_H
 
+#include <dlib/align.h>
+
 /*
  Resource archive file format
  - All meta-data in network endian
@@ -25,9 +27,38 @@
 
 */
 
+/*
+ Resource archive index-data file format
+ - Index dara is in network endian
+ - All entries are numericallty sorted by hash
+
+ uint32_t m_Version;     // No minor or bug-fix version numbering. Version must match identically.
+ uint32_t m_Pad;
+ uint64_t m_Userdata;    // For run-time use
+ uint32_t m_EntryDataCount;
+ uint32_t m_EntryDataOffset;
+ uint32_t m_HashOffset;
+ uint32_t m_HashLength;
+
+ uint8_t* m_Hashes;
+ EntryData* m_Entries;
+ FILE* m_FileResourceData;
+
+ struct EntryData
+ {
+     uint32_t m_ResourceDataOffset;
+     uint32_t m_ResourceSize;
+     uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
+     uint32_t m_Flags;
+ };
+
+*/
+
 namespace dmResourceArchive
 {
     typedef struct Archive* HArchive;
+
+    typedef struct ArchiveIndex* HArchiveIndex;
 
     enum Result
     {
@@ -51,6 +82,30 @@ namespace dmResourceArchive
         void*       m_Entry;  // For internal use
     };
 
+    struct DM_ALIGNED(16) EntryData
+    {
+        EntryData() : 
+            m_ResourceDataOffset(0),
+            m_ResourceSize(0),
+            m_ResourceCompressedSize(0),
+            m_Flags(0) {}
+
+        uint32_t m_ResourceDataOffset;
+        uint32_t m_ResourceSize;
+        uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
+        uint32_t m_Flags;
+    };
+    
+    /**
+     * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
+     * archive is not needed.
+     * @param index_buffer archive index memory to wrap
+     * @param index_buffer_size archive index size
+     * @param resource_data resource data handle
+     * @return RESULT_OK on success
+     */
+    Result WrapArchiveBuffer2(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndex* archive);
+
     /**
      * Wrap an archive already loaded in memory. Call delete Delete() on wrapped
      * archives is not necessary
@@ -62,6 +117,15 @@ namespace dmResourceArchive
     Result WrapArchiveBuffer(const void* buffer, uint32_t buffer_size, HArchive* archive);
 
     /**
+     * Load archive from filename. Only the index data is loaded into memory.
+     * Resources are loaded on-demand using Read2() function.
+     * @param file_name archive index to load
+     * @param archive archive index handle
+     * @return RESULT_OK on success
+     */
+    Result LoadArchive2(const char* file_name, HArchiveIndex* archive);
+
+    /**
      * Load archive from filename. Only the metadata is loaded into memory.
      * Resources are loaded on-demand using the Read() function
      * @param file_name archive to load
@@ -69,6 +133,15 @@ namespace dmResourceArchive
      * @return RESULT_OK on success
      */
     Result LoadArchive(const char* file_name, HArchive* archive);
+
+    /**
+     * Find resource entry within archive
+     * @param archive archive index handle
+     * @param hash resource hash to find
+     * @param entry entry data
+     * @return RESULT_OK on success
+     */
+    Result FindEntry2(HArchiveIndex archive, const uint8_t* hash, EntryData* entry);
 
     /**
      * Find file within archive
@@ -82,6 +155,15 @@ namespace dmResourceArchive
 
     /**
      * Read resource
+     * @param archive archive index handle
+     * @param entry_data entry data
+     * @param buffer buffer to load to
+     * @return RESULT_OK on success
+     */
+    Result Read2(HArchiveIndex archive, EntryData* entry_data, void* buffer);
+
+    /**
+     * Read resource
      * @param archive archive handle
      * @param entry_info entry info
      * @param buffer buffer to load to
@@ -90,10 +172,23 @@ namespace dmResourceArchive
     Result Read(HArchive archive, EntryInfo* entry_info, void* buffer);
 
     /**
+     * Delete archive. Only required for archives created with LoadArchive2 function
+     * @param archive archive index handle
+     */
+    void Delete2(HArchiveIndex archive);
+
+    /**
      * Delete archive. Only required for archives created with the LoadArchive function
      * @param archive archive handle
      */
     void Delete(HArchive archive);
+
+    /**
+     * Get total entries, i.e. files/resources in archive
+     * @param archive archive index handle
+     * @return entry count
+     */
+    uint32_t GetEntryCount2(HArchiveIndex archive);
 
     /**
      * Get total entries, i.e. files/resources, in archive
