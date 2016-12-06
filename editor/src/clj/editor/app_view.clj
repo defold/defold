@@ -56,16 +56,28 @@
   (property active-tool g/Keyword)
 
   (input outline g/Any)
+  (input project-id g/NodeID)
+  (input selected-node-ids-by-resource g/Any)
+  (input selected-node-properties-by-resource g/Any)
+  (input sub-selections-by-resource g/Any)
 
-  (output active-tab Tab :cached (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
+  (output active-tab Tab :cached (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any :cached (gu/passthrough outline))
   (output active-resource resource/Resource :cached (g/fnk [^Tab active-tab]
-                                                           (when active-tab
-                                                             (ui/user-data active-tab ::resource))))
+                                                      (when active-tab
+                                                        (ui/user-data active-tab ::resource))))
   (output active-view g/NodeID :cached (g/fnk [^Tab active-tab]
-                                              (when active-tab
-                                                (ui/user-data active-tab ::view))))
-  (output open-resources g/Any :cached (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (ui/user-data tab ::resource)) (.getTabs tab-pane)))))
+                                         (when active-tab
+                                           (ui/user-data active-tab ::view))))
+  (output open-resources g/Any :cached (g/fnk [^TabPane tab-pane]
+                                         (when tab-pane
+                                           (map (fn [^Tab tab] (ui/user-data tab ::resource)) (.getTabs tab-pane)))))
+  (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource active-resource]
+                                    (get selected-node-ids-by-resource active-resource)))
+  (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource active-resource]
+                                           (get selected-node-properties-by-resource active-resource)))
+  (output sub-selection g/Any (g/fnk [sub-selections-by-resource active-resource]
+                                (get sub-selections-by-resource active-resource))))
 
 (defn- invalidate [node label]
   (g/invalidate! [[node label]]))
@@ -420,11 +432,66 @@
                   :acc "Shift+Shortcut+W"
                   :command :close-all}])
 
-(defrecord DummySelectionProvider []
+(defrecord SelectionProvider [app-view]
   handler/SelectionProvider
-  (selection [this] [])
+  (selection [this] (g/node-value app-view :selected-node-ids))
   (succeeding-selection [this] [])
   (alt-selection [this] []))
+
+(defn ->selection-provider [app-view] (SelectionProvider. app-view))
+
+(defn- update-selection [s open-resources active-resource selection-value]
+  (->> (assoc s active-resource selection-value)
+    (filter (comp (set open-resources) first))
+    (into {})))
+
+(defn select
+  [app-view node-ids]
+  (assert (every? some? node-ids) "Attempting to select nil values")
+  (let [project-id (g/node-value app-view :project-id)
+        active-resource (g/node-value app-view :active-resource)
+        open-resources (g/node-value app-view :open-resources)
+        node-ids (-> node-ids distinct vec)
+        all-selections (-> (g/node-value project-id :all-selections)
+                         (update-selection open-resources active-resource node-ids))
+        all-node-ids (->> all-selections
+                       vals
+                       (reduce into [])
+                       distinct
+                       vec)]
+    (concat
+      (g/set-property project-id :all-selections all-selections)
+      (for [[node-id label] (g/sources-of project-id :all-selected-node-ids)]
+        (g/disconnect node-id label project-id :all-selected-node-ids))
+      (for [[node-id label] (g/sources-of project-id :all-selected-node-properties)]
+        (g/disconnect node-id label project-id :all-selected-node-properties))
+      (for [node-id all-node-ids]
+        (concat
+          (g/connect node-id :_node-id    project-id :all-selected-node-ids)
+          (g/connect node-id :_properties project-id :all-selected-node-properties))))))
+
+(defn select!
+  ([app-view node-ids]
+    (select! app-view node-ids (gensym)))
+  ([app-view node-ids op-seq]
+    (g/transact
+      (concat
+        (g/operation-sequence op-seq)
+        (g/operation-label "Select")
+        (select app-view node-ids)))))
+
+(defn sub-select!
+  ([app-view sub-selection]
+    (sub-select! app-view sub-selection (gensym)))
+  ([app-view sub-selection op-seq]
+    (let [project-id (g/node-value app-view :project-id)
+          active-resource (g/node-value app-view :active-resource)
+          open-resources (g/node-value app-view :open-resources)]
+      (g/transact
+        (concat
+          (g/operation-sequence op-seq)
+          (g/operation-label "Select")
+          (g/update-property project-id :all-sub-selections update-selection open-resources active-resource sub-selection))))))
 
 (defn- make-title
   ([] "Defold Editor 2.0")
@@ -527,7 +594,7 @@
          (.select (.getSelectionModel tab-pane) tab)
          (when-let [focus (:focus-fn view-type)]
            (focus (ui/user-data tab ::view) opts))
-         (project/select! project [resource-node]))
+         (select! app-view [resource-node]))
        (let [^String path (or (resource/abs-path resource)
                               (resource/temp-path resource))]
          (try

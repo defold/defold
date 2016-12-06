@@ -745,14 +745,32 @@ run:
                 if (code == 304) {
                     // Reusing cached library
                 } else {
-                    input = new BufferedInputStream(connection.getInputStream());
-                    FileUtils.copyInputStreamToFile(input, f);
-                    try {
-                        ZipFile zip = new ZipFile(f);
-                        zip.close();
-                    } catch (ZipException e) {
-                        f.delete();
-                        throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                    boolean serverSha1Match = false;
+                    if(code == 200) {
+                        // GitHub uses eTags and we can check we have the up to date version by comparing SHA1 and server eTag if we get a 200 OK response
+                        if(sha1 != null)
+                        {
+                            String serverETag = connection.getHeaderField("ETag");
+                            if(serverETag != null)
+                            {
+                                if(sha1.equals(serverETag.replace("\"", ""))) {
+                                    // Reusing cached library
+                                   serverSha1Match = true;
+                                }
+                            }
+                        }
+                    }
+                    if(!serverSha1Match) {
+                        input = new BufferedInputStream(connection.getInputStream());
+                        FileUtils.copyInputStreamToFile(input, f);
+
+                        try {
+                            ZipFile zip = new ZipFile(f);
+                            zip.close();
+                        } catch (ZipException e) {
+                            f.delete();
+                            throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                        }
                     }
                 }
                 connection.disconnect();
@@ -761,7 +779,9 @@ run:
             } catch (FileNotFoundException e) {
                 throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
             } finally {
-                IOUtils.closeQuietly(input);
+                if(input != null) {
+                    IOUtils.closeQuietly(input);
+                }
                 subProgress.worked(1);
             }
         }
