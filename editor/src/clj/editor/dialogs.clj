@@ -9,6 +9,7 @@
             [editor.resource :as resource]
             [editor.defold-project :as project]
             [editor.defold-project-search :as project-search]
+            [editor.github :as github]
             [service.log :as log])
   (:import [java.io File]
            [java.nio.file Path Paths]
@@ -103,6 +104,38 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)
     @result))
+
+(handler/defhandler ::report-error :dialog
+  (run [sentry-id-promise]
+    (let [sentry-id (deref sentry-id-promise 100 nil)
+          fields (cond-> {}
+                   sentry-id
+                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/%s'>%s</a>"
+                                          sentry-id sentry-id)))]
+      (ui/browse-url (github/new-issue-link fields)))))
+
+(defn- messages
+  [ex-map]
+  (str/join ": " (keep :message (tree-seq :via :via ex-map))))
+
+(defn make-error-dialog
+  [ex-map sentry-id-promise]
+  (let [root     ^Parent (ui/load-fxml "error.fxml")
+        stage    (ui/make-stage)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["message" "dismiss" "report"])]
+    (observe-focus stage)
+    (ui/context! root :dialog {:stage stage :sentry-id-promise sentry-id-promise} nil)
+    (ui/title! stage "Error")
+    (ui/text! (:message controls) (messages ex-map))
+    (ui/bind-action! (:dismiss controls) ::close)
+    (ui/bind-action! (:report controls) ::report-error)
+    (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+    (ui/request-focus! (:report controls))
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setResizable stage false)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
 
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
