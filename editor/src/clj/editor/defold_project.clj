@@ -185,45 +185,6 @@
       (ui/run-later
         (throw e)))))
 
-#_(defn search-in-files
-  "Returns a list of {:resource resource :content content :matches [{:line :snippet}]}
-  with resources that matches the search-str"
-  [project file-extensions-str search-str]
-  (when-not (empty? search-str)
-    (let [save-data      (->> (save-data project)
-                              (filter #(= :file (and (:resource %)
-                                                     (resource/source-type (:resource %))))))
-          file-exts      (some-> file-extensions-str
-                                 (str/replace #" " "")
-                                 (str/split #","))
-          file-ext-pats  (->> file-exts
-                              (remove empty?)
-                              (map compile-find-in-files-regex))
-          matching-files (filter (fn [data]
-                                   (let [rext (-> data :resource resource/resource-type :ext)]
-                                     (or (empty? file-ext-pats)
-                                         (some #(re-matches % rext) file-ext-pats))))
-                                 save-data)
-          pattern        (compile-find-in-files-regex search-str)]
-      (->> matching-files
-           (filter :content)
-           (map (fn [{:keys [content] :as hit}]
-                  (assoc hit :matches
-                         (->> (str/split-lines (:content hit))
-                              (map str/lower-case)
-                              (keep-indexed (fn [idx l]
-                                              (let [[_ pre m post] (re-matches pattern l)]
-                                                (when m
-                                                  {:line           idx
-                                                   :caret-position (line->caret-pos (:content hit) idx)
-                                                   :match          (str (apply str (take-last 24 (str/triml pre)))
-                                                                        m
-                                                                        (apply str (take 24 (str/trimr post))))}))))
-                              (take 10)))))
-           (filter #(seq (:matches %)))))))
-
-
-
 (defn workspace [project]
   (g/node-value project :workspace))
 
