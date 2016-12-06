@@ -1,6 +1,6 @@
 import os, sys, subprocess, shutil, re, stat, glob
-import pickle
 import Build, Options, Utils, Task, Logs
+import Configure
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
@@ -1042,13 +1042,9 @@ def create_clang_wrapper(conf, exe):
     os.chmod(clang_wrapper_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     return clang_wrapper_path
 
-
-# Find VS2013 without waf builtin helper functions.
-# (waf 1.5 cant find VS2013 since it's scanning for echo-traces in
-#  the vsvars32.bat output, which the latests version don't have.)
-# Both _find_specific_msvc and _find_msvc are modified methods from
-# msvc.py in waf 1.5.9.
-def _find_specific_msvc(conf,compiler,version,target,vcvars):
+# Capture vcvarsall.bat environment variables for MSVC binaries, INCLUDE and LIB dir
+# Adapted from msvc.py in waf 1.5.9
+def _capture_vcvars_env(conf,target,vcvars):
     batfile=os.path.join(conf.blddir,'waf-print-msvc.bat')
     f=open(batfile,'w')
     f.write("""@echo off
@@ -1065,7 +1061,7 @@ echo LIB=%%LIB%%
     for line in lines[0:]:
         if line.startswith('PATH='):
             path=line[5:]
-            paths = [p for p in path.split(';') if "MinGW" not in p]
+            paths=[p for p in path.split(';') if "MinGW" not in p]
             MSVC_PATH=paths
         elif line.startswith('INCLUDE='):
             MSVC_INCDIR=[i for i in line[8:].split(';')if i]
@@ -1073,84 +1069,59 @@ echo LIB=%%LIB%%
             MSVC_LIBDIR=[i for i in line[4:].split(';')if i]
     return(MSVC_PATH,MSVC_INCDIR,MSVC_LIBDIR)
 
-# Check the registry for VisualStudio entries
-def _find_msvc(conf):
+# Given path to msvc installation, capture target platform settings
+def _get_msvc_target_support(conf, product_dir, version):
+    targets=[]
+    vcvarsall_path = os.path.join(product_dir, 'VC', 'vcvarsall.bat')
+
+    if os.path.isfile(vcvarsall_path):
+        if os.path.isfile(os.path.join(product_dir, 'Common7', 'Tools', 'vsvars32.bat')):
+            try:
+                targets.append(('x86', ('x86', _capture_vcvars_env(conf, 'x86', vcvarsall_path))))
+            except Configure.ConfigurationError:
+                pass
+        if os.path.isfile(os.path.join(product_dir, 'VC', 'bin', 'amd64', 'vcvars64.bat')):
+            try:
+                targets.append(('x64', ('amd64', _capture_vcvars_env(conf, 'x64', vcvarsall_path))))
+            except:
+                pass
+
+    return targets
+
+def _find_msvc_installs():
     import _winreg
-    version_pattern=re.compile('^..?\...?')
-    versions = []
-    for vcver,vcvar in[('VCExpress','exp'),('VisualStudio','')]:
+    version_pattern = re.compile('^..?\...?')
+    installs = []
+    for vcver in ['VCExpress', 'VisualStudio']:
         try:
-            all_versions=_winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE,'SOFTWARE\\Wow6432node\\Microsoft\\'+vcver)
+            all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Wow6432node\\Microsoft\\' + vcver)
         except WindowsError:
             try:
-                all_versions=_winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE,'SOFTWARE\\Microsoft\\'+vcver)
+                all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Microsoft\\' + vcver)
             except WindowsError:
                 continue
-        index=0
+        index = 0
         while 1:
             try:
-                version=_winreg.EnumKey(all_versions,index)
+                version = _winreg.EnumKey(all_versions, index)
             except WindowsError:
                 break
-            index=index+1
+            index = index + 1
             if not version_pattern.match(version):
                 continue
             try:
-                msvc_version=_winreg.OpenKey(all_versions,version+"\\Setup\\VS")
-                path,type=_winreg.QueryValueEx(msvc_version,'ProductDir')
-                path=str(path)
-                targets=[]
-
-                vcvarsall_path = os.path.join(path,'VC','vcvarsall.bat')
-
-                if os.path.isfile(vcvarsall_path):
-                    target = 'x86'
-                    realtarget = 'x86'
-
-                    try:
-                        targets.append((target,(realtarget,_find_specific_msvc(conf, 'msvc',version,target,vcvarsall_path))))
-                    except:
-                        pass
-
-                    if os.path.isfile(os.path.join(path,'VC','bin','amd64','vcvars64.bat')):
-                        target = 'x64'
-                        realtarget = 'amd64'
-                    try:
-                        targets.append((target,(realtarget,_find_specific_msvc(conf, 'msvc', version, target, vcvarsall_path))))
-                    except:
-                        pass
-                    
-                elif os.path.isfile(os.path.join(path,'Common7','Tools','vsvars32.bat')):
-                    try:
-                        targets.append(('x86',('x86',_find_specific_msvc(conf, 'msvc',version,'x86',os.path.join(path,'Common7','Tools','vsvars32.bat')))))
-                    except Configure.ConfigurationError:
-                        pass
-
-                versions.append(('msvc '+version,targets))
+                msvc_version = _winreg.OpenKey(all_versions, version + "\\Setup\\VS")
+                path, type = _winreg.QueryValueEx(msvc_version, 'ProductDir')
+                path = str(path)
+                installs.append((version, path))
             except WindowsError:
                 continue
-    return versions
+    return list(set(installs))
 
-def find_msvc_versions(conf):
-    dynamo_home = conf.env.DYNAMO_HOME
-
-    if Options.options.use_msvc_cache:
-        try:
-            with open("%s/.msvc-versions" % dynamo_home, "rb") as version_cache:
-                versions = pickle.load(version_cache)
-            return versions
-        except:
-            pass
-
-    versions = _find_msvc(conf)
-
-    if Options.options.use_msvc_cache:
-        try:
-            with open("%s/.msvc-versions" % dynamo_home, "wb") as version_cache:
-                pickle.dump(versions, version_cache)
-        except:
-            pass
-
+def find_installed_msvc_versions(conf):
+    versions = []
+    for version, product_dir in _find_msvc_installs():
+        versions.append(('msvc '+ version, _get_msvc_target_support(conf, product_dir, version)))
     return versions
 
 def detect(conf):
@@ -1193,7 +1164,7 @@ def detect(conf):
 
         desired_version = 'msvc 14.0'
 
-        versions = find_msvc_versions(conf)
+        versions = find_installed_msvc_versions(conf)
         conf.env['MSVC_INSTALLED_VERSIONS'] = versions
         conf.env['MSVC_TARGETS'] = target_map[platform]
         conf.env['MSVC_VERSIONS'] = [desired_version]
@@ -1345,4 +1316,3 @@ def set_options(opt):
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
-    opt.add_option('--use-msvc-cache', action="store_true", default=False, dest='use_msvc_cache', help='cache and reuse result of msvc version scan')
