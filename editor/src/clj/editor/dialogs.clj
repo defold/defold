@@ -9,12 +9,11 @@
             [editor.resource :as resource]
             [editor.defold-project :as project]
             [editor.defold-project-search :as project-search]
-            [editor.util :as util]
             [service.log :as log])
   (:import [java.io File]
            [java.nio.file Path Paths]
+           [java.util Collection List]
            [javafx.event Event ActionEvent]
-           [javafx.collections FXCollections ObservableList]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
            [javafx.scene.control TextField TreeView TreeItem ListView]
@@ -314,41 +313,10 @@
                   (merge options))]
     (make-select-list-dialog items options)))
 
-(declare tree-item)
-
-(defn- ^ObservableList list-children [parent]
-  (let [children (:children parent)
-        items    (into-array TreeItem (mapv tree-item children))]
-    (if (empty? children)
-      (FXCollections/emptyObservableList)
-      (doto (FXCollections/observableArrayList)
-        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
-
-(defn tree-item [parent]
-  (let [cached (atom false)]
-    (proxy [TreeItem] [parent]
-      (isLeaf []
-        (empty? (:children (.getValue ^TreeItem this))))
-      (getChildren []
-        (let [this ^TreeItem this
-              ^ObservableList children (proxy-super getChildren)]
-          (when-not @cached
-            (reset! cached true)
-            (.setAll children (list-children (.getValue this))))
-          children)))))
-
-(defn- update-tree-view [^TreeView tree-view resource-tree]
-  (let [root (.getRoot tree-view)
-        ^TreeItem new-root (tree-item resource-tree)]
-    (if (.getValue new-root)
-      (.setRoot tree-view new-root)
-      (.setRoot tree-view nil))
-    tree-view))
-
 (defrecord MatchContextResource [parent-resource line caret-position match]
   resource/Resource
   (children [this]      [])
-  (ext [this] (resource/ext parent-resource))
+  (ext [this]           (resource/ext parent-resource))
   (resource-name [this] (format "%d: %s" line match))
   (resource-type [this] (resource/resource-type parent-resource))
   (source-type [this]   (resource/source-type parent-resource))
@@ -360,45 +328,35 @@
   (workspace [this]     (resource/workspace parent-resource))
   (resource-hash [this] (resource/resource-hash parent-resource)))
 
-(defn- append-match-snippet-nodes [tree matching-resources]
-  (when tree
-    (if (empty? (:children tree))
-      (assoc tree :children (map #(->MatchContextResource tree (:line %) (:caret-position %) (:match %))
-                                 (:matches (first (get matching-resources tree)))))
-      (update tree :children (fn [children]
-                               (map #(append-match-snippet-nodes % matching-resources) children))))))
+(defn- make-match-tree-item [resource {:keys [line caret-position match]}]
+  (TreeItem. (->MatchContextResource resource line caret-position match)))
 
-#_(defn- update-search-dialog [^TreeView tree-view workspace matching-resources]
-  (let [resource-tree  (g/node-value workspace :resource-tree)
-        [_ new-tree]   (workspace/filter-resource-tree resource-tree (set (map :resource matching-resources)))
-        tree-with-hits (append-match-snippet-nodes new-tree (group-by :resource matching-resources))]
-    (update-tree-view tree-view tree-with-hits)
-    (doseq [^TreeItem item (ui/tree-item-seq (.getRoot tree-view))]
-      (.setExpanded item true))
-    (when-let [first-match (->> (ui/tree-item-seq (.getRoot tree-view))
-                                (filter (fn [^TreeItem item]
-                                          (instance? MatchContextResource (.getValue item))))
-                                first)]
-      (.select (.getSelectionModel tree-view) first-match))))
-
-(def ^:private tree-item-comparator
-  (comparator (fn [^TreeItem item-a ^TreeItem item-b]
-                (let [a (.getValue item-a)
-                      b (.getValue item-b)]
-                  (compare (:path a) (:path b))))))
-
-(defn- insert-search-result [^ObservableList tree-items search-result]
+(defn- insert-search-result [^List tree-items search-result]
   (let [{:keys [resource matches]} search-result
-        new-child (TreeItem. resource) ; TODO: Add children
-        insert-index (util/find-insert-index tree-items new-child tree-item-comparator)]
-    (.add tree-items insert-index new-child)))
+        match-items (map (partial make-match-tree-item resource) matches)
+        resource-item (TreeItem. resource)]
+    (.setExpanded resource-item true)
+    (-> resource-item .getChildren (.addAll ^Collection match-items))
+    (.add tree-items resource-item)))
+
+(defn- fps->nanoseconds [fps]
+  (long (* 1000000000 (/ 1 fps))))
 
 (defn- start-tree-update-timer! [^TreeView tree-view poll-fn]
   (let [tree-items (.getChildren (.getRoot tree-view))
+        first-match? (volatile! true)
         timer (ui/->timer "tree-update-timer"
                           (fn [_]
-                            (when-let [search-result (poll-fn)]
-                              (insert-search-result tree-items search-result))))]
+                            (let [start-time (System/nanoTime)
+                                  end-time (+ start-time (fps->nanoseconds 60))]
+                              (loop []
+                                (when-let [search-result (poll-fn)]
+                                  (insert-search-result tree-items search-result)
+                                  (when first-match?
+                                    (-> tree-view .getSelectionModel (.clearAndSelect 1))
+                                    (vreset! first-match? false)))
+                                (when (> end-time (System/nanoTime))
+                                  (recur))))))]
     (.clear tree-items)
     (ui/timer-start! timer)
     timer))
@@ -429,8 +387,11 @@
     (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
     (ui/on-double! (:resources-tree controls) (fn on-double! [_] (close)))
 
-    (ui/cell-factory! (:resources-tree controls) (fn [r] {:text (resource/resource-name r)
-                                                          :icon (workspace/resource-icon r)}))
+    (ui/cell-factory! (:resources-tree controls) (fn [r] (if (instance? MatchContextResource r)
+                                                           {:text (resource/resource-name r)
+                                                            :icon (workspace/resource-icon r)}
+                                                           {:text (resource/proj-path r)
+                                                            :icon (workspace/resource-icon r)})))
 
     (ui/observe (.textProperty term-field) on-input-changed!)
     (ui/observe (.textProperty exts-field) on-input-changed!)
@@ -450,15 +411,10 @@
     (.setScene stage scene)
     (ui/show-and-wait-throwing! stage)
 
-    (let [resource (and @return
-                        (update @return :children
-                                (fn [children] (remove #(instance? MatchContextResource %) children))))]
+    (let [resource (first @return)]
       (cond
         (instance? MatchContextResource resource)
         [(:parent-resource resource) {:caret-position (:caret-position resource)}]
-
-        (not-empty (:children resource))
-        nil
 
         :else
         [resource {}]))))
