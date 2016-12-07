@@ -6,7 +6,7 @@
   </appender>
 
   <appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <file>editor2.log</file>
+    <file>${defold.editor2.log:-editor2.log}</file>
     <append>true</append>
     <encoder>
 	<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
