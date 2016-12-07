@@ -9,6 +9,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.properties :as properties]
@@ -131,10 +132,6 @@
     :user-data {:content code :user-properties user-properties :modules modules :bytecode bytecode}
     :deps      dep-build-targets}])
 
-(defn- disconnect-all [basis node-id label]
-  (for [[src-node-id src-label] (g/sources-of basis node-id label)]
-    (g/disconnect src-node-id src-label node-id label)))
-
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
@@ -149,8 +146,8 @@
                        (let [project (project/get-project self)]
                          (concat
                            (g/set-property self :prev-modules modules)
-                           (disconnect-all basis self :dep-build-targets)
-                           (disconnect-all basis self :module-completion-infos)
+                           (gu/disconnect-all basis self :dep-build-targets)
+                           (gu/disconnect-all basis self :module-completion-infos)
                            (for [module modules]
                              (let [path (lua/lua-module->path module)]
                                (project/connect-resource-node project path self
