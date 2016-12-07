@@ -8,7 +8,7 @@
 (set! *warn-on-reflection* true)
 
 (defn compile-find-in-files-regex
-  "Convert a search-string to a case-insensitive java regex"
+  "Convert a search-string to a case-insensitive java regex."
   [search-str]
   (let [clean-str (string/replace search-str #"[\<\(\[\{\\\^\-\=\$\!\|\]\}\)\?\+\.\>]" "")]
     (re-pattern (format "(?i)^(.*)(%s)(.*)$"
@@ -87,7 +87,26 @@
         (report-error! error)
         nil))))
 
-(defn make-file-searcher [file-resource-save-data-future start-consumer! stop-consumer! report-error!]
+(defn make-file-searcher
+  "Returns a map of two functions, start-search! and abort-search! that can be
+  used to perform asyncronous search queries against an ordered sequence of file
+  resource save data. The save data is expected to be sorted in the order it
+  should appear in the search results list, and entires are expected to have
+  :resource (Resource) and :content (String) fields.
+  When start-search! is called, it will cancel any pending search and start a
+  new search using the provided term and exts String arguments. It will call
+  stop-consumer! with the value returned from the last call to start-consumer!,
+  then start-consumer! will be called with a poll function as its sole argument.
+  The value returned by start-consumer! will be stored and used as the argument
+  to stop-consumer! when a search is aborted. The consumer is expected to
+  periodically call the supplied poll function to consume search results.
+  It will either return nil if there is no result available, or a match of
+  [Resource, [{:line long, :caret-position long, :match String}, ...]].
+  When abort-search! is called, any spawned background threads will terminate,
+  and if there was a previous consumer, stop-consumer! will be called with it.
+  Since many operations happen on a background thread, report-error! will be
+  called with the Throwable in the event of an error."
+  [file-resource-save-data-future start-consumer! stop-consumer! report-error!]
   (let [[start-filter! abort-filter!] (let [filter-fn (partial filter-save-data-future report-error! file-resource-save-data-future)
                                             start-filter! (thread-util/make-cached-future-fn filter-fn)
                                             abort-filter! #(thread-util/cancel-cached-future-fn start-filter!)]
@@ -106,8 +125,7 @@
                                   consumer (start-consumer! #(.poll queue))]
                               {:thread thread
                                :consumer consumer})
-                            (let [consumer (start-consumer! (constantly nil))]
-                              (stop-consumer! consumer)
+                            (do (start-consumer! (constantly nil))
                               nil))))]
     {:start-search! (fn [term exts]
                       (try
