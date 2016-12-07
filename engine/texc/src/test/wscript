@@ -1,7 +1,16 @@
+#! /usr/bin/env python
+
 import Task, TaskGen
 from TaskGen import extension, declare_extension
+from waf_dynamo import copy_file_task
 
 def build(bld):
+    platform = bld.env["PLATFORM"]
+
+    if "win32" in platform:
+        src = "%s/ext/lib/%s/PVRTexLib.dll" % (bld.env["PREFIX"], platform)
+        copy_file_task(bld, src)
+
     test_texc = bld.new_task_gen(features = 'cc cxx cprogram test',
                                      uselib = 'GTEST DLIB',
                                      uselib_local = 'texc',

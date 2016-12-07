@@ -39,11 +39,6 @@ def configure(conf):
 
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
 
-    platform=conf.env['PLATFORM']
-
-    if platform == 'win32':
-        conf.env.append_value('CPPPATH', "../src/win32")
-
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
     conf.env['LIB_GTEST'] = 'gtest'
