@@ -6,6 +6,7 @@ import com.dynamo.cr.server.auth.AccessTokenAuthenticator;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.resources.mappers.UserMapper;
 import com.dynamo.cr.server.services.UserService;
 import com.dynamo.inject.persist.Transactional;
 import org.slf4j.Logger;
@@ -33,15 +34,6 @@ public class UsersResource extends BaseResource {
 
     @Inject
     private AccessTokenAuthenticator accessTokenAuthenticator;
-
-    private static UserInfo createUserInfo(User u) {
-        UserInfo.Builder b = UserInfo.newBuilder();
-        b.setId(u.getId())
-                .setEmail(u.getEmail())
-                .setFirstName(u.getFirstName())
-                .setLastName(u.getLastName());
-        return b.build();
-    }
 
     @POST
     @Path("signup")
@@ -101,7 +93,7 @@ public class UsersResource extends BaseResource {
         User user = userService.findByEmail(email)
                 .orElseThrow(() -> new WebApplicationException(Response.Status.NOT_FOUND));
 
-        return createUserInfo(user);
+        return UserMapper.map(user);
     }
 
     @PUT
@@ -130,7 +122,7 @@ public class UsersResource extends BaseResource {
         Set<User> connections = u.getConnections();
         UserInfoList.Builder b = UserInfoList.newBuilder();
         for (User connection : connections) {
-            b.addUsers(createUserInfo(connection));
+            b.addUsers(UserMapper.map(connection));
         }
 
         return b.build();

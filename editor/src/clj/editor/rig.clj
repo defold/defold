@@ -1,6 +1,7 @@
 (ns editor.rig
   (:require
    [editor.defold-project :as project]
+   [editor.pipeline :as pipeline]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.workspace :as workspace])
@@ -48,38 +49,20 @@
      :build-fn  build-mesh-set
      :user-data {:mesh-set mesh-set}}))
 
-
-(defn- resolve-resource-paths
-  [pb dep-resources resources]
-  (reduce #(assoc %1 (first %2) (second %2))
-          pb
-          (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))])
-               resources)))
-
-(defn- build-rig-scene [self basis resource dep-resources user-data]
-  (let [pb (resolve-resource-paths (:pb user-data) dep-resources (:dep-resources user-data))]
-    {:resource resource :content (protobuf/map->bytes Rig$RigScene pb)}))
-
 (defn make-rig-scene-build-targets
-  [node-id resource pb dep-build-targets labeled-resources]
+  [node-id resource pb dep-build-targets resource-keys]
   (let [workspace (project/workspace (project/get-project node-id))
         skeleton-target (make-skeleton-build-target workspace node-id (:skeleton pb))
         animation-set-target (make-animation-set-build-target workspace node-id (:animation-set pb))
-        mesh-set-target (make-mesh-set-build-target workspace node-id (:mesh-set pb))        
-        dep-build-targets (into [skeleton-target animation-set-target mesh-set-target] (flatten dep-build-targets))
-        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]]
-                             [label (get deps-by-source resource)])
-                           (into [[:skeleton (-> skeleton-target :resource :resource)]
-                                  [:animation-set (-> animation-set-target :resource :resource)]
-                                  [:mesh-set (-> mesh-set-target :resource :resource)]]
-                                 labeled-resources))]
-    [{:node-id node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-rig-scene
-      :user-data {:pb pb
-                  :dep-resources dep-resources}
-      :deps (into [skeleton-target animation-set-target mesh-set-target] dep-build-targets)}]))
+        mesh-set-target (make-mesh-set-build-target workspace node-id (:mesh-set pb))
+        dep-build-targets (into [skeleton-target animation-set-target mesh-set-target] (flatten dep-build-targets))]
+    [(pipeline/make-protobuf-build-target node-id resource dep-build-targets
+                                          Rig$RigScene
+                                          (assoc pb
+                                                 :skeleton (-> skeleton-target :resource :resource)
+                                                 :animation-set (-> animation-set-target :resource :resource)
+                                                 :mesh-set (-> mesh-set-target :resource :resource))
+                                          (into [:skeleton :animation-set :mesh-set] resource-keys))]))
 
 (defn register-resource-types
   [workspace]
