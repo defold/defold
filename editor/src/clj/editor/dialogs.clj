@@ -13,6 +13,7 @@
   (:import [java.io File]
            [java.nio.file Path Paths]
            [java.util Collection List]
+           [javafx.animation AnimationTimer]
            [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
@@ -346,7 +347,7 @@
   (let [tree-items (.getChildren (.getRoot tree-view))
         first-match? (volatile! true)
         timer (ui/->timer "tree-update-timer"
-                          (fn [_]
+                          (fn [^AnimationTimer timer _dt]
                             (let [start-time (System/nanoTime)
                                   end-time (+ start-time (seconds->nanoseconds (/ 1 90)))]
                               (loop []
