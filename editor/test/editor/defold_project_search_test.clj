@@ -4,11 +4,11 @@
             [editor.resource :as resource]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]
-            [util.thread-util :as thread-util]))
+            [util.thread-util :as thread-util])
+  (:import (java.util.concurrent LinkedBlockingQueue)))
 
 (def ^:const search-project-path "test/resources/search_project")
-(def ^:const done-threshold-ms 100)
-(def ^:const timeout-ms 1000)
+(def ^:const timeout-ms 5000)
 
 (defn- make-file-resource-save-data-future [report-error! world project-path]
   (let [workspace (test-util/setup-workspace! world project-path)
@@ -32,9 +32,10 @@
                                     (let [poll-time (System/nanoTime)
                                           entry (poll-fn!)]
                                       (if (some? entry)
-                                        (do (swap! consumer-atom update :consumed conj entry)
-                                            (recur poll-time))
-                                        (if (< (- poll-time last-response-time) (* 1000000 done-threshold-ms))
+                                        (if (not= ::project-search/done entry)
+                                          (do (swap! consumer-atom update :consumed conj entry)
+                                              (recur poll-time)))
+                                        (if (< (- poll-time last-response-time) (* 1000000 timeout-ms))
                                           (recur last-response-time)))))
                                   (catch InterruptedException _
                                     nil)
@@ -77,7 +78,8 @@
 (deftest mock-consumer-test
   (let [report-error! (test-util/make-call-logger)
         consumer (make-consumer report-error!)
-        poll-fn (constantly nil)]
+        queue (LinkedBlockingQueue. 4)
+        poll-fn #(.poll queue)]
     (is (false? (consumer-started? consumer)))
     (is (false? (consumer-finished? consumer)))
     (is (true? (consumer-stopped? consumer)))
@@ -86,9 +88,9 @@
     (is (true? (consumer-started? consumer)))
     (is (false? (consumer-finished? consumer)))
     (is (false? (consumer-stopped? consumer)))
-    (Thread/sleep (+ 10 done-threshold-ms))
+    (future (.put queue ::project-search/done))
+    (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
     (is (true? (consumer-started? consumer)))
-    (is (true? (consumer-finished? consumer)))
     (is (true? (consumer-stopped? consumer)))
 
     (consumer-start! consumer poll-fn)
@@ -176,7 +178,6 @@
                             (start-search! term exts)
                             (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
                             (-> consumer consumer-consumed match-strings-by-proj-path))]
-      (is (= [] (perform-search! search-string "script")))
       (are [expected-count exts]
         (= expected-count (count (perform-search! search-string exts)))
         1 "g"
