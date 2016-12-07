@@ -10,6 +10,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.scene :as scene]
@@ -406,18 +407,14 @@
         []))
     []))
 
-(defn- disconnect-all [node-id label]
-  (for [[src-node-id src-label] (g/sources-of node-id label)]
-    (g/disconnect src-node-id src-label node-id label)))
-
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:atlas} labels)
     (let [atlas (g/node-value self :atlas)
           project (project/get-project self)]
       (concat
-        (disconnect-all self :anim-data)
-        (disconnect-all self :gpu-texture)
-        (disconnect-all self :dep-build-targets)
+        (gu/disconnect-all self :anim-data)
+        (gu/disconnect-all self :gpu-texture)
+        (gu/disconnect-all self :dep-build-targets)
         (connect-atlas project self atlas)))))
 
 (g/defnk produce-spine-scene-pb [spine-scene anim-data sample-rate]
