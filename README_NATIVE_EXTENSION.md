@@ -27,8 +27,10 @@ You can build each platform individually:
 
 ### build.yml
 
-An important part of the sdk is the *defold/share/ext/extender/build.yml* which controls the compiler settings for the server.
-As we include this file in every sdk, we make it simple to update.
+An important part of the sdk is the *defold/share/extender/build.yml* which controls the compiler settings for the server.
+As we include this file in every sdk, we make it simple to update. You can update it simply by running:
+
+    $ waf install
 
 ### During development
 
