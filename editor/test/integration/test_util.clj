@@ -420,5 +420,5 @@
         (if (done? result)
           result
           (if (> (System/nanoTime) deadline)
-            result
+            nil
             (recur)))))))
