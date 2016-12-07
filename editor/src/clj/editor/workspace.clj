@@ -86,25 +86,6 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn filter-resource-tree
-  "Filters a resource tree with set of given matches.
-  Returns nil or a vector of [number-of-matches [resources...]]"
-  [tree matches & [cnt]]
-  (let [matching-children (->> tree :children
-                               (map #(filter-resource-tree % matches 0))
-                               (remove nil?)
-                               (remove (fn [[children-cnt matches]]
-                                         (and (empty? matches)
-                                              (zero? children-cnt))))
-                               seq)]
-    (cond
-      (contains? matches tree)
-      [1 tree]
-
-      matching-children
-      [(apply + (or cnt 0) (map first matching-children))
-       (assoc tree :children (map second matching-children))])))
-
 (defn register-resource-type [workspace & {:keys [ext build-ext node-type load-fn icon view-types view-opts tags template label]}]
   (let [resource-type {:ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
