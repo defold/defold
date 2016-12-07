@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.graph-util :as gu]
             [editor.core :as core]
             [editor.geom :as geom]
@@ -1440,7 +1441,7 @@
 (defn- resource->id [resource]
   (FilenameUtils/getBaseName ^String (resource/resource-name resource)))
 
-(defn add-gui-node! [project scene parent node-type]
+(defn add-gui-node! [project scene parent node-type select-fn]
   (let [index (inc (reduce max 0 (g/node-value parent :child-indices)))
         id (outline/resolve-id (subs (name node-type) 5) (keys (g/node-value scene :node-ids)))
         node-tree (g/node-value scene :node-tree)
@@ -1457,15 +1458,16 @@
                         (if (= node-type :type-text)
                           (g/set-property gui-node :text "<text>" :font "")
                           [])
-                        (project/select project [gui-node])))
+                        (when select-fn
+                          (select-fn [gui-node]))))
       g/transact
       g/tx-nodes-added
       first)))
 
-(defn- add-gui-node-handler [project {:keys [scene parent node-type]}]
-  (add-gui-node! project scene parent node-type))
+(defn- add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
+  (add-gui-node! project scene parent node-type select-fn))
 
-(defn- add-texture-handler [project {:keys [scene parent node-type]}]
+(defn- add-texture-handler [project {:keys [scene parent node-type]} select-fn]
   (when-let [resource (browse project ["atlas" "tilesource"])]
     (let [name (outline/resolve-id (resource->id resource) (g/node-value scene :texture-names))]
       (g/transact
@@ -1473,9 +1475,10 @@
           (g/operation-label "Add Texture")
           (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
             (attach-texture scene parent node)
-            (project/select project [node])))))))
+            (when select-fn
+              (select-fn [node]))))))))
 
-(defn- add-font-handler [project {:keys [scene parent node-type]}]
+(defn- add-font-handler [project {:keys [scene parent node-type]} select-fn]
   (when-let [resource (browse project ["font"])]
     (let [name (outline/resolve-id (resource->id resource) (g/node-value scene :font-names))]
       (g/transact
@@ -1483,29 +1486,32 @@
           (g/operation-label "Add Font")
           (g/make-nodes (g/node-id->graph-id scene) [node [FontNode :name name :font resource]]
             (attach-font scene parent node)
-            (project/select project [node])))))))
+            (when select-fn
+              (select-fn [node]))))))))
 
-(defn add-layer! [project scene parent name]
+(defn add-layer! [project scene parent name select-fn]
   (let [index (inc (reduce max 0 (g/node-value parent :child-indices)))]
     (g/transact
       (concat
         (g/operation-label "Add Layer")
         (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name :index index]]
                       (attach-layer scene parent node)
-                      (project/select project [node]))))))
+                      (when select-fn
+                        (select-fn [node])))))))
 
-(defn- add-layer-handler [project {:keys [scene parent node-type]}]
+(defn- add-layer-handler [project {:keys [scene parent node-type]} select-fn]
   (let [name (outline/resolve-id "layer" (g/node-value scene :layer-names))]
-    (add-layer! project scene parent name)))
+    (add-layer! project scene parent name select-fn)))
 
-(defn add-layout-handler [project {:keys [scene parent display-profile]}]
+(defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
   (g/transact
     (concat
       (g/operation-label "Add Layout")
       (g/make-nodes (g/node-id->graph-id scene) [node [LayoutNode :name display-profile]]
                     (attach-layout scene parent node)
                     (g/set-property node :nodes {})
-                    (project/select project [node])))))
+                    (when select-fn
+                      (select-fn [node]))))))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :add
@@ -1558,7 +1564,7 @@
 
 (handler/defhandler :add :workbench
   (active? [selection] (not-empty (some->> (handler/selection->node-id selection) add-handler-options)))
-  (run [project user-data] (when user-data ((:handler-fn user-data) project user-data)))
+  (run [project user-data app-view] (when user-data ((:handler-fn user-data) project user-data (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
     (let [node-id (handler/selection->node-id selection)]
       (if (not user-data)

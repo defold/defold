@@ -40,9 +40,16 @@
   media-types
   (into-array MediaType [ProtobufProviders/APPLICATION_XPROTOBUF_TYPE]))
 
+(defn- server-url
+  ^URI [prefs]
+  (let [server-url (URI. (prefs/get-prefs prefs "server-url" "https://cr.defold.com"))]
+    (when-not (= "https" (.getScheme server-url))
+      (throw (ex-info (format "Invalid 'server-url' preference: must use https scheme: was '%s'" server-url)
+                      {:server-url server-url})))
+    server-url))
+
 ; Protobuf version as json
 (defn rget [client ^String path ^Class entity-class]
-  (let [server-url (prefs/get-prefs (:prefs client) "server-url" "http://cr.defold.com")
-        resource   (.resource ^Client (:client client) (URI. server-url))
+  (let [resource   (.resource ^Client (:client client) (server-url (:prefs client)))
         builder    (.accept (.path resource path) media-types)]
     (protobuf/pb->map (.get builder entity-class))))
