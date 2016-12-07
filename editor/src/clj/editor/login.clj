@@ -59,7 +59,7 @@
     (.setTitle stage "Login")
     (.start server)
     (.setOnHidden stage (ui/event-handler event (.stop server)))
-    (.load engine (format "http://cr.defold.com/login/oauth/google?redirect_to=http://localhost:%d/{token}/{action}" (.getListeningPort server)))
+    (.load engine (format "https://cr.defold.com/login/oauth/google?redirect_to=http://localhost:%d/{token}/{action}" (.getListeningPort server)))
     (.setScene stage scene)
     (.showAndWait stage)
     (if (instance? Throwable @return)
