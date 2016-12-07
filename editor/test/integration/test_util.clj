@@ -419,6 +419,5 @@
       (let [result (apply poll-fn! args)]
         (if (done? result)
           result
-          (if (> (System/nanoTime) deadline)
-            nil
+          (if (< (System/nanoTime) deadline)
             (recur)))))))
