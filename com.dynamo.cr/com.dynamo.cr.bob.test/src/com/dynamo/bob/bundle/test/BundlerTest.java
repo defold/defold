@@ -45,7 +45,7 @@ public class BundlerTest {
 
     @Parameters
     public static Collection<Platform[]> data() {
-        Platform[][] data = new Platform[][] { { Platform.X86Darwin}, {Platform.X86Linux}, {Platform.X86Win32}, {Platform.Armv7Android}, {Platform.JsWeb}};
+        Platform[][] data = new Platform[][] { { Platform.X86Darwin}, {Platform.X86Linux}, {Platform.X86Win32}, {Platform.X86_64Win32}, {Platform.Armv7Android}, {Platform.JsWeb}};
         return Arrays.asList(data);
     }
 

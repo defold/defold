@@ -3,7 +3,8 @@
             [clojure.java.io :as io]
             [clojure.edn :as edn]
             [editor.code :as code])
-  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]))
+  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -145,6 +146,11 @@
 
 (defn lua-module->path [module]
   (str "/" (string/replace module #"\." "/") ".lua"))
+
+(defn path->lua-module [path]
+  (-> (if (string/starts-with? path "/") (subs path 1) path)
+      (string/replace #"/" ".")
+      (FilenameUtils/removeExtension)))
 
 (defn lua-module->build-path [module]
   (str (lua-module->path module) "c"))
