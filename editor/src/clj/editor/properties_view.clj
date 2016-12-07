@@ -629,8 +629,8 @@
                                    (let [context {:workspace workspace :project project}]
                                      (update-pane parent-view _node-id context selected-node-properties)))))
 
-(defn make-properties-view [workspace project view-graph ^Node parent]
+(defn make-properties-view [workspace project app-view view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace :project project)
         stage         (.. parent getScene getWindow)]
-    (g/connect! project :selected-node-properties view-id :selected-node-properties)
+    (g/connect! app-view :selected-node-properties view-id :selected-node-properties)
     view-id))
