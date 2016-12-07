@@ -119,7 +119,7 @@
             int-gui (test-util/resource-node project "/gui/empty.gui")]
         (is (some? ext-gui))
         (is (some? int-gui))
-        (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template)]
+        (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template nil)]
           (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
                                                     :overrides {}}))
         (let [original (:node-id (test-util/outline ext-gui [0 0]))

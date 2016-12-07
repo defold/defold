@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
             [editor.collada-scene :as collada-scene]
@@ -12,9 +13,11 @@
             [editor.factory :as factory]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
+            [editor.graph-util :as gu]
             [editor.image :as image]
             [editor.label :as label]
             [editor.defold-project :as project]
+            [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
             [editor.sprite :as sprite]
@@ -104,32 +107,73 @@
 (defn resource-node [project path]
   (project/get-resource-node project path))
 
-(defn empty-selection? [project]
-  (let [sel (g/node-value project :selected-node-ids)]
+(defn empty-selection? [app-view]
+  (let [sel (g/node-value app-view :selected-node-ids)]
     (empty? sel)))
 
-(defn selected? [project tgt-node-id]
-  (let [sel (g/node-value project :selected-node-ids)]
+(defn selected? [app-view tgt-node-id]
+  (let [sel (g/node-value app-view :selected-node-ids)]
     (not (nil? (some #{tgt-node-id} sel)))))
 
-(g/defnode DummyAppView
-  (property active-tool g/Keyword)
-  (property active-tab Tab))
+(g/defnode MockAppView
+  (inherits app-view/AppView)
+  (property mock-active-resource resource/Resource)
+  (property mock-open-resources g/Any)
+  (output active-resource resource/Resource (g/fnk [mock-active-resource] mock-active-resource))
+  (output open-resources g/Any (g/fnk [mock-open-resources] mock-open-resources)))
 
 (defn make-view-graph! []
   (g/make-graph! :history false :volatility 2))
 
-(defn setup-app-view! []
-  (let [view-graph (make-view-graph!)
-        app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph DummyAppView :active-tool :move))))]
-    app-view))
+(defn setup-app-view! [project]
+  (let [view-graph (make-view-graph!)]
+    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
+          (g/connect project :_node-id app-view :project-id)
+          (for [label [:selected-node-ids-by-resource :selected-node-properties-by-resource :sub-selections-by-resource]]
+            (g/connect project label app-view label)))
+      g/transact
+      g/tx-nodes-added
+      first)))
+
+(defn open-tab! [project app-view path]
+  (let [node-id (project/get-resource-node project path)
+        resource (g/node-value node-id :resource)
+        open-resources (set (g/node-value app-view :open-resources))]
+    (if (contains? open-resources resource)
+      (g/set-property! app-view :mock-active-resource resource)
+      (do
+        (g/transact
+          (concat
+            (g/set-property app-view :mock-active-resource resource)
+            (g/update-property app-view :mock-open-resources (comp vec conj) resource)))
+        (app-view/select! app-view [node-id])))
+    node-id))
+
+(defn close-tab! [project app-view path]
+  (let [node-id (project/get-resource-node project path)
+        resource (g/node-value node-id :resource)]
+    (g/transact
+      (concat
+        (g/update-property app-view :mock-active-resource (fn [res] (if (= res resource) nil res)))
+        (g/update-property app-view :mock-open-resources (fn [resources] (filterv #(not= resource %) resources)))))))
+
+(defn setup!
+  ([graph]
+    (setup! graph project-path))
+  ([graph project-path]
+    (let [workspace (setup-workspace! graph project-path)
+          project   (setup-project! workspace)
+          app-view  (setup-app-view! project)]
+      [workspace project app-view])))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
 
-(defn open-scene-view! [project app-view resource-node width height]
-  (let [view-graph (g/make-graph! :history false :volatility 2)]
-    (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)))
+(defn open-scene-view! [project app-view path width height]
+  (let [resource-node (open-tab! project app-view path)
+        view-graph (g/make-graph! :history false :volatility 2)
+        view-id (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)]
+    [resource-node view-id]))
 
 (defn- fake-input!
   ([view type x y]
@@ -237,8 +281,10 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
-(defn selection [project]
-  (handler/selection (project/selection-provider project)))
+(defn selection [app-view]
+  (-> app-view
+    app-view/->selection-provider
+    handler/selection))
 
 ;; Extension library server
 
@@ -357,6 +403,6 @@
   "Adds a new instance of an embedded component to the specified
   game object node inside a transaction and makes it the current
   selection. Returns the id of the added EmbeddedComponent node."
-  [project resource-type go-id]
-  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type})
-  (first (selection project)))
+  [app-view select-fn resource-type go-id]
+  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
+  (first (selection app-view)))

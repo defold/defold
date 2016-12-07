@@ -156,7 +156,9 @@
                                                   (cond
                                                     (g/error? _declared-properties) _declared-properties
                                                     (g/error? user-properties) user-properties
-                                                    true (merge-with into _declared-properties user-properties))))
+                                                    true (-> _declared-properties
+                                                           (update :properties into (:properties user-properties))
+                                                           (update :display-order into (:display-order user-properties))))))
   (output bytecode g/Any :cached produce-bytecode)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
