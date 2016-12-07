@@ -1,5 +1,6 @@
 (ns editor.code-view-ux-syntax-test
   (:require [clojure.test :refer :all]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.code-view :as cv :refer :all]
             [editor.code-view-ux :as cvx :refer :all]
@@ -10,6 +11,7 @@
             [editor.gl.shader :as shader]
             [editor.code-view-test :as cvt :refer [setup-code-view-nodes load-buffer expect-buffer buffer-commands should-be]]
             [support.test-support :refer [with-clean-system tx-nodes]]
+            [integration.test-util :as test-util]
             [clojure.string :as string])
   (:import [com.sun.javafx.tk Toolkit]
            [javafx.scene.input KeyEvent KeyCode]))
@@ -132,14 +134,6 @@
     (let [viewer (first (load-buffer world script/ScriptNode lua/lua init))]
       (should-propose viewer expect))))
 
-(defn- completions-in? [mod-path mod-code init expect]
-  (with-clean-system
-    (with-redefs [code-completion/resource-node-path (constantly mod-path)]
-      (let [[module-node] (tx-nodes (g/make-node world script/ScriptNode :code mod-code))
-            [viewer code-node viewer-node] (load-buffer world script/ScriptNode lua/lua init)]
-        (g/connect! module-node :_node-id code-node :module-nodes)
-        (should-propose viewer expect)))))
-
 (deftest lua-completions-propose-test
   (are [init completions] (completions? init completions)
     "asser|"                                       [["assert"        "assert(v[,message])"     "assert(v)"]]
@@ -157,19 +151,7 @@
     "local function cake(x,y) return x end\n cak|" [["cake"          "cake(x,y)"               "cake(x,y)"]]
     "function ice_cream(x,y) return x end\n ice|"  [["ice_cream"     "ice_cream(x,y)"          "ice_cream(x,y)"]]
     "self.velocity = vm|"                          [["vmath"         "vmath"                   "vmath"]]
-    "go.propert| = vm"                             [["go.property"   "go.property(name,value)" "go.property(name,value)"]])
-
-  (are [init completions] (completions-in? "/mymodule.lua"
-                                           "local mymodule={} \n function mymodule.add(x,y) return x end \n return mymodule"
-                                          init completions)
-    "foo = require(\"mymodule\") \n foo.|"       [["foo.add"      "foo.add(x,y)"      "foo.add(x,y)"]]
-    "local bar = require(\"mymodule\") \n bar.|" [["bar.add"      "bar.add(x,y)"      "bar.add(x,y)"]]
-    "foo = require(\"mymodule\") \n foo|"        [["foo"          "foo"               "foo"]]
-    "local bar = require(\"mymodule\") \n ba|"   [["bar"          "bar"               "bar"]])
-  (are [init completions] (completions-in? "/mymodule.lua"
-                                           "local M = {} \n function M.yield(...) \n end return M"
-                                           init completions)
-    "local foo = require(\"mymodule\") \n foo.|" [["foo.yield"    "foo.yield(...)"    "foo.yield(...)"]]))
+    "go.propert| = vm"                             [["go.property"   "go.property(name,value)" "go.property(name,value)"]]))
 
 (deftest test-do-proposal-replacement
   (with-clean-system

@@ -1,5 +1,6 @@
 (ns editor.code-view-test
   (:require [clojure.test :refer :all]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.code-view :as cv :refer :all]
             [editor.code-view-ux :as cvx :refer :all]
@@ -7,14 +8,14 @@
             [editor.lua :as lua]
             [editor.script :as script]
             [editor.gl.shader :as shader]
-            [integration.test-util :refer [MockAppView]]
+            [integration.test-util :as test-util :refer [MockAppView]]
             [support.test-support :refer [with-clean-system tx-nodes]]
             [clojure.string :as str]))
 
 (defn setup-code-view-nodes [world source-viewer code code-node-type]
   (let [[app-view code-node viewer-node] (tx-nodes
                                           (g/make-node world MockAppView)
-                                          (g/make-node world code-node-type)
+                                          (g/make-node world code-node-type :resource (test-util/make-fake-file-resource nil "tmp" (io/file "code") ""))
                                           (g/make-node world CodeView :source-viewer source-viewer))]
     (do (g/transact (g/set-property code-node :code code))
         (setup-code-view app-view viewer-node code-node 0)
