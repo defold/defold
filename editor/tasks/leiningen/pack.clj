@@ -36,6 +36,8 @@
                     "lib" ["libparticle_shared.dylib" "libtexc_shared.dylib"]}
    "x86-win32"     {"bin" ["dmengine.exe" "dmengine_release.exe"]
                     "lib" ["particle_shared.dll" "texc_shared.dll"]}
+   "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine_release.exe"]
+                    "lib" ["particle_shared.dll" "texc_shared.dll"]}
    "x86-linux"     {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
    "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
@@ -50,13 +52,16 @@
 
 ;; these are only sourced from local DYNAMO_HOME
 (def dynamo-home-artifacts
-  {"ext/bin/win32/luajit.exe"     "x86-win32/bin/luajit.exe"
-   "ext/lib/win32/OpenAL32.dll"   "x86-win32/bin/OpenAL32.dll"
-   "ext/lib/win32/wrap_oal.dll"   "x86-win32/bin/wrap_oal.dll"
-   "ext/bin/linux/luajit"         "x86-linux/bin/luajit"
-   "ext/bin/x86_64-darwin/luajit" "x86_64-darwin/bin/luajit"
-   "ext/bin/x86_64-linux/luajit"  "x86_64-linux/bin/luajit"
-   "ext/share/luajit"             "shared/luajit"})
+  {"ext/bin/win32/luajit.exe"            "x86-win32/bin/luajit.exe"
+   "ext/lib/win32/OpenAL32.dll"          "x86-win32/bin/OpenAL32.dll"
+   "ext/lib/win32/wrap_oal.dll"          "x86-win32/bin/wrap_oal.dll"
+   "ext/bin/x86_64-win32/luajit.exe"     "x86_64-win32/bin/luajit.exe"
+   "ext/lib/x86_64-win32/OpenAL32.dll"   "x86_64-win32/bin/OpenAL32.dll"
+   "ext/lib/x86_64-win32/wrap_oal.dll"   "x86_64-win32/bin/wrap_oal.dll"
+   "ext/bin/linux/luajit"                "x86-linux/bin/luajit"
+   "ext/bin/x86_64-darwin/luajit"        "x86_64-darwin/bin/luajit"
+   "ext/bin/x86_64-linux/luajit"         "x86_64-linux/bin/luajit"
+   "ext/share/luajit"                    "shared/luajit"})
 
 (defn engine-archive-url
   [sha platform file]
@@ -87,7 +92,8 @@
    "linux-i586"       "x86-linux"
    "macosx-universal" "x86_64-darwin"
    "windows-amd64"    "x86_64-win32"
-   "windows-i586"     "x86-win32"})
+   "windows-i586"     "x86-win32"
+   "windows-x64"      "x86_64-win32"})
 
 (defn jar-file
   [[artifact version & {:keys [classifier]} :as dependency]]

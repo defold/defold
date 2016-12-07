@@ -39,9 +39,8 @@ def configure(conf):
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_OPENAL'] = 'openal'
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    elif platform == "win32":
+    elif "win32" in platform:
         conf.env['LIB_OPENAL'] = 'OpenAL32'
-        conf.env.append_value('LINKFLAGS', ['user32.lib'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lOpenSLES', '-lEGL', '-lGLESv1_CM', '-lGLESv2'])
 
