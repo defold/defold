@@ -74,7 +74,7 @@ public class LaunchHandler extends AbstractHandler {
         } else {
             exeName = Engine.getDefault().getEnginePath();
             String platform = EditorCorePlugin.getPlatform();
-            if (!platform.equals("win32")) {
+            if (!platform.contains("win32")) {
                 try {
                     Exec.exec("chmod", "+x", exeName);
                 } catch (IOException e) {

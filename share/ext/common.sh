@@ -11,9 +11,12 @@ ANDROID_GCC_VERSION='4.8'
 
 FLASCC=~/local/FlasCC1.0/sdk
 
+# for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
+CURL="curl -O" 
+
 function download() {
     mkdir -p ../download
-    [ ! -f ../download/$FILE_URL ] && curl -O $BASE_URL/$FILE_URL && mv $FILE_URL ../download
+    [ ! -f ../download/$FILE_URL ] && $CURL $BASE_URL/$FILE_URL && mv $FILE_URL ../download
 }
 
 function cmi_make() {
@@ -189,6 +192,10 @@ function cmi() {
         win32)
             cmi_buildplatform $1
             ;;
+
+	x86_64-win32)
+	    cmi_buildplatform $1
+	    ;;
 
         i586-mingw32msvc)
             export CPP=i586-mingw32msvc-cpp
