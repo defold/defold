@@ -1,15 +1,15 @@
 (ns integration.script-test
-(:require [clojure.java.io :as io]
-          [clojure.string :as str]
-          [clojure.test :refer :all]
-          [dynamo.graph :as g]
-          [editor.script :as script]
-          [editor.resource :as resource]
-          [editor.workspace :as workspace]
-          [editor.defold-project :as project]
-          [editor.code-completion :refer :all]
-          [support.test-support :refer [tx-nodes with-clean-system]]
-          [integration.test-util :as test-util]))
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
+            [clojure.test :refer :all]
+            [dynamo.graph :as g]
+            [editor.script :as script]
+            [editor.resource :as resource]
+            [editor.workspace :as workspace]
+            [editor.defold-project :as project]
+            [editor.code-completion :refer :all]
+            [support.test-support :refer [tx-nodes with-clean-system]]
+            [integration.test-util :as test-util]))
 
 (defn make-script-resource
   [world workspace path code]
@@ -64,24 +64,44 @@
 (defn- lines [& args] (str (str/join "\n" args) "\n"))
 
 (deftest script-node-completions
-  (with-clean-system
-    (let [workspace        (test-util/setup-workspace! world "test/resources/empty_project")
-          script-resource  (make-script-resource world workspace "test/resources/empty_project/test.script"
-                                                 (lines "local a = require(\"module1\")"
-                                                        "local b = require(\"subdir.module2\")"))
-          module1-resource (make-script-resource world workspace "test/resources/empty_project/module1.lua"
-                                                 (lines "local M = {}"
-                                                        "function M.f1() end"
-                                                        "function M.f2() end"
-                                                        "return M"))
-          module2-resource (make-script-resource world workspace "test/resources/empty_project/subdir/module2.lua"
-                                                 (lines "local M = {}"
-                                                        "function M.f3() end"
-                                                        "return M"))
-          project          (test-util/setup-project! workspace [module1-resource module2-resource script-resource])
-          script-node      (project/get-resource-node project script-resource)
-          completions      (g/node-value script-node :completions)]
-      (is (= #{"a.f1" "a.f2"}
-             (set (map :name (get completions "a")))))
-      (is (= #{"b.f3"}
-             (set (map :name (get completions "b"))))))))
+  (testing "includes completions from direct requires"
+    (with-clean-system
+      (let [workspace        (test-util/setup-workspace! world "test/resources/empty_project")
+            script-resource  (make-script-resource world workspace "test/resources/empty_project/test.script"
+                                                   (lines "local a = require(\"module1\")"
+                                                          "local b = require(\"subdir.module2\")"))
+            module1-resource (make-script-resource world workspace "test/resources/empty_project/module1.lua"
+                                                   (lines "local M = {}"
+                                                          "function M.f1() end"
+                                                          "function M.f2() end"
+                                                          "return M"))
+            module2-resource (make-script-resource world workspace "test/resources/empty_project/subdir/module2.lua"
+                                                   (lines "local M = {}"
+                                                          "function M.f3() end"
+                                                          "return M"))
+            project          (test-util/setup-project! workspace [module1-resource module2-resource script-resource])
+            script-node      (project/get-resource-node project script-resource)
+            completions      (g/node-value script-node :completions)]
+        (is (= #{"a.f1" "a.f2"}
+               (set (map :name (get completions "a")))))
+        (is (= #{"b.f3"}
+               (set (map :name (get completions "b"))))))))
+  (testing "does not include completions from transitive requires"
+    (with-clean-system
+      (let [workspace        (test-util/setup-workspace! world "test/resources/empty_project")
+            script-resource  (make-script-resource world workspace "test/resources/empty_project/test.script"
+                                                   (lines "local a = require(\"module1\")"))
+            module1-resource (make-script-resource world workspace "test/resources/empty_project/module1.lua"
+                                                   (lines "local m2 = require(\"module2\")"
+                                                          "local M = {}"
+                                                          "function M.f() end"
+                                                          "return M"))
+            module2-resource (make-script-resource world workspace "test/resources/empty_project/subdir/module2.lua"
+                                                   (lines "local M = {}"
+                                                          "function M.g() end"
+                                                          "return M"))
+            project          (test-util/setup-project! workspace [module1-resource module2-resource script-resource])
+            script-node      (project/get-resource-node project script-resource)
+            completions      (g/node-value script-node :completions)]
+        (is (= #{"a.f"}
+               (set (map :name (get completions "a")))))))))
