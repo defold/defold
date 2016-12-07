@@ -9,6 +9,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.properties :as properties]
@@ -124,28 +125,44 @@
                                                       :resources (mapv lua/lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))
 
-(g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules]
+(g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules dep-build-targets]
   [{:node-id   _node-id
     :resource  (workspace/make-build-resource resource)
     :build-fn  build-script
     :user-data {:content code :user-properties user-properties :modules modules :bytecode bytecode}
-    :deps      (mapcat (fn [mod]
-                         (let [path     (lua/lua-module->path mod)
-                               mod-node (project/get-resource-node (project/get-project _node-id) path)]
-                           (g/node-value mod-node :build-targets))) modules)}])
-
+    :deps      dep-build-targets}])
 
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
-  (property code g/Str (dynamic visible (g/constantly false)))
+  (property prev-modules g/Any
+            (dynamic visible (g/constantly false)))
+
+  (property code g/Str
+            (set (fn [basis self old-value new-value]
+                   (let [modules (set (lua-scan/src->modules new-value))
+                         prev-modules (g/node-value self :prev-modules {:basis basis})]
+                     (when-not (= modules prev-modules)
+                       (let [project (project/get-project self)]
+                         (concat
+                           (g/set-property self :prev-modules modules)
+                           (gu/disconnect-all basis self :dep-build-targets)
+                           (gu/disconnect-all basis self :module-completion-infos)
+                           (for [module modules]
+                             (let [path (lua/lua-module->path module)]
+                               (project/connect-resource-node project path self
+                                                              [[:build-targets :dep-build-targets]
+                                                               [:completion-info :module-completion-infos]])))))))))
+            (dynamic visible (g/constantly false)))
+
   (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
   (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
   (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
-  (input module-nodes g/Any :array)
+  (input dep-build-targets g/Any :array)
+  (input module-completion-infos g/Any :array)
 
   ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
@@ -163,12 +180,11 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
 
-  (output completion-info g/Any :cached (g/fnk [code resource]
-                                               (lua-parser/lua-info code)))
-  (output completions g/Any :cached (g/fnk [_node-id completion-info module-nodes]
-                                           (code-completion/combine-completions _node-id
-                                                                                completion-info
-                                                                                module-nodes))))
+  (output completion-info g/Any :cached (g/fnk [_node-id code resource]
+                                          (assoc (lua-parser/lua-info code)
+                                                 :module (lua/path->lua-module (resource/proj-path resource)))))
+  (output completions g/Any :cached (g/fnk [completion-info module-completion-infos]
+                                           (code-completion/combine-completions completion-info module-completion-infos))))
 
 (defn load-script [project self resource]
   (g/set-property self :code (code/lf-normalize-line-endings (slurp resource))))

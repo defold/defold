@@ -24,44 +24,28 @@
                   fn-info)]
     (set (concat vars fns))))
 
-(defn find-module-node-in-project [node-id module-name]
-  (let [project-node (project/get-project node-id)
-        resource-node-pairs (g/node-value project-node :nodes-by-resource-path)
-        results (filter #(= (lua/lua-module->path module-name) (first %)) resource-node-pairs)]
-    (when (= 1 (count results))
-      (let [[_ result-node-id] (first results)]
-        (when  (= "editor.script/ScriptNode" (-> result-node-id (g/node-by-id) (g/node-type) deref :name))
-          result-node-id)))))
+(defn make-local-completions
+  [completion-info]
+  {"" (make-completions completion-info true nil)})
 
-(defn resource-node-path [nid]
-  (resource/proj-path (g/node-value nid :resource)))
+(defn make-required-completions
+  [requires required-completion-infos]
+  (let [required-completion-info-by-module (into {} (map (juxt :module identity)) required-completion-infos)]
+    (reduce (fn [ret [alias module]]
+              (let [completion-info (required-completion-info-by-module module)
+                    completions (make-completions completion-info false alias)
+                    module-name (or alias "")]
+                (merge-with set/union
+                            ret
+                            {module-name (make-completions completion-info false alias)}
+                            (when alias {"" #{(code/create-hint alias)}}))))
+            {}
+            requires)))
 
-(defn find-module-node [node-id module-name module-nodes]
-  (when module-name
-   (let [rpath (lua/lua-module->path module-name)
-         module-node-id (some (fn [nid] (if (= rpath (resource-node-path nid)) nid)) module-nodes)]
-     (if module-node-id
-       module-node-id
-       (when-let [nid (find-module-node-in-project node-id module-name)]
-         (g/transact (g/connect nid :_node-id node-id :module-nodes))
-         nid)))))
-
-(defn gather-requires [node-id ralias rname module-nodes]
-  (let [rnode (find-module-node node-id rname module-nodes)
-        module-name (or ralias "")
-        rcompletion-info (g/node-value rnode :completion-info)]
-    (merge-with set/union
-                {module-name (make-completions rcompletion-info false ralias)}
-                (when (seq module-name) {"" #{(code/create-hint module-name)}}))))
-
-(defn combine-completions [_node-id completion-info module-nodes]
- (let [local-completions {"" (make-completions completion-info true nil)}
-       require-completions (apply merge-with into
-                                  (map (fn [[ralias rname]]
-                                         (gather-requires _node-id ralias rname module-nodes))
-                                       (:requires completion-info)))]
-   (merge-with into
-               @lua/defold-docs
-               @lua/lua-std-libs-docs
-               local-completions
-               require-completions)))
+(defn combine-completions
+  [local-completion-info required-completion-infos]
+  (merge-with into
+              @lua/defold-docs
+              @lua/lua-std-libs-docs
+              (make-local-completions local-completion-info)
+              (make-required-completions (:requires local-completion-info) required-completion-infos)))
