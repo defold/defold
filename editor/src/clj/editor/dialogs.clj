@@ -350,14 +350,16 @@
                           (fn [^AnimationTimer timer _dt]
                             (let [start-time (System/nanoTime)
                                   end-time (+ start-time (seconds->nanoseconds (/ 1 90)))]
-                              (loop []
-                                (when-let [search-result (poll-fn)]
-                                  (insert-search-result tree-items search-result)
-                                  (when first-match?
-                                    (-> tree-view .getSelectionModel (.clearAndSelect 1))
-                                    (vreset! first-match? false)))
-                                (when (> end-time (System/nanoTime))
-                                  (recur))))))]
+                              (loop [poll-time 0]
+                                (when (> end-time poll-time)
+                                  (when-let [entry (poll-fn)]
+                                    (if (= ::project-search/done entry)
+                                      (.stop timer)
+                                      (do (insert-search-result tree-items entry)
+                                          (when first-match?
+                                            (-> tree-view .getSelectionModel (.clearAndSelect 1))
+                                            (vreset! first-match? false))
+                                          (recur (System/nanoTime))))))))))]
     (.clear tree-items)
     (ui/timer-start! timer)
     timer))

@@ -79,7 +79,8 @@
                                                (take 10)))))
                         (filter #(seq (:matches %))))]
         (doseq [entry (sequence xform (deref filtered-save-data-future))]
-          (produce-fn entry)))
+          (produce-fn entry))
+        (produce-fn ::done))
       (catch InterruptedException _
         ; future-cancel was invoked from another thread.
         nil)
@@ -100,7 +101,9 @@
   The value returned by start-consumer! will be stored and used as the argument
   to stop-consumer! when a search is aborted. The consumer is expected to
   periodically call the supplied poll function to consume search results.
-  It will either return nil if there is no result available, or a match of
+  It will either return nil if there is no result currently available, the
+  namespaced keyword :defold-project-search/done if the search has completed
+  and there will be no more results, or a single match consisting of
   [Resource, [{:line long, :caret-position long, :match String}, ...]].
   When abort-search! is called, any spawned background threads will terminate,
   and if there was a previous consumer, stop-consumer! will be called with it.
@@ -120,12 +123,12 @@
                         (abort-search! pending-search)
                         (let [filtered-save-data-future (start-filter! exts)]
                           (if (seq term)
-                            (let [queue (LinkedBlockingQueue. 64)
+                            (let [queue (LinkedBlockingQueue. 1024)
                                   thread (start-search-thread report-error! filtered-save-data-future term #(.put queue %))
                                   consumer (start-consumer! #(.poll queue))]
                               {:thread thread
                                :consumer consumer})
-                            (do (start-consumer! (constantly nil))
+                            (do (start-consumer! (constantly ::done))
                               nil))))]
     {:start-search! (fn [term exts]
                       (try
