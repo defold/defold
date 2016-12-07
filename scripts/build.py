@@ -426,6 +426,9 @@ class Configuration(object):
     def is_cross_platform(self):
         return self.host != self.target_platform
 
+    def is_desktop_target(self):
+        return self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
+
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
         outfile = tempfile.NamedTemporaryFile(delete = False)
@@ -542,7 +545,7 @@ class Configuration(object):
             self.upload_file(resources, '%s/android-resources.zip' % (full_archive_path))
 
         libs = ['particle']
-        if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
+        if self.is_desktop_target():
             libs.append('texc')
         for lib in libs:
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
