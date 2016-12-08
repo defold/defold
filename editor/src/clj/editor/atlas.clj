@@ -17,6 +17,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.pipeline :as pipeline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
@@ -46,10 +47,6 @@
 (def atlas-icon "icons/32/Icons_13-Atlas.png")
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def image-icon "icons/32/Icons_25-AT-Image.png")
-
-(defn render-overlay
-  [^GL2 gl width height]
-  (scene/overlay-text gl (format "Size: %dx%d" width height) 12.0 -22.0))
 
 (vtx/defvertex texture-vtx
   (vec4 position)
@@ -127,6 +124,13 @@
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
 
+  (property size types/Vec2
+    (value (g/fnk [^BufferedImage src-image]
+             (if src-image
+               [(.getWidth src-image) (.getHeight src-image)]
+               [0 0])))
+    (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+    (dynamic read-only? (g/constantly true)))
   (property order g/Int (dynamic visible (g/constantly false)) (default 0))
 
   (input src-resource resource/Resource)
@@ -251,19 +255,16 @@
                                            :compression-level :fast}]
                                 :mipmaps false}]})
 
-(defn- build-texture-set [self basis resource dep-resources user-data]
-  (let [tex-set (assoc (:proto user-data) :texture (resource/proj-path (second (first dep-resources))))]
-    {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
-
 (g/defnk produce-build-targets [_node-id resource texture-set-data save-data]
-  (let [project          (project/get-project _node-id)
-        workspace        (project/workspace project)
-        texture-target   (image/make-texture-build-target workspace _node-id (:image texture-set-data))]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-texture-set
-      :user-data {:proto (:texture-set texture-set-data)}
-      :deps [texture-target]}]))
+  (let [project           (project/get-project _node-id)
+        workspace         (project/workspace project)
+        texture-target    (image/make-texture-build-target workspace _node-id (:image texture-set-data))
+        pb-msg            (:texture-set texture-set-data)
+        dep-build-targets [texture-target]]
+    [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
+                                          TextureSetProto$TextureSet
+                                          (assoc pb-msg :texture (-> texture-target :resource :resource))
+                                          [:texture])]))
 
 (defn gen-renderable-vertex-buffer
   [width height]
@@ -290,11 +291,8 @@
         vertex-binding (vtx/use-with _node-id vertex-buffer atlas-shader)]
     {:aabb aabb
      :renderable {:render-fn (fn [gl render-args renderables count]
-                               (let [pass (:pass render-args)]
-                                 (cond
-                                   (= pass pass/overlay)     (render-overlay gl width height)
-                                   (= pass pass/transparent) (render-texture-set gl render-args vertex-binding gpu-texture))))
-                  :passes [pass/overlay pass/transparent]}
+                               (render-texture-set gl render-args vertex-binding gpu-texture))
+                  :passes [pass/transparent]}
      :children child-scenes}))
 
 (g/defnk produce-texture-set-data [_node-id animations images margin inner-padding extrude-borders]
@@ -380,6 +378,13 @@
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
+  (property size types/Vec2
+    (value (g/fnk [texture-set-data]
+             (if-let [^BufferedImage img (:image texture-set-data)]
+               [(.getWidth img) (.getHeight img)]
+               [0 0])))
+    (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+    (dynamic read-only? (g/constantly true)))
   (property margin g/Int
             (default 0)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? margin)))

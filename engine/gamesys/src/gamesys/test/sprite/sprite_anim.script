@@ -12,4 +12,6 @@ function update(self, dt)
         assert(s.x < self.last_scale_x)
         self.last_scale_x = s.x
     end
+    local size = go.get("go3#sprite", "size")
+    assert(size.x == 16.0 and size.y == 16.0)
 end
