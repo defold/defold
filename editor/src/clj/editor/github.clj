@@ -22,6 +22,7 @@
                 "<hr/>"
                 (format "Defold version: %s" (or (system/defold-version) "dev"))
                 (format "Defold sha: %s" (or (system/defold-sha1) ""))
+                (format "Defold build time: %s" (or (system/defold-build-time) ""))
                 (format "Platform: %s %s (%s)" (system/os-name) (system/os-version) (system/os-arch))
                 (format "Java version: %s" (system/java-runtime-version))]))
 
