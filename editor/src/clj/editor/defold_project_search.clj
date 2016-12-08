@@ -36,31 +36,6 @@
           (report-error! error)
           nil)))))
 
-(defn- filter-save-data-future [report-error! unfiltered-save-data-future exts]
-  (try
-    (let [file-ext-pats (into []
-                              (comp (remove empty?)
-                                    (distinct)
-                                    (map compile-find-in-files-regex))
-                              (some-> exts
-                                      (string/replace #" " "")
-                                      (string/split #",")))
-          unfiltered-save-data (deref unfiltered-save-data-future)]
-      (if (empty? file-ext-pats)
-        unfiltered-save-data
-        (into []
-              (comp (map thread-util/abortable-identity!)
-                    (filter (fn [entry]
-                              (let [rext (-> entry :resource resource/ext)]
-                                (some #(re-matches % rext) file-ext-pats)))))
-              unfiltered-save-data)))
-    (catch InterruptedException _
-      ; future-cancel was invoked from another thread.
-      nil)
-    (catch Throwable error
-      (report-error! error)
-      nil)))
-
 (defn- find-matches [pattern content]
   (->> (string/split-lines content)
        (keep-indexed (fn [idx l]
@@ -72,16 +47,26 @@
                                                  m
                                                  (apply str (take 24 (string/trimr post))))}))))))
 
-(defn- start-search-thread [report-error! filtered-save-data-future term produce-fn]
+(defn- start-search-thread [report-error! file-resource-save-data-future term exts produce-fn]
   (future
     (try
       (let [pattern (compile-find-in-files-regex term)
+            file-ext-pats (into []
+                                (comp (remove empty?)
+                                      (distinct)
+                                      (map #(compile-find-in-files-regex (string/replace % #"\*?\." ""))))
+                                (some-> exts
+                                        (string/replace #" " "")
+                                        (string/split #",")))
             xform (comp (map thread-util/abortable-identity!)
                         (filter :content)
-                        (map (fn [{:keys [content] :as hit}]
-                               (assoc hit :matches (take 10 (find-matches pattern content)))))
+                        (filter (fn [save-data]
+                                  (or (empty? file-ext-pats)
+                                      (let [ext (-> save-data :resource resource/ext)]
+                                        (some #(re-matches % ext) file-ext-pats)))))
+                        (map #(assoc % :matches (take 10 (find-matches pattern (:content %)))))
                         (filter #(seq (:matches %))))]
-        (run! produce-fn (sequence xform (deref filtered-save-data-future)))
+        (run! produce-fn (sequence xform (deref file-resource-save-data-future)))
         (produce-fn ::done))
       (catch InterruptedException _
         ; future-cancel was invoked from another thread.
@@ -92,9 +77,9 @@
 
 (defn make-file-searcher
   "Returns a map of two functions, start-search! and abort-search! that can be
-  used to perform asyncronous search queries against an ordered sequence of file
-  resource save data. The save data is expected to be sorted in the order it
-  should appear in the search results list, and entires are expected to have
+  used to perform asynchronous search queries against an ordered sequence of
+  file resource save data. The save data is expected to be sorted in the order
+  it should appear in the search results list, and entires are expected to have
   :resource (Resource) and :content (String) fields.
   When start-search! is called, it will cancel any pending search and start a
   new search using the provided term and exts String arguments. It will call
@@ -112,26 +97,21 @@
   Since many operations happen on a background thread, report-error! will be
   called with the Throwable in the event of an error."
   [file-resource-save-data-future start-consumer! stop-consumer! report-error!]
-  (let [[start-filter! abort-filter!] (let [filter-fn (partial filter-save-data-future report-error! file-resource-save-data-future)
-                                            start-filter! (thread-util/make-cached-future-fn filter-fn)
-                                            abort-filter! #(thread-util/cancel-cached-future-fn start-filter!)]
-                                        [start-filter! abort-filter!])
-        pending-search-atom (atom nil)
+  (let [pending-search-atom (atom nil)
         abort-search! (fn [pending-search]
                         (some-> pending-search :thread future-cancel)
                         (some-> pending-search :consumer stop-consumer!)
                         nil)
         start-search! (fn [pending-search term exts]
                         (abort-search! pending-search)
-                        (let [filtered-save-data-future (start-filter! exts)]
-                          (if (seq term)
-                            (let [queue (LinkedBlockingQueue. 1024)
-                                  thread (start-search-thread report-error! filtered-save-data-future term #(.put queue %))
-                                  consumer (start-consumer! #(.poll queue))]
-                              {:thread thread
-                               :consumer consumer})
-                            (do (start-consumer! (constantly ::done))
-                              nil))))]
+                        (if (seq term)
+                          (let [queue (LinkedBlockingQueue. 1024)
+                                thread (start-search-thread report-error! file-resource-save-data-future term exts #(.put queue %))
+                                consumer (start-consumer! #(.poll queue))]
+                            {:thread thread
+                             :consumer consumer})
+                          (do (start-consumer! (constantly ::done))
+                              nil)))]
     {:start-search! (fn [term exts]
                       (try
                         (swap! pending-search-atom start-search! term exts)
@@ -141,7 +121,6 @@
      :abort-search! (fn []
                       (try
                         (swap! pending-search-atom abort-search!)
-                        (abort-filter!)
                         (catch Throwable error
                           (report-error! error)))
                       nil)}))

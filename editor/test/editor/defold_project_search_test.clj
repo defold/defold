@@ -99,7 +99,7 @@
     (is (false? (consumer-finished? consumer)))
     (is (true? (consumer-stopped? consumer)))))
 
-(deftest comple-find-in-files-regex-test
+(deftest compile-find-in-files-regex-test
   (is (= "(?i)^(.*)(\\Qfoo\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo"))))
   (testing "* is handled correctly"
     (is (= "(?i)^(.*)(\\Qfoo\\E.*\\Qbar\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar")))))
