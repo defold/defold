@@ -75,6 +75,7 @@ typedef struct {
     int         auxBuffers;
     int         stereo;
     int         windowNoResize;
+    int         windowDecorated;
     int         samples;
     int         glMajor;
     int         glMinor;
@@ -103,6 +104,7 @@ typedef struct {
     int         mode;
     int         refreshRate;
     int         windowNoResize;
+    int         windowDecorated;
     int         glMajor;
     int         glMinor;
     int         glForward;

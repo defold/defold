@@ -473,6 +473,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     wndconfig.mode           = mode;
     wndconfig.refreshRate    = Max( _glfwLibrary.hints.refreshRate, 0 );
     wndconfig.windowNoResize = _glfwLibrary.hints.windowNoResize ? GL_TRUE : GL_FALSE;
+    wndconfig.windowDecorated= _glfwLibrary.hints.windowDecorated ? GL_TRUE : GL_FALSE;
     wndconfig.glMajor        = Max( _glfwLibrary.hints.glMajor, 1 );
     wndconfig.glMinor        = Max( _glfwLibrary.hints.glMinor, 0 );
     wndconfig.glForward      = _glfwLibrary.hints.glForward ? GL_TRUE : GL_FALSE;
@@ -650,6 +651,9 @@ GLFWAPI void GLFWAPIENTRY glfwOpenWindowHint( int target, int hint )
 
     switch( target )
     {
+        case GLFW_DECORATED:
+            _glfwLibrary.hints.windowDecorated = hint;
+            break;
         case GLFW_REFRESH_RATE:
             _glfwLibrary.hints.refreshRate = hint;
             break;

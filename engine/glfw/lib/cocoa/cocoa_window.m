@@ -545,9 +545,12 @@ int  _glfwPlatformOpenWindow( int width, int height,
     unsigned int styleMask = 0;
     if( wndconfig->mode == GLFW_WINDOW )
     {
-        styleMask = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask;
+        if( wndconfig->windowDecorated == GL_TRUE )
+        {
+            styleMask = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask;
+        }
 
-        if( !wndconfig->windowNoResize )
+        if( !wndconfig->windowNoResize  || wndconfig->windowDecorated )
         {
             styleMask |= NSResizableWindowMask;
         }

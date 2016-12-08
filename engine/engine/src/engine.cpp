@@ -497,6 +497,12 @@ namespace dmEngine
         engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
         engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
 
+        int win_width = dmConfigFile::GetInt(engine->m_Config, "display.physical_width", engine->m_Width);
+        int win_height = dmConfigFile::GetInt(engine->m_Config, "display.physical_height", engine->m_Height);
+
+        int win_pos_x = dmConfigFile::GetInt(engine->m_Config, "display.position_x", -1);
+        int win_pos_y = dmConfigFile::GetInt(engine->m_Config, "display.position_y", -1);
+
         dmGraphics::WindowParams window_params;
         window_params.m_ResizeCallback = OnWindowResize;
         window_params.m_ResizeCallbackUserData = engine;
@@ -504,11 +510,12 @@ namespace dmEngine
         window_params.m_CloseCallbackUserData = engine;
         window_params.m_FocusCallback = OnWindowFocus;
         window_params.m_FocusCallbackUserData = engine;
-        window_params.m_Width = engine->m_Width;
-        window_params.m_Height = engine->m_Height;
+        window_params.m_Width = win_width;
+        window_params.m_Height = win_height;
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
         window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
         window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
+        window_params.m_Borderless = (bool) dmConfigFile::GetInt(engine->m_Config, "display.borderless", 0);
         window_params.m_PrintDeviceInfo = false;
         window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
 
@@ -517,6 +524,12 @@ namespace dmEngine
         {
             dmLogFatal("Could not open window (%d).", window_result);
             return false;
+        }
+
+        if(win_pos_x != -1 && win_pos_y != -1)
+        {
+            dmLogInfo("Setting window pos, x: %i, y: %i", win_pos_x, win_pos_y);
+            dmGraphics::SetWindowPosition(engine->m_GraphicsContext, win_pos_x, win_pos_y);
         }
 
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);

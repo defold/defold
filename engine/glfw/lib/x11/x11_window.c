@@ -795,6 +795,11 @@ static GLboolean createWindow( int width, int height,
             PointerMotionMask | ButtonPressMask | ButtonReleaseMask |
             ExposureMask | FocusChangeMask | VisibilityChangeMask;
 
+        if( !wndconfig->windowDecorated )
+        {
+            wa.override_redirect = true; // https://tronche.com/gui/x/xlib/window/attributes/
+        }
+
         if( wndconfig->mode == GLFW_WINDOW )
         {
             // The /only/ reason we are setting the background pixel here is
@@ -884,7 +889,7 @@ static GLboolean createWindow( int width, int height,
 
     // Set ICCCM WM_HINTS property
     {
-        XWMHints *hints = XAllocWMHints();
+        XSetWMHints *hints = XAllocWMHints();
         if( !hints )
         {
             _glfwPlatformCloseWindow();

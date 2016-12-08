@@ -187,6 +187,10 @@ namespace dmGraphics
         }
     }
 
+    void SetWindowPosition(HContext, int x, int y)
+    {
+    }
+
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         out_min_filter = context->m_DefaultTextureMinFilter;

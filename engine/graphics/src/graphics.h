@@ -345,6 +345,8 @@ namespace dmGraphics
         const char*             m_Title;
         /// If the window should cover the full screen or not, false by default
         bool                    m_Fullscreen;
+        /// If the window should be borderless or not, false by default. Will be ignored if fullscreen is set.
+        bool                    m_Borderless;
         /// Log info about the graphics device being used, false by default
         bool                    m_PrintDeviceInfo;
 
@@ -446,6 +448,8 @@ namespace dmGraphics
      * @param height New height of the window
      */
     void SetWindowSize(HContext context, uint32_t width, uint32_t height);
+
+    void SetWindowPosition(HContext, int x, int y);
 
     /**
      * Return the default texture filtering modes.

@@ -353,6 +353,9 @@ static void LogFrameBufferError(GLenum status)
 
 
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
+        
+        glfwOpenWindowHint(GLFW_DECORATED, !params->m_Borderless);
+
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
@@ -616,6 +619,15 @@ static void LogFrameBufferError(GLenum status)
             {
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
             }
+        }
+    }
+
+    void SetWindowPosition(HContext context, int x, int y)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            glfwSetWindowPos(x, y);
         }
     }
 

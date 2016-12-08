@@ -729,9 +729,16 @@ int  _glfwPlatformOpenWindow( int width, int height,
         windowContentBounds.right = width;
         windowContentBounds.bottom = height;
 
-        windowAttributes = ( kWindowCloseBoxAttribute |
-                             kWindowCollapseBoxAttribute |
-                             kWindowStandardHandlerAttribute );
+        if (wndconfig->windowDecorated)
+        {
+            windowAttributes = ( kWindowCloseBoxAttribute |
+                                 kWindowCollapseBoxAttribute |
+                                 kWindowStandardHandlerAttribute );
+        }
+        else
+        {
+            fprintf( stdout, "Window not decorated!\n" );
+        }
 
         if( wndconfig->windowNoResize )
         {
