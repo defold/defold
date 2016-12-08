@@ -1059,7 +1059,7 @@ Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** 
     return result;
 }
 
-Result Set(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer)
+Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer)
 {
     DM_PROFILE(Resource, "Set");
 

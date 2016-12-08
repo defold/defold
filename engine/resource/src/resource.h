@@ -375,7 +375,7 @@ namespace dmResource
      * @param buffer The buffer
      * @return RESULT_OK on success
      */
-    Result Set(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
+    Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
 
     /**
      * Updates a preexisting resource with new data
