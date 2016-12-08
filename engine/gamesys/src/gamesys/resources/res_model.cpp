@@ -23,8 +23,14 @@ namespace dmGameSystem
             dmResource::Result r = dmResource::Get(factory, resource->m_Model->m_Textures[i], (void**) &textures[i]);
             if (r != dmResource::RESULT_OK)
             {
-                if (result == dmResource::RESULT_OK)
+                if (result == dmResource::RESULT_OK) {
                     result = r;
+                }
+            } else {
+                r = dmResource::GetPath(factory, textures[i], &resource->m_TexturePaths[i]);
+                if (r != dmResource::RESULT_OK) {
+                   result = r;
+                }
             }
         }
         if (result != dmResource::RESULT_OK)
@@ -34,7 +40,6 @@ namespace dmGameSystem
             return result;
         }
         memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
-
         return result;
     }
 
