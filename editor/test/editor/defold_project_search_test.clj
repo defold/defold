@@ -100,11 +100,11 @@
     (is (true? (consumer-stopped? consumer)))))
 
 (deftest comple-find-in-files-regex-test
-  (is (= "(?i)^(.*)(foo)(.*)$" (str (project-search/compile-find-in-files-regex "foo"))))
+  (is (= "(?i)^(.*)(\\Qfoo\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo"))))
   (testing "* is handled correctly"
-    (is (= "(?i)^(.*)(foo.*bar)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar")))))
-  (testing "other wildcard chars are stripped"
-    (is (= "(?i)^(.*)(foo.*bar)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar[]().$^")))))
+    (is (= "(?i)^(.*)(\\Qfoo\\E.*\\Qbar\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar")))))
+  (testing "other wildcard chars are quoted"
+    (is (= "(?i)^(.*)(\\Qfoo\\E.*\\Qbar[]().$^\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar[]().$^")))))
   (testing "case insensitive search strings"
     (let [pattern (project-search/compile-find-in-files-regex "fOoO")]
       (is (= "fooo" (first (re-matches pattern "fooo")))))))

@@ -3,16 +3,18 @@
             [dynamo.graph :as g]
             [editor.resource :as resource]
             [util.thread-util :as thread-util])
-  (:import (java.util.concurrent LinkedBlockingQueue)))
+  (:import (java.util.concurrent LinkedBlockingQueue)
+           (java.util.regex Pattern)))
 
 (set! *warn-on-reflection* true)
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a case-insensitive java regex."
   [search-str]
-  (let [clean-str (string/replace search-str #"[\<\(\[\{\\\^\-\=\$\!\|\]\}\)\?\+\.\>]" "")]
-    (re-pattern (format "(?i)^(.*)(%s)(.*)$"
-                        (string/replace clean-str #"\*" ".*")))))
+  (let [clean-str (->> (string/split search-str #"\*")
+                       (map #(Pattern/quote %))
+                       (string/join ".*"))]
+    (re-pattern (str "(?i)^(.*)(" clean-str ")(.*)$"))))
 
 (defn- line->caret-pos [content line]
   (let [line-counts (map (comp inc count) (string/split-lines content))]
