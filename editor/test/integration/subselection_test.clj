@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [util.id-vec :as iv]
+            [editor.app-view :as app-view]
             [editor.types :as types]
             [editor.defold-project :as project]
             [editor.math :as math]
@@ -12,13 +13,13 @@
   (:import [javax.vecmath Matrix4d Point3d Vector3d]
            [editor.properties Curve]))
 
-(defn- select! [project selection]
+(defn- select! [app-view selection]
   (let [opseq (gensym)]
-    (project/select! project (mapv first selection) opseq)
-    (project/sub-select! project selection opseq)))
+    (app-view/select! app-view (mapv first selection) opseq)
+    (app-view/sub-select! app-view selection opseq)))
 
-(defn- selection [project]
-  (g/node-value project :sub-selection))
+(defn- selection [app-view]
+  (g/node-value app-view :sub-selection))
 
 (defrecord View [fb select-fn])
 
@@ -105,8 +106,8 @@
 
 ;; Commands
 
-(defn delete! [project]
-  (let [s (selection project)]
+(defn delete! [app-view]
+  (let [s (selection app-view)]
     (g/transact (reduce (fn [tx-data v]
                           (if (sequential? v)
                             (let [[nid props] v]
@@ -152,78 +153,77 @@
 
 (deftest delete-mixed
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+    (let [[workspace project app-view] (test-util/setup! world)
+          pfx-id   (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
                                                                               [1.0 1.0 1.0 0.0]])))
           proj-graph (g/node-id->graph-id project)
           [model] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]]))
-          view (-> (->view (fn [s] (select! project s)))
+          view (-> (->view (fn [s] (select! app-view s)))
                  (render-all [model emitter]))
           box [[0.5 0.5] [0.9 0.9]]]
       (box-select! view box)
-      (is (not (empty? (selection project))))
-      (delete! project)
+      (is (not (empty? (selection app-view))))
+      (delete! app-view)
       (let [view (-> view
                    render-clear
                    (render-all [model emitter]))]
         (box-select! view box)
-        (is (empty? (selection project)))))))
+        (is (empty? (selection app-view)))))))
 
 (deftest move-mixed
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+    (let [[workspace project app-view] (test-util/setup! world)
+          pfx-id   (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
                                                                               [1.0 1.0 1.0 0.0]])))
-          proj-graph (g/node-id->graph-id project)
-          [model
-           manip] (tx-nodes (g/make-nodes proj-graph [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]
-                                                      manip MoveManip]
-                                          (g/connect project :sub-selection manip :selection)))
-          view (-> (->view (fn [s] (select! project s)))
+          model (-> (g/make-nodes (g/node-id->graph-id project) [model [Model :mesh (->mesh [[0.5 0.5] [0.9 0.9]])]])
+                  tx-nodes
+                  first)
+          manip (-> (g/make-nodes (g/node-id->graph-id app-view) [manip MoveManip]
+                      (g/connect app-view :sub-selection manip :selection))
+                  tx-nodes
+                  first)
+          view (-> (->view (fn [s] (select! app-view s)))
                  (render-all [model emitter]))
           box [[0.5 0.5] [0.9 0.9]]]
       (box-select! view box)
-      (is (not (empty? (selection project))))
+      (is (not (empty? (selection app-view))))
       (is (= [(/ 2.0 3.0) (/ 2.0 3.0) 0.0] (g/node-value manip :position)))
-      (-> (start-move (selection project) (g/node-value manip :position))
+      (-> (start-move (selection app-view) (g/node-value manip :position))
         (move! [2.0 2.0 0.0]))
       (let [view (-> view
                    render-clear
                    (render-all [model emitter]))]
         (box-select! view box)
-        (is (empty? (selection project)))))))
+        (is (empty? (selection app-view)))))))
 
 (defn- near [v1 v2]
   (< (Math/abs (- v1 v2)) 0.000001))
 
 (deftest insert-control-point
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-         emitter (doto (:node-id (test-util/outline pfx-id [0]))
-                   (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 0.5 0.5]
-                                                                             [0.5 0.5 0.5 0.5]
-                                                                             [1.0 1.0 0.5 0.5]])))
-         proj-graph (g/node-id->graph-id project)
-         view (-> (->view (fn [s] (select! project s)))
-                (render-all [emitter]))
-         box [[0.5 0.5] [1.0 1.0]]
-         half-sq-2 (* 0.5 (Math/sqrt 2.0))]
-     (g/transact
-       (g/update-property emitter :particle-key-alpha types/geom-insert [[0.25 0.25 0.0]]))
-     (let [[x y tx ty] (-> (g/node-value emitter :particle-key-alpha)
-                         :points
-                         (iv/iv-filter-ids [4])
-                         iv/iv-vals
-                         first)]
-       (is (near half-sq-2 tx))
-       (is (near half-sq-2 ty))))))
+    (let [[workspace project app-view] (test-util/setup! world)
+          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+          emitter (doto (:node-id (test-util/outline pfx-id [0]))
+                    (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 0.5 0.5]
+                                                                              [0.5 0.5 0.5 0.5]
+                                                                              [1.0 1.0 0.5 0.5]])))
+          proj-graph (g/node-id->graph-id project)
+          view (-> (->view (fn [s] (select! app-view s)))
+                 (render-all [emitter]))
+          box [[0.5 0.5] [1.0 1.0]]
+          half-sq-2 (* 0.5 (Math/sqrt 2.0))]
+      (g/transact
+        (g/update-property emitter :particle-key-alpha types/geom-insert [[0.25 0.25 0.0]]))
+      (let [[x y tx ty] (-> (g/node-value emitter :particle-key-alpha)
+                          :points
+                          (iv/iv-filter-ids [4])
+                          iv/iv-vals
+                          first)]
+        (is (near half-sq-2 tx))
+        (is (near half-sq-2 ty))))))

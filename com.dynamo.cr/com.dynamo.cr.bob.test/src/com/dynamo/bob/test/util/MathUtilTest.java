@@ -32,6 +32,19 @@ public class MathUtilTest {
         assertEquals(10.0f, p.getX(), EPSILON);
     }
 
+    @Test
+    public void testVecmath1ToVecmath2() throws Exception {
+        Matrix4f mv1 = new Matrix4f();
+        mv1.setIdentity();
+        mv1.set(new Vector3f(10.0f, 0.0f, 0.0f));
+
+        org.openmali.vecmath2.Matrix4f mv2 = MathUtil.vecmath1ToVecmath2(mv1);
+        org.openmali.vecmath2.Vector3f p = new org.openmali.vecmath2.Vector3f();
+        mv2.get(p);
+
+        assertEquals(10.0f, p.getX(), EPSILON);
+    }
+
     private void assertVector3f(Vector3f expected, Vector3f actual) {
         assertEquals(expected.getX(), actual.getX(), EPSILON);
         assertEquals(expected.getY(), actual.getY(), EPSILON);
@@ -135,6 +148,6 @@ public class MathUtilTest {
 //        scale.set(10.0, -1.0, 1.0);
 //        assertDecomposeDouble(translation, rotation, scale);
     }
-    
+
 }
 

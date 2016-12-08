@@ -1,0 +1,54 @@
+$diff-insert: #1e5537;
+$diff-delete: #6e2a33;
+
+.diff-view {
+  Line {
+    -fx-stroke: $mid-grey;
+
+    &.insert {
+      -fx-stroke: $diff-insert;
+    }
+
+    &.delete {
+      -fx-stroke: $diff-delete;
+    }
+  }
+
+  Text {
+    -fx-fill: $bright-grey-light;
+  }
+
+  #markers {
+    -fx-min-width: 40px;
+    -fx-max-width: 40px;
+    -fx-pref-width: 40px;
+    -fx-background-color: $dark-grey;
+  }
+
+  .code-view {
+    -fx-pref-width: 300px;
+    -fx-background-color: $bright-black;
+  }
+
+  .code-view-header {
+    -fx-font-weight: bold;
+    -fx-text-fill: $bright-grey;
+    -fx-min-height: 40px;
+    -fx-alignment: center;
+  }
+
+  .diff-box {
+    -fx-fill: $mid-grey;
+    -fx-stroke: $mid-grey;
+
+    &.insert {
+      -fx-fill: $diff-insert;
+      -fx-stroke: $diff-insert;
+    }
+
+    &.delete {
+      -fx-fill: $diff-delete;
+      -fx-stroke: $diff-delete;
+    }
+  }
+}

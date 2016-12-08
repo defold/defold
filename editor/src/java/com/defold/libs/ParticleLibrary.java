@@ -245,6 +245,7 @@ public class ParticleLibrary {
 
         public Pointer texture;
         public FloatBuffer texCoords;
+        public FloatBuffer texDims;
         public int playback;
         public int tileWidth;
         public int tileHeight;
@@ -258,7 +259,7 @@ public class ParticleLibrary {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("texture", "texCoords", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip", "vFlip", "structSize");
+            return Arrays.asList("texture", "texCoords", "texDims", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip", "vFlip", "structSize");
         }
     }
 }

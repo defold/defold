@@ -107,7 +107,7 @@
         file (flow-journal-file git)]
     (when (.exists file)
       (io/delete-file file :silently))
-    (git/hard-reset git start-ref)
+    (git/revert-to-revision! git start-ref)
     (when stash-ref
       (git/stash-apply git stash-ref)
       (git/stash-drop git stash-ref))))
@@ -157,18 +157,39 @@
        (assoc :state new-state)
        (update :progress #(progress/advance % n)))))
 
-(defn- find-changes [status unified-status status-keys]
-  (into #{}
-        (comp (filter (fn [change]
-                          (some #(contains? (status %)
-                                            (git/change-path change))
-                                status-keys)))
-              (map #(dissoc % :score)))
-        unified-status))
+(defn find-git-state [{:keys [added changed removed]} unified-status]
+  (reduce (fn [result {:keys [change-type old-path new-path] :as change}]
+            (case change-type
+              :add    (if (contains? added new-path)
+                        (update result :staged conj (dissoc change :score))
+                        (update result :modified conj (dissoc change :score)))
+              :delete (if (contains? removed old-path)
+                        (update result :staged conj (dissoc change :score))
+                        (update result :modified conj (dissoc change :score)))
+              :modify (if (contains? changed new-path)
+                        (update result :staged conj (dissoc change :score))
+                        (update result :modified conj (dissoc change :score)))
+              :rename (let [add-staged (contains? added new-path)
+                            delete-staged (contains? removed old-path)]
+                        (cond
+                          (and add-staged delete-staged)
+                          (update result :staged conj (dissoc change :score))
 
-(defn find-git-state [status unified-status]
-  {:staged   (find-changes status unified-status [:added :changed :removed])
-   :modified (find-changes status unified-status [:missing :modified :untracked])})
+                          add-staged
+                          (-> result
+                              (update :staged conj (git/make-add-change new-path))
+                              (update :modified conj (git/make-delete-change old-path)))
+
+                          delete-staged
+                          (-> result
+                              (update :staged conj (git/make-delete-change old-path))
+                              (update :modified conj (git/make-add-change new-path)))
+
+                          :else
+                          (update result :modified conj (dissoc change :score))))))
+          {:modified #{}
+           :staged #{}}
+          unified-status))
 
 (defn refresh-git-state [{:keys [git] :as flow}]
   (merge flow (find-git-state (git/status git)

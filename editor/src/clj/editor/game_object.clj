@@ -4,6 +4,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [schema.core :as s]
+            [editor.app-view :as app-view]
             [editor.graph-util :as gu]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -130,7 +131,7 @@
                                        (assoc :node-id _node-id
                                               :transform transform
                                               :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
-                                       (update :node-path (partial cons _node-id)))))
+                                       (update :node-path (partial into [_node-id])))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]
@@ -141,7 +142,9 @@
                                                                                 :transform transform})])
                                                [])))
   (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
-                                                  (merge-with into _declared-properties source-properties))))
+                                                  (-> _declared-properties
+                                                    (update :properties into (:properties source-properties))
+                                                    (update :display-order into (:display-order source-properties))))))
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
@@ -340,35 +343,28 @@
           id
           (recur (inc postfix)))))))
 
-(defn- add-component [self project source-resource id position rotation properties]
+(defn- add-component [self project source-resource id position rotation properties select-fn]
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
                   [comp-node [ReferencedComponent :id id :position position :rotation rotation :path path]]
-                  (attach-ref-component self comp-node))))
+                  (attach-ref-component self comp-node)
+                  (when select-fn
+                    (select-fn [comp-node])))))
 
-(defn add-component-file [go-id resource]
+(defn add-component-file [go-id resource select-fn]
   (let [project (project/get-project go-id)
-        id (gen-component-id go-id (:ext (resource/resource-type resource)))
-        op-seq (gensym)
-        [comp-node] (g/tx-nodes-added
-                      (g/transact
-                        (concat
-                          (g/operation-label "Add Component")
-                          (g/operation-sequence op-seq)
-                          (add-component go-id project resource id [0 0 0] [0 0 0 1] {}))))]
-    ;; Selection
+        id (gen-component-id go-id (:ext (resource/resource-type resource)))]
     (g/transact
       (concat
-        (g/operation-sequence op-seq)
         (g/operation-label "Add Component")
-        (project/select project [comp-node])))))
+        (add-component go-id project resource id [0 0 0] [0 0 0 1] {} select-fn)))))
 
-(defn add-component-handler [workspace project go-id]
+(defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
                                          (workspace/get-resource-types workspace :embeddable)))]
     (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
-      (add-component-file go-id resource))))
+      (add-component-file go-id resource select-fn))))
 
 (defn- selection->game-object [selection]
   (handler/adapt-single selection GameObjectNode))
@@ -376,16 +372,16 @@
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->game-object selection))
   (label [] "Add Component File")
-  (run [workspace project selection]
-       (add-component-handler workspace project (selection->game-object selection))))
+  (run [workspace project selection app-view]
+       (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
-(defn- add-embedded-component [self project type data id position rotation select?]
+(defn- add-embedded-component [self project type data id position rotation select-fn]
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project type data)]
     (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation]]
       (g/connect comp-node :_node-id self :nodes)
-      (if select?
-        (project/select project [comp-node])
+      (if select-fn
+        (select-fn [comp-node])
         [])
       (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:resource :source-resource]
                                                                                         [:_properties :source-properties]
@@ -400,7 +396,7 @@
             []
             (attach-embedded-component self comp-node)))))))
 
-(defn add-embedded-component-handler [user-data]
+(defn add-embedded-component-handler [user-data select-fn]
   (let [self (:_node-id user-data)
         project (project/get-project self)
         component-type (:resource-type user-data)
@@ -409,7 +405,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] true)))))
+      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] select-fn)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -436,7 +432,7 @@
 (handler/defhandler :add :workbench
   (label [user-data] (add-embedded-component-label user-data))
   (active? [selection] (selection->game-object selection))
-  (run [user-data] (add-embedded-component-handler user-data))
+  (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]
            (let [self (selection->game-object selection)
                  workspace (:workspace (g/node-value self :resource))]
@@ -449,7 +445,7 @@
       (for [component (:components prototype)
             :let [source-resource (workspace/resolve-resource resource (:component component))
                   properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
-        (add-component self project source-resource (:id component) (:position component) (:rotation component) properties))
+        (add-component self project source-resource (:id component) (:position component) (:rotation component) properties nil))
       (for [embedded (:embedded-components prototype)]
         (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (:rotation embedded) false)))))
 
