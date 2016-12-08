@@ -61,6 +61,17 @@
       (report-error! error)
       nil)))
 
+(defn- find-matches [pattern content]
+  (->> (string/split-lines content)
+       (keep-indexed (fn [idx l]
+                       (let [[_ pre m post] (re-matches pattern l)]
+                         (when m
+                           {:line           idx
+                            :caret-position (line->caret-pos content idx)
+                            :match          (str (apply str (take-last 24 (string/triml pre)))
+                                                 m
+                                                 (apply str (take 24 (string/trimr post))))}))))))
+
 (defn- start-search-thread [report-error! filtered-save-data-future term produce-fn]
   (future
     (try
@@ -68,17 +79,7 @@
             xform (comp (map thread-util/abortable-identity!)
                         (filter :content)
                         (map (fn [{:keys [content] :as hit}]
-                               (assoc hit :matches
-                                          (->> (string/split-lines content)
-                                               (keep-indexed (fn [idx l]
-                                                               (let [[_ pre m post] (re-matches pattern l)]
-                                                                 (when m
-                                                                   {:line           idx
-                                                                    :caret-position (line->caret-pos content idx)
-                                                                    :match          (str (apply str (take-last 24 (string/triml pre)))
-                                                                                         m
-                                                                                         (apply str (take 24 (string/trimr post))))}))))
-                                               (take 10)))))
+                               (assoc hit :matches (take 10 (find-matches pattern content)))))
                         (filter #(seq (:matches %))))]
         (doseq [entry (sequence xform (deref filtered-save-data-future))]
           (produce-fn entry))
