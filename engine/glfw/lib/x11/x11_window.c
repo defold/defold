@@ -889,7 +889,8 @@ static GLboolean createWindow( int width, int height,
 
     // Set ICCCM WM_HINTS property
     {
-        XSetWMHints *hints = XAllocWMHints();
+        XWMHints *hints = XAllocWMHints();
+
         if( !hints )
         {
             _glfwPlatformCloseWindow();
