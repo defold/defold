@@ -430,8 +430,8 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)
 
-    (let [resource (and @return
-                        (update @return :children
+    (let [resource (and (seq @return)
+                        (update (first @return) :children
                                 (fn [children] (remove #(instance? MatchContextResource %) children))))]
       (cond
         (instance? MatchContextResource resource)
