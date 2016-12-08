@@ -119,7 +119,7 @@ protected:
     {
         GamesysTest::SetUp();
         hash_property_id = dmHashString64("texture0");
-        hash_property_id_invalid = dmHashString64("texture1");
+        hash_property_id_invalid = dmHashString64("texture");
     }
 
 public:
