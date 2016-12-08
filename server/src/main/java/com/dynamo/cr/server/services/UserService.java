@@ -45,6 +45,10 @@ public class UserService {
     }
 
     public Optional<User> findByEmail(String email) {
+
+        // Always search for lowercase address.
+        email = email.toLowerCase();
+
         List<User> resultList = entityManager
                 .createNamedQuery("User.findByEmail", User.class)
                 .setParameter("email", email)
@@ -153,6 +157,9 @@ public class UserService {
     }
 
     private void signup(String email, String firstName, String lastName, String token, String password) {
+        // Ensure lowercase e-mail
+        email = email.toLowerCase();
+
         // Delete old pending NewUser entries first.
         Query deleteQuery = entityManager.createNamedQuery("NewUser.delete").setParameter("email", email);
 
