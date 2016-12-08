@@ -65,7 +65,7 @@ static int Set(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 2);
 
-    dmResource::Result r = dmResource::Set(g_ResourceModule.m_Factory, path_hash, *buffer);
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, *buffer);
     if( r != dmResource::RESULT_OK )
     {
         ReportPathError(L, r, path_hash);
@@ -184,9 +184,8 @@ static int SetTexture(lua_State* L)
     uint32_t width = (uint32_t)CheckTableNumber(L, 2, "width");
     uint32_t height = (uint32_t)CheckTableNumber(L, 2, "height");
     uint32_t format = (uint32_t)CheckTableNumber(L, 2, "format");
-    uint32_t num_mip_maps = (uint32_t)CheckTableNumber(L, 2, "num_mip_maps");
 
-    num_mip_maps = 1;
+    uint32_t num_mip_maps = 1;
 
     dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 3);
 

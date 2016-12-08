@@ -1266,7 +1266,7 @@ TEST(DynamicResources, Set)
     uint64_t hash = 0;
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
-    e = dmResource::Set(factory, hash, buffer);
+    e = dmResource::SetResource(factory, hash, buffer);
 
 
     ASSERT_EQ(dmResource::RESULT_OK, e);
@@ -1277,7 +1277,7 @@ TEST(DynamicResources, Set)
     strcpy((char*)data, "42");
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
-    e = dmResource::Set(factory, hash, buffer);
+    e = dmResource::SetResource(factory, hash, buffer);
 
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_NE(resource1->m_Value, resource2->m_Value);
