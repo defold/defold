@@ -15,6 +15,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
+            [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [service.log :as log]
             [editor.graph-util :as gu]
@@ -269,44 +270,6 @@
             (on-complete-fn))
           (finally (reset! ongoing-build-save-atom false)))))))
 
-(defn- target-key [target]
-  [(:resource (:resource target))
-   (:build-fn target)
-   (:user-data target)])
-
-(defn- build-target [basis target all-targets build-cache]
-  (let [resource (:resource target)
-        key (:key target)
-        cache (let [cache (get @build-cache resource)] (and (= key (:key cache)) cache))]
-    (if cache
-     cache
-     (let [node (:node-id target)
-           dep-resources (into {} (map #(let [resource (:resource %)
-                                              key (target-key %)] [resource (:resource (get all-targets key))]) (flatten (:deps target))))
-           result ((:build-fn target) node basis resource dep-resources (:user-data target))
-           result (assoc result :key key)]
-       (swap! build-cache assoc resource (assoc result :cached true))
-       result))))
-
-(defn targets-by-key [build-targets]
-  (into {} (map #(let [key (target-key %)] [key (assoc % :key key)]) build-targets)))
-
-(defn prune-build-cache! [cache build-targets]
-  (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
-
-(defn- build-targets-deep [build-targets]
-  (loop [targets build-targets
-         queue []
-         seen #{}
-         result []]
-    (if-let [t (first targets)]
-      (let [key (target-key t)]
-        (if (contains? seen key)
-          (recur (rest targets) queue seen result)
-          (recur (rest targets) (conj queue (flatten (:deps t))) (conj seen key) (conj result t))))
-      (if-let [targets (first queue)]
-        (recur targets (rest queue) seen result)
-        result))))
 
 (defn build [project node {:keys [render-progress! render-error! basis cache]
                            :or   {render-progress! progress/null-render-progress!
@@ -314,24 +277,16 @@
                                   cache            (g/cache)}
                            :as   opts}]
   (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
-        build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
-        build-targets-by-key (and (not (g/error? build-targets))
-                                  (->> (g/node-value node :build-targets {:basis basis :cache cache})
-                                       build-targets-deep
-                                       targets-by-key))]
+        build-targets        (g/node-value node :build-targets {:basis basis :cache cache})]
     (if (g/error? build-targets)
       (do
         (when render-error!
           (render-error! build-targets))
         nil)
-      (do
-        (prune-build-cache! build-cache build-targets-by-key)
-        (progress/progress-mapv
-          (fn [target _]
-            (build-target basis (second target) build-targets-by-key build-cache))
-          build-targets-by-key
-          render-progress!
-          (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e))))))))))
+      (let [mapv-fn (progress/make-mapv render-progress!
+                                        (fn [[key build-target]]
+                                          (str "Building " (resource/resource->proj-path (:resource build-target)))))]
+        (pipeline/build basis build-targets build-cache mapv-fn)))))
 
 (defn- prune-fs [files-on-disk built-files]
   (let [files-on-disk (reverse files-on-disk)
@@ -639,7 +594,7 @@
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project :workspace workspace-id :build-cache (atom {}) :fs-build-cache (atom {})]]
+                            [project [Project :workspace workspace-id :build-cache (pipeline/make-build-cache) :fs-build-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
                             (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
