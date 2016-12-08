@@ -39,16 +39,15 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/linux/libtexc_shared.so lib/x86-linux/
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/win32/texc_shared.dll lib/x86-win32/texc_shared.dll
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/win32/PVRTexLib.dll lib/x86-win32/PVRTexLib.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/PVRTexLib.dll lib/x86_64-win32/PVRTexLib.dll
-
 
 cp -v $DYNAMO_HOME/ext/lib/win32/OpenAL32.dll lib/x86-win32/OpenAL32.dll
 cp -v $DYNAMO_HOME/ext/lib/win32/wrap_oal.dll lib/x86-win32/wrap_oal.dll
+cp -v $DYNAMO_HOME/ext/lib/win32/PVRTexLib.dll lib/x86-win32/PVRTexLib.dll
 
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/OpenAL32.dll lib/x86_64-win32/OpenAL32.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.dll
+cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/PVRTexLib.dll lib/x86_64-win32/PVRTexLib.dll
 
 
 rm -rf tmp
