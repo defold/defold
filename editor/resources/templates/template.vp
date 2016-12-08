@@ -8,7 +8,7 @@ varying mediump vec2 var_texcoord0;
 
 void main()
 {
-    mediump mat4 mvp = view_proj * world;
-    gl_Position = mvp * vec4(position.xyz, 1.0);
-    var_texcoord0 = texcoord0;
+	mediump mat4 mvp = view_proj * world;
+	gl_Position = mvp * vec4(position.xyz, 1.0);
+	var_texcoord0 = texcoord0;
 }
