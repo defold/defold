@@ -1,4 +1,3 @@
-#include <setjmp.h>
 #include <stdlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -28,22 +27,11 @@ class LuaTableTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        accept_panic = false;
         g_LuaTableTest = this;
         m_Context = dmScript::NewContext(0, 0);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
-        lua_atpanic(L, &AtPanic);
         top = lua_gettop(L);
-    }
-
-    static int AtPanic(lua_State *L)
-    {
-        if (g_LuaTableTest->accept_panic)
-            longjmp(g_LuaTableTest->env, 1);
-        dmLogError("Unexpected error: %s", lua_tostring(L, -1));
-        exit(5);
-        return 0;
     }
 
     virtual void TearDown()
@@ -57,8 +45,6 @@ protected:
 
     char DM_ALIGNED(16) m_Buf[256];
 
-    bool accept_panic;
-    jmp_buf env;
     int top;
     dmScript::HContext m_Context;
     lua_State* L;
@@ -299,6 +285,35 @@ TEST_F(LuaTableTest, IndexOutOfBounds)
     lua_pop(L, 1);
 }
 
+static int LuaCheckTable(lua_State* L) {
+  int index = 1;
+  char* buf = (char*) lua_topointer(L, 2);
+  int buffer_size = (int) lua_tonumber(L, 3);
+  dmScript::CheckTable(L, buf, buffer_size, index);
+  return 0;
+}
+
+#define abs_index(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : \
+			 lua_gettop(L) + (i) + 1)
+
+static int PCallCheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
+{
+  index = abs_index(L, index);
+
+  int oldtop = lua_gettop(L);
+  lua_pushcfunction(L, LuaCheckTable);
+  lua_pushvalue(L, index); // add table again...
+  lua_pushlightuserdata(L, buffer);
+  lua_pushnumber(L, buffer_size);
+  int result = lua_pcall(L, 3, 0, 0);
+  if (result != 0) {
+    printf("error %s\n", lua_tostring(L, oldtop + 1));
+    lua_pop(L, 1);
+  }
+  assert(lua_gettop(L) == oldtop);
+  return result;
+}
+
 TEST_F(LuaTableTest, Table01)
 {
     // Create table
@@ -334,18 +349,11 @@ TEST_F(LuaTableTest, Table01)
     lua_pushinteger(L, 456);
     lua_setfield(L, -2, "b");
 
-    int ret = setjmp(env);
-    if (ret == 0)
-    {
-        // buffer_user - 1, expect error
-        accept_panic = true;
-        dmScript::CheckTable(L, m_Buf, buffer_used-1, -1);
-        ASSERT_TRUE(0); // Never reached due to error
-    }
-    else
-    {
-        lua_pop(L, 1);
-    }
+    int result = PCallCheckTable(L, m_Buf, buffer_used-1, -1);
+
+    ASSERT_NE(result, 0);
+
+    lua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, Table02)
@@ -384,18 +392,11 @@ TEST_F(LuaTableTest, Table02)
     lua_pushstring(L, "kalle");
     lua_setfield(L, -2, "foo2");
 
-    int ret = setjmp(env);
-    if (ret == 0)
-    {
-        // buffer_user - 1, expect error
-        accept_panic = true;
-        dmScript::CheckTable(L, m_Buf, buffer_used-1, -1);
-        ASSERT_TRUE(0); // Never reached due to error
-    }
-    else
-    {
-        lua_pop(L, 1);
-    }
+    int result = PCallCheckTable(L, m_Buf, buffer_used-1, -1);
+
+    ASSERT_NE(result, 0);
+
+    lua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, case1308)
@@ -667,26 +668,10 @@ static void RandomString(char* s, int max_len)
 #error "Unsupported compiler: cannot specify 'noinline'."
 #endif
 
-//This is a helper function for working around an emscripten bug. See comment in the test "LuaTableTest Stress"
-NO_INLINE void wrapSetJmp(lua_State *L, jmp_buf &env, char *buf, int buf_size){
-    int ret = setjmp(env);
-    if (ret == 0)
-    {
-        uint32_t buffer_used = dmScript::CheckTable(L, buf, buf_size, -1);
-        (void) buffer_used;
-
-
-        dmScript::PushTable(L, buf);
-        lua_pop(L, 1);
-    }
-}
-
 #undef NO_INLINE
 
 TEST_F(LuaTableTest, Stress)
 {
-    accept_panic = true;
-
     for (int iter = 0; iter < 100; ++iter)
     {
         for (int buf_size = 0; buf_size < 256; ++buf_size)
@@ -728,14 +713,14 @@ TEST_F(LuaTableTest, Stress)
             // Add eight to ensure there is room for the header too.
             char* buf = new char[8 + buf_size];
 
-            // Emscripten fastcomp does not support calling setjmp over and over like in this loop.
-            // It requires the function calling setjump not to call setjmp more than 10 times before returning.
-            // See emscripten bug https://github.com/kripken/emscripten/issues/2379
-            // According on the comments of the task, this seems to be solved in 1.21.1 of emscripten.
-            // As soon as that appears in emsdk list, we should upgrade and remove this work around.
-            wrapSetJmp(L, env, buf, buf_size);
-            lua_pop(L, 1);
+	    int result = PCallCheckTable(L, buf, buf_size, -1);
 
+	    if (result == 0) {
+	      dmScript::PushTable(L, buf);
+	      lua_pop(L, 1);
+	    }
+	    
+            lua_pop(L, 1);
             delete[] buf;
         }
     }

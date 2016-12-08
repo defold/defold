@@ -504,11 +504,10 @@ public class RigUtil {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         for (int i = 0; i < v0.length; ++i) {
-            double v = t;
             if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
-                v = evalCurve(curve, t);
+                t = evalCurve(curve, t);
             }
-            v = (1.0 - t) * v0[i] + t * v1[i];
+            double v = (1.0 - t) * v0[i] + t * v1[i];
             builder.add(v);
         }
     }
