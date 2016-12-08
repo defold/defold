@@ -1,8 +1,12 @@
 components {
-  id: "sprite"
+  id: "sprite_1_1"
   component: "/resource/sprite.sprite"
 }
 components {
-  id: "script"
-  component: "/resource/sprite.script"
+  id: "sprite_1_2"
+  component: "/resource/sprite.sprite"
+}
+components {
+  id: "sprite_2"
+  component: "/resource/sprite_alt.sprite"
 }
