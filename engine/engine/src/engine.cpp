@@ -528,7 +528,7 @@ namespace dmEngine
 
         if(win_pos_x != -1 && win_pos_y != -1)
         {
-            dmLogInfo("Setting window pos, x: %i, y: %i", win_pos_x, win_pos_y);
+            dmLogInfo("Setting window pos, x: %i, y: %i ", win_pos_x, win_pos_y);
             dmGraphics::SetWindowPosition(engine->m_GraphicsContext, win_pos_x, win_pos_y);
         }
 
