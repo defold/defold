@@ -81,8 +81,7 @@
                         (map (fn [{:keys [content] :as hit}]
                                (assoc hit :matches (take 10 (find-matches pattern content)))))
                         (filter #(seq (:matches %))))]
-        (doseq [entry (sequence xform (deref filtered-save-data-future))]
-          (produce-fn entry))
+        (run! produce-fn (sequence xform (deref filtered-save-data-future)))
         (produce-fn ::done))
       (catch InterruptedException _
         ; future-cancel was invoked from another thread.
