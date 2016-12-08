@@ -797,7 +797,7 @@ static GLboolean createWindow( int width, int height,
 
         if( !wndconfig->windowDecorated )
         {
-            wa.override_redirect = true; // https://tronche.com/gui/x/xlib/window/attributes/
+            wa.override_redirect = 1; // https://tronche.com/gui/x/xlib/window/attributes/
         }
 
         if( wndconfig->mode == GLFW_WINDOW )
