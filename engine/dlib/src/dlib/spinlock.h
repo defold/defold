@@ -74,6 +74,35 @@ namespace dmSpinlock
         *lock = 0;
     }
 }
+#elif defined(_MSC_VER) && defined(_M_X64)
+#include "safe_windows.h"
+namespace dmSpinlock
+{
+  typedef __declspec(align(8)) volatile LONGLONG  lock_t;
+
+  static inline void Init(lock_t* lock)
+  {
+    /*
+     * "Simple reads and writes to properly aligned 64-bit variables are atomic on 64-bit Windows"
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684122(v=vs.85).aspx
+     */
+    
+    *lock = 0LL;
+  }
+
+  static inline void Lock(lock_t* lock)
+  {
+    while (InterlockedCompareExchange64(lock, 1LL, 0LL) != 0LL)
+    {
+      
+    }
+  }
+
+  static inline void Unlock(lock_t* lock)
+  {
+    *lock = 0LL;
+  }
+}
 #elif defined(ANDROID)
 namespace dmSpinlock
 {

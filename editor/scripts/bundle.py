@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import stat
 import glob
 import sys
 import json
@@ -71,7 +72,7 @@ def download(url, use_cache = True):
 
 def exec_command(args):
     print('[EXEC] %s' % args)
-    process = subprocess.Popen(args, shell = True)
+    process = subprocess.Popen(args, shell = False)
     output = process.communicate()[0]
     if process.returncode != 0:
         print(output)
@@ -100,9 +101,19 @@ def git_sha1(ref = 'HEAD'):
         sys.exit(process.returncode)
     return out.strip()
 
+def remove_readonly_retry(function, path, excinfo):
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        function(path)
+    except Exception as e:
+        print("Failed to remove %s, error %s" % (path, e))
+
+def rmtree(path):
+    if os.path.exists(path):
+        shutil.rmtree(path, onerror=remove_readonly_retry)
+
 def bundle(platform, jar_file, options):
-    if os.path.exists('tmp'):
-        shutil.rmtree('tmp')
+    rmtree('tmp')
 
     jre_minor = 102
     ext = 'tar.gz'
@@ -166,10 +177,10 @@ def bundle(platform, jar_file, options):
     shutil.copy('target/editor/update/%s' % jar_file, '%s/%s' % (packages_dir, jar_file))
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
     if not 'win32' in platform:
-        exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
+        exec_command(['chmod', '+x', '%s/Defold%s' % (exe_dir, exe_suffix)])
 
     if 'win32' in platform:
-        exec_command('java -cp target/classes com.defold.util.IconExe %s/Defold%s bundle-resources/logo.ico' % (exe_dir, exe_suffix))
+        exec_command(['java', '-cp', 'target/classes', 'com.defold.util.IconExe', '%s/Defold%s' % (exe_dir, exe_suffix), 'bundle-resources/logo.ico'])
 
     extract(jre, 'tmp')
     print 'Creating bundle'
@@ -222,17 +233,18 @@ if __name__ == '__main__':
     options.git_sha1 = git_sha1(options.git_rev)
     print 'Using git rev=%s, sha1=%s' % (options.git_rev, options.git_sha1)
 
-    if os.path.exists('target/editor'):
-        shutil.rmtree('target/editor')
+    rmtree('target/editor')
 
     print 'Building editor'
-    exec_command('bash ./scripts/lein clean')
-    if options.pack_local:
-        exec_command('bash ./scripts/lein with-profile +release pack')
-    else:
-        exec_command('bash ./scripts/lein with-profile +release pack %s' % options.git_sha1)
 
-    exec_command('bash ./scripts/lein with-profile +release uberjar')
+    exec_command(['bash', './scripts/lein', 'clean'])
+
+    if options.pack_local:
+        exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'pack'])
+    else:
+        exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'pack', options.git_sha1])
+
+    exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
     jar_file = 'defold-%s.jar' % options.git_sha1
 
