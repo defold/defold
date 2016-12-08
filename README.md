@@ -23,7 +23,7 @@ For Eclipse:
     >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential
 
 * Windows:
-    - [Visual C++ 2010 Express](https://drive.google.com/open?id=0BxFxQdv6jzseVG5ELWNRUVB5bnM)
+    - [Visual C++ 2015 Express](https://drive.google.com/open?id=0BxFxQdv6jzseVG5ELWNRUVB5bnM)
 
         Newer versions have not been properly tested and might not be recognized by waf.  
 
