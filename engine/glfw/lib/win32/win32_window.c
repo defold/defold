@@ -1177,12 +1177,12 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
         if( wndconfig->windowDecorated )
         {
             dwStyle |= WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-        }
 
-        if( !wndconfig->windowNoResize )
-        {
-            dwStyle |= ( WS_MAXIMIZEBOX | WS_SIZEBOX );
-            dwExStyle |= WS_EX_WINDOWEDGE;
+            if( !wndconfig->windowNoResize )
+            {
+                dwStyle |= ( WS_MAXIMIZEBOX | WS_SIZEBOX );
+                dwExStyle |= WS_EX_WINDOWEDGE;
+            }
         }
     }
 
