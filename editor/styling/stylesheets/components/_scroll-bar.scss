@@ -1,6 +1,8 @@
 .scroll-bar {
     -fx-background-color: $dark-grey-light;
     &:horizontal {
+        -fx-background-insets: 0px -1px -1px -1px;
+        //-fx-padding: 2px -1px -1px -1px;
         >.thumb {
             -fx-background-insets: 2px 5px 3px 5px;
         }

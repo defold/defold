@@ -3,16 +3,16 @@
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
     -fx-padding: 5px 8px;
-    -fx-background-color: $dark-grey-header;
-    -fx-border-width: 0 0 1 0;
-    -fx-border-color: $dark-grey-header;
+    -fx-background-color: $input-field-background;//$dark-black;//$dark-grey;//$dark-grey-header;
+    -fx-border-width: 0 0 2 0;
+    -fx-border-color: transparent;//$dark-grey-header;
     -fx-text-fill: $defold-white;
     -fx-prompt-text-fill: $bright-grey-light;
     &:hover {
-        //-fx-border-color: $dark-grey-border;
+        
     }
     &:focused {
-        -fx-background-color: $dark-grey;//$dark-grey-selected;
+        -fx-background-color: $root-background;
         -fx-border-color: $defold-orange;
         -fx-text-fill: $defold-white;
     }

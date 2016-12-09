@@ -1,7 +1,7 @@
 .color-picker {
     -fx-background-radius: 0;
     -fx-border-radius: 0;
-    -fx-background-color: $dark-grey-header;
+    -fx-background-color: $input-field-background;
     -fx-background-insets: 0;
     -fx-border-width: 0;
     &:hover {
@@ -24,7 +24,7 @@
         -fx-background-insets: 0;
         -fx-background-color: $mid-grey-light;
         &:hover {
-            -fx-background-color: $dark-grey;
+            -fx-background-color: $grey;
         }
     }
 }
@@ -32,4 +32,5 @@
   -fx-background-radius: 3;
   -fx-border-radius: 3;
   -fx-border-color: $mid-grey;
-  -fx-background-color: $dark-grey; }
+  -fx-background-color: $input-field-background//$dark-grey;
+}
