@@ -1,15 +1,42 @@
+@mixin colorize-image-view($color) {
+	-fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0);
+}
+
 @mixin effect-lighten() {
-	-fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0);
+	@include colorize-image-view($defold-white);
 }
 
 @mixin effect-lighten-blue() {
-	-fx-effect: innershadow(gaussian, $defold-light-blue, 20, 0.3, 0, 0);
+	@include colorize-image-view($defold-light-blue);
 }
 
 @mixin effect-icon-grey() {
-	-fx-effect: innershadow(gaussian, $tree-view-icon, 20, 0.3, 0, 0);
+	@include colorize-image-view($tree-view-icon);
 }
 
 @mixin effect-bright-grey() {
-	-fx-effect: innershadow(gaussian, $bright-grey, 20, 0.3, 0, 0);
+	@include colorize-image-view($bright-grey);
 }
+
+
+/*
+@mixin colorize-image-view($color) {
+  .image-view { -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0); }
+}
+
+@mixin effect-lighten() {
+	@include colorize-image-view($defold-white);
+}
+
+@mixin effect-lighten-blue() {
+	@include colorize-image-view($defold-light-blue);
+}
+
+@mixin effect-icon-grey() {
+	@include colorize-image-view($tree-view-icon);
+}
+
+@mixin effect-bright-grey() {
+	@include colorize-image-view($bright-grey);
+}
+*/

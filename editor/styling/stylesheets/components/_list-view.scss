@@ -3,7 +3,7 @@
     -fx-background-insets: 0;
     .list-cell {
         -fx-background-color: $dark-grey-light;
-        -fx-font-weight: bold;
+        -fx-font-weight: normal;//bold;
         -fx-padding: 5;
         -fx-border-width: 0 0 0 2;
         -fx-border-color: transparent;

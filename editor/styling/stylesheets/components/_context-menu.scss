@@ -1,22 +1,155 @@
 .context-menu {
-    -fx-background-radius: 4px;
-    -fx-border-radius: 4px;
-    -fx-border-width: 1;
-    -fx-border-color: $mid-grey;
+    /* DARK CONTEXT MENU
+
+    -fx-background-radius: 0px;
+    -fx-border-radius: 0px;
+    -fx-background-color: $dark-black;
+    -fx-border-width: 0;
     -fx-padding: 0;
     -fx-text-fill: $mid-grey;
     .scroll-arrow {
         .menu-down-arrow, .menu-up-arrow {
             -fx-fill: $defold-white;
-            -fx-background-color: $defold-white; }
+            -fx-background-color: $defold-white; 
+        }
+    }
+    .menu-item {
+        -fx-background-color: $dark-black;
+        -fx-border-width: 0 0 0 2;
+        -fx-border-color: transparent;
+        &:hover {
+            -fx-background-color: $grey;
+        }
+        &:focused {
+            -fx-border-color: $defold-orange;
+            -fx-background-color: $grey;
+            .image-view {
+                @include effect-lighten-blue();
+            }
+        }
     }
     .first-menu-item {
-        -fx-background-radius: 3 3 0 0;
-        -fx-border-radius: 3 3 0 0;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
     }
     .last-menu-item {
-        -fx-background-radius: 0 0 3 3;
-        -fx-border-radius: 0 0 3 3;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+    }
+    .separator {
+        &:horizontal {
+            -fx-padding: 0;
+            -fx-min-height: 0; 
+            .line {
+                -fx-border-color: $mid-grey;
+                -fx-border-insets: 0;
+                -fx-border-width: 1 0 0; 
+            }
+        }
+    }*/
+
+    /* BRIGHT CONTEXT MENUs
+    
+    -fx-background-radius: 0px;
+    -fx-border-radius: 0px;
+    -fx-background-color: $bright-grey; //
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-text-fill: $dark-grey-selected;
+    .scroll-arrow {
+        .menu-down-arrow, .menu-up-arrow {
+            -fx-fill: $mid-grey;
+            -fx-background-color: $defold-white; 
+        }
+    }
+    .menu-item {
+        -fx-background-color: $bright-grey;
+        -fx-border-width: 0 0 0 2;
+        -fx-border-color: transparent;
+        .label {
+            -fx-text-fill: $dark-grey-selected;
+        }
+        .image-view {
+            @include colorize-image-view($dark-grey-selected);
+        }
+        &:hover {
+            -fx-background-color: $defold-white;
+        }
+        &:focused {
+            -fx-border-color: $defold-orange;
+            -fx-background-color: $defold-white;
+            .image-view {
+                @include effect-lighten-blue();
+            }
+        }
+    }
+    .first-menu-item {
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+    }
+    .last-menu-item {
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+    }
+    .separator {
+        &:horizontal {
+            -fx-padding: 0;
+            -fx-min-height: 0; 
+            .line {
+                -fx-border-color: $mid-grey;
+                -fx-border-insets: 0;
+                -fx-border-width: 1 0 0; 
+            }
+        }
+    }*/
+
+    // ROBERT CONTEXT MENU
+    -fx-background-radius: 0px;
+    -fx-border-radius: 0px;
+    -fx-background-color: $grey; //
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-text-fill: $defold-white;
+    .scroll-arrow {
+        .menu-down-arrow, .menu-up-arrow {
+            -fx-fill: $mid-grey;
+            -fx-background-color: $defold-white; 
+        }
+    }
+    .menu-item {
+        -fx-background-color: $grey;
+        -fx-border-width: 0 0 0 2;
+        -fx-border-color: transparent;
+        .label {
+            -fx-text-fill: $bright-grey-light;
+        }
+        .image-view {
+            @include colorize-image-view($bright-grey-light);
+        }
+        &:hover {
+            -fx-background-color: $dark-grey-selected;//$defold-white;
+            .label {
+                -fx-text-fill: $defold-white;//$grey;
+            }
+        }
+        &:focused {
+            -fx-border-color: $defold-orange;
+            -fx-background-color: $dark-grey-selected;//$defold-white;
+            .image-view {
+                @include effect-lighten-blue();
+            }
+            .label {
+                -fx-text-fill: $defold-white;//$grey;
+            }
+        }
+    }
+    .first-menu-item {
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+    }
+    .last-menu-item {
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
     }
     .separator {
         &:horizontal {
