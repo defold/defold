@@ -1,20 +1,19 @@
 .button {
-  -fx-background-radius: 0;
-  -fx-border-radius: 0;
+  -fx-background-radius: 5;
+  -fx-border-radius: 4;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
   -fx-background-color: $mid-grey;
   -fx-background-insets: 0;
-  -fx-border-color: $mid-grey-light;
-  -fx-border-width: 0;
-  -fx-text-fill: $defold-white;
+  -fx-border-color: rgba($dark-grey, 0.8);
+  -fx-border-width: 1;
+  -fx-text-fill: rgba($defold-white, 0.8);
   -fx-font-size: 12px;
   &:hover {
-    -fx-background-color: $grey;
+    -fx-background-color: $mid-grey-light;
   }
   &:armed {
-    -fx-background-color: $dark-grey-header;
-    -fx-border-color: $defold-white;
+    -fx-background-color: $input-field-background;
   }
   &.low-prio {
     -fx-background-color: $dark-grey;
@@ -34,7 +33,7 @@
 
 .button-small {
 	@extend .button;
-	-fx-padding: 4px 22px;
+	-fx-padding: 2px 17px;//4px 22px;
 	-fx-min-width: 0px;
 }
 
