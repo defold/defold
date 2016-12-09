@@ -52,6 +52,63 @@ public class ArchiveBuilder {
         entries.add(e);
     }
 
+    public ArchiveEntry getArchiveEntry(int index) {
+        return this.entries.get(index);
+    }
+
+    public int getArchiveEntrySize() {
+        return this.entries.size();
+    }
+
+    public byte[] loadResourceData(String filepath) throws IOException {
+        File fhandle = new File(filepath);
+        return FileUtils.readFileToByteArray(fhandle);
+    }
+
+    public byte[] compressResourceData(byte[] buffer) {
+        int maximumCompressedSize = lz4Compressor.maxCompressedLength(buffer.length);
+        byte[] compressedContent = new byte[maximumCompressedSize];
+        int compressedSize = lz4Compressor.compress(buffer, compressedContent);
+        return Arrays.copyOfRange(compressedContent, 0, compressedSize);
+    }
+
+    public boolean shouldUseCompressedResourceData(byte[] original, byte[] compressed) {
+        double ratio = (double) compressed.length / (double) original.length;
+        return ratio <= 0.95;
+    }
+
+    public byte[] encryptResourceData(byte[] buffer) {
+        return Crypt.encryptCTR(buffer, KEY);
+    }
+
+    public void writeResourcePack(String filename, String directory, byte[] buffer) throws IOException {
+        FileOutputStream outputStream = null;
+        try {
+            File fhandle = new File(directory, filename);
+            if (!fhandle.exists()) {
+                outputStream = new FileOutputStream(fhandle);
+                outputStream.write(buffer);
+            }
+        } finally {
+            IOUtils.closeQuietly(outputStream);
+        }
+    }
+
+    public boolean excludeResource(String filepath, List<String> excludedResources) {
+        if (this.manifestBuilder != null) {
+            List<String> parentFilepaths = this.manifestBuilder.getParentFilepath(filepath);
+            for (String parentFilepath : parentFilepaths) {
+                for (String excludedResource : excludedResources) {
+                    if (parentFilepath.equals(excludedResource)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
     private int compress(String fileName, int fileSize, RandomAccessFile outFile) throws IOException {
         // Read source data
         byte[] tmp_buf = FileUtils.readFileToByteArray(new File(fileName));
@@ -215,44 +272,8 @@ public class ArchiveBuilder {
         // EntryOffset
         outFile.writeInt(entryOffset);
     }
-    
-    private void WriteToManifest(ManifestBuilder manifestBuilder, ArchiveEntry e, Path resourcePackDirectory) throws IOException {
-        int size = (e.compressedSize == ArchiveEntry.FLAG_UNCOMPRESSED) ? e.size : e.compressedSize;
-        byte[] buffer = new byte[size];
-        e.hash = new byte[HASH_MAX_LENGTH];
-        String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
-        manifestBuilder.addResourceEntry(normalisedPath, buffer);
 
-        // Write the entry to the Resource pack directory
-        byte[] hashDigest;
-        try {
-            hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
-            for (int j = 0; j < hashDigest.length; j++) {
-                e.hash[j] = hashDigest[j];
-            }
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
-        }
-        String filename = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
-        FileOutputStream outputStream = null;
-        try {
-            File fhandle = new File(resourcePackDirectory.toString(), filename);
-            if (!fhandle.exists()) {
-                outputStream = new FileOutputStream(fhandle);
-                outputStream.write(buffer);
-            }
-        } finally {
-            if (outputStream != null) {
-                try {
-                    outputStream.close();
-                } catch (IOException exception) {
-                    // There's nothing we can do at this point
-                }
-            }
-        }
-    }
-    
-    public void write2(RandomAccessFile outFileIndex, RandomAccessFile outFileData, Path resourcePackDirectory) throws IOException {
+    public void write2(RandomAccessFile outFileIndex, RandomAccessFile outFileData, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
         // INDEX
         outFileIndex.writeInt(VERSION); // Version
         outFileIndex.writeInt(0); // Pad
@@ -262,58 +283,80 @@ public class ArchiveBuilder {
         outFileIndex.writeInt(0); // HashOffset
         outFileIndex.writeInt(HASH_LENGTH); // HashLength
 
-        int entryCount = entries.size();
-        
-        // Write to data file
-        for (ArchiveEntry e : entries) {
-            // copy resource data to file (compress if flag set)
-            alignBuffer(outFileData, 4);
-            e.resourceOffset = (int) outFileData.getFilePointer();
-            if(e.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
-                e.compressedSize = compress(e.fileName, e.size, outFileData);
+        for (int i = entries.size() - 1; i >= 0; --i) {
+            ArchiveEntry entry = entries.get(i);
+            byte[] buffer = this.loadResourceData(entry.fileName);
+
+            // Compress data
+            byte[] compressed = this.compressResourceData(buffer);
+            if (this.shouldUseCompressedResourceData(buffer, compressed)) {
+                buffer = compressed;
+                entry.compressedSize = compressed.length;
             } else {
-                copy(e.fileName, outFileData);
+                entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
             }
-            
-            if(manifestBuilder != null) {
-            	WriteToManifest(manifestBuilder, e, resourcePackDirectory);
+
+            // Encrypt data
+            String extension = FilenameUtils.getExtension(entry.fileName);
+            if (ENCRYPTED_EXTS.indexOf(extension) != -1) {
+                entry.flags = ArchiveEntry.FLAG_ENCRYPTED;
+                buffer = this.encryptResourceData(buffer);
+            }
+
+            // Write entry to manifest
+            String normalisedPath = FilenameUtils.separatorsToUnix(entry.relName);
+            manifestBuilder.addResourceEntry(normalisedPath, buffer);
+
+            // Calculate hash values for resource
+            String hexDigest = null;
+            try {
+                byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+                entry.hash = new byte[HASH_MAX_LENGTH];
+                System.arraycopy(hashDigest, 0, entry.hash, 0, hashDigest.length);
+                hexDigest = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
+            } catch (NoSuchAlgorithmException exception) {
+                throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
+            }
+
+            // Write resource to resourcepack
+            this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer);
+
+            // Write resource to data archive
+            if (this.excludeResource(normalisedPath, excludedResources)) {
+                entries.remove(i);
+            } else {
+                alignBuffer(outFileData, 4);
+                entry.resourceOffset = (int) outFileData.getFilePointer();
+                outFileData.write(buffer, 0, buffer.length);
             }
         }
-        
-        // Write hashes to index file
-        int hashOffset = (int) outFileIndex.getFilePointer();
-        
-        // sort on hash
-        Collections.sort(entries);
 
         // Write sorted hashes to index file
-        for(ArchiveEntry e : entries) {
-        	outFileIndex.write(e.hash);
+        Collections.sort(entries);
+        int hashOffset = (int) outFileIndex.getFilePointer();
+        for(ArchiveEntry entry : entries) {
+            outFileIndex.write(entry.hash);
         }
 
-        // Write entries (now sorted on hash) to index file
+        // Write sorted entries to index file
         int entryOffset = (int) outFileIndex.getFilePointer();
         alignBuffer(outFileIndex, 4);
-        for (ArchiveEntry e : entries) {
-            outFileIndex.writeInt(e.resourceOffset);
-            outFileIndex.writeInt(e.size);
-            outFileIndex.writeInt(e.compressedSize);
-            String ext = FilenameUtils.getExtension(e.fileName);
-            if (ENCRYPTED_EXTS.indexOf(ext) != -1) {
-                e.flags = ArchiveEntry.FLAG_ENCRYPTED;
-            }
-            outFileIndex.writeInt(e.flags);
+        for (ArchiveEntry entry : entries) {
+            outFileIndex.writeInt(entry.resourceOffset);
+            outFileIndex.writeInt(entry.size);
+            outFileIndex.writeInt(entry.compressedSize);
+            outFileIndex.writeInt(entry.flags);
         }
 
-        // INDEX
-        outFileIndex.seek(0); // Reset file and write actual offsets
+        // Update index header with offsets.
+        outFileIndex.seek(0);
         outFileIndex.writeInt(VERSION);
         outFileIndex.writeInt(0); // Pad
         outFileIndex.writeLong(0); // UserData
-        outFileIndex.writeInt(entryCount);
+        outFileIndex.writeInt(entries.size());
         outFileIndex.writeInt(entryOffset);
         outFileIndex.writeInt(hashOffset);
-        outFileIndex.writeInt(HASH_LENGTH); 
+        outFileIndex.writeInt(HASH_LENGTH);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
