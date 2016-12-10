@@ -48,8 +48,8 @@
         }
     }
     .arrow-button {
-        -fx-background-radius: 0 4px 4px 0;
-        -fx-border-radius: 0 4px 4px 0;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
         -fx-background-insets: 0;
         -fx-background-color: $mid-grey !important;
         -fx-border-width: 0;
@@ -60,7 +60,7 @@
             -fx-background-insets: 0;
         }
         &:pressed, &:focused {
-            -fx-background-color: $input-field-background;
+            -fx-background-color: $input-background;
             -fx-text-fill: $defold-white;
         }
     }

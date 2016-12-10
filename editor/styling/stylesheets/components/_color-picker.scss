@@ -1,12 +1,9 @@
 .color-picker {
     -fx-background-radius: 0;
     -fx-border-radius: 0;
-    -fx-background-color: $input-field-background;
+    -fx-background-color: $input-background;
     -fx-background-insets: 0;
     -fx-border-width: 0;
-    &:hover {
-        -fx-background-color: $dark-grey;
-    }
     &:showing {
         -fx-background-color: $dark-grey;
         -fx-color: $defold-white;
@@ -22,9 +19,12 @@
         -fx-border-radius: 0;
         -fx-border-width: 0;
         -fx-background-insets: 0;
-        -fx-background-color: $mid-grey-light;
+        -fx-background-color: $mid-grey;
         &:hover {
-            -fx-background-color: $grey;
+            -fx-background-color: $mid-grey-light;
+        }
+        &:armed, &:pressed {
+            -fx-background-color: $input-background;
         }
     }
 }
@@ -32,5 +32,5 @@
   -fx-background-radius: 3;
   -fx-border-radius: 3;
   -fx-border-color: $mid-grey;
-  -fx-background-color: $input-field-background//$dark-grey;
+  -fx-background-color: $input-background
 }
