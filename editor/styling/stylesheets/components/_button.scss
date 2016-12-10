@@ -13,7 +13,7 @@
     -fx-background-color: $mid-grey-light;
   }
   &:armed {
-    -fx-background-color: $input-field-background;
+    -fx-background-color: $input-background;
   }
   &.low-prio {
     -fx-background-color: $dark-grey;

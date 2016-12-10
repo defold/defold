@@ -1,14 +1,11 @@
 .choice-box {
     -fx-background-radius: 0;
     -fx-border-radius: 0;
-    -fx-background-color: $dark-grey;//$dark-grey-header;
+    -fx-background-color: $input-background;
     -fx-background-insets: 0;
     -fx-border-color: $mid-grey;
     -fx-border-width: 0;
     -fx-padding: 0;
-    &:hover {
-        -fx-background-color: $dark-grey;
-    }
     &:showing {
         -fx-background-color: $dark-grey;
         -fx-color: $defold-white;
@@ -20,6 +17,15 @@
         -fx-text-fill: -fx-text-background-color;
     }
     .open-button {
-        -fx-padding: 6 4;
+        -fx-padding: 10 7 !important;
+        -fx-background-color: $mid-grey;
+        &:hover {
+            -fx-background-color: $mid-grey-light;
+            -fx-background-insets: 0;
+        }
+        &:pressed, &:focused {
+            -fx-background-color: $input-background;
+            -fx-text-fill: $defold-white;
+        }
     }
 }
