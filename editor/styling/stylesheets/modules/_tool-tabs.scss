@@ -20,7 +20,10 @@
         -fx-border-color: transparent;
         -fx-width: 50px;
         &:hover {
-            -fx-background-color: $grey;
+            -fx-background-color: $mid-grey-light;
+        }
+        &:armed {
+            -fx-background-color: $input-background;
         }
     }
     #prev-console {
@@ -30,20 +33,13 @@
         -fx-border-color: $dark-grey-light;
         &:hover {
             -fx-background-image: url('icons/left-arrow-on.png');
-        }
-        &:armed {
-            -fx-background-color: $dark-grey-header;
-        }
-        
+        }        
     }
     #next-console {
         @extend .console-buttons-base;
         -fx-background-image: url('icons/right-arrow.png');
         &:hover {
             -fx-background-image: url('icons/right-arrow-on.png');
-        }
-        &:armed {
-            -fx-background-color: $dark-grey-header;
         }
     }
     .list-view {
