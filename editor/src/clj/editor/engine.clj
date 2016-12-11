@@ -89,22 +89,25 @@
         parent (workspace/resolve-workspace-resource workspace parent-path)]
     parent))
 
-(defn- do-launch [path launch-dir]
+(defn- do-launch [path launch-dir prefs]
   (let [pb (doto (ProcessBuilder. ^java.util.List (list path))
              (.redirectErrorStream true)
              (.directory launch-dir))]
+    (when (prefs/get-prefs prefs "general-quit-on-esc" false)
+      (doto (.environment pb)
+        (.put "DM_QUIT_ON_ESC" "1")))
     (let [p  (.start pb)
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-output is)))))))
 
-(defn- launch-bundled [launch-dir]
+(defn- launch-bundled [launch-dir prefs]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)]
-    (do-launch path launch-dir)))
+    (do-launch path launch-dir prefs)))
 
 ;; TODO - prototype for cloud-building
 ;; Should be re-written when we have the backend in place etc.
-(defn launch-compiled [workspace launch-dir]
+(defn launch-compiled [workspace launch-dir prefs]
   (let [server-url "http://localhost:9000"
         cc (DefaultClientConfig.)
         ; TODO: Random errors wihtout this... Don't understand why random!
@@ -134,7 +137,7 @@
             (do
               (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
               (.setExecutable f true)
-              (do-launch (.getPath f) launch-dir))
+              (do-launch (.getPath f) launch-dir prefs))
             (do
               (console/append-console-message! (str (.getEntity cr String) "\n"))))))
       (catch Throwable e
@@ -142,5 +145,5 @@
 
 (defn launch [prefs workspace launch-dir]
   (if (prefs/get-prefs prefs "enable-extensions" false)
-    (launch-compiled workspace launch-dir)
-    (launch-bundled launch-dir)))
+    (launch-compiled workspace launch-dir prefs)
+    (launch-bundled launch-dir prefs)))

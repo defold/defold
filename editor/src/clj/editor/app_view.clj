@@ -9,6 +9,7 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
+            [editor.defold-project-search :as project-search]
             [editor.github :as github]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -559,8 +560,8 @@
     (ui/register-toolbar (.getScene stage) "#toolbar" :toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
-    (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
-                          (ui/->timer 13 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
+    (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! stage project)))
+                          (ui/->timer 13 "refresh-views" (fn [_ dt] (refresh-views! app-view)))]]
       (doseq [timer refresh-timers]
         (ui/timer-stop-on-closed! stage timer)
         (ui/timer-start! timer)))
@@ -730,10 +731,7 @@
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
 (defn- make-search-in-files-dialog [workspace project app-view]
-  (let [[resource opts] (dialogs/make-search-in-files-dialog
-                         workspace
-                         (fn [exts term]
-                           (project/search-in-files project exts term)))]
+  (let [[resource opts] (dialogs/make-search-in-files-dialog project)]
     (when resource
       (open-resource app-view workspace project resource opts))))
 
