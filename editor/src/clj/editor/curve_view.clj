@@ -588,7 +588,7 @@
                            (ui/user-data! image-view ::view-id view-id)
                            (let [^Tab tab      (:tab opts)
                                  repainter     (ui/->timer "refresh-curve-view"
-                                                (fn [dt]
+                                                (fn [_ dt]
                                                   (when (.isSelected tab)
                                                     (update-image-view! image-view dt)
                                                     (g/node-value view-id :update-list-view))))]
