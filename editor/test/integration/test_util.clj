@@ -39,6 +39,7 @@
             [editor.material :as material]
             [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
+            [editor.view :as view]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
@@ -156,12 +157,13 @@
   (let [sel (g/node-value app-view :selected-node-ids)]
     (not (nil? (some #{tgt-node-id} sel)))))
 
+(g/defnode MockView
+  (inherits view/WorkbenchView))
+
 (g/defnode MockAppView
   (inherits app-view/AppView)
-  (property mock-active-resource resource/Resource)
-  (property mock-open-resources g/Any)
-  (output active-resource resource/Resource (g/fnk [mock-active-resource] mock-active-resource))
-  (output open-resources g/Any (g/fnk [mock-open-resources] mock-open-resources)))
+  (property active-view g/NodeID)
+  (output active-view g/NodeID (gu/passthrough active-view)))
 
 (defn make-view-graph! []
   (g/make-graph! :history false :volatility 2))
@@ -176,27 +178,45 @@
       g/tx-nodes-added
       first)))
 
-(defn open-tab! [project app-view path]
+(defn- make-tab! [project app-view path make-view-fn!]
   (let [node-id (project/get-resource-node project path)
+        views-by-node-id (let [views (g/node-value app-view :open-views)]
+                           (zipmap (map :resource-node (vals views)) (keys views)))
         resource (g/node-value node-id :resource)
-        open-resources (set (g/node-value app-view :open-resources))]
-    (if (contains? open-resources resource)
-      (g/set-property! app-view :mock-active-resource resource)
+        open-resources (set (g/node-value app-view :open-resources))
+        view (get views-by-node-id node-id)]
+    (if view
       (do
+        (g/set-property! app-view :active-view view)
+        [node-id view])
+      (let [view-graph (g/make-graph! :history false :volatility 2)
+            view (make-view-fn! view-graph node-id)]
         (g/transact
           (concat
-            (g/set-property app-view :mock-active-resource resource)
-            (g/update-property app-view :mock-open-resources (comp vec conj) resource)))
-        (app-view/select! app-view [node-id])))
-    node-id))
+            (g/connect node-id :node-id+resource view :node-id+resource)
+            (g/connect view :view-data app-view :open-views)
+            (g/set-property app-view :active-view view)))
+        (app-view/select! app-view [node-id])
+        [node-id view]))))
+
+(defn open-tab! [project app-view path]
+  (first
+    (make-tab! project app-view path (fn [view-graph resource-node]
+                                      (->> (g/make-node view-graph MockView)
+                                        g/transact
+                                        g/tx-nodes-added
+                                        first)))))
+
+(defn open-scene-view! [project app-view path width height]
+  (make-tab! project app-view path (fn [view-graph resource-node]
+                                     (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
-        resource (g/node-value node-id :resource)]
-    (g/transact
-      (concat
-        (g/update-property app-view :mock-active-resource (fn [res] (if (= res resource) nil res)))
-        (g/update-property app-view :mock-open-resources (fn [resources] (filterv #(not= resource %) resources)))))))
+        view (some (fn [[view-id {:keys [resource-node]}]]
+                     (when (= resource-node node-id) view-id)) (g/node-value app-view :open-views))]
+    (when view
+      (g/delete-graph! (g/node-id->graph-id view)))))
 
 (defn setup!
   ([graph]
@@ -209,12 +229,6 @@
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
-
-(defn open-scene-view! [project app-view path width height]
-  (let [resource-node (open-tab! project app-view path)
-        view-graph (g/make-graph! :history false :volatility 2)
-        view-id (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)]
-    [resource-node view-id]))
 
 (defn- fake-input!
   ([view type x y]

@@ -6,6 +6,7 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.view :as view]
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
             DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer DefoldStyledTextLayoutContainer]
@@ -399,6 +400,8 @@
   source-viewer))
 
 (g/defnode CodeView
+  (inherits view/WorkbenchView)
+
   (property source-viewer SourceViewer)
   (input code-node g/Int)
   (input code g/Str)
