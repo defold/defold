@@ -224,6 +224,60 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(FlipbookTest, CursorScript)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go1 = dmGameObject::Spawn(m_Collection, "/sprite/sprite_flipbook.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go1);
+
+    // Update one second at a time.
+    // The tilesource animation is one frame per second,
+    // will make it easier to predict the cursor.
+    m_UpdateContext.m_DT = 1.0f;
+
+    // 1st iteration:
+    // Show first frame of "anim" for all sprites
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // 2nd iteration:
+    // - Show second frame of "anim" for sprites with speed 1x
+    // - Show third frame of "anim" for sprites with speed 2x
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // 3rd iteration:
+    // - Show third frame of "anim" for sprites with speed 1x
+    // - Show last frame of "anim" for sprites with speed 2x
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // 4th iteration:
+    // - Show last frame of "anim" for all sprites, except pingpong sprite
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Only pingpong animation left
+    // 5th iteration:
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // 6th iteration:
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // 6th iteration:
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 
 TEST_F(WindowEventTest, Test)
 {

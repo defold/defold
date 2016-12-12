@@ -174,7 +174,7 @@ namespace dmGameSystem
             }
 
             if (component->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
-                    || component->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+             || component->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
                 frame_count = dmMath::Max(1u, frame_count * 2 - 2);
 
             component->m_AnimInvDuration = (float)animation->m_Fps / frame_count;

@@ -1,0 +1,76 @@
+local n_nocursor = "#sprite_nocursor"
+local n_speed1x = "#sprite_speed1x"
+local n_speed2x = "#sprite_speed2x"
+local n_offset = "#sprite_offset"
+local n_pingpong = "#sprite_pingpong"
+local frame = 0
+local expected_values = {}
+
+expected_values[n_nocursor] = {
+    0.00, -- first update
+    0.25, -- second update
+    0.50, -- third update
+    0.75, -- forth update
+    1.00, -- last update for forward/backward animations
+    1.00,
+    1.00,
+    1.00
+}
+
+expected_values[n_speed1x] = expected_values[n_nocursor] -- Same expected values as regular play_anim above
+
+expected_values[n_speed2x] = {
+    0.0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
+}
+
+-- The way we handle play_anim is still messages internally,
+-- which means that during the first update we don't "see" the cursor at 0.5.
+expected_values[n_offset] = {
+    0.5, 0.75, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
+}
+
+-- The flipbook animation is 4 frames, pingpong makes it twice as long,
+-- but the last and first frames are not repeated and should not be counted. Thus; 4*2-2
+local step = 1 / (4*2-2)
+expected_values[n_pingpong] = {}
+expected_values[n_pingpong][1] = step * 0
+expected_values[n_pingpong][2] = step * 1
+expected_values[n_pingpong][3] = step * 2
+expected_values[n_pingpong][4] = step * 3
+expected_values[n_pingpong][5] = step * 4
+expected_values[n_pingpong][6] = step * 5
+expected_values[n_pingpong][7] = step * 6
+expected_values[n_pingpong][8] = step * 7
+
+function init(self)
+    sprite.play_anim(n_nocursor, "anim")
+    sprite.play_anim(n_speed1x,  "anim", go.PLAYBACK_ONCE_FORWARD)
+    sprite.play_anim(n_speed2x,  "anim", go.PLAYBACK_ONCE_FORWARD, { playback_rate = 2.0 })
+    sprite.play_anim(n_offset,   "anim", go.PLAYBACK_ONCE_FORWARD, { playback_rate = 1.0, offset = 0.5 })
+    sprite.play_anim(n_pingpong, "anim", go.PLAYBACK_ONCE_PINGPONG)
+end
+
+function assert_epsilon(expected, actual, epsilon)
+    assert(math.abs(expected - actual) < epsilon)
+end
+
+function assert_cursor(comp_id)
+    local expected = expected_values[comp_id][frame]
+    local actual = go.get(comp_id, "cursor")
+    assert_epsilon(expected, actual, 0.00001)
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("check_assert") then
+        assert_cursor(n_nocursor)
+        assert_cursor(n_speed1x)
+        assert_cursor(n_speed2x)
+        assert_cursor(n_offset)
+        assert_cursor(n_pingpong)
+    end
+end
+
+function update(self, dt)
+    frame = frame + 1
+    msg.post(".", "check_assert")
+end
