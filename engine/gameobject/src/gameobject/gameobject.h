@@ -1219,7 +1219,8 @@ namespace dmGameObject
         PLAYBACK_LOOP_FORWARD  = 4,
         PLAYBACK_LOOP_BACKWARD = 5,
         PLAYBACK_LOOP_PINGPONG = 6,
-        PLAYBACK_COUNT = 7,
+        PLAYBACK_DEFAULT       = 7,
+        PLAYBACK_COUNT = 8,
     };
 
     PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,

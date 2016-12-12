@@ -8,10 +8,13 @@
 #include <script/script.h>
 
 #include "gamesys.h"
-#include "gamesys_ddf.h"
 #include "../gamesys_private.h"
 
 #include "script_sprite.h"
+
+#include "tile_ddf.h"
+#include "sprite_ddf.h"
+#include "gamesys_ddf.h"
 
 extern "C"
 {
@@ -254,6 +257,68 @@ namespace dmGameSystem
         return 0;
     }
 
+    int SpriteComp_PlayAnim(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
+
+        uint32_t playback = dmGameSystemDDF::PLAYBACK_DEFAULT;
+        bool has_playback = top > 2 && !lua_isnil(L, 3) && lua_isnumber(L, 3);
+        if (has_playback)
+        {
+            playback = luaL_checkinteger(L, 3);
+        }
+
+        lua_Number offset = 0.0, playback_rate = 1.0;
+        int table_index = 4;
+        if (!has_playback) {
+            table_index = 3;
+        }
+
+        if (top >= table_index && lua_istable(L, table_index)) // table with args
+        {
+            luaL_checktype(L, table_index, LUA_TTABLE);
+            lua_pushvalue(L, table_index);
+
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        int cb_index = table_index + 1;
+        if (top >= cb_index) // completed cb
+        {
+            if (lua_isfunction(L, cb_index))
+            {
+                lua_pushvalue(L, cb_index);
+                // see message.h for why 2 is added
+                sender.m_Function = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
+            }
+        }
+
+        dmGameSystemDDF::PlayAnimation msg;
+        msg.m_Id = anim_id;
+        msg.m_Playback = playback;
+        msg.m_Offset = offset;
+        msg.m_PlaybackRate = playback_rate;
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
     {
             {"set_hflip",       SpriteComp_SetHFlip},
@@ -261,6 +326,7 @@ namespace dmGameSystem
             {"set_constant",    SpriteComp_SetConstant},
             {"reset_constant",  SpriteComp_ResetConstant},
             {"set_scale",       SpriteComp_SetScale},
+            {"play_anim",       SpriteComp_PlayAnim},
             {0, 0}
     };
 

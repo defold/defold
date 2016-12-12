@@ -57,13 +57,17 @@ message SpriteDesc
 message PlayAnimation
 {
     required uint64 id = 1;
+    // TODO add documentation for this
+    optional uint32 playback = 2 [default = 7]; // dmGameSystemDDF::PLAYBACK_DEFAULT = 7, see tile_ddf.proto
+    optional float offset = 3 [default = 0.0];
+    optional float playback_rate = 4 [default = 1.0];
 }
 
 /*# reports that an animation has completed
- * <p>This message is sent to the sender of a <code>play_animation</code> message when the 
+ * <p>This message is sent to the sender of a <code>play_animation</code> message when the
  * animation has completed.</p>
  *
- * <p>Note that this message is sent only for animations that play with the following 
+ * <p>Note that this message is sent only for animations that play with the following
  * playback modes:</p>
  * <ul>
  * <li>Once Forward</li>
