@@ -27,6 +27,7 @@ namespace dmScript
 
     bool IsBuffer(lua_State *L, int index)
     {
+        int top = lua_gettop(L);
         void *p = lua_touserdata(L, index);
         bool result = false;
         if (p != 0x0)
@@ -41,15 +42,18 @@ namespace dmScript
                 lua_pop(L, 2);  /* remove both metatables */
             }
         }
+        assert(top == lua_gettop(L));
         return result;
     }
 
     void PushBuffer(lua_State* L, dmBuffer::HBuffer v)
     {
+        int top = lua_gettop(L);
         dmBuffer::HBuffer* vp = (dmBuffer::HBuffer*)lua_newuserdata(L, sizeof(dmBuffer::HBuffer));
         *vp = v;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
         lua_setmetatable(L, -2);
+        assert(top + 1 == lua_gettop(L));
     }
 
     dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index)
@@ -72,6 +76,7 @@ namespace dmScript
 
     static int Buffer_tostring(lua_State *L)
     {
+        int top = lua_gettop(L);
         dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
         uint32_t out_element_count = 0;
         dmBuffer::Result r = dmBuffer::GetElementCount(*buffer, &out_element_count);
@@ -80,19 +85,23 @@ namespace dmScript
         } else {
             lua_pushfstring(L, "buffer.%s(invalid)", SCRIPT_TYPE_NAME_BUFFER);
         }
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
     static int Buffer_len(lua_State *L)
     {
+        int top = lua_gettop(L);
         dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
         uint32_t out_element_count = 0;
         dmBuffer::Result r = dmBuffer::GetElementCount(*buffer, &out_element_count);
         if (r != dmBuffer::RESULT_OK) {
+            assert(top == lua_gettop(L));
             return luaL_error(L, "%s.%s could not get buffer length", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFER);
         }
 
         lua_pushnumber(L, out_element_count);
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
