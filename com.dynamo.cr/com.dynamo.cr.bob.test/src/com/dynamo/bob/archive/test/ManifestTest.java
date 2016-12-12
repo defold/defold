@@ -3,6 +3,7 @@ package com.dynamo.bob.archive.test;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
+import java.util.List;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -390,6 +392,36 @@ public class ManifestTest {
                 assertEquals(4, current.getDependantsCount());
             }
         }
+    }
+
+    @Test
+    public void testGetParentFilepath() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        ManifestInstance instance = new ManifestInstance();
+        String filepath = "/main/level1.goc";
+        List<String> parents = instance.manifestBuilder.getParentFilepath(filepath);
+
+        assertEquals(1, parents.size());
+        assertEquals("/main/level1.collectionproxyc", parents.get(0));
+    }
+
+    @Test
+    public void testGetParentFilepathDeep() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        ManifestInstance instance = new ManifestInstance();
+        String filepath = "/main/level2.goc";
+        List<String> parents = instance.manifestBuilder.getParentFilepath(filepath);
+
+        assertEquals(2, parents.size());
+        assertEquals("/main/level2.collectionproxyc", parents.get(0));
+        assertEquals("/main/level1.collectionproxyc", parents.get(1));
+    }
+
+    @Test
+    public void testGetParentFilepathNull() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        ManifestInstance instance = new ManifestInstance();
+        String filepath = "/main/level1.collectionproxyc";
+        List<String> parents = instance.manifestBuilder.getParentFilepath(filepath);
+
+        assertEquals(0, parents.size());
     }
 
 }

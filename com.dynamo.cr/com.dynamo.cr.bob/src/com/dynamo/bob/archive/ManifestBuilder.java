@@ -77,6 +77,19 @@ public class ManifestBuilder {
             return new String(hexChars);
         }
 
+        public static int getHashSize(HashAlgorithm algorithm) {
+            if (algorithm.equals(HashAlgorithm.HASH_MD5)) {
+            	return 128 / 8;
+            } else if (algorithm.equals(HashAlgorithm.HASH_SHA1)) {
+            	return 160 / 8;
+            } else if (algorithm.equals(HashAlgorithm.HASH_SHA256)) {
+            	return 256 / 8;
+            } else if (algorithm.equals(HashAlgorithm.HASH_SHA512)) {
+            	return 512 / 8;
+            }
+
+            return 0;
+        }
 
         public static byte[] encrypt(byte[] plaintext, SignAlgorithm algorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
             byte[] result = null;
@@ -321,6 +334,38 @@ public class ManifestBuilder {
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create Manifest, hashing algorithm is not supported!");
         }
+    }
+
+    public List<String> getParentFilepath(String filepath) {
+        List<String> result = new ArrayList<String>();
+        ResourceNode candidate = null;
+        List<ResourceNode> queue = new LinkedList<ResourceNode>();
+        queue.add(this.dependencies);
+        while (candidate == null && !queue.isEmpty()) {
+            ResourceNode current = queue.remove(0);
+            if (current != null) {
+                if (current.relativeFilepath.equals(filepath)) {
+                    candidate = current;
+                } else {
+                    for (ResourceNode child : current.getChildren()) {
+                        queue.add(child);
+                    }
+                }
+            }
+        }
+
+        if (candidate != null) {
+            ResourceNode current = candidate.getParent();
+            while (current != null) {
+                if (current.relativeFilepath.endsWith("collectionproxyc")) {
+                    result.add(current.relativeFilepath);
+                }
+
+                current = current.getParent();
+            }
+        }
+
+        return result;
     }
 
     public List<String> getDependants(String filepath) throws IOException {

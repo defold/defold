@@ -10,7 +10,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public static final int FLAG_UNCOMPRESSED = 0xFFFFFFFF;
 
     // Member vars, TODO make these private and add getters/setters
-    public int size; 
+    public int size;
     public int compressedSize;
     public int resourceOffset;
     public int flags;
@@ -47,41 +47,25 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
         this.fileName = fileName;
     }
-    
-    private int bitwiseCompare(byte b1, byte b2)
-    {
-        // Need to compare bit by bit since the byte value is unsigned, but Java has
-        // no unsigned types. We use masking to filter out sign extension when shifting
-        // (https://en.wikipedia.org/wiki/Sign_extension).
-        int ones = 0xFF;
-        for(int i=7; i>=0; i--)
-        {
-            int mask = ones >> i;
-            byte b1Shift = (byte) ((b1 >> i) & mask);
-            byte b2Shift = (byte) ((b2 >> i) & mask);
-            if(b1Shift > b2Shift)
-                return 1;
-            else if(b1Shift < b2Shift)
-                return -1;
-        }
 
-        return 0;
+    private int compare(byte[] left, byte[] right) {
+        for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
+            int a = (left[i] & 0xff);
+            int b = (right[j] & 0xff);
+            if (a != b) {
+                return a - b;
+            }
+        }
+        return left.length - right.length;
     }
+
 
     @Override
     public int compareTo(ArchiveEntry other) {
-        if(this.hash == null)
-            return relName.compareTo(other.relName);
-        else
-        {
-            // compare using hash
-            for (int i = 0; i < this.hash.length; i++) {
-                int cmp = bitwiseCompare(this.hash[i], other.hash[i]);
-                if(cmp != 0) {
-                    return cmp;
-                }
-            }
-            return 0;
+        if (this.hash == null) {
+            return this.relName.compareTo(other.relName);
         }
+
+        return this.compare(this.hash, other.hash);
     }
 }

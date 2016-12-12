@@ -205,7 +205,8 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private File createArchive(Collection<String> resources, ManifestBuilder manifestBuilder, ZipOutputStream zipOutputStream) throws IOException {
+    private File createArchive(Collection<String> resources, ManifestBuilder manifestBuilder,
+        ZipOutputStream zipOutputStream, List<String> excludedResources) throws IOException {
         RandomAccessFile outFile = null;
         File tempArchiveFile = File.createTempFile("tmp", "darc");
         tempArchiveFile.deleteOnExit();
@@ -235,6 +236,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
         ab.write(outFile, resourcePackDirectory);
+        // ab.write2(???, outFile, resourcePackDirectory, excludedResources);
         outFile.close();
 
         // Populate the zip archive with the resource pack
@@ -381,11 +383,12 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) throws IOException {
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
         String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
         String publicKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "publickey", null);
+        String excludedResourcesString = project.getProjectProperties().getStringValue("liveupdate", "exclude", null);
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setDependencies(rootNode);
@@ -421,6 +424,13 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
+        if (excludedResourcesString != null) {
+            String[] excludedResources = excludedResourcesString.split("\\s*,\\s*");
+            for (String excludedResource : excludedResources) {
+                excludedResourcesList.add(excludedResource);
+            }
+        }
+
         return manifestBuilder;
     }
 
@@ -442,7 +452,8 @@ public class GameProjectBuilder extends Builder<Void> {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
-                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode);
+                List<String> excludedResources = new ArrayList<String>();
+                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
 
                 // Make sure we don't try to archive the .darc, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {
@@ -456,7 +467,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
 
                 // Create output for the darc archive
-                File archiveFile = createArchive(resources, manifestBuilder, zipOutputStream);
+                File archiveFile = createArchive(resources, manifestBuilder, zipOutputStream, excludedResources);
                 darcInputStream = new FileInputStream(archiveFile);
                 task.getOutputs().get(1).setContent(darcInputStream);
                 archiveFile.delete();
