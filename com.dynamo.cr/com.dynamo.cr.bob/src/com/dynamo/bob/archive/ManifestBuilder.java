@@ -77,6 +77,19 @@ public class ManifestBuilder {
             return new String(hexChars);
         }
 
+        public static int getHashSize(HashAlgorithm algorithm) {
+            if (algorithm.equals(HashAlgorithm.HASH_MD5)) {
+            	return 128 / 8;
+            } else if (algorithm.equals(HashAlgorithm.HASH_SHA1)) {
+            	return 160 / 8;
+            } else if (algorithm.equals(HashAlgorithm.HASH_SHA256)) {
+            	return 256 / 8;
+            } else if (algorithm.equals(HashAlgorithm.HASH_SHA512)) {
+            	return 512 / 8;
+            }
+
+            return 0;
+        }
 
         public static byte[] encrypt(byte[] plaintext, SignAlgorithm algorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
             byte[] result = null;

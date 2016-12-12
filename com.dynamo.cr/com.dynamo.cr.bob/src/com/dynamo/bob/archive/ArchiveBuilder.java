@@ -281,7 +281,7 @@ public class ArchiveBuilder {
         outFileIndex.writeInt(0); // EntryCount
         outFileIndex.writeInt(0); // EntryOffset
         outFileIndex.writeInt(0); // HashOffset
-        outFileIndex.writeInt(HASH_LENGTH); // HashLength
+        outFileIndex.writeInt(0); // HashLength
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
@@ -356,7 +356,7 @@ public class ArchiveBuilder {
         outFileIndex.writeInt(entries.size());
         outFileIndex.writeInt(entryOffset);
         outFileIndex.writeInt(hashOffset);
-        outFileIndex.writeInt(HASH_LENGTH);
+        outFileIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
