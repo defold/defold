@@ -43,6 +43,11 @@
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{"x" "y"}
               :requires [["x" "myx"] ["y" "myy"]]} result))))
+  (testing "multiple require string types"
+    (let [code "x = require('myx') \n y = require(\"myy\") \n z = require([==[myz]==])"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{"x" "y" "z"}
+              :requires [["x" "myx"] ["y" "myy"] ["z" "myz"]]} result))))
   (testing "global with multiple require assignments"
     (let [code "x,y = require(\"myx\"), require(\"myy\")"
           result (select-keys (lua-info code) [:vars :requires])]
