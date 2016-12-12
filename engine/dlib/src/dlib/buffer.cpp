@@ -57,14 +57,10 @@ namespace dmBuffer
                 return sizeof(float);
             case VALUE_TYPE_FLOAT64:
                 return sizeof(double);
-
-            case MAX_VALUE_TYPE_COUNT:
-                assert(0);
-                return 0;
         }
 
         // Should never happen, need to implement all value types above.
-        assert(0);
+        assert(0 && "Unknown value type!");
         return 0;
     }
 

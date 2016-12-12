@@ -26,7 +26,7 @@ struct ResourceModule
 } g_ResourceModule;
 
 
-static void ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
+static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
 {
     char msg[256];
     const char* reverse = (const char*) dmHashReverse64(path_hash, 0);
@@ -38,7 +38,7 @@ static void ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pa
     default:                                    format = "The resource was not updated: %s"; break;
     }
     DM_SNPRINTF(msg, sizeof(msg), format, reverse);
-    luaL_error(L, msg);
+    return luaL_error(L, msg);
 }
 
 /*# Set a resource
@@ -60,7 +60,7 @@ static void ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pa
  */
 static int Set(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0);
+    int top = lua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 2);
@@ -68,8 +68,10 @@ static int Set(lua_State* L)
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, *buffer);
     if( r != dmResource::RESULT_OK )
     {
-        ReportPathError(L, r, path_hash);
+        assert(top == lua_gettop(L));
+        return ReportPathError(L, r, path_hash);
     }
+    assert(top == lua_gettop(L));
     return 0;
 }
 
@@ -101,6 +103,7 @@ static int Set(lua_State* L)
  */
 static int Load(lua_State* L)
 {
+    int top = lua_gettop(L);
     const char* name = luaL_checkstring(L, 1);
 
     void* resource = 0;
@@ -109,7 +112,8 @@ static int Load(lua_State* L)
 
     if( r != dmResource::RESULT_OK )
     {
-        ReportPathError(L, r, dmHashString64(name));
+        assert(top == lua_gettop(L));
+        return ReportPathError(L, r, dmHashString64(name));
     }
 
     dmBuffer::StreamDeclaration streams_decl[] = {
@@ -126,6 +130,7 @@ static int Load(lua_State* L)
     memcpy(data, resource, resourcesize);
 
     dmScript::PushBuffer(L, buffer);
+    assert(top + 1 == lua_gettop(L));
     return 1;
 }
 
@@ -139,7 +144,7 @@ static int CheckTableNumber(lua_State* L, int index, const char* name)
     } else {
         char msg[256];
         DM_SNPRINTF(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
-        luaL_error(L, msg);
+        return luaL_error(L, msg);
     }
     lua_pop(L, 1);
     return result;
@@ -175,7 +180,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
 
 static int SetTexture(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0);
+    int top = lua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
@@ -238,8 +243,11 @@ static int SetTexture(lua_State* L)
 
     if( r != dmResource::RESULT_OK )
     {
-        ReportPathError(L, r, path_hash);
+        assert(top == lua_gettop(L));
+        return ReportPathError(L, r, path_hash);
     }
+
+    assert(top == lua_gettop(L));
     return 0;
 }
 
