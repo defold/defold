@@ -54,28 +54,46 @@
         res-dir (temp-dir)
         updater (Updater. (format "http://localhost:%d" @port) res-dir "1")]
 
-    (let [info (.check updater)]
-      (is (= nil info))
+    (let [pending-update (.check updater)]
+      (is (= nil pending-update))
       (is (= #{} (list-files res-dir))))
-    (let [info (.check updater)]
-      (is (= nil info))
+    (let [pending-update (.check updater)]
+      (is (= nil pending-update))
       (is (= #{} (list-files res-dir))))
    (.stop server))
 
-  ; update from 1 -> 2
+  ; update from 1 -> 2, installed
+  (let [port (atom nil)
+        server (jetty/run-jetty (make-resource-handler port "2" "2")
+                                {:port 0 :join? false})
+        _ (reset! port (-> server .getConnectors first .getLocalPort))
+        res-dir (temp-dir)
+        updater (Updater. (format "http://localhost:%d" @port) res-dir "1")]
+    (let [pending-update (.check updater)]
+      (is (some? pending-update))
+      (is (= "2" (.sha1 pending-update)))
+      (is (= #{} (list-files res-dir)))
+      (.install pending-update)
+      (is (= #{"config" "defold-2.jar"} (list-files res-dir))))
+    (let [pending-update (.check updater)]
+      (is (= nil pending-update))
+      (is (= #{"config" "defold-2.jar"} (list-files res-dir))))
+    (.stop server))
+
+  ; update from 1 -> 2, not installed
   (let [port (atom nil)
         server (jetty/run-jetty (make-resource-handler port "2" "2")
                  {:port 0 :join? false})
         _ (reset! port (-> server .getConnectors first .getLocalPort))
         res-dir (temp-dir)
         updater (Updater. (format "http://localhost:%d" @port) res-dir "1")]
-    (let [info (.check updater)]
-      (is (not= nil info))
-      (is (= "2" (.sha1 info)))
-      (is (= #{"config" "defold-2.jar"} (list-files res-dir))))
-    (let [info (.check updater)]
-      (is (= nil info))
-      (is (= #{"config" "defold-2.jar"} (list-files res-dir))))
+    (let [pending-update (.check updater)]
+      (is (some? pending-update))
+      (is (= "2" (.sha1 pending-update)))
+      (is (= #{} (list-files res-dir))))
+    (let [pending-update (.check updater)]
+      (is (= nil pending-update))
+      (is (= #{} (list-files res-dir))))
    (.stop server))
 
   ; jar is missing
@@ -85,6 +103,6 @@
         res-dir (temp-dir)
         updater (Updater. (format "http://localhost:%d" @port) res-dir "1")]
     (try (.check updater)
-      (catch Exception e))
+      (catch Exception _))
     (is (= #{} (list-files res-dir)))
    (.stop server)))
