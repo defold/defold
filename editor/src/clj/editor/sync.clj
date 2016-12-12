@@ -291,8 +291,7 @@
 (handler/defhandler :show-change-diff :sync
   (enabled? [selection] (git/selection-diffable? selection))
   (run [selection !flow]
-       (let [{:keys [new new-path old old-path]} (git/selection-diff-data (:git @!flow) selection)]
-         (diff-view/make-diff-viewer old-path old new-path new))))
+       (diff-view/present-diff-data (git/selection-diff-data (:git @!flow) selection))))
 
 (handler/defhandler :use-ours :sync
   (enabled? [selection] (pos? (count selection)))
