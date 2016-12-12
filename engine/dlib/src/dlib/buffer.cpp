@@ -162,8 +162,8 @@ namespace dmBuffer
         HBuffer buffer = (Buffer*)data_block;
         buffer->m_NumElements = num_elements;
         buffer->m_NumStreams = streams_decl_count;
-        buffer->m_Streams = (Buffer::Stream*)((uintptr_t)data_block+sizeof(Buffer));
-        buffer->m_Data = (void*)((uintptr_t)buffer->m_Streams+sizeof(Buffer::Stream)*streams_decl_count);
+        buffer->m_Streams = (Buffer::Stream*)((uintptr_t)data_block + sizeof(Buffer));
+        buffer->m_Data = (void*)((uintptr_t)buffer->m_Streams + sizeof(Buffer::Stream) * streams_decl_count);
 
         CreateStreams(buffer, streams_decl);
 
@@ -203,14 +203,14 @@ namespace dmBuffer
         // Get stream
         Buffer::Stream* stream = GetStream(buffer, stream_name);
         if (stream == 0x0) {
-            return RESULT_STREAM_DOESNT_EXIST;
+            return RESULT_STREAM_MISSING;
         }
 
         // Validate expected type and value count
         if (stream->m_ValueType != type) {
-            return dmBuffer::RESULT_STREAM_WRONG_TYPE;
+            return dmBuffer::RESULT_STREAM_TYPE_MISMATCH;
         } else if (stream->m_ValueCount != type_count) {
-            return dmBuffer::RESULT_STREAM_WRONG_COUNT;
+            return dmBuffer::RESULT_STREAM_COUNT_MISMATCH;
         }
 
         // Validate guards
