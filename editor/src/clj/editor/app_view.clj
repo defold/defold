@@ -22,6 +22,7 @@
             [editor.targets :as targets]
             [editor.build-errors-view :as build-errors-view]
             [editor.hot-reload :as hot-reload]
+            [editor.view :as view]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
@@ -57,22 +58,23 @@
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
 
-  (input open-nodes g/Any :array)
+  (input open-views g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource g/Any)
   (input selected-node-properties-by-resource g/Any)
   (input sub-selections-by-resource g/Any)
 
-  (output active-tab Tab :cached (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
-  (output active-outline g/Any :cached (gu/passthrough outline))
-  (output active-resource resource/Resource :cached (g/fnk [^Tab active-tab]
-                                                      (when active-tab
-                                                        (ui/user-data active-tab ::resource))))
-  (output active-view g/NodeID :cached (g/fnk [^Tab active-tab]
-                                         (when active-tab
-                                           (ui/user-data active-tab ::view))))
-  (output open-resources-by-node-id g/Any :cached (g/fnk [open-nodes] (into {} open-nodes)))
+  (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
+  (output active-tab Tab (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
+  (output active-outline g/Any (gu/passthrough outline))
+  (output active-view g/NodeID (g/fnk [^Tab active-tab]
+                                   (when active-tab
+                                     (ui/user-data active-tab ::view))))
+  (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
+  (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
+  (output open-resources-by-node-id g/Any :cached (g/fnk [open-views] (let [node-data (vals open-views)]
+                                                                        (zipmap (map :resource-node node-data) (map :resource node-data)))))
   (output open-resources g/Any (g/fnk [open-resources-by-node-id] (vals open-resources-by-node-id)))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource active-resource]
                                     (get selected-node-ids-by-resource active-resource)))
@@ -80,19 +82,13 @@
                                            (get selected-node-properties-by-resource active-resource)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource active-resource]
                                 (get sub-selections-by-resource active-resource)))
-  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-resources-by-node-id]
-                                           (let [open-resources (vals open-resources-by-node-id)]
-                                             (when (not= open-resources (ui/user-data tab-pane ::open-resources))
-                                               (ui/user-data! tab-pane ::open-resources open-resources)
-                                               (let [open-tabs (filter (fn [^Tab tab]
-                                                                         (let [node-id (ui/user-data tab ::resource-node)]
-                                                                           (contains? open-resources-by-node-id node-id)))
-                                                                 (.getTabs tab-pane))]
-                                                 (doseq [^Tab tab open-tabs
-                                                         :let [node-id (ui/user-data tab ::resource-node)
-                                                               resource (get open-resources-by-node-id node-id)]]
-                                                   (ui/text! tab (resource/resource-name resource)))
-                                                 (.setAll (.getTabs tab-pane) ^Collection open-tabs)))))))
+  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views]
+                                           (let [tabs (map identity (.getTabs tab-pane))
+                                                 open-tabs (filter (fn [^Tab tab] (get open-views (ui/user-data tab ::view))) tabs)]
+                                             (doseq [^Tab tab open-tabs
+                                                     :let [resource (:resource (get open-views (ui/user-data tab ::view)))]]
+                                               (ui/text! tab (resource/resource-name resource)))
+                                             (.setAll (.getTabs tab-pane) ^Collection open-tabs)))))
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
@@ -441,22 +437,6 @@
   (succeeding-selection [this] [])
   (alt-selection [this] []))
 
-(defn- handle-resource-changes [app-view changes]
-  (let [project-id (g/node-value app-view :project-id)
-        tab-pane ^TabPane (g/node-value app-view :tab-pane)
-        moved-resources (->> changes :moved (into {}))]
-    (doseq [^Tab tab (.getTabs tab-pane)
-            :let [tab-resource (ui/user-data tab ::resource)
-                  new-resource (get moved-resources tab-resource)]
-            :when new-resource]
-      (ui/user-data! tab ::resource new-resource)
-      (ui/user-data! tab ::resource-node (project/get-resource-node project-id new-resource)))))
-
-(deftype AppViewResourceListener [app-view]
-  resource/ResourceListener
-  (handle-changes [this changes render-progress!]
-    (handle-resource-changes app-view changes)))
-
 (defn ->selection-provider [app-view] (SelectionProvider. app-view))
 
 (defn- update-selection [s open-resources active-resource selection-value]
@@ -538,6 +518,14 @@
 ;; http://stackoverflow.com/questions/23176624/javafx-freeze-on-desktop-openfile-desktop-browseuri
 (def desktop-supported? (delay (Desktop/isDesktopSupported)))
 
+(defn- tab->resource-node [^Tab tab]
+  (when tab
+    (-> tab
+      (ui/user-data ::view)
+      (g/node-value :view-data)
+      second
+      :resource-node)))
+
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
@@ -549,7 +537,8 @@
       (.addListener
         (reify ChangeListener
           (changed [this observable old-val new-val]
-            (on-selected-tab-changed app-view (when new-val (ui/user-data ^Tab new-val ::resource-node)))))))
+            (when-let [resource-node (tab->resource-node new-val)]
+              (on-selected-tab-changed app-view resource-node))))))
     (-> tab-pane
       (.getTabs)
       (.addListener
@@ -565,16 +554,13 @@
       (doseq [timer refresh-timers]
         (ui/timer-stop-on-closed! stage timer)
         (ui/timer-start! timer)))
-    (workspace/add-resource-listener! workspace (AppViewResourceListener. app-view))
     app-view))
 
-(defn- create-new-tab [app-view workspace project resource resource-node
-                       resource-type view-type make-view-fn ^ObservableList tabs opts]
+(defn- make-tab! [app-view workspace project resource resource-node
+                  resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
-                     (ui/user-data! ::resource resource)
-                     (ui/user-data! ::resource-node resource-node)
                      (ui/user-data! ::view-type view-type))
         _          (.add tabs tab)
         view-graph (g/make-graph! :history false :volatility 2)
@@ -585,6 +571,11 @@
                            :workspace workspace
                            :tab       tab})
         view       (make-view-fn view-graph parent resource-node opts)]
+    (assert (g/node-instance? view/WorkbenchView view))
+    (g/transact
+      (concat
+        (g/connect resource-node :node-id+resource view :node-id+resource)
+        (g/connect view :view-data app-view :open-views)))
     (ui/user-data! tab ::view view)
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (ui/register-tab-context-menu tab ::tab-menu)
@@ -592,8 +583,6 @@
       (.setOnClosed tab (ui/event-handler
                          event
                          (g/delete-graph! view-graph)
-                         (g/transact
-                           (g/disconnect resource-node :node-id+resource app-view :open-nodes))
                          (when close-handler
                            (.handle close-handler event)))))
     tab))
@@ -610,13 +599,12 @@
        (let [resource-node     (project/get-resource-node project resource)
              ^TabPane tab-pane (g/node-value app-view :tab-pane)
              tabs              (.getTabs tab-pane)
-             tab               (or (first (filter #(and (= resource (ui/user-data % ::resource))
-                                                        (= view-type (ui/user-data % ::view-type)))
-                                                  tabs))
-                                   (create-new-tab app-view workspace project resource resource-node
-                                                   resource-type view-type make-view-fn tabs opts))]
-         (g/transact
-           (g/connect resource-node :node-id+resource app-view :open-nodes))
+             tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
+                                                  (= view-type (ui/user-data % ::view-type)))
+                                            %)
+                                     tabs)
+                                 (make-tab! app-view workspace project resource resource-node
+                                   resource-type view-type make-view-fn tabs opts))]
          (.select (.getSelectionModel tab-pane) tab)
          (when-let [focus (:focus-fn view-type)]
            (focus (ui/user-data tab ::view) opts))
