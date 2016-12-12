@@ -20,23 +20,22 @@
 
 (defn- issue-body
   ([fields]
-   (let [fields (merge (default-fields) fields)]
-     (->> ["<!-- NOTE! The information you specify will be publicly accessible. -->"
-           "### Expected behaviour"
-           ""
-           "### Actual behaviour"
-           ""
-           "### Steps to reproduce"
-           ""
-           "<hr/>"
-           ""
-           (when (seq fields)
-             ["<table>"
-              (for [[name value] fields]
-                (format "<tr><td>%s</td><td>%s</td></tr>" name value))
-              "<table>"])]
-          flatten
-          (string/join "\n")))))
+   (->> ["<!-- NOTE! The information you specify will be publicly accessible. -->"
+         "### Expected behaviour"
+         ""
+         "### Actual behaviour"
+         ""
+         "### Steps to reproduce"
+         ""
+         "<hr/>"
+         ""
+         (when (seq fields)
+           ["<table>"
+            (for [[name value] fields]
+              (format "<tr><td>%s</td><td>%s</td></tr>" name value))
+            "<table>"])]
+        flatten
+        (string/join "\n"))))
 
 (defn new-issue-link
   ([]
