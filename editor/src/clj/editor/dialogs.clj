@@ -110,13 +110,17 @@
     (let [sentry-id (deref sentry-id-promise 100 nil)
           fields (cond-> {}
                    sentry-id
-                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/%s'>%s</a>"
+                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=%s'>%s</a>"
                                           sentry-id sentry-id)))]
       (ui/browse-url (github/new-issue-link fields)))))
 
 (defn- messages
   [ex-map]
-  (str/join ": " (keep :message (tree-seq :via :via ex-map))))
+  (->> (tree-seq :via :via ex-map)
+       (drop 1)
+       (map (fn [{:keys [message ^Class type]}]
+              (format "%s: %s" (.getName type) (or message "Unknown"))))
+       (str/join "\n")))
 
 (defn make-error-dialog
   [ex-map sentry-id-promise]
