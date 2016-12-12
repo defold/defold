@@ -144,7 +144,7 @@
                 (io/make-parents out-path)
                 (copy-file (.getPath f) out-path )
                 (.setExecutable (io/file out-path) true)
-                (do-launch out-path launch-dir)) )
+                (do-launch out-path launch-dir prefs)) )
             (do
               (console/append-console-message! (str (.getEntity cr String) "\n"))))))
       (catch Throwable e
