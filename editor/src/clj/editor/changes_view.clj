@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.diff-view :as diff-view]
+            [editor.defold-project :as project]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.sync :as sync]
@@ -61,11 +62,12 @@
 (handler/defhandler :synchronize :global
   (enabled? [changes-view]
             (g/node-value changes-view :git))
-  (run [changes-view workspace]
-    (let [git   (g/node-value changes-view :git)
-          prefs (g/node-value changes-view :prefs)]
-      (sync/open-sync-dialog (sync/begin-flow! git prefs))
-      (workspace/resource-sync! workspace))))
+  (run [changes-view workspace project]
+       (let [git   (g/node-value changes-view :git)
+             prefs (g/node-value changes-view :prefs)]
+         (project/save-all! project (fn []
+                                      (sync/open-sync-dialog (sync/begin-flow! git prefs))
+                                      (workspace/resource-sync! workspace))))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."
