@@ -657,7 +657,7 @@
   (run [workspace project app-view selection]
     (let [collection (selection->collection selection)]
       (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
-        (add-game-object-file collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
+        (add-game-object-file collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- make-embedded-go [self project type data id position rotation scale parent select-fn overrides]
   (let [graph (g/node-id->graph-id self)
@@ -718,10 +718,10 @@
 (handler/defhandler :add-secondary :workbench
   (active? [selection] (selection->local-go-instance selection))
   (label [] "Add Game Object")
-  (run [selection project workspace]
+  (run [selection project workspace app-view]
        (let [go-node (selection->local-go-instance selection)
              collection (core/scope go-node)]
-         (add-game-object workspace project collection go-node))))
+         (add-game-object workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (handler/defhandler :add-secondary-from-file :workbench
   (active? [selection] (or (selection->collection selection)
@@ -752,7 +752,7 @@
          (when-let [resource (select-go-file workspace project)]
            (let [go-node (selection->local-go-instance selection)
                  coll-node (core/scope go-node)]
-             (add-game-object-file coll-node go-node resource))))))
+             (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
 
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]

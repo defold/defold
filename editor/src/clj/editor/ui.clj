@@ -1212,7 +1212,7 @@ command."
                                    (let [delta (- now @last)]
                                      (when (or (nil? interval) (> delta interval))
                                        (try
-                                         (tick-fn (* delta 1e-9))
+                                         (tick-fn this (* delta 1e-9))
                                          (reset! last-error nil)
                                          (reset! last (- now (if interval
                                                                (- delta interval)
