@@ -1,5 +1,6 @@
 (ns editor.diff-view
   (:require [clojure.string :as str]
+            [editor.dialogs :as dialogs]
             [editor.ui :as ui])
   (:import [javafx.scene Group Parent Scene]
            [javafx.scene.control Control ScrollBar]
@@ -164,6 +165,14 @@
       (make-lines markers texts-left texts-right edits)
       (.toFront left-group)
       (.toFront right-group))))
+
+(defn present-diff-data [diff-data]
+  (let [{:keys [binary? new new-path old old-path]} diff-data]
+    (if (= old new)
+      (dialogs/make-alert-dialog "The file is unchanged.")
+      (if binary?
+        (dialogs/make-alert-dialog "Unable to diff binary files.")
+        (make-diff-viewer old-path old new-path new)))))
 
 ; TODO: Remove soon
 #_(ui/run-later (make-diff-viewer "" "1\n2\n3\n4\n5\n6\n7\n8....\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n"

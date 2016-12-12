@@ -238,6 +238,10 @@
 
 ;; =================================================================================
 
+(defn- text-character? [^Character char]
+  (or (Character/isWhitespace char)
+      (not (Character/isISOControl char))))
+
 (defn selection-diffable? [selection]
   (and (= 1 (count selection))
        (let [change-type (:change-type (first selection))]
@@ -250,8 +254,10 @@
         old-path (or (:old-path change) (:new-path change) )
         new-path (or (:new-path change) (:old-path change) )
         old (String. ^bytes (show-file git old-path))
-        new (slurp (file git new-path))]
-    {:new new
+        new (slurp (file git new-path))
+        binary? (not-every? text-character? new)]
+    {:binary? binary?
+     :new new
      :new-path new-path
      :old old
      :old-path old-path}))
