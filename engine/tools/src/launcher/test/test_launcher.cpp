@@ -114,6 +114,7 @@ TEST(Launcher, CreateProcessArgQuoting)
     unsigned int seed = (unsigned int) time(0);
 
     printf("Seed: %u\n", seed);
+    fflush(stdout);
 
     srand(seed);
     
