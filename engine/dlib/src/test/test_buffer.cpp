@@ -218,7 +218,7 @@ TEST_F(BufferTest, InvalidGetData)
     // Get unknown stream
     CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("unknown"), dmBuffer::VALUE_TYPE_UINT8, 2, &out_stream, &out_stride, &out_element_count);
-    ASSERT_EQ(dmBuffer::RESULT_STREAM_DOESNT_EXIST, r);
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING, r);
     ASSERT_EQ(0x0, out_stream);
     ASSERT_EQ(0, out_stride);
     ASSERT_EQ(0, out_element_count);
@@ -226,7 +226,7 @@ TEST_F(BufferTest, InvalidGetData)
     // Correct stream, but wrong type
     CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_UINT16, 3, &out_stream, &out_stride, &out_element_count);
-    ASSERT_EQ(dmBuffer::RESULT_STREAM_WRONG_TYPE, r);
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_TYPE_MISMATCH, r);
     ASSERT_EQ(0x0, out_stream);
     ASSERT_EQ(0, out_stride);
     ASSERT_EQ(0, out_element_count);
@@ -234,7 +234,7 @@ TEST_F(BufferTest, InvalidGetData)
     // Correct stream, but wrong value count
     CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
     r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 8, &out_stream, &out_stride, &out_element_count);
-    ASSERT_EQ(dmBuffer::RESULT_STREAM_WRONG_COUNT, r);
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_COUNT_MISMATCH, r);
     ASSERT_EQ(0x0, out_stream);
     ASSERT_EQ(0, out_stride);
     ASSERT_EQ(0, out_element_count);
