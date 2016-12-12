@@ -7,7 +7,8 @@
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.view :as view])
   (:import [javafx.animation AnimationTimer]
            [java.util List Collection]
            [javafx.scene Parent Group Node]
@@ -757,6 +758,7 @@
         form))))
 
 (g/defnode FormView
+  (inherits view/WorkbenchView)
   (property parent-view Parent)
   (property workspace g/Any)
   (property project g/Any)

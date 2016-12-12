@@ -85,6 +85,12 @@
     (.renameTo from-file to-file)
     (workspace/resource-sync! workspace true [[from-file to-file]])))
 
+(defn- edit-and-save! [workspace atlas margin]
+  (g/set-property! atlas :margin margin)
+  (let [save-data (g/node-value atlas :save-data)]
+    (spit (:resource save-data) (:content save-data))
+    (workspace/resource-sync! workspace true [])))
+
 (defn- revert-all! [workspace git]
   (let [status (git/unified-status git)
         moved-files (->> status
@@ -98,13 +104,21 @@
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_project")
           project (test-util/setup-project! workspace)
           app-view (test-util/setup-app-view! project)
-          atlas (test-util/open-tab! project app-view "/atlas/single.atlas")
+          atlas-path "/atlas/single.atlas"
+          atlas-res (workspace/resolve-workspace-resource workspace atlas-path)
+          atlas-path2 "/atlas/single2.atlas"
+          atlas-res2 (workspace/resolve-workspace-resource workspace atlas-path2)
+          [atlas scene-view] (test-util/open-scene-view! project app-view atlas-path 64 64)
+          has-scene? (fn [] (let [scene (g/node-value scene-view :scene)]
+                              (some? scene)))
           proj-path (.getAbsolutePath (workspace/project-path workspace))
           git (init-git proj-path)]
-      (prn "first" (git/unified-status git))
-      (rename! workspace "/atlas/single.atlas" "/atlas/single2.atlas")
-      (prn "second" (git/unified-status git))
+      (is (= atlas-res (g/node-value app-view :active-resource)))
+      (rename! workspace atlas-path atlas-path2)
+      (is (= atlas-res2 (g/node-value app-view :active-resource)))
       (revert-all! workspace git)
-      (prn "third" (git/unified-status git))
-      ;; WIP test
-      (is false))))
+      (is (= atlas-res (g/node-value app-view :active-resource)))
+      (edit-and-save! workspace atlas 1)
+      (is (= atlas-res (g/node-value app-view :active-resource)))
+      (revert-all! workspace git)
+      (is (= atlas-res (g/node-value app-view :active-resource))))))
