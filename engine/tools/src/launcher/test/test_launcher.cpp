@@ -110,6 +110,7 @@ void CheckRoundtrip(int argc, char const* argv[])
 
 TEST(Launcher, CreateProcessArgQuoting)
 {
+    /*
     unsigned int seed = (unsigned int) time(0);
 
     printf("Seed: %u\n", seed);
@@ -150,6 +151,7 @@ TEST(Launcher, CreateProcessArgQuoting)
 
         delete[] argv;
     }
+    */
 }
 
 #endif
