@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -26,7 +25,7 @@ import javafx.stage.Modality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.defold.editor.Updater.UpdateInfo;
+import com.defold.editor.Updater.PendingUpdate;
 import com.defold.libs.ResourceUnpacker;
 
 import javafx.application.Application;
@@ -81,7 +80,7 @@ public class Start extends Application {
         // TODO: Localhost. Move to config or equivalent
         updater = new Updater("http://d.defold.com/editor2", System.getProperty("defold.resourcespath"), System.getProperty("defold.sha1"));
         updateTimer = new Timer();
-        updateTimer.schedule(newUpdateTask(), firstUpdateDelay);
+        updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
     }
 
     private Boolean showRestartDialog() throws IOException {
@@ -102,7 +101,7 @@ public class Start extends Application {
             stage.close();
         });
 
-        stage.setTitle("Update applied");
+        stage.setTitle("Update Available");
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setScene(scene);
         stage.showAndWait();
@@ -110,27 +109,46 @@ public class Start extends Application {
         return result[0];
     }
 
-    private TimerTask newUpdateTask() {
+    private TimerTask newCheckForUpdateTask() {
         return new TimerTask() {
             @Override
             public void run() {
                 try {
                     logger.debug("checking for updates");
-                    UpdateInfo updateInfo = updater.check();
-                    if (updateInfo != null) {
+                    PendingUpdate pendingUpdate = updater.check();
+                    if (pendingUpdate != null) {
                         javafx.application.Platform.runLater(() -> {
                             try {
                                 if (showRestartDialog()) {
-                                    System.exit(17);
+                                    updateTimer.schedule(newInstallUpdateTask(pendingUpdate), 0);
+                                } else {
+                                    updateTimer.schedule(newCheckForUpdateTask(), updateDelay);
                                 }
                             } catch (IOException e) {
-                                logger.error("Unable to open update alert dialog");
+                                logger.error("unable to open update alert dialog");
                             }
                         });
+                    } else {
+                        updateTimer.schedule(newCheckForUpdateTask(), updateDelay);
                     }
-                    updateTimer.schedule(newUpdateTask(), updateDelay);
                 } catch (IOException e) {
-                    logger.debug("update failed", e);
+                    logger.debug("update check failed", e);
+                }
+            }
+        };
+    }
+
+    private TimerTask newInstallUpdateTask(PendingUpdate pendingUpdate) {
+        return new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    pendingUpdate.install();
+                    logger.info("update installed - restarting");
+                    System.exit(17);
+                } catch (IOException e) {
+                    logger.debug("update installation failed", e);
+                    updateTimer.schedule(newCheckForUpdateTask(), updateDelay);
                 }
             }
         };
