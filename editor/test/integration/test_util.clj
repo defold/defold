@@ -172,7 +172,7 @@
   (let [view-graph (make-view-graph!)]
     (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
           (g/connect project :_node-id app-view :project-id)
-          (for [label [:selected-node-ids-by-resource :selected-node-properties-by-resource :sub-selections-by-resource]]
+          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))
       g/transact
       g/tx-nodes-added
@@ -183,7 +183,6 @@
         views-by-node-id (let [views (g/node-value app-view :open-views)]
                            (zipmap (map :resource-node (vals views)) (keys views)))
         resource (g/node-value node-id :resource)
-        open-resources (set (g/node-value app-view :open-resources))
         view (get views-by-node-id node-id)]
     (if view
       (do
@@ -196,7 +195,6 @@
             (g/connect node-id :node-id+resource view :node-id+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
-        (app-view/select! app-view [node-id])
         [node-id view]))))
 
 (defn open-tab! [project app-view path]
