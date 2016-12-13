@@ -314,6 +314,15 @@
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
 
+(defn- remap [m key-m]
+  (reduce (fn [m [old new]]
+            (if-let [v (get m old)]
+              (-> m
+                (dissoc old)
+                (assoc new v))
+              m))
+    m key-m))
+
 ;; Reloading works like this:
 ;; * All moved files are handled by simply updating their resource property
 ;; * All truly added files are added/loaded
@@ -356,8 +365,7 @@
             old-outputs (reduce (fn [res [_ resource]]
                                   (let [nid (res->node resource)]
                                     (assoc res nid (outputs nid))))
-                                {} to-reload-int)
-            old->new (atom {})]
+                                {} to-reload-int)]
         ;; Internal resources to reload
         (let [in-use? (fn [resource-node-id]
                         (some (fn [[target _]]
@@ -389,13 +397,16 @@
           (load-nodes! project new-nodes render-progress!)
           ;; Re-connect existing outputs
           (g/transact
-            (for [[old new] old->new
-                  :when new
-                  :let [existing (set (outputs new))]
-                  [src-label [tgt-id tgt-label]] (old-outputs old)
-                  :let [tgt-id (get old->new tgt-id tgt-id)]
-                  :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
-              (g/connect new src-label tgt-id tgt-label))))
+            (concat
+              (for [[old new] old->new
+                    :when new
+                    :let [existing (set (outputs new))]
+                    [src-label [tgt-id tgt-label]] (old-outputs old)
+                    :let [tgt-id (get old->new tgt-id tgt-id)]
+                    :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
+                (g/connect new src-label tgt-id tgt-label))
+              (g/update-property project :all-selections remap old->new)
+              (g/update-property project :all-sub-selections remap old->new))))
         ;; External resources to invalidate
         (let [all-outputs (mapcat (fn [[_ resource]]
                                     (let [n (res->node resource)]
@@ -431,23 +442,23 @@
   (input display-profiles g/Any)
   (input collision-group-nodes g/Any :array)
 
-  (output selected-node-ids-by-resource g/Any :cached (g/fnk [all-selected-node-ids all-selections]
-                                                        (let [selected-node-id-set (set all-selected-node-ids)]
-                                                          (->> all-selections
-                                                            (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
-                                                            (into {})))))
-  (output selected-node-properties-by-resource g/Any :cached (g/fnk [all-selected-node-properties all-selections]
-                                                               (let [props (->> all-selected-node-properties
-                                                                             (map (fn [p] [(:node-id p) p]))
-                                                                             (into {}))]
-                                                                 (->> all-selections
-                                                                   (map (fn [[key vals]] [key (vec (keep props vals))]))
+  (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
+                                                             (let [selected-node-id-set (set all-selected-node-ids)]
+                                                               (->> all-selections
+                                                                 (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
+                                                                 (into {})))))
+  (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
+                                                                    (let [props (->> all-selected-node-properties
+                                                                                  (map (fn [p] [(:node-id p) p]))
+                                                                                  (into {}))]
+                                                                      (->> all-selections
+                                                                        (map (fn [[key vals]] [key (vec (keep props vals))]))
+                                                                        (into {})))))
+  (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
+                                                               (let [selected-node-id-set (set all-selected-node-ids)]
+                                                                 (->> all-sub-selections
+                                                                   (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
                                                                    (into {})))))
-  (output sub-selections-by-resource g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
-                                                          (let [selected-node-id-set (set all-selected-node-ids)]
-                                                            (->> all-sub-selections
-                                                              (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
-                                                              (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
