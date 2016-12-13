@@ -35,8 +35,8 @@ Links:
   -fx-hover-base: $mid-grey;
   -fx-pressed-base: $bright-grey;
   -fx-accent_: $defold-red;
-  -fx-font-family: "Source Sans Pro";
-  -fx-font-size: 12px;
+  -fx-font-family: $default-font;
+  -fx-font-size: $default-font-size;
   -fx-font-weight: normal;
   }
 
@@ -72,9 +72,6 @@ Links:
   -fx-control-inner-background: $bright-black-light;
   -fx-hover-base: $defold-red; }
 
-.text-area {
-  -fx-font-size: 9pt;
-  -fx-font-family: "Dejavu Sans Mono"; }
 
 /* Modules - Major panes in the editor */
 #properties HBox {
