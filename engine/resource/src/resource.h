@@ -2,6 +2,7 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
+#include <liveupdate/manifest_ddf.h>
 
 namespace dmResource
 {
