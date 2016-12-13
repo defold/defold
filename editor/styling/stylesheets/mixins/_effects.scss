@@ -17,26 +17,3 @@
 @mixin effect-bright-grey() {
 	@include colorize-image-view($bright-grey);
 }
-
-
-/*
-@mixin colorize-image-view($color) {
-  .image-view { -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0); }
-}
-
-@mixin effect-lighten() {
-	@include colorize-image-view($defold-white);
-}
-
-@mixin effect-lighten-blue() {
-	@include colorize-image-view($defold-light-blue);
-}
-
-@mixin effect-icon-grey() {
-	@include colorize-image-view($tree-view-icon);
-}
-
-@mixin effect-bright-grey() {
-	@include colorize-image-view($bright-grey);
-}
-*/

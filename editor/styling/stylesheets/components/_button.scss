@@ -43,13 +43,6 @@
 	-fx-min-width: 200px;
   }
 
-.embedded-properties-button,
-.embedded-properties-button:selected,
-.embedded-properties-button:armed {
-  -fx-border-radius: 0;
-  -fx-padding: 5px 3px;
-  -fx-background-insets: 0;
-}
 
 .clear-button {
   -fx-background-radius: 0;
@@ -70,27 +63,39 @@
   }
 }
 
+.toggle-button, .embedded-properties-button {
+  -fx-background-radius: 4px;
+  -fx-border-radius: 4px;
+  -fx-padding: 4px;
+  -fx-background-insets: 0px;
+  -fx-border-insets: 0px;
+  -fx-background-color: $mid-grey;
+  &:hover {
+    -fx-background-color: $mid-grey-light;
+  }
+  &:selected {
+    -fx-background-color: $dark-grey;
+    .image-view {
+      @include effect-lighten-blue()
+    }
+  }
+  &:armed {
+    -fx-background-color: $input-background;
+  }
+}
+
 .toggle-button,
 .color-picker.split-button > .color-picker-label {
-  -fx-background-color: $mid-grey;//$defold-blue;
+  -fx-background-color: $mid-grey;
   -fx-background-insets: 0;
   -fx-background-radius: 4;
   -fx-border-width: 1;
   -fx-border-radius: 4;
   -fx-border-color: $dark-black;
-  -fx-text-fill: -fx-text-base-color; }
+  -fx-text-fill: -fx-text-base-color;
+}
 
-.toggle-button:hover,
 .color-picker.split-button > .arrow-button:hover,
 .color-picker.split-button > .color-picker-label:hover {
   -fx-background-color: $mid-grey;
   -fx-text-fill: -fx-text-base-color; }
-
-.toggle-button:armed {
-  -fx-background-color: #60a8ff, $selected-blue;
-  -fx-text-fill: $defold-white;
-  -fx-background-insets: 1; }
-
-.toggle-button:selected {
-  -fx-background-color: $defold-green;
-}

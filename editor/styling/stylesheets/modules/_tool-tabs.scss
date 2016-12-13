@@ -67,8 +67,12 @@
         }
 
         .text-area, .scroll-pane, .viewport {
+            -fx-background-color: $dark-grey-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
+        }
+        .text-area {
+            -fx-padding: 15px 0 0 0;
         }
     }
 
