@@ -575,6 +575,7 @@
     (assert (g/node-instance? view/WorkbenchView view))
     (g/transact
       (concat
+        (g/connect resource-node :_node-id view :resource-node)
         (g/connect resource-node :node-id+resource view :node-id+resource)
         (g/connect view :view-data app-view :open-views)))
     (ui/user-data! tab ::view view)
