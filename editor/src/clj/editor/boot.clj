@@ -5,6 +5,7 @@
    [clojure.stacktrace :as stack]
    [dynamo.graph :as g]
    [editor.dialogs :as dialogs]
+   [editor.error-reporting :as error-reporting]
    [editor.import :as import]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
@@ -14,7 +15,6 @@
   (:import
    [com.defold.control ListCell]
    [java.io File]
-   [java.util.concurrent.atomic AtomicReference]
    [javafx.scene Scene Parent]
    [javafx.scene.control Button Control Label ListView]
    [javafx.scene.input MouseEvent]
@@ -134,40 +134,17 @@
                  (fn [project]
                    (open-project-with-progress-dialog namespace-loader prefs project)))))
 
-
-;; Exception alerting.
-
-;; keep track of last exception so we can alert only on new ones
-(def ^:private ^AtomicReference last-exception (AtomicReference.))
-
-(defn new-exception?
-  [ex-map]
-  (let [last (.getAndSet last-exception ex-map)]
-    (not= last ex-map)))
-
-(defn display-exception [ex]
-  (let [ex-map (Throwable->map ex)]
-    (when (new-exception? ex-map)
-      (let [message (with-out-str (clojure.pprint/pprint ex-map))]
-        (ui/run-now (dialogs/make-alert-dialog message))))))
-
-(defn setup-exception-handling!
-  []
-  (let [exception-reporter (sentry/make-exception-reporter {:project-id "97739"
-                                                            :key "9e25fea9bc334227b588829dd60265c1"
-                                                            :secret "f694ef98d47d42cf8bb67ef18a4e9cdb"})]
-    (Thread/setDefaultUncaughtExceptionHandler
-      (reify Thread$UncaughtExceptionHandler
-        (uncaughtException [_ thread exception]
-          (log/error :exception exception :msg "uncaught exception")
-          (exception-reporter exception thread)
-          (display-exception exception))))))
+(defn notify-user
+  [ex-map sentry-id-promise]
+  (when (.isShowing (ui/main-stage))
+    (ui/run-now
+      (dialogs/make-error-dialog ex-map sentry-id-promise))))
 
 (defn main [args]
-  ;; note - the default exception handler gets reset each time a new
-  ;; project is opened. this _probably_ doesn't cause any issues, just
-  ;; don't rely on the identity of the handler.
-  (setup-exception-handling!)
+  (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
+                                           :sentry   {:project-id "97739"
+                                                      :key        "9e25fea9bc334227b588829dd60265c1"
+                                                      :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
   (let [namespace-loader (load-namespaces-in-background)
         prefs            (prefs/make-prefs "defold")]
     (try

@@ -132,9 +132,11 @@
 (defn report-exception
   [options exception thread]
   (let [event (make-event exception thread)
-        request (make-request-data options event)]
-    (http/request request)))
-
+        request (make-request-data options event)
+        response (http/request request)]
+    (when (= 200 (:status response))
+      (with-open [reader (io/reader (:body response))]
+        (-> reader (json/read :key-fn keyword) :id)))))
 
 ;; report exceptions on separate thread
 ;;
@@ -150,21 +152,25 @@
                       ;; very simple time-based rate-limiting, send at most 1 exception/s.
                       (loop [last-report (System/currentTimeMillis)]
                         (when @run?
-                          (if-let [[exception thread] (.poll queue 1 TimeUnit/SECONDS)]
+                          (if-let [[exception thread id-promise] (.poll queue 1 TimeUnit/SECONDS)]
                             (if (< (- (System/currentTimeMillis) last-report) 1000)
                               (recur last-report)
                               (do
                                 (try
-                                  (report-exception options exception thread)
+                                  (let [id (report-exception options exception thread)]
+                                    (deliver id-promise id))
                                   (catch Exception e
                                     (log/error :exception e :msg (format "Error reporting exception to sentry: %s" (.getMessage e)))))
                                 (recur (System/currentTimeMillis))))
                             (recur last-report))))) ]
     (doto (Thread. reporter-fn)
+      (.setDaemon true)
       (.setName "sentry-reporter-thread")
       (.start))
     (fn
       ([]
        (vreset! run? false))
       ([exception thread]
-       (.offer queue [exception thread])))))
+       (let [id-promise (promise)]
+         (.offer queue [exception thread id-promise])
+         id-promise)))))
