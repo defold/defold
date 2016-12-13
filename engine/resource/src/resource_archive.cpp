@@ -21,7 +21,6 @@
 
 namespace dmResourceArchive
 {
-    const static uint32_t VERSION = 4;
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 

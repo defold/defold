@@ -45,28 +45,6 @@ TEST(dmResourceArchive, Wrap2)
     delete [] buf;
 }
 
-TEST(dmResourceArchive, Wrap)
-{
-    dmResourceArchive::HArchive archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer((void*) TEST_ARC, TEST_ARC_SIZE, &archive);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
-    char* buf = new char[1024 * 1024];
-
-    dmResourceArchive::EntryInfo entry_info;
-    for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
-    {
-        r = dmResourceArchive::FindEntry(archive, names[i], &entry_info);
-        ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-        dmResourceArchive::Read(archive, &entry_info, buf);
-        ASSERT_TRUE(strncmp(data[i], (const char*) buf, strlen(data[i])) == 0);
-    }
-
-    r = dmResourceArchive::FindEntry(archive, "does_not_exists", &entry_info);
-    ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, r);
-    delete [] buf;
-}
-
 TEST(dmResourceArchive, WrapCompressed2)
 {
     dmResourceArchive::HArchiveIndex archive = 0;
@@ -85,28 +63,6 @@ TEST(dmResourceArchive, WrapCompressed2)
     }
 
     r = dmResourceArchive::FindEntry2(archive, (uint8_t*) hash_not_found, &e);
-    ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, r);
-    delete [] buf;
-}
-
-TEST(dmResourceArchive, WrapCompressed)
-{
-    dmResourceArchive::HArchive archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer((void*) TEST_COMPRESSED_ARC, TEST_COMPRESSED_ARC_SIZE, &archive);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
-    char* buf = new char[1024 * 1024];
-
-    dmResourceArchive::EntryInfo entry_info;
-    for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
-    {
-        r = dmResourceArchive::FindEntry(archive, names[i], &entry_info);
-        ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-        dmResourceArchive::Read(archive, &entry_info, buf);
-        ASSERT_TRUE(strncmp(data[i], (const char*) buf, strlen(data[i])) == 0);
-    }
-
-    r = dmResourceArchive::FindEntry(archive, "does_not_exists", &entry_info);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, r);
     delete [] buf;
 }
@@ -135,35 +91,6 @@ TEST(dmResourceArchive, LoadFromDisk2)
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, r);
     dmResourceArchive::Delete2(archive);
     delete[] buf;
-}
-
-TEST(dmResourceArchive, LoadFromDisk)
-{
-    dmResourceArchive::HArchive archive = 0;
-
-    const char* archives[] = { "build/default/src/test/test.arc", "build/default/src/test/test.jarc" };
-
-    for (int i = 0; i < 2; ++i)
-    {
-        dmResourceArchive::Result r = dmResourceArchive::LoadArchive(archives[i], &archive);
-        ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-        ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
-        char* buf = new char[1024 * 1024];
-        
-        dmResourceArchive::EntryInfo entry_info;
-        for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
-        {
-            r = dmResourceArchive::FindEntry(archive, names[i], &entry_info);
-            ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-            dmResourceArchive::Read(archive, &entry_info, buf);
-            ASSERT_TRUE(strncmp(data[i], (const char*) buf, strlen(data[i])) == 0);
-        }
-
-        r = dmResourceArchive::FindEntry(archive, "does_not_exists", &entry_info);
-        ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, r);
-        dmResourceArchive::Delete(archive);
-        delete[] buf;
-    }
 }
 
 TEST(dmResourceArchive, LoadNonExistentArchiveFromDisk2)
@@ -200,35 +127,6 @@ TEST(dmResourceArchive, LoadFromDiskCompressed2)
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, r);
     dmResourceArchive::Delete2(archive);
     delete[] buf;
-}
-
-TEST(dmResourceArchive, LoadFromDiskCompressed)
-{
-    dmResourceArchive::HArchive archive = 0;
-
-    const char* archives[] = { "build/default/src/test/test_compressed.arc", "build/default/src/test/test_compressed.jarc" };
-
-    for (int i = 0; i < 2; ++i)
-    {
-        dmResourceArchive::Result r = dmResourceArchive::LoadArchive(archives[i], &archive);
-        ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-        ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
-        char* buf = new char[1024 * 1024];
-
-        dmResourceArchive::EntryInfo entry_info;
-        for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
-        {
-            r = dmResourceArchive::FindEntry(archive, names[i], &entry_info);
-            ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-            dmResourceArchive::Read(archive, &entry_info, buf);
-            ASSERT_TRUE(strncmp(data[i], (const char*) buf, strlen(data[i])) == 0);
-        }
-
-        r = dmResourceArchive::FindEntry(archive, "does_not_exists", &entry_info);
-        ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, r);
-        dmResourceArchive::Delete(archive);
-        delete[] buf;
-    }
 }
 
 int main(int argc, char **argv)

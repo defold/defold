@@ -21,6 +21,7 @@
 #include <dlib/http_cache_verify.h>
 #include <dlib/math.h>
 #include <dlib/uri.h>
+#include <dlib/path.h>
 #include <dlib/profile.h>
 #include <dlib/message.h>
 #include <dlib/sys.h>
@@ -44,6 +45,8 @@
  *  - Handle out of resources. Eg Hashtables full.
  */
 
+extern dmDDF::Descriptor dmLiveUpdateDDF_ManifestFile_DESCRIPTOR;
+
 namespace dmResource
 {
 const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
@@ -51,6 +54,17 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 #define RESOURCE_SOCKET_NAME "@resource"
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
+
+struct Manifest
+{
+    Manifest()
+    {
+        memset(this, 0, sizeof(Manifest));
+    }
+
+    dmResourceArchive::HArchiveIndex    m_ArchiveIndex;
+    dmLiveUpdateDDF::ManifestFile*      m_DDF;
+};
 
 struct ResourceReloadedCallbackPair
 {
@@ -98,12 +112,17 @@ struct SResourceFactory
     int                                          m_HttpStatus;
     Result                                       m_HttpFactoryResult;
 
+    Manifest*                                    m_Manifest;
+
+    // -----------------------------
+    // TODO replace these with manifest instance
     // Builtin resource archive
     dmResourceArchive::HArchive                  m_BuiltinsArchive;
 
     // Resource archive
     dmResourceArchive::HArchive                  m_Archive;
     void*                                        m_ArchiveMountInfo;
+    void*                                        m_ArchiveMountInfo2;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -210,6 +229,39 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
     factory->m_HttpTotalBytesStreamed += content_data_size;
 }
 
+Result LoadManifest(const char* path, const char* location, HFactory factory)
+{
+    // Read from file
+    // Parse from file into dmLiveUpdateDDF::ManifestFile struct
+    dmDDF::LoadMessageFromFile(path, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)(factory->m_Manifest->m_DDF));
+
+    // TODO VALIDATE MAGIC NUMBER
+
+    // Validate file version
+    dmLiveUpdateDDF::ManifestHeader header = factory->m_Manifest->m_DDF->m_Data.m_Header;
+    if (header.m_Version != dmResourceArchive::VERSION)
+    {
+        dmLogError("Version mismatch, engine version: %i,  manifest version: %i", dmResourceArchive::VERSION, header.m_Version);
+        return RESULT_FORMAT_ERROR;
+    }
+
+    // Construct path to archive index file
+    // Assumes same path as manifest file
+    char archiveIndexPath[DMPATH_MAX_PATH];
+    dmStrlCpy(archiveIndexPath, location, strlen(location));
+    dmStrlCat(archiveIndexPath, "/game.arci", sizeof(archiveIndexPath));
+
+    dmLogInfo("Got .arci path: %s", archiveIndexPath);
+
+    Result r = MountArchiveInternal(archiveIndexPath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo2);
+    if (r != RESULT_OK)
+    {
+        return r;
+    }
+
+    return RESULT_OK;
+}
+
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
     dmMessage::HSocket socket = 0;
@@ -304,6 +356,20 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             return 0;
         }
     }
+    else if (strcmp(factory->m_UriParts.m_Scheme, "dmanifest") == 0)
+    {
+        dmLogInfo("Got manifest file at path: %s", factory->m_UriParts.m_Path);
+        factory->m_Manifest = new Manifest();
+        Result r = LoadManifest(factory->m_UriParts.m_Path, factory->m_UriParts.m_Location, factory);
+        if (r != RESULT_OK)
+        {
+            dmLogError("Unable to load manifest: %s", factory->m_UriParts.m_Path);
+            dmMessage::DeleteSocket(socket);
+            delete factory->m_Manifest;
+            delete factory;
+            return 0;
+        }
+    }
     else
     {
         dmLogError("Invalid URI: %s", uri);
@@ -369,6 +435,10 @@ void DeleteFactory(HFactory factory)
     if (factory->m_LoadMutex)
     {
         dmMutex::Delete(factory->m_LoadMutex);
+    }
+    if (factory->m_Manifest)
+    {
+        delete factory->m_Manifest;
     }
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
@@ -443,6 +513,49 @@ Result RegisterType(HFactory factory,
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
     return RESULT_OK;
+}
+
+Result LoadFromManifest(HFactory factory, const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
+{
+    // Get resource hash from path_hash
+    uint32_t entry_count = manifest->m_DDF->m_Data.m_Header.m_Version;
+    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDF->m_Data.m_Resources.m_Data;
+
+    for (int i = 0; i < entry_count; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry& e = entries[i];
+        // TODO string comp? Use path hash to compare instead?
+        if (strcmp(e.m_Url, path) == 0) // match
+        {
+            dmResourceArchive::EntryData ed;
+            dmResourceArchive::Result res = dmResourceArchive::FindEntry2(manifest->m_ArchiveIndex, e.m_Hash.m_Data.m_Data, &ed);
+            if (res == dmResourceArchive::RESULT_OK)
+            {
+                uint32_t file_size = ed.m_ResourceSize; // TODO compressed size?
+                if (buffer->Capacity() < file_size)
+                {
+                    buffer->SetCapacity(file_size);
+                }
+
+                buffer->SetSize(0);
+                dmResourceArchive::Read2(manifest->m_ArchiveIndex, &ed, buffer->Begin());
+                buffer->SetSize(file_size);
+                *resource_size = file_size;
+
+                return RESULT_OK;
+            }
+            else if (res == dmResourceArchive::RESULT_NOT_FOUND)
+            {
+                return RESULT_RESOURCE_NOT_FOUND;
+            }
+            else
+            {
+                return RESULT_IO_ERROR;
+            }
+        }
+    }
+
+    return RESULT_RESOURCE_NOT_FOUND;
 }
 
 // Assumes m_LoadMutex is already held
@@ -536,6 +649,20 @@ Result DoLoadResourceLocked(HFactory factory, const char* path, const char* orig
         Result r = LoadFromArchive(factory, factory->m_Archive, path, original_name, resource_size, buffer);
         return r;
     }
+    else if (factory->m_Manifest)
+    {
+
+
+
+        // LOOKUP RESOURCE VIA MANIFEST!
+        //uint64_t path_hash = dmHashBuffer64(path, strlen(path)); // Is this the complete path incl. filename?
+        Result r = LoadFromManifest(factory, factory->m_Manifest, path, resource_size, buffer);
+
+        return r;
+
+
+
+    }
     else
     {
         // Load over local file system
@@ -606,6 +733,7 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
+    // Try to get from already loaded resources
     SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
     if (rd)
     {
@@ -621,6 +749,8 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
         return RESULT_OUT_OF_RESOURCES;
     }
 
+    // TODO this should go via manifest!
+    // Resource not loaded previously, try and load the resource from archive
     const char* ext = strrchr(name, '.');
     if (ext)
     {

@@ -56,8 +56,9 @@
 
 namespace dmResourceArchive
 {
+    const static uint32_t VERSION = 4;
+    
     typedef struct Archive* HArchive;
-
     typedef struct ArchiveIndex* HArchiveIndex;
 
     enum Result
