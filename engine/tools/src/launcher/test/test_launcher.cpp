@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <../launcher.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -9,7 +10,11 @@
 #include <windows.h>
 #include <assert.h>
 
-static char* bogus_content = " \t\n\v\"\\abc";
+#define MAX_ARG_LEN 20
+#define MAX_ARGC 20
+#define ITERATIONS 100000
+
+static const char* bogus_content = " \t\n\v\"\\abc";
 
 const char* char_str(char c)
 {
@@ -30,11 +35,11 @@ void dump_argv(int argc, char const* argv[])
 {
     for (int a = 0; a < argc; ++a)
     {
-	printf("argv[%d] = [", a);
-	for (const char* b = argv[a]; *b; ++b) {
-	    printf("%x(%s) ", (int)*b, char_str(*b));
-	}
-	printf("]\n");
+        printf("argv[%d] = [", a);
+        for (const char* b = argv[a]; *b; ++b) {
+            printf("%x(%s) ", (int)*b, char_str(*b));
+        }
+        printf("]\n");
     }
 }
 
@@ -42,7 +47,7 @@ void dump_wide_argv(int parsed_argc, LPWSTR* parsed_argv)
 {
     for (int a = 0; a < parsed_argc; ++a)
     {
-        char narrow_parsed_arg[20];
+        char narrow_parsed_arg[(MAX_ARG_LEN) + 1];
         char* out = narrow_parsed_arg;
 
         for (wchar_t* wc = parsed_argv[a]; *wc != 0; ++wc) {
@@ -91,7 +96,7 @@ void CheckRoundtrip(int argc, char const* argv[])
     {
         for (int a = 0; a < argc; ++a)
         {
-            char narrow_parsed_arg[20];
+            char narrow_parsed_arg[(MAX_ARG_LEN) + 1];
             char* out = narrow_parsed_arg;
 
             for (wchar_t* wc = parsed_argv[a]; *wc != 0; ++wc) {
@@ -113,12 +118,13 @@ TEST(Launcher, CreateProcessArgQuoting)
     unsigned int seed = (unsigned int) time(0);
 
     printf("Seed: %u\n", seed);
+    fflush(stdout);
 
     srand(seed);
     
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < (ITERATIONS); ++i)
     {
-        int argc = rand() % 20 + 1;
+        int argc = rand() % (MAX_ARGC) + 1;
 
         const char** argv = new const char*[argc + 1];
 
@@ -126,12 +132,12 @@ TEST(Launcher, CreateProcessArgQuoting)
 
         for (int a = 1; a < argc; ++a)
         {
-            int len = rand() % 20 + 1;
+            int len = rand() % (MAX_ARG_LEN) + 1;
             char* bogus = new char[len + 1];
 
             for (int c = 0; c < len; ++c)
             {
-                bogus[c] = bogus_content[rand() % 8];
+                bogus[c] = bogus_content[rand() % 9];
             }
 
             bogus[len] = 0;
