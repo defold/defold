@@ -1,0 +1,117 @@
+
+local function compare_fp(lhs, rhs)
+    local epsilon = 1e-10
+    local diff = math.abs(lhs - rhs)
+    return epsilon > diff
+end
+
+local function test_vector4(name, expected)
+
+    local v = go.get("#label", name)
+    local vx = go.get("#label", name .. ".x")
+    local vy = go.get("#label", name .. ".y")
+    local vz = go.get("#label", name .. ".z")
+    local vw = go.get("#label", name .. ".w")
+
+    assert(expected == v)
+    assert(expected.x == vx)
+    assert(expected.y == vy)
+    assert(expected.z == vz)
+    assert(expected.w == vw)
+end
+
+local function test_vector3(name, expected)
+
+    local v = go.get("#label", name)
+    local vx = go.get("#label", name .. ".x")
+    local vy = go.get("#label", name .. ".y")
+    local vz = go.get("#label", name .. ".z")
+
+    assert(expected == v)
+    assert(expected.x == vx)
+    assert(expected.y == vy)
+    assert(expected.z == vz)
+end
+
+
+local function test_set_vector3(name, startvalue)
+	local expected = vmath.vector3(startvalue, startvalue+1, startvalue+2)
+	startvalue = startvalue + 3
+	go.set("#label", name, expected)
+	test_vector3(name, expected)
+
+	startvalue = startvalue + 1
+	expected.x = startvalue
+	go.set("#label", name .. ".x", startvalue)
+	test_vector3(name, expected)
+
+	startvalue = startvalue + 1
+	expected.y = startvalue
+	go.set("#label", name .. ".y", startvalue)
+	test_vector3(name, expected)
+
+	startvalue = startvalue + 1
+	expected.z = startvalue
+	go.set("#label", name .. ".z", startvalue)
+	test_vector3(name, expected)
+end
+
+local function test_set_vector4(name, startvalue)
+	local expected = vmath.vector4(startvalue, startvalue+1, startvalue+2, startvalue+3)
+	startvalue = startvalue + 4
+	go.set("#label", name, expected)
+	test_vector4(name, expected)
+
+	startvalue = startvalue + 1
+	expected.x = startvalue
+	go.set("#label", name .. ".x", startvalue)
+	test_vector4(name, expected)
+
+	startvalue = startvalue + 1
+	expected.y = startvalue
+	go.set("#label", name .. ".y", startvalue)
+	test_vector4(name, expected)
+
+	startvalue = startvalue + 1
+	expected.z = startvalue
+	go.set("#label", name .. ".z", startvalue)
+	test_vector4(name, expected)
+
+	startvalue = startvalue + 1
+	expected.w = startvalue
+	go.set("#label", name .. ".w", startvalue)
+	test_vector4(name, expected)
+end
+
+function init(self)
+
+	--
+	-- GET PROPERTIES
+	-- 
+
+	test_vector3("scale", vmath.vector3(1,2,3))
+	test_vector3("size", vmath.vector3(128,32,0))
+
+	test_vector4("color", vmath.vector4(1,1,1,1))
+	test_vector4("outline", vmath.vector4(0,0,0,1))
+	test_vector4("shadow", vmath.vector4(0,0,0,1))
+
+	--
+	-- SET PROPERTIES
+	-- 
+
+	test_set_vector3("scale", 100)
+	test_set_vector3("size", 200)
+
+	test_set_vector4("color", 300)
+	test_set_vector4("outline", 400)
+	test_set_vector4("shadow", 500)
+
+
+	--
+	-- END TEST
+	-- 
+
+	msg.post("main:/main#script", "done")
+end
+
