@@ -6,7 +6,8 @@
   (:import [java.io File InputStream]
            [java.util.zip ZipInputStream]
            [java.nio.file Path Paths Files CopyOption StandardCopyOption attribute.FileAttribute]
-           [java.net URL URLConnection HttpURLConnection]))
+           [java.net URL URLConnection HttpURLConnection]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -127,7 +128,7 @@
   (with-open [zip (ZipInputStream. (io/input-stream url))]
     (loop [entry (.getNextEntry zip)]
       (if entry
-        (let [parts (str/split (.getName entry) #"/")
+        (let [parts (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
               name (last parts)]
           (if (= file-name name)
             {:name name :path (str/join "/" (butlast parts))}
