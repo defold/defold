@@ -192,8 +192,9 @@
           unified-status))
 
 (defn refresh-git-state [{:keys [git] :as flow}]
-  (merge flow (find-git-state (git/status git)
-                              (git/unified-status git))))
+  (let [status (git/status git)]
+    (merge flow (find-git-state status
+                                (git/unified-status git status)))))
 
 (defn advance-flow [{:keys [git state progress creds conflicts stash-ref message] :as flow} render-progress]
   (render-progress progress)
