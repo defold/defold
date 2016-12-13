@@ -61,26 +61,27 @@
   ([g n original original-deleted?]
     (if (contains? (:nodes g) n)
       (let [g (reduce (fn [g or-n] (graph-remove-node g or-n n true)) g (overrides g n))
-           sarcs (mapcat second (get-in g [:sarcs n]))
-           tarcs (mapcat second (get-in g [:tarcs n]))
-           override-id (when original (gt/override-id (get-in g [:nodes n])))
-           override (when original (get-in g [:overrides override-id]))]
-       (-> g
-         (cond->
-           (not original-deleted?) (update-in [:node->overrides original] (partial util/removev #{n}))
-           (and override (= original (:root-id override))) (update :overrides dissoc override-id))
+            sarcs (mapcat second (get-in g [:sarcs n]))
+            tarcs (mapcat second (get-in g [:tarcs n]))
+            override-id (when original (gt/override-id (get-in g [:nodes n])))
+            override (when original (get-in g [:overrides override-id]))]
+        (-> g
+          (cond->
+            (not original-deleted?) (update-in [:node->overrides original] (partial util/removev #{n}))
+            (and override (= original (:root-id override))) (update :overrides dissoc override-id))
          (update :nodes dissoc n)
          (update :node->overrides dissoc n)
          (update :sarcs dissoc n)
          (update :sarcs (fn [s] (reduce (fn [s ^ArcBase arc]
                                           (update-in s [(.source arc) (.sourceLabel arc)]
-                                                     (fn [arcs] (util/removev (fn [^ArcBase arc] (= n (.target arc))) arcs))))
-                                        s tarcs)))
+                                            (fn [arcs] (util/removev (fn [^ArcBase arc] (= n (.target arc))) arcs))))
+                                  s tarcs)))
          (update :tarcs dissoc n)
          (update :tarcs (fn [s] (reduce (fn [s ^ArcBase arc]
                                           (update-in s [(.target arc) (.targetLabel arc)]
-                                                     (fn [arcs] (util/removev (fn [^ArcBase arc] (= n (.source arc))) arcs))))
-                                        s sarcs))))))))
+                                            (fn [arcs] (util/removev (fn [^ArcBase arc] (= n (.source arc))) arcs))))
+                                  s sarcs)))))
+      g)))
 
 (defn- arc-cross-graph? [^ArcBase arc]
   (not= (gt/node-id->graph-id (.source arc)) (gt/node-id->graph-id (.target arc))))
