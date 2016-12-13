@@ -425,6 +425,20 @@ namespace dmSys
             dmLogFatal("Unable to locate bundle resource directory");
             return RESULT_UNKNOWN;
         }
+#elif defined(_WIN32)
+        char module_file_name[DMPATH_MAX_PATH];
+        DWORD copied = GetModuleFileName(NULL, module_file_name, DMPATH_MAX_PATH);
+
+        if (copied < DMPATH_MAX_PATH)
+        {
+          dmPath::Dirname(module_file_name, path, path_len);
+          return RESULT_OK;
+        }
+        else
+        {
+          dmLogFatal("Unable to get module file name");
+          return RESULT_UNKNOWN;
+        }
 #else
         dmPath::Dirname(argv[0], path, path_len);
         return RESULT_OK;
