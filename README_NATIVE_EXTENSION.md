@@ -65,18 +65,20 @@ To launch the server locally, via gradle:
 
 ### Local Docker
 
-The same server can also run inside a docker container:
+The easiest way to debug is to use the docker container.
+First, install [Docker](https://www.docker.com/)
+
+The gradle server also runs inside a docker container:
 
     $ cd extender
     extender$ ./scripts/build.sh
     extender$ ./scripts/run.sh
   
-#### Debuggind inside docker
+#### Debugging inside docker
 
 It's quite easy to get access to your docker container:
 
-    extender$ docker ps  # lists all containers running, find the container id
-    extender$ docker exec -it [container id] /bin/bash
+    extender$ ./scipts/debug.sh
 
 ## Editor 2
 
