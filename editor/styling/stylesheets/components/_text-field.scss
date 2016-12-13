@@ -4,16 +4,20 @@
     -fx-border-radius: 0px;
     -fx-padding: 4px 8px;
     -fx-background-color: $input-background;
-    -fx-border-width: 0 0 2 0;
-    -fx-border-color: transparent;//$dark-grey-header;
+    -fx-border-width: 1px 1px 1px 1px;
+    -fx-border-color: $input-border;
     -fx-text-fill: $defold-white;
     -fx-prompt-text-fill: $bright-grey-light;
+    -fx-min-height: 26px;
     &:hover {
         
     }
     &:focused {
         -fx-background-color: $root-background;
-        -fx-border-color: $defold-orange;
+        -fx-border-width: 1px 1px 2px 1px;
+        -fx-border-insets: 0px 0px 0px 0px;
+        -fx-padding: 4px 8px 3px 8px;
+        -fx-border-color: $mid-grey-light $mid-grey-light $defold-orange $mid-grey-light;
         -fx-text-fill: $defold-white;
     }
 }

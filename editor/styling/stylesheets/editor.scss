@@ -43,12 +43,12 @@ Links:
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:vertical {
   -fx-background-insets: 0;
-  -fx-padding: -1 -1 -1 0; }
+}
 
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:horizontal {
   -fx-background-insets: 0;
-  -fx-padding: -1 -1 -1 0; }
+}
 
 
 /* Selected rows */
@@ -71,11 +71,7 @@ Links:
   -fx-background: $bright-black-light;
   -fx-control-inner-background: $bright-black-light;
   -fx-hover-base: $defold-red; }
-
-.text-area {
-  -fx-font-size: 9pt;
-  -fx-font-family: "Dejavu Sans Mono"; }
-
+  
 /* diff viewer */
 .diff-box {
   -fx-fill: rgba(204, 204, 204, 0.2);
