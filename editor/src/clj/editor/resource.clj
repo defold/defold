@@ -150,12 +150,13 @@
     (.toByteArray os)))
 
 (defn- outside-base-path? [base-path ^ZipEntry entry]
-  (and (seq base-path) (not (.startsWith (.getName entry) (str base-path "/")))))
+  (and (seq base-path) (not (.startsWith (->unix-seps (.getName entry)) (str base-path "/")))))
 
 (defn- path-relative-base [base-path ^ZipEntry entry]
-  (if (seq base-path)
-    (.replaceFirst (.getName entry) (str base-path "/") "")
-    (.getName entry)))
+  (let [entry-name (->unix-seps (.getName entry))]
+    (if (seq base-path)
+      (.replaceFirst entry-name (str base-path "/") "")
+      entry-name)))
 
 (defn- load-zip [url base-path]
   (when-let [stream (and url (io/input-stream url))]
@@ -166,7 +167,7 @@
             entries
             (recur (if (or (.isDirectory e) (outside-base-path? base-path e))
                      entries
-                     (conj entries {:name (last (string/split (.getName e) #"/"))
+                     (conj entries {:name (FilenameUtils/getName (.getName e))
                                     :path (path-relative-base base-path e)
                                     :buffer (read-zip-entry zip e)})))))))))
 

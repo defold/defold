@@ -1,10 +1,10 @@
 (ns editor.build-errors-view
   (:require [dynamo.graph :as g]
-            [editor.dialogs :as dialogs]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [javafx.scene.control TabPane TreeItem TreeView]
+  (:import [javafx.collections FXCollections ObservableList]
+           [javafx.scene.control TabPane TreeItem TreeView]
            [editor.resource FileResource]))
 
 (set! *warn-on-reflection* true)
@@ -84,10 +84,33 @@
                      (when-let [selection (ui/selection errors-tree)]
                        (open-error open-resource-fn selection))))))
 
+(declare tree-item)
+
+(defn- ^ObservableList list-children [parent]
+  (let [children (:children parent)
+        items    (into-array TreeItem (mapv tree-item children))]
+    (if (empty? children)
+      (FXCollections/emptyObservableList)
+      (doto (FXCollections/observableArrayList)
+        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
+
+(defn- tree-item [parent]
+  (let [cached (atom false)]
+    (proxy [TreeItem] [parent]
+      (isLeaf []
+        (empty? (:children (.getValue ^TreeItem this))))
+      (getChildren []
+        (let [this ^TreeItem this
+              ^ObservableList children (proxy-super getChildren)]
+          (when-not @cached
+            (reset! cached true)
+            (.setAll children (list-children (.getValue this))))
+          children)))))
+
 (defn update-build-errors [^TreeView errors-tree build-errors]
   (def err build-errors)
   (let [res-tree (build-resource-tree build-errors)
-        new-root (dialogs/tree-item res-tree)]
+        new-root (tree-item res-tree)]
     (.setRoot errors-tree new-root)
     (doseq [^TreeItem item (ui/tree-item-seq (.getRoot errors-tree))]
       (.setExpanded item true))
