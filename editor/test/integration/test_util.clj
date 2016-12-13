@@ -192,6 +192,7 @@
             view (make-view-fn! view-graph node-id)]
         (g/transact
           (concat
+            (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :node-id+resource view :node-id+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
