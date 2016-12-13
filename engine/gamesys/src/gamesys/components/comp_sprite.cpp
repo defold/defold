@@ -102,6 +102,7 @@ namespace dmGameSystem
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, true);
     static const dmhash_t PROP_CURSOR = dmHashString64("cursor");
+    static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
 
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -158,6 +159,16 @@ namespace dmGameSystem
         component->m_Cursor = t;
     }
 
+    static float GetPlaybackRate(SpriteComponent* component)
+    {
+        return component->m_PlaybackRate;
+    }
+
+    static void SetPlaybackRate(SpriteComponent* component, float playback_rate)
+    {
+        component->m_PlaybackRate = playback_rate;
+    }
+
     bool PlayAnimation(SpriteComponent* component, dmhash_t animation_id, dmGameSystemDDF::Playback playback, float offset, float playback_rate)
     {
         TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
@@ -173,6 +184,7 @@ namespace dmGameSystem
                 component->m_Playback = playback;
             }
 
+            // For ping pong we don't show the first and "middle" frame twice.
             if (component->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
              || component->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
                 frame_count = dmMath::Max(1u, frame_count * 2 - 2);
@@ -894,6 +906,11 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_Cursor);
             result = dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (get_property == PROP_PLAYBACK_RATE)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_PlaybackRate);
+            result = dmGameObject::PROPERTY_RESULT_OK;
+        }
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
@@ -925,6 +942,14 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
 
             SetCursor(component, params.m_Value.m_Number);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (set_property == PROP_PLAYBACK_RATE)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+
+            SetPlaybackRate(component, params.m_Value.m_Number);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 

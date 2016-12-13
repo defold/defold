@@ -257,6 +257,43 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# play a flipbook animation on a sprite
+     *
+     * @name sprite.play_anim
+     * @param url the sprite for which to play the animation (url)
+     * @param anim_id id of the animation to play (string|hash)
+     * @param playback playback mode of the animation (constant)
+     * <ul>
+     *   <li><code>go.PLAYBACK_ONCE_FORWARD</code></li>
+     *   <li><code>go.PLAYBACK_ONCE_BACKWARD</code></li>
+     *   <li><code>go.PLAYBACK_ONCE_PINGPONG</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_FORWARD</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
+     * </ul>
+     * @param [play_properties] optional table with properties (table)
+     * <ul>
+     *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
+     *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
+     * </ul>
+     * @param [complete_function] function to call when the animation has completed (function)
+     * @examples
+     * <p>
+     * The following examples assumes that the sprite has id "sprite".
+     * </p>
+     * <p>
+     * How to play the "jump" animation in slow motion followed by the "run" animation at regular speed:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     local url = msg.url("#sprite")
+     *     local play_properties = { playback_rate = 0.1 }
+     *     sprite.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
+     *         sprite.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD)
+     *     end)
+     * end
+     * </pre>
+     */
     int SpriteComp_PlayAnim(lua_State* L)
     {
         int top = lua_gettop(L);

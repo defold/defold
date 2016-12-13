@@ -782,7 +782,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     uint64_t fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", dmGui::PLAYBACK_DEFAULT, 1.0f, 0.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -809,7 +809,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, fb_id);
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", dmGui::PLAYBACK_DEFAULT, 1.0f, 0.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);

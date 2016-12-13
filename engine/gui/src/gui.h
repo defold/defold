@@ -62,7 +62,8 @@ namespace dmGui
         PLAYBACK_LOOP_BACKWARD = 4,
         PLAYBACK_LOOP_PINGPONG = 5,
         PLAYBACK_NONE = 6,
-        PLAYBACK_COUNT = 7,
+        PLAYBACK_DEFAULT = 7,
+        PLAYBACK_COUNT = 8,
     };
 
     enum AdjustReference
@@ -898,8 +899,13 @@ namespace dmGui
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor);
+    float GetNodeFlipbookCursor(HScene scene, HNode node);
+    void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate);
+    float GetNodeFlipbookPlaybackRate(HScene scene, HNode node);
+
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, Playback playback, float playback_rate, float offset, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, Playback playback, float playback_rate, float offset, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     void CancelNodeFlipbookAnim(HScene scene, HNode node);
     dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);

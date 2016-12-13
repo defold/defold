@@ -1341,14 +1341,6 @@ namespace dmGui
         return 1;
     }
 
-    /*# play node flipbook animation
-     * Play flipbook animation on a box or pie node. The current node texture must contain the animation.
-     *
-     * @name gui.play_flipbook
-     * @param node node to set animation for (node)
-     * @param animation animation id (string|hash)
-     * @param [complete_function] function to call when the animation has completed (function)
-     */
     static int LuaPlayFlipbook(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -1377,9 +1369,9 @@ namespace dmGui
             const char* anim_id = luaL_checkstring(L, 2);
             Result r;
             if(animation_complete_ref != LUA_NOREF)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, dmGui::PLAYBACK_DEFAULT, 1.0f, 0.0f, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, dmGui::PLAYBACK_DEFAULT, 1.0f, 0.0f);
             if (r != RESULT_OK)
             {
                 const char* node_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
@@ -1394,9 +1386,9 @@ namespace dmGui
             dmhash_t anim_id = dmScript::CheckHash(L, 2);
             Result r;
             if(animation_complete_ref != LUA_NOREF)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, dmGui::PLAYBACK_DEFAULT, 1.0f, 0.0f, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, dmGui::PLAYBACK_DEFAULT, 1.0f, 0.0f);
             if (r != RESULT_OK)
             {
                 const char* node_id_string = (const char*)dmHashReverse64(anim_id, 0x0);
@@ -1446,6 +1438,120 @@ namespace dmGui
 
         // never reached
         return (dmImage::Type) 0;
+    }
+
+    /*# play node flipbook animation
+     * Play flipbook animation on a box or pie node. The current node texture must contain the animation.
+     *
+     * @name gui.play_flipbook_anim
+     * @param node node to set animation for (node)
+     * @param animation animation id (string|hash)
+     * @param playback playback mode of the animation (constant)
+     * <ul>
+     *   <li><code>gui.PLAYBACK_ONCE_FORWARD</code></li>
+     *   <li><code>gui.PLAYBACK_ONCE_BACKWARD</code></li>
+     *   <li><code>gui.PLAYBACK_ONCE_PINGPONG</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_FORWARD</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_BACKWARD</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_PINGPONG</code></li>
+     * </ul>
+     * @param [play_properties] optional table with properties (table)
+     * <ul>
+     *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
+     *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
+     * </ul>
+     * @param [complete_function] function to call when the animation has completed (function)
+     * @examples
+     * <p>
+     * The following examples assumes that the gui node has id "box".
+     * </p>
+     * <p>
+     * How to play the "jump" animation in slow motion followed by the "run" animation at regular speed:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     local node = gui.get_node("box")
+     *     local play_properties = { playback_rate = 0.1 }
+     *     gui.play_flipbook_anim(node, "jump", gui.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
+     *         gui.play_flipbook_anim(node, "run", gui.PLAYBACK_LOOP_FORWARD)
+     *     end)
+     * end
+     * </pre>
+     */
+    static int LuaPlayFlipbookAnim(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
+
+        dmGui::Playback playback = dmGui::PLAYBACK_DEFAULT;
+        bool has_playback = top > 2 && !lua_isnil(L, 3) && lua_isnumber(L, 3);
+        if (has_playback)
+        {
+            playback = (dmGui::Playback)luaL_checkinteger(L, 3);
+        }
+
+        lua_Number offset = 0.0, playback_rate = 1.0;
+        int table_index = 4;
+        if (!has_playback) {
+            table_index = 3;
+        }
+
+        if (top >= table_index && lua_istable(L, table_index)) // table with args
+        {
+            luaL_checktype(L, table_index, LUA_TTABLE);
+            lua_pushvalue(L, table_index);
+
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        int cb_index = table_index + 1;
+        int node_ref = LUA_NOREF;
+        int animation_complete_ref = LUA_NOREF;
+        if (top >= cb_index) // completed cb
+        {
+            if (lua_isfunction(L, cb_index))
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+                lua_pushvalue(L, cb_index);
+                animation_complete_ref = dmScript::Ref(L, -2);
+                lua_pushvalue(L, 1);
+                node_ref = dmScript::Ref(L, -2);
+                lua_pop(L, 1);
+            }
+        }
+
+        Result r;
+        if(animation_complete_ref != LUA_NOREF)
+            r = PlayNodeFlipbookAnim(scene, hnode, anim_id, playback, playback_rate, offset, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+        else
+            r = PlayNodeFlipbookAnim(scene, hnode, anim_id, playback, playback_rate, offset);
+        if (r != RESULT_OK)
+        {
+            const char* node_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
+            if(node_id_string != 0x0)
+                luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id, node_id_string);
+            else
+                luaL_error(L, "Animation %s invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     /*# create new texture
@@ -3724,6 +3830,92 @@ namespace dmGui
         return 1;
     }
 
+
+    /*# sets the normalized cursor of a flipbook animation on a node
+     * This is only useful for nodes with flipbook animation. The cursor is normalized.
+     *
+     * @name gui.set_flipbook_cursor
+     * @param node node to set the cursor for (node)
+     * @param cursor cursor value (number)
+     */
+    int LuaSetFlipbookCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        float cursor = luaL_checknumber(L, 2);
+        SetNodeFlipbookCursor(scene, node, cursor);
+
+        return 0;
+    }
+
+    /*# gets the normalized cursor of a flipbook animation on a node
+     * This is only useful for nodes with flipbook animation. Gets the normalized cursor of the flipbook animation on a node.
+     *
+     * @name gui.get_flipbook_cursor
+     * @param node node to set the cursor for (node)
+     * @return cursor value (number)
+     */
+    int LuaGetFlipbookCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        float cursor = dmGui::GetNodeFlipbookCursor(scene, node);
+        lua_pushnumber(L, cursor);
+
+        return 1;
+    }
+
+    /*# sets the playback rate of the flipbook animation on a node
+     * This is only useful for nodes with flipbook animation. Sets the playback rate of the flipbook animation on a node. Must be positive.
+     *
+     * @name gui.set_flipbook_playback_rate
+     * @param node node to set the cursor for (node)
+     * @param playback_rate playback rate (number)
+     */
+    int LuaSetFlipbookPlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        float playback_rate = luaL_checknumber(L, 2);
+        SetNodeFlipbookPlaybackRate(scene, node, playback_rate);
+
+        return 0;
+    }
+
+    /*# gets the playback rate of the flipbook animation on a node
+     * This is only useful for nodes with flipbook animation. Gets the playback rate of the flipbook animation on a node.
+     *
+     * @name gui.get_flipbook_playback_rate
+     * @param node node to set the cursor for (node)
+     * @return playack rate (number)
+     */
+    int LuaGetFlipbookPlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        float playback_rate = dmGui::GetNodeFlipbookPlaybackRate(scene, node);
+
+        lua_pushnumber(L, playback_rate);
+
+        return 1;
+    }
+
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
         {"set_"#luaname, LuaSet##name},\
@@ -3758,6 +3950,7 @@ namespace dmGui
         {"get_flipbook",    LuaGetFlipbook},
         {"play_flipbook",   LuaPlayFlipbook},
         {"cancel_flipbook", LuaCancelFlipbook},
+        {"play_flipbook_anim", LuaPlayFlipbookAnim},
         {"new_texture",     LuaNewTexture},
         {"delete_texture",  LuaDeleteTexture},
         {"set_texture_data",LuaSetTextureData},
@@ -3823,6 +4016,10 @@ namespace dmGui
         {"get_spine_cursor", LuaGetSpineCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
         {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
+        {"set_flipbook_cursor", LuaSetFlipbookCursor},
+        {"get_flipbook_cursor", LuaGetFlipbookCursor},
+        {"set_flipbook_playback_rate", LuaSetFlipbookPlaybackRate},
+        {"get_flipbook_playback_rate", LuaGetFlipbookPlaybackRate},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
@@ -4220,6 +4417,7 @@ namespace dmGui
         SETPLAYBACK(LOOP_FORWARD)
         SETPLAYBACK(LOOP_BACKWARD)
         SETPLAYBACK(LOOP_PINGPONG)
+        SETPLAYBACK(NONE)
 
 #undef SETADJUST
 

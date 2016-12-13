@@ -16,6 +16,7 @@
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/trig_lookup.h>
+#include <dlib/math.h>
 
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
@@ -157,6 +158,25 @@ namespace dmGui
         assert(n->m_Index == index);
         return n;
     }
+
+    inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value)
+    {
+        uint16_t version = (uint16_t) (node >> 16);
+        uint16_t index = node & 0xffff;
+        InternalNode* n = &scene->m_Nodes[index];
+        assert(n->m_Version == version);
+
+        dmArray<Animation>* animations = &scene->m_Animations;
+        uint32_t n_animations = animations->Size();
+        for (uint32_t i = 0; i < n_animations; ++i)
+        {
+            Animation* anim = &(*animations)[i];
+            if (anim->m_Node == node && anim->m_Value == value)
+                return anim;
+        }
+        return 0;
+    }
+
 
     HContext NewContext(const NewContextParams* params)
     {
@@ -1320,11 +1340,15 @@ namespace dmGui
                     anim->m_From = *anim->m_Value;
                     anim->m_FirstUpdate = 0;
                     // Compensate Elapsed with Delay underflow
-                    anim->m_Elapsed = -anim->m_Delay;
+                    anim->m_Elapsed = -anim->m_Delay + anim->m_Offset;
                 }
 
                 // NOTE: We add dt to elapsed before we calculate t.
                 // Example: 60 updates with dt=1/60.0 should result in a complete animation
+                if (anim->m_PlaybackRate)
+                {
+                    dt *= *anim->m_PlaybackRate;
+                }
                 anim->m_Elapsed += dt;
                 // Clamp elapsed to duration if we are closer than half a time step
                 anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
@@ -2684,6 +2708,62 @@ namespace dmGui
         return playback_rate;
     }
 
+    void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor)
+    {
+        InternalNode* n = GetNode(scene, node);
+        float t = cursor;
+
+        if (cursor < 0)
+        {
+            t = 1.0f + t;
+        }
+
+        t = fmod(t, 1.0f);
+
+        Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        if (anim) {
+            anim->m_Elapsed = t * anim->m_Duration;
+        } else {
+            // If the playback is backwards (or pingpong once) the anim position will be from [1..0],
+            // so we need to invert it here before returning.
+            if (n->m_Node.m_FlipbookAnimPlayback == PLAYBACK_ONCE_BACKWARD
+             || n->m_Node.m_FlipbookAnimPlayback == PLAYBACK_ONCE_PINGPONG) {
+                t = 1.0f - n->m_Node.m_FlipbookAnimPosition;
+            }
+            n->m_Node.m_FlipbookAnimPosition = t;
+        }
+    }
+
+    float GetNodeFlipbookCursor(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        float t = n->m_Node.m_FlipbookAnimPosition;
+        Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        if (anim) {
+            t = anim->m_Elapsed / anim->m_Duration;
+        } else {
+            // If the playback is backwards (or pingpong once) the anim position will be from [1..0],
+            // so we need to invert it here before returning.
+            if (n->m_Node.m_FlipbookAnimPlayback == PLAYBACK_ONCE_BACKWARD
+             || n->m_Node.m_FlipbookAnimPlayback == PLAYBACK_ONCE_PINGPONG) {
+                t = 1.0f - n->m_Node.m_FlipbookAnimPosition;
+            }
+        }
+        return t;
+    }
+
+    void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_FlipbookAnimPlaybackRate = dmMath::Max(playback_rate, 0.0f);
+    }
+
+    float GetNodeFlipbookPlaybackRate(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_FlipbookAnimPlaybackRate;
+    }
+
     Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2949,6 +3029,8 @@ namespace dmGui
     static void AnimateComponent(HScene scene,
                                  HNode node,
                                  float* value,
+                                 float* playback_rate,
+                                 float offset,
                                  float to,
                                  dmEasing::Curve easing,
                                  Playback playback,
@@ -2991,6 +3073,8 @@ namespace dmGui
 
         animation.m_Node = node;
         animation.m_Value = value;
+        animation.m_PlaybackRate = playback_rate;
+        animation.m_Offset = offset;
         animation.m_To = to;
         animation.m_Delay = delay;
         animation.m_Elapsed = 0.0f;
@@ -3006,6 +3090,21 @@ namespace dmGui
         animation.m_Backwards = 0;
 
         scene->m_Animations[animation_index] = animation;
+    }
+
+    static void AnimateComponent(HScene scene,
+                                 HNode node,
+                                 float* value,
+                                 float to,
+                                 dmEasing::Curve easing,
+                                 Playback playback,
+                                 float duration,
+                                 float delay,
+                                 AnimationComplete animation_complete,
+                                 void* userdata1,
+                                 void* userdata2)
+    {
+        return AnimateComponent(scene, node, value, 0x0, 0.0f, to, easing, playback, duration, delay, animation_complete, userdata1, userdata2);
     }
 
     void AnimateNodeHash(HScene scene,
@@ -3111,25 +3210,6 @@ namespace dmGui
         }
     }
 
-
-    inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value)
-    {
-        uint16_t version = (uint16_t) (node >> 16);
-        uint16_t index = node & 0xffff;
-        InternalNode* n = &scene->m_Nodes[index];
-        assert(n->m_Version == version);
-
-        dmArray<Animation>* animations = &scene->m_Animations;
-        uint32_t n_animations = animations->Size();
-        for (uint32_t i = 0; i < n_animations; ++i)
-        {
-            Animation* anim = &(*animations)[i];
-            if (anim->m_Node == node && anim->m_Value == value)
-                return anim;
-        }
-        return 0;
-    }
-
     static void CancelAnimationComponent(HScene scene, HNode node, float* value)
     {
         Animation* anim = GetComponentAnimation(scene, node, value);
@@ -3138,19 +3218,33 @@ namespace dmGui
         anim->m_Cancelled = 1;
     }
 
-    static inline void AnimateTextureSetAnim(HScene scene, HNode node, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    static inline void AnimateTextureSetAnim(HScene scene, HNode node, Playback playback, float offset, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
     {
         InternalNode* n = GetNode(scene, node);
         TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
+
+        if (playback == PLAYBACK_DEFAULT) {
+            playback = (Playback) anim_desc.m_Playback;
+        }
+        n->m_Node.m_FlipbookAnimPlayback = playback;
+
         float anim_frames = (float) (anim_desc.m_End - anim_desc.m_Start);
+        if (playback == dmGui::PLAYBACK_ONCE_PINGPONG
+         || playback == dmGui::PLAYBACK_LOOP_PINGPONG) {
+            anim_frames = dmMath::Max(1.0f, anim_frames * 2.0f - 2.0f);
+        }
+
+        float duration = anim_frames / (float) anim_desc.m_FPS;
         AnimateComponent(
                 scene,
                 node,
                 &n->m_Node.m_FlipbookAnimPosition,
+                &n->m_Node.m_FlipbookAnimPlaybackRate,
+                offset * duration,
                 1.0f,
                 dmEasing::Curve(dmEasing::TYPE_LINEAR),
-                (Playback) anim_desc.m_Playback,
-                anim_frames / (float) anim_desc.m_FPS,
+                playback,
+                duration,
                 0.0f,
                 anim_complete_callback,
                 callback_userdata1,
@@ -3201,15 +3295,16 @@ namespace dmGui
 
         Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
         if(anim && (anim->m_Cancelled == 0))
-            AnimateTextureSetAnim(scene, node, anim->m_AnimationComplete, anim->m_Userdata1, anim->m_Userdata2);
+            AnimateTextureSetAnim(scene, node, PLAYBACK_DEFAULT, 0.0f, anim->m_AnimationComplete, anim->m_Userdata1, anim->m_Userdata2);
         else
-            AnimateTextureSetAnim(scene, node, 0, 0, 0);
+            AnimateTextureSetAnim(scene, node, PLAYBACK_DEFAULT, 0.0f, 0, 0, 0);
     }
 
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, Playback playback, float playback_rate, float offset, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_FlipbookAnimPosition = 0.0f;
+        n->m_Node.m_FlipbookAnimPlaybackRate = playback_rate;
         n->m_Node.m_FlipbookAnimHash = 0x0;
 
         if(anim == 0x0)
@@ -3242,17 +3337,23 @@ namespace dmGui
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
-        if(n->m_Node.m_TextureSetAnimDesc.m_Playback == PLAYBACK_NONE)
+        if(n->m_Node.m_TextureSetAnimDesc.m_Playback == PLAYBACK_NONE || playback == PLAYBACK_NONE)
+        {
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
-        else
-            AnimateTextureSetAnim(scene, node, anim_complete_callback, callback_userdata1, callback_userdata2);
+            // If playback is NONE we still need to update the animation cursor to offset.
+            if (offset > 0.0f) {
+                n->m_Node.m_FlipbookAnimPosition = offset;
+            }
+        } else {
+            AnimateTextureSetAnim(scene, node, playback, offset, anim_complete_callback, callback_userdata1, callback_userdata2);
+        }
         CalculateNodeSize(n);
         return RESULT_OK;
     }
 
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, Playback playback, float playback_rate, float offset, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
     {
-        return PlayNodeFlipbookAnim(scene, node, dmHashString64(anim), anim_complete_callback, callback_userdata1, callback_userdata2);
+        return PlayNodeFlipbookAnim(scene, node, dmHashString64(anim), playback, playback_rate, offset, anim_complete_callback, callback_userdata1, callback_userdata2);
     }
 
     void CancelNodeFlipbookAnim(HScene scene, HNode node)

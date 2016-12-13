@@ -136,6 +136,8 @@ namespace dmGui
         TextureSetAnimDesc m_TextureSetAnimDesc;
         uint64_t    m_FlipbookAnimHash;
         float       m_FlipbookAnimPosition;
+        float       m_FlipbookAnimPlaybackRate;
+        Playback    m_FlipbookAnimPlayback;
 
         uint64_t    m_FontHash;
         void*       m_Font;
@@ -177,6 +179,8 @@ namespace dmGui
     {
         HNode    m_Node;
         float*   m_Value;
+        float*   m_PlaybackRate;
+        float    m_Offset;
         float    m_From;
         float    m_To;
         float    m_Delay;
