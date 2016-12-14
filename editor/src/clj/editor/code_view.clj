@@ -676,7 +676,6 @@
     (cvx/refresh! source-viewer)
     (ui/timer-start! repainter)
     (ui/timer-stop-on-closed! ^Tab (:tab opts) repainter)
-    (ui/timer-stop-on-closed! (ui/parent->stage parent) repainter)
     view-id))
 
 (defn register-view-types [workspace]
