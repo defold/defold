@@ -57,24 +57,36 @@
     {:label "root"
      :children items}))
 
+
+(defn error-line
+  [error]
+  (-> error :value ex-data :line))
+
 (defmulti make-tree-cell
   (fn [tree-item] (:type tree-item)))
 
 (defmethod make-tree-cell :resource
   [tree-item]
   (let [resource (-> tree-item :value :resource)]
-    {:text (resource/resource-name resource )
+    {:text (resource/proj-path resource)
      :icon (workspace/resource-icon resource)}))
 
 (defmethod make-tree-cell :default
-  [tree-item]
-  {:text (-> tree-item :error :message)
-   :icon "icons/32/Icons_M_08_bigclose.png"})
+  [{:keys [error] :as tree-item}]
+  (let [line (error-line error)
+        message (cond->> (:message error)
+                  line
+                  (str "Line " line ": "))]
+    {:text message
+     :icon "icons/32/Icons_M_08_bigclose.png"}))
 
 (defn- open-error [open-resource-fn selection]
-  (when-let [error (:error selection)]
-    (ui/run-later
-      (open-resource-fn (-> selection :parent :resource) [(-> selection :parent :node-id)]))))
+  (when-let [selection (first (filter :error selection))]
+    (when-let [error (:error selection)]
+      (let [opts {:line (error-line error)}]
+        (ui/run-later
+          (open-resource-fn (-> selection :parent :resource) [(-> selection :parent :node-id)]
+                            opts))))))
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
@@ -108,7 +120,6 @@
           children)))))
 
 (defn update-build-errors [^TreeView errors-tree build-errors]
-  (def err build-errors)
   (let [res-tree (build-resource-tree build-errors)
         new-root (tree-item res-tree)]
     (.setRoot errors-tree new-root)

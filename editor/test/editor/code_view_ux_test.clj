@@ -517,18 +517,18 @@
 (deftest goto-line-test
   (with-code lua/lua "a\nb\nc"
     (testing "goto line"
-      (go-to-line! source-viewer "2")
+      (go-to-line! source-viewer 2)
       (is (= \b (get-char-at-caret source-viewer)))
-      (go-to-line! source-viewer "3")
+      (go-to-line! source-viewer 3)
       (is (= \c (get-char-at-caret source-viewer)))
-      (go-to-line! source-viewer "1")
+      (go-to-line! source-viewer 1)
       (is (= \a (get-char-at-caret source-viewer))))
     (testing "goto line bounds"
-      (go-to-line! source-viewer "0")
+      (go-to-line! source-viewer 0)
       (is (= \a (get-char-at-caret source-viewer)))
-      (go-to-line! source-viewer "-2")
+      (go-to-line! source-viewer -2)
       (is (= \a (get-char-at-caret source-viewer)))
-      (go-to-line! source-viewer "100")
+      (go-to-line! source-viewer 100)
       (is (= nil (get-char-at-caret source-viewer)))
       (is (= 5 (caret source-viewer))))))
 
