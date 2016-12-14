@@ -12,7 +12,7 @@
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
-           [org.eclipse.jgit.treewalk.filter OrTreeFilter PathFilter]))
+           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
 
 (set! *warn-on-reflection* true)
 
@@ -64,11 +64,6 @@
                                      (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
                                              (.getConflictingStageState s)))}))
 
-(defn- make-path-filter [path-strings]
-  (if (next path-strings)
-    (OrTreeFilter/create ^Collection (mapv #(PathFilter/create %) path-strings))
-    (PathFilter/create (first path-strings))))
-
 (defn unified-status
   "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored"
   ([^Git git]
@@ -83,7 +78,7 @@
              tree-walk (doto (TreeWalk. repository)
                          (.addTree (.getTree ^RevCommit (get-commit repository "HEAD")))
                          (.addTree (FileTreeIterator. repository))
-                         (.setFilter (make-path-filter changed-paths))
+                         (.setFilter (PathFilterGroup/createFromStrings ^Collection changed-paths))
                          (.setRecursive true))
              rename-detector (doto (RenameDetector. repository)
                                (.addAll (DiffEntry/scan tree-walk)))
