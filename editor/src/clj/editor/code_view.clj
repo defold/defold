@@ -676,8 +676,9 @@
 
 (defn focus-view
   [code-view-node {:keys [line]}]
-  (when line
-    (when-let [source-viewer (g/node-value code-view-node :source-viewer)]
+  (when-let [^SourceViewer source-viewer (g/node-value code-view-node :source-viewer)]
+    (cvx/refresh! source-viewer)
+    (when line
       (cvx/go-to-line source-viewer line))))
 
 (defn register-view-types [workspace]
