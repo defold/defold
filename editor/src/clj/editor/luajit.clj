@@ -10,7 +10,8 @@
 
 (defn- parse-compilation-error
   [s]
-  (zipmap [:exec :filename :line :message] (map str/trim (str/split s #":"))))
+  (-> (zipmap [:exec :filename :line :message] (map str/trim (str/split s #":")))
+      (update :line #(try (Integer/parseInt %) (catch Exception _)))))
 
 (defn- luajit-exec-path
   []
