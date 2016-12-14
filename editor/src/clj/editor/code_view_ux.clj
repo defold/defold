@@ -726,19 +726,16 @@
       (remember-caret-col source-viewer (caret source-viewer))
       (state-changes! source-viewer))))
 
-(defn go-to-line [source-viewer line-number]
-  (when line-number
-    (try
-     (let [line (Integer/parseInt line-number)
-           line-count (line-count source-viewer)
-           line-num (if (> 1 line) 0 (dec line))
-           np (if (>= line-count line-num)
-                (line-offset-at-num source-viewer line-num)
-                (count (text source-viewer)))]
-       (caret! source-viewer np false)
-       (remember-caret-col source-viewer np)
-       (show-line source-viewer))
-     (catch Throwable  e (println "Not a valid line number" line-number (.getMessage e))))))
+(defn go-to-line [source-viewer line]
+  (when line
+    (let [line-count (line-count source-viewer)
+          line-num (if (> 1 line) 0 (dec line))
+          np (if (>= line-count line-num)
+               (line-offset-at-num source-viewer line-num)
+               (count (text source-viewer)))]
+      (caret! source-viewer np false)
+      (remember-caret-col source-viewer np)
+      (show-line source-viewer))))
 
 (handler/defhandler :goto-line :code-view
   (enabled? [source-viewer] source-viewer)
