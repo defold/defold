@@ -74,7 +74,7 @@
    })
 
 (defn- parse-quoted-string [s]
-  (when (and (> (count s) 2)
+  (when (and (>= (count s) 2)
              (contains? #{\" \'} (first s)))
     (let [s (subs s 1 (- (count s) 1))]
       (loop [new-chars []
@@ -93,7 +93,7 @@
 (def ^:private long-open-pattern #"^\[=*\[")
 
 (defn- parse-long-string [s]
-  ;; We assume the string is well formed, i.e. ends with a matching closing patter, this is "safe" since it's part of the grammar
+  ;; We assume the string is well formed, i.e. ends with a matching closing pattern, this is "safe" since it's part of the grammar
   (when-let [match (re-find long-open-pattern s)]
     (let [s (subs s (count match) (- (count s) (count match)))]
       ;; Strip one initial new line/carriage return. 
