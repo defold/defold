@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -17,6 +18,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.crypt.Crypt;
+import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -223,20 +225,23 @@ public class ArchiveBuilder {
             }
         }
 
-        ArchiveBuilder ab = new ArchiveBuilder(args[0], null);
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        ArchiveBuilder ab = new ArchiveBuilder(args[0], manifestBuilder);
         for (int i = firstFileArg; i < args.length; ++i) {
             ab.add(args[i], doCompress);
         }
-        
+
         RandomAccessFile archiveIndex = new RandomAccessFile(args[1], "rw");
         archiveIndex.setLength(0);
         RandomAccessFile archiveData  = new RandomAccessFile(args[2], "rw");
         archiveData.setLength(0);
 
-        ab.write(archiveIndex, archiveData, null, new ArrayList<String>());
-        
+        Path resourcePackDirectory = Files.createTempDirectory("tmp.defold.resourcepack_");
+        ab.write(archiveIndex, archiveData, resourcePackDirectory, new ArrayList<String>());
+
         archiveIndex.close();
         archiveData.close();
-        
+
     }
 }
