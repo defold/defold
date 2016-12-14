@@ -519,12 +519,11 @@
 (def desktop-supported? (delay (Desktop/isDesktopSupported)))
 
 (defn- tab->resource-node [^Tab tab]
-  (when tab
-    (-> tab
-      (ui/user-data ::view)
-      (g/node-value :view-data)
-      second
-      :resource-node)))
+  (some-> tab
+    (ui/user-data ::view)
+    (g/node-value :view-data)
+    second
+    :resource-node))
 
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
@@ -537,8 +536,8 @@
       (.addListener
         (reify ChangeListener
           (changed [this observable old-val new-val]
-            (when-let [resource-node (tab->resource-node new-val)]
-              (on-selected-tab-changed app-view resource-node))))))
+            (->> (tab->resource-node new-val)
+              (on-selected-tab-changed app-view))))))
     (-> tab-pane
       (.getTabs)
       (.addListener
@@ -562,7 +561,6 @@
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
                      (ui/user-data! ::view-type view-type))
-        _          (.add tabs tab)
         view-graph (g/make-graph! :history false :volatility 2)
         opts       (merge opts
                           (get (:view-opts resource-type) (:id view-type))
@@ -578,6 +576,7 @@
         (g/connect resource-node :node-id+resource view :node-id+resource)
         (g/connect view :view-data app-view :open-views)))
     (ui/user-data! tab ::view view)
+    (.add tabs tab)
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (ui/register-tab-context-menu tab ::tab-menu)
     (let [close-handler (.getOnClosed tab)]
