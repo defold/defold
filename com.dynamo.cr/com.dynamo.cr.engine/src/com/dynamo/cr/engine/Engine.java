@@ -26,7 +26,7 @@ public class Engine extends Plugin {
     public String getEnginePath(String platform, boolean release) {
         String ext = "";
         String prefix = "";
-        if (platform.equals("win32")) {
+        if (platform.contains("win32")) {
             ext = ".exe";
         } else if (platform.equals("android")) {
             prefix = "lib";

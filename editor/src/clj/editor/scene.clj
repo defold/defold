@@ -647,7 +647,7 @@
                            (ui/user-data! image-view ::view-id view-id)
                            (let [^Tab tab      (:tab opts)
                                  repainter     (ui/->timer "refresh-scene-view"
-                                                (fn [dt]
+                                                (fn [_ dt]
                                                   (when (.isSelected tab)
                                                     (update-image-view! image-view dt))))]
                              (ui/on-closed! tab

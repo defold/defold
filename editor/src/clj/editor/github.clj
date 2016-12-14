@@ -9,27 +9,41 @@
 
 (def issue-repo "https://github.com/defold/editor2-issues")
 
-(defn issue-body
+(defn- default-fields
   []
-  (string/join "\n"
-               ["<!-- NOTE! The information you specify will be publicly accessible. -->"
-                "### Expected behaviour"
-                ""
-                "### Actual behaviour"
-                ""
-                "### Steps to reproduce"
-                ""
-                "<hr/>"
-                (format "Defold version: %s" (or (system/defold-version) "dev"))
-                (format "Defold sha: %s" (or (system/defold-sha1) ""))
-                (format "Platform: %s %s (%s)" (system/os-name) (system/os-version) (system/os-arch))
-                (format "Java version: %s" (system/java-runtime-version))]))
+  {"Defold version" (or (system/defold-version) "dev")
+   "Defold sha"     (or (system/defold-sha1) "")
+   "OS name"        (system/os-name)
+   "OS version"     (system/os-version)
+   "OS arch"        (system/os-arch)
+   "Java version"   (system/java-runtime-version)})
+
+(defn- issue-body
+  ([fields]
+   (->> ["<!-- NOTE! The information you specify will be publicly accessible. -->"
+         "### Expected behaviour"
+         ""
+         "### Actual behaviour"
+         ""
+         "### Steps to reproduce"
+         ""
+         "<hr/>"
+         ""
+         (when (seq fields)
+           ["<table>"
+            (for [[name value] fields]
+              (format "<tr><td>%s</td><td>%s</td></tr>" name value))
+            "<table>"])]
+        flatten
+        (string/join "\n"))))
 
 (defn new-issue-link
-  []
-  (URI. (str issue-repo "/issues/new?title=&body="
-             (URLEncoder/encode (issue-body)))))
+  ([]
+   (new-issue-link {}))
+  ([fields]
+      (str issue-repo "/issues/new?title=&labels=new&body="
+           (URLEncoder/encode (issue-body (merge (default-fields) fields))))))
 
 (defn new-praise-link
   []
-  (URI. (format "%s/issues/new?title=%s&body=%s" issue-repo (URLEncoder/encode "[PRAISE] ") (URLEncoder/encode "<!-- NOTE! The information you specify will be publicly accessible. -->"))))
+  (format "%s/issues/new?title=%s&body=%s" issue-repo (URLEncoder/encode "[PRAISE] ") (URLEncoder/encode "<!-- NOTE! The information you specify will be publicly accessible. -->")))
