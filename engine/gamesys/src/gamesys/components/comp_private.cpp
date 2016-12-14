@@ -167,7 +167,7 @@ dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObje
 
     if (set_property == property.m_Vector)
     {
-        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR3)
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR4)
         {
             set_value = Vector4(in_value.m_V4[0], in_value.m_V4[1], in_value.m_V4[2], in_value.m_V4[3]);
         }
