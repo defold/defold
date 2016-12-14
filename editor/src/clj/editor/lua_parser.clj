@@ -1,7 +1,7 @@
 (ns editor.lua-parser
   (:require [clj-antlr.core :as antlr]
+            [clojure.string :as string]
             [clojure.java.io :as io]
-            [clojure.edn :as edn]
             [clojure.set :as set]))
 
 (def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
@@ -57,10 +57,58 @@
 (defn parse-string-vars [varlist]
   (filterv string? (map second (filter var-node? (rest varlist)))))
 
+(def ^:private escape-sequence
+  ;; From PIL https://www.lua.org/pil/2.4.html
+  {\a (char 7)
+   \b \backspace
+   \f \formfeed
+   \n \newline
+   \r \return
+   \t \tab
+   \v (char 11)
+   \\ \\
+   \" \"
+   \' \'
+   \[ \[
+   \] \]
+   })
+
+(defn- parse-quoted-string [s]
+  (when (and (>= (count s) 2)
+             (contains? #{\" \'} (first s)))
+    (let [s (subs s 1 (- (count s) 1))]
+      (loop [new-chars []
+             chars (seq s)
+             escape false]
+        (if-let [ch (first chars)]
+          (if escape
+            (if-let [actual (escape-sequence ch)]
+              (recur (conj new-chars actual) (next chars) false)
+              (recur new-chars (next chars) false))
+            (if (= ch \\)
+              (recur new-chars (next chars) true)
+              (recur (conj new-chars ch) (next chars) false)))
+          (apply str new-chars))))))
+
+(def ^:private long-open-pattern #"^\[=*\[")
+
+(defn- parse-long-string [s]
+  ;; We assume the string is well formed, i.e. ends with a matching closing pattern, this is "safe" since it's part of the grammar
+  (when-let [match (re-find long-open-pattern s)]
+    (let [s (subs s (count match) (- (count s) (count match)))]
+      ;; Strip one initial new line/carriage return. 
+      ;; PIL says: "... this form ignores the first character of the string when this character is a newline"
+      ;; but testing with lua interpreter it seems a leading \r\n, \n\r, \n or \r are stripped.
+      (cond
+        (string/starts-with? s "\r\n") (subs s 2)
+        (string/starts-with? s "\n\r") (subs s 2)
+        (string/starts-with? s "\n") (subs s 1)
+        (string/starts-with? s "\r") (subs s 1)
+        :else s))))
+
 (defn- parse-string [s]
-  ;; strings in (:exp (:string ...)) can be "\"content\"" or in long format,
-  ;; for instance "[=...=[content]=...=]". We skip long format for now.
-  (edn/read-string s))
+  (or (parse-quoted-string s)
+      (parse-long-string s)))
 
 (defn- parse-string-node [node]
   (when (string-node? node)
