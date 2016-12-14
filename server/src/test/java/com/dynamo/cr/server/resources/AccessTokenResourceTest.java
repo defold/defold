@@ -12,7 +12,7 @@ public class AccessTokenResourceTest extends AbstractResourceTest {
     public void userShouldBeAbleToGenerateNewAccessToken() {
         User bobUser = createUser("bob@foo.com", "bob", "Mr", "Bob", User.Role.USER);
 
-        WebResource resource = createBaseResource(bobUser, "bob");
+        WebResource resource = createBaseResource(bobUser.getEmail(), "bob");
         String access_token = resource.path("access_token").post(String.class);
 
         assertTrue(access_token != null && !access_token.isEmpty());

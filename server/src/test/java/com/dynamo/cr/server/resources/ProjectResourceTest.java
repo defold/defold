@@ -17,15 +17,13 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import javax.persistence.EntityManager;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.Response;
 import java.io.*;
-import java.net.URI;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
@@ -34,8 +32,6 @@ import java.util.zip.ZipFile;
 import static org.junit.Assert.*;
 
 public class ProjectResourceTest extends AbstractResourceTest {
-
-    private static final int PORT = 6500;
 
     private String ownerEmail = "owner@foo.com";
     private String ownerPassword = "secret";
@@ -64,16 +60,18 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
     private <T> T get(WebResource resource, String path, Class<T> klass)  {
         ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).get(ClientResponse.class);
-        if (!(resp.getStatus() == 200 || resp.getStatus() == 204 || resp.getStatus() == 400)) {
-            throw new RuntimeException(String.format("Expected 200, 204 or 400. Got %d", resp.getStatus()));
-        }
+        validateClientResponse(resp);
         return resp.getEntity(klass);
     }
 
     private <T> void put(WebResource resource, String path, T data) {
         ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).put(ClientResponse.class, data);
-        if (!(resp.getStatus() == 200 || resp.getStatus() == 204 || resp.getStatus() == 400)) {
-            throw new RuntimeException(String.format("Expected 200, 204 or 400. Got %d", resp.getStatus()));
+        validateClientResponse(resp);
+    }
+
+    private void validateClientResponse(ClientResponse clientResponse) {
+        if (clientResponse.getClientResponseStatus().getFamily() != Response.Status.Family.SUCCESSFUL) {
+            throw new RuntimeException("Unexpected HTTP response: " + clientResponse.getStatus());
         }
     }
 
@@ -107,51 +105,44 @@ public class ProjectResourceTest extends AbstractResourceTest {
         proj1 = ModelUtil.newProject(em, owner, "proj1", "proj1 description");
         em.getTransaction().commit();
 
-        ClientConfig cc = new DefaultClientConfig();
-        cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
-        cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
-
-        URI uri;
-        Client client;
-
-        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
-
-        client = Client.create(cc);
-        client.addFilter(new HTTPBasicAuthFilter(ownerEmail, ownerPassword));
-        usersResource = client.resource(uri);
+        Client ownerClient = createClient(ownerEmail, ownerPassword);
+        usersResource = createResource(ownerClient, "users");
         ownerInfo = get(usersResource, String.format("/%s", ownerEmail), UserInfo.class);
+        ownerProjectsResource = createResource(ownerClient, String.format("projects/%d", ownerInfo.getId()));
+        ownerProjectResource = createResource(ownerClient, String.format("projects/%d/%d", ownerInfo.getId(), proj1.getId()));
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d", ownerInfo.getId())).port(PORT).build();
-        ownerProjectsResource = client.resource(uri);
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", ownerInfo.getId(), proj1.getId())).port(PORT).build();
-        ownerProjectResource = client.resource(uri);
-
-        client = Client.create(cc);
-        client.addFilter(new HTTPBasicAuthFilter(memberEmail, memberPassword));
+        Client memberClient = createClient(memberEmail, memberPassword);
         memberInfo = get(usersResource, String.format("/%s", memberEmail), UserInfo.class);
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", memberInfo.getId(), proj1.getId())).port(PORT).build();
-        memberProjectsWebResource = client.resource(uri);
+        memberProjectsWebResource = createResource(memberClient, String.format("projects/%d/%d", memberInfo.getId(), proj1.getId()));
 
         // Add member
         ownerProjectResource.path("/members").post(memberEmail);
 
-        client = Client.create(cc);
-        client.addFilter(new HTTPBasicAuthFilter(nonMemberEmail, nonMemberPassword));
+        Client nonMemberClient = createClient(nonMemberEmail, nonMemberPassword);
         nonMemberInfo = get(usersResource, String.format("/%s", nonMemberEmail), UserInfo.class);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", nonMemberInfo.getId(), proj1.getId())).port(PORT).build();
-        nonMemberProjectsWebResource = client.resource(uri);
+        nonMemberProjectsWebResource = createResource(
+                nonMemberClient,
+                String.format("projects/%d/%d", nonMemberInfo.getId(), proj1.getId()));
+
 
         execCommand("scripts/setup_testdata.sh", Long.toString(proj1.getId()));
     }
 
-    @After
-    public void tearDown() throws Exception {
+    private WebResource createResource(Client client, String path) {
+        return client.resource("http://localhost:" + getServicePort()).path(path);
     }
 
-    /*
-     * Basic tests
-     */
+    private Client createClient(String email, String password) {
+        ClientConfig clientConfig = new DefaultClientConfig();
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
+
+        Client client = Client.create(clientConfig);
+        client.addFilter(new HTTPBasicAuthFilter(email, password));
+
+        return client;
+    }
 
     @Test
     public void addMember() throws Exception {
@@ -220,6 +211,23 @@ public class ProjectResourceTest extends AbstractResourceTest {
         projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
         assertEquals("new name", projectInfo.getName());
         assertEquals("new desc", projectInfo.getDescription());
+    }
+
+    @Test
+    public void updateProjectInfo() {
+        ProjectInfo projectInfo = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+
+        ProjectInfo newProjectInfo = ProjectInfo.newBuilder()
+                .mergeFrom(projectInfo)
+                .setName("new name")
+                .setDescription("new desc")
+                //.setProjectSite(projectSite)
+                .build();
+        put(ownerProjectResource, "/project_info", newProjectInfo);
+
+        ProjectInfo result = get(ownerProjectResource, "/project_info", ProjectInfo.class);
+        assertEquals("new name", result.getName());
+        assertEquals("new desc", result.getDescription());
     }
 
     @Test

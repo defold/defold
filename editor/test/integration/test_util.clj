@@ -24,6 +24,7 @@
             [editor.font :as font]
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.gl.shader :as shader]
             [editor.rig :as rig]
@@ -38,12 +39,13 @@
             [editor.material :as material]
             [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
            [javafx.scene.control Tab]
-           [org.apache.commons.io FileUtils IOUtils]
+           [org.apache.commons.io FileUtils FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
 (def project-path "test/resources/test_project")
@@ -97,12 +99,51 @@
     (setup-workspace! graph temp-project-path)))
 
 (defn setup-project!
-  [workspace]
-  (let [proj-graph (g/make-graph! :history true :volatility 1)
-        project (project/make-project proj-graph workspace)
-        project (project/load-project project)]
-    (g/reset-undo! proj-graph)
-    project))
+  ([workspace]
+   (let [proj-graph (g/make-graph! :history true :volatility 1)
+         project (project/make-project proj-graph workspace)
+         project (project/load-project project)]
+     (g/reset-undo! proj-graph)
+     project))
+  ([workspace resources]
+   (let [proj-graph (g/make-graph! :history true :volatility 1)
+         project (project/make-project proj-graph workspace)
+         project (project/load-project project resources)]
+     (g/reset-undo! proj-graph)
+     project)))
+
+
+(defrecord FakeFileResource [workspace root ^File file children exists? read-only? content]
+  resource/Resource
+  (children [this] children)
+  (ext [this] (FilenameUtils/getExtension (.getPath file)))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (resource/ext this)))
+  (source-type [this] :file)
+  (exists? [this] exists?)
+  (read-only? [this] read-only?)
+  (path [this] (if (= "" (.getName file)) "" (resource/relative-path (File. ^String root) file)))
+  (abs-path [this] (.getAbsolutePath  file))
+  (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
+  (url [this] (resource/relative-path (File. ^String root) file))
+  (resource-name [this] (.getName file))
+  (workspace [this] workspace)
+  (resource-hash [this] (hash (resource/proj-path this)))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream content opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (assert false "writing to not supported"))
+  (io/make-writer        [this opts] (assert false "writing to not supported")))
+
+(defn make-fake-file-resource
+  ([workspace root file content]
+   (make-fake-file-resource workspace root file content nil))
+  ([workspace root file content {:keys [children exists? read-only?]
+                                 :or {children nil
+                                      exists? true
+                                      read-only? false}
+                                 :as opts}]
+   (FakeFileResource. workspace root file children exists? read-only? content)))
 
 (defn resource-node [project path]
   (project/get-resource-node project path))
@@ -406,3 +447,17 @@
   [app-view select-fn resource-type go-id]
   (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
   (first (selection app-view)))
+
+(defn block-until
+  "Blocks the calling thread until the supplied predicate is satisfied for the
+  return value of the specified polling function or the timeout expires. Returns
+  nil if the timeout expires, or the last returned value of poll-fn otherwise."
+  [done? timeout-ms poll-fn! & args]
+  (let [deadline (+ (System/nanoTime) (long (* timeout-ms 1000000)))]
+    (loop []
+      (thread-util/throw-if-interrupted!)
+      (let [result (apply poll-fn! args)]
+        (if (done? result)
+          result
+          (if (< (System/nanoTime) deadline)
+            (recur)))))))
