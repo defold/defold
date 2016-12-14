@@ -783,7 +783,6 @@ namespace dmRig
         {
             t = t / duration;
         }
-
         return t;
     }
 
@@ -814,25 +813,27 @@ namespace dmRig
             player->m_Backwards = 0;
         }
 
+        if (fabs(t) > duration) 
+        {
+            t = fmod(t, duration);
+            if (t == 0.0f) 
+            {
+                t = duration;
+            }
+        }
+
+        if (t < 0) 
+        {
+            t = duration - fmod(fabs(t), duration);
+        }
+
         if (player->m_Backwards)
         {
             t = duration - t;
         }
 
-        //t = fmod(t, duration); // DEF-2357 - Will be zero for t == duration, incorrect!
-        if (fabs(t) > duration)
-        {
-            t = fmod(t, duration);
-        }
-
-        //if (cursor < 0)
-        if (t < 0)
-        {
-            t = duration + t;
-        }
-
         player->m_Cursor = t;
-
+        
         return dmRig::RESULT_OK;
     }
 
