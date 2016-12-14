@@ -57,7 +57,6 @@
     {:label "root"
      :children items}))
 
-
 (defn error-line
   [error]
   (-> error :value ex-data :line))
