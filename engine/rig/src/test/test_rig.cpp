@@ -1313,6 +1313,10 @@ TEST_F(RigInstanceTest, CursorSet)
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
     ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 1.0f, true), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(3.0f * 1.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
+
     ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 0.5f, true), RIG_EPSILON_FLOAT);
     ASSERT_NEAR(3.0f * 0.5f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
     ASSERT_NEAR(0.5f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
