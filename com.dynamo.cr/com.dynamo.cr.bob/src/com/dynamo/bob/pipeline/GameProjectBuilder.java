@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -132,6 +133,12 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".meshc");
     }
 
+    private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
+        handle.deleteOnExit();
+        RandomAccessFile file = new RandomAccessFile(handle, "rw");
+        file.setLength(0);
+        return file;
+    }
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -140,7 +147,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc"));
         if (project.option("archive", "false").equals("true")) {
-            builder.addOutput(input.changeExt(".darc"));
+            builder.addOutput(input.changeExt(".arci"));
+            builder.addOutput(input.changeExt(".arcd"));
             builder.addOutput(input.changeExt(".dmanifest"));
             builder.addOutput(input.changeExt(".resourcepack.zip"));
             builder.addOutput(input.changeExt(".public.der"));
@@ -205,39 +213,22 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private File createArchive(Collection<String> resources, ManifestBuilder manifestBuilder,
-        ZipOutputStream zipOutputStream, List<String> excludedResources) throws IOException {
-        RandomAccessFile outFile = null;
-        File tempArchiveFile = File.createTempFile("tmp", "darc");
-        tempArchiveFile.deleteOnExit();
-        outFile = new RandomAccessFile(tempArchiveFile, "rw");
-        outFile.setLength(0);
-
+    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, ZipOutputStream zipOutputStream, List<String> excludedResources) throws IOException {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-        ArchiveBuilder ab = new ArchiveBuilder(root, manifestBuilder);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
-        boolean compress;
 
         for (String s : resources) {
-            // 2:d argument is true to use compression.
-            // We then try to compress all entries.
-            // If the compressed/uncompressed ratio > 0.95 or the uncompressed output flag is set we do not compress
-            // to save on load time...
             EnumSet<Project.OutputFlags> flags = outputs.get(s);
-            if(flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) {
-                compress = false;
-            } else {
-                compress = doCompress;
-            }
-
-            ab.add(s, compress);
+            boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
+            archiveBuilder.add(s, compress);
         }
 
         Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
-        ab.write(outFile, resourcePackDirectory);
-        // ab.write2(???, outFile, resourcePackDirectory, excludedResources);
-        outFile.close();
+        archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+        archiveIndex.close();
+        archiveData.close();
 
         // Populate the zip archive with the resource pack
         for (File filepath : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
@@ -264,8 +255,6 @@ public class GameProjectBuilder extends Builder<Void> {
         if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
             FileUtils.deleteDirectory(resourcePackDirectoryHandle);
         }
-
-        return tempArchiveFile;
     }
 
     private static void findResources(Project project, Message node, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
@@ -436,7 +425,8 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        FileInputStream darcInputStream = null;
+        FileInputStream archiveIndexInputStream = null;
+        FileInputStream archiveDataInputStream = null;
         FileInputStream resourcePackInputStream = null;
         FileInputStream publicKeyInputStream = null;
 
@@ -466,30 +456,36 @@ public class GameProjectBuilder extends Builder<Void> {
                 FileOutputStream resourcePackOutputStream = new FileOutputStream(resourcePackZip);
                 ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
 
-                // Create output for the darc archive
-                File archiveFile = createArchive(resources, manifestBuilder, zipOutputStream, excludedResources);
-                darcInputStream = new FileInputStream(archiveFile);
-                task.getOutputs().get(1).setContent(darcInputStream);
-                archiveFile.delete();
+                // Create output for the data archive
+                File archiveIndexHandle = File.createTempFile("defold.index_", ".arci");
+                RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
+                File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
+                RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
+                createArchive(resources, archiveIndex, archiveData, manifestBuilder, zipOutputStream, excludedResources);
 
-                byte[] manifestFile = { 0x0 };
-                try {
-                    manifestFile = manifestBuilder.buildManifest();
-                } catch (IOException exception) {
-                    System.out.println("Unable to build manifest :'(");
-                    // TODO: We will have to create a private key in case one isn't supplied!
-                }
+                // Create manifest
+                byte[] manifestFile = manifestBuilder.buildManifest();
 
-                task.getOutputs().get(2).setContent(manifestFile);
+                // Write outputs to the build system
+                archiveIndexInputStream = new FileInputStream(archiveIndexHandle);
+                task.getOutputs().get(1).setContent(archiveIndexInputStream);
+                
+                archiveDataInputStream = new FileInputStream(archiveDataHandle);
+                task.getOutputs().get(2).setContent(archiveDataInputStream);
+                
+                task.getOutputs().get(3).setContent(manifestFile);
+
                 resourcePackInputStream = new FileInputStream(resourcePackZip);
-                task.getOutputs().get(3).setContent(resourcePackInputStream);
+                task.getOutputs().get(4).setContent(resourcePackInputStream);
+                
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
-                task.getOutputs().get(4).setContent(publicKeyInputStream);
+                task.getOutputs().get(5).setContent(publicKeyInputStream);
             }
 
             task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
         } finally {
-            IOUtils.closeQuietly(darcInputStream);
+            IOUtils.closeQuietly(archiveIndexInputStream);
+            IOUtils.closeQuietly(archiveDataInputStream);
             IOUtils.closeQuietly(resourcePackInputStream);
             IOUtils.closeQuietly(publicKeyInputStream);
         }

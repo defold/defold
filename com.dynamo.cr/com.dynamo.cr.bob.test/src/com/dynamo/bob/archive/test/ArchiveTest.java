@@ -27,7 +27,6 @@ import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
-import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 
 public class ArchiveTest {
 
@@ -103,27 +102,7 @@ public class ArchiveTest {
     }
 
     @Test
-    public void testBuilderAndReader() throws IOException {
-        // Create
-        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, null);
-        ab.add(createDummyFile(contentRoot, "a.txt", "abc123".getBytes()));
-        ab.add(createDummyFile(contentRoot, "b.txt", "apaBEPAc e p a".getBytes()));
-        ab.add(createDummyFile(contentRoot, "c.txt", "åäöåäöasd".getBytes()));
-
-        // Write
-        RandomAccessFile outFile = new RandomAccessFile(outputDarc, "rw");
-        outFile.setLength(0);
-        ab.write(outFile, null);
-        outFile.close();
-
-        // Read
-        ArchiveReader ar = new ArchiveReader(outputDarc.getAbsolutePath());
-        ar.read();
-        ar.close();
-    }
-
-    @Test
-    public void testBuilderAndReader2() throws IOException
+    public void testBuilderAndReader() throws IOException
     {
         // Create
         ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder);
@@ -136,7 +115,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write2(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -150,31 +129,6 @@ public class ArchiveTest {
     public void testEntriesOrder() throws IOException {
 
         // Create
-        ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), null);
-        ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main/a.txt", "abc123".getBytes())));
-        ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main2/a.txt", "apaBEPAc e p a".getBytes())));
-        ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "a.txt", "åäöåäöasd".getBytes())));
-
-        // Write
-        RandomAccessFile outFile = new RandomAccessFile(outputDarc, "rw");
-        outFile.setLength(0);
-        ab.write(outFile, null);
-        outFile.close();
-
-        // Read
-        ArchiveReader ar = new ArchiveReader(outputDarc.getAbsolutePath());
-        ar.read();
-        List<ArchiveEntry> entries = ar.getEntries();
-        assertEquals(entries.get(0).fileName, "/a.txt");
-        assertEquals(entries.get(1).fileName, "/main/a.txt");
-        assertEquals(entries.get(2).fileName, "/main2/a.txt");
-        ar.close();
-    }
-
-    @Test
-    public void testEntriesOrder2() throws IOException {
-
-        // Create
         ArchiveBuilder ab = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main/a.txt", "abc123".getBytes())));
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "main2/a.txt", "apaBEPAc e p a".getBytes())));
@@ -185,7 +139,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write2(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -209,6 +163,40 @@ public class ArchiveTest {
         }
 
         ar.close();
+    }
+    
+    @Test
+    public void testArchiveIndexAlignment() throws IOException {
+    	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+    	for (int i = 1; i < 50; ++i) {
+			String filename = "dummy" + Integer.toString(i);
+			String content  = "dummy" + Integer.toString(i);
+			instance.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, filename, content.getBytes())));
+    		
+    		RandomAccessFile archiveIndex = new RandomAccessFile(outputIndex, "rw");
+	        RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
+	        archiveIndex.setLength(0);
+	        archiveData.setLength(0);
+	        instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<String>());
+	        archiveIndex.close();
+	        archiveData.close();
+	        
+	        archiveIndex = new RandomAccessFile(outputIndex, "r");
+	        
+	        archiveIndex.readInt();  					// Version
+	        archiveIndex.readInt();  					// Padding
+	        archiveIndex.readLong(); 					// UserData
+	        int entrySize   = archiveIndex.readInt();	// EntrySize
+	        int entryOffset = archiveIndex.readInt();	// EntryOffset
+	        int hashOffset  = archiveIndex.readInt();	// HashOffset
+	        archiveIndex.readInt();						// HashSize
+	        archiveIndex.close();
+	        
+	        assertEquals(32, hashOffset);
+	        assertEquals(32 + entrySize * ArchiveBuilder.HASH_MAX_LENGTH, entryOffset);
+	        assertTrue(entryOffset % 4 == 0);
+	        assertTrue(hashOffset % 4 == 0);
+    	}
     }
 
     @Test
@@ -250,7 +238,8 @@ public class ArchiveTest {
         assertFalse(instance.shouldUseCompressedResourceData(original, compressed));    // 1.25
     }
 
-    @Test
+    @SuppressWarnings("unused")
+	@Test
     public void testWriteArchive() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
@@ -270,14 +259,15 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write2(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(2, instance.getArchiveEntrySize());
         assertEquals("/main.collectionproxyc", instance.getArchiveEntry(0).relName);    // 987bcab01b929eb2c07877b224215c92
         assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // 2c1743a391305fbf367df8e4f069f9f9
     }
 
-    @Test
+    @SuppressWarnings("unused")
+	@Test
     public void testWriteArchive_SiblingProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
@@ -299,7 +289,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write2(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
@@ -308,7 +298,8 @@ public class ArchiveTest {
         assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
-    @Test
+    @SuppressWarnings("unused")
+	@Test
     public void testWriteArchive_DeepProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
@@ -330,7 +321,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write2(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
@@ -339,7 +330,8 @@ public class ArchiveTest {
         assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
-    @Test
+    @SuppressWarnings("unused")
+	@Test
     public void testWriteArchive_DeepProxiesExcludeGrandparent() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
@@ -361,7 +353,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write2(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(2, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
