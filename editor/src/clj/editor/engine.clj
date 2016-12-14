@@ -173,10 +173,11 @@
           (io/make-parents out-path)
           (copy-file (.getPath f) out-path )
           (.setExecutable (io/file out-path) true)
-          (do-launch out-path launch-dir prefs))
-        )
+          (do-launch out-path launch-dir prefs)))
       (catch Throwable e
-        (console/append-console-message! (str e "\n"))))))
+        (throw (RuntimeException.
+                 "Unable to launch custom engine. You have selected \"Enable Extensions\" in preferences. This is currently an experimental feature that requires additional, not yet released software."
+                 e))))))
 
 (defn launch [prefs workspace launch-dir]
   (if (prefs/get-prefs prefs "enable-extensions" false)
