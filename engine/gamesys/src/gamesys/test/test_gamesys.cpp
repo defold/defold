@@ -6,8 +6,8 @@
 #include <dlib/time.h>
 
 #include <gameobject/gameobject_ddf.h>
-#include <gamesys/gamesys_ddf.h>
-#include <gamesys/sprite_ddf.h>
+#include "../proto/gamesys_ddf.h"
+#include "../proto/sprite_ddf.h"
 
 const char* ROOT = "build/default/src/gamesys/test";
 
