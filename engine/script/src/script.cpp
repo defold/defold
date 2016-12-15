@@ -10,6 +10,7 @@
 #include "script_hash.h"
 #include "script_msg.h"
 #include "script_vmath.h"
+#include "script_buffer.h"
 #include "script_sys.h"
 #include "script_module.h"
 #include "script_image.h"
@@ -29,7 +30,7 @@ namespace dmScript
     /*# Built-ins API documentation
      *
      * Built-in scripting functions.
-     * 
+     *
      * @name Built-ins
      * @namespace builtins
      */
@@ -132,6 +133,7 @@ namespace dmScript
         InitializeHash(L);
         InitializeMsg(L);
         InitializeVmath(L);
+        InitializeBuffer(L);
         InitializeSys(L);
         InitializeModule(L);
         InitializeImage(L);
