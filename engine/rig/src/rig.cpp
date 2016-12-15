@@ -363,7 +363,7 @@ namespace dmRig
         float t = cursor;
         if (backwards)
             t = duration - t;
-        if (once_pingpong && t > duration * 0.5f)
+        if (once_pingpong && t >= duration * 0.5f)
         {
             t = duration - t;
         }
