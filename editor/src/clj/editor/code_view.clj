@@ -78,28 +78,29 @@
 
 (g/defnk update-source-viewer [_node-id ^SourceViewer source-viewer code caret-position selection-offset selection-length prefer-offset tab-triggers]
   (ui/user-data! (.getTextWidget source-viewer) ::view-id _node-id)
-  (let [did-update
-        (some some?
-              [(when (not= code (cvx/text source-viewer))
-                 (cvx/text! source-viewer code)
-                 :updated)
-               (when (not= prefer-offset (cvx/preferred-offset source-viewer))
-                 (cvx/preferred-offset! source-viewer prefer-offset)
-                 :updated)
-               (when (not= tab-triggers (cvx/snippet-tab-triggers source-viewer))
-                 (cvx/snippet-tab-triggers! source-viewer tab-triggers)
-                 :updated)
-               (when (not= caret-position (cvx/caret source-viewer))
-                 (cvx/caret! source-viewer caret-position false)
-                 (cvx/show-line source-viewer)
-                 :updated)
-               (when (not= [selection-offset selection-length]
-                           [(cvx/selection-offset source-viewer) (cvx/selection-length source-viewer)])
-                 (cvx/caret! source-viewer caret-position false)
-                 (cvx/text-selection! source-viewer selection-offset selection-length)
-                 :updated)])]
-    (when did-update
-      (reset! (last-command-data source-viewer) nil)))
+  (when code
+    (let [did-update
+          (some some?
+            [(when (not= code (cvx/text source-viewer))
+               (cvx/text! source-viewer code)
+               :updated)
+             (when (not= prefer-offset (cvx/preferred-offset source-viewer))
+               (cvx/preferred-offset! source-viewer prefer-offset)
+               :updated)
+             (when (not= tab-triggers (cvx/snippet-tab-triggers source-viewer))
+               (cvx/snippet-tab-triggers! source-viewer tab-triggers)
+               :updated)
+             (when (not= caret-position (cvx/caret source-viewer))
+               (cvx/caret! source-viewer caret-position false)
+               (cvx/show-line source-viewer)
+               :updated)
+             (when (not= [selection-offset selection-length]
+                         [(cvx/selection-offset source-viewer) (cvx/selection-length source-viewer)])
+               (cvx/caret! source-viewer caret-position false)
+               (cvx/text-selection! source-viewer selection-offset selection-length)
+               :updated)])]
+      (when did-update
+        (reset! (last-command-data source-viewer) nil))))
   source-viewer)
 
 (defn- default-rule? [rule]
