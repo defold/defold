@@ -1458,7 +1458,7 @@ namespace dmRig
             {
                 bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
             }
-            bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(dmTransform::Inv(bind_bone->m_LocalToModel));
+            bind_bone->m_ModelToLocal = inverse(dmTransform::ToMatrix4(bind_bone->m_LocalToModel));
             bind_bone->m_ParentIndex = bone->m_Parent;
             bind_bone->m_Length = bone->m_Length;
         }

@@ -671,10 +671,19 @@
     (ui/timer-start! repainter)
     (ui/timer-stop-on-closed! ^Tab (:tab opts) repainter)
     (ui/timer-stop-on-closed! (ui/parent->stage parent) repainter)
+    (g/node-value view-id :new-content)
     view-id))
+
+(defn focus-view
+  [code-view-node {:keys [line]}]
+  (when-let [^SourceViewer source-viewer (g/node-value code-view-node :source-viewer)]
+    (cvx/refresh! source-viewer)
+    (when line
+      (cvx/go-to-line source-viewer line))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
                                 :label "Code"
-                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))))
+                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))
+                                :focus-fn focus-view))
