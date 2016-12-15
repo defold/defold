@@ -33,11 +33,11 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     const char* format = 0;
     switch(result)
     {
-    case dmResource::RESULT_RESOURCE_NOT_FOUND: format = "The resource was not found: %s"; break;
-    case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation: %s"; break;
-    default:                                    format = "The resource was not updated: %s"; break;
+    case dmResource::RESULT_RESOURCE_NOT_FOUND: format = "The resource was not found: %llu, %s"; break;
+    case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation: %llu, %s"; break;
+    default:                                    format = "The resource was not updated: %llu, %s"; break;
     }
-    DM_SNPRINTF(msg, sizeof(msg), format, reverse);
+    DM_SNPRINTF(msg, sizeof(msg), format, path_hash, reverse != 0 ? reverse : "<no hash available>");
     return luaL_error(L, msg);
 }
 

@@ -1232,6 +1232,7 @@ TEST(DynamicResources, Set)
     ResourceHolder* resource1;
     e = dmResource::Get(factory, "/test01.foo", (void**) &resource1);
     ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
 
     ResourceHolder* resource2;
     e = dmResource::Get(factory, "/test01.foo:", (void**) &resource2);
@@ -1259,21 +1260,24 @@ TEST(DynamicResources, Set)
     ASSERT_NE(0U, (uintptr_t)data);
     ASSERT_EQ(32U, datasize);
 
-    strcpy((char*)data, "123");
-
 
     // Set buffer
     uint64_t hash = 0;
 
+    // Change data on the shared resource
+    strcpy((char*)data, "123");
+
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
     e = dmResource::SetResource(factory, hash, buffer);
-
 
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_EQ(resource1->m_Value, resource2->m_Value); // The pointers are still the same
     ASSERT_EQ(*resource1->m_Value, *resource2->m_Value);
     ASSERT_EQ(123, *resource2->m_Value);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
+    ASSERT_EQ(2U, dmResource::GetRefCount(factory, resource1));
 
+    // Set data on the tagged resource
     strcpy((char*)data, "42");
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
@@ -1284,6 +1288,8 @@ TEST(DynamicResources, Set)
     ASSERT_NE(*resource1->m_Value, *resource2->m_Value);
     ASSERT_EQ(123, *resource1->m_Value);
     ASSERT_EQ(42, *resource2->m_Value);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
 
 
     dmBuffer::Free(buffer);
@@ -1311,7 +1317,7 @@ TEST(DynamicResources, RefCount)
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
 
-
+    // Make sure the original resource exists, and has refcount 1
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
     GetCanonicalPath(factory, "/test01.foo", canonical_path);
     uint64_t hash = dmHashString64(canonical_path);

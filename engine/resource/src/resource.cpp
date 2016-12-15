@@ -1095,6 +1095,16 @@ Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buf
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
+    	// If it was previously shallow, it is not anymore.
+    	if( rd->m_SharedState == DATA_SHARE_STATE_SHALLOW )
+    	{
+    		SResourceDescriptor* originalrd = factory->m_Resources->Get(rd->m_OriginalNameHash);
+    		assert(originalrd);
+    		assert(originalrd->m_ReferenceCount > 0);
+    		originalrd->m_ReferenceCount--;
+    		rd->m_OriginalNameHash = 0;
+    	}
+
         rd->m_SharedState = DATA_SHARE_STATE_NONE; // The resource creator should now fully own the created resources
 
         if (factory->m_ResourceReloadedCallbacks)

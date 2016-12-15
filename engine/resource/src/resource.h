@@ -247,6 +247,8 @@ namespace dmResource
 
     /**
      * Resource duplicate function. Used to create a new resource, while still using the same payload (if possible)
+     * The responsibility of the duplicate function is to create a shallow copy: retaining the bulk payload, and handing out a light instance. E.g. HTexture vs OpenGL texture
+     * The resource system keeps track of reference counting.
      * @params params Parameters for resource creation
      * @return CREATE_RESULT_OK on success
      */

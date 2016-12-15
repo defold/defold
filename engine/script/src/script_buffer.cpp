@@ -122,20 +122,22 @@ namespace dmScript
         {0, 0}
     };
 
+    struct BufferTypeStruct {
+        const char* m_Name;
+        const luaL_reg* m_Methods;
+        const luaL_reg* m_Metatable;
+    };
+
     void InitializeBuffer(lua_State* L)
     {
         int top = lua_gettop(L);
 
         const uint32_t type_count = 1;
-        struct
-        {
-            const char* m_Name;
-            const luaL_reg* m_Methods;
-            const luaL_reg* m_Metatable;
-        } types[type_count] =
+        BufferTypeStruct types[type_count] =
         {
             {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta},
         };
+
         for (uint32_t i = 0; i < type_count; ++i)
         {
             // create methods table, add it to the globals
