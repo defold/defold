@@ -104,6 +104,30 @@ public:
     virtual ~WindowEventTest() {}
 };
 
+struct TexturePropParams
+{
+    const char* go_path;
+    dmhash_t comp_same_1;
+    dmhash_t comp_same_2;
+    dmhash_t comp_different;
+};
+
+class TexturePropTest : public GamesysTest<TexturePropParams>
+{
+protected:
+    void SetUp()
+    {
+        GamesysTest::SetUp();
+        hash_property_id = dmHashString64("texture0");
+        hash_property_id_invalid = dmHashString64("texture");
+    }
+
+public:
+    dmhash_t hash_property_id;
+    dmhash_t hash_property_id_invalid;
+    virtual ~TexturePropTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
@@ -128,7 +152,7 @@ void GamesysTest<T>::SetUp()
     // Create rig context
     dmRig::NewContextParams rig_params;
     rig_params.m_Context = &m_RigContext;
-    rig_params.m_MaxRigInstanceCount = 2;
+    rig_params.m_MaxRigInstanceCount = 4;
     assert(dmRig::RESULT_OK == dmRig::NewContext(rig_params));
 
     m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
