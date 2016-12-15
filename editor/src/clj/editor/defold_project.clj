@@ -314,12 +314,52 @@
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
 
-(defn- remap [m key-m]
+(defn- update-selection [s open-resource-nodes active-resource-node selection-value]
+  (->> (assoc s active-resource-node selection-value)
+    (filter (comp (set open-resource-nodes) first))
+    (into {})))
+
+(defn- perform-selection [project all-selections]
+  (let [all-node-ids (->> all-selections
+                       vals
+                       (reduce into [])
+                       distinct
+                       vec)]
+    (concat
+      (g/set-property project :all-selections all-selections)
+      (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
+        (g/disconnect node-id label project :all-selected-node-ids))
+      (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
+        (g/disconnect node-id label project :all-selected-node-properties))
+      (for [node-id all-node-ids]
+        (concat
+          (g/connect node-id :_node-id    project :all-selected-node-ids)
+          (g/connect node-id :_properties project :all-selected-node-properties))))))
+
+(defn select
+  ([project resource-node node-ids open-resource-nodes]
+    (assert (every? some? node-ids) "Attempting to select nil values")
+    (let [node-ids (if (seq node-ids)
+                     (-> node-ids distinct vec)
+                     [resource-node])
+          all-selections (-> (g/node-value project :all-selections)
+                           (update-selection open-resource-nodes resource-node node-ids))]
+      (perform-selection project all-selections))))
+
+(defn- perform-sub-selection
+  ([project all-sub-selections]
+    (g/set-property project :all-sub-selections all-sub-selections)))
+
+(defn sub-select
+  ([project resource-node sub-selection open-resource-nodes]
+    (g/update-property project :all-sub-selections update-selection open-resource-nodes resource-node sub-selection)))
+
+(defn- remap-selection [m key-m val-fn]
   (reduce (fn [m [old new]]
             (if-let [v (get m old)]
               (-> m
                 (dissoc old)
-                (assoc new v))
+                (assoc new (val-fn [new v])))
               m))
     m key-m))
 
@@ -405,8 +445,14 @@
                     :let [tgt-id (get old->new tgt-id tgt-id)]
                     :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
                 (g/connect new src-label tgt-id tgt-label))
-              (g/update-property project :all-selections remap old->new)
-              (g/update-property project :all-sub-selections remap old->new))))
+              (let [all-selections (-> (g/node-value project :all-selections)
+                                     ;; The key is the resource node id, so set that as the selection in case the file has changed as a safety
+                                     (remap-selection old->new (comp vector first)))]
+                (perform-selection project all-selections))
+              (let [all-sub-selections (-> (g/node-value project :all-sub-selections)
+                                         ;; Clear subselection
+                                         (remap-selection old->new (constantly [])))]
+                (perform-sub-selection project all-sub-selections)))))
         ;; External resources to invalidate
         (let [all-outputs (mapcat (fn [[_ resource]]
                                     (let [n (res->node resource)]

@@ -74,10 +74,7 @@
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
-                                    (let [selected-node-ids (get selected-node-ids-by-resource-node active-resource-node)]
-                                      (if (seq selected-node-ids)
-                                        selected-node-ids
-                                        [active-resource-node]))))
+                                    (get selected-node-ids-by-resource-node active-resource-node)))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
@@ -445,29 +442,12 @@
     (into {})))
 
 (defn select
-  [app-view node-ids]
-  (assert (every? some? node-ids) "Attempting to select nil values")
-  (let [project-id (g/node-value app-view :project-id)
-        active-resource-node (g/node-value app-view :active-resource-node)
-        open-resource-nodes (g/node-value app-view :open-resource-nodes)
-        node-ids (-> node-ids distinct vec)
-        all-selections (-> (g/node-value project-id :all-selections)
-                         (update-selection open-resource-nodes active-resource-node node-ids))
-        all-node-ids (->> all-selections
-                       vals
-                       (reduce into [])
-                       distinct
-                       vec)]
-    (concat
-      (g/set-property project-id :all-selections all-selections)
-      (for [[node-id label] (g/sources-of project-id :all-selected-node-ids)]
-        (g/disconnect node-id label project-id :all-selected-node-ids))
-      (for [[node-id label] (g/sources-of project-id :all-selected-node-properties)]
-        (g/disconnect node-id label project-id :all-selected-node-properties))
-      (for [node-id all-node-ids]
-        (concat
-          (g/connect node-id :_node-id    project-id :all-selected-node-ids)
-          (g/connect node-id :_properties project-id :all-selected-node-properties))))))
+  ([app-view node-ids]
+    (select app-view (g/node-value app-view :active-resource-node) node-ids))
+  ([app-view resource-node node-ids]
+    (let [project-id (g/node-value app-view :project-id)
+          open-resource-nodes (g/node-value app-view :open-resource-nodes)]
+      (project/select project-id resource-node node-ids open-resource-nodes))))
 
 (defn select!
   ([app-view node-ids]
@@ -490,7 +470,7 @@
         (concat
           (g/operation-sequence op-seq)
           (g/operation-label "Select")
-          (g/update-property project-id :all-sub-selections update-selection open-resource-nodes active-resource-node sub-selection))))))
+          (project/sub-select project-id active-resource-node sub-selection open-resource-nodes))))))
 
 (defn- make-title
   ([] "Defold Editor 2.0")
@@ -577,6 +557,8 @@
         (g/connect view :view-data app-view :open-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
+    (g/transact
+      (select app-view resource-node [resource-node]))
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (ui/register-tab-context-menu tab ::tab-menu)
     (let [close-handler (.getOnClosed tab)]

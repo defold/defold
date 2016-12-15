@@ -16,6 +16,9 @@
                    proj-graph (g/node-id->graph-id project)
                    _          (is (not (g/has-undo? proj-graph)))
                    [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
+               ;; One history entry for selection
+               (is (g/has-undo? proj-graph))
+               (g/undo! proj-graph)
                (is (not (g/has-undo? proj-graph)))))))
 
 (deftest select-test
@@ -58,13 +61,13 @@
             has-selection? (fn [path] (let [node-id (project/get-resource-node project path)]
                                         (contains? (g/node-value project :selected-node-ids-by-resource-node) node-id)))]
         (is (= [root-node-0] (g/node-value app-view :selected-node-ids)))
-        (is (not (has-selection? "/logic/two_atlas_sprites.collection")))
+        (is (has-selection? "/logic/two_atlas_sprites.collection"))
         (app-view/select! app-view [root-node-0])
         (is (has-selection? "/logic/two_atlas_sprites.collection"))
         (let [root-node-1 (test-util/open-tab! project app-view "/logic/hierarchy.collection")]
           (is (= [root-node-1] (g/node-value app-view :selected-node-ids)))
           (is (and (has-selection? "/logic/two_atlas_sprites.collection")
-                (not (has-selection? "/logic/hierarchy.collection"))))
+                (has-selection? "/logic/hierarchy.collection")))
           (app-view/select! app-view [root-node-1])
           (is (and (has-selection? "/logic/two_atlas_sprites.collection")
                 (has-selection? "/logic/hierarchy.collection")))
