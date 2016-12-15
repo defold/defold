@@ -900,6 +900,26 @@ namespace dmSound
         }
     }
 
+    static bool IsMuted(SoundInstance* instance) {
+        SoundSystem* sound = g_SoundSystem;
+
+        bool result = instance->m_Gain.IsZero();
+
+        int* group_index = sound->m_GroupMap.Get(instance->m_Group);
+        if (group_index != NULL) {
+            SoundGroup* group = &sound->m_Groups[*group_index];
+            result |= group->m_Gain.IsZero();
+        }
+
+        int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
+        if (master_index != NULL) {
+            SoundGroup* master = &sound->m_Groups[*master_index];
+            result |= master->m_Gain.IsZero();
+        }
+
+        return result;
+    }
+
     static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
         uint32_t decoded = 0;
@@ -916,15 +936,7 @@ namespace dmSound
             return;
         }
 
-        bool is_muted = false;
-
-        int* group_index = sound->m_GroupMap.Get(instance->m_Group);
-        if (group_index) {
-            SoundGroup* group = &sound->m_Groups[*group_index];
-            is_muted = group->m_Gain.IsZero();
-        }
-
-        is_muted |= instance->m_Gain.IsZero();
+        bool is_muted = dmSound::IsMuted(instance);
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
 
@@ -1036,7 +1048,7 @@ namespace dmSound
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0)
             {
-                if (!::EqFloat(instance->m_Gain.m_Current, 0.0f))
+                if (!dmSound::IsMuted(instance))
                 {
                     MixInstance(mix_context, instance);
                     result = RESULT_OK;
