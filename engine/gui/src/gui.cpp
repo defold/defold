@@ -2713,12 +2713,12 @@ namespace dmGui
         InternalNode* n = GetNode(scene, node);
         float t = cursor;
 
-        if (cursor < 0)
+        if (t < 0)
         {
-            t = 1.0f + t;
+            t = 1.0 - fmod(fabs(t), 1.0f);
+        } else {
+            t = fmod(t, 1.0f);
         }
-
-        t = fmod(t, 1.0f);
 
         Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
         if (anim) {

@@ -6,6 +6,8 @@
 #include <dlib/time.h>
 
 #include <gameobject/gameobject_ddf.h>
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/sprite_ddf.h>
 
 const char* ROOT = "build/default/src/gamesys/test";
 
@@ -220,6 +222,53 @@ TEST_F(SpriteAnimTest, GoDeletion)
     //  - go3 should still be animating (not be influenced by the deletion of go1/go2)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
+{
+    dmGameObject::PropertyDesc property_desc;
+    dmGameObject::PropertyResult result = dmGameObject::GetProperty(go, component_id, property_id, property_desc);
+    return property_desc.m_Variant.m_Number;
+}
+
+TEST_P(CursorTest, Cursor)
+{
+    const CursorTestParams& params = GetParam();
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t cursor_prop_id = dmHashString64("cursor");
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t animation_id = dmHashString64("anim");
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/sprite/cursor.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+
+    // Dummy URL, just needed to kick flipbook animation on sprite
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = sprite_comp_id;
+
+    // Send animation to sprite component
+    dmGameSystemDDF::PlayAnimation msg;
+    msg.m_Id = animation_id;
+    msg.m_Playback = params.m_Playback;
+    msg.m_CursorStart = params.m_CursorStart;
+    msg.m_PlaybackRate = params.m_PlaybackRate;
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&msg_url, &msg_url, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)go, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0));
+
+    // Update one second at a time.
+    // The tilesource animation is one frame per second,
+    // will make it easier to predict the cursor.
+    m_UpdateContext.m_DT = 1.0f;
+
+    for (int i = 0; i < params.m_ExpectedCount; ++i)
+    {
+        ASSERT_EQ(params.m_Expected[i], GetFloatProperty(go, sprite_comp_id, cursor_prop_id));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -740,7 +789,62 @@ INSTANTIATE_TEST_CASE_P(Label, ComponentTest, ::testing::ValuesIn(valid_label_go
 const char* invalid_label_gos[] = {"/label/invalid_label.goc"};
 INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, ::testing::ValuesIn(invalid_label_gos));
 
+/* Sprite cursor property */
+const CursorTestParams cursor_properties[] = {
+    {dmGameObject::PLAYBACK_NONE,          -1.0f, 1.0f, {0.0f, 0.0f}, 2},
 
+    // Forward & backward
+    {dmGameObject::PLAYBACK_ONCE_FORWARD,  -1.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5},
+    {dmGameObject::PLAYBACK_ONCE_BACKWARD, -1.0f, 1.0f, {0.0f, 0.75f, 0.5f, 0.25f, 0.0f}, 5},
+    {dmGameObject::PLAYBACK_LOOP_FORWARD,  -1.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 9},
+    {dmGameObject::PLAYBACK_LOOP_BACKWARD, -1.0f, 1.0f, {0.0f, 0.75f, 0.5f, 0.25f, 1.0f, 0.75f, 0.5f, 0.25f, 1.0f}, 9},
+
+    // Ping-pong goes up to the "early end", which is frame_count-1,
+    // then snaps to 1.0 before going backwards.
+    {dmGameObject::PLAYBACK_ONCE_PINGPONG, -1.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f, 0.75f, 0.5f, 0.25f, 0.25f}, 9},
+    {dmGameObject::PLAYBACK_LOOP_PINGPONG, -1.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f, 0.75f, 0.5f, 0.0f, 0.25f,  0.5f}, 10},
+
+    // Cursor start
+    {dmGameObject::PLAYBACK_NONE,           0.0f, 1.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_NONE,           0.5f, 1.0f, {0.0f, 0.5f, 0.5f}, 3},
+    {dmGameObject::PLAYBACK_NONE,           1.0f, 1.0f, {0.0f, 1.0f, 1.0f}, 3},
+    {dmGameObject::PLAYBACK_NONE,           2.0f, 1.0f, {0.0f, 1.0f, 1.0f}, 3},
+    {dmGameObject::PLAYBACK_ONCE_FORWARD,   0.5f, 1.0f, {0.0f, 0.75f, 1.0f, 1.0f}, 4},
+    {dmGameObject::PLAYBACK_ONCE_BACKWARD,  0.5f, 1.0f, {0.0f, 0.25f, 0.0f, 0.0f}, 4},
+    {dmGameObject::PLAYBACK_LOOP_FORWARD,   0.5f, 1.0f, {0.0f, 0.75f, 1.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 7},
+    {dmGameObject::PLAYBACK_LOOP_BACKWARD,  0.5f, 1.0f, {0.0f, 0.25f, 1.0f, 0.75f, 0.5f, 0.25f, 1.0f}, 7},
+    {dmGameObject::PLAYBACK_ONCE_PINGPONG,  0.5f, 1.0f, {0.0f, 0.75f, 1.0f, 0.75f, 0.5f, 0.25f, 0.25f}, 7},
+    {dmGameObject::PLAYBACK_LOOP_PINGPONG,  0.5f, 1.0f, {0.0f, 0.75f, 1.0f, 0.75f, 0.5f, 0.0f, 0.25f, 0.5f}, 8},
+
+    // Playback rate, x2 speed
+    {dmGameObject::PLAYBACK_NONE,          -1.0f, 2.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_ONCE_FORWARD,  -1.0f, 2.0f, {0.0f, 0.5f, 1.0f, 1.0f}, 4},
+    {dmGameObject::PLAYBACK_ONCE_BACKWARD, -1.0f, 2.0f, {0.0f, 0.5f, 0.0f, 0.0f}, 4},
+    {dmGameObject::PLAYBACK_LOOP_FORWARD,  -1.0f, 2.0f, {0.0f, 0.5f, 1.0f, 0.5f, 1.0f}, 5},
+    {dmGameObject::PLAYBACK_LOOP_BACKWARD, -1.0f, 2.0f, {0.0f, 0.5f, 1.0f, 0.5f, 1.0f}, 5},
+    {dmGameObject::PLAYBACK_ONCE_PINGPONG, -1.0f, 2.0f, {0.0f, 0.5f, 1.0f, 0.5f, 0.25f, 0.25f}, 6},
+    {dmGameObject::PLAYBACK_LOOP_PINGPONG, -1.0f, 2.0f, {0.0f, 0.5f, 1.0f, 0.5f, 0.0f, 0.5f, 1.0f}, 7},
+
+    // Playback rate, x0 speed
+    {dmGameObject::PLAYBACK_NONE,          -1.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_ONCE_FORWARD,  -1.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_ONCE_BACKWARD, -1.0f, 0.0f, {0.0f, 1.0f, 1.0f}, 3},
+    {dmGameObject::PLAYBACK_LOOP_FORWARD,  -1.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_LOOP_BACKWARD, -1.0f, 0.0f, {0.0f, 1.0f, 1.0f}, 3},
+    {dmGameObject::PLAYBACK_ONCE_PINGPONG, -1.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_LOOP_PINGPONG, -1.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+
+    // Playback rate, -x2 speed
+    {dmGameObject::PLAYBACK_NONE,          -1.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_ONCE_FORWARD,  -1.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_ONCE_BACKWARD, -1.0f, -2.0f, {0.0f, 1.0f, 1.0f}, 3},
+    {dmGameObject::PLAYBACK_LOOP_FORWARD,  -1.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_LOOP_BACKWARD, -1.0f, -2.0f, {0.0f, 1.0f, 1.0f}, 3},
+    {dmGameObject::PLAYBACK_ONCE_PINGPONG, -1.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {dmGameObject::PLAYBACK_LOOP_PINGPONG, -1.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+
+};
+INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, ::testing::ValuesIn(cursor_properties));
 
 
 int main(int argc, char **argv)

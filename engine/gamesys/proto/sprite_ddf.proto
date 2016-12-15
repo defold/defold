@@ -59,7 +59,7 @@ message PlayAnimation
     required uint64 id = 1;
     // TODO add documentation for this
     optional uint32 playback = 2 [default = 7]; // dmGameSystemDDF::PLAYBACK_DEFAULT = 7, see tile_ddf.proto
-    optional float offset = 3 [default = 0.0];
+    optional float cursor_start = 3 [default = -1.0];
     optional float playback_rate = 4 [default = 1.0];
 }
 

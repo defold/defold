@@ -110,6 +110,21 @@ public:
     virtual ~FlipbookTest() {}
 };
 
+struct CursorTestParams
+{
+    dmGameObject::Playback m_Playback;
+    float m_CursorStart;
+    float m_PlaybackRate;
+    float m_Expected[16];
+    uint8_t m_ExpectedCount;
+};
+
+class CursorTest : public GamesysTest<CursorTestParams>
+{
+public:
+    virtual ~CursorTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 

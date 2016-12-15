@@ -31,33 +31,36 @@ expected_values[n_offset] = {
 
 -- The flipbook animation is 4 frames, pingpong makes it twice as long,
 -- but the last and first frames are not repeated and should not be counted. Thus; 4*2-2
-local step = 1 / (4*2-2)
 expected_values[n_pingpong] = {}
-expected_values[n_pingpong][1] = step * 0
-expected_values[n_pingpong][2] = step * 1
-expected_values[n_pingpong][3] = step * 2
-expected_values[n_pingpong][4] = step * 3
-expected_values[n_pingpong][5] = step * 4
-expected_values[n_pingpong][6] = step * 5
-expected_values[n_pingpong][7] = step * 6
-expected_values[n_pingpong][8] = step * 7
+expected_values[n_pingpong][1] = 0.0
+expected_values[n_pingpong][2] = 0.25
+expected_values[n_pingpong][3] = 0.5
+expected_values[n_pingpong][4] = 0.75
+expected_values[n_pingpong][5] = 1.0
+expected_values[n_pingpong][6] = 0.75
+expected_values[n_pingpong][7] = 0.5
+expected_values[n_pingpong][8] = 0.25
 
 function init(self)
     sprite.play_anim(n_nocursor, "anim")
     sprite.play_anim(n_speed1x,  "anim", go.PLAYBACK_ONCE_FORWARD)
     sprite.play_anim(n_speed2x,  "anim", go.PLAYBACK_ONCE_FORWARD, { playback_rate = 2.0 })
-    sprite.play_anim(n_offset,   "anim", go.PLAYBACK_ONCE_FORWARD, { playback_rate = 1.0, offset = 0.5 })
+    sprite.play_anim(n_offset,   "anim", go.PLAYBACK_ONCE_FORWARD, { playback_rate = 1.0, cursor_start = 0.5 })
     sprite.play_anim(n_pingpong, "anim", go.PLAYBACK_ONCE_PINGPONG)
 end
 
-function assert_epsilon(expected, actual, epsilon)
-    assert(math.abs(expected - actual) < epsilon)
+function is_near(expected, actual, epsilon)
+    return math.abs(expected - actual) < epsilon
 end
 
 function assert_cursor(comp_id)
+    local epsilon = 0.0001
     local expected = expected_values[comp_id][frame]
     local actual = go.get(comp_id, "cursor")
-    assert_epsilon(expected, actual, 0.00001)
+    if not is_near(expected, actual, epsilon) then
+        print(expected .. " is not near " .. actual .. " (epsion: " .. epsilon .. ", frame: " .. frame .. ", component: " .. comp_id .. ")")
+        assert(false)
+    end
 end
 
 function on_message(self, message_id, message)

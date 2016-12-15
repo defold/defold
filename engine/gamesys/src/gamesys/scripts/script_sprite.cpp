@@ -257,6 +257,22 @@ namespace dmGameSystem
         return 0;
     }
 
+    static float WrapCursor(float cursor)
+    {
+        float t = cursor;
+
+        if (t > 1.0f) {
+            t = fmod(t, 1.0f);
+            if (t == 0.0f) {
+                t = 1.0f;
+            }
+        } else if (t < 0.0f) {
+            t = 1.0 - fmod(fabs(t), 1.0f);
+        }
+
+        return t;
+    }
+
     /*# play a flipbook animation on a sprite
      *
      * @name sprite.play_anim
@@ -312,7 +328,7 @@ namespace dmGameSystem
             playback = luaL_checkinteger(L, 3);
         }
 
-        lua_Number offset = 0.0, playback_rate = 1.0;
+        lua_Number cursor_start = -1.0f, playback_rate = 1.0;
         int table_index = 4;
         if (!has_playback) {
             table_index = 3;
@@ -323,8 +339,8 @@ namespace dmGameSystem
             luaL_checktype(L, table_index, LUA_TTABLE);
             lua_pushvalue(L, table_index);
 
-            lua_getfield(L, -1, "offset");
-            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_getfield(L, -1, "cursor_start");
+            cursor_start = lua_isnil(L, -1) ? -1.0f : WrapCursor(luaL_checknumber(L, -1));
             lua_pop(L, 1);
 
             lua_getfield(L, -1, "playback_rate");
@@ -348,7 +364,7 @@ namespace dmGameSystem
         dmGameSystemDDF::PlayAnimation msg;
         msg.m_Id = anim_id;
         msg.m_Playback = playback;
-        msg.m_Offset = offset;
+        msg.m_CursorStart = cursor_start;
         msg.m_PlaybackRate = playback_rate;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
