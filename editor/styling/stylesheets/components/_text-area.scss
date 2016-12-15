@@ -1,0 +1,39 @@
+.text-area {
+  -fx-font-size: 9pt;
+  -fx-font-family: "Dejavu Sans Mono"; }
+
+/*
+ * A shadow/borderless text-area that can be used when you want a
+ * multi-line label component where the text can be selected for copy &
+ * paste
+ */
+.copyable-text-area {
+    -fx-font-family: $default-font;
+    -fx-font-size: $default-font-size;
+    -fx-padding: 0;
+    -fx-cursor: default;
+    -fx-background-color: $dark-grey;
+}
+.copyable-text-area > .scroll-pane {
+    -fx-background-color: null;
+}
+.copyable-text-area > .scroll-pane > .scroll-bar:horizontal {
+    -fx-background-radius: 0 0 0 0;
+}
+.copyable-text-area > .scroll-pane > .scroll-bar:vertical {
+    -fx-background-radius: 0 0 0 0;
+}
+.copyable-text-area > .scroll-pane > .corner {
+    -fx-background-radius: 0 0 0 0;
+}
+.copyable-text-area .content {
+    -fx-padding: 0 0 0 0;
+    -fx-cursor: text;
+    -fx-background-color: $dark-grey;
+    -fx-background-radius: 0;
+}
+.copyable-text-area:focused .content {
+    -fx-background-color: $dark-grey;
+    -fx-background-insets: 0 0 0 0;
+    -fx-background-radius: 0 0 0 0;
+}
