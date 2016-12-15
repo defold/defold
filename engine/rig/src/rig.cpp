@@ -8,6 +8,7 @@ namespace dmRig
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
+    static const float CURSOR_EPSILON = 0.0001f;
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* MAX_RIG_INSTANCE_COUNT_KEY = "rig.max_instance_count";
@@ -816,13 +817,13 @@ namespace dmRig
         if (fabs(t) > duration) 
         {
             t = fmod(t, duration);
-            if (t == 0.0f) 
+            if (fabs(t) < CURSOR_EPSILON) 
             {
                 t = duration;
             }
         }
 
-        if (t < 0) 
+        if (t < 0.0f) 
         {
             t = duration - fmod(fabs(t), duration);
         }
