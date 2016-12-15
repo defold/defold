@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.set :as set]
    [clojure.string :as string]
+   [editor.error-reporting :as error-reporting]
    [editor.handler :as handler]
    [editor.jfx :as jfx]
    [editor.progress :as progress]
@@ -15,6 +16,8 @@
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
+   [java.awt Desktop]
+   [java.net URI]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans.value ChangeListener ObservableValue]
@@ -668,7 +671,8 @@
 (defn ->selection-provider [view]
   (reify handler/SelectionProvider
     (selection [this] (selection view))
-    (succeeding-selection [this] [])))
+    (succeeding-selection [this] [])
+    (alt-selection [this] [])))
 
 (defn context!
   ([^Node node name env selection-provider]
@@ -686,10 +690,10 @@
           ^Tab tab (.getSelectedItem (.getSelectionModel tab-pane))]
       (or (and tab (.getContent tab) (user-data (.getContent tab) ::context))
           (user-data node ::context)))
-    
+
     (instance? TextInputControl node)
     (make-text-input-control-context node)
-    
+
     :else
     (user-data node ::context)))
 
@@ -898,6 +902,7 @@
           @invalidate-menus?
           (not= menu (user-data control ::menu))
           (not= command-contexts (user-data control ::command-contexts)))
+
      (reset! invalidate-menus? false)
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
@@ -906,26 +911,27 @@
      (user-data! control ::command-contexts command-contexts))))
 
 (defn- refresh-menu-state [^Menu menu command-contexts]
-  (doseq [m (.getItems menu)]
-    (cond
-      (instance? Menu m)
-      (refresh-menu-state m command-contexts)
+  (when (not (.isShowing menu))
+    (doseq [m (.getItems menu)]
+      (cond
+        (instance? Menu m)
+        (refresh-menu-state m command-contexts)
 
-      (instance? CheckMenuItem m)
-      (let [m         ^CheckMenuItem m
-            command   (keyword (.getId ^MenuItem m))
-            user-data (user-data m ::menu-user-data)
-            handler-ctx (handler/active command command-contexts user-data)]
-        (doto m
-          (.setDisable (not (handler/enabled? handler-ctx)))
-          (.setSelected (boolean (handler/state handler-ctx)))))
+        (instance? CheckMenuItem m)
+        (let [m         ^CheckMenuItem m
+              command   (keyword (.getId ^MenuItem m))
+              user-data (user-data m ::menu-user-data)
+              handler-ctx (handler/active command command-contexts user-data)]
+          (doto m
+            (.setDisable (not (handler/enabled? handler-ctx)))
+            (.setSelected (boolean (handler/state handler-ctx)))))
 
-      (instance? MenuItem m)
-      (let [m ^MenuItem m]
-        (.setDisable m (not (-> (handler/active (keyword (.getId m))
-                                                command-contexts
-                                                (user-data m ::menu-user-data))
-                              handler/enabled?)))))))
+        (instance? MenuItem m)
+        (let [m ^MenuItem m]
+          (.setDisable m (not (-> (handler/active (keyword (.getId m))
+                                                  command-contexts
+                                                  (user-data m ::menu-user-data))
+                                handler/enabled?))))))))
 
 (defn- refresh-menubar-state [^MenuBar menubar command-contexts]
   (doseq [m (.getMenus menubar)]
@@ -1200,8 +1206,7 @@ command."
   ([fps name tick-fn]
    (let [last       (atom (System/nanoTime))
          interval   (when fps
-                      (long (* 1e9 (/ 1 (double fps)))))
-         last-error (atom nil)]
+                      (long (* 1e9 (/ 1 (double fps)))))]
      {:last  last
       :timer (proxy [AnimationTimer] []
                (handle [now]
@@ -1209,16 +1214,12 @@ command."
                                    (let [delta (- now @last)]
                                      (when (or (nil? interval) (> delta interval))
                                        (try
-                                         (tick-fn (* delta 1e-9))
-                                         (reset! last-error nil)
+                                         (tick-fn this (* delta 1e-9))
                                          (reset! last (- now (if interval
                                                                (- delta interval)
                                                                0)))
-                                         (catch Exception e
-                                           (let [clj-ex (Throwable->map e)]
-                                             (when (not= @last-error clj-ex)
-                                               (println clj-ex)
-                                               (reset! last-error clj-ex))))))))))})))
+                                         (catch Throwable t
+                                           (error-reporting/report-exception! t))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -1229,23 +1230,21 @@ command."
 (defn anim! [duration anim-fn end-fn]
   (let [duration   (long (* 1e9 duration))
         start      (System/nanoTime)
-        end        (+ start (long duration))
-        last-error (atom nil)]
+        end        (+ start (long duration))]
     (doto (proxy [AnimationTimer] []
             (handle [now]
               (if (< now end)
                 (let [t (/ (double (- now start)) duration)]
                   (try
                     (anim-fn t)
-                    (reset! last-error nil)
-                    (catch Exception e
-                      (let [clj-ex (Throwable->map e)]
-                        (when (not= @last-error clj-ex)
-                          (println clj-ex)
-                          (reset! last-error clj-ex))))))
-                (do
+                    (catch Throwable t
+                      (error-reporting/report-exception! t))))
+                (try
                   (end-fn)
-                  (.stop ^AnimationTimer this)))))
+                  (catch Throwable t
+                    (error-reporting/report-exception! t))
+                  (finally
+                    (.stop ^AnimationTimer this))))))
       (.start))))
 
 (defn anim-stop! [^AnimationTimer anim]
@@ -1288,9 +1287,13 @@ command."
   [closeable timer]
   (on-closed! closeable (fn [_]
                          (timer-stop! timer))))
-                         
+
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
 
 (defn parent->stage ^Stage [^Parent parent]
   (.. parent getScene getWindow))
+
+(defn browse-url
+  [url]
+  (.browse (Desktop/getDesktop) (URI. url)))

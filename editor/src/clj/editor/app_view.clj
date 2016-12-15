@@ -9,6 +9,7 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
+            [editor.defold-project-search :as project-search]
             [editor.github :as github]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -42,7 +43,6 @@
            [javafx.stage Stage FileChooser WindowEvent]
            [javafx.util Callback]
            [java.io File ByteArrayOutputStream]
-           [java.net URI]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
@@ -56,16 +56,28 @@
   (property active-tool g/Keyword)
 
   (input outline g/Any)
+  (input project-id g/NodeID)
+  (input selected-node-ids-by-resource g/Any)
+  (input selected-node-properties-by-resource g/Any)
+  (input sub-selections-by-resource g/Any)
 
-  (output active-tab Tab :cached (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
+  (output active-tab Tab :cached (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any :cached (gu/passthrough outline))
   (output active-resource resource/Resource :cached (g/fnk [^Tab active-tab]
-                                                           (when active-tab
-                                                             (ui/user-data active-tab ::resource))))
+                                                      (when active-tab
+                                                        (ui/user-data active-tab ::resource))))
   (output active-view g/NodeID :cached (g/fnk [^Tab active-tab]
-                                              (when active-tab
-                                                (ui/user-data active-tab ::view))))
-  (output open-resources g/Any :cached (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (ui/user-data tab ::resource)) (.getTabs tab-pane)))))
+                                         (when active-tab
+                                           (ui/user-data active-tab ::view))))
+  (output open-resources g/Any :cached (g/fnk [^TabPane tab-pane]
+                                         (when tab-pane
+                                           (map (fn [^Tab tab] (ui/user-data tab ::resource)) (.getTabs tab-pane)))))
+  (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource active-resource]
+                                    (get selected-node-ids-by-resource active-resource)))
+  (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource active-resource]
+                                           (get selected-node-properties-by-resource active-resource)))
+  (output sub-selection g/Any (g/fnk [sub-selections-by-resource active-resource]
+                                (get sub-selections-by-resource active-resource))))
 
 (defn- invalidate [node label]
   (g/invalidate! [[node label]]))
@@ -297,13 +309,13 @@
     (ui/show! stage)))
 
 (handler/defhandler :documentation :global
-  (run [] (.browse (Desktop/getDesktop) (URI. "http://www.defold.com/learn/"))))
+  (run [] (ui/browse-url "http://www.defold.com/learn/")))
 
 (handler/defhandler :report-issue :global
-  (run [] (.browse (Desktop/getDesktop) (github/new-issue-link))))
+  (run [] (ui/browse-url (github/new-issue-link))))
 
 (handler/defhandler :report-praise :global
-  (run [] (.browse (Desktop/getDesktop) (github/new-praise-link))))
+  (run [] (ui/browse-url (github/new-praise-link))))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
@@ -391,10 +403,10 @@
                   :children [{:label "Profiler"
                               :children [{:label "Measure"
                                           :command :profile
-                                          :acc "Shortcut+P"}
+                                          :acc "Shortcut+Alt+X"}
                                          {:label "Measure and Show"
                                           :command :profile-show
-                                          :acc "Shift+Shortcut+P"}]}
+                                          :acc "Shift+Shortcut+Alt+X"}]}
                              {:label "Reload Stylesheet"
                               :acc "F5"
                               :command :reload-stylesheet}
@@ -420,9 +432,66 @@
                   :acc "Shift+Shortcut+W"
                   :command :close-all}])
 
-(defrecord DummySelectionProvider []
+(defrecord SelectionProvider [app-view]
   handler/SelectionProvider
-  (selection [this] []))
+  (selection [this] (g/node-value app-view :selected-node-ids))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
+
+(defn ->selection-provider [app-view] (SelectionProvider. app-view))
+
+(defn- update-selection [s open-resources active-resource selection-value]
+  (->> (assoc s active-resource selection-value)
+    (filter (comp (set open-resources) first))
+    (into {})))
+
+(defn select
+  [app-view node-ids]
+  (assert (every? some? node-ids) "Attempting to select nil values")
+  (let [project-id (g/node-value app-view :project-id)
+        active-resource (g/node-value app-view :active-resource)
+        open-resources (g/node-value app-view :open-resources)
+        node-ids (-> node-ids distinct vec)
+        all-selections (-> (g/node-value project-id :all-selections)
+                         (update-selection open-resources active-resource node-ids))
+        all-node-ids (->> all-selections
+                       vals
+                       (reduce into [])
+                       distinct
+                       vec)]
+    (concat
+      (g/set-property project-id :all-selections all-selections)
+      (for [[node-id label] (g/sources-of project-id :all-selected-node-ids)]
+        (g/disconnect node-id label project-id :all-selected-node-ids))
+      (for [[node-id label] (g/sources-of project-id :all-selected-node-properties)]
+        (g/disconnect node-id label project-id :all-selected-node-properties))
+      (for [node-id all-node-ids]
+        (concat
+          (g/connect node-id :_node-id    project-id :all-selected-node-ids)
+          (g/connect node-id :_properties project-id :all-selected-node-properties))))))
+
+(defn select!
+  ([app-view node-ids]
+    (select! app-view node-ids (gensym)))
+  ([app-view node-ids op-seq]
+    (g/transact
+      (concat
+        (g/operation-sequence op-seq)
+        (g/operation-label "Select")
+        (select app-view node-ids)))))
+
+(defn sub-select!
+  ([app-view sub-selection]
+    (sub-select! app-view sub-selection (gensym)))
+  ([app-view sub-selection op-seq]
+    (let [project-id (g/node-value app-view :project-id)
+          active-resource (g/node-value app-view :active-resource)
+          open-resources (g/node-value app-view :open-resources)]
+      (g/transact
+        (concat
+          (g/operation-sequence op-seq)
+          (g/operation-label "Select")
+          (g/update-property project-id :all-sub-selections update-selection open-resources active-resource sub-selection))))))
 
 (defn- make-title
   ([] "Defold Editor 2.0")
@@ -470,8 +539,8 @@
     (ui/register-toolbar (.getScene stage) "#toolbar" :toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
-    (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [dt] (refresh-ui! stage project)))
-                          (ui/->timer 13 "refresh-views" (fn [dt] (refresh-views! app-view)))]]
+    (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! stage project)))
+                          (ui/->timer 13 "refresh-views" (fn [_ dt] (refresh-views! app-view)))]]
       (doseq [timer refresh-timers]
         (ui/timer-stop-on-closed! stage timer)
         (ui/timer-start! timer)))
@@ -525,7 +594,7 @@
          (.select (.getSelectionModel tab-pane) tab)
          (when-let [focus (:focus-fn view-type)]
            (focus (ui/user-data tab ::view) opts))
-         (project/select! project [resource-node]))
+         (select! app-view [resource-node]))
        (let [^String path (or (resource/abs-path resource)
                               (resource/temp-path resource))]
          (try
@@ -636,10 +705,7 @@
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
 (defn- make-search-in-files-dialog [workspace project app-view]
-  (let [[resource opts] (dialogs/make-search-in-files-dialog
-                         workspace
-                         (fn [exts term]
-                           (project/search-in-files project exts term)))]
+  (let [[resource opts] (dialogs/make-search-in-files-dialog project)]
     (when resource
       (open-resource app-view workspace project resource opts))))
 

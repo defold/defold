@@ -9,6 +9,7 @@ import com.dynamo.cr.server.git.archive.GitArchiveProvider;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.resources.mappers.ProjectMapper;
 import com.dynamo.cr.server.services.ProjectService;
 import com.dynamo.cr.server.services.UserService;
 import com.dynamo.inject.persist.Transactional;
@@ -35,78 +36,6 @@ import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-/*
- * use
- * # curl -X METHOD URI
- * to test. More about curl-testing: http://blogs.sun.com/enterprisetechtips/entry/consuming_restful_web_services_with
- *
- * Root URI:
- *
- * http://host/.../project/user/branch
- *
- *
- * (( NOT VALID ANYMORE?!?
- * NOTE: In order avoid ambiguity service names are reserved words, ie
- * no branch names must not contain any of the reserved words (TODO: unit-test reminder for this)))
- *
- * NOTE: Directories are created using resources-put below with directory=true. TODO: Better solution?
- * NOTE: Service name in upper-case below for clarity
- *
- * Branches:
- *   ProjectConfiguration:
- *       GET http://host/project
- *   Get application info:
- *       TODO: application_info should be changed to application/info. Same for application_data below.
- *       Currently we get a clash with branch resources. Prepend /branch to all branch resources?
- *       GET http://host/project/application_info?platform=(win32|linux|...)
- *   Get application data:
- *       GET http://host/project/application_data?platform=(win32|linux|...)
- *   List:
- *       GET http://host/project/user
- *   Info:
- *       GET http://host/project/user/branch
- *   Create:
- *       PUT http://host/project/user/branch
- *   Delete:
- *       DELETE http://host/project/user/branch
- *   Update:
- *       POST http://host/project/user/branch/UPDATE
- *   Commit:
- *       POST http://host/project/user/branch/COMMIT?all=(true|false)
- *   Publish:
- *       POST http://host/project/user/branch/PUBLISH
- *   Resolve merge conflict:
- *       PUT http://host/project/user/branch/RESOLVE?stage=(base|yours|theirs)&path=resource_path
- *
- * Resources:
- *   Info:
- *       GET http://host/project/user/branch/RESOURCES/INFO?path=resource_path
- *   Content:
- *       GET http://host/project/user/branch/RESOURCES/DATA?path=resource_path
- *       PUT http://host/project/user/branch/RESOURCES/DATA?path=resource_path?directory=(true|false)
- *       POST http://host/project/user/branch/RESOURCES/DATA?source=resource_path?destination=resource_path (rename)
- *       DELETE http://host/project/user/branch/RESOURCES/DATA?path=resource_path
- *
- *   NOTE: Resource path above is rooted
- *
- * Builds:
- *   NOTE: Builds-URI:s seems to be ambiguous to branch-info above. Read the spec to ensure that
- *   this is not the case (jax-rs spec).
- *
- *   Build:
- *       POST http://host/project/user/branch/BUILDS?rebuild=(true|false)
- *   Build info:
- *       GET http://host/project/user/branch/BUILDS?id=integer
- *
- *  Extensions:
- *  Commits:
- *    Log:
- *       GET http://host/project/user/branch/commits?max=integer
- *
- */
-
-// NOTE: {member} isn't currently used.
-// See README.md in this project for additional information
 @Path("/projects/{owner}/{project}")
 @RolesAllowed(value = {"member"})
 public class ProjectResource extends BaseResource {
@@ -243,7 +172,7 @@ public class ProjectResource extends BaseResource {
         Project project = projectService.find(projectId)
                 .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
 
-        return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
+        return ProjectMapper.map(server.getConfiguration(), user, project);
     }
 
     @PUT
@@ -253,8 +182,14 @@ public class ProjectResource extends BaseResource {
     public void updateProjectInfo(@PathParam("project") Long projectId, ProjectInfo projectInfo) {
         Project project = projectService.find(projectId)
                 .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
-        project.setName(projectInfo.getName());
-        project.setDescription(projectInfo.getDescription());
+
+        if (projectInfo.hasName()) {
+            project.setName(projectInfo.getName());
+        }
+
+        if (projectInfo.hasDescription()) {
+            project.setDescription(projectInfo.getDescription());
+        }
     }
 
     @POST

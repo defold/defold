@@ -83,6 +83,7 @@ namespace dmGameSystem
         dmGui::HContext             m_GuiContext;
         dmScript::HContext          m_ScriptContext;
         dmRig::HRigContext          m_RigContext;
+        uint32_t                    m_MaxGuiComponents;
     };
 
     struct SpriteContext
@@ -106,6 +107,18 @@ namespace dmGameSystem
         dmRig::HRigContext          m_RigContext;
         dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxSpineModelCount;
+    };
+
+    struct ModelContext
+    {
+        ModelContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        dmRender::HRenderContext    m_RenderContext;
+        dmRig::HRigContext          m_RigContext;
+        dmResource::HFactory        m_Factory;
+        uint32_t                    m_MaxModelCount;
     };
 
     struct ScriptLibContext
@@ -165,6 +178,7 @@ namespace dmGameSystem
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   SpineModelContext* spine_model_context,
+                                                  ModelContext* model_context,
                                                   LabelContext* label_context);
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);

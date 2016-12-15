@@ -2,10 +2,12 @@
   (:require
    [clojure.string :as str]
    [dynamo.graph :as g]
+   [editor.app-view :as app-view]
    [editor.camera :as camera]
    [editor.colors :as colors]
    [editor.collision-groups :as collision-groups]
    [editor.graph-util :as gu]
+   [editor.image :as image]
    [editor.workspace :as workspace]
    [editor.resource :as resource]
    [editor.defold-project :as project]
@@ -230,14 +232,16 @@
    (when-let [label (:label v)] (util/natural-order-key (str/lower-case label)))])
 
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
-  {:node-id _node-id
-   :label "Tile Source"
-   :icon tile-source-icon
-   :children (vec (sort-by outline-sort-by-fn child-outlines))
-   :child-reqs [{:node-type TileAnimationNode
-                 :tx-attach-fn attach-animation-node}
-                {:node-type CollisionGroupNode
-                 :tx-attach-fn attach-collision-group-node}]})
+  (let [[coll-outlines anim-outlines] (let [outlines (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
+                                        [(get outlines true) (get outlines false)])]
+    {:node-id _node-id
+     :label "Tile Source"
+     :icon tile-source-icon
+     :children (into (outline/natural-sort coll-outlines) (outline/natural-sort anim-outlines))
+     :child-reqs [{:node-type TileAnimationNode
+                   :tx-attach-fn attach-animation-node}
+                  {:node-type CollisionGroupNode
+                   :tx-attach-fn attach-collision-group-node}]}))
 
 (g/defnk produce-aabb
   [tile-source-attributes]
@@ -489,9 +493,17 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :image-resource]
                                             [:content :image-content])))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
                                       (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
+  (property size types/Vec2
+    (value (g/fnk [^BufferedImage image-content]
+             (if image-content
+               [(.getWidth image-content) (.getHeight image-content)]
+               [0 0])))
+    (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+    (dynamic read-only? (g/constantly true)))
 
   (property tile-width g/Int
             (default 0)
@@ -519,6 +531,7 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :collision-resource]
                                             [:content :collision-content])))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
                                   (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
 
@@ -757,7 +770,7 @@
 (defn- int->boolean [i]
   (not= 0 i))
 
-(defn- make-animation-node [self project select? animation]
+(defn- make-animation-node [self project select-fn animation]
   (g/make-nodes
    (g/node-id->graph-id self)
    [animation-node [TileAnimationNode
@@ -770,16 +783,16 @@
                     :flip-vertical (int->boolean (:flip-vertical animation))
                     :cues (:cues animation)]]
    (attach-animation-node self animation-node)
-   (when select?
-     (project/select project [animation-node]))))
+   (when select-fn
+     (select-fn [animation-node]))))
 
-(defn- make-collision-group-node [self project select? collision-group]
+(defn- make-collision-group-node [self project select-fn collision-group]
   (g/make-nodes
    (g/node-id->graph-id self)
    [collision-group-node [CollisionGroupNode :id collision-group]]
    (attach-collision-group-node self collision-group-node)
-   (when select?
-     (project/select project [collision-group-node]))))
+   (when select-fn
+     (select-fn [collision-group-node]))))
 
 (defn- load-convex-hulls
   [{:keys [convex-hulls convex-hull-points]}]
@@ -806,8 +819,8 @@
   (let [tile-source (protobuf/read-text Tile$TileSet resource)
         image (workspace/resolve-resource resource (:image tile-source))
         collision (workspace/resolve-resource resource (:collision tile-source))
-        collision-group-nodes (mapcat (partial make-collision-group-node self project false) (set (:collision-groups tile-source)))
-        animation-nodes (map (partial make-animation-node self project false) (:animations tile-source))]
+        collision-group-nodes (mapcat (partial make-collision-group-node self project nil) (set (:collision-groups tile-source)))
+        animation-nodes (map (partial make-animation-node self project nil) (:animations tile-source))]
     (concat
      (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding]]
        (g/set-property self field (field tile-source)))
@@ -830,8 +843,8 @@
    :flip-vertical 0 ; yes, wierd integer booleans
    :cues '()})
 
-(defn add-animation-node! [self]
-  (g/transact (make-animation-node self (project/get-project self) true default-animation)))
+(defn add-animation-node! [self select-fn]
+  (g/transact (make-animation-node self (project/get-project self) select-fn default-animation)))
 
 (defn- gen-unique-name
   [basename existing-names]
@@ -843,12 +856,12 @@
           name)))))
 
 (defn add-collision-group-node!
-  [self]
+  [self select-fn]
   (let [project (project/get-project self)
         collision-groups-data (g/node-value project :collision-groups-data)
         collision-group (gen-unique-name "New Collision Group" (collision-groups/collision-groups collision-groups-data))]
     (g/transact
-      (make-collision-group-node self project true collision-group))))
+      (make-collision-group-node self project select-fn collision-group))))
 
 (defn- selection->tile-source [selection]
   (handler/adapt-single selection TileSourceNode))
@@ -870,8 +883,8 @@
                :command :add
                :user-data {:action add-collision-group-node!}}
               ]))
-  (run [selection user-data]
-    ((:action user-data) (selection->tile-source selection))))
+  (run [selection user-data app-view]
+    ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

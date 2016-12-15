@@ -57,7 +57,7 @@
      :missing                 (set (.getMissing s))
      :modified                (set (.getModified s))
      :removed                 (set (.getRemoved s))
-     :uncommited-changes      (set (.getUncommittedChanges s))
+     :uncommitted-changes     (set (.getUncommittedChanges s))
      :untracked               (set (.getUntracked s))
      :untracked-folders       (set (.getUntrackedFolders s))
      :conflicting-stage-state (apply hash-map
@@ -90,6 +90,9 @@
           (->> (.compute rd (.getObjectReader tw) nil)
                (mapv diff-entry->map)))))))
 
+(defn file ^java.io.File [^Git git file-path]
+  (io/file (str (worktree git) "/" file-path)))
+
 (defn show-file
   ([^Git git name]
    (show-file git name "HEAD"))
@@ -121,20 +124,46 @@
       (.setCredentialsProvider creds)
       (.call)))
 
-(defn stage-file [^Git git file]
-  (-> (.add git)
-      (.addFilepattern file)
-      (.call)))
+(defn make-add-change [file-path]
+  {:change-type :add :old-path nil :new-path file-path})
 
-(defn unstage-file [^Git git file]
-  (-> (.reset git)
-      (.addPath file)
-      (.call)))
+(defn make-delete-change [file-path]
+  {:change-type :delete :old-path file-path :new-path nil})
 
-(defn hard-reset [^Git git ^RevCommit start-ref]
+(defn make-modify-change [file-path]
+  {:change-type :modify :old-path file-path :new-path file-path})
+
+(defn make-rename-change [old-path new-path]
+  {:change-type :rename :old-path old-path :new-path new-path})
+
+(defn change-path [{:keys [old-path new-path]}]
+  (or new-path old-path))
+
+(defn stage-change! [^Git git {:keys [change-type old-path new-path]}]
+  (case change-type
+    (:add :modify) (-> git .add (.addFilepattern new-path) .call)
+    :delete        (-> git .rm (.addFilepattern old-path) .call)
+    :rename        (do (-> git .add (.addFilepattern new-path) .call)
+                       (-> git .rm (.addFilepattern old-path) .call))))
+
+(defn unstage-change! [^Git git {:keys [change-type old-path new-path]}]
+  (case change-type
+    (:add :modify) (-> git .reset (.addPath new-path) .call)
+    :delete        (-> git .reset (.addPath old-path) .call)
+    :rename        (do (-> git .reset (.addPath new-path) .call)
+                       (-> git .reset (.addPath old-path) .call))))
+
+(defn revert-to-revision! [^Git git ^RevCommit start-ref]
+  "High-level revert. Resets the working directory to the state it would have
+  after a clean checkout of the specified start-ref. Performs the equivalent of
+  git reset --hard
+  git clean --force -d"
   (-> (.reset git)
       (.setMode ResetCommand$ResetType/HARD)
       (.setRef (.name start-ref))
+      (.call))
+  (-> (.clean git)
+      (.setCleanDirectories true)
       (.call)))
 
 (defn stash [^Git git]
@@ -185,7 +214,7 @@
   (let [s (status git)]
     (doseq [f files]
       (when (contains? (:untracked s) f)
-        (io/delete-file (str (.getWorkTree (.getRepository git)) "/" f))))))
+        (io/delete-file (file git f))))))
 
 (defn make-clone-monitor [^ProgressBar progress-bar]
   (let [tasks (atom {"remote: Finding sources" 0
@@ -206,3 +235,23 @@
      (onEndTask
        ([taskName workCurr])
        ([taskName workCurr workTotal percentDone])))))
+
+;; =================================================================================
+
+(defn selection-diffable? [selection]
+  (and (= 1 (count selection))
+       (let [change-type (:change-type (first selection))]
+         (and (keyword? change-type)
+              (not= :add change-type)
+              (not= :delete change-type)))))
+
+(defn selection-diff-data [git selection]
+  (let [change (first selection)
+        old-path (or (:old-path change) (:new-path change) )
+        new-path (or (:new-path change) (:old-path change) )
+        old (String. ^bytes (show-file git old-path))
+        new (slurp (file git new-path))]
+    {:new new
+     :new-path new-path
+     :old old
+     :old-path old-path}))

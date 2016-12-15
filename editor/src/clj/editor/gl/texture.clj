@@ -10,7 +10,7 @@
            [com.jogamp.opengl GL GL2 GL3 GLContext GLProfile]
            [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl.util.texture Texture TextureIO TextureData]
-           [com.jogamp.opengl.util.texture.awt AWTTextureIO]))
+           [com.jogamp.opengl.util.awt ImageUtil]))
 
 (set! *warn-on-reflection* true)
 
@@ -113,6 +113,14 @@
         data (ByteBuffer/wrap (.getData ^DataBufferByte (.getDataBuffer (.getRaster img))))]
     (->texture-data (.getWidth img) (.getHeight img) channels data mipmap)))
 
+(defn- flip-y [^BufferedImage img]
+  ;; Flip the image before we create a OGL texture, to mimic how UVs are handled in engine.
+  ;; We do this since all our generated UVs are based on bottom-left being texture coord (0,0).
+  (let [cm (.getColorModel img)
+        raster (.copyData img nil)]
+    (doto (BufferedImage. cm raster (.isAlphaPremultiplied cm) nil)
+      (ImageUtil/flipImageVertically))))
+
 (defn image-texture
   "Create an image texture from a BufferedImage. The returned value
 supports GlBind and GlEnable. You can use it in do-gl and with-gl-bindings.
@@ -131,7 +139,7 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
    (image-texture request-id img params 0))
   ([request-id ^BufferedImage img params unit-index]
     (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))
-    (let [texture-data (image->texture-data (or img (:contents image/placeholder-image)) true)
+    (let [texture-data (image->texture-data (flip-y (or img (:contents image/placeholder-image))) true)
           unit (+ unit-index GL2/GL_TEXTURE0)]
       (->TextureLifecycle request-id ::texture unit params texture-data))))
 
@@ -210,7 +218,7 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
 
 (defn- update-cubemap-texture [^GL2 gl ^Texture texture imgs]
   (doseq [[img target] (mapv vector imgs cubemap-targets)]
-    (.updateImage texture gl (image->texture-data img false) target))
+    (.updateImage texture gl (image->texture-data (flip-y img) false) target))
   texture)
 
 (defn- make-cubemap-texture [^GL2 gl imgs]

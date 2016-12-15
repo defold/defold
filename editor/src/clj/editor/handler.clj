@@ -2,6 +2,7 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.error-reporting :as error-reporting]
             [service.log :as log]))
 
 (set! *warn-on-reflection* true)
@@ -11,7 +12,8 @@
 
 (defprotocol SelectionProvider
   (selection [this])
-  (succeeding-selection [this]))
+  (succeeding-selection [this])
+  (alt-selection [this]))
 
 (defrecord Context [name env selection-provider dynamics adapters])
 
@@ -43,10 +45,16 @@
 (defn- invoke-fnk [handler fsym command-context default]
   (if-let [f (get-in handler [:fns fsym])]
     (binding [*adapters* (:adapters command-context)]
-      (try (f (:env command-context))
+      (try
+        (f (:env command-context))
         (catch Exception e
-          (log/error :exception e :msg (format "handler %s in context %s failed at %s with message [%s]"
-                                               (:command handler) (:context handler) fsym (.getMessage e))))))
+          (error-reporting/report-exception!
+            (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
+                             (:command handler) (:context handler) fsym (.getMessage e))
+                     {:handler handler
+                      :command-context command-context}
+                     e))
+          nil)))
     default))
 
 (defn- get-active-handler [command command-context]
@@ -84,32 +92,41 @@
 (defn active [command command-contexts user-data]
   (get-active command command-contexts user-data))
 
-(defn- context-selection [context]
-  (get-in context [:env :selection] (some-> (:selection-provider context) selection)))
+(defn- context-selections [context]
+  (if-let [s (get-in context [:env :selection])]
+    [s]
+    (if-let [sp (:selection-provider context)]
+      (let [s (selection sp)
+            alt-s (alt-selection sp)]
+        (if (and (seq alt-s) (not= s alt-s))
+          [s alt-s]
+          [s]))
+      [nil])))
 
-(defn- eval-context [context]
-  (let [selection (context-selection context)]
-    (-> context
-      eval-dynamics
-      (update :env assoc :selection selection :selection-context (:name context) :selection-provider (:selection-provider context)))))
+(defn- eval-selection-context [context]
+  (let [selections (context-selections context)]
+    (mapv (fn [selection]
+            (update context :env assoc :selection selection :selection-context (:name context) :selection-provider (:selection-provider context)))
+          selections)))
 
 (defn eval-contexts [contexts all-selections?]
-  (loop [command-contexts (mapv eval-context contexts)
-         result []]
-    (if-let [ctx (first command-contexts)]
-      (let [result (if-let [selection (get-in ctx [:env :selection])]
-                     (let [adapters (:adapters ctx)
-                           name (:name ctx)
-                           selection-provider (:selection-provider ctx)]
-                       (into result (map (fn [ctx] (-> ctx
-                                                     (update :env assoc :selection selection :selection-context name :selection-provider selection-provider)
-                                                     (assoc :adapters adapters)))
-                                         command-contexts)))
-                     (conj result ctx))]
-        (if all-selections?
-          (recur (rest command-contexts) result)
-          result))
-      result)))
+  (let [contexts (mapv eval-dynamics contexts)]
+    (loop [selection-contexts (mapcat eval-selection-context contexts)
+           result []]
+      (if-let [ctx (and (or all-selections?
+                            (= (:name (first selection-contexts)) (:name (first contexts))))
+                        (first selection-contexts))]
+        (let [result (if-let [selection (get-in ctx [:env :selection])]
+                       (let [adapters (:adapters ctx)
+                             name (:name ctx)
+                             selection-provider (:selection-provider ctx)]
+                         (into result (map (fn [ctx] (-> ctx
+                                                       (update :env assoc :selection selection :selection-context name :selection-provider selection-provider)
+                                                       (assoc :adapters adapters)))
+                                           selection-contexts)))
+                       (conj result ctx))]
+          (recur (rest selection-contexts) result))
+        result))))
 
 (defn adapt [selection t]
   (if (empty? selection)

@@ -58,6 +58,13 @@ namespace dmTexc
         CF_ALPHA_CLEAN = 1,
     };
 
+    enum FlipAxis
+    {
+        FLIP_AXIS_X = 0,
+        FLIP_AXIS_Y = 1,
+        FLIP_AXIS_Z = 2
+    };
+
     struct Header
     {
         uint32_t m_Version;
@@ -142,6 +149,10 @@ namespace dmTexc
      * The texture must have format PF_R8G8B8A8 for mip maps to be generated.
      */
     DM_TEXC_PROTO(bool, GenMipMaps, HTexture texture);
+    /**
+     * Flips a texture vertically
+     */
+    DM_TEXC_PROTO(bool, Flip, HTexture texture, FlipAxis flip_axis);
     /**
      * Transcode a texture into another format.
      */

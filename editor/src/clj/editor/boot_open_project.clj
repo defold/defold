@@ -7,6 +7,7 @@
             [editor.camera-editor :as camera]
             [editor.changes-view :as changes-view]
             [editor.code-view :as code-view]
+            [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
@@ -31,7 +32,6 @@
             [editor.label :as label]
             [editor.login :as login]
             [editor.material :as material]
-            [editor.mesh :as mesh]
             [editor.model :as model]
             [editor.outline-view :as outline-view]
             [editor.particlefx :as particlefx]
@@ -93,6 +93,7 @@
       (concat
         (atlas/register-resource-types workspace)
         (camera/register-resource-types workspace)
+        (collada-scene/register-resource-types workspace)
         (collection/register-resource-types workspace)
         (collection-proxy/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
@@ -107,7 +108,6 @@
         (json/register-resource-types workspace)
         (label/register-resource-types workspace)
         (material/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
@@ -182,22 +182,23 @@
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* outline project)
-          properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
+          outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
+          properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
-                                                                         (fn [resource node-id]
+                                                                         (fn [resource node-id opts]
                                                                            (app-view/open-resource app-view
                                                                                                    (g/node-value project :workspace)
                                                                                                    project
-                                                                                                   resource)
-                                                                           (project/select! project node-id)))
+                                                                                                   resource
+                                                                                                   opts)
+                                                                           (app-view/select! app-view node-id)))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
-          curve-view           (curve-view/make-view! project *view-graph*
+          curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
@@ -237,10 +238,13 @@
                          :asset-browser     asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
-        (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
+        (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
-          (g/connect project :selected-node-ids outline-view :selection)
+          (for [label [:selected-node-ids-by-resource :selected-node-properties-by-resource :sub-selections-by-resource]]
+            (g/connect project label app-view label))
+          (g/connect project :_node-id app-view :project-id)
+          (g/connect app-view :selected-node-ids outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
           (for [view [outline-view asset-browser]]

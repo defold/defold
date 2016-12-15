@@ -174,7 +174,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         for (int tile = 0; tile < tileCount; ++tile) {
             Vector2f c = runtimeTextureSet.getCenter(tile);
             renderTile(gl, runtimeTextureSet, tile, texture.getWidth() * c.x,
-                    texture.getHeight() * (1.0f - c.y), 1, 1);
+                    texture.getHeight() * c.y, 1, 1);
         }
         texture.disable(gl);
     }
@@ -184,8 +184,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         gl.glTranslatef(offsetX, offsetY, 0);
         gl.glScalef(scaleX, scaleY, 1);
         gl.glDrawArrays(GL.GL_TRIANGLES, runtimeTextureSet.getTextureSet().getVertexStart(tile),
- runtimeTextureSet
-                .getTextureSet().getVertexCount(tile));
+                                         runtimeTextureSet.getTextureSet().getVertexCount(tile));
         gl.glScalef(scaleX, scaleY, 1);
         gl.glTranslatef(-offsetX, -offsetY, 0);
     }
