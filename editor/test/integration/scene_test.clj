@@ -151,7 +151,7 @@
                (is (test-util/selected? app-view go-node))
                ; Delete
                (g/transact (g/delete-node go-node))
-               (is (test-util/selected? app-view resource-node))
+               (is (test-util/empty-selection? app-view))
                ; Undo
                (g/undo! project-graph)
                (is (test-util/selected? app-view go-node))
@@ -160,7 +160,7 @@
                (is (test-util/selected? app-view go-node))
                ; Delete again
                (g/transact (g/delete-node go-node))
-               (is (test-util/selected? app-view resource-node))
+               (is (test-util/empty-selection? app-view))
                ;Select again
                (test-util/mouse-click! view 32 32)
                (is (test-util/selected? app-view resource-node))))))
