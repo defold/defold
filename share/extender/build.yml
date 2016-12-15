@@ -1,5 +1,4 @@
 context:
-    frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
     symbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"]
 
@@ -31,14 +30,45 @@ main: |
     }
 
 platforms:
-  x86-osx:
+  x86_64-osx:
     context:
+        frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo"]
         engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx"]
         libPaths: ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin"]
 
     exeExt: ''
     shlibRe: 'lib(.+).dylib'
     stlibRe: 'lib(.+).a'
-    compileCmd: 'clang++ -c -m64 {{#includes}}-I{{.}} {{/includes}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{src}} -o{{tgt}}'
-    linkCmd: clang++ -m64 -stdlib=libstdc++ -mmacosx-version-min=10.7 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#frameworks}}-framework {{.}} {{/frameworks}} {{#libPaths}}-L{{.}} {{/libPaths}} {{#engineLibs}}-l{{.}} {{/engineLibs}}
-    libCmd: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    sourceRe: '(?i).*(.cpp|.c|.cc|.cxx|.c++|.mm|.m)'
+    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin11 -isysroot /opt/MacOSX.sdk/ -m64 -O2 -g {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: clang++ -arch x86_64 -target x86_64-apple-darwin11 -isysroot /opt/MacOSX.sdk/ -m64 -O2 -stdlib=libstdc++ -mmacosx-version-min=10.7 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#frameworks}}-framework {{.}} {{/frameworks}} {{#libPaths}}-L{{.}} {{/libPaths}} {{#engineLibs}}-l{{.}} {{/engineLibs}}
+    libCmd: 'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+
+  x86_64-ios:
+    context:
+        frameworks: ["Foundation", "OpenGLES", "OpenAL", "QuartzCore", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AdSupport", "CoreTelephony"]
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo"]
+        libPaths: ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin"]
+
+    exeExt: ''
+    shlibRe: 'lib(.+).dylib'
+    stlibRe: 'lib(.+).a'
+    sourceRe: '(?i).*(.cpp|.c|.cc|.cxx|.c++|.mm|.m)'
+    compileCmd: 'clang++ -c -arch arm64 -target arm-apple-darwin11 -isysroot /opt/iPhoneOS.sdk/ -m64 -O2 -g {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: clang++ -arch arm64 -target arm-apple-darwin11 -isysroot /opt/iPhoneOS.sdk/ -m64 -O2 -stdlib=libstdc++ -miphoneos-version-min=5.1 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#frameworks}}-framework {{.}} {{/frameworks}} {{#libPaths}}-L{{.}} {{/libPaths}} {{#engineLibs}}-l{{.}} {{/engineLibs}}
+    libCmd: 'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+
+  x86-ios:
+    context:
+        frameworks: ["Foundation", "OpenGLES", "OpenAL", "QuartzCore", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AdSupport", "CoreTelephony"]
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo"]
+        libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin"]
+        defines:    ["LUA_BYTECODE_ENABLE"]
+
+    exeExt: ''
+    shlibRe: 'lib(.+).dylib'
+    stlibRe: 'lib(.+).a'
+    sourceRe: '(?i).*(.cpp|.c|.cc|.cxx|.c++|.mm|.m)'
+    compileCmd: 'clang++ -c -arch armv7 -target arm-apple-darwin11 -isysroot /opt/iPhoneOS.sdk/ -m32 -O2 -g {{#defines}}-D{{.}} {{/defines}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: clang++ -arch armv7 -target arm-apple-darwin11 -isysroot /opt/iPhoneOS.sdk/ -m32 -O2 -stdlib=libstdc++ -miphoneos-version-min=5.1 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#frameworks}}-framework {{.}} {{/frameworks}} {{#libPaths}}-L{{.}} {{/libPaths}} {{#engineLibs}}-l{{.}} {{/engineLibs}}
+    libCmd: 'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
