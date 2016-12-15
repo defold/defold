@@ -196,6 +196,7 @@
             (g/connect node-id :node-id+resource view :node-id+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
+        (app-view/select! app-view [node-id])
         [node-id view]))))
 
 (defn open-tab! [project app-view path]
