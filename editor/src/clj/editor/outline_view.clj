@@ -397,26 +397,23 @@
   (alt-selection [this]
     (g/node-value outline-view :alt-tree-selection)))
 
-(defn- propagate-selection [^ListChangeListener$Change change app-view]
+(defn- propagate-selection [selected-items app-view]
   (when-not *programmatic-selection*
     (alter-var-root #'*paste-into-parent* (constantly false))
-    (when-let [selection (keep :node-id (and change (mapv item->value (.getList change))))]
+    (when-let [selection (into [] (keep :node-id) selected-items)]
       ;; TODO - handle selection order
       (app-view/select! app-view selection))))
 
 (defn- setup-tree-view [proj-graph ^TreeView tree-view outline-view app-view]
-  (let [selection-listener (reify ListChangeListener
-                             (onChanged [this change]
-                               (propagate-selection change app-view)))
-        drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))
+  (let [drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
-      (.. getSelectionModel getSelectedItems (addListener selection-listener))
       (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
       (.setOnDragOver (ui/event-handler e (drag-over proj-graph outline-view e)))
       (.setOnDragDropped (ui/event-handler e (drag-dropped proj-graph app-view outline-view e)))
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
+      (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/bind-double-click! :open)
       (ui/register-context-menu ::outline-menu)
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
