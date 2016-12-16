@@ -14,7 +14,9 @@
         -fx-background-color: $defold-white; 
     }
     .label {
-        -fx-text-fill: -fx-text-background-color;
+        -fx-text-fill: $input-background;
+        -fx-border-color: $input-border;
+        -fx-border-width: 1;
     }
     .open-button {
         -fx-padding: 10 7 !important;

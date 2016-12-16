@@ -8,18 +8,17 @@
   <children>
     <Label text="Enter Target IP address" />
     <TextField id="ip" />
-    <HBox prefHeight="100.0" prefWidth="200.0">
+    <HBox alignment="CENTER_RIGHT" spacing="5.0" prefHeight="100.0" prefWidth="200.0">
       <children>
-        <Pane HBox.hgrow="ALWAYS">
-          <children>
-      	    <Button id="add" minWidth="80.0" defaultButton="true" mnemonicParsing="false" text="Add" />
-          </children>
-        </Pane>
-      	<Button id="cancel" minWidth="80.0" defaultButton="false" mnemonicParsing="false" text="Cancel" />
+        <Button id="cancel" minWidth="80.0" defaultButton="false" mnemonicParsing="false" text="Cancel" />
+        <Button id="add" minWidth="80.0" defaultButton="true" mnemonicParsing="false" text="Add" />
       </children>
+      <padding>
+        <Insets bottom="0.0" left="0.0" right="0.0" top="5.0" />
+      </padding>
     </HBox>
   </children>
   <padding>
-    <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+    <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
   </padding>
 </VBox>

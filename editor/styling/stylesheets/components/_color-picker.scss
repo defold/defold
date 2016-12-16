@@ -3,7 +3,6 @@
     -fx-border-radius: 0;
     -fx-background-color: $input-background;
     -fx-background-insets: 0;
-    -fx-border-width: 0;
     &:showing {
         -fx-background-color: $dark-grey;
         -fx-color: $defold-white;
@@ -11,8 +10,9 @@
     &:showing .arrow {
         -fx-background-color: $defold-white;
     }
-    .label {
-        -fx-text-fill: $bright-grey;
+    .color-picker-label {
+        -fx-border-width: 1;
+        -fx-border-color: $input-border;
     }
     .arrow-button {
         -fx-background-radius: 0;
