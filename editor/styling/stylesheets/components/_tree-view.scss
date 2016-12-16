@@ -21,9 +21,6 @@
             -fx-border-color: $defold-orange;
             -fx-text-fill: $defold-white;
             -fx-background-color: $dark-grey-selected;
-            &:hover {
-                -fx-text-fill: $defold-white; 
-            }
             .image-view {
                 @include effect-lighten-blue();
             }

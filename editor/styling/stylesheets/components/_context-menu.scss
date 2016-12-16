@@ -108,7 +108,7 @@
     -fx-border-radius: 0px;
     -fx-background-color: $grey; //
     -fx-border-width: 0;
-    -fx-padding: 0;
+    -fx-padding: 5px;
     -fx-text-fill: $defold-white;
     .scroll-arrow {
         .menu-down-arrow, .menu-up-arrow {
@@ -127,19 +127,18 @@
             @include colorize-image-view($bright-grey-light);
         }
         &:hover {
-            -fx-background-color: $dark-grey-selected;//$defold-white;
+            -fx-background-color: $dark-grey-selected;
             .label {
-                -fx-text-fill: $defold-white;//$grey;
+                -fx-text-fill: $defold-white;
             }
         }
         &:focused {
-            -fx-border-color: $defold-orange;
-            -fx-background-color: $dark-grey-selected;//$defold-white;
+            -fx-background-color: $dark-grey-selected;
             .image-view {
                 @include effect-lighten-blue();
             }
             .label {
-                -fx-text-fill: $defold-white;//$grey;
+                -fx-text-fill: $defold-white;
             }
         }
     }
