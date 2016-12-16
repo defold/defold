@@ -245,10 +245,10 @@
           (g/connect app-view :selected-node-ids outline-view :selection)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
-          (let [auto-pulls (into [[properties-view :pane]
-                                  [app-view :refresh-tab-pane]]
-                             (for [view [outline-view asset-browser]]
-                               [view :tree-view]))]
+          (let [auto-pulls [[properties-view :pane]
+                            [app-view :refresh-tab-pane]
+                            [outline-view :tree-view]
+                            [asset-browser :tree-view]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)

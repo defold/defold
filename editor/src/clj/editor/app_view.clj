@@ -80,8 +80,7 @@
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
   (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views]
-                                           (let [tabs (map identity (.getTabs tab-pane))
-                                                 open-tabs (filter (fn [^Tab tab] (get open-views (ui/user-data tab ::view))) tabs)]
+                                           (let [open-tabs (filter (fn [^Tab tab] (get open-views (ui/user-data tab ::view))) (.getTabs tab-pane))]
                                              (doseq [^Tab tab open-tabs
                                                      :let [resource (:resource (get open-views (ui/user-data tab ::view)))]]
                                                (ui/text! tab (resource/resource-name resource)))
