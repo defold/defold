@@ -8,6 +8,7 @@ namespace dmRig
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
+    static const float CURSOR_EPSILON = 0.0001f;
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* MAX_RIG_INSTANCE_COUNT_KEY = "rig.max_instance_count";
@@ -756,25 +757,33 @@ namespace dmRig
     {
         RigPlayer* player = GetPlayer(instance);
 
-        if (!player)
+        if (!player || !player->m_Animation)
         {
             return 0.0f;
         }
 
-        float duration = GetCursorDuration(player, player->m_Animation);
-
+        float duration = player->m_Animation->m_Duration;
         if (duration == 0.0f)
         {
             return 0.0f;
         }
 
-        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
+        float t = player->m_Cursor;
+        if (player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG && t > duration)
+        {
+            // In once-pingpong the cursor will be greater than duration during the "pong" part, compensate for that
+            t = (2.f * duration) - t;
+        }
+
+        if (player->m_Backwards)
+        {
+            t = duration - t;
+        }
 
         if (normalized)
         {
             t = t / duration;
         }
-
         return t;
     }
 
@@ -788,22 +797,44 @@ namespace dmRig
             return dmRig::RESULT_ERROR;
         }
 
-        float duration = GetCursorDuration(player, player->m_Animation);
+        if (!player->m_Animation)
+        {
+            return RESULT_OK;
+        }
 
+        float duration = player->m_Animation->m_Duration;
         if (normalized)
         {
             t = t * duration;
         }
 
-        t = fmod(t, duration);
-
-        if (cursor < 0)
+        if (player->m_Playback == dmRig::PLAYBACK_LOOP_PINGPONG && player->m_Backwards)
         {
-            t = duration + t;
+            // NEVER set cursor on the "looped" part of a pingpong animation
+            player->m_Backwards = 0;
+        }
+
+        if (fabs(t) > duration) 
+        {
+            t = fmod(t, duration);
+            if (fabs(t) < CURSOR_EPSILON) 
+            {
+                t = duration;
+            }
+        }
+
+        if (t < 0.0f) 
+        {
+            t = duration - fmod(fabs(t), duration);
+        }
+
+        if (player->m_Backwards)
+        {
+            t = duration - t;
         }
 
         player->m_Cursor = t;
-
+        
         return dmRig::RESULT_OK;
     }
 
