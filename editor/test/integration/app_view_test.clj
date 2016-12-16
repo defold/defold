@@ -10,7 +10,7 @@
   (:import [java.io File]))
 
 (deftest open-editor
-  (testing "Opening editor does not alter undo history by selection"
+  (testing "Opening editor only alters undo history by selection"
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
                    proj-graph (g/node-id->graph-id project)
