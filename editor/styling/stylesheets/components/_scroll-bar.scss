@@ -4,7 +4,8 @@
         -fx-background-insets: 0px -1px -1px -1px;
         //-fx-padding: 2px -1px -1px -1px;
         >.thumb {
-            -fx-background-insets: 2px 5px 3px 5px;
+            -fx-background-insets: 1px 5px 1px 5px;
+            -fx-padding: 0 20px 0 10px !important;
         }
         .increment-button, .decrement-button {
             -fx-padding: 0 0 10 0;
@@ -12,7 +13,8 @@
     }
     &:vertical {
         >.thumb {
-            -fx-background-insets: 5px 3px 5px 2px;
+            //-fx-background-insets: 5px 3px 5px 2px;
+            -fx-background-insets: 5px 1px 5px 1px;
         }
         .increment-button, .decrement-button {
             -fx-padding: 0 10 0 0;
