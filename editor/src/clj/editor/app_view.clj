@@ -301,10 +301,9 @@
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-stage)
         scene (Scene. root)
-        controls (ui/collect-controls root ["version" "sha1" "time"])]
+        controls (ui/collect-controls root ["version" "sha1"])]
     (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
-    (ui/text! (:sha1 controls) (System/getProperty "defold.sha1" "NO SHA1"))
-    (ui/text! (:time controls) (System/getProperty "defold.buildtime" "NO BUILD TIME"))
+    (ui/text! (:sha1 controls) (format "(%s)" (System/getProperty "defold.sha1" "NO SHA1")))
     (ui/title! stage "About")
     (.setScene stage scene)
     (ui/show! stage)))

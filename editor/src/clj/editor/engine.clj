@@ -105,9 +105,6 @@
         path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)]
     (do-launch path launch-dir prefs)))
 
-(defn- copy-file [source-path dest-path]
-  (io/copy (io/file source-path) (io/file dest-path)))
-
 ;; TODO - prototype for cloud-building
 ;; Should be re-written when we have the backend in place etc.
 (defn launch-compiled [workspace launch-dir prefs]
@@ -119,10 +116,9 @@
         _ (.add (.getClasses cc) InputStreamProvider)
         _ (.add (.getClasses cc) StringProvider)
         client (Client/create cc)
-        platform "x86_64-osx"
+        platform "x86-osx"
         ^WebResource resource (.resource ^Client client (URI. server-url))
-        ; TODO: Make sure we can have a debug mode using DYNAMO_HOME here -- bdbf6ddaefb79c22214c86f945ea91d7fa6171de
-        ^WebResource build-resource (.path resource (format "/build/%s/" platform))
+        ^WebResource build-resource (.path resource (format "/build/%s" platform))
         ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
         resources (g/node-value workspace :resource-list)
         manifests (filter #(= "ext.manifest" (resource/resource-name %)) resources)
@@ -140,11 +136,8 @@
           (if (= 200 (.getStatus cr))
             (do
               (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-              (let [out-path (format "%s%s/%s" (workspace/build-path workspace) platform "dmengine")]
-                (io/make-parents out-path)
-                (copy-file (.getPath f) out-path )
-                (.setExecutable (io/file out-path) true)
-                (do-launch out-path launch-dir prefs)) )
+              (.setExecutable f true)
+              (do-launch (.getPath f) launch-dir prefs))
             (do
               (console/append-console-message! (str (.getEntity cr String) "\n"))))))
       (catch Throwable e

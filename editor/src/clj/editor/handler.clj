@@ -2,7 +2,6 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.error-reporting :as error-reporting]
             [service.log :as log]))
 
 (set! *warn-on-reflection* true)
@@ -45,16 +44,10 @@
 (defn- invoke-fnk [handler fsym command-context default]
   (if-let [f (get-in handler [:fns fsym])]
     (binding [*adapters* (:adapters command-context)]
-      (try
-        (f (:env command-context))
+      (try (f (:env command-context))
         (catch Exception e
-          (error-reporting/report-exception!
-            (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
-                             (:command handler) (:context handler) fsym (.getMessage e))
-                     {:handler handler
-                      :command-context command-context}
-                     e))
-          nil)))
+          (log/error :exception e :msg (format "handler %s in context %s failed at %s with message [%s]"
+                                               (:command handler) (:context handler) fsym (.getMessage e))))))
     default))
 
 (defn- get-active-handler [command command-context]

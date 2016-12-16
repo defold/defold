@@ -630,9 +630,7 @@
                       (ui/event-handler e
                            (let [key (.getCode ^KeyEvent e)]
                              (when (= key KeyCode/ENTER)
-                               (close (try
-                                        (Integer/parseInt (ui/text (:line controls)))
-                                        (catch Exception _))))
+                               (close (ui/text (:line controls))))
                              (when (= key KeyCode/ESCAPE)
                                (close nil)))))
     (.initModality stage Modality/NONE)

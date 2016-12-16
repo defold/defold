@@ -13,7 +13,6 @@
   []
   {"Defold version" (or (system/defold-version) "dev")
    "Defold sha"     (or (system/defold-sha1) "")
-   "Build time"     (or (system/defold-build-time) "")
    "OS name"        (system/os-name)
    "OS version"     (system/os-version)
    "OS arch"        (system/os-arch)

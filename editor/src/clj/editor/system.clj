@@ -22,10 +22,6 @@
   ^String []
   (System/getProperty "defold.sha1"))
 
-(defn defold-build-time
-  ^String []
-  (System/getProperty "defold.buildtime"))
-
 (defn defold-dev? []
   (not (defold-version)))
 
