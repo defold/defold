@@ -190,6 +190,8 @@ namespace dmGameSystem
             break;
         }
 
+        dmDDF::FreeMessage(texture_image);
+
         if (result == dmResource::RESULT_OK)
         {
             *texture_out = texture;
@@ -223,7 +225,6 @@ namespace dmGameSystem
         {
             params.m_Resource->m_Resource = (void*) texture;
         }
-        dmDDF::FreeMessage(params.m_PreloadData);
         return r;
     }
 
@@ -235,23 +236,16 @@ namespace dmGameSystem
 
     dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmGraphics::TextureImage* texture_image = (dmGraphics::TextureImage*)params.m_Message;
-        if( !texture_image )
+        dmGraphics::TextureImage* texture_image;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
+        if ( e != dmDDF::RESULT_OK )
         {
-            dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
-            if ( e != dmDDF::RESULT_OK )
-            {
-                return dmResource::RESULT_FORMAT_ERROR;
-            }
+            return dmResource::RESULT_FORMAT_ERROR;
         }
+
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmGraphics::HTexture texture = (dmGraphics::HTexture) params.m_Resource->m_Resource;
         dmResource::Result r = AcquireResources(graphics_context, texture_image, texture, &texture);
-
-        if( params.m_Message == 0 )
-        {
-            dmDDF::FreeMessage(texture_image);
-        }
         return r;
     }
 }

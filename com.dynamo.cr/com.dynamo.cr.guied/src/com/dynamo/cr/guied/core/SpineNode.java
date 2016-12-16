@@ -70,10 +70,10 @@ public class SpineNode extends ClippingNode {
     }
 
     public boolean isAlphaVisible() {
-        return true;
+        return false;
     }
     public boolean isInheritAlphaVisible() {
-        return true;
+        return false;
     }
 
     public boolean isSizeVisible() {
@@ -85,7 +85,7 @@ public class SpineNode extends ClippingNode {
     }
 
     public boolean isBlendModeVisible() {
-        return true;
+        return false;
     }
 
     public boolean isPivotVisible() {
