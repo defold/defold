@@ -15,6 +15,7 @@ import subprocess
 import tarfile
 import zipfile
 import ConfigParser
+import datetime
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-linux': 'linux-i586',
@@ -167,6 +168,7 @@ def bundle(platform, jar_file, options):
     config.read('bundle-resources/config')
     config.set('build', 'sha1', options.git_sha1)
     config.set('build', 'version', options.version)
+    config.set('build', 'time', datetime.datetime.now().isoformat())
 
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
