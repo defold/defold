@@ -660,7 +660,7 @@
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))
-        repainter (ui/->timer 10 "refresh-code-view" (fn [dt] (g/node-value view-id :new-content)))]
+        repainter (ui/->timer 10 "refresh-code-view" (fn [_ dt] (g/node-value view-id :new-content)))]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
     (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer} source-viewer)
@@ -671,10 +671,19 @@
     (ui/timer-start! repainter)
     (ui/timer-stop-on-closed! ^Tab (:tab opts) repainter)
     (ui/timer-stop-on-closed! (ui/parent->stage parent) repainter)
+    (g/node-value view-id :new-content)
     view-id))
+
+(defn focus-view
+  [code-view-node {:keys [line]}]
+  (when-let [^SourceViewer source-viewer (g/node-value code-view-node :source-viewer)]
+    (cvx/refresh! source-viewer)
+    (when line
+      (cvx/go-to-line source-viewer line))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
                                 :label "Code"
-                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))))
+                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))
+                                :focus-fn focus-view))
