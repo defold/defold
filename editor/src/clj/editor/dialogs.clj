@@ -1,6 +1,5 @@
 (ns editor.dialogs
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+  (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.handler :as handler]
@@ -9,22 +8,20 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.defold-project :as project]
-            [service.log :as log]
-            [clojure.string :as str])
+            [editor.defold-project-search :as project-search]
+            [editor.github :as github]
+            [service.log :as log])
   (:import [java.io File]
            [java.nio.file Path Paths]
-           [javafx.beans.binding StringBinding]
-           [javafx.event Event ActionEvent EventHandler]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.fxml FXMLLoader]
+           [java.util Collection List]
+           [javafx.animation AnimationTimer]
+           [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button TextField TreeView TreeItem ListView SelectionMode]
+           [javafx.scene.control TextField TreeView TreeItem ListView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
-           [javafx.scene.web WebView]
-           [javafx.stage Stage StageStyle Modality DirectoryChooser]
-           [org.apache.commons.io FilenameUtils]))
+           [javafx.stage Stage StageStyle Modality DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
 
@@ -108,6 +105,42 @@
     (ui/show-and-wait! stage)
     @result))
 
+(handler/defhandler ::report-error :dialog
+  (run [sentry-id-promise]
+    (let [sentry-id (deref sentry-id-promise 100 nil)
+          fields (cond-> {}
+                   sentry-id
+                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=%s'>%s</a>"
+                                          sentry-id sentry-id)))]
+      (ui/browse-url (github/new-issue-link fields)))))
+
+(defn- messages
+  [ex-map]
+  (->> (tree-seq :via :via ex-map)
+       (drop 1)
+       (map (fn [{:keys [message ^Class type]}]
+              (format "%s: %s" (.getName type) (or message "Unknown"))))
+       (str/join "\n")))
+
+(defn make-error-dialog
+  [ex-map sentry-id-promise]
+  (let [root     ^Parent (ui/load-fxml "error.fxml")
+        stage    (ui/make-stage)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["message" "dismiss" "report"])]
+    (observe-focus stage)
+    (ui/context! root :dialog {:stage stage :sentry-id-promise sentry-id-promise} nil)
+    (ui/title! stage "Error")
+    (ui/text! (:message controls) (messages ex-map))
+    (ui/bind-action! (:dismiss controls) ::close)
+    (ui/bind-action! (:report controls) ::report-error)
+    (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+    (ui/request-focus! (:report controls))
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setResizable stage false)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
         dialog-root ^Parent (ui/load-fxml dialog-fxml)
@@ -179,9 +212,9 @@
          (ui/request-focus! node))))
 
 (defn- default-filter-fn [cell-fn text items]
-  (let [text (string/lower-case text)
-        str-fn (comp string/lower-case :text cell-fn)]
-    (filter (fn [item] (string/starts-with? (str-fn item) text)) items)))
+  (let [text (str/lower-case text)
+        str-fn (comp str/lower-case :text cell-fn)]
+    (filter (fn [item] (str/starts-with? (str-fn item) text)) items)))
 
 (defn make-select-list-dialog [items options]
   (let [^Parent root (ui/load-fxml "select-list.fxml")
@@ -318,42 +351,11 @@
                   (merge options))]
     (make-select-list-dialog items options)))
 
-(declare tree-item)
-
-(defn- ^ObservableList list-children [parent]
-  (let [children (:children parent)
-        items    (into-array TreeItem (mapv tree-item children))]
-    (if (empty? children)
-      (FXCollections/emptyObservableList)
-      (doto (FXCollections/observableArrayList)
-        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
-
-(defn tree-item [parent]
-  (let [cached (atom false)]
-    (proxy [TreeItem] [parent]
-      (isLeaf []
-        (empty? (:children (.getValue ^TreeItem this))))
-      (getChildren []
-        (let [this ^TreeItem this
-              ^ObservableList children (proxy-super getChildren)]
-          (when-not @cached
-            (reset! cached true)
-            (.setAll children (list-children (.getValue this))))
-          children)))))
-
-(defn- update-tree-view [^TreeView tree-view resource-tree]
-  (let [root (.getRoot tree-view)
-        ^TreeItem new-root (tree-item resource-tree)]
-    (if (.getValue new-root)
-      (.setRoot tree-view new-root)
-      (.setRoot tree-view nil))
-    tree-view))
-
 (defrecord MatchContextResource [parent-resource line caret-position match]
   resource/Resource
   (children [this]      [])
-  (ext [this] (resource/ext parent-resource))
-  (resource-name [this] (format "%d: %s" line match))
+  (ext [this]           (resource/ext parent-resource))
+  (resource-name [this] (format "%d: %s" (inc line) match))
   (resource-type [this] (resource/resource-type parent-resource))
   (source-type [this]   (resource/source-type parent-resource))
   (read-only? [this]    (resource/read-only? parent-resource))
@@ -364,56 +366,76 @@
   (workspace [this]     (resource/workspace parent-resource))
   (resource-hash [this] (resource/resource-hash parent-resource)))
 
-(defn- append-match-snippet-nodes [tree matching-resources]
-  (when tree
-    (if (empty? (:children tree))
-      (assoc tree :children (map #(->MatchContextResource tree (:line %) (:caret-position %) (:match %))
-                                 (:matches (first (get matching-resources tree)))))
-      (update tree :children (fn [children]
-                               (map #(append-match-snippet-nodes % matching-resources) children))))))
+(defn- make-match-tree-item [resource {:keys [line caret-position match]}]
+  (TreeItem. (->MatchContextResource resource line caret-position match)))
 
-(defn- update-search-dialog [^TreeView tree-view workspace matching-resources]
-  (let [resource-tree  (g/node-value workspace :resource-tree)
-        [_ new-tree]   (workspace/filter-resource-tree resource-tree (set (map :resource matching-resources)))
-        tree-with-hits (append-match-snippet-nodes new-tree (group-by :resource matching-resources))]
-    (update-tree-view tree-view tree-with-hits)
-    (doseq [^TreeItem item (ui/tree-item-seq (.getRoot tree-view))]
-      (.setExpanded item true))
-    (when-let [first-match (->> (ui/tree-item-seq (.getRoot tree-view))
-                                (filter (fn [^TreeItem item]
-                                          (instance? MatchContextResource (.getValue item))))
-                                first)]
-      (.select (.getSelectionModel tree-view) first-match))))
+(defn- insert-search-result [^List tree-items search-result]
+  (let [{:keys [resource matches]} search-result
+        match-items (map (partial make-match-tree-item resource) matches)
+        resource-item (TreeItem. resource)]
+    (.setExpanded resource-item true)
+    (-> resource-item .getChildren (.addAll ^Collection match-items))
+    (.add tree-items resource-item)))
 
-(defn make-search-in-files-dialog [workspace search-fn]
+(defn- seconds->nanoseconds [seconds]
+  (long (* 1000000000 seconds)))
+
+(defn- start-tree-update-timer! [^TreeView tree-view poll-fn]
+  (let [tree-items (.getChildren (.getRoot tree-view))
+        first-match? (volatile! true)
+        timer (ui/->timer "tree-update-timer"
+                          (fn [^AnimationTimer timer _dt]
+                            (let [start-time (System/nanoTime)
+                                  end-time (+ start-time (seconds->nanoseconds (/ 1 90)))]
+                              (loop [poll-time 0]
+                                (when (> end-time poll-time)
+                                  (when-let [entry (poll-fn)]
+                                    (if (= ::project-search/done entry)
+                                      (.stop timer)
+                                      (do (insert-search-result tree-items entry)
+                                          (when first-match?
+                                            (-> tree-view .getSelectionModel (.clearAndSelect 1))
+                                            (vreset! first-match? false))
+                                          (recur (System/nanoTime))))))))))]
+    (.clear tree-items)
+    (ui/timer-start! timer)
+    timer))
+
+(defn make-search-in-files-dialog [project]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         stage     (ui/make-stage)
         scene     (Scene. root)
         controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
         return    (atom nil)
-        term      (atom nil)
-        exts      (atom nil)
         close     (fn [] (reset! return (ui/selection (:resources-tree controls))) (.close stage))
-        tree-view ^TreeView (:resources-tree controls)]
+        term-field ^TextField (:search controls)
+        exts-field ^TextField (:types controls)
+        tree-view ^TreeView (:resources-tree controls)
+        start-consumer! (partial start-tree-update-timer! tree-view)
+        stop-consumer! ui/timer-stop!
+        report-error! (fn [error] (ui/run-later (throw error)))
+        file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
+        {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
+        on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))]
     (observe-focus stage)
     (.initOwner stage (ui/main-stage))
-    (ui/title! stage "Search in files")
+    (ui/title! stage "Search in Files")
+    (.setShowRoot tree-view false)
+    (.setRoot tree-view (doto (TreeItem.)
+                          (.setExpanded true)))
 
+    (ui/on-closed! stage (fn on-closed! [_] (abort-search!)))
     (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
     (ui/on-double! (:resources-tree controls) (fn on-double! [_] (close)))
 
-    (ui/cell-factory! (:resources-tree controls) (fn [r] {:text (resource/resource-name r)
-                                                          :icon (workspace/resource-icon r)}))
+    (ui/cell-factory! (:resources-tree controls) (fn [r] (if (instance? MatchContextResource r)
+                                                           {:text (resource/resource-name r)
+                                                            :icon (workspace/resource-icon r)}
+                                                           {:text (resource/proj-path r)
+                                                            :icon (workspace/resource-icon r)})))
 
-    (ui/observe (.textProperty ^TextField (:search controls))
-                (fn observe [_ _ ^String new]
-                  (reset! term new)
-                  (update-search-dialog tree-view workspace (search-fn @exts @term))))
-
-    (ui/observe (.textProperty ^TextField (:types controls))
-                (fn observe [_ _ ^String new]
-                  (reset! exts new)
-                  (update-search-dialog tree-view workspace (search-fn @exts @term))))
+    (ui/observe (.textProperty term-field) on-input-changed!)
+    (ui/observe (.textProperty exts-field) on-input-changed!)
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
       (ui/event-handler event
@@ -428,17 +450,12 @@
 
     (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
-    (ui/show-and-wait! stage)
+    (ui/show-and-wait-throwing! stage)
 
-    (let [resource (and @return
-                        (update @return :children
-                                (fn [children] (remove #(instance? MatchContextResource %) children))))]
+    (let [resource (first @return)]
       (cond
         (instance? MatchContextResource resource)
         [(:parent-resource resource) {:caret-position (:caret-position resource)}]
-
-        (not-empty (:children resource))
-        nil
 
         :else
         [resource {}]))))
@@ -613,7 +630,9 @@
                       (ui/event-handler e
                            (let [key (.getCode ^KeyEvent e)]
                              (when (= key KeyCode/ENTER)
-                               (close (ui/text (:line controls))))
+                               (close (try
+                                        (Integer/parseInt (ui/text (:line controls)))
+                                        (catch Exception _))))
                              (when (= key KeyCode/ESCAPE)
                                (close nil)))))
     (.initModality stage Modality/NONE)
@@ -672,7 +691,7 @@
         close (fn [v] (do (deliver result v) (.close stage)))
         ^ListView list-view  (:proposals controls)
         filter-text (atom target)
-        filter-fn (fn [i] (string/starts-with? (:name i) @filter-text))
+        filter-fn (fn [i] (str/starts-with? (:name i) @filter-text))
         update-items (fn [] (try (let [new-items (filter filter-fn proposals)]
                                   (if (empty? new-items)
                                     (close nil)

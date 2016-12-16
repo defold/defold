@@ -189,11 +189,12 @@
                                                             hot-reload/url-prefix (partial hot-reload/build-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
-                                                                         (fn [resource node-id]
+                                                                         (fn [resource node-id opts]
                                                                            (app-view/open-resource app-view
                                                                                                    (g/node-value project :workspace)
                                                                                                    project
-                                                                                                   resource)
+                                                                                                   resource
+                                                                                                   opts)
                                                                            (app-view/select! app-view node-id)))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))

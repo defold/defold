@@ -39,7 +39,8 @@
             [editor.material :as material]
             [editor.handler :as handler]
             [editor.display-profiles :as display-profiles]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
@@ -446,3 +447,17 @@
   [app-view select-fn resource-type go-id]
   (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
   (first (selection app-view)))
+
+(defn block-until
+  "Blocks the calling thread until the supplied predicate is satisfied for the
+  return value of the specified polling function or the timeout expires. Returns
+  nil if the timeout expires, or the last returned value of poll-fn otherwise."
+  [done? timeout-ms poll-fn! & args]
+  (let [deadline (+ (System/nanoTime) (long (* timeout-ms 1000000)))]
+    (loop []
+      (thread-util/throw-if-interrupted!)
+      (let [result (apply poll-fn! args)]
+        (if (done? result)
+          result
+          (if (< (System/nanoTime) deadline)
+            (recur)))))))

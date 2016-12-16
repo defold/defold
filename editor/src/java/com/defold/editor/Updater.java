@@ -21,24 +21,66 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Updater {
+    public static final class PendingUpdate {
+        private File resourcesPath;
+        private Map<String, File> files;
+        private File config;
+        public String version;
+        public String sha1;
+
+        PendingUpdate(File resourcesPath, Map<String, File> files, File config, String version, String sha1) {
+            this.resourcesPath = resourcesPath;
+            this.files = files;
+            this.config = config;
+            this.version = version;
+            this.sha1 = sha1;
+        }
+
+        private File packageFile(String toName) {
+            return new File(new File(resourcesPath, "packages"), toName);
+        }
+
+        private void copyFile(File from, String toName) throws IOException {
+            File to = packageFile(toName);
+            logger.info("copying {} -> {}", new Object[] {from, to});
+            FileUtils.copyFile(from, to);
+        }
+
+        private boolean apply(Map<String, File> files) throws IOException {
+            for (Entry<String, File> entry : files.entrySet()) {
+                File to = packageFile(entry.getKey());
+                if (to.exists()) {
+                    logger.error("update failed. file {} already exists", to);
+                    return false;
+                }
+            }
+
+            for (Entry<String, File> entry : files.entrySet()) {
+                copyFile(entry.getValue(), entry.getKey());
+            }
+            return true;
+        }
+
+        /**
+         * Installs the update
+         * @throws IOException
+         */
+        public void install() throws IOException {
+            if (apply(files)) {
+                File toConfig = new File(resourcesPath, "config");
+                logger.info("copying {} -> {}", new Object[] {config, toConfig});
+                FileUtils.copyFile(config, toConfig);
+            }
+        }
+    }
+
     private static Logger logger = LoggerFactory.getLogger(Updater.class);
 
     private String updateUrl;
     private Path tempDirectory;
     private File resourcesPath;
     private String currentSha1;
-
     private ObjectMapper mapper;
-
-    public static class UpdateInfo {
-        public String version;
-        public String sha1;
-
-        public UpdateInfo(String version, String sha1) {
-            this.version = version;
-            this.sha1 = sha1;
-        }
-    }
 
     public Updater(String updateUrl, String resourcesPath, String currentSha1) throws IOException {
         this.updateUrl = updateUrl;
@@ -56,31 +98,6 @@ public class Updater {
         return f.toFile();
     }
 
-    private File packageFile(String toName) {
-        return new File(new File(resourcesPath, "packages"), toName);
-    }
-
-    private void copyFile(File from, String toName) throws IOException {
-        File to = packageFile(toName);
-        logger.info("copying {} -> {}", new Object[] {from, to});
-        FileUtils.copyFile(from, to);
-    }
-
-    private boolean apply(Map<String, File> files) throws IOException {
-        for (Entry<String, File> entry : files.entrySet()) {
-            File to = packageFile(entry.getKey());
-            if (to.exists()) {
-                logger.error("update failed. file {} already exists", to);
-                return false;
-            }
-        }
-
-        for (Entry<String, File> entry : files.entrySet()) {
-            copyFile(entry.getValue(), entry.getKey());
-        }
-        return true;
-    }
-
     private JsonNode fetchJson(URI uri) throws IOException {
         return mapper.readValue(IOUtils.toString(uri), JsonNode.class);
     }
@@ -91,13 +108,12 @@ public class Updater {
 
     /**
      * Check for updates
-     * @return {@link UpdateInfo} when an update is applied successfully. Otherwise null.
+     * @return {@link PendingUpdate} when an update is pending. Otherwise null.
      * @throws IOException
      */
-    public UpdateInfo check() throws IOException {
+    public PendingUpdate check() throws IOException {
         JsonNode update = fetchJson(makeURI(updateUrl, "update.json"));
         String packagesUrl = update.get("url").asText();
-
 
         JsonNode manifest = fetchJson(makeURI(packagesUrl, "manifest.json"));
         String sha1 = manifest.get("sha1").asText();
@@ -119,16 +135,10 @@ public class Updater {
                     return null;
                 }
             }
-            File config = download(packagesUrl, "config");
 
-            if (apply(files)) {
-                File toConfig = new File(resourcesPath, "config");
-                logger.info("copying {} -> {}", new Object[] {config, toConfig});
-                FileUtils.copyFile(config, toConfig);
-                return new UpdateInfo(version, sha1);
-            }
+            File config = download(packagesUrl, "config");
+            return new PendingUpdate(resourcesPath, files, config, version, sha1);
         }
         return null;
     }
 }
-
