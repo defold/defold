@@ -15,6 +15,7 @@ namespace dmGameSystem
         RigSceneResource*       m_RigScene;
         dmRender::HMaterial     m_Material;
         dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
     dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams& params);

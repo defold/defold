@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <dlib/buffer.h>
 #include <dlib/socket.h>
 #include <dlib/http_client.h>
 #include <dlib/hash.h>
@@ -10,6 +11,7 @@
 #include <ddf/ddf.h>
 #include "resource_ddf.h"
 #include "../resource.h"
+#include "../resource_private.h"
 #include "test/test_resource_ddf.h"
 
 extern unsigned char TEST_ARC[];
@@ -53,19 +55,19 @@ TEST_F(ResourceTest, RegisterType)
     dmResource::Result e;
 
     // Test create/destroy function == 0
-    e = dmResource::RegisterType(factory, "foo", 0, 0, 0, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, 0, 0, 0, 0);
     ASSERT_EQ(dmResource::RESULT_INVAL, e);
 
     // Test dot in extension
-    e = dmResource::RegisterType(factory, ".foo", 0, 0, &DummyCreate, &DummyDestroy, 0);
+    e = dmResource::RegisterType(factory, ".foo", 0, 0, &DummyCreate, &DummyDestroy, 0, 0);
     ASSERT_EQ(dmResource::RESULT_INVAL, e);
 
     // Test "ok"
-    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     // Test already registred
-    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0, 0);
     ASSERT_EQ(dmResource::RESULT_ALREADY_REGISTERED, e);
 
     // Test get type/extension from type/extension
@@ -85,7 +87,7 @@ TEST_F(ResourceTest, RegisterType)
 TEST_F(ResourceTest, NotFound)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
     void* resource = (void*) 0xdeadbeef;
     e = dmResource::Get(factory, "/DOES_NOT_EXISTS.foo", &resource);
@@ -143,10 +145,10 @@ protected:
         m_ResourceName = "/test.cont";
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, &ResourceContainerDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &FooResourceCreate, &FooResourceDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &FooResourceCreate, &FooResourceDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
@@ -612,6 +614,7 @@ TEST_P(GetResourceTest, PreloadGetAbort)
     }
 }
 
+
 dmResource::Result RecreateResourceCreate(const dmResource::ResourceCreateParams& params)
 {
     const int TMP_BUFFER_SIZE = 64;
@@ -651,7 +654,6 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
         return dmResource::RESULT_OUT_OF_MEMORY;
     }
 }
-
 
 TEST(dmResource, InvalidHost)
 {
@@ -696,7 +698,7 @@ TEST(dmResource, Builtins)
     dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
     ASSERT_NE((void*) 0, factory);
 
-    dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, AdResourceDestroy, 0);
+    dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, AdResourceDestroy, 0, 0);
 
     void* resource;
     const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
@@ -728,7 +730,7 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
@@ -801,7 +803,7 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
@@ -902,7 +904,7 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
@@ -971,7 +973,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -1023,7 +1025,7 @@ TEST(OverflowTest, OverflowTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     int* resource;
@@ -1052,9 +1054,9 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
         ASSERT_NE((void*) 0, m_Factory);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, &ResourceContainerDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         int* resource;
@@ -1072,6 +1074,259 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
         }
     }
 }
+
+
+
+struct ResourceHolder
+{
+    int* m_Value;
+};
+
+dmResource::Result SharedResourceCreate(const dmResource::ResourceCreateParams& params)
+{
+    const int TMP_BUFFER_SIZE = 64;
+    char tmp[TMP_BUFFER_SIZE];
+    if (params.m_BufferSize < TMP_BUFFER_SIZE) {
+        memcpy(tmp, params.m_Buffer, params.m_BufferSize);
+        tmp[params.m_BufferSize] = '\0';
+        ResourceHolder* resource = new ResourceHolder;
+        resource->m_Value = new int(atoi(tmp));
+        params.m_Resource->m_Resource = (void*) resource;
+        params.m_Resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
+
+        return dmResource::RESULT_OK;
+    } else {
+        return dmResource::RESULT_OUT_OF_MEMORY;
+    }
+}
+
+dmResource::Result SharedResourceDestroy(const dmResource::ResourceDestroyParams& params)
+{
+
+    ResourceHolder* resource = (ResourceHolder*) params.m_Resource->m_Resource;
+    if( params.m_Resource->m_SharedState == dmResource::DATA_SHARE_STATE_NONE )
+    {
+        delete resource->m_Value;
+    }
+
+    delete resource;
+    return dmResource::RESULT_OK;
+}
+
+dmResource::Result SharedResourceRecreate(const dmResource::ResourceRecreateParams& params)
+{
+    ResourceHolder* resource = (ResourceHolder*) params.m_Resource->m_Resource;
+    assert(resource);
+
+    if( params.m_Resource->m_SharedState == dmResource::DATA_SHARE_STATE_SHALLOW )
+    {
+        resource->m_Value = new int;
+    }
+
+    const int TMP_BUFFER_SIZE = 64;
+    char tmp[TMP_BUFFER_SIZE];
+    if (params.m_BufferSize < TMP_BUFFER_SIZE) {
+        memcpy(tmp, params.m_Buffer, params.m_BufferSize);
+        tmp[params.m_BufferSize] = '\0';
+
+        *(resource->m_Value) = atoi(tmp);
+        return dmResource::RESULT_OK;
+    } else {
+        return dmResource::RESULT_OUT_OF_MEMORY;
+    }
+}
+
+dmResource::Result SharedResourceDuplicate(const dmResource::ResourceDuplicateParams& params)
+{
+    const ResourceHolder* oldresource = (const ResourceHolder*)params.m_OriginalResource->m_Resource;
+
+    ResourceHolder* resource = new ResourceHolder;
+    resource->m_Value = oldresource->m_Value;
+    params.m_Resource->m_Resource = (void*)resource;
+    return dmResource::RESULT_OK;
+}
+
+
+TEST_F(ResourceTest, IsShared)
+{
+    ASSERT_EQ(false, dmResource::IsPathTagged("/a/b/c.png") );
+    ASSERT_EQ(false, dmResource::IsPathTagged("/a/b/c:d.png") ); // the separator is still a valid filename character
+
+    // This resource is not shared
+    ASSERT_EQ(true, dmResource::IsPathTagged("/a/b/c.png:") );
+}
+
+TEST(DynamicResources, GetPath)
+{
+    const char* test_dir = "build/default/src/test";
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 8;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::Result e;
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    ResourceHolder* resource1;
+    e = dmResource::Get(factory, "/test01.foo", (void**) &resource1);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    ResourceHolder* resource2;
+    e = dmResource::Get(factory, "/test02.foo", (void**) &resource2);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
+
+    ResourceHolder* resource3;
+    e = dmResource::Get(factory, "/test02.foo:", (void**) &resource3);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource3));
+    ASSERT_EQ(2U, dmResource::GetRefCount(factory, resource2));
+    ASSERT_NE(resource2, resource3);
+    ASSERT_EQ(resource2->m_Value, resource3->m_Value);
+
+
+    char canonical_path[dmResource::RESOURCE_PATH_MAX];
+
+
+    uint64_t hash = 0;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::GetPath(factory, 0, &hash) );
+
+    hash = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
+    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    ASSERT_EQ( dmHashString64(canonical_path), hash );
+
+    hash = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
+    GetCanonicalPath(factory, "/test02.foo", canonical_path);
+    ASSERT_EQ( dmHashString64(canonical_path), hash );
+
+    hash = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource3, &hash) );
+    GetCanonicalPath(factory, "/test02.foo_0", canonical_path);
+    ASSERT_EQ( dmHashString64(canonical_path), hash );
+
+
+    dmResource::Release(factory, resource3);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
+    dmResource::Release(factory, resource2);
+    dmResource::Release(factory, resource1);
+    dmResource::DeleteFactory(factory);
+}
+
+TEST(DynamicResources, Set)
+{
+    const char* test_dir = "build/default/src/test";
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 8;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::Result e;
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    ResourceHolder* resource1;
+    e = dmResource::Get(factory, "/test01.foo", (void**) &resource1);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
+
+    ResourceHolder* resource2;
+    e = dmResource::Get(factory, "/test01.foo:", (void**) &resource2);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
+    ASSERT_EQ(2U, dmResource::GetRefCount(factory, resource1));
+
+
+    ASSERT_NE(resource1, resource2);
+    ASSERT_EQ(resource1->m_Value, resource2->m_Value);
+
+    // Create buffer
+    dmBuffer::StreamDeclaration streams_decl[] = {
+        {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1}
+    };
+
+    uint32_t element_count = 32;
+    dmBuffer::HBuffer buffer = 0;
+    dmBuffer::Allocate(element_count, streams_decl, 1, &buffer);
+
+    uint8_t* data = 0;
+    uint32_t datasize = 0;
+    dmBuffer::Result r = dmBuffer::GetBytes(buffer, (void**)&data, &datasize);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_NE(0U, (uintptr_t)data);
+    ASSERT_EQ(32U, datasize);
+
+
+    // Set buffer
+    uint64_t hash = 0;
+
+    // Change data on the shared resource
+    strcpy((char*)data, "123");
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
+    e = dmResource::SetResource(factory, hash, buffer);
+
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(resource1->m_Value, resource2->m_Value); // The pointers are still the same
+    ASSERT_EQ(*resource1->m_Value, *resource2->m_Value);
+    ASSERT_EQ(123, *resource2->m_Value);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
+    ASSERT_EQ(2U, dmResource::GetRefCount(factory, resource1));
+
+    // Set data on the tagged resource
+    strcpy((char*)data, "42");
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
+    e = dmResource::SetResource(factory, hash, buffer);
+
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE(resource1->m_Value, resource2->m_Value);
+    ASSERT_NE(*resource1->m_Value, *resource2->m_Value);
+    ASSERT_EQ(123, *resource1->m_Value);
+    ASSERT_EQ(42, *resource2->m_Value);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
+
+
+    dmBuffer::Free(buffer);
+    dmResource::Release(factory, resource2);
+    dmResource::Release(factory, resource1);
+    dmResource::DeleteFactory(factory);
+}
+
+
+TEST(DynamicResources, RefCount)
+{
+    const char* test_dir = "build/default/src/test";
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 8;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::Result e;
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    ResourceHolder* resource1;
+    e = dmResource::Get(factory, "/test01.foo:", (void**) &resource1);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
+
+    // Make sure the original resource exists, and has refcount 1
+    char canonical_path[dmResource::RESOURCE_PATH_MAX];
+    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    uint64_t hash = dmHashString64(canonical_path);
+    ASSERT_EQ(1U, dmResource::GetRefCount(factory, hash));
+
+    dmResource::Release(factory, resource1);
+    dmResource::DeleteFactory(factory);
+}
+
 
 int main(int argc, char **argv)
 {
