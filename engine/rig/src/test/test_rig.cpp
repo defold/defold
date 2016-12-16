@@ -12,21 +12,26 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
     mesh_entry.m_Meshes.m_Count = 1;
 
-    uint32_t vert_count = 3;
+    uint32_t vert_count = 4;
 
     // set vertice position so they match bone positions
     dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
     mesh.m_Positions.m_Data = new float[vert_count*3];
     mesh.m_Positions.m_Count = vert_count*3;
-    mesh.m_Positions.m_Data[0] = 0.0f;
-    mesh.m_Positions.m_Data[1] = 0.0f;
-    mesh.m_Positions.m_Data[2] = 0.0f;
-    mesh.m_Positions.m_Data[3] = 1.0f;
-    mesh.m_Positions.m_Data[4] = 0.0f;
-    mesh.m_Positions.m_Data[5] = 0.0f;
-    mesh.m_Positions.m_Data[6] = 2.0f;
-    mesh.m_Positions.m_Data[7] = 0.0f;
-    mesh.m_Positions.m_Data[8] = 0.0f;
+    mesh.m_Positions.m_Data[0]  = 0.0f;
+    mesh.m_Positions.m_Data[1]  = 0.0f;
+    mesh.m_Positions.m_Data[2]  = 0.0f;
+    mesh.m_Positions.m_Data[3]  = 1.0f;
+    mesh.m_Positions.m_Data[4]  = 0.0f;
+    mesh.m_Positions.m_Data[5]  = 0.0f;
+    mesh.m_Positions.m_Data[6]  = 2.0f;
+    mesh.m_Positions.m_Data[7]  = 0.0f;
+    mesh.m_Positions.m_Data[8]  = 0.0f;
+
+    // Vert positioned at bone 2 origo
+    mesh.m_Positions.m_Data[9]  = 1.0f;
+    mesh.m_Positions.m_Data[10] = 2.0f;
+    mesh.m_Positions.m_Data[11] = 0.0f;
 
     // data for each vertex (tex coords not used)
     mesh.m_Texcoord0.m_Data       = new float[vert_count*2];
@@ -44,12 +49,16 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Normals[6]             = 0.0;
     mesh.m_Normals[7]             = 1.0;
     mesh.m_Normals[8]             = 0.0;
+    mesh.m_Normals[9]             = 0.0;
+    mesh.m_Normals[10]            = 1.0;
+    mesh.m_Normals[11]            = 0.0;
 
     mesh.m_NormalsIndices.m_Data    = new uint32_t[vert_count];
     mesh.m_NormalsIndices.m_Count   = vert_count;
     mesh.m_NormalsIndices.m_Data[0] = 0;
     mesh.m_NormalsIndices.m_Data[1] = 1;
     mesh.m_NormalsIndices.m_Data[2] = 2;
+    mesh.m_NormalsIndices.m_Data[3] = 3;
 
     mesh.m_Color.m_Data           = new float[vert_count*4];
     mesh.m_Color.m_Count          = vert_count*4;
@@ -65,16 +74,21 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Color[9]               = color.getY();
     mesh.m_Color[10]              = color.getZ();
     mesh.m_Color[11]              = color.getW();
+    mesh.m_Color[12]              = color.getX();
+    mesh.m_Color[13]              = color.getY();
+    mesh.m_Color[14]              = color.getZ();
+    mesh.m_Color[15]              = color.getW();
     mesh.m_Indices.m_Data         = new uint32_t[vert_count];
     mesh.m_Indices.m_Count        = vert_count;
     mesh.m_Indices.m_Data[0]      = 0;
     mesh.m_Indices.m_Data[1]      = 1;
     mesh.m_Indices.m_Data[2]      = 2;
+    mesh.m_Indices.m_Data[3]      = 3;
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
 
     // Bone indices are in reverse order here to test bone list in meshset.
-    int bone_count = 5;
+    int bone_count = 6;
     mesh.m_BoneIndices.m_Data[0]  = bone_count-1;
     mesh.m_BoneIndices.m_Data[1]  = bone_count-2;
     mesh.m_BoneIndices.m_Data[2]  = bone_count-1;
@@ -89,6 +103,11 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_BoneIndices.m_Data[9]  = bone_count-1;
     mesh.m_BoneIndices.m_Data[10] = bone_count-1;
     mesh.m_BoneIndices.m_Data[11] = bone_count-1;
+
+    mesh.m_BoneIndices.m_Data[12] = bone_count-3;
+    mesh.m_BoneIndices.m_Data[13] = bone_count-1;
+    mesh.m_BoneIndices.m_Data[14] = bone_count-1;
+    mesh.m_BoneIndices.m_Data[15] = bone_count-1;
 
     mesh.m_Weights.m_Data         = new float[vert_count*4];
     mesh.m_Weights.m_Count        = vert_count*4;
@@ -106,6 +125,11 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Weights.m_Data[9]      = 0.0f;
     mesh.m_Weights.m_Data[10]     = 0.0f;
     mesh.m_Weights.m_Data[11]     = 0.0f;
+
+    mesh.m_Weights.m_Data[12]     = 1.0f;
+    mesh.m_Weights.m_Data[13]     = 0.0f;
+    mesh.m_Weights.m_Data[14]     = 0.0f;
+    mesh.m_Weights.m_Data[15]     = 0.0f;
 
     mesh.m_Visible = true;
     mesh.m_DrawOrder = 0;
@@ -127,25 +151,27 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
 
         Bones:
             A:
-            (0)---->(1)---->
+            (0)---->(1,2)---->
+             |        |
+         B:  |        |
+             v        |
+            (3)       |
+             |        |
+             |        |
+             v        v
+            (4)
              |
-         B:  |
+             |
              v
-            (2)
-             |
-             |
-             v
-            (3)
-             |
-             |
-             v
+            (5)
 
-         A: 0: Pos; (0,0), rotation: 0
-            1: Pos; (1,0), rotation: 0
+         A: 0: Pos; (0,0), rotation; 0
+            1: Pos; (1,0), rotation; 0
+            2: Pos; (1,0), rotation; 90, scale; (2, 1)
 
-         B: 0: Pos; (0,0), rotation: 0
-            2: Pos; (0,1), rotation: 0
-            3: Pos; (0,2), rotation: 0
+         B: 0: Pos; (0,0), rotation; 0
+            3: Pos; (0,1), rotation; 0
+            4: Pos; (0,2), rotation; 0
 
         ------------------------------------
 
@@ -235,9 +261,9 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::Bone& bone0 = skeleton->m_Bones.m_Data[0];
         bone0.m_Parent       = 0xffff;
         bone0.m_Id           = 0;
-        bone0.m_Position     = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-        bone0.m_Rotation     = Vectormath::Aos::Quat::identity();
-        bone0.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone0.m_Position     = Point3(0.0f, 0.0f, 0.0f);
+        bone0.m_Rotation     = Quat::identity();
+        bone0.m_Scale        = Vector3(1.0f, 1.0f, 1.0f);
         bone0.m_InheritScale = true;
         bone0.m_Length       = 0.0f;
 
@@ -245,9 +271,9 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::Bone& bone1 = skeleton->m_Bones.m_Data[1];
         bone1.m_Parent       = 0;
         bone1.m_Id           = 1;
-        bone1.m_Position     = Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f);
-        bone1.m_Rotation     = Vectormath::Aos::Quat::identity();
-        bone1.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone1.m_Position     = Point3(1.0f, 0.0f, 0.0f);
+        bone1.m_Rotation     = Quat::identity();
+        bone1.m_Scale        = Vector3(1.0f, 1.0f, 1.0f);
         bone1.m_InheritScale = true;
         bone1.m_Length       = 1.0f;
 
@@ -255,9 +281,9 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::Bone& bone2 = skeleton->m_Bones.m_Data[2];
         bone2.m_Parent       = 0;
         bone2.m_Id           = 2;
-        bone2.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-        bone2.m_Rotation     = Vectormath::Aos::Quat::identity();
-        bone2.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone2.m_Position     = Point3(1.0f, 0.0f, 0.0f);
+        bone2.m_Rotation     = Quat::rotationZ((float)M_PI / 2.0f);
+        bone2.m_Scale        = Vector3(2.0f, 1.0f, 1.0f);
         bone2.m_InheritScale = true;
         bone2.m_Length       = 1.0f;
 
@@ -265,9 +291,9 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::Bone& bone3 = skeleton->m_Bones.m_Data[3];
         bone3.m_Parent       = 2;
         bone3.m_Id           = 3;
-        bone3.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-        bone3.m_Rotation     = Vectormath::Aos::Quat::identity();
-        bone3.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone3.m_Position     = Point3(0.0f, 1.0f, 0.0f);
+        bone3.m_Rotation     = Quat::identity();
+        bone3.m_Scale        = Vector3(1.0f, 1.0f, 1.0f);
         bone3.m_InheritScale = true;
         bone3.m_Length       = 1.0f;
 
@@ -275,23 +301,24 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::Bone& bone4 = skeleton->m_Bones.m_Data[4];
         bone4.m_Parent       = 3;
         bone4.m_Id           = 4;
-        bone4.m_Position     = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-        bone4.m_Rotation     = Vectormath::Aos::Quat::identity();
-        bone4.m_Scale        = Vectormath::Aos::Vector3(1.0f, 1.0f, 1.0f);
+        bone4.m_Position     = Point3(0.0f, 1.0f, 0.0f);
+        bone4.m_Rotation     = Quat::identity();
+        bone4.m_Scale        = Vector3(1.0f, 1.0f, 1.0f);
         bone4.m_InheritScale = true;
         bone4.m_Length       = 1.0f;
 
         bind_pose.SetCapacity(bone_count);
         bind_pose.SetSize(bone_count);
 
+
         // IK
         skeleton->m_Iks.m_Data = new dmRigDDF::IK[1];
         skeleton->m_Iks.m_Count = 1;
         dmRigDDF::IK& ik_target = skeleton->m_Iks.m_Data[0];
         ik_target.m_Id       = dmHashString64("test_ik");
-        ik_target.m_Parent   = 3;
-        ik_target.m_Child    = 2;
-        ik_target.m_Target   = 4;
+        ik_target.m_Parent   = 4;
+        ik_target.m_Child    = 3;
+        ik_target.m_Target   = 5;
         ik_target.m_Positive = true;
         ik_target.m_Mix      = 1.0f;
 
@@ -367,11 +394,11 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             dmRigDDF::AnimationTrack& anim_track0 = anim0.m_Tracks.m_Data[0];
             dmRigDDF::AnimationTrack& anim_track1 = anim0.m_Tracks.m_Data[1];
 
-            anim_track0.m_BoneIndex         = 4;
+            anim_track0.m_BoneIndex         = 5;
             anim_track0.m_Positions.m_Count = 0;
             anim_track0.m_Scale.m_Count     = 0;
 
-            anim_track1.m_BoneIndex         = 3;
+            anim_track1.m_BoneIndex         = 4;
             anim_track1.m_Positions.m_Count = 0;
             anim_track1.m_Scale.m_Count     = 0;
 
@@ -421,15 +448,15 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             dmRigDDF::AnimationTrack& anim_track_b0_scale = anim2.m_Tracks.m_Data[1];
             dmRigDDF::AnimationTrack& anim_track_b1_rot   = anim2.m_Tracks.m_Data[2];
 
-            anim_track_b0_rot.m_BoneIndex         = 4;
+            anim_track_b0_rot.m_BoneIndex         = 5;
             anim_track_b0_rot.m_Positions.m_Count = 0;
             anim_track_b0_rot.m_Scale.m_Count     = 0;
 
-            anim_track_b0_scale.m_BoneIndex         = 4;
+            anim_track_b0_scale.m_BoneIndex         = 5;
             anim_track_b0_scale.m_Rotations.m_Count = 0;
             anim_track_b0_scale.m_Positions.m_Count = 0;
 
-            anim_track_b1_rot.m_BoneIndex         = 3;
+            anim_track_b1_rot.m_BoneIndex         = 4;
             anim_track_b1_rot.m_Positions.m_Count = 0;
             anim_track_b1_rot.m_Scale.m_Count     = 0;
 
@@ -466,7 +493,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim3.m_Tracks.m_Count = track_count;
             dmRigDDF::AnimationTrack& anim_track0 = anim3.m_Tracks.m_Data[0];
 
-            anim_track0.m_BoneIndex         = 5;
+            anim_track0.m_BoneIndex         = 6;
             anim_track0.m_Positions.m_Count = 0;
             anim_track0.m_Scale.m_Count     = 0;
 
@@ -486,7 +513,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim4.m_Tracks.m_Count = track_count;
             dmRigDDF::AnimationTrack& anim_track0 = anim4.m_Tracks.m_Data[0];
 
-            anim_track0.m_BoneIndex         = 4;
+            anim_track0.m_BoneIndex         = 5;
             anim_track0.m_Positions.m_Count = 0;
             anim_track0.m_Scale.m_Count     = 0;
 
@@ -505,7 +532,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim5.m_Tracks.m_Count = track_count;
             dmRigDDF::AnimationTrack& anim_track0 = anim5.m_Tracks.m_Data[0];
 
-            anim_track0.m_BoneIndex         = 4;
+            anim_track0.m_BoneIndex         = 5;
             anim_track0.m_Positions.m_Count = 0;
             anim_track0.m_Scale.m_Count     = 0;
 
@@ -527,7 +554,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             dmRigDDF::AnimationTrack& anim_track0 = anim6.m_Tracks.m_Data[0];
             dmRigDDF::AnimationTrack& anim_track1 = anim6.m_Tracks.m_Data[1];
 
-            anim_track0.m_BoneIndex         = 4;
+            anim_track0.m_BoneIndex         = 5;
             anim_track0.m_Positions.m_Count = 0;
             anim_track0.m_Scale.m_Count     = 0;
 
@@ -536,7 +563,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ((float)M_PI / 2.0f);
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
 
-            anim_track1.m_BoneIndex         = 4;
+            anim_track1.m_BoneIndex         = 5;
             anim_track1.m_Rotations.m_Count = 0;
             anim_track1.m_Scale.m_Count     = 0;
 
@@ -1215,8 +1242,8 @@ TEST_F(RigInstanceTest, MaxBoneCount)
 {
     // Call GenerateVertedData to setup m_ScratchInfluenceMatrixBuffer
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
-    dmRig::RigModelVertex data[3];
-    dmRig::RigModelVertex* data_end = data + 3;
+    dmRig::RigModelVertex data[4];
+    dmRig::RigModelVertex* data_end = data + 4;
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
 
     // m_ScratchInfluenceMatrixBuffer should be able to contain the instance max bone count, which is the max of the used skeleton and meshset
@@ -1366,7 +1393,7 @@ TEST_F(RigInstanceTest, BlendRotation)
 TEST_F(RigInstanceTest, GetVertexCount)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(3, dmRig::GetVertexCount(m_Instance));
+    ASSERT_EQ(4, dmRig::GetVertexCount(m_Instance));
 }
 
 #define ASSERT_VERT_POS(exp, act)\
@@ -1388,12 +1415,25 @@ TEST_F(RigInstanceTest, GetVertexCount)
         ASSERT_VEC4_NEAR(exp, Vector4(rf, gf, bf, af), RIG_EPSILON_BYTE);\
     }
 
+// DEF-2343 - Test that a bone with both scaling and rotation in its bind pose
+//            does correctly apply to vertices bound to it.
+TEST_F(RigInstanceTest, ScaleRotBindPose)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
+
+    // no animation, just need to check bind pose
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(1.0f, 2.0f, 0.0f), data[3]); // v3
+}
+
 TEST_F(RigInstanceTest, GenerateVertexData)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigSpineModelVertex data[3];
-    dmRig::RigSpineModelVertex* data_end = data + 3;
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
@@ -1420,8 +1460,8 @@ TEST_F(RigInstanceTest, GenerateNormalData)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigModelVertex data[3];
-    dmRig::RigModelVertex* data_end = data + 3;
+    dmRig::RigModelVertex data[4];
+    dmRig::RigModelVertex* data_end = data + 4;
 
     Vector3 n_up(0.0f, 1.0f, 0.0f);
     Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);
@@ -1451,8 +1491,8 @@ TEST_F(RigInstanceTest, GenerateColorData)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("secondary_skin")));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("mesh_colors"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigSpineModelVertex data[3];
-    dmRig::RigSpineModelVertex* data_end = data + 3;
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
 
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
@@ -1476,8 +1516,8 @@ TEST_F(RigInstanceTest, GenerateColorDataPremultiply)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("secondary_skin")));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("mesh_colors"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigSpineModelVertex data[3];
-    dmRig::RigSpineModelVertex* data_end = data + 3;
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
 
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
@@ -1504,8 +1544,8 @@ TEST_F(RigInstanceTest, LocalBoneScaling)
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigSpineModelVertex data[3];
-    dmRig::RigSpineModelVertex* data_end = data + 3;
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
@@ -1527,8 +1567,8 @@ TEST_F(RigInstanceTest, BoneScaling)
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("scaling"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigSpineModelVertex data[3];
-    dmRig::RigSpineModelVertex* data_end = data + 3;
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
@@ -1551,8 +1591,8 @@ TEST_F(RigInstanceTest, SetMeshInvalid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigSpineModelVertex data[3];
-    dmRig::RigSpineModelVertex* data_end = data + 3;
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
 
     dmhash_t new_mesh = dmHashString64("not_a_valid_skin");
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
@@ -1574,8 +1614,8 @@ TEST_F(RigInstanceTest, SetMeshValid)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigSpineModelVertex data[3];
-    dmRig::RigSpineModelVertex* data_end = data + 3;
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
 
     dmhash_t new_mesh = dmHashString64("secondary_skin");
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
@@ -1805,12 +1845,12 @@ TEST_F(RigInstanceTest, IKTarget)
     dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(m_Instance);
 
     ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[5].GetTranslation());
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[3].GetRotation());
     ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[5].GetRotation());
 
     target->m_Position.setX(100.0f);
     target->m_Position.setY(1.0f);
@@ -1818,20 +1858,20 @@ TEST_F(RigInstanceTest, IKTarget)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
     ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), pose[0].GetTranslation());
-    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[2].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[3].GetTranslation());
     ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[4].GetTranslation());
+    ASSERT_VEC3(Vector3(0.0f, 1.0f, 0.0f), pose[5].GetTranslation());
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4(Quat::rotationZ(-(float)M_PI / 2.0f), pose[3].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ(-(float)M_PI / 2.0f), pose[4].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[5].GetRotation());
 
     target->m_Position.setX(0.0f);
     target->m_Position.setY(-100.0f);
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
     ASSERT_VEC4(Quat::identity(), pose[0].GetRotation());
-    ASSERT_VEC4(Quat::rotationZ(-(float)M_PI), pose[3].GetRotation());
-    ASSERT_VEC4(Quat::identity(), pose[4].GetRotation());
+    ASSERT_VEC4(Quat::rotationZ(-(float)M_PI), pose[4].GetRotation());
+    ASSERT_VEC4(Quat::identity(), pose[5].GetRotation());
 }
 
 TEST_F(RigInstanceTest, InvalidTrackBone)
@@ -1840,8 +1880,8 @@ TEST_F(RigInstanceTest, InvalidTrackBone)
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("invalid_bones"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
-    dmRig::RigSpineModelVertex data[3];
-    dmRig::RigSpineModelVertex* data_end = data + 3;
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));

@@ -1,14 +1,11 @@
 (ns editor.ui-test
-  (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [editor.handler :as handler]
             [editor.menu :as menu]
             [editor.ui :as ui])
-  (:import [javafx.fxml FXMLLoader]
-           [javafx.scene Scene]
-           [javafx.scene.control ListView Menu MenuBar MenuItem SelectionMode]
-           [javafx.scene.layout Pane VBox]
-           [javafx.stage Stage]))
+  (:import [javafx.scene Scene]
+           [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode TreeItem TreeView]
+           [javafx.scene.layout Pane VBox]))
 
 (defn- make-fake-stage []
   (let [root (VBox.)
@@ -181,3 +178,94 @@
         (doto (.getSelectionModel list)
           (.selectRange 1 3))))
     (is (= [:b :c] @selected-items))))
+
+(deftest tree-view-get-selected-items-bug-test
+  ; Checks for the presence of a JavaFX bug.
+  ; Some MultipleSelectionModel implementations are broken
+  ; and selected-items will contain nil entries. If this
+  ; tests fails after a JDK upgrade, please search the
+  ; code for "DEFEDIT-648" and remove any workarounds!
+  (let [selected-items (atom nil)]
+    (ui/run-now
+      (let [root (ui/main-root)
+            tree-item-a (TreeItem. :a)
+            tree-item-b (TreeItem. :b)
+            tree-view (doto (TreeView.)
+                        (.setRoot (doto (TreeItem. :root)
+                                    (.setExpanded true)
+                                    (-> .getChildren
+                                        (.addAll [tree-item-a
+                                                  tree-item-b])))))
+            selection-model (.getSelectionModel tree-view)]
+        (ui/add-child! root tree-view)
+        (doto selection-model
+          (.setSelectionMode SelectionMode/MULTIPLE)
+          (.select 1)
+          (.select 2)
+          (.clearSelection 1))
+        (reset! selected-items (.getSelectedItems selection-model))))
+    (is (= [nil] @selected-items))))
+
+(deftest observe-selection-test
+  (testing "TreeView"
+    (let [results (atom {:observed-view nil :selection-owner nil :selected-items nil})]
+      (ui/run-now
+        (let [root (ui/main-root)
+              tree-item-a (TreeItem. :a)
+              tree-item-b (TreeItem. :b)
+              tree-view (doto (TreeView.)
+                          (.setRoot (doto (TreeItem. :root)
+                                      (.setExpanded true)
+                                      (-> .getChildren
+                                          (.addAll [tree-item-a
+                                                    tree-item-b])))))]
+          (swap! results assoc :observed-view tree-view)
+          (ui/add-child! root tree-view)
+          (ui/observe-selection tree-view (fn [selection-owner selected-items]
+                                            (swap! results assoc
+                                                   :selection-owner selection-owner
+                                                   :selected-items selected-items)))
+          (doto (.getSelectionModel tree-view)
+            (.setSelectionMode SelectionMode/MULTIPLE)
+            (.select 1)
+            (.select 2))))
+      (let [{:keys [observed-view selection-owner selected-items]} @results]
+        (is (instance? TreeView observed-view))
+        (is (identical? observed-view selection-owner))
+        (is (= [:a :b] selected-items)))))
+  (testing "ListView"
+    (let [results (atom {:observed-view nil :selection-owner nil :selected-items nil})]
+      (ui/run-now
+        (let [root (ui/main-root)
+              list-view (doto (ListView.)
+                          (ui/selection-mode! :multiple)
+                          (ui/items! [:a :b :c]))]
+          (swap! results assoc :observed-view list-view)
+          (ui/add-child! root list-view)
+          (ui/observe-selection list-view (fn [selection-owner selected-items]
+                                            (swap! results assoc
+                                                   :selection-owner selection-owner
+                                                   :selected-items selected-items)))
+          (ui/select! list-view :b)
+          (ui/select! list-view :c)))
+      (let [{:keys [observed-view selection-owner selected-items]} @results]
+        (is (instance? ListView observed-view))
+        (is (identical? observed-view selection-owner))
+        (is (= [:b :c] selected-items)))))
+  (testing "ComboBox"
+    (let [results (atom {:observed-view nil :selection-owner nil :selected-items nil})]
+      (ui/run-now
+        (let [root (ui/main-root)
+              combo-box (doto (ComboBox.)
+                          (ui/items! [:a :b :c]))]
+          (swap! results assoc :observed-view combo-box)
+          (ui/add-child! root combo-box)
+          (ui/observe-selection combo-box (fn [selection-owner selected-items]
+                                            (swap! results assoc
+                                                   :selection-owner selection-owner
+                                                   :selected-items selected-items)))
+          (ui/select! combo-box :b)))
+      (let [{:keys [observed-view selection-owner selected-items]} @results]
+        (is (instance? ComboBox observed-view))
+        (is (identical? observed-view selection-owner))
+        (is (= [:b] selected-items))))))
