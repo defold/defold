@@ -40,6 +40,13 @@ public class ResourceUnpacker {
         unpackResourceDir("/_unpack/" + Platform.getJavaPlatform().getPair(), unpackPath);
         unpackResourceDir("/_unpack/shared", unpackPath);
 
+        String[] platforms = new String[] { "armv7-ios", "arm64-ios" };
+        for (String p : platforms) {
+            Path dstPath = unpackPath.resolve(p);
+            dstPath.toFile().mkdirs();
+            unpackResourceDir("/_unpack/" + p, dstPath);
+        }
+
         Path binDir = unpackPath.resolve("bin").toAbsolutePath();
         if (binDir.toFile().exists()) {
             Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
@@ -73,15 +80,16 @@ public class ResourceUnpacker {
                 path = Paths.get(uri);
             }
 
-            Stream<Path> walk = Files.walk(path);
-            for (Iterator<Path> it = walk.iterator(); it.hasNext();) {
-                Path source = it.next();
-                Path dest = target.resolve(Paths.get(path.relativize(source).toString()));
-                if (dest.equals(target)) {
-                    continue;
+            try (Stream<Path> walk = Files.walk(path)) {
+                for (Iterator<Path> it = walk.iterator(); it.hasNext();) {
+                    Path source = it.next();
+                    Path dest = target.resolve(Paths.get(path.relativize(source).toString()));
+                    if (dest.equals(target)) {
+                        continue;
+                    }
+                    logger.debug("unpacking '{}' to '{}'", source, dest);
+                    Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
                 }
-                logger.debug("unpacking '{}' to '{}'", source, dest);
-                Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
             }
         }
     }

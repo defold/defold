@@ -110,6 +110,47 @@
 
 ;; TODO - prototype for cloud-building
 ;; Should be re-written when we have the backend in place etc.
+(defn get-compiled [workspace platform]
+  (let [server-url "http://localhost:9000"
+        cc (DefaultClientConfig.)
+        ;; TODO: Random errors wihtout this... Don't understand why random!
+        ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
+        _ (.add (.getClasses cc) MultiPartWriter)
+        _ (.add (.getClasses cc) InputStreamProvider)
+        _ (.add (.getClasses cc) StringProvider)
+        client (Client/create cc)
+        ^WebResource resource (.resource ^Client client (URI. server-url))
+        ;; TODO: Make sure we can have a debug mode using DYNAMO_HOME here -- bdbf6ddaefb79c22214c86f945ea91d7fa6171de
+        ^WebResource build-resource (.path resource (format "/build/%s/" platform))
+        ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
+        resources (g/node-value workspace :resource-list)
+        manifests (filter #(= "ext.manifest" (resource/resource-name %)) resources)
+        all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
+
+    (with-open [form (FormDataMultiPart.)]
+      (doseq [r all-resources]
+        (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
+      ;; NOTE: We need at least one part..
+      (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
+      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
+            f (File/createTempFile "engine" "")]
+        (.deleteOnExit f)
+        (if (= 200 (.getStatus cr))
+          (do
+            (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
+            f)
+          (throw (Exception. (str cr))))))))
+
+(defn- get-bundled [workspace platform]
+  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
+        path   (format "%s/%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") platform suffix)]
+    (io/file path)))
+
+(defn get [workspace prefs platform]
+  (if (prefs/get-prefs prefs "enable-extensions" false)
+    (get-compiled workspace platform)
+    (get-bundled workspace platform)))
+
 (defn launch-compiled [workspace launch-dir prefs]
   (let [server-url "http://localhost:9000"
         cc (DefaultClientConfig.)
