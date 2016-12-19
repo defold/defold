@@ -3,7 +3,6 @@ package com.dynamo.bob.archive.test;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -50,7 +49,8 @@ public class ManifestTest {
 
         public ManifestHeader manifestHeader = null;
         public ManifestData manifestData = null;
-        public ManifestFile manifestFile = null;
+        @SuppressWarnings("unused")
+		public ManifestFile manifestFile = null;
         public byte[] manifest = null;
 
         public ManifestInstance() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
@@ -141,8 +141,6 @@ public class ManifestTest {
 
     }
 
-    private ManifestBuilder manifestBuilder = null;
-
     private byte[] intArrayToByteArray(int[] array) {
         byte[] result = new byte[array.length];
         for (int i = 0; i < array.length; ++i) {
@@ -155,12 +153,12 @@ public class ManifestTest {
 
     @Before
     public void setUp() throws Exception {
-        this.manifestBuilder = new ManifestBuilder();
+
     }
 
     @After
     public void tearDown() throws IOException {
-        this.manifestBuilder = null;
+
     }
 
     @Test
