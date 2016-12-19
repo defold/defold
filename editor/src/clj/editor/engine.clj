@@ -110,7 +110,7 @@
 
 ;; TODO - prototype for cloud-building
 ;; Should be re-written when we have the backend in place etc.
-(defn get-compiled [workspace platform]
+(defn get-engine-compiled [workspace platform]
   (let [server-url "http://localhost:9000"
         cc (DefaultClientConfig.)
         ;; TODO: Random errors wihtout this... Don't understand why random!
@@ -141,15 +141,15 @@
             f)
           (throw (Exception. (str cr))))))))
 
-(defn- get-bundled [workspace platform]
+(defn- get-engine-bundled [workspace platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") platform suffix)]
     (io/file path)))
 
-(defn get [workspace prefs platform]
+(defn get-engine [workspace prefs platform]
   (if (prefs/get-prefs prefs "enable-extensions" false)
-    (get-compiled workspace platform)
-    (get-bundled workspace platform)))
+    (get-engine-compiled workspace platform)
+    (get-engine-bundled workspace platform)))
 
 (defn launch-compiled [workspace launch-dir prefs]
   (let [server-url "http://localhost:9000"
@@ -170,24 +170,13 @@
         all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
 
     (try
-      (with-open [form (FormDataMultiPart.)]
-        (doseq [r all-resources]
-          (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
-          ; NOTE: We need at least one part..
-        (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
-        (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
-              f (File/createTempFile "engine" "")]
-          (.deleteOnExit f)
-          (if (= 200 (.getStatus cr))
-            (do
-              (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-              (let [out-path (format "%s%s/%s" (workspace/build-path workspace) platform "dmengine")]
-                (io/make-parents out-path)
-                (copy-file (.getPath f) out-path )
-                (.setExecutable (io/file out-path) true)
-                (do-launch out-path launch-dir prefs)) )
-            (do
-              (console/append-console-message! (str (.getEntity cr String) "\n"))))))
+      (let [^File f (get-engine workspace prefs "x86_64-osx")]
+        (let [out-path (format "%s%s/%s" (workspace/build-path workspace) platform "dmengine")]
+          (io/make-parents out-path)
+          (copy-file (.getPath f) out-path )
+          (.setExecutable (io/file out-path) true)
+          (do-launch out-path launch-dir prefs))
+        )
       (catch Throwable e
         (console/append-console-message! (str e "\n"))))))
 

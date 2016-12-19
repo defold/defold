@@ -16,8 +16,8 @@
 (set! *warn-on-reflection* true)
 
 (defn- get-ios-engine [workspace prefs]
-  (let [armv7 ^File (engine/get workspace prefs "armv7-ios")
-        arm64 ^File (engine/get workspace prefs "arm64-ios")
+  (let [armv7 ^File (engine/get-engine workspace prefs "armv7-ios")
+        arm64 ^File (engine/get-engine workspace prefs "arm64-ios")
         unpack (System/getProperty "defold.unpack.path")
         lipo (format "%s/bin/lipo" unpack)
         engine (File/createTempFile "dmengine" "")]
