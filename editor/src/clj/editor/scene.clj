@@ -27,7 +27,8 @@
             [editor.rulers :as rulers]
             [service.log :as log]
             [editor.graph-util :as gu]
-            [editor.properties :as properties])
+            [editor.properties :as properties]
+            [editor.view :as view])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -410,6 +411,7 @@
   (apply merge-with concat {} (map #(do {(:node-id %) [(:selection-data %)]}) tool-selection)))
 
 (g/defnode SceneView
+  (inherits view/WorkbenchView)
   (inherits SceneRenderer)
 
   (property image-view ImageView)
@@ -685,6 +687,7 @@
         buf-image))))
 
 (g/defnode PreviewView
+  (inherits view/WorkbenchView)
   (inherits SceneRenderer)
 
   (property width g/Num)
