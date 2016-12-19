@@ -84,6 +84,49 @@ namespace dmGameSystem
      * <p>The playback_rate is a non-negative number, a negative value will be clamped to 0.</p>
      */
 
+     /*# spine animation (hash)
+     *
+     * The current animation set on the component. The type of the property is hash.
+     *
+     * @name animation
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to read the current animation from a spinemodel component:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Get the current animation on component "spinemodel"
+     *  local animation = go.get("#spinemodel", "animation")
+     * end
+     * </pre>
+     */
+
+     /*# spine skin (hash)
+     *
+     * The current skin on the component. The type of the property is hash.
+     * If setting the skin property the skin must be present on the spine
+     * model or a runtime error is signalled.
+     *
+     * @name skin
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to read and write the current skin from a spinemodel component:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- If the hero skin is set to "bruce_banner", turn him green
+     *  local skin = go.get("#hero", "skin")
+     *  if skin == hash("bruce_banner") then
+     *      go.set("#hero", "skin", hash("green"))
+     *  end
+     * end
+     * </pre>
+     */
+
     int SpineComp_Play(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -288,11 +331,6 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         SpineModelWorld* world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
-
-        if(user_data >= world->m_Components.Size())
-        {
-            return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
-        }
 
         SpineModelComponent* component = world->m_Components.Get(user_data);
 

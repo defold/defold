@@ -50,7 +50,7 @@ namespace dmParticle
         GET_SET(ooMaxLifeTime, float)
         GET_SET(SpreadFactor, float)
         GET_SET(SourceSize, float)
-        GET_SET(Size, float)
+        GET_SET(Scale, float)
         GET_SET(SourceColor, Vector4)
         GET_SET(Color, Vector4)
         GET_SET(SortKey, SortKey)
@@ -72,9 +72,10 @@ namespace dmParticle
         float       m_ooMaxLifeTime;
         /// Factor used for spread
         float       m_SpreadFactor;
-        /// Particle size
+        /// Particle source size
         float       m_SourceSize;
-        float       m_Size;
+        /// Particle scale
+        float       m_Scale;
         // Particle color
         Vector4     m_SourceColor;
         Vector4     m_Color;

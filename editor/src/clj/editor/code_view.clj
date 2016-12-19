@@ -6,6 +6,7 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.view :as view]
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
             DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer DefoldStyledTextLayoutContainer]
@@ -31,7 +32,9 @@
                 (cvx/create-menu-data))
 
 (defn- code-node [text-area]
-  (ui/user-data text-area ::code-node))
+  (-> text-area
+    (ui/user-data ::view-id)
+    (g/node-value :resource-node)))
 
 (defn- behavior [text-area]
   (ui/user-data text-area ::behavior))
@@ -73,31 +76,32 @@
     (reset! (typing-timeout source-viewer)
             (ui/->future 1 (fn [] (reset! (typing-opseq source-viewer) nil))))))
 
-(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length prefer-offset tab-triggers]
-  (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
-  (let [did-update
-        (some some?
-              [(when (not= code (cvx/text source-viewer))
-                 (cvx/text! source-viewer code)
-                 :updated)
-               (when (not= prefer-offset (cvx/preferred-offset source-viewer))
-                 (cvx/preferred-offset! source-viewer prefer-offset)
-                 :updated)
-               (when (not= tab-triggers (cvx/snippet-tab-triggers source-viewer))
-                 (cvx/snippet-tab-triggers! source-viewer tab-triggers)
-                 :updated)
-               (when (not= caret-position (cvx/caret source-viewer))
-                 (cvx/caret! source-viewer caret-position false)
-                 (cvx/show-line source-viewer)
-                 :updated)
-               (when (not= [selection-offset selection-length]
-                           [(cvx/selection-offset source-viewer) (cvx/selection-length source-viewer)])
-                 (cvx/caret! source-viewer caret-position false)
-                 (cvx/text-selection! source-viewer selection-offset selection-length)
-                 :updated)])]
-    (when did-update
-      (reset! (last-command-data source-viewer) nil)))
-  [code-node])
+(g/defnk update-source-viewer [_node-id ^SourceViewer source-viewer code caret-position selection-offset selection-length prefer-offset tab-triggers]
+  (ui/user-data! (.getTextWidget source-viewer) ::view-id _node-id)
+  (when code
+    (let [did-update
+          (some some?
+            [(when (not= code (cvx/text source-viewer))
+               (cvx/text! source-viewer code)
+               :updated)
+             (when (not= prefer-offset (cvx/preferred-offset source-viewer))
+               (cvx/preferred-offset! source-viewer prefer-offset)
+               :updated)
+             (when (not= tab-triggers (cvx/snippet-tab-triggers source-viewer))
+               (cvx/snippet-tab-triggers! source-viewer tab-triggers)
+               :updated)
+             (when (not= caret-position (cvx/caret source-viewer))
+               (cvx/caret! source-viewer caret-position false)
+               (cvx/show-line source-viewer)
+               :updated)
+             (when (not= [selection-offset selection-length]
+                         [(cvx/selection-offset source-viewer) (cvx/selection-length source-viewer)])
+               (cvx/caret! source-viewer caret-position false)
+               (cvx/text-selection! source-viewer selection-offset selection-length)
+               :updated)])]
+      (when did-update
+        (reset! (last-command-data source-viewer) nil))))
+  source-viewer)
 
 (defn- default-rule? [rule]
   (= (:type rule) :default))
@@ -399,8 +403,10 @@
   source-viewer))
 
 (g/defnode CodeView
+  (inherits view/WorkbenchView)
+
   (property source-viewer SourceViewer)
-  (input code-node g/Int)
+
   (input code g/Str)
   (input caret-position g/Int)
   (input prefer-offset g/Int)
@@ -412,7 +418,6 @@
 (defn setup-code-view [app-view-id view-id code-node initial-caret-position]
   (g/transact
    (concat
-    (g/connect code-node :_node-id view-id :code-node)
     (g/connect code-node :code view-id :code)
     (g/connect code-node :caret-position view-id :caret-position)
     (g/connect code-node :prefer-offset view-id :prefer-offset)
@@ -660,21 +665,31 @@
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))
-        repainter (ui/->timer 10 "refresh-code-view" (fn [dt] (g/node-value view-id :new-content)))]
+        repainter (ui/->timer 10 "refresh-code-view" (fn [_ dt] (g/node-value view-id :new-content)))
+        context-env {:view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer}
+        context-dynamics {:code-node [:view-node :resource-node]}]
     (ui/children! parent [source-viewer])
     (ui/fill-control source-viewer)
-    (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer} source-viewer)
+    (ui/context! source-viewer :code-view context-env source-viewer context-dynamics)
     (ui/observe (.selectedProperty ^Tab (:tab opts)) (fn [this old new]
                                                        (when (= true new)
                                                          (ui/run-later (cvx/refresh! source-viewer)))))
     (cvx/refresh! source-viewer)
     (ui/timer-start! repainter)
     (ui/timer-stop-on-closed! ^Tab (:tab opts) repainter)
-    (ui/timer-stop-on-closed! (ui/parent->stage parent) repainter)
+    (g/node-value view-id :new-content)
     view-id))
+
+(defn focus-view
+  [code-view-node {:keys [line]}]
+  (when-let [^SourceViewer source-viewer (g/node-value code-view-node :source-viewer)]
+    (cvx/refresh! source-viewer)
+    (when line
+      (cvx/go-to-line source-viewer line))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
                                 :label "Code"
-                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))))
+                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))
+                                :focus-fn focus-view))

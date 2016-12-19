@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system undo-stack]]
+            [support.test-support :refer [with-clean-system undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
             [editor.math :as math]
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
@@ -73,26 +73,19 @@
   ([workspace name sync?]
     (let [f (File. (workspace/project-path workspace) name)]
       (mkdirs f)
-      (if (not (.exists f))
-        (.createNewFile f)
-        (when sync? (Thread/sleep 1100)))
-      (.setLastModified f (System/currentTimeMillis)))
+      (touch-until-new-mtime f))
     (when sync?
       (sync! workspace))))
 
 (defn- touch-files [workspace names]
   (doseq [name names]
     (touch-file workspace name false))
-  (Thread/sleep 1100)
   (sync! workspace))
 
 (defn- write-file [workspace name content]
   (let [f (File. (workspace/project-path workspace) name)]
     (mkdirs f)
-    (if (not (.exists f))
-      (.createNewFile f)
-      (Thread/sleep 1100))
-    (spit f content))
+    (spit-until-new-mtime f content))
   (sync! workspace))
 
 (defn- read-file [workspace name]
@@ -120,9 +113,7 @@
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
         type (FilenameUtils/getExtension name)
         f (File. (workspace/project-path workspace) name)]
-    (when (.exists f)
-      (Thread/sleep 1100))
-    (ImageIO/write img type f)
+    (write-until-new-mtime (fn [f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
 (defn- has-undo? [project]

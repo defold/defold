@@ -22,6 +22,7 @@ class BuildUtility:
                             {'platform': 'darwin', 'os': 'osx', 'arch': 'x86'},
                             {'platform': 'x86_64-darwin', 'os': 'osx', 'arch': 'x86_64'},
                             {'platform': 'win32', 'os': 'win', 'arch': 'x86'},
+                            {'platform': 'x86_64-win32', 'os': 'win', 'arch': 'x86_64'},
                             {'platform': 'armv7-darwin', 'os': 'ios', 'arch': 'armv7'},
                             {'platform': 'arm64-darwin', 'os': 'ios', 'arch': 'arm64'},
                             {'platform': 'armv7-android', 'os': 'android', 'arch': 'armv7'},

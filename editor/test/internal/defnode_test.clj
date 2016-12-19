@@ -383,7 +383,7 @@
       (let [basic-id (first (g/tx-nodes-added
                               (g/transact
                                 (g/make-node world BasicNode))))]
-        (is (= {:properties {} :display-order []} (g/node-value basic-id :_properties))))))
+        (is (= {:properties {} :display-order [] :node-id 0} (g/node-value basic-id :_properties))))))
 
   (testing "getter functions are invoked when supplying values"
     (with-clean-system

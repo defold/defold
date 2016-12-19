@@ -41,7 +41,8 @@
          clojure.walk
          clojure.xml
          clojure.zip
-         schema.core]))
+         schema.core
+         schema.utils]))
 
 (defn compile-order
   [srcdirs]

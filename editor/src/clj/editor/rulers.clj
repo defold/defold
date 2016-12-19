@@ -18,7 +18,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private width 35)
+(def ^:private width 15)
 (def ^:private height 15)
 
 (def ^:private horizontal-label-spacing 60)
@@ -64,11 +64,18 @@
               (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
         (when texts
           (let [[r g b a] label-color]
-            (doseq [[[x y] msg align] texts]
-              (let [[w h] (scene-text/bounds gl msg)
-                    x (Math/round (double (if (= align :right) (- x w 2) (+ x 2))))
-                    y (Math/round (double (if (= align :top) (- (- y) h 2) (- 2 y))))]
-                (scene-text/overlay gl msg x y r g b a)))))
+            (doseq [[[x y] msg axis] texts]
+              (let [[w h] (scene-text/bounds gl msg)]
+                (case axis
+                  :x
+                  (let [x (Math/round (double (+ x 2)))
+                        y (Math/round (double (- (- y) h 2)))]
+                    (scene-text/overlay gl msg x y r g b a))
+
+                  :y
+                  (let [x (Math/round (double (- x 4)))
+                        y (Math/round (double (- (- y) h -11)))]
+                    (scene-text/overlay gl msg x y r g b a 90.0)))))))
         (when lines
           (let [vcount (count lines)
                 vertex-binding (vtx/use-with ::lines lines line-shader)]
@@ -155,10 +162,9 @@
                    (chain (quad 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) colors/dark-black)))
          tris-vcount (count tris-vs)
          tris-vb (vb tris-vs tris-vcount)
-         texts (let [texts (-> []
-                             (into (mapv (fn [[yw ys]] [[width ys] (format "%.1f" yw) :right]) ys))
-                             (into (mapv (fn [[xw xs]] [[xs (- (:bottom viewport) height)] (format "%.1f" xw) :top]) xs)))]
-                 texts)
+         texts (-> []
+                   (into (mapv (fn [[yw ys]] [[width ys] (format "%.1f" yw) :y]) ys))
+                   (into (mapv (fn [[xw xs]] [[xs (- (:bottom viewport) height)] (format "%.1f" xw) :x]) xs)))
          renderables [{:render-fn render-lines
                        :batch-key nil
                        :user-data {:lines lines-vb

@@ -42,6 +42,7 @@ def build(bld):
 
     create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
+    create_test(bld, 'test_buffer')
     create_test(bld, 'test_math', extra_libs = ['THREAD'])
     create_test(bld, 'test_transform', extra_libs = ['THREAD'])
     create_test(bld, 'test_hashtable')

@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.diff-view :as diff-view]
+            [editor.defold-project :as project]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.sync :as sync]
@@ -13,7 +14,8 @@
             [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
-           [org.eclipse.jgit.api Git]))
+           [org.eclipse.jgit.api Git]
+           [java.io File]))
 
 (set! *warn-on-reflection* true)
 
@@ -44,12 +46,16 @@
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}])
 
+(defn- path->file [workspace ^String path]
+  (File. ^File (workspace/project-path workspace) path))
+
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
             (pos? (count selection)))
   (run [selection git list-view workspace]
-       (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-       (workspace/resource-sync! workspace)))
+    (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
+      (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
+      (workspace/resource-sync! workspace true moved-files))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
@@ -61,11 +67,12 @@
 (handler/defhandler :synchronize :global
   (enabled? [changes-view]
             (g/node-value changes-view :git))
-  (run [changes-view workspace]
-    (let [git   (g/node-value changes-view :git)
-          prefs (g/node-value changes-view :prefs)]
-      (sync/open-sync-dialog (sync/begin-flow! git prefs))
-      (workspace/resource-sync! workspace))))
+  (run [changes-view workspace project]
+       (let [git   (g/node-value changes-view :git)
+             prefs (g/node-value changes-view :prefs)]
+         (project/save-all! project (fn []
+                                      (sync/open-sync-dialog (sync/begin-flow! git prefs))
+                                      (workspace/resource-sync! workspace))))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."

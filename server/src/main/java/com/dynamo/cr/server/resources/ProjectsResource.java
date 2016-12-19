@@ -11,12 +11,15 @@ import com.dynamo.cr.server.git.GitRepositoryManager;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.resources.mappers.ProjectMapper;
+import com.dynamo.cr.server.services.ProjectService;
 import com.dynamo.inject.persist.Transactional;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.security.RolesAllowed;
+import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -29,9 +32,11 @@ import java.util.List;
 @Path("/projects/{member}")
 @RolesAllowed(value = {"user"})
 public class ProjectsResource extends BaseResource {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(ProjectsResource.class);
     private final GitRepositoryManager gitRepositoryManager = new GitRepositoryManager();
+
+    @Inject
+    private ProjectService projectService;
 
     private ProjectTemplate findProjectTemplate(String id) {
         List<ProjectTemplate> lst = server.getConfiguration().getProjectTemplatesList();
@@ -73,7 +78,7 @@ public class ProjectsResource extends BaseResource {
             }
             throw new ServerException("Unable to create project. Internal error.", e, Status.INTERNAL_SERVER_ERROR);
         }
-        return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
+        return ProjectMapper.map(server.getConfiguration(), user, project);
     }
 
     private String getTemplatePath(NewProject newProject) {
@@ -95,11 +100,11 @@ public class ProjectsResource extends BaseResource {
     @GET
     public ProjectInfoList getProjects() {
         User user = getUser();
-        List<Project> list = em.createQuery("select p from Project p where :user member of p.members", Project.class).setParameter("user", user).getResultList();
+        List<Project> list = projectService.findAll(user);
 
         Builder listBuilder = ProjectInfoList.newBuilder();
         for (Project project : list) {
-            ProjectInfo pi = ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
+            ProjectInfo pi = ProjectMapper.map(server.getConfiguration(), user, project);
             listBuilder.addProjects(pi);
         }
 

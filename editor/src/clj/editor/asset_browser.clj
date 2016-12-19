@@ -84,6 +84,13 @@
                  {:label "Dependencies"
                   :command :dependencies}
                  {:label :separator}
+                 {:label "New"
+                  :command :new-file
+                  :icon "icons/64/Icons_29-AT-Unknown.png"}
+                 {:label "New Folder"
+                  :command :new-folder
+                  :icon "icons/32/Icons_01-Folder-closed.png"}
+                 {:label :separator}
                  {:label "Copy"
                   :command :copy
                   :acc "Shortcut+C"}
@@ -98,14 +105,7 @@
                  {:label "Delete"
                   :command :delete
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :acc "Shortcut+BACKSPACE"}
-                 {:label :separator}
-                 {:label "New"
-                  :command :new-file
-                  :icon "icons/64/Icons_29-AT-Unknown.png"}
-                 {:label "New Folder"
-                  :command :new-folder
-                  :icon "icons/32/Icons_01-Folder-closed.png"}])
+                  :acc "Shortcut+BACKSPACE"}])
 
 (defn- is-resource [x] (satisfies? resource/Resource x))
 (defn- is-deletable-resource [x] (and (satisfies? resource/Resource x)
