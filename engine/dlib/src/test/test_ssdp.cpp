@@ -246,13 +246,16 @@ TEST_F(dmSSDPTest, Search)
     // it might be farfetched that packages are lost on the local network.
     // Another possible explanation is interference with UPnP devices on the network, i.e. router.
     // It could of course also be a bug in the SSDP implementation
+    bool discovered = false;
     int iter = 0;
-    while (!TestDeviceDiscovered() && iter++ < 5) {
+    while (!discovered && iter++ < 10) {
         UpdateServer();
         WaitPackage();
         UpdateClient();
+        discovered = TestDeviceDiscovered();
     }
-    ASSERT_TRUE(TestDeviceDiscovered());
+
+    ASSERT_TRUE(discovered);
 }
 
 TEST_F(dmSSDPTest, Announce)
