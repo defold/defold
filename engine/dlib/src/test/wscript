@@ -79,6 +79,7 @@ def build(bld):
     create_test(bld, 'test_uuid', extra_libs = ['THREAD'])
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'])
+    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])
     create_test(bld, 'test_log', extra_libs = ['THREAD'])
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
