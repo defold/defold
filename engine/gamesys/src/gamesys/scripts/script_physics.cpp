@@ -67,6 +67,7 @@ namespace dmGameSystem
      * The velocity is measured in units/s (pixels/s).
      *
      * @name linear_velocity
+     * @replaces request_velocity and velocity_response
      * @property
      *
      * @examples
@@ -91,6 +92,7 @@ namespace dmGameSystem
      * in radians/s.
      *
      * @name angular_velocity
+     * @replaces request_velocity and velocity_response
      * @property
      * @examples
      *

@@ -10,8 +10,8 @@ extern int IAC_PlatformSetListener(lua_State* L);
 /*# Inter-app communication API documentation
  *
  * Functions and constants for doing inter-app communication.
- * These API:s only exist on mobile platforms.
- * [icon:ios] [icon:android]
+ *
+ * [icon:ios] [icon:android] These API:s only exist on mobile platforms.
  *
  * @document
  * @name Inter-app communication

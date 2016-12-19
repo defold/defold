@@ -454,10 +454,12 @@ int IAP_Buy(lua_State* L)
  *
  * Explicitly finish a product transaction.
  *
- * @name iap.finish
- * @param transaction transaction table parameter as supplied in listener callback
- * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings (otherwise ignored).
+ * [icon:attention] Calling iap.finish is required on a successful transaction
+ * if auto_finish_transactions is disabled in project settings (otherwise ignored).
  * The transaction.state field must equal iap.TRANS_STATE_PURCHASED.
+ *
+ * @name iap.finish
+ * @param transaction [type:table] transaction table parameter as supplied in listener callback
  *
  */
 int IAP_Finish(lua_State* L)
@@ -511,7 +513,7 @@ int IAP_Finish(lua_State* L)
 /*# restore products (non-consumable)
  *
  * @name iap.restore
- * @return false if current store doesn't support handling restored transactions, otherwise true (bool)
+ * @return success [type:boolean] false if current store doesn't support handling restored transactions, otherwise true
  */
 int IAP_Restore(lua_State* L)
 {
@@ -527,20 +529,45 @@ int IAP_Restore(lua_State* L)
 
 /*# set transaction listener
  *
- * The listener callback has the following signature: function(self, transaction, error) where transaction is a table
- * describing the transaction and error is a table. The error parameter is nil on success.
- * The transaction table has the following members:
- * <ul>
- * <li> ident: product identifier
- * <li> state: transaction state
- * <li> date: transaction date
- * <li> original_trans: original transaction (only set when state == TRANS_STATE_RESTORED)
- * <li> trans_ident: transaction identifier (only set when state == TRANS_STATE_RESTORED, TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
- * <li> request_id: transaction request id. (only if receipt is set and for Facebook IAP transactions when used in the iap.buy call parameters)
- * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
- * </ul>
+ * Set the callback function to receive transaction events.
+ *
  * @name iap.set_listener
- * @param listener listener function
+ * @param listener [type:function(self, transaction, error)] listener callback function
+ *
+ * `self`
+ * : [type:object] The current object.
+ *
+ * `transaction`
+ * : [type:table] a table describing the transaction (see below)
+ *
+ * `error`
+ * : [type:table] a table containing any error information. The error parameter is `nil` on success.
+ *
+ * ## The `transaction` table:
+ *
+ * ident
+ * : product identifier
+ *
+ * state
+ * : transaction state
+ *
+ * date
+ * : transaction date
+ *
+ * original_trans
+ * : original transaction (only set when state == TRANS_STATE_RESTORED)
+ *
+ * trans_ident
+ * : transaction identifier (only set when state == TRANS_STATE_RESTORED,
+ * TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
+ *
+ * request_id
+ * : transaction request id. (only if receipt is set and for Facebook IAP transactions
+ * when used in the iap.buy call parameters)
+ *
+ * receipt
+ * : receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
+ *
  */
 int IAP_SetListener(lua_State* L)
 {
@@ -577,13 +604,12 @@ int IAP_SetListener(lua_State* L)
 /*# get current provider id
  *
  * @name iap.get_provider_id
- * @return provider id (constant).
- * <ul>
- *     <li>iap.PROVIDER_ID_GOOGLE</li>
- *     <li>iap.PROVIDER_ID_AMAZON</li>
- *     <li>iap.PROVIDER_ID_APPLE</li>
- *     <li>iap.PROVIDER_ID_FACEBOOK</li>
- * </ul>
+ * @return id [type:constant] provider id.
+ *
+ * - `iap.PROVIDER_ID_GOOGLE`
+ * - `iap.PROVIDER_ID_AMAZON`
+ * - `iap.PROVIDER_ID_APPLE`
+ * - `iap.PROVIDER_ID_FACEBOOK`
  *
  */
 int IAP_GetProviderId(lua_State* L)
@@ -603,7 +629,10 @@ static const luaL_reg IAP_methods[] =
     {0, 0}
 };
 
-/*# transaction purchasing state, intermediate mode followed by TRANS_STATE_PURCHASED. Store provider support dependent.
+/*# transaction purchasing state
+ *
+ * This is an intermediate mode followed by TRANS_STATE_PURCHASED.
+ * Store provider support dependent.
  *
  * @name iap.TRANS_STATE_PURCHASING
  * @variable
@@ -627,7 +656,9 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
-/*# transaction restored state. Only available on store providers supporting restoring purchases.
+/*# transaction restored state
+ *
+ * This is only available on store providers supporting restoring purchases.
  *
  * @name iap.TRANS_STATE_RESTORED
  * @variable

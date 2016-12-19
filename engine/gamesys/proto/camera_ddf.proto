@@ -31,16 +31,17 @@ message CameraDesc
  *
  * @message
  * @name set_camera
- * @param aspect_ratio Aspect ratio of the screen (width divided by height)
- * @param fov Field of view of the lens, measured as the angle between the right and left edge (radians)
- * @param near_z Position of the near clipping plane (distance from camera along relative z)
- * @param far_z Position of the far clipping plane (distance from camera along relative z)
+ * @param aspect_ratio [type:number] aspect ratio of the screen (width divided by height)
+ * @param fov [type:number] field of view of the lens, measured as the angle in radians between the right and left edge
+ * @param near_z [type:number] position of the near clipping plane (distance from camera along relative z)
+ * @param far_z [type:number] position of the far clipping plane (distance from camera along relative z)
  * @examples
- * <p>
+ *
  * In the examples, it is assumed that the instance of the script has a camera-component with id "camera".
- * <pre>
+ *
+ * ```lua
  * msg.post("#camera", "set_camera", {aspect_ratio = 16/9, fov = math.pi * 0.5, near_z = 0.1, far_z = 500})
- * </pre>
+ * ```
  */
 message SetCamera
 {
@@ -51,25 +52,23 @@ message SetCamera
 }
 
 /*# makes the receiving camera become the active camera
- * <p>
+ *
  * Post this message to a camera-component to activate it.
- * </p>
- * <p>
+ *
  * Several cameras can be active at the same time, but only the camera that was last activated will be used for rendering.
  * When the camera is deactivated (see <code>release_camera_focus</code>), the previously activated camera will again be used for rendering automatically.
- * </p>
- * <p>
+ *
  * The reason it is called "camera focus" is the similarity to how acquiring input focus works (see <code>acquire_input_focus</code>).
- * </p>
  *
  * @message
  * @name acquire_camera_focus
  * @examples
- * <p>
+ *
  * In the examples, it is assumed that the instance of the script has a camera-component with id "camera".
- * <pre>
+ *
+ * ```lua
  * msg.post("#camera", "acquire_camera_focus")
- * </pre>
+ * ```
  */
 message AcquireCameraFocus {}
 
@@ -82,10 +81,11 @@ message AcquireCameraFocus {}
  * @message
  * @name release_camera_focus
  * @examples
- * <p>
+ *
  * In the examples, it is assumed that the instance of the script has a camera-component with id "camera".
- * <pre>
+ *
+ * ```lua
  * msg.post("#camera", "release_camera_focus")
- * </pre>
+ * ```
  */
 message ReleaseCameraFocus {}

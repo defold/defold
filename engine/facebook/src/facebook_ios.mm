@@ -848,11 +848,10 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 }
 
 /*# get the current Facebook access token
- * 
+ *
  * This function returns the currently stored access token after a previous
- * sucessful login. If it returns nil no access token exists and you need 
+ * sucessful login. If it returns nil no access token exists and you need
  * to perform a login to get the wanted permissions. Note that a user can
- * 
  *
  * @name facebook.access_token
  * @return the access token or nil if the user is not logged in (string|nil)
@@ -1216,118 +1215,121 @@ int Facebook_ShowDialog(lua_State* L)
 } // namespace
 
 
-/*# The Facebook login session is open
+/*# the Facebook login session is open
  *
  * @name facebook.STATE_OPEN
  * @variable
  */
 
-/*# The Facebook login session has closed because login failed
+/*# the Facebook login session has closed because login failed
  *
  * @name facebook.STATE_CLOSED_LOGIN_FAILED
  * @variable
  */
 
-/*# Game Request action type "none" for "apprequests" dialog
+/*# game request action type "none" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_ACTIONTYPE_NONE
  * @variable
  */
 
-/*# Game Request action type "send" for "apprequests" dialog
+/*# game request action type "send" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_ACTIONTYPE_SEND
  * @variable
  */
 
-/*# Game Request action type "askfor" for "apprequests" dialog
+/*# game request action type "askfor" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_ACTIONTYPE_ASKFOR
  * @variable
  */
 
-/*# Game Request action type "turn" for "apprequests" dialog
+/*# game request action type "turn" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_ACTIONTYPE_TURN
  * @variable
  */
 
-/*# Gamerequest filter type "none" for "apprequests" dialog
+/*# game request filter type "none" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_FILTER_NONE
  * @variable
  */
 
-/*# Gamerequest filter type "app_users" for "apprequests" dialog
+/*# game request filter type "app_users" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_FILTER_APPUSERS
  * @variable
  */
 
-/*# Gamerequest filter type "app_non_users" for "apprequests" dialog
+/*# game request filter type "app_non_users" for "apprequests" dialog
  *
  * @name facebook.GAMEREQUEST_FILTER_APPNONUSERS
  * @variable
  */
 
-/*# Publish permission to reach no audience.
+/*# publish permission to reach no audience
  *
  * @name facebook.AUDIENCE_NONE
  * @variable
  */
 
-/*# Publish permission to reach only me (private to current user).
+/*# publish permission to reach only me (private to current user)
  *
  * @name facebook.AUDIENCE_ONLYME
  * @variable
  */
 
-/*# Publish permission to reach user friends.
+/*# publish permission to reach user friends
  *
  * @name facebook.AUDIENCE_FRIENDS
  * @variable
  */
 
-/*# Publish permission to reach everyone.
+/*# publish permission to reach everyone
  *
  * @name facebook.AUDIENCE_EVERYONE
  * @variable
  */
 
- /*# Log this event when the user has entered their payment info.
+ /*# log this event when the user has entered their payment info
   *
   * @name facebook.EVENT_ADDED_PAYMENT_INFO
   * @variable
   */
 
- /*# Log this event when the user has added an item to their cart. The
-  *  value_to_sum passed to facebook.post_event should be the item's price.
+ /*# log this event when the user has added an item to their cart
+  *
+  * The value_to_sum passed to facebook.post_event should be the item's price.
   *
   * @name facebook.EVENT_ADDED_TO_CART
   * @variable
   */
 
- /*# Log this event when the user has added an item to their wishlist. The
-  *  value_to_sum passed to facebook.post_event should be the item's price.
+ /*# log this event when the user has added an item to their wish list
+  *
+  * The value_to_sum passed to facebook.post_event should be the item's price.
   *
   * @name facebook.EVENT_ADDED_TO_WISHLIST
   * @variable
   */
 
- /*# Log this event when a user has completed registration with the app.
+ /*# log this event when a user has completed registration with the app
   *
   * @name facebook.EVENT_COMPLETED_REGISTRATION
   * @variable
   */
 
- /*# Log this event when the user has completed a tutorial in the app.
+ /*# log this event when the user has completed a tutorial in the app
   *
   * @name facebook.EVENT_COMPLETED_TUTORIAL
   * @variable
   */
 
- /*# Log this event when the user has entered the checkout process. The
-  *  value_to_sum passed to facebook.post_event should be the total price in
+ /*# log this event when the user has entered the checkout process
+  *
+  * The value_to_sum passed to facebook.post_event should be the total price in
   * the cart.
   *
   * @name facebook.EVENT_INITIATED_CHECKOUT
@@ -1340,129 +1342,147 @@ int Facebook_ShowDialog(lua_State* L)
   * @variable
   */
 
- /*# Log this event when the user has rated an item in the app. The
-  *  value_to_sum  passed to facebook.post_event should be the numeric rating.
+ /*# log this event when the user has rated an item in the app
+  *
+  * The value_to_sum passed to facebook.post_event should be the numeric rating.
   *
   * @name facebook.EVENT_RATED
   * @variable
   */
 
- /*# Log this event when a user has performed a search within the app.
+ /*# log this event when a user has performed a search within the app
   *
   * @name facebook.EVENT_SEARCHED
   * @variable
   */
 
- /*# Log this event when the user has spent app credits. The value_to_sum
-  *  passed to facebook.post_event should be the number of credits spent.
+ /*# log this event when the user has spent app credits
   *
-  * <p>
-  * <b>NOTE!</b> This event is currently an undocumented event in the Facebook
+  * The value_to_sum passed to facebook.post_event should be the number of
+  * credits spent.
+  *
+  * [icon:attention] This event is currently an undocumented event in the Facebook
   * SDK.
-  * </p>
   *
   * @name facebook.EVENT_SPENT_CREDITS
   * @variable
   */
 
- /*# Log this event when measuring the time between user sessions.
+ /*# log this event when measuring the time between user sessions
   *
   * @name facebook.EVENT_TIME_BETWEEN_SESSIONS
   * @variable
   */
 
- /*# Log this event when the user has unlocked an achievement in the app.
+ /*# log this event when the user has unlocked an achievement in the app
   *
   * @name facebook.EVENT_UNLOCKED_ACHIEVEMENT
   * @variable
   */
 
- /*# Log this event when a user has viewed a form of content in the app.
+ /*# log this event when a user has viewed a form of content in the app
   *
   * @name facebook.EVENT_VIEWED_CONTENT
   * @variable
   */
 
- /*# Parameter key used to specify an ID for the specific piece of content
-  *  being logged about. Could be an EAN, article identifier, etc., depending
-  *  on the nature of the app.
+ /*# parameter key used to specify an ID for the content being logged about
+  *
+  * The parameter key could be an EAN, article identifier, etc., depending
+  * on the nature of the app.
   *
   * @name facebook.PARAM_CONTENT_ID
   * @variable
   */
 
- /*# Parameter key used to specify a generic content type/family for the logged
-  *  event, e.g. "music", "photo", "video". Options to use will vary based upon
-  *  what the app is all about.
+ /*# parameter key used to specify a generic content type/family for the logged event
+  *
+  * The key is an arbitrary type/family (e.g. "music", "photo", "video") depending
+  * on the nature of the app.
   *
   * @name facebook.PARAM_CONTENT_TYPE
   * @variable
   */
 
- /*# Parameter key used to specify currency used with logged event. E.g. "USD",
-  *  "EUR", "GBP". See ISO-4217 for specific values.
+ /*# parameter key used to specify currency used with logged event
+  *
+  * Use a currency value key, e.g. "USD", "EUR", "GBP" etc.
+  * See ISO-4217 for specific values.
   *
   * @name facebook.PARAM_CURRENCY
   * @variable
   */
 
- /*# Parameter key used to specify a description appropriate to the event being
-  *  logged. E.g., the name of the achievement unlocked in the
-  *  facebook.EVENT_UNLOCKED_ACHIEVEMENT event.
+ /*# parameter key used to specify a description appropriate to the event being logged
+  *
+  * Use this for app specific event description, for instance the name of the achievement
+  * unlocked in the facebook.EVENT_UNLOCKED_ACHIEVEMENT event.
   *
   * @name facebook.PARAM_DESCRIPTION
   * @variable
   */
 
- /*# Parameter key used to specify the level achieved.
+ /*# parameter key used to specify the level achieved
   *
   * @name facebook.PARAM_LEVEL
   * @variable
   */
 
- /*# Parameter key used to specify the maximum rating available for the
-  *  facebook.EVENT_RATED event. E.g., "5" or "10".
+ /*# parameter key used to specify the maximum rating available
+  *
+  * Set to specify the max rating available for the facebook.EVENT_RATED event.
+  * E.g., "5" or "10".
   *
   * @name facebook.PARAM_MAX_RATING_VALUE
   * @variable
   */
 
- /*# Parameter key used to specify how many items are being processed for an
-  *  facebook.EVENT_INITIATED_CHECKOUT or facebook.EVENT_PURCHASED event.
+ /*# parameter key used to specify how many items are being processed
+  *
+  * Set to specify the number of items being processed for an
+  * facebook.EVENT_INITIATED_CHECKOUT or facebook.EVENT_PURCHASED event.
   *
   * @name facebook.PARAM_NUM_ITEMS
   * @variable
   */
 
- /*# Parameter key used to specify whether payment info is available for the
-  *  facebook.EVENT_INITIATED_CHECKOUT event.
+ /*# parameter key used to specify whether payment info is available
+  *
+  * Set to specify if payment info is available for the
+  * facebook.EVENT_INITIATED_CHECKOUT event.
   *
   * @name facebook.PARAM_PAYMENT_INFO_AVAILABLE
   * @variable
   */
 
- /*# Parameter key used to specify method user has used to register for the
-  *  app, e.g., "Facebook", "email", "Twitter", etc.
+ /*# parameter key used to specify method user has used to register for the app
+  *
+  * Set to specify what registation method a user used for the app, e.g.
+  * "Facebook", "email", "Twitter", etc.
   *
   * @name facebook.PARAM_REGISTRATION_METHOD
   * @variable
   */
 
- /*# Parameter key used to specify the string provided by the user for a search
-  *  operation.
+ /*# parameter key used to specify user search string
+  *
+  * Set this to the the string that the user provided for a search
+  * operation.
   *
   * @name facebook.PARAM_SEARCH_STRING
   * @variable
   */
 
- /*# Parameter key used to specify source application package.
+ /*# parameter key used to specify source application package
   *
   * @name facebook.PARAM_SOURCE_APPLICATION
   * @variable
   */
 
- /*# Parameter key used to specify whether the activity being logged about was
-  *  successful or not.
+ /*# parameter key used to specify activity success
+  *
+  * Set this key to indicate whether the activity being logged about was
+  * successful or not.
   *
   * @name facebook.PARAM_SUCCESS
   * @variable

@@ -124,8 +124,35 @@ namespace dmScript
      * A Lua error is raised for syntax errors.
      *
      * @name json.decode
-     * @param json json data (string)
-     * @return decoded json (table)
+     * @param json [type:string] json data
+     * @return data [type:table] decoded json
+     *
+     * @examples
+     *
+     * Converting a string containing JSON data into a Lua table:
+     *
+     * ```lua
+     * function init(self)
+     *     local jsonstring = '{"persons":[{"name":"John Doe"},{"name":"Darth Vader"}]}'
+     *     local data = json.decode(jsonstring)
+     *     pprint(data)
+     * end
+     * ```
+     *
+     * Results in the following printout:
+     *
+     * ```
+     * {
+     *   persons = {
+     *     1 = {
+     *       name = John Doe,
+     *     }
+     *     2 = {
+     *       name = Darth Vader,
+     *     }
+     *   }
+     * }
+     * ```
      */
     int Json_Decode(lua_State* L)
     {
