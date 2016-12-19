@@ -8,6 +8,7 @@ namespace dmRig
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
+    static const float CURSOR_EPSILON = 0.0001f;
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* MAX_RIG_INSTANCE_COUNT_KEY = "rig.max_instance_count";
@@ -756,25 +757,33 @@ namespace dmRig
     {
         RigPlayer* player = GetPlayer(instance);
 
-        if (!player)
+        if (!player || !player->m_Animation)
         {
             return 0.0f;
         }
 
-        float duration = GetCursorDuration(player, player->m_Animation);
-
+        float duration = player->m_Animation->m_Duration;
         if (duration == 0.0f)
         {
             return 0.0f;
         }
 
-        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
+        float t = player->m_Cursor;
+        if (player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG && t > duration)
+        {
+            // In once-pingpong the cursor will be greater than duration during the "pong" part, compensate for that
+            t = (2.f * duration) - t;
+        }
+
+        if (player->m_Backwards)
+        {
+            t = duration - t;
+        }
 
         if (normalized)
         {
             t = t / duration;
         }
-
         return t;
     }
 
@@ -788,22 +797,44 @@ namespace dmRig
             return dmRig::RESULT_ERROR;
         }
 
-        float duration = GetCursorDuration(player, player->m_Animation);
+        if (!player->m_Animation)
+        {
+            return RESULT_OK;
+        }
 
+        float duration = player->m_Animation->m_Duration;
         if (normalized)
         {
             t = t * duration;
         }
 
-        t = fmod(t, duration);
-
-        if (cursor < 0)
+        if (player->m_Playback == dmRig::PLAYBACK_LOOP_PINGPONG && player->m_Backwards)
         {
-            t = duration + t;
+            // NEVER set cursor on the "looped" part of a pingpong animation
+            player->m_Backwards = 0;
+        }
+
+        if (fabs(t) > duration) 
+        {
+            t = fmod(t, duration);
+            if (fabs(t) < CURSOR_EPSILON) 
+            {
+                t = duration;
+            }
+        }
+
+        if (t < 0.0f) 
+        {
+            t = duration - fmod(fabs(t), duration);
+        }
+
+        if (player->m_Backwards)
+        {
+            t = duration - t;
         }
 
         player->m_Cursor = t;
-
+        
         return dmRig::RESULT_OK;
     }
 
@@ -1161,7 +1192,7 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, RigVertexFormat vertex_format, void* vertex_data_out)
+    void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, bool premultiply_color, RigVertexFormat vertex_format, void* vertex_data_out)
     {
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
         if (!instance->m_MeshEntry || !instance->m_DoRender) {
@@ -1272,8 +1303,14 @@ namespace dmRig
             if (vertex_format == RIG_VERTEX_FORMAT_MODEL) {
                 vertex_data_out = (void*)WriteVertexData(mesh, positions_buffer, normals_buffer, (RigModelVertex*)vertex_data_out);
             } else {
-                uint32_t rgba = (((uint32_t) (properties->m_Color[3] * 255.0f)) << 24) | (((uint32_t) (properties->m_Color[2] * 255.0f)) << 16) |
-                        (((uint32_t) (properties->m_Color[1] * 255.0f)) << 8) | ((uint32_t) (properties->m_Color[0] * 255.0f));
+                Vector4 mesh_color = Vector4(properties->m_Color[0], properties->m_Color[1], properties->m_Color[2], properties->m_Color[3]);
+                if (premultiply_color) {
+                    mesh_color.setXYZ(mesh_color.getXYZ() * mesh_color.getW());
+                }
+                mesh_color = mulPerElem(color, mesh_color);
+
+                uint32_t rgba = (((uint32_t) (mesh_color.getW() * 255.0f)) << 24) | (((uint32_t) (mesh_color.getZ() * 255.0f)) << 16) |
+                        (((uint32_t) (mesh_color.getY() * 255.0f)) << 8) | ((uint32_t) (mesh_color.getX() * 255.0f));
 
                 vertex_data_out = (void*)WriteVertexData(mesh, positions_buffer, rgba, (RigSpineModelVertex*)vertex_data_out);
             }
@@ -1452,7 +1489,7 @@ namespace dmRig
             {
                 bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
             }
-            bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(dmTransform::Inv(bind_bone->m_LocalToModel));
+            bind_bone->m_ModelToLocal = inverse(dmTransform::ToMatrix4(bind_bone->m_LocalToModel));
             bind_bone->m_ParentIndex = bone->m_Parent;
             bind_bone->m_Length = bone->m_Length;
         }

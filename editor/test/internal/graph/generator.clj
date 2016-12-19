@@ -80,7 +80,7 @@
 (defn remove-nodes
   [dead-nodes]
   (for [n dead-nodes]
-    `(ig/remove-node ~n)))
+    `(ig/graph-remove-node ~n)))
 
 (defn- populate-arcs
   [new-arcs]

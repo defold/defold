@@ -6,6 +6,7 @@
              [prefs :as prefs]
              [ui :as ui]])
   (:import javafx.scene.control.ProgressBar
+           [java.io File]
            [org.eclipse.jgit.api Git ResetCommand ResetCommand$ResetType]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
@@ -153,10 +154,17 @@
     :rename        (do (-> git .reset (.addPath new-path) .call)
                        (-> git .reset (.addPath old-path) .call))))
 
-(defn hard-reset [^Git git ^RevCommit start-ref]
+(defn revert-to-revision! [^Git git ^RevCommit start-ref]
+  "High-level revert. Resets the working directory to the state it would have
+  after a clean checkout of the specified start-ref. Performs the equivalent of
+  git reset --hard
+  git clean --force -d"
   (-> (.reset git)
       (.setMode ResetCommand$ResetType/HARD)
       (.setRef (.name start-ref))
+      (.call))
+  (-> (.clean git)
+      (.setCleanDirectories true)
       (.call)))
 
 (defn stash [^Git git]
@@ -248,3 +256,6 @@
      :new-path new-path
      :old old
      :old-path old-path}))
+
+(defn init [^String path]
+  (-> (Git/init) (.setDirectory (File. path)) (.call)))

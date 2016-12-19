@@ -232,15 +232,13 @@
         (mark-all-outputs-activated node-id)))
     ctx))
 
-(def ^:private basis-delete-node (comp first gt/delete-node))
-
 (defn- delete-single
   [ctx node-id]
   (if-let [node (gt/node-by-id-at (:basis ctx) node-id)] ; nil if node was deleted in this transaction
     (-> ctx
       (disconnect-all-inputs node-id)
       (mark-all-outputs-activated node-id)
-      (update :basis basis-delete-node node-id)
+      (update :basis gt/delete-node node-id)
       (assoc-in [:nodes-deleted node-id] node)
       (update :nodes-added (partial filterv #(not= node-id %))))
     ctx))
