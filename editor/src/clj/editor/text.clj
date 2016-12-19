@@ -2,6 +2,7 @@
   (:require [dynamo.graph :as g]
             [editor.core :as core]
             [editor.ui :as ui]
+            [editor.view :as view]
             [editor.workspace :as workspace])
   (:import [javafx.scene Parent]
            [javafx.scene.layout Pane]
@@ -10,7 +11,7 @@
 (set! *warn-on-reflection* true)
 
 (g/defnode TextView
-  (inherits core/ResourceNode)
+  (inherits view/WorkbenchView)
 
   (property text-area TextArea))
 

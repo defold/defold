@@ -1,7 +1,6 @@
 (ns editor.util
   (:require [clojure.string :as string])
   (:import
-    [java.util Comparator]
     [java.io File]))
 
 (defmacro spy

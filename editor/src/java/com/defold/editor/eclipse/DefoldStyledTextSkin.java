@@ -151,7 +151,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 						Point2D caretLocation = p.getCaretLocation(newValue.intValue() - p.getStartOffset());
 						if (caretLocation == null) {return;}
 						Point2D tmp = getSkinnable().sceneToLocal(p.localToScene(caretLocation));
-                                                if (tmp == null) {return;}
+						if (tmp == null) { return; }
 						double prevCaretX = 0;
 						Point2D prevLoc = getCaretLocation(newValue.intValue() - 1);
 						if (prevLoc != null){
@@ -171,7 +171,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
                         /// There is a problem with getting the caretlocation's x is a reliable way due to the rendering
                         /// This whole area should be revisited once it get's sorted out
 						///Need to do layout to get the scroll bar's current positioning about the new document change
-                                                sb.layout();
+						sb.layout();
 
 						if (forward && caretLocation.getX() == 0  && p.getStartOffset() != newValue.intValue()){
 							//entering a new char - the x is not calculated yet
@@ -187,11 +187,17 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 
 							}
                                                 }
-						else if (forward && tmp.getX() + sb.getVisibleAmount()+ bufferSize >= getFlow().getViewportWidth()){
+						else if (forward && tmp.getX() + bufferSize >= getFlow().getViewportWidth()) {
 							//System.err.println("inching forwards");
+							int longestLineLength = lineList.stream().mapToInt(l -> l.getLineLength()).max().getAsInt();
+							double scrollPerChar = sb.getMax() / longestLineLength;
+							int lineLength = c.domainElement.getLineLength();
+							double maxLineScroll = lineLength * scrollPerChar;
+
 							int newCharCount = newValue.intValue() - oldValue.intValue();
-							sb.setValue(Math.min(sb.getMax() + moveSize ,sb.getValue() + (moveSize * newCharCount)));
-                                                }
+							double newScrollValue = Math.min(maxLineScroll + moveSize, sb.getValue() + (moveSize * newCharCount));
+							sb.setValue(newScrollValue);
+                        }
 						else if (sb.isVisible() && (tmp.getX() < 0)){
 							//moving from the end of line to next line out of visibility
 							//System.err.println("end of line to next line");
@@ -410,6 +416,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 			if (c.domainElement == lineObject) {
 				DefoldStyledTextLayoutContainer b = (DefoldStyledTextLayoutContainer) c.getGraphic();
 				Point2D caretLocation = b.getCaretLocation(caretPosition - b.getStartOffset());
+				if (caretLocation == null) { return null; }
 				Point2D tmp = getSkinnable().sceneToLocal(b.localToScene(caretLocation));
 				return new Point2D(tmp.getX(), getSkinnable().sceneToLocal(b.localToScene(0, b.getHeight())).getY());
 			}

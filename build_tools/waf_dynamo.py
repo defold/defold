@@ -1,5 +1,6 @@
 import os, sys, subprocess, shutil, re, stat, glob
 import Build, Options, Utils, Task, Logs
+import Configure
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
@@ -7,7 +8,8 @@ import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
-ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
+HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
 ANDROID_NDK_API_VERSION='14'
@@ -17,7 +19,7 @@ ANDROID_GCC_VERSION='4.8'
 
 
 # TODO: HACK
-FLASCC_ROOT=os.path.join(os.environ['HOME'], 'local', 'FlasCC1.0', 'sdk')
+FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
@@ -41,6 +43,16 @@ def new_copy_task(name, input_ext, output_ext):
         task.set_inputs(node)
         out = node.change_ext(output_ext)
         task.set_outputs(out)
+
+def copy_file_task(bld, src, name=None):
+    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
+    parts = src.split('/')
+    filename = parts[-1]
+    src_path = src.replace('/', os.sep)
+    return bld.new_task_gen(rule = '%s %s ${TGT}' % (copy, src_path),
+                            target = filename,
+                            name = name,
+                            shell = True)
 
 IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
@@ -147,7 +159,9 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['-g'])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['/O2', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
+            # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
+            # 0x0600 = _WIN32_WINNT_VISTA
+            self.env.append_value(f, ['/O2', '/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
 
@@ -1030,6 +1044,88 @@ def create_clang_wrapper(conf, exe):
     os.chmod(clang_wrapper_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     return clang_wrapper_path
 
+# Capture vcvarsall.bat environment variables for MSVC binaries, INCLUDE and LIB dir
+# Adapted from msvc.py in waf 1.5.9
+def _capture_vcvars_env(conf,target,vcvars):
+    batfile=os.path.join(conf.blddir,'waf-print-msvc.bat')
+    f=open(batfile,'w')
+    f.write("""@echo off
+set INCLUDE=
+set LIB=
+call "%s" %s
+echo PATH=%%PATH%%
+echo INCLUDE=%%INCLUDE%%
+echo LIB=%%LIB%%
+"""%(vcvars,target))
+    f.close()
+    sout=Utils.cmd_output(['cmd','/E:on','/V:on','/C',batfile])
+    lines=sout.splitlines()
+    for line in lines[0:]:
+        if line.startswith('PATH='):
+            path=line[5:]
+            paths=[p for p in path.split(';') if "MinGW" not in p]
+            MSVC_PATH=paths
+        elif line.startswith('INCLUDE='):
+            MSVC_INCDIR=[i for i in line[8:].split(';')if i]
+        elif line.startswith('LIB='):
+            MSVC_LIBDIR=[i for i in line[4:].split(';')if i]
+    return(MSVC_PATH,MSVC_INCDIR,MSVC_LIBDIR)
+
+# Given path to msvc installation, capture target platform settings
+def _get_msvc_target_support(conf, product_dir, version):
+    targets=[]
+    vcvarsall_path = os.path.join(product_dir, 'VC', 'vcvarsall.bat')
+
+    if os.path.isfile(vcvarsall_path):
+        if os.path.isfile(os.path.join(product_dir, 'Common7', 'Tools', 'vsvars32.bat')):
+            try:
+                targets.append(('x86', ('x86', _capture_vcvars_env(conf, 'x86', vcvarsall_path))))
+            except Configure.ConfigurationError:
+                pass
+        if os.path.isfile(os.path.join(product_dir, 'VC', 'bin', 'amd64', 'vcvars64.bat')):
+            try:
+                targets.append(('x64', ('amd64', _capture_vcvars_env(conf, 'x64', vcvarsall_path))))
+            except:
+                pass
+
+    return targets
+
+def _find_msvc_installs():
+    import _winreg
+    version_pattern = re.compile('^..?\...?')
+    installs = []
+    for vcver in ['VCExpress', 'VisualStudio']:
+        try:
+            all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Wow6432node\\Microsoft\\' + vcver)
+        except WindowsError:
+            try:
+                all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Microsoft\\' + vcver)
+            except WindowsError:
+                continue
+        index = 0
+        while 1:
+            try:
+                version = _winreg.EnumKey(all_versions, index)
+            except WindowsError:
+                break
+            index = index + 1
+            if not version_pattern.match(version):
+                continue
+            try:
+                msvc_version = _winreg.OpenKey(all_versions, version + "\\Setup\\VS")
+                path, type = _winreg.QueryValueEx(msvc_version, 'ProductDir')
+                path = str(path)
+                installs.append((version, path))
+            except WindowsError:
+                continue
+    return list(set(installs))
+
+def find_installed_msvc_versions(conf):
+    versions = []
+    for version, product_dir in _find_msvc_installs():
+        versions.append(('msvc '+ version, _get_msvc_target_support(conf, product_dir, version)))
+    return versions
+
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
@@ -1055,6 +1151,7 @@ def detect(conf):
 
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
+
     try:
         build_util = create_build_utility(conf.env)
     except BuildUtilityException as ex:
@@ -1062,6 +1159,17 @@ def detect(conf):
 
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
+
+    if 'win32' in platform:
+        target_map = {'win32': 'x86',
+                      'x86_64-win32': 'x64'}
+
+        desired_version = 'msvc 14.0'
+
+        versions = find_installed_msvc_versions(conf)
+        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
+        conf.env['MSVC_TARGETS'] = target_map[platform]
+        conf.env['MSVC_VERSIONS'] = [desired_version]
 
     if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.

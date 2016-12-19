@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 from waf_dynamo import new_copy_task
@@ -151,6 +153,17 @@ def build(bld):
                                        source = 'test_script_image.cpp test_image.lua')
 
     test_script_image.install_path = None
+
+    test_script_buffer = bld.new_task_gen(features = flist,
+                                       includes = '..',
+                                       uselib = libs,
+                                       uselib_local = 'script',
+                                       web_libs = web_libs,
+                                       proto_gen_py = True,
+                                       target = 'test_script_buffer',
+                                       source = 'test_script_buffer.cpp')
+
+    test_script_buffer.install_path = None
 
     test_script_user_type = bld.new_task_gen(features = 'cxx cprogram',
                                        includes = '..',

@@ -15,6 +15,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
+            [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [service.log :as log]
             [editor.graph-util :as gu]
@@ -38,6 +39,7 @@
   (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
+  (output node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource]))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id resource source-outline child-outlines]
@@ -185,55 +187,6 @@
       (ui/run-later
         (throw e)))))
 
-(defn compile-find-in-files-regex
-  "Convert a search-string to a java regex"
-  [search-str]
-  (let [clean-str (str/replace search-str #"[\<\(\[\{\\\^\-\=\$\!\|\]\}\)\?\+\.\>]" "")]
-    (re-pattern (format "^(.*)(%s)(.*)$"
-                        (str/lower-case
-                         (str/replace clean-str #"\*" ".*"))))))
-
-(defn- line->caret-pos [content line]
-  (let [line-counts (map (comp inc count) (str/split-lines content))]
-    (reduce + (take line line-counts))))
-
-(defn search-in-files
-  "Returns a list of {:resource resource :content content :matches [{:line :snippet}]}
-  with resources that matches the search-str"
-  [project file-extensions-str search-str]
-  (when-not (empty? search-str)
-    (let [save-data      (->> (save-data project)
-                              (filter #(= :file (and (:resource %)
-                                                     (resource/source-type (:resource %))))))
-          file-exts      (some-> file-extensions-str
-                                 (str/replace #" " "")
-                                 (str/split #","))
-          file-ext-pats  (->> file-exts
-                              (remove empty?)
-                              (map compile-find-in-files-regex))
-          matching-files (filter (fn [data]
-                                   (let [rext (-> data :resource resource/resource-type :ext)]
-                                     (or (empty? file-ext-pats)
-                                         (some #(re-matches % rext) file-ext-pats))))
-                                 save-data)
-          pattern        (compile-find-in-files-regex search-str)]
-      (->> matching-files
-           (filter :content)
-           (map (fn [{:keys [content] :as hit}]
-                  (assoc hit :matches
-                         (->> (str/split-lines (:content hit))
-                              (map str/lower-case)
-                              (keep-indexed (fn [idx l]
-                                              (let [[_ pre m post] (re-matches pattern l)]
-                                                (when m
-                                                  {:line           idx
-                                                   :caret-position (line->caret-pos (:content hit) idx)
-                                                   :match          (str (apply str (take-last 24 (str/triml pre)))
-                                                                        m
-                                                                        (apply str (take 24 (str/trimr post))))}))))
-                              (take 10)))))
-           (filter #(seq (:matches %)))))))
-
 (defn workspace [project]
   (g/node-value project :workspace))
 
@@ -268,44 +221,6 @@
             (on-complete-fn))
           (finally (reset! ongoing-build-save-atom false)))))))
 
-(defn- target-key [target]
-  [(:resource (:resource target))
-   (:build-fn target)
-   (:user-data target)])
-
-(defn- build-target [basis target all-targets build-cache]
-  (let [resource (:resource target)
-        key (:key target)
-        cache (let [cache (get @build-cache resource)] (and (= key (:key cache)) cache))]
-    (if cache
-     cache
-     (let [node (:node-id target)
-           dep-resources (into {} (map #(let [resource (:resource %)
-                                              key (target-key %)] [resource (:resource (get all-targets key))]) (flatten (:deps target))))
-           result ((:build-fn target) node basis resource dep-resources (:user-data target))
-           result (assoc result :key key)]
-       (swap! build-cache assoc resource (assoc result :cached true))
-       result))))
-
-(defn targets-by-key [build-targets]
-  (into {} (map #(let [key (target-key %)] [key (assoc % :key key)]) build-targets)))
-
-(defn prune-build-cache! [cache build-targets]
-  (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
-
-(defn- build-targets-deep [build-targets]
-  (loop [targets build-targets
-         queue []
-         seen #{}
-         result []]
-    (if-let [t (first targets)]
-      (let [key (target-key t)]
-        (if (contains? seen key)
-          (recur (rest targets) queue seen result)
-          (recur (rest targets) (conj queue (flatten (:deps t))) (conj seen key) (conj result t))))
-      (if-let [targets (first queue)]
-        (recur targets (rest queue) seen result)
-        result))))
 
 (defn build [project node {:keys [render-progress! render-error! basis cache]
                            :or   {render-progress! progress/null-render-progress!
@@ -313,24 +228,16 @@
                                   cache            (g/cache)}
                            :as   opts}]
   (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
-        build-targets        (g/node-value node :build-targets {:basis basis :cache cache})
-        build-targets-by-key (and (not (g/error? build-targets))
-                                  (->> (g/node-value node :build-targets {:basis basis :cache cache})
-                                       build-targets-deep
-                                       targets-by-key))]
+        build-targets        (g/node-value node :build-targets {:basis basis :cache cache})]
     (if (g/error? build-targets)
       (do
         (when render-error!
           (render-error! build-targets))
         nil)
-      (do
-        (prune-build-cache! build-cache build-targets-by-key)
-        (progress/progress-mapv
-          (fn [target _]
-            (build-target basis (second target) build-targets-by-key build-cache))
-          build-targets-by-key
-          render-progress!
-          (fn [e] (str "Building " (resource/resource->proj-path (:resource (second e))))))))))
+      (let [mapv-fn (progress/make-mapv render-progress!
+                                        (fn [[key build-target]]
+                                          (str "Building " (resource/resource->proj-path (:resource build-target)))))]
+        (pipeline/build basis build-targets build-cache mapv-fn)))))
 
 (defn- prune-fs [files-on-disk built-files]
   (let [files-on-disk (reverse files-on-disk)
@@ -407,6 +314,55 @@
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
 
+(defn- update-selection [s open-resource-nodes active-resource-node selection-value]
+  (->> (assoc s active-resource-node selection-value)
+    (filter (comp (set open-resource-nodes) first))
+    (into {})))
+
+(defn- perform-selection [project all-selections]
+  (let [all-node-ids (->> all-selections
+                       vals
+                       (reduce into [])
+                       distinct
+                       vec)]
+    (concat
+      (g/set-property project :all-selections all-selections)
+      (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
+        (g/disconnect node-id label project :all-selected-node-ids))
+      (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
+        (g/disconnect node-id label project :all-selected-node-properties))
+      (for [node-id all-node-ids]
+        (concat
+          (g/connect node-id :_node-id    project :all-selected-node-ids)
+          (g/connect node-id :_properties project :all-selected-node-properties))))))
+
+(defn select
+  ([project resource-node node-ids open-resource-nodes]
+    (assert (every? some? node-ids) "Attempting to select nil values")
+    (let [node-ids (if (seq node-ids)
+                     (-> node-ids distinct vec)
+                     [resource-node])
+          all-selections (-> (g/node-value project :all-selections)
+                           (update-selection open-resource-nodes resource-node node-ids))]
+      (perform-selection project all-selections))))
+
+(defn- perform-sub-selection
+  ([project all-sub-selections]
+    (g/set-property project :all-sub-selections all-sub-selections)))
+
+(defn sub-select
+  ([project resource-node sub-selection open-resource-nodes]
+    (g/update-property project :all-sub-selections update-selection open-resource-nodes resource-node sub-selection)))
+
+(defn- remap-selection [m key-m val-fn]
+  (reduce (fn [m [old new]]
+            (if-let [v (get m old)]
+              (-> m
+                (dissoc old)
+                (assoc new (val-fn [new v])))
+              m))
+    m key-m))
+
 ;; Reloading works like this:
 ;; * All moved files are handled by simply updating their resource property
 ;; * All truly added files are added/loaded
@@ -449,8 +405,7 @@
             old-outputs (reduce (fn [res [_ resource]]
                                   (let [nid (res->node resource)]
                                     (assoc res nid (outputs nid))))
-                                {} to-reload-int)
-            old->new (atom {})]
+                                {} to-reload-int)]
         ;; Internal resources to reload
         (let [in-use? (fn [resource-node-id]
                         (some (fn [[target _]]
@@ -482,13 +437,22 @@
           (load-nodes! project new-nodes render-progress!)
           ;; Re-connect existing outputs
           (g/transact
-            (for [[old new] old->new
-                  :when new
-                  :let [existing (set (outputs new))]
-                  [src-label [tgt-id tgt-label]] (old-outputs old)
-                  :let [tgt-id (get old->new tgt-id tgt-id)]
-                  :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
-              (g/connect new src-label tgt-id tgt-label))))
+            (concat
+              (for [[old new] old->new
+                    :when new
+                    :let [existing (set (outputs new))]
+                    [src-label [tgt-id tgt-label]] (old-outputs old)
+                    :let [tgt-id (get old->new tgt-id tgt-id)]
+                    :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
+                (g/connect new src-label tgt-id tgt-label))
+              (let [all-selections (-> (g/node-value project :all-selections)
+                                     ;; The key is the resource node id, so set that as the selection in case the file has changed as a safety
+                                     (remap-selection old->new (comp vector first)))]
+                (perform-selection project all-selections))
+              (let [all-sub-selections (-> (g/node-value project :all-sub-selections)
+                                         ;; Clear subselection
+                                         (remap-selection old->new (constantly [])))]
+                (perform-sub-selection project all-sub-selections)))))
         ;; External resources to invalidate
         (let [all-outputs (mapcat (fn [[_ resource]]
                                     (let [n (res->node resource)]
@@ -510,10 +474,11 @@
 
   (property build-cache g/Any)
   (property fs-build-cache g/Any)
-  (property sub-selection g/Any)
+  (property all-selections g/Any)
+  (property all-sub-selections g/Any)
 
-  (input selected-node-ids g/Any :array)
-  (input selected-node-properties g/Any :array)
+  (input all-selected-node-ids g/Any :array)
+  (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-map g/Any)
   (input resource-types g/Any)
@@ -523,11 +488,23 @@
   (input display-profiles g/Any)
   (input collision-group-nodes g/Any :array)
 
-  (output selected-node-ids g/Any :cached (gu/passthrough selected-node-ids))
-  (output selected-node-properties g/Any :cached (gu/passthrough selected-node-properties))
-  (output sub-selection g/Any :cached (g/fnk [selected-node-ids sub-selection]
-                                             (let [nids (set selected-node-ids)]
-                                               (filterv (comp nids first) sub-selection))))
+  (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
+                                                             (let [selected-node-id-set (set all-selected-node-ids)]
+                                                               (->> all-selections
+                                                                 (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
+                                                                 (into {})))))
+  (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
+                                                                    (let [props (->> all-selected-node-properties
+                                                                                  (map (fn [p] [(:node-id p) p]))
+                                                                                  (into {}))]
+                                                                      (->> all-selections
+                                                                        (map (fn [[key vals]] [key (vec (keep props vals))]))
+                                                                        (into {})))))
+  (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
+                                                               (let [selected-node-id-set (set all-selected-node-ids)]
+                                                                 (->> all-sub-selections
+                                                                   (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
+                                                                   (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
@@ -614,53 +591,10 @@
                             attach-fn))
       [])))
 
-(defn select
-  [project-id node-ids]
-  (assert (not-any? nil? node-ids) "Attempting to select nil values")
-  (concat
-    (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
-      (g/disconnect node-id label project-id :selected-node-ids))
-    (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
-      (g/disconnect node-id label project-id :selected-node-properties))
-    (for [node-id (distinct node-ids)]
-      (concat
-        (g/connect node-id :_node-id    project-id :selected-node-ids)
-        (g/connect node-id :_properties project-id :selected-node-properties)))))
-
-(defn select!
-  ([project node-ids]
-    (select! project node-ids (gensym)))
-  ([project node-ids op-seq]
-    (let [old-nodes (g/node-value project :selected-node-ids)]
-      (when (not= node-ids old-nodes)
-        (g/transact
-          (concat
-            (g/operation-sequence op-seq)
-            (g/operation-label "Select")
-            (select project node-ids)))))))
-
-(defn sub-select!
-  ([project sub-selection]
-    (sub-select! project sub-selection (gensym)))
-  ([project sub-selection op-seq]
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Select")
-        (g/set-property project :sub-selection sub-selection)))))
-
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))
-
-(deftype ProjectSelectionProvider [project-id]
-  handler/SelectionProvider
-  (selection [this] (g/node-value project-id :selected-node-ids))
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
-
-(defn selection-provider [project-id] (ProjectSelectionProvider. project-id))
 
 (defn make-project [graph workspace-id]
   (let [project-id
@@ -668,7 +602,7 @@
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project :workspace workspace-id :build-cache (atom {}) :fs-build-cache (atom {})]]
+                            [project [Project :workspace workspace-id :build-cache (pipeline/make-build-cache) :fs-build-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
                             (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
