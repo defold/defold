@@ -4,6 +4,7 @@ import com.dynamo.cr.server.auth.AuthenticationExceptionMapper;
 import com.dynamo.cr.server.providers.JsonProviders;
 import com.dynamo.cr.server.providers.ProtobufProviders;
 import com.dynamo.cr.server.resources.*;
+import com.dynamo.cr.server.resources.v2.ProjectSitesResource;
 import com.sun.jersey.api.core.DefaultResourceConfig;
 
 import java.util.HashSet;
@@ -17,6 +18,7 @@ public class ResourceConfig extends DefaultResourceConfig {
         classes.add(RepositoryResource.class);
         classes.add(ProjectResource.class);
         classes.add(ProjectsResource.class);
+        classes.add(ProjectSitesResource.class);
         classes.add(UsersResource.class);
         classes.add(LoginResource.class);
         classes.add(LoginOAuthResource.class);

@@ -53,7 +53,7 @@ public class AbstractResourceTest {
 
     static Server server;
     static TestMailer mailer;
-    static EntityManagerFactory emf;
+    protected static EntityManagerFactory emf;
 
     static class TestMailer implements IMailer {
         final List<EMail> emails = new ArrayList<>();
@@ -162,7 +162,7 @@ public class AbstractResourceTest {
         return client.resource(uri);
     }
 
-    WebResource createBaseResource(User user, String password) {
+    protected WebResource createBaseResource(String email, String password) {
         DefaultClientConfig clientConfig = new DefaultClientConfig();
         clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
         clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyWriter.class);
@@ -170,7 +170,7 @@ public class AbstractResourceTest {
         clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
         Client client = Client.create(clientConfig);
-        client.addFilter(new HTTPBasicAuthFilter(user.getEmail(), password));
+        client.addFilter(new HTTPBasicAuthFilter(email, password));
 
         int port = injector.getInstance(Configuration.class).getServicePort();
 
@@ -191,7 +191,7 @@ public class AbstractResourceTest {
         return client.resource(uri);
     }
 
-    void execCommand(String command, String arg) throws IOException {
+    protected static void execCommand(String command, String arg) throws IOException {
         TestUtil.Result r = TestUtil.execCommand(new String[]{"/bin/bash", command, arg});
         if (r.exitValue != 0) {
             System.err.println(r.stdOut);

@@ -86,7 +86,8 @@
                     <globmapper from="darwin/luajit-2.0.3" to="x86-darwin/luajit"/>
                     <globmapper from="linux/luajit-2.0.3" to="x86-linux/luajit"/>
                     <globmapper from="x86_64-linux/luajit-2.0.3" to="x86_64-linux/luajit"/>
-                    <globmapper from="win32/luajit-2.0.3" to="x86-win32/luajit"/>
+                    <globmapper from="win32/luajit.exe" to="x86-win32/luajit.exe"/>
+		    <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
                 </compositemapper>
             </chainedmapper>
             <tarfileset includes="bin/linux/**">
@@ -104,6 +105,11 @@
                     <file file="../../packages/luajit-2.0.3-win32.tar.gz" />
                 </gzipresource>
             </tarfileset>
+	    <tarfileset includes="bin/x86_64-win32/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-x86_64-win32.tar.gz" />
+                </gzipresource>
+	    </tarfileset>
             <tarfileset includes="bin/darwin/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.3-darwin.tar.gz" />
@@ -163,15 +169,26 @@
         </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="win32/*texc_shared*"/>
-                <include name="win32/OpenAL32.dll"/>
-                <include name="win32/wrap_oal.dll"/>
+              <include name="win32/*texc_shared*"/>
             </fileset>
         </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
                 <include name="win32/OpenAL32.dll"/>
                 <include name="win32/wrap_oal.dll"/>
+                <include name="win32/PVRTexLib.dll"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="x86_64-win32/*texc_shared*"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="x86_64-win32/OpenAL32.dll"/>
+                <include name="x86_64-win32/wrap_oal.dll"/>
+                <include name="x86_64-win32/PVRTexLib.dll"/>
             </fileset>
         </copy>
         <jar destfile="lib/luajit-share.zip">
@@ -206,6 +223,7 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
+                <include name="lib/**/*PVRTexLib.dll*"/>
             </fileset>
             <fileset dir=".">
                 <include name="libexec/**/*"/>
