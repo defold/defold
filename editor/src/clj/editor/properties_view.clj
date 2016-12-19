@@ -13,6 +13,7 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.math :as math]
+            [editor.field-expression :as field-expression]
             [util.id-vec :as iv])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
@@ -45,26 +46,6 @@
 (def ^{:private true :const true} grid-hgap 4)
 (def ^{:private true :const true} grid-vgap 6)
 (def ^{:private true :const true} all-available 5000)
-
-(defn- evaluate-expression [parse-fn precision text]
-  (if-let [matches (re-find #"(.+?)\s*([\+\-*/])\s*(.+)" text)]
-    (let [a (parse-fn (matches 1))
-          b (parse-fn (matches 3))
-          op (resolve (symbol (matches 2)))]
-      (math/round-with-precision (op a b) precision))
-    (parse-fn text)))
-
-(defn- to-int [s]
-  (try
-    (int (evaluate-expression #(Integer/parseInt %) 1.0 s))
-    (catch Throwable _
-      nil)))
-
-(defn- to-double [s]
- (try
-   (evaluate-expression #(Double/parseDouble %) 0.01 s)
-   (catch Throwable _
-     nil)))
 
 (declare update-field-message)
 
@@ -99,7 +80,7 @@
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text)
         update-fn    (fn [_]
-                       (if-let [v (to-int (.getText text))]
+                       (if-let [v (field-expression/to-int (.getText text))]
                          (let [property (property-fn)]
                            (properties/set-values! property (repeat v))
                            (update-ui-fn (properties/values property)
@@ -114,7 +95,7 @@
 (defmethod create-property-control! g/Num [_ _ property-fn]
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text)
-        update-fn    (fn [_] (if-let [v (to-double (.getText text))]
+        update-fn    (fn [_] (if-let [v (field-expression/to-double (.getText text))]
                                (properties/set-values! (property-fn) (repeat v))
                                (update-ui-fn (properties/values (property-fn))
                                              (properties/validation-message (property-fn))
@@ -167,7 +148,7 @@
                        (update-field-message text-fields message))]
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_]
-                                      (let [v            (to-double (.getText ^TextField t))
+                                      (let [v            (field-expression/to-double (.getText ^TextField t))
                                             current-vals (properties/values (property-fn))]
                                         (if v
                                           (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
@@ -219,7 +200,7 @@
                          (let [set-fn (or (:set-fn f)
                                           (fn [e v] (assoc-in e (:path f) v)))]
                            [t (fn [_]
-                                (let [v            (to-double (.getText ^TextField t))
+                                (let [v            (field-expression/to-double (.getText ^TextField t))
                                       current-vals (properties/values (property-fn))]
                                   (if v
                                     (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
@@ -648,8 +629,8 @@
                                    (let [context {:workspace workspace :project project}]
                                      (update-pane parent-view _node-id context selected-node-properties)))))
 
-(defn make-properties-view [workspace project view-graph ^Node parent]
+(defn make-properties-view [workspace project app-view view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace :project project)
         stage         (.. parent getScene getWindow)]
-    (g/connect! project :selected-node-properties view-id :selected-node-properties)
+    (g/connect! app-view :selected-node-properties view-id :selected-node-properties)
     view-id))

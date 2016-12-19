@@ -1,21 +1,13 @@
 #! /usr/bin/env python
 
 import os, sys
+from waf_dynamo import copy_file_task
 
 def build(bld):
     proto_include_path = bld.env['DYNAMO_HOME'] + '/ext/include'
 
-    copy = 'cp'
-    if sys.platform == 'win32':
-        copy = 'copy'
-
-    copy_rule = '%s %s/%s ${TGT}' % (copy, proto_include_path, 'google/protobuf/compiler/plugin.proto')
-    # Copy on windows doesn't like /...
-    copy_rule = copy_rule.replace('/', os.sep)
-    bld.new_task_gen(rule= copy_rule,
-                     target='plugin.proto',
-                     name='copy_plugin.proto',
-                     shell=True)
+    src = "%s/%s" % (proto_include_path, 'google/protobuf/compiler/plugin.proto')
+    copy_file_task(bld, src, 'copy_plugin.proto')
 
     bld.new_task_gen(
          rule   = 'protoc --python_out=. -I . -I %s ${SRC}' % (proto_include_path),

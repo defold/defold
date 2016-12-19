@@ -12,8 +12,9 @@ jre = ${bootstrap.resourcespath}/packages/jre
 java = ${launcher.jre}/bin/java
 jar = ${bootstrap.resourcespath}/packages/defold-${build.sha1}.jar
 main = com.defold.editor.Start
+log =
 debug = 1
-vmargs = -Xms1024m,-Xmx1400m,-Ddefold.resourcespath=${bootstrap.resourcespath},-Ddefold.version=${build.version},-Ddefold.sha1=${build.sha1},-Djava.ext.dirs=${launcher.jre}/lib/ext,-Djava.net.preferIPv4Stack=true,-Dsun.net.client.defaultConnectTimeout=30000,-Dsun.net.client.defaultReadTimeout=30000,-Djogl.texture.notexrect=true
+vmargs = -Ddefold.editor2.log=${launcher.log},-Ddefold.resourcespath=${bootstrap.resourcespath},-Ddefold.version=${build.version},-Ddefold.sha1=${build.sha1},-Djava.ext.dirs=${launcher.jre}/lib/ext,-Djava.net.preferIPv4Stack=true,-Dsun.net.client.defaultConnectTimeout=30000,-Dsun.net.client.defaultReadTimeout=30000,-Djogl.texture.notexrect=true
 [platform]
 osx = -Xdock:icon=${bootstrap.resourcespath}/logo.icns,-Xdock:name=Defold
 windows =

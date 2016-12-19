@@ -503,12 +503,11 @@ public class RigUtil {
     private static void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1, double spf) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
+        if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
+            t = evalCurve(curve, t);
+        }
         for (int i = 0; i < v0.length; ++i) {
-            double v = t;
-            if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
-                v = evalCurve(curve, t);
-            }
-            v = (1.0 - t) * v0[i] + t * v1[i];
+            double v = (1.0 - t) * v0[i] + t * v1[i];
             builder.add(v);
         }
     }

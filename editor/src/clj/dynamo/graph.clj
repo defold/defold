@@ -248,6 +248,7 @@
                              :value                                (s/either s/Any ErrorValue)
                              :type                                 s/Any
                              s/Keyword                             s/Any}}
+     (s/optional-key :node-id) s/Int
      (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
 (deftype Err ErrorValue)
 
