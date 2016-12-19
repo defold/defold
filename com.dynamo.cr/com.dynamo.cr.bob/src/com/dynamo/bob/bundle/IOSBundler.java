@@ -67,12 +67,13 @@ public class IOSBundler implements IBundler {
 
         if (useArchive) {
             // Copy archive and game.projectc
-            for (String name : Arrays.asList("game.projectc", "game.darc", "game.dmanifest", "game.public.der")) {
+            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
             }
         } else {
             FileUtils.copyDirectory(buildDir, appDir);
-            new File(buildDir, "game.darc").delete();
+            new File(buildDir, "game.arci").delete();
+            new File(buildDir, "game.arcd").delete();
         }
 
         // Copy icons
