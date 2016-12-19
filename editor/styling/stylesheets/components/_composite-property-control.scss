@@ -1,12 +1,17 @@
-.composite-property-control-container { 
+.composite-property-control-container {
+    .text-input {
+        -fx-background-insets: 0;
+        -fx-border-insets: 0;
+    }
     .button, .button-small, .button-large {
         -fx-background-radius: 0px;
         -fx-border-radius: 0px;
         -fx-background-insets: 0;
         -fx-background-color: $mid-grey;
         -fx-border-width: 0;
-        -fx-padding: 5;//5 6 5 6;
-        -fx-pref-width: 24;
+        -fx-padding: 5 4;//5 6 5 6;
+        -fx-pref-width: 23;
+        -fx-max-width: 24px;
         -fx-text-fill: $icon-grey;
         &:hover {
             -fx-background-color: $mid-grey-light !important;

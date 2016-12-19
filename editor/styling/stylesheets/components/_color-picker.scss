@@ -6,6 +6,9 @@
     &:showing {
         -fx-background-color: $dark-grey;
         -fx-color: $defold-white;
+        .color-picker-label {
+            -fx-text-fill: $defold-white;
+        }
     }
     &:showing .arrow {
         -fx-background-color: $defold-white;
@@ -19,6 +22,7 @@
         -fx-border-radius: 0;
         -fx-border-width: 0;
         -fx-background-insets: 0;
+        -fx-padding: 5 7;
         -fx-background-color: $mid-grey;
         &:hover {
             -fx-background-color: $mid-grey-light;

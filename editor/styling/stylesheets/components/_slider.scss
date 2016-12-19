@@ -1,6 +1,8 @@
 .slider {
     .track {
         -fx-background-color: $input-background;
+        -fx-border-color: $input-border;
+        -fx-border-width: 1px;
     }
     .thumb {
         -fx-background-color: $mid-grey-light;
