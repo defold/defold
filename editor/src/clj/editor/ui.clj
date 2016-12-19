@@ -21,16 +21,15 @@
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans.value ChangeListener ObservableValue]
-   [javafx.collections ObservableList ListChangeListener ListChangeListener$Change]
+   [javafx.collections ObservableList ListChangeListener]
    [javafx.css Styleable]
-   [javafx.event ActionEvent EventHandler WeakEventHandler Event]
+   [javafx.event EventHandler WeakEventHandler Event]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
    [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
-   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent KeyCode]
+   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image]
-   [javafx.scene.layout Region]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window]
@@ -141,33 +140,6 @@
         (let [listeners (-> (or (user-data node ::list-listeners) [])
                           (conj listener))]
           (user-data! node ::list-listeners listeners))))))
-
-(defmacro observe-selection
-  "Helper macro that lets you observe selection changes in a generic fashion.
-  Takes a Node that has a getSelectionModel method and a function that takes
-  the reporting Node and a vector with the selected items as its arguments.
-
-  This is a macro because JavaFX does not have a common interface for classes
-  that feature a getSelectionModel method. To avoid reflection warnings, tag
-  the node argument with type metadata.
-
-  Supports both single and multi-selection. In both cases the selected items
-  will be provided in a vector."
-  [node listen-fn]
-  `(let [selection-owner# ~node
-         selection-listener# ~listen-fn
-         selection-model# (.getSelectionModel selection-owner#)]
-     (condp instance? selection-model#
-       MultipleSelectionModel
-       (observe-list selection-owner#
-                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
-                     (fn [_# selected-items#]
-                       (selection-listener# selection-owner# selected-items#)))
-
-       SelectionModel
-       (observe (.selectedItemProperty ^SelectionModel selection-model#)
-                (fn [_# _# selected-item#]
-                  (selection-listener# selection-owner# [selected-item#]))))))
 
 (defn remove-list-observers
   [^Node node ^ObservableList observable]
@@ -578,19 +550,16 @@
       item)
     []))
 
-
 (defn select-indices!
   [^TreeView tree-view indices]
   (doto (.getSelectionModel tree-view)
     (tree-view-hack/subvert-broken-selection-model-optimization!)
-    (.selectIndices  (int (first indices)) (int-array (rest indices)))))
+    (.selectIndices (int (first indices)) (int-array (rest indices)))))
 
 (extend-type TreeView
   CollectionView
   (selection [this] (some->> this
-                      (.getSelectionModel)
-                      (.getSelectedItems)
-                      (filter (comp not nil?))
+                      tree-view-hack/broken-selected-tree-items
                       (mapv #(.getValue ^TreeItem %))))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
@@ -606,7 +575,7 @@
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
 (defn selection-root-items [^TreeView tree-view path-fn id-fn]
-  (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
+  (let [selection (tree-view-hack/broken-selected-tree-items tree-view)]
     (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
           roots (loop [paths (keys items)
                        roots []]
@@ -635,6 +604,33 @@
                                       (.getParent last-item))))
                               (.getRoot tree-view))]
     [(.getValue next-item)]))
+
+(defmacro observe-selection
+  "Helper macro that lets you observe selection changes in a generic fashion.
+  Takes a Node that has a getSelectionModel method and a function that takes
+  the reporting Node and a vector with the selected items as its arguments.
+
+  This is a macro because JavaFX does not have a common interface for classes
+  that feature a getSelectionModel method. To avoid reflection warnings, tag
+  the node argument with type metadata.
+
+  Supports both single and multi-selection. In both cases the selected items
+  will be provided in a vector."
+  [node listen-fn]
+  `(let [selection-owner# ~node
+         selection-listener# ~listen-fn
+         selection-model# (.getSelectionModel selection-owner#)]
+     (condp instance? selection-model#
+       MultipleSelectionModel
+       (observe-list selection-owner#
+                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
+                     (fn [_# _#]
+                       (selection-listener# selection-owner# (selection selection-owner#))))
+
+       SelectionModel
+       (observe (.selectedItemProperty ^SelectionModel selection-model#)
+                (fn [_# _# _#]
+                  (selection-listener# selection-owner# (selection selection-owner#)))))))
 
 ;; context handling
 

@@ -439,7 +439,17 @@ class Configuration(object):
         defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
         # Includes
-        includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
+        #includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
+        includes = []
+        cwd = os.getcwd()
+        os.chdir(self.dynamo_home)
+        for root, dirs, files in os.walk("."):
+            for file in files:
+                if file.endswith('.h'):
+                    includes.append(os.path.join(root, file))
+                    print(includes[-1])
+
+        os.chdir(cwd)
         includes = [os.path.join(self.dynamo_home, x) for x in includes]
         self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
 
