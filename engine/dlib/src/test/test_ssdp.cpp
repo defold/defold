@@ -417,7 +417,7 @@ TEST_F(dmSSDPTest, JavaClient)
 int main(int argc, char **argv)
 {
     srand(time(NULL));
-    dmLogSetlevel(DM_LOG_SEVERITY_INFO);
+    dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
