@@ -156,8 +156,10 @@ namespace dmGameSystem
      */
 
     /*# requests a ray cast to be performed
+     *
      * Ray casts are used to test for intersections against collision objects in the physics world.
-     * Which collision objects to hit is filtered by their collision groups and can be configured through `groups`.
+     * Which collision objects to hit is filtered by their collision groups and can be configured
+     * through `groups`.
      * The actual ray cast will be performed during the physics-update.
      * If an object is hit, the result will be reported via a `ray_cast_response` message.
      *

@@ -538,35 +538,19 @@ int IAP_Restore(lua_State* L)
  * : [type:object] The current object.
  *
  * `transaction`
- * : [type:table] a table describing the transaction (see below)
+ * : [type:table] a table describing the transaction. The table contains the following fields:
+ *
+ * - `ident`: product identifier
+ * - `state`: transaction state
+ * - `date`: transaction date
+ * - `original_trans`: original transaction (only set when state == TRANS_STATE_RESTORED)
+ * - `trans_ident` : transaction identifier (only set when state == TRANS_STATE_RESTORED, TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
+ * - `request_id`: transaction request id. (only if receipt is set and for Facebook IAP transactions when used in the iap.buy call parameters)
+ * - `receipt`: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  *
  * `error`
  * : [type:table] a table containing any error information. The error parameter is `nil` on success.
  *
- * ## The `transaction` table:
- *
- * ident
- * : product identifier
- *
- * state
- * : transaction state
- *
- * date
- * : transaction date
- *
- * original_trans
- * : original transaction (only set when state == TRANS_STATE_RESTORED)
- *
- * trans_ident
- * : transaction identifier (only set when state == TRANS_STATE_RESTORED,
- * TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
- *
- * request_id
- * : transaction request id. (only if receipt is set and for Facebook IAP transactions
- * when used in the iap.buy call parameters)
- *
- * receipt
- * : receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  *
  */
 int IAP_SetListener(lua_State* L)
