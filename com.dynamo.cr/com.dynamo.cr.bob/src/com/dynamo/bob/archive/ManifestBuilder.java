@@ -412,8 +412,6 @@ public class ManifestBuilder {
                     }
                 }
             }
-        } else {
-            throw new IOException("Unable to create ManifestData, entry is not part of dependencies: " + filepath);
         }
 
         return dependants;
@@ -443,14 +441,7 @@ public class ManifestBuilder {
         ManifestHeader manifestHeader = this.buildManifestHeader();
         builder.setHeader(manifestHeader);
 
-        if (this.supportedEngineVersions.isEmpty()) {
-            throw new IOException("Unable to create ManifestData, there are no supported engine versions!");
-        }
         builder.addAllEngineVersions(this.supportedEngineVersions);
-
-        if (this.resourceEntries.isEmpty()) {
-            throw new IOException("Unable to create ManifestData, there are no resources!");
-        }
         for (ResourceEntry entry : this.resourceEntries) {
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
