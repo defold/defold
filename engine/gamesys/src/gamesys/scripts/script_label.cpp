@@ -17,6 +17,7 @@ namespace dmGameSystem
  *
  * Functions to manipulate a label component.
  *
+ * @document
  * @name Label
  * @namespace label
  */

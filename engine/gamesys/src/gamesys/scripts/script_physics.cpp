@@ -31,6 +31,7 @@ namespace dmGameSystem
      * with other objects (collisions and ray-casting) and control of
      * physical behaviors.
      *
+     * @document
      * @name Collision object
      * @namespace collision_object
      */

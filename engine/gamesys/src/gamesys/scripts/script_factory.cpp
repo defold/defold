@@ -26,6 +26,7 @@ namespace dmGameSystem
      * Functions for controlling factory components which are used to
      * dynamically spawn game objects into the runtime.
      *
+     * @document
      * @name Factory
      * @namespace factory
      */

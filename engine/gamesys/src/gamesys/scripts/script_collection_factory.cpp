@@ -23,9 +23,10 @@ namespace dmGameSystem
 {
     /*# Collection factory API documentation
      *
-     * Functions for controlling collection factory components which are 
+     * Functions for controlling collection factory components which are
      * used to dynamically spawn collections into the runtime.
      *
+     * @document
      * @name Collection factory
      * @namespace collection_factory
      */

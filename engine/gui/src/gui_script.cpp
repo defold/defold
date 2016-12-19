@@ -26,6 +26,7 @@ namespace dmGui
      * creation and manipulation of GUI nodes. The "gui" namespace is
      * accessible only from gui scripts.
      *
+     * @document
      * @name GUI
      * @namespace gui
      */

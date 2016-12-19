@@ -140,24 +140,26 @@ def _parse_comment(str):
 
     if not name_found:
         logging.warn('Missing tag @name in "%s"' % str)
-        return
+        return None
 
     desc_start = min(len(str), str.find('\n'))
     brief = str[0:desc_start]
     desc_end = min(len(str), str.find('\n@'))
     description = str[desc_start:desc_end].strip()
 
-    element = script_doc_ddf_pb2.Element()
+    element = None
 
     if document_comment:
         element = script_doc_ddf_pb2.Info()
         element.brief = md.convert(brief)
         element.description = md.convert(description)
     else:
+        element = script_doc_ddf_pb2.Element()
         element.type = element_type
         element.brief = md.convert(brief)
         element.description = md.convert(description)
 
+    namespace_found = False
     for (tag, value) in lst:
         value = value.strip()
         md.reset()
@@ -185,6 +187,11 @@ def _parse_comment(str):
             element.deprecated = md.convert(value)
         elif tag == 'namespace':
             element.namespace = value
+            namespace_found = True
+
+    if document_comment and not namespace_found:
+        logging.warn('Missing tag @namespace in "%s"' % str)
+        return None
 
     return element
 
@@ -200,19 +207,12 @@ def parse_document(doc_str):
         if type(element) is script_doc_ddf_pb2.Info:
             doc_info = element
 
-    if not doc_info:
-        logging.error('Missing @document comment.')
-        return
-
-    if not doc_info.namespace:
-        logging.error('Missing @namespace tag in @document comment.')
-        return
+    if doc_info:
+        doc.info.CopyFrom(doc_info)
 
     element_list.sort(cmp = lambda x,y: cmp(x.name, y.name))
     for i, e in enumerate(element_list):
         doc.elements.add().MergeFrom(e)
-
-    doc.info.CopyFrom(doc_info)
 
     return doc
 
@@ -250,7 +250,6 @@ if __name__ == '__main__':
     if len(args) < 2:
         parser.error('At least two arguments required')
 
-        rstneiarstrstnei
     doc_str = ''
     for name in args[:-1]:
         f = open(name, 'rb')
@@ -260,7 +259,7 @@ if __name__ == '__main__':
     doc = parse_document(doc_str)
     if doc:
         output_file = args[-1]
-        f = open(output_file, 'wb')
+        f = open(output_file, "wb")
         if options.type == 'protobuf':
             f.write(doc.SerializeToString())
         elif options.type == 'json':
@@ -270,3 +269,5 @@ if __name__ == '__main__':
             print 'Unknown type: %s' % options.type
             sys.exit(5)
         f.close()
+
+

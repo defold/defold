@@ -571,6 +571,7 @@ namespace dmFacebook {
  *
  * Functions and constants for interacting with Facebook APIs.
  *
+ * @document
  * @name Facebook
  * @namespace facebook
  */

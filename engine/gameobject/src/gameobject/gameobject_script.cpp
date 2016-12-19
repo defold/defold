@@ -40,6 +40,7 @@ namespace dmGameObject
      * game objects. The "go" namespace is accessible from game object script
      * files.
      *
+     * @document
      * @name Game object
      * @namespace go
      */

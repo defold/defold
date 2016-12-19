@@ -25,7 +25,6 @@ namespace dmScript
      * @namespace builtins
      */
 
-
     #define SCRIPT_TYPE_NAME_HASH "hash"
     #define SCRIPT_HASH_TABLE "__script_hash_table"
 
@@ -53,17 +52,19 @@ namespace dmScript
      * before it can be compared with an id.
      *
      * @name hash
-     * @param s string to hash (string)
-     * @return a hashed string (hash)
+     * @param s [type:string] string to hash
+     * @return hash [type:hash] a hashed string
      * @examples
-     * <p>To compare a message_id in an on-message callback function:</p>
-     * <pre>
+     *
+     * To compare a message_id in an on-message callback function:
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("my_message") then
      *         -- Act on the message here
      *     end
      * end
-     * </pre>
+     * ```
      */
     int Script_Hash(lua_State* L)
     {
@@ -78,11 +79,19 @@ namespace dmScript
     }
 
     /*# get hex representation of a hash value as a string
-     * The returned string is always padded with leading zeros
+     * Returns a hexadecimal representation of a hash value.
+     * The returned string is always padded with leading zeros.
      *
      * @name hash_to_hex
-     * @param h hash value to get hex string for
-     * @return hex representation
+     * @param h [type:hash] hash value to get hex string for
+     * @return hex [type:string] hex representation of the hash
+     * @examples
+     *
+     * ```lua
+     * local h = hash("my_hash")
+     * local hexstr = hash_to_hex(h)
+     * print(hexstr) --> a2bc06d97f580aab
+     * ```
      */
     int Script_HashToHex(lua_State* L)
     {

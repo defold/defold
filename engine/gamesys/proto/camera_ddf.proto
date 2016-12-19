@@ -10,6 +10,7 @@ option java_outer_classname = "Camera";
  *
  * Messages to control camera components and camera focus.
  *
+ * @document
  * @name Camera
  * @namespace camera
  */

@@ -23,6 +23,7 @@ namespace dmCrash
      *
      * Native crash logging functions and constants.
      *
+     * @document
      * @name Crash
      * @namespace crash
      */

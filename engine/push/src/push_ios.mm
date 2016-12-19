@@ -18,6 +18,7 @@ struct Push;
  * Apple's and Google's push notification services. These API:s only exist on mobile platforms.
  * [icon:ios] [icon:android]
  *
+ * @document
  * @name Push notifications
  * @namespace push
  */

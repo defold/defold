@@ -333,10 +333,38 @@ namespace dmScript
     }
 
     /*# pretty printing
-     * Pretty printing of lua values
+     * Pretty printing of Lua values. This function prints Lua values
+     * in a manner similar to +print()+, but will also recurse into tables
+     * and pretty print them. There is a limit to how deep the function
+     * will recurse.
      *
      * @name pprint
-     * @param v value to print
+     * @param v [type:any] value to print
+     * @examples
+     *
+     * Pretty printing a Lua table with a nested table:
+     *
+     * ```lua
+     * local t2 = { 1, 2, 3, 4 }
+     * local t = { key = "value", key2 = 1234, key3 = t2 }
+     * pprint(t)
+     * ```
+     *
+     * Resulting in the following output (note that the key order in non array
+     * Lua tables is undefined):
+     *
+     * ```
+     * {
+     *   key3 = {
+     *     1 = 1,
+     *     2 = 2,
+     *     3 = 3,
+     *     4 = 4,
+     *   }
+     *   key2 = 1234,
+     *   key = value,
+     * }
+     * ```
      */
     int LuaPPrint(lua_State* L)
     {

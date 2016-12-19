@@ -22,6 +22,7 @@ struct IAP;
  * Functions and constants for interacting with Apple's In-app purchases
  * and Google's In-app billing.
  *
+ * @document
  * @name In-app purchases
  * @namespace iap
  */
@@ -312,15 +313,27 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
 
 /*# list in-app products
  *
+ * Get a list of all avaliable iap products.
+ *
+ * [icon:attention] Nested calls, that is calling iap.list from within callback is not supported.
+ * Doing so will result in call being ignored with the engine reporting "Unexpected callback set".
+ *
  * @name iap.list
- * @param ids table (array) to get information about
- * @param callback result callback
+ * @param ids [type:table] table (array) of identifiers to get products from
+ * @param callback [type:function(self, products, error)] result callback
+ *
+ * self
+ * :        [type:object] The current object.
+ *
+ * products
+ * :        [type:table] The available iap products.
+ *
+ * error
+ * :        [type:table] Any error message. [type:nil] if there is no error.
+ *
  * @examples
  *
- * <b>Note:</b> Nested calls, that is calling iap.list from within callback is not supported.
- *  Doing so will result in call being ignored with the engine reporting "Unexpected callback set".
- *
- * <pre>
+ * ```lua
  * local function iap_callback(self, products, error)
  *     if error == nil then
  *         for k,v in pairs(products) do
@@ -335,10 +348,11 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
  *         print(error.error)
  *     end
  * end
- * function example(self)
+ *
+ * function init(self)
  *     iap.list({"my_iap"}, iap_callback)
  * end
- * </pre>
+ * ```
  */
 int IAP_List(lua_State* L)
 {
@@ -384,16 +398,16 @@ int IAP_List(lua_State* L)
  * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings.
  * @name iap.buy
  * @param id product to buy (identifier)
- * @param options table of optional parameters as properties.
+ * @param [options] [type:table] optional parameters as properties.
  *
  * The options table has the following members:
- * <ul>
- * <li> request_id: custom unique request id -- optional argument only available for Facebook IAP transactions
- * </ul>
+ *
+ * request_id [icon:facebook]
+ * : custom unique request id - only available for Facebook IAP transactions
  *
  * @examples
  *
- * <pre>
+ * ```lua
  * local function iap_listener(self, transaction, error)
  *     if error == nil then
  *         print(transaction.ident)
@@ -413,11 +427,12 @@ int IAP_List(lua_State* L)
  *         print(error.error, error.reason)
  *     end
  * end
- * function example(self)
+ *
+ * function init(self)
  *     iap.set_listener(iap_listener)
  *     iap.buy("my_iap")
  * end
- * </pre>
+ * ```
  */
 int IAP_Buy(lua_State* L)
 {
