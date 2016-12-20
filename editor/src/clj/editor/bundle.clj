@@ -1,5 +1,6 @@
 (ns editor.bundle
   (:require [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
@@ -11,6 +12,7 @@
            [javafx.scene Parent Node Scene Group]
            [javafx.stage Stage StageStyle Modality]
            [com.google.common.io Files]
+           [com.defold.editor Platform]
            [org.apache.commons.configuration.plist XMLPropertyListConfiguration]))
 
 (set! *warn-on-reflection* true)
@@ -19,14 +21,14 @@
   (let [armv7 ^File (engine/get-engine workspace prefs "armv7-ios")
         arm64 ^File (engine/get-engine workspace prefs "arm64-ios")
         unpack (System/getProperty "defold.unpack.path")
-        lipo (format "%s/bin/lipo" unpack)
+        lipo (format "%s/%s/bin/lipo" unpack (.getPair (Platform/getJavaPlatform)))
         engine (File/createTempFile "dmengine" "")]
-    (system/exec [lipo "-create" (.getAbsolutePath armv7) (.getAbsolutePath arm64) "-output" (.getAbsolutePath engine)] {})
+    (shell/sh lipo "-create" (.getAbsolutePath armv7) (.getAbsolutePath arm64) "-output" (.getAbsolutePath engine))
     engine))
 
 (defn- extract-entitlement [profile]
   (let [text-profile (File/createTempFile "mobileprovision" ".plist")]
-    (system/exec ["security"  "cms"  "-D"  "-i"  profile "-o"  (.getAbsolutePath text-profile)] {})
+    (shell/sh "security"  "cms"  "-D"  "-i"  profile "-o"  (.getAbsolutePath text-profile))
 
     (let [profile-info (XMLPropertyListConfiguration.)
           entitlements-info (XMLPropertyListConfiguration.)
@@ -63,10 +65,10 @@
     (let [entitlements (extract-entitlement profile)
           env {"EMBEDDED_PROFILE_NAME" "embedded.mobileprovision"
                "CODESIGN_ALLOCATE" codesign-alloc}]
-      (system/exec ["codesign" "-f" "-s" identity "--entitlements" entitlements (.getAbsolutePath app-dir)] env))
+      (shell/sh "codesign" "-f" "-s" identity "--entitlements" entitlements (.getAbsolutePath app-dir) :env env))
 
     (.delete (io/file ipa))
-    (system/exec ["zip" "-qr" ipa "Payload"] package-dir {})
+    (shell/sh "zip" "-qr" ipa "Payload" :dir package-dir)
     app-dir))
 
 (handler/defhandler ::sign :dialog
@@ -109,7 +111,7 @@
 
 (defn- find-identities []
   (let [re #"\s+\d+\)\s+([0-9A-Z]+)\s+\"(.*?)\""
-        lines (.split ^String (second (system/exec ["security" "find-identity" "-v" "-p" "codesigning"] {})) "\n" )]
+        lines (.split ^String (:out (shell/sh "security" "find-identity" "-v" "-p" "codesigning")) "\n" )]
     (->> lines
          (map #(first (re-seq re %)))
          (remove nil?)

@@ -37,22 +37,14 @@ public class ResourceUnpacker {
         isInitialized = true;
 
         Path unpackPath  = getUnpackPath();
-        unpackResourceDir("/_unpack/" + Platform.getJavaPlatform().getPair(), unpackPath);
-        unpackResourceDir("/_unpack/shared", unpackPath);
+        unpackResourceDir("/_unpack/", unpackPath);
 
-        String[] platforms = new String[] { "armv7-ios", "arm64-ios" };
-        for (String p : platforms) {
-            Path dstPath = unpackPath.resolve(p);
-            dstPath.toFile().mkdirs();
-            unpackResourceDir("/_unpack/" + p, dstPath);
-        }
-
-        Path binDir = unpackPath.resolve("bin").toAbsolutePath();
+        Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
         if (binDir.toFile().exists()) {
             Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
         }
 
-        String libDir = unpackPath.resolve("lib").toAbsolutePath().toString();
+        String libDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath().toString();
         System.setProperty("java.library.path", libDir);
         System.setProperty("jna.library.path", libDir);
 

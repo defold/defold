@@ -100,11 +100,6 @@
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-output is)))))))
 
-(defn- launch-bundled [launch-dir prefs]
-  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)]
-    (do-launch path launch-dir prefs)))
-
 (defn- copy-file [source-path dest-path]
   (io/copy (io/file source-path) (io/file dest-path)))
 
@@ -151,6 +146,9 @@
     (get-engine-compiled workspace platform)
     (get-engine-bundled workspace platform)))
 
+(defn- launch-bundled [workspace launch-dir prefs]
+  (do-launch (.getAbsolutePath ^File (get-engine workspace prefs  (.getPair (Platform/getJavaPlatform)))) launch-dir prefs))
+
 (defn launch-compiled [workspace launch-dir prefs]
   (let [server-url "http://localhost:9000"
         cc (DefaultClientConfig.)
@@ -183,4 +181,4 @@
 (defn launch [prefs workspace launch-dir]
   (if (prefs/get-prefs prefs "enable-extensions" false)
     (launch-compiled workspace launch-dir prefs)
-    (launch-bundled launch-dir prefs)))
+    (launch-bundled workspace launch-dir prefs)))
