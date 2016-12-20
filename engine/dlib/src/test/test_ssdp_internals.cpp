@@ -387,28 +387,6 @@ TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
     dmSSDP::Delete(client);
 }
 
-TEST_F(dmSSDPInternalTest, ClientServer_Announce)
-{
-    // Setup
-    dmSSDP::Result result = dmSSDP::RESULT_OK;
-    dmSSDP::SSDP* client = CreateSSDPClient();
-    dmSSDP::SSDP* server = CreateSSDPServer();
-
-    dmSSDP::DeviceDesc deviceDesc;
-    CreateDeviceDescription(&deviceDesc);
-    result = dmSSDP::RegisterDevice(server, &deviceDesc);
-    ASSERT_EQ(dmSSDP::RESULT_OK, result);
-
-    // Test
-    dmSSDP::Update(server, false);
-    dmSSDP::Update(client, false);
-
-    ASSERT_GE(server->m_LocalAddrCount, 1);
-    ASSERT_EQ(server->m_LocalAddrCount, client->m_LocalAddrCount);
-
-
-}
-
 int main(int argc, char **argv)
 {
     srand(time(NULL));
