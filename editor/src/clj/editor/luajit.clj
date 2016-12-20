@@ -4,7 +4,8 @@
    [clojure.java.shell :as shell]
    [clojure.string :as str])
   (:import
-   (java.io File ByteArrayOutputStream)))
+   (java.io File ByteArrayOutputStream)
+   (com.defold.editor Platform)))
 
 (set! *warn-on-reflection* true)
 
@@ -13,13 +14,14 @@
   (-> (zipmap [:exec :filename :line :message] (map str/trim (str/split s #":")))
       (update :line #(try (Integer/parseInt %) (catch Exception _)))))
 
+
 (defn- luajit-exec-path
   []
-  (str (System/getProperty "defold.unpack.path") "/bin/luajit"))
+  (str (System/getProperty "defold.unpack.path") "/" (.getPair (Platform/getJavaPlatform)) "/bin/luajit"))
 
 (defn- luajit-lua-path
   []
-  (str (System/getProperty "defold.unpack.path") "/luajit"))
+  (str (System/getProperty "defold.unpack.path") "/shared/luajit"))
 
 (defn- compile-file
   [proj-path ^File input ^File output]

@@ -305,6 +305,8 @@
                               :command :build}
                              {:label "Fetch Libraries"
                               :command :fetch-libraries}
+                             {:label "Sign iOS App..."
+                              :command :sign-ios-app}
                              {:label :separator
                               :id ::project-end}]}])
 

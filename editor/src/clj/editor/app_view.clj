@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.bundle :as bundle]
             [editor.changes-view :as changes-view]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
@@ -716,3 +717,7 @@
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
+
+(handler/defhandler :sign-ios-app :global
+  (run [workspace project prefs]
+    (bundle/make-sign-dialog workspace prefs project)))
