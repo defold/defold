@@ -63,31 +63,31 @@ union SaveLoadBuffer
      * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however the limit on the total number of rows remains in effect.
      *
      * @name sys.save
-     * @param filename file to write to (string)
-     * @param table lua table to save (table)
-     * @return a boolean indicating if the table could be saved or not (boolean)
+     * @param filename [type:string] file to write to
+     * @param table [type:table] lua table to save
+     * @return success [type:boolean] a boolean indicating if the table could be saved or not
      * @examples
-     * <p>
+     *
      * Save data:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * local my_table = {}
      * table.add(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * if not sys.save(my_file_path, my_table) then
      *     -- Alert user that the data could not be saved
      * end
-     * </pre>
-     * <p>
+     * ```
+     *
      * And load it at a later time, e.g. next game session:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * local my_table = sys.load(my_file_path)
      * if not next(my_table) then
      *     -- empty table
      * end
-     * </pre>
+     * ```
      */
 
 #if !defined(__EMSCRIPTEN__)
@@ -161,8 +161,8 @@ union SaveLoadBuffer
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
      *
      * @name sys.load
-     * @param filename file to read from (string)
-     * @return loaded lua table, which is empty if the file could not be found (table)
+     * @param filename [type:string] file to read from
+     * @return loaded [type:table] lua table, which is empty if the file could not be found
      */
     int Sys_Load(lua_State* L)
     {
@@ -195,9 +195,9 @@ union SaveLoadBuffer
      * The save-file path is operating system specific and is typically located under the users home directory.
      *
      * @name sys.get_save_file
-     * @param application_id user defined id of the application, which helps define the location of the save-file (string)
-     * @param file_name file-name to get path for (string)
-     * @return path to save-file (string)
+     * @param application_id [type:string] user defined id of the application, which helps define the location of the save-file
+     * @param file_name [type:string] file-name to get path for
+     * @return path [type:string] path to save-file
      */
     int Sys_GetSaveFile(lua_State* L)
     {
@@ -230,31 +230,31 @@ union SaveLoadBuffer
      * Get config value from the game.project configuration file.
      *
      * @name sys.get_config
-     * @param key key to get value for. The syntax is SECTION.KEY (string)
-     * @return config value as a string. nil if the config key doesn't exists (string)
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @return value [type:string] config value as a string. nil if the config key doesn't exists
      * @examples
-     * <p>
+     *
      * Get display width
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * local width = tonumber(sys.get_config("display.width"))
-     * </pre>
+     * ```
      */
 
     /*# get config value with default value
      * Get config value from the game.project configuration file with default value
      *
      * @name sys.get_config
-     * @param key key to get value for. The syntax is SECTION.KEY (string)
-     * @param default_value default value to return if the value does not exist (string)
-     * @return config value as a string. default_value if the config key does not exist (string)
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param default_value [type:string] default value to return if the value does not exist
+     * @return value [type:string] config value as a string. default_value if the config key does not exist
      * @examples
-     * <p>
+     *
      * Get user config value
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * local speed = tonumber(sys.get_config("my_game.speed", "10.23"))
-     * </pre>
+     * ```
      */
     int Sys_GetConfig(lua_State* L)
     {
@@ -301,8 +301,8 @@ union SaveLoadBuffer
      * Open URL in default application, typically a browser
      *
      * @name sys.open_url
-     * @param url url to open (string)
-     * @return a boolean indicating if the url could be opened or not (boolean)
+     * @param url [type:string] url to open
+     * @return success [type:boolean] a boolean indicating if the url could be opened or not
      */
     int Sys_OpenURL(lua_State* L)
     {
@@ -319,24 +319,26 @@ union SaveLoadBuffer
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "game.project" settings file:
-     * <pre>
+     *
+     * ```
      * [project]
      * title = My project
      * version = 0.1
      * custom_resources = main/data/,assets/level_data.json
-     * </pre>
+     * ```
      *
      * @name sys.load_resource
-     * @param filename resource to load, full path (string)
-     * @return loaded data, which is empty if the file could not be found (string)
+     * @param filename [type:string] resource to load, full path
+     * @return data [type:string] loaded data, which is empty if the file could not be found
      * @examples
-     * <pre>
+     *
+     * ```lua
      * -- Load level data into a string
      * local data = sys.load_resource("/assets/level_data.json")
      * -- Decode json string to a Lua table
      * local data_table = json.decode(data)
      * pprint(data_table)
-     * </pre>
+     * ```
      */
     int Sys_LoadResource(lua_State* L)
     {
@@ -362,18 +364,35 @@ union SaveLoadBuffer
     }
 
     /*# get system information
-     * <p>
+     *
      * Returns a table with the following members:
-     * device_model, manufacturer, system_name, system_version, api_version, language, device_language, territory, gmt_offset (minutes), device_ident, ad_ident, ad_tracking_enabled and user_agent.
-     * </p>
-     * <p><code>device_model</code> and <code>manufacturer</code> is currently only available on iOS and Android.</p>
-     * <p><code>language</code> is in ISO-639 format (two characters) and <code>territory</code> in ISO-3166 format (two characters).</p>
-     * <p><code>device_language</code> is in ISO-639 format (two characters) and if applicable by a dash (-) and an ISO 15924 script code. Reflects device preferred language.</p>
-     * <p><code>device_ident</code> is "identifierForVendor" and <code>ad_ident</code> is "advertisingIdentifier" on iOS</p>
-     * <p><code>device_ident</code> is "android_id" and <code>ad_ident</code> is advertising ID provided by Google Play on Android.</p>
+     *
+     * - `device_model`
+     * - `manufacturer`
+     * - `system_name`
+     * - `system_version`
+     * - `api_version`
+     * - `language`
+     * - `device_language`
+     * - `territory`
+     * - `gmt_offset (minutes)`
+     * - `device_ident`
+     * - `ad_ident`
+     * - `ad_tracking_enabled`
+     * - `user_agent`
+     *
+     * [icon:ios][icon:android] `device_model` and `manufacturer` is currently only available on iOS and Android.
+     *
+     * `language` is in ISO-639 format (two characters) `territory` in ISO-3166 format (two characters).
+     *
+     * `device_language` is in ISO-639 format (two characters) and if applicable by a dash (-) and an ISO 15924 script code. Reflects device preferred language.
+     *
+     * [icon:ios] `device_ident` is "identifierForVendor" and `ad_ident` is "advertisingIdentifier" on iOS.
+     *
+     * [icon:andriod] `device_ident` is "android_id" and `ad_ident` is advertising ID provided by Google Play on Android.
      *
      * @name sys.get_sys_info
-     * @return table with system information (table)
+     * @return sys_info [type:table] table with system information
      */
     int Sys_GetSysInfo(lua_State* L)
     {
@@ -428,13 +447,14 @@ union SaveLoadBuffer
     }
 
     /*# get engine information
-     * <p>
+     *
      * Returns a table with the following members:
-     * version, engine_sha1.
-     * </p>
+     *
+     * - `version`
+     * - `engine_sha1`
      *
      * @name sys.get_engine_info
-     * @return table with engine information (table)
+     * @return engine_info [type:table] table with engine information
      */
     int Sys_GetEngineInfo(lua_State* L)
     {
@@ -456,13 +476,13 @@ union SaveLoadBuffer
     }
 
     /*# get application information
-     * <p>
+     *
      * Returns a table with the following members:
-     * installed.
-     * </p>
+     *
+     * - `installed`
      *
      * @name sys.get_application_info
-     * @return table with application information (table)
+     * @return app_info [type:table] table with application information
      */
     int Sys_GetApplicationInfo(lua_State* L)
     {
@@ -504,11 +524,20 @@ union SaveLoadBuffer
     }
 
     /*# enumerate network cards
-     * returns an array of tables with the following members:
-     * name, address (ip-string), mac (hardware address, colon separated string), up (bool), running (bool). NOTE: ip and mac might be nil if not available
+     *
+     * Returns an array of tables with the following members:
+     *
+     * - `name`
+     * - `address` (ip-string)
+     * - `mac` (hardware address
+     * - `colon` (separated string)
+     * - `up` (boolean)
+     * - `running` (boolean)
+     *
+     * [icon:attention] `address` and `mac` might be nil if not available
      *
      * @name sys.get_ifaddrs
-     * @return an array of tables (table)
+     * @return ifaddrs [type:table] an array of tables
      */
     int Sys_GetIfaddrs(lua_State* L)
     {
@@ -581,20 +610,24 @@ union SaveLoadBuffer
         return 1;
     }
 
-    /*# set the error handler. The error handler is a function which is called whenever a lua runtime error occurs.
+    /*# set the error handler
+     *
+     * Set the Lua error handler function.
+     * The error handler is a function which is called whenever a lua runtime error occurs.
+     *
+     * @name sys.set_error_handler
+     * @param error_handler [type:function(source, message, traceback)] the function to be called on error
      * @examples
-     * <p>
+     *
      * Install error handler that just prints the errors
-     * </p>
-     * <pre>
+     *
+     * ```lua
      *  sys.set_error_handler(function(source, message, traceback)
      *      print("source: " .. source);
      *      print("message: " .. message);
      *      print("traceback: " .. traceback);
      *  end)
-     * </pre>
-     * @name sys.set_error_handler
-     * @param error_handler the function to be called on error (function)
+     * ```
      */
     int Sys_SetErrorHandler(lua_State* L)
     {
@@ -618,12 +651,16 @@ union SaveLoadBuffer
     }
 
     /*# set host to check for network connectivity against
-     * @examples
-     * <pre>
-     *  sys.set_connectivity_host("www.google.com")
-     * </pre>
+     *
+     * Sets the host that is used to check for network connectivity against.
+     *
      * @name sys.set_connectivity_host
-     * @param host hostname to check against (string)
+     * @param host [type:string] hostname to check against
+     * @examples
+     *
+     * ```lua
+     *  sys.set_connectivity_host("www.google.com")
+     * ```
      */
     static int Sys_SetConnectivityHost(lua_State* L)
     {
@@ -634,17 +671,24 @@ union SaveLoadBuffer
     }
 
     /*# get current network connectivity status
+     *
+     * Returns the current network connectivity status:
+     *
+     * - `sys.NETWORK_DISCONNECTED` - if no network connection is found
+     * - `sys.NETWORK_CONNECTED_CELLULAR` - if connected through mobile cellular
+     * - `sys.NETWORK_CONNECTED` - otherwise
+     *
+     * @name sys.get_connectivity
+     * @return status [type:constant] network connectivity status:
      * @examples
-     * <p>
+     *
      * Check if we are connected through a cellular connection
-     * </p>
-     * <pre>
+     *
+     * ```lua
      *  if (sys.NETWORK_CONNECTED_CELLULAR == sys.get_connectivity()) then
      *      print("Connected via cellular, avoid downloading big files!")
      *  end
-     * </pre>
-     * @name sys.get_connectivity
-     * @return sys.NETWORK_DISCONNECTED if no network connection is found, sys.NETWORK_CONNECTED_CELLULAR if connected through mobile cellular, otherwise sys.NETWORK_CONNECTED (number)
+     * ```
      */
     static int Sys_GetConnectivity(lua_State* L)
     {
