@@ -903,21 +903,27 @@ namespace dmSound
     static bool IsMuted(SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
 
-        bool result = instance->m_Gain.IsZero();
+        if (instance->m_Gain.IsZero()) {
+            return true;
+        }
 
         int* group_index = sound->m_GroupMap.Get(instance->m_Group);
         if (group_index != NULL) {
             SoundGroup* group = &sound->m_Groups[*group_index];
-            result |= group->m_Gain.IsZero();
+            if (group->m_Gain.IsZero()) {
+                return true;
+            }
         }
 
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         if (master_index != NULL) {
             SoundGroup* master = &sound->m_Groups[*master_index];
-            result |= master->m_Gain.IsZero();
+            if (master->m_Gain.IsZero()) {
+                return true;
+            }
         }
 
-        return result;
+        return false;
     }
 
     static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
