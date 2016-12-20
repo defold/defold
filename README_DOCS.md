@@ -11,7 +11,7 @@ The documentation formatter accepts Markdown with a few extensions:
 Fenced codeblocks
 : Denote with three backticks. The first one can contain a language specifier for syntax coloring:
 
-````
+~~~~
 ```
 function init(self)
     local pos = go.get("player", "position")
@@ -23,7 +23,7 @@ function init(self)
     local pos = go.get("player", "position")
 end
 ```
-````
+~~~~
 
 Table support
 : Tables can be written simply:
