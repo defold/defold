@@ -97,12 +97,24 @@ namespace
         return index;
     }
 
-    dmSSDP::SSDP* CreateSSDPInstance()
+    dmSSDP::SSDP* CreateSSDPClient()
     {
         dmSSDP::SSDP* instance = new dmSSDP::SSDP();
         dmSSDP::NewParams params;
-        dmSSDP::Result actual = dmSSDP::New(&params, &instance);
+        dmSSDP::New(&params, &instance);
 
+        return instance;
+    }
+
+    dmSSDP::SSDP* CreateSSDPServer(int max_age = 1800, int announce_interval = 900, bool announce = false)
+    {
+        dmSSDP::SSDP* instance = new dmSSDP::SSDP();
+        dmSSDP::NewParams params;
+        params.m_MaxAge = max_age;
+        params.m_AnnounceInterval = announce_interval;
+        params.m_Announce = announce ? 1 : 0;
+
+        dmSSDP::New(&params, &instance);
         return instance;
     }
 
@@ -184,18 +196,16 @@ TEST_F(dmSSDPInternalTest, New)
     ASSERT_TRUE(instance->m_HttpServer != NULL);
 
     // Teardown
-    dmHttpServer::Delete(instance->m_HttpServer);
-    dmSSDP::Disconnect(instance);
-    delete instance;
+    dmSSDP::Delete(instance);
 }
 
 TEST_F(dmSSDPInternalTest, Delete)
 {
     // Setup
-    dmSSDP::SSDP* instance = CreateSSDPInstance();
+    dmSSDP::SSDP* instance = CreateSSDPClient();
 
     // Test
-    dmSSDP::Result actual = Delete(instance);
+    dmSSDP::Result actual = dmSSDP::Delete(instance);
     ASSERT_EQ(dmSSDP::RESULT_OK, actual);
 }
 
@@ -206,7 +216,7 @@ TEST_F(dmSSDPInternalTest, Delete)
 TEST_F(dmSSDPInternalTest, RegisterDevice)
 {
     // Setup
-    dmSSDP::SSDP* instance = CreateSSDPInstance();
+    dmSSDP::SSDP* instance = CreateSSDPClient();
     dmSSDP::DeviceDesc deviceDesc;
     CreateDeviceDescription(&deviceDesc);
 
@@ -218,15 +228,14 @@ TEST_F(dmSSDPInternalTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTRED, actual);
 
     // Teardown
-    RemoveRegisteredDevice(instance, &deviceDesc);
     FreeDeviceDescription(&deviceDesc);
-    delete instance;
+    dmSSDP::Delete(instance);
 }
 
 TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
 {
     // Setup
-    dmSSDP::SSDP* instance = CreateSSDPInstance();
+    dmSSDP::SSDP* instance = CreateSSDPClient();
 
     // Test
     dmSSDP::DeviceDesc deviceDescs[32];
@@ -237,6 +246,7 @@ TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
         ASSERT_EQ(dmSSDP::RESULT_OK, actual);
     }
 
+    // Test register too many devices
     dmSSDP::DeviceDesc deviceDescOverflow;
     CreateDeviceDescription(&deviceDescOverflow);
     dmSSDP::Result actual = dmSSDP::RegisterDevice(instance, &deviceDescOverflow);
@@ -246,16 +256,15 @@ TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
     // Teardown
     for (unsigned int i = 0; i < 32; ++i)
     {
-        RemoveRegisteredDevice(instance, &deviceDescs[i]);
         FreeDeviceDescription(&deviceDescs[i]);
     }
-    delete instance;
+    dmSSDP::Delete(instance);
 }
 
 TEST_F(dmSSDPInternalTest, DeregisterDevice)
 {
     // Setup
-    dmSSDP::SSDP* instance = CreateSSDPInstance();
+    dmSSDP::SSDP* instance = CreateSSDPClient();
 
     dmSSDP::DeviceDesc deviceDesc;
     CreateDeviceDescription(&deviceDesc);
@@ -272,7 +281,7 @@ TEST_F(dmSSDPInternalTest, DeregisterDevice)
 
     // Teardown
     FreeDeviceDescription(&deviceDesc);
-    delete instance;
+    dmSSDP::Delete(instance);
 }
 
 /* -------------------------------------------------------------------------*
@@ -281,7 +290,7 @@ TEST_F(dmSSDPInternalTest, DeregisterDevice)
 TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
 {
     // Setup
-    dmSSDP::SSDP* instance = CreateSSDPInstance();
+    dmSSDP::SSDP* instance = CreateSSDPClient();
 
     // Test
     dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES] = { 0 };
@@ -298,18 +307,17 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
             << "An interface has been ignored";
         ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance->m_LocalAddrSocket[i])
             << "An interface has an invalid socket handle";
-        dmSocket::Delete(instance->m_LocalAddrSocket[i]);
     }
 
     // Teardown
-    delete instance;
+    dmSSDP::Delete(instance);
 }
 
 TEST_F(dmSSDPInternalTest, SendAnnounce)
 {
     // Setup
     dmSSDP::Result result = dmSSDP::RESULT_OK;
-    dmSSDP::SSDP* instance = CreateSSDPInstance();
+    dmSSDP::SSDP* instance = CreateSSDPClient();
 
     dmSSDP::DeviceDesc deviceDesc;
     CreateDeviceDescription(&deviceDesc);
@@ -325,20 +333,15 @@ TEST_F(dmSSDPInternalTest, SendAnnounce)
     ASSERT_TRUE(dmSSDP::SendAnnounce(instance, *device, 0));
 
     // Teardown
-    for (unsigned int i = 0; i < interface_count; ++i)
-    {
-        dmSocket::Delete(instance->m_LocalAddrSocket[i]);
-    }
-    RemoveRegisteredDevice(instance, &deviceDesc);
     FreeDeviceDescription(&deviceDesc);
-    delete instance;
+    dmSSDP::Delete(instance);
 }
 
 TEST_F(dmSSDPInternalTest, SendUnannounce)
 {
     // Setup
     dmSSDP::Result result = dmSSDP::RESULT_OK;
-    dmSSDP::SSDP* instance = CreateSSDPInstance();
+    dmSSDP::SSDP* instance = CreateSSDPClient();
 
     dmSSDP::DeviceDesc deviceDesc;
     CreateDeviceDescription(&deviceDesc);
@@ -354,13 +357,56 @@ TEST_F(dmSSDPInternalTest, SendUnannounce)
     ASSERT_NO_FATAL_FAILURE(dmSSDP::SendUnannounce(instance, *device, 0));
 
     // Teardown
-    for (unsigned int i = 0; i < interface_count; ++i)
-    {
-        dmSocket::Delete(instance->m_LocalAddrSocket[i]);
-    }
-    RemoveRegisteredDevice(instance, &deviceDesc);
     FreeDeviceDescription(&deviceDesc);
-    delete instance;
+    dmSSDP::Delete(instance);
+}
+
+TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
+{
+    // Setup
+    dmSSDP::Result result = dmSSDP::RESULT_OK;
+    dmSSDP::SSDP* client = CreateSSDPClient();
+    dmSSDP::SSDP* server = CreateSSDPServer();
+
+    // Test
+    dmSSDP::Update(server, false);
+    dmSSDP::Update(client, false);
+
+    ASSERT_GE(server->m_LocalAddrCount, 1);
+    ASSERT_EQ(server->m_LocalAddrCount, client->m_LocalAddrCount);
+
+    for (unsigned int i = 0; i < server->m_LocalAddrCount; ++i)
+    {
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, client->m_LocalAddrSocket[i]);
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, server->m_LocalAddrSocket[i]);
+        ASSERT_EQ(server->m_LocalAddr[i].m_Address, client->m_LocalAddr[i].m_Address);
+    }
+
+    // Teardown
+    dmSSDP::Delete(server);
+    dmSSDP::Delete(client);
+}
+
+TEST_F(dmSSDPInternalTest, ClientServer_Announce)
+{
+    // Setup
+    dmSSDP::Result result = dmSSDP::RESULT_OK;
+    dmSSDP::SSDP* client = CreateSSDPClient();
+    dmSSDP::SSDP* server = CreateSSDPServer();
+
+    dmSSDP::DeviceDesc deviceDesc;
+    CreateDeviceDescription(&deviceDesc);
+    result = dmSSDP::RegisterDevice(server, &deviceDesc);
+    ASSERT_EQ(dmSSDP::RESULT_OK, result);
+
+    // Test
+    dmSSDP::Update(server, false);
+    dmSSDP::Update(client, false);
+
+    ASSERT_GE(server->m_LocalAddrCount, 1);
+    ASSERT_EQ(server->m_LocalAddrCount, client->m_LocalAddrCount);
+
+
 }
 
 int main(int argc, char **argv)
