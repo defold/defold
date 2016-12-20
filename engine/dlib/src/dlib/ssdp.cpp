@@ -226,25 +226,33 @@ bail:
                 dmLogDebug("SSDP Update: Creating new socket on #%02d", i);
                 new_socket[i] = dmSocket::INVALID_SOCKET_HANDLE;
 
-                if (addr.m_family != dmSocket::DOMAIN_IPV4 && addr.m_family != dmSocket::DOMAIN_IPV6)
+                if (addr.m_family == dmSocket::DOMAIN_IPV6)
                 {
+                    dmLogDebug("Skipping interface with IPv6 domain (#%02d)", i);
+                    continue;
+                } else if (addr.m_family != dmSocket::DOMAIN_IPV4)
+                {
+                    dmLogDebug("Skipping interface with unknown domain (#%02d)", i);
                     continue;
                 }
 
                 dmSocket::Socket s = NewSocket(addr.m_family);
                 if (s == dmSocket::INVALID_SOCKET_HANDLE)
                 {
+                    dmLogDebug("Skipping interface, unable to create socket (#%02d)", i);
                     continue;
                 }
 
                 if (dmSocket::RESULT_OK != dmSocket::SetMulticastIf(s, addr))
                 {
+                    dmLogDebug("Skipping interface, unable to multicast (#%02d)", i);
                     dmSocket::Delete(s);
                     continue;
                 }
 
                 if (dmSocket::RESULT_OK != dmSocket::Bind(s, addr, 0))
                 {
+                    dmLogDebug("Skipping interface, unable to bind (#%02d)", i);
                     dmSocket::Delete(s);
                     continue;
                 }
