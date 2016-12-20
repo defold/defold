@@ -92,6 +92,7 @@ mkdir -p "${BUILD}"
     "${CODESIGN}" -f -s "${IDENTITY}" --entitlements "${ENTITLEMENT}" "Payload/${APPLICATION}.app"
 
     "${ZIP}" -qr "${TARGET}.ipa" "Payload"
+    [ -d "${TARGET}.app" ] && rm -rf "${TARGET}.app"
     cp -r "Payload/${APPLICATION}.app" "${TARGET}.app"
 )
 
