@@ -134,7 +134,7 @@
           (do
             (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
             f)
-          (throw (Exception. (str cr))))))))
+          (throw (Exception. (str (.getEntity cr String) "\n"))))))))
 
 (defn- get-engine-bundled [workspace platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
