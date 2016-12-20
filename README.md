@@ -7,6 +7,9 @@ Repository for engine, editor and server.
 Follow current code style and use 4 spaces for tabs. Never commit code
 with trailing white-spaces.
 
+API documentation is generated from source comments. See README_DOCS.md for help on style and
+conventions.
+
 For Eclipse:
 * Install [AnyEditTools](http://andrei.gmxhome.de/eclipse.html) for easy Tabs to Spaces support
 * Import the code formating xml: Eclipse -> Preferences: C/C++ -> CodeStyle -> Formatter .. Import 'defold/share/codestyle.xml' and set ”Dynamo” as active profile
