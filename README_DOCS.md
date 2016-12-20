@@ -12,17 +12,17 @@ Fenced codeblocks
 : Denote with three backticks. The first one can contain a language specifier for syntax coloring:
 
 ```
- ```
- function init(self)
-     local pos = go.get("player", "position")
- end
- ```
+\`\`\`
+function init(self)
+    local pos = go.get("player", "position")
+end
+\`\`\`
 
- ```lua
- function init(self)
-     local pos = go.get("player", "position")
- end
- ```
+\`\`\`lua
+function init(self)
+    local pos = go.get("player", "position")
+end
+\`\`\`
 ```
 
 Table support
