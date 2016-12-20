@@ -13,7 +13,7 @@ from markdown.inlinepatterns import Pattern
 import script_doc_ddf_pb2
 
 #
-#   This extension allows the use of [ref:go.animate] reference tags in source
+#   This extension allows the use of [ref:go.animate] or [ref:animate] reference tags in source
 #
 class RefExtensionException(Exception):
     pass
@@ -33,8 +33,11 @@ class RefPattern(Pattern):
 
     def handleMatch(self, m):
         ref = m.group(3)
-        (ns, name) = ref.split('.')
-        refurl = ('/ref/%s#%s') % (ns, ref)
+        s = ref.split('.')
+        if len(s) == 2:
+            refurl = ('/ref/%s#%s') % (s[0], ref)
+        else:
+            refurl = ('#%s') % (s[0])
         el = etree.Element('a')
         el.text = ref
         el.set('href', refurl)

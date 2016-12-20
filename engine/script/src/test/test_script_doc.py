@@ -264,14 +264,14 @@ foobar
  * MY_DESC
  * @name MY_MESSAGE
  * @examples example:
- * See [ref:some.func] for example
+ * See [ref:some.func] for example or [ref:func]
  */
 """
         elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
         self.assertEqual(u'<p>MY_DESC</p>', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
-        self.assertEqual(u'<p>example:\nSee <a href="/ref/some#some.func">some.func</a> for example</p>', elements[0].examples)
+        self.assertEqual(u'<p>example:\nSee <a href="/ref/some#some.func">some.func</a> for example or <a href="#func">func</a></p>', elements[0].examples)
 
     def test_at(self):
         doc= """
