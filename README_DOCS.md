@@ -9,7 +9,21 @@ rendering documentation and provide completion.
 The documentation formatter accepts Markdown with a few extensions:
 
 Fenced codeblocks
-: Denote with three backticks <code>```</code> on a line by itself and ending with another three backticks on a line. The opening line of ticks can contain a language name for syntax highlighting, for instance <code>```lua"</code>
+: Denote with three backticks. The first one can contain a language specifier for syntax coloring:
+
+```
+ ```
+ function init(self)
+     local pos = go.get("player", "position")
+ end
+ ```
+
+ ```lua
+ function init(self)
+     local pos = go.get("player", "position")
+ end
+ ```
+```
 
 Table support
 : Tables can be written simply:
