@@ -116,7 +116,7 @@ namespace
 
 };
 
-class dmSSDPTest: public ::testing::Test
+class dmSSDPInternalTest: public ::testing::Test
 {
 public:
 
@@ -136,7 +136,7 @@ public:
 /* -------------------------------------------------------------------------*
  * (Internal functions) Create/Connect new SSDP sockets
  * ------------------------------------------------------------------------ */
-TEST_F(dmSSDPTest, NewSocket_IPv4)
+TEST_F(dmSSDPInternalTest, NewSocket_IPv4)
 {
     dmSocket::Socket instance = dmSSDP::NewSocket(dmSocket::DOMAIN_IPV4);
     ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
@@ -145,7 +145,7 @@ TEST_F(dmSSDPTest, NewSocket_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, actual);
 }
 
-TEST_F(dmSSDPTest, NewSocket_IPv6)
+TEST_F(dmSSDPInternalTest, NewSocket_IPv6)
 {
     dmSocket::Socket instance = dmSSDP::NewSocket(dmSocket::DOMAIN_IPV6);
     ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance);
@@ -154,7 +154,7 @@ TEST_F(dmSSDPTest, NewSocket_IPv6)
     ASSERT_EQ(dmSocket::RESULT_OK, actual);
 }
 
-TEST_F(dmSSDPTest, Connect)
+TEST_F(dmSSDPInternalTest, Connect)
 {
     dmSSDP::SSDP* instance = new dmSSDP::SSDP();
     dmSSDP::Result actual = dmSSDP::Connect(instance);
@@ -169,7 +169,7 @@ TEST_F(dmSSDPTest, Connect)
 /* -------------------------------------------------------------------------*
  * (Exposed function) Create/Delete new SSDP instances
  * ------------------------------------------------------------------------ */
-TEST_F(dmSSDPTest, New)
+TEST_F(dmSSDPInternalTest, New)
 {
     // Setup
     dmSSDP::SSDP* instance = NULL;
@@ -189,7 +189,7 @@ TEST_F(dmSSDPTest, New)
     delete instance;
 }
 
-TEST_F(dmSSDPTest, Delete)
+TEST_F(dmSSDPInternalTest, Delete)
 {
     // Setup
     dmSSDP::SSDP* instance = CreateSSDPInstance();
@@ -203,7 +203,7 @@ TEST_F(dmSSDPTest, Delete)
 /* -------------------------------------------------------------------------*
  * (Exposed function) Register/Remove device for SSDP instance
  * ------------------------------------------------------------------------ */
-TEST_F(dmSSDPTest, RegisterDevice)
+TEST_F(dmSSDPInternalTest, RegisterDevice)
 {
     // Setup
     dmSSDP::SSDP* instance = CreateSSDPInstance();
@@ -223,7 +223,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
     delete instance;
 }
 
-TEST_F(dmSSDPTest, RegisterDevice_MaximumDevices)
+TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
 {
     // Setup
     dmSSDP::SSDP* instance = CreateSSDPInstance();
@@ -252,7 +252,7 @@ TEST_F(dmSSDPTest, RegisterDevice_MaximumDevices)
     delete instance;
 }
 
-TEST_F(dmSSDPTest, DeregisterDevice)
+TEST_F(dmSSDPInternalTest, DeregisterDevice)
 {
     // Setup
     dmSSDP::SSDP* instance = CreateSSDPInstance();
@@ -278,7 +278,7 @@ TEST_F(dmSSDPTest, DeregisterDevice)
 /* -------------------------------------------------------------------------*
  * (Internal functions) Update SSDP instance
  * ------------------------------------------------------------------------ */
-TEST_F(dmSSDPTest, UpdateListeningSockets)
+TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
 {
     // Setup
     dmSSDP::SSDP* instance = CreateSSDPInstance();
@@ -305,7 +305,7 @@ TEST_F(dmSSDPTest, UpdateListeningSockets)
     delete instance;
 }
 
-TEST_F(dmSSDPTest, SendAnnounce)
+TEST_F(dmSSDPInternalTest, SendAnnounce)
 {
     // Setup
     dmSSDP::Result result = dmSSDP::RESULT_OK;
@@ -334,7 +334,7 @@ TEST_F(dmSSDPTest, SendAnnounce)
     delete instance;
 }
 
-TEST_F(dmSSDPTest, SendUnannounce)
+TEST_F(dmSSDPInternalTest, SendUnannounce)
 {
     // Setup
     dmSSDP::Result result = dmSSDP::RESULT_OK;
