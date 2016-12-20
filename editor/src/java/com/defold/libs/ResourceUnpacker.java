@@ -37,15 +37,14 @@ public class ResourceUnpacker {
         isInitialized = true;
 
         Path unpackPath  = getUnpackPath();
-        unpackResourceDir("/_unpack/" + Platform.getJavaPlatform().getPair(), unpackPath);
-        unpackResourceDir("/_unpack/shared", unpackPath);
+        unpackResourceDir("/_unpack/", unpackPath);
 
-        Path binDir = unpackPath.resolve("bin").toAbsolutePath();
+        Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
         if (binDir.toFile().exists()) {
             Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
         }
 
-        String libDir = unpackPath.resolve("lib").toAbsolutePath().toString();
+        String libDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath().toString();
         System.setProperty("java.library.path", libDir);
         System.setProperty("jna.library.path", libDir);
 
@@ -73,15 +72,16 @@ public class ResourceUnpacker {
                 path = Paths.get(uri);
             }
 
-            Stream<Path> walk = Files.walk(path);
-            for (Iterator<Path> it = walk.iterator(); it.hasNext();) {
-                Path source = it.next();
-                Path dest = target.resolve(Paths.get(path.relativize(source).toString()));
-                if (dest.equals(target)) {
-                    continue;
+            try (Stream<Path> walk = Files.walk(path)) {
+                for (Iterator<Path> it = walk.iterator(); it.hasNext();) {
+                    Path source = it.next();
+                    Path dest = target.resolve(Paths.get(path.relativize(source).toString()));
+                    if (dest.equals(target)) {
+                        continue;
+                    }
+                    logger.debug("unpacking '{}' to '{}'", source, dest);
+                    Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
                 }
-                logger.debug("unpacking '{}' to '{}'", source, dest);
-                Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
             }
         }
     }
