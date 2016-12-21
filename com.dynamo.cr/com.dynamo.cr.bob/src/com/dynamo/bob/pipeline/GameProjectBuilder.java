@@ -237,12 +237,10 @@ public class GameProjectBuilder extends Builder<Void> {
                 zipOutputStream.putNextEntry(currentEntry);
 
                 FileInputStream currentInputStream = new FileInputStream(filepath);
-                int currentOffset = 0;
                 int currentLength = 0;
                 byte[] currentBuffer = new byte[1024];
                 while ((currentLength = currentInputStream.read(currentBuffer)) > 0) {
-                    zipOutputStream.write(currentBuffer, currentOffset, currentLength);
-                    currentOffset += currentLength;
+                    zipOutputStream.write(currentBuffer, 0, currentLength);
                 }
 
                 currentInputStream.close();

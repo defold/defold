@@ -36,24 +36,26 @@ def build(bld):
     archive2 = bld.new_task_gen(features = 'archive2',
                                archive_target_index='test.arci',
                                archive_target_data='test.arcd',
+                               rel_path='default/src/test/',
                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
     
     compressed_archive2 = bld.new_task_gen(features = 'archive2',
                                archive_target_index='test_compressed.arci',
                                archive_target_data='test_compressed.arcd',
                                use_compression=True,
+                               rel_path='default/src/test/',
                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 # --- END darc2
 
     # Same as above but created with the java-based archive builder
-    jarchive = bld.new_task_gen(features = 'jarchive',
-                                archive_target='test.jarc',
-                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+    # jarchive = bld.new_task_gen(features = 'jarchive',
+    #                             archive_target='test.jarc',
+    #                             source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
-    compressed_jarchive = bld.new_task_gen(features = 'jarchive',
-                                archive_target='test_compressed.jarc',
-                                use_compression=True,
-                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+    # compressed_jarchive = bld.new_task_gen(features = 'jarchive',
+    #                             archive_target='test_compressed.jarc',
+    #                             use_compression=True,
+    #                             source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
     bld.add_group()
 
@@ -79,6 +81,7 @@ def build(bld):
                                           source = bld.path.ant_glob('*.*_pb'),
                                           archive_target_index='test.arci',
                                           archive_target_data='test.arcd',
+                                          rel_path='default/src/test/',
                                           )
 
     test_resource_arc2.install_path = None

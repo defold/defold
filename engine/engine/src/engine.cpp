@@ -413,15 +413,15 @@ namespace dmEngine
             dmStrlCpy(tmp, content_root, sizeof(tmp));
             if (content_root[0])
             {
-                dmStrlCat(tmp, "/game.darc", sizeof(tmp));
+                dmStrlCat(tmp, "/game.dmanifest", sizeof(tmp));
             }
             else
             {
-                dmStrlCat(tmp, "game.darc", sizeof(tmp));
+                dmStrlCat(tmp, "game.dmanifest", sizeof(tmp));
             }
             if (dmSys::ResourceExists(tmp))
             {
-                dmStrlCpy(content_root, "arc:", sizeof(content_root));
+                dmStrlCpy(content_root, "dmanif:", sizeof(content_root));
                 dmStrlCat(content_root, tmp, sizeof(content_root));
             }
         }

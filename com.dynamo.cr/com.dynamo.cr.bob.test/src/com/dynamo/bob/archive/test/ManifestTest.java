@@ -5,7 +5,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -32,6 +36,7 @@ import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.google.protobuf.ByteString;
+import org.apache.commons.io.FileUtils;
 
 public class ManifestTest {
 
@@ -319,6 +324,34 @@ public class ManifestTest {
         assertNotNull(actual);
 
         assertArrayEquals(expected, actual);
+    }
+    
+    @Test
+    public void testReadManifestFile() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+        ManifestInstance instance = new ManifestInstance();
+        ManifestFile manifestFile = instance.manifestBuilder.buildManifestFile();
+        
+        File tmp_file = Files.createTempFile("test_tmp", "dmanifest").toFile();
+        FileOutputStream fouts = new FileOutputStream(tmp_file);
+        manifestFile.writeTo(fouts);
+        fouts.close();
+        
+        FileInputStream fins = new FileInputStream(tmp_file);
+        ManifestFile manifestFile2 = ManifestFile.parseFrom(fins);
+        fins.close();
+        
+        assertEquals(true, manifestFile2.hasData());
+        
+        ManifestHeader header = manifestFile2.getData().getHeader();
+        
+        assertEquals(ManifestBuilder.CONST_MAGIC_NUMBER, header.getMagicNumber());
+        assertEquals(ManifestBuilder.CONST_VERSION, header.getVersion());
+        assertEquals(HashAlgorithm.HASH_SHA1, header.getResourceHashAlgorithm());
+        assertEquals(HashAlgorithm.HASH_SHA1, header.getSignatureHashAlgorithm());
+        assertEquals(SignAlgorithm.SIGN_RSA, header.getSignatureSignAlgorithm());
+        assertEquals(instance.projectIdentifierHash(), header.getProjectIdentifier());
+        
+        FileUtils.deleteQuietly(tmp_file);
     }
 
     @Test
