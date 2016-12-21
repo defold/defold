@@ -185,6 +185,44 @@ TEST_P(ComponentFailTest, Test)
     ASSERT_EQ((void*)0, go);
 }
 
+// Test getting texture0 properties on components.
+TEST_P(TexturePropTest, GetTextureProperty)
+{
+    const TexturePropParams& p =  GetParam();
+
+    dmhash_t hash_comp_1_1 = p.comp_same_1;
+    dmhash_t hash_comp_1_2 = p.comp_same_2;
+    dmhash_t hash_comp_2   = p.comp_different;
+
+    dmGameObject::PropertyDesc prop_value1, prop_value2;
+
+    // Spawn a go with three components, two with same texture and one with a unique.
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Valid property
+    dmGameObject::PropertyResult prop_res = dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, prop_res);
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_HASH, prop_value1.m_Variant.m_Type);
+
+    // Invalid property
+    prop_res = dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id_invalid, prop_value1);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, prop_res);
+
+    // Compare comp_1_1 and comp_1_2 which need to have the same texture.
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_2, hash_property_id, prop_value2));
+    ASSERT_EQ(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
+
+    // Compare comp_1_1 and comp_2 which don't have the same texture.
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_2, hash_property_id, prop_value2));
+    ASSERT_NE(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+
 // Test that go.delete() does not influence other sprite animations in progress
 TEST_F(SpriteAnimTest, GoDeletion)
 {
@@ -686,8 +724,14 @@ INSTANTIATE_TEST_CASE_P(Label, ComponentTest, ::testing::ValuesIn(valid_label_go
 const char* invalid_label_gos[] = {"/label/invalid_label.goc"};
 INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, ::testing::ValuesIn(invalid_label_gos));
 
+/* Get texture0 property on sprite and model */
 
-
+TexturePropParams texture_prop_params[] =
+{
+    {"/resource/sprite.goc", dmHashString64("sprite_1_1"), dmHashString64("sprite_1_2"), dmHashString64("sprite_2")},
+    {"/resource/model.goc", dmHashString64("model_1_1"), dmHashString64("model_1_2"), dmHashString64("model_2")},
+};
+INSTANTIATE_TEST_CASE_P(TextureProperty, TexturePropTest, ::testing::ValuesIn(texture_prop_params));
 
 int main(int argc, char **argv)
 {

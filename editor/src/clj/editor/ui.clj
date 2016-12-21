@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.set :as set]
    [clojure.string :as string]
+   [editor.error-reporting :as error-reporting]
    [editor.handler :as handler]
    [editor.jfx :as jfx]
    [editor.progress :as progress]
@@ -15,19 +16,20 @@
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
+   [java.awt Desktop]
+   [java.net URI]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans.value ChangeListener ObservableValue]
-   [javafx.collections ObservableList ListChangeListener ListChangeListener$Change]
+   [javafx.collections ObservableList ListChangeListener]
    [javafx.css Styleable]
-   [javafx.event ActionEvent EventHandler WeakEventHandler Event]
+   [javafx.event EventHandler WeakEventHandler Event]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
    [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
-   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent KeyCode]
+   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image]
-   [javafx.scene.layout Region]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window]
@@ -138,33 +140,6 @@
         (let [listeners (-> (or (user-data node ::list-listeners) [])
                           (conj listener))]
           (user-data! node ::list-listeners listeners))))))
-
-(defmacro observe-selection
-  "Helper macro that lets you observe selection changes in a generic fashion.
-  Takes a Node that has a getSelectionModel method and a function that takes
-  the reporting Node and a vector with the selected items as its arguments.
-
-  This is a macro because JavaFX does not have a common interface for classes
-  that feature a getSelectionModel method. To avoid reflection warnings, tag
-  the node argument with type metadata.
-
-  Supports both single and multi-selection. In both cases the selected items
-  will be provided in a vector."
-  [node listen-fn]
-  `(let [selection-owner# ~node
-         selection-listener# ~listen-fn
-         selection-model# (.getSelectionModel selection-owner#)]
-     (condp instance? selection-model#
-       MultipleSelectionModel
-       (observe-list selection-owner#
-                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
-                     (fn [_# selected-items#]
-                       (selection-listener# selection-owner# selected-items#)))
-
-       SelectionModel
-       (observe (.selectedItemProperty ^SelectionModel selection-model#)
-                (fn [_# _# selected-item#]
-                  (selection-listener# selection-owner# [selected-item#]))))))
 
 (defn remove-list-observers
   [^Node node ^ObservableList observable]
@@ -367,7 +342,10 @@
 (extend-type Tab
   HasUserData
   (user-data [this key] (get (.getUserData this) key))
-  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val)))
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
 
 (defprotocol HasAction
   (on-action! [this fn]))
@@ -575,19 +553,16 @@
       item)
     []))
 
-
 (defn select-indices!
   [^TreeView tree-view indices]
   (doto (.getSelectionModel tree-view)
     (tree-view-hack/subvert-broken-selection-model-optimization!)
-    (.selectIndices  (int (first indices)) (int-array (rest indices)))))
+    (.selectIndices (int (first indices)) (int-array (rest indices)))))
 
 (extend-type TreeView
   CollectionView
   (selection [this] (some->> this
-                      (.getSelectionModel)
-                      (.getSelectedItems)
-                      (filter (comp not nil?))
+                      tree-view-hack/broken-selected-tree-items
                       (mapv #(.getValue ^TreeItem %))))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
@@ -603,7 +578,7 @@
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
 (defn selection-root-items [^TreeView tree-view path-fn id-fn]
-  (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
+  (let [selection (tree-view-hack/broken-selected-tree-items tree-view)]
     (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
           roots (loop [paths (keys items)
                        roots []]
@@ -632,6 +607,33 @@
                                       (.getParent last-item))))
                               (.getRoot tree-view))]
     [(.getValue next-item)]))
+
+(defmacro observe-selection
+  "Helper macro that lets you observe selection changes in a generic fashion.
+  Takes a Node that has a getSelectionModel method and a function that takes
+  the reporting Node and a vector with the selected items as its arguments.
+
+  This is a macro because JavaFX does not have a common interface for classes
+  that feature a getSelectionModel method. To avoid reflection warnings, tag
+  the node argument with type metadata.
+
+  Supports both single and multi-selection. In both cases the selected items
+  will be provided in a vector."
+  [node listen-fn]
+  `(let [selection-owner# ~node
+         selection-listener# ~listen-fn
+         selection-model# (.getSelectionModel selection-owner#)]
+     (condp instance? selection-model#
+       MultipleSelectionModel
+       (observe-list selection-owner#
+                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
+                     (fn [_# _#]
+                       (selection-listener# selection-owner# (selection selection-owner#))))
+
+       SelectionModel
+       (observe (.selectedItemProperty ^SelectionModel selection-model#)
+                (fn [_# _# _#]
+                  (selection-listener# selection-owner# (selection selection-owner#)))))))
 
 ;; context handling
 
@@ -687,10 +689,10 @@
           ^Tab tab (.getSelectedItem (.getSelectionModel tab-pane))]
       (or (and tab (.getContent tab) (user-data (.getContent tab) ::context))
           (user-data node ::context)))
-    
+
     (instance? TextInputControl node)
     (make-text-input-control-context node)
-    
+
     :else
     (user-data node ::context)))
 
@@ -1203,8 +1205,7 @@ command."
   ([fps name tick-fn]
    (let [last       (atom (System/nanoTime))
          interval   (when fps
-                      (long (* 1e9 (/ 1 (double fps)))))
-         last-error (atom nil)]
+                      (long (* 1e9 (/ 1 (double fps)))))]
      {:last  last
       :timer (proxy [AnimationTimer] []
                (handle [now]
@@ -1213,15 +1214,11 @@ command."
                                      (when (or (nil? interval) (> delta interval))
                                        (try
                                          (tick-fn this (* delta 1e-9))
-                                         (reset! last-error nil)
                                          (reset! last (- now (if interval
                                                                (- delta interval)
                                                                0)))
-                                         (catch Exception e
-                                           (let [clj-ex (Throwable->map e)]
-                                             (when (not= @last-error clj-ex)
-                                               (println clj-ex)
-                                               (reset! last-error clj-ex))))))))))})))
+                                         (catch Throwable t
+                                           (error-reporting/report-exception! t))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -1232,23 +1229,21 @@ command."
 (defn anim! [duration anim-fn end-fn]
   (let [duration   (long (* 1e9 duration))
         start      (System/nanoTime)
-        end        (+ start (long duration))
-        last-error (atom nil)]
+        end        (+ start (long duration))]
     (doto (proxy [AnimationTimer] []
             (handle [now]
               (if (< now end)
                 (let [t (/ (double (- now start)) duration)]
                   (try
                     (anim-fn t)
-                    (reset! last-error nil)
-                    (catch Exception e
-                      (let [clj-ex (Throwable->map e)]
-                        (when (not= @last-error clj-ex)
-                          (println clj-ex)
-                          (reset! last-error clj-ex))))))
-                (do
+                    (catch Throwable t
+                      (error-reporting/report-exception! t))))
+                (try
                   (end-fn)
-                  (.stop ^AnimationTimer this)))))
+                  (catch Throwable t
+                    (error-reporting/report-exception! t))
+                  (finally
+                    (.stop ^AnimationTimer this))))))
       (.start))))
 
 (defn anim-stop! [^AnimationTimer anim]
@@ -1291,9 +1286,13 @@ command."
   [closeable timer]
   (on-closed! closeable (fn [_]
                          (timer-stop! timer))))
-                         
+
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
 
 (defn parent->stage ^Stage [^Parent parent]
   (.. parent getScene getWindow))
+
+(defn browse-url
+  [url]
+  (.browse (Desktop/getDesktop) (URI. url)))

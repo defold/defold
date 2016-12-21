@@ -736,7 +736,6 @@
 
 (g/defnode ToolController
   (property cursor-world-pos Point3d)
-  (property tile-source-node g/NodeID)
   (property op g/Keyword)
   (property op-data g/Any)
 
@@ -747,6 +746,7 @@
   (input selected-renderables g/Any)
 
   ;; additional inputs
+  (input tile-source-node g/NodeID)
   (input selected-node-ids g/Any)
   (input tile-source-attributes g/Any)
   (input convex-hulls g/Any)
@@ -765,7 +765,7 @@
    (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
    (g/connect resource-id :convex-hulls tool-id :convex-hulls)
    (g/connect resource-id :collision-groups-data tool-id :collision-groups-data)
-   (g/set-property tool-id :tile-source-node resource-id)))
+   (g/connect resource-id :_node-id tool-id :tile-source-node)))
 
 (defn- int->boolean [i]
   (not= 0 i))
