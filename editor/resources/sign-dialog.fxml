@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox prefHeight="450.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+   <children>
+      <Label text="Sign iOS Executable" />
+      <GridPane hgap="16.0" VBox.vgrow="ALWAYS">
+        <columnConstraints>
+          <ColumnConstraints hgrow="NEVER" minWidth="10.0" />
+          <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+        </columnConstraints>
+        <rowConstraints>
+          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
+        </rowConstraints>
+         <children>
+            <Label text="Code Signing Identity" />
+            <Label text="Provisioning Profile" GridPane.rowIndex="1" />
+            <ComboBox id="identities" prefWidth="10000.0" GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" />
+            <HBox prefHeight="100.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
+               <children>
+                  <TextField id="provisioning-profile" HBox.hgrow="ALWAYS" />
+                  <Button id="provisioning-profile-button" mnemonicParsing="false" text="..." HBox.hgrow="NEVER" />
+               </children>
+            </HBox>
+         </children>
+      </GridPane>
+      <AnchorPane>
+	<children>
+	  <Button id="sign" minWidth="80.0" mnemonicParsing="false" text="Sign" AnchorPane.bottomAnchor="0.0" AnchorPane.rightAnchor="0.0" />
+        </children>
+      </AnchorPane>
+   </children>
+   <padding>
+      <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+   </padding>
+</VBox>

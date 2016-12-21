@@ -82,6 +82,7 @@ namespace dmGameSystem
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, true);
+    static const dmhash_t SPRITE_PROP_TEXTURE0 = dmHashString64("texture0");
 
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -825,6 +826,11 @@ namespace dmGameSystem
         {
             Vector3 size = GetSize(component);
             result = GetProperty(out_value, get_property, size, SPRITE_PROP_SIZE);
+        }
+        else if (get_property == SPRITE_PROP_TEXTURE0)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Resource->m_TextureSet->m_TexturePath);
+            result = dmGameObject::PROPERTY_RESULT_OK;
         }
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
