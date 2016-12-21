@@ -421,7 +421,7 @@ int IAP_List(lua_State* L)
  *         -- required if auto finish transactions is disabled in project settings
  *         if (transaction.state == iap.TRANS_STATE_PURCHASED) then
  *             -- do server-side verification of purchase here..
- *             iap.finish(self, transation)
+ *             iap.finish(transaction)
  *         end
  *     else
  *         print(error.error, error.reason)

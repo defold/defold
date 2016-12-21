@@ -588,7 +588,7 @@ bool PlatformFacebookInitialized()
  * platform. Even if the user is already logged in to Facebook this function
  * can still be used to request additional read permissions.
  *
- * <b>NOTE</b> that this function cannot be used to request publish permissions.
+ * [icon:attention] Note that this function cannot be used to request publish permissions.
  * If the application requires both read and publish permissions, individual
  * calls to both login_with_read_permissions and login_with_publish_permissions
  * has to be made.
@@ -597,15 +597,19 @@ bool PlatformFacebookInitialized()
  * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
  *
  * @name facebook.login_with_read_permissions
- * @param permissions (table) Table with the requested read permission strings.
- * @param callback (function) Callback function that takes the arguments (self, data), the callback is executed when the permission request dialog is closed.
- * <ul>
- *     <li><code>self</code> The context of the calling script
- *     <li><code>data</code> A table that contains the response
- * </ul>
+ * @replaces facebook.login facebook.request_read_permissions
+ * @param permissions [type:table] Table with the requested read permission strings.
+ * @param callback [type:function(self, data)] callback function that is executed when the permission request dialog is closed.
+ *
+ * `self`
+ * : [type:object] The context of the calling script
+ *
+ * `data`
+ * : [type:table] A table that contains the response
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * local permissions = {"public_profile", "email", "user_friends"}
  * facebook.login_with_read_permissions(permissions, function(self, data)
  *     if (data.status == facebook.STATE_OPEN and data.error == nil) then
@@ -616,7 +620,7 @@ bool PlatformFacebookInitialized()
  *         pprint(data)
  *     end
  * end)
- * </pre>
+ * ```
  */
 void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int callback, int context, lua_State* thread)
@@ -652,31 +656,35 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
  * platform. Even if the user is already logged in to Facebook this function
  * can still be used to request additional publish permissions.
  *
- * <b>NOTE</b> that this function cannot be used to request read permissions.
+ * [icon:attention] Note that this function cannot be used to request read permissions.
  * If the application requires both publish and read permissions, individual
- * calls to both <code>login_with_publish_permissions</code> 
+ * calls to both <code>login_with_publish_permissions</code>
  * and <code>login_with_read_permissions</code> has to be made.
  *
  * A comprehensive list of permissions can be found in the <a href="https://developers.facebook.com/docs/facebook-login/permissions">Facebook documentation</a>,
  * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
  *
  * @name facebook.login_with_publish_permissions
- * @param permissions (table) Table with the requested publish permission strings.
- * @param audience (constant|number) The audience that should be able to see the publications.
- * <ul>
- *     <li>facebook.AUDIENCE_NONE</li>
- *     <li>facebook.AUDIENCE_ONLYME</li>
- *     <li>facebook.AUDIENCE_FRIENDS</li>
- *     <li>facebook.AUDIENCE_EVERYONE</li>
- * </ul>
- * @param callback (function) Callback function that takes the arguments (self, data), the callback is executed when the permission request dialog is closed.
- * <ul>
- *     <li><code>self</code> The context of the calling script
- *     <li><code>data</code> A table that contains the response
- * </ul>
+ * @replaces facebook.login facebook.request_publish_permissions
+ * @param permissions [type:table] Table with the requested publish permission strings.
+ * @param audience [type:constant|number] The audience that should be able to see the publications.
+ *
+ * - `facebook.AUDIENCE_NONE`
+ * - `facebook.AUDIENCE_ONLYME`
+ * - `facebook.AUDIENCE_FRIENDS`
+ * - `facebook.AUDIENCE_EVERYONE`
+ *
+ * @param callback [type:function(self, data)] Callback function that is executed when the permission request dialog is closed.
+ *
+ * `self`
+ * : [type:object] The context of the calling script
+ *
+ * `data`
+ * : [type:table] A table that contains the response
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * local permissions = {"publish_actions"}
  * facebook.login_with_publish_permissions(permissions, facebook.AUDIENCE_FRIENDS, function(self, data)
  *     if (data.status == facebook.STATE_OPEN and data.error == nil) then
@@ -687,7 +695,7 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
  *         pprint(data)
  *     end
  * end)
- * </pre>
+ * ```
  */
 void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
@@ -873,7 +881,7 @@ int Facebook_AccessToken(lua_State* L)
  * This function returns a table with all the currently granted permission strings.
  *
  * @name facebook.permissions
- * @return the permissions (table)
+ * @return permissions [type:table] the permissions
  * @examples
  * <pre>
  * for _,permission in ipairs(facebook.permissions()) do
@@ -940,56 +948,55 @@ int Facebook_Me(lua_State* L)
  *
  * @name facebook.post_event
  *
- * @param event (constant|text) An event can either be one of the predefined
+ * @param event [type:constant|text] An event can either be one of the predefined
  * constants below or a text which can be used to define a custom event that is
  * registered with Facebook Analytics.
- * <ul>
- *     <li>facebook.EVENT_ACHIEVED_LEVEL</li>
- *     <li>facebook.EVENT_ACTIVATED_APP</li>
- *     <li>facebook.EVENT_ADDED_PAYMENT_INFO</li>
- *     <li>facebook.EVENT_ADDED_TO_CART</li>
- *     <li>facebook.EVENT_ADDED_TO_WISHLIST</li>
- *     <li>facebook.EVENT_COMPLETED_REGISTRATION</li>
- *     <li>facebook.EVENT_COMPLETED_TUTORIAL</li>
- *     <li>facebook.EVENT_DEACTIVATED_APP</li>
- *     <li>facebook.EVENT_INITIATED_CHECKOUT</li>
- *     <li>facebook.EVENT_PURCHASED</li>
- *     <li>facebook.EVENT_RATED</li>
- *     <li>facebook.EVENT_SEARCHED</li>
- *     <li>facebook.EVENT_SESSION_INTERRUPTIONS</li>
- *     <li>facebook.EVENT_SPENT_CREDITS</li>
- *     <li>facebook.EVENT_TIME_BETWEEN_SESSIONS</li>
- *     <li>facebook.EVENT_UNLOCKED_ACHIEVEMENT</li>
- *     <li>facebook.EVENT_VIEWED_CONTENT</li>
- * </ul>
  *
- * @param value_to_sum (number) A numeric value for the event. This should
+ * - `facebook.EVENT_ACHIEVED_LEVEL`
+ * - `facebook.EVENT_ACTIVATED_APP`
+ * - `facebook.EVENT_ADDED_PAYMENT_INFO`
+ * - `facebook.EVENT_ADDED_TO_CART`
+ * - `facebook.EVENT_ADDED_TO_WISHLIST`
+ * - `facebook.EVENT_COMPLETED_REGISTRATION`
+ * - `facebook.EVENT_COMPLETED_TUTORIAL`
+ * - `facebook.EVENT_DEACTIVATED_APP`
+ * - `facebook.EVENT_INITIATED_CHECKOUT`
+ * - `facebook.EVENT_PURCHASED`
+ * - `facebook.EVENT_RATED`
+ * - `facebook.EVENT_SEARCHED`
+ * - `facebook.EVENT_SESSION_INTERRUPTIONS`
+ * - `facebook.EVENT_SPENT_CREDITS`
+ * - `facebook.EVENT_TIME_BETWEEN_SESSIONS`
+ * - `facebook.EVENT_UNLOCKED_ACHIEVEMENT`
+ * - `facebook.EVENT_VIEWED_CONTENT`
+ *
+ * @param value [type:number] a numeric value for the event. This should
  * represent the value of the event, such as the level achieved, price for an
  * item or number of orcs killed.
  *
- * @param params (table) A table with parameters and their values. A key in the
+ * @param [params] [type:table] a table with parameters and their values. A key in the
  * table can either be one of the predefined constants below or a text which
  * can be used to define a custom parameter. Optional argument.
- * <ul>
- *     <li>facebook.PARAM_CONTENT_ID</li>
- *     <li>facebook.PARAM_CONTENT_TYPE</li>
- *     <li>facebook.PARAM_CURRENCY</li>
- *     <li>facebook.PARAM_DESCRIPTION</li>
- *     <li>facebook.PARAM_LEVEL</li>
- *     <li>facebook.PARAM_MAX_RATING_VALUE</li>
- *     <li>facebook.PARAM_NUM_ITEMS</li>
- *     <li>facebook.PARAM_PAYMENT_INFO_AVAILABLE</li>
- *     <li>facebook.PARAM_REGISTRATION_METHOD</li>
- *     <li>facebook.PARAM_SEARCH_STRING</li>
- *     <li>facebook.PARAM_SOURCE_APPLICATION</li>
- *     <li>facebook.PARAM_SUCCESS</li>
- * </ul>
+ *
+ * - `facebook.PARAM_CONTENT_ID`
+ * - `facebook.PARAM_CONTENT_TYPE`
+ * - `facebook.PARAM_CURRENCY`
+ * - `facebook.PARAM_DESCRIPTION`
+ * - `facebook.PARAM_LEVEL`
+ * - `facebook.PARAM_MAX_RATING_VALUE`
+ * - `facebook.PARAM_NUM_ITEMS`
+ * - `facebook.PARAM_PAYMENT_INFO_AVAILABLE`
+ * - `facebook.PARAM_REGISTRATION_METHOD`
+ * - `facebook.PARAM_SEARCH_STRING`
+ * - `facebook.PARAM_SOURCE_APPLICATION`
+ * - `facebook.PARAM_SUCCESS`
  *
  * @examples
- * <pre>
- * params = {facebook.PARAM_LEVEL = 30, facebook.PARAM_NUM_ITEMS = 2};
- * facebook.post_event(facebook.EVENT_SPENT_CREDITS, 25, params);
- * </pre>
+ *
+ * ```lua
+ * params = {[facebook.PARAM_LEVEL] = 30, [facebook.PARAM_NUM_ITEMS] = 2}
+ * facebook.post_event(facebook.EVENT_SPENT_CREDITS, 25, params)
+ * ```
  */
 int Facebook_PostEvent(lua_State* L)
 {
@@ -1024,12 +1031,12 @@ int Facebook_PostEvent(lua_State* L)
     return 0;
 }
 
-/*# Enable event usage with Facebook Analytics
+/*# enable event usage with Facebook Analytics
  *
  * This function will enable event usage for Facebook Analytics which means
  * that Facebook will be able to use event data for ad-tracking.
  *
- * <b>NOTE!</b> Event usage cannot be controlled and is always enabled for the
+ * [icon:attention] Event usage cannot be controlled and is always enabled for the
  * Facebook Canvas platform, therefore this function has no effect on Facebook
  * Canvas.
  *
@@ -1043,13 +1050,13 @@ int Facebook_EnableEventUsage(lua_State* L)
     return 0;
 }
 
-/*# Disable event usage with Facebook Analytics
+/*# disable event usage with Facebook Analytics
  *
  * This function will disable event usage for Facebook Analytics which means
  * that Facebook won't be able to use event data for ad-tracking. Events will
  * still be sent to Facebook for insights.
  *
- * @note Event usage cannot be controlled and is always enabled for the
+ * [icon:attention] Event usage cannot be controlled and is always enabled for the
  * Facebook Canvas platform, therefore this function has no effect on Facebook
  * Canvas.
  *
@@ -1070,68 +1077,73 @@ int Facebook_DisableEventUsage(lua_State* L)
  * type. Note that some parameters are mandatory. Below is the list of available dialogs and
  * where to find Facebook's developer documentation on parameters and response data.
  *
- * ## `apprequests`
+ * ### "apprequests"
  *
  * Shows a Game Request dialog. Game Requests allows players to invite their friends to play a
  * game. Available parameters:
  *
- * <ul>
- *   <li><code>title</code> (string)</li>
- *   <li><code>message</code> (string)</li>
- *   <li><code>action_type</code> (number)</li>
- *   <li><code>filters</code> (number)</li>
- *   <li><code>data</code> (string)</li>
- *   <li><code>object_id</code> (string)</li>
- *   <li><code>suggestions</code> (table)</li>
- *   <li><code>recipients</code> (table)</li>
- *   <li><code>to</code> (string)</li>
- * </ul>
+ * - `title` [type:string]
+ * - `message` [type:string]
+ * - `action_type` [type:number]
+ * - `filters` [type:number]
+ * - `data` [type:string]
+ * - `object_id` [type:string]
+ * - `suggestions` [type:table]
+ * - `recipients` [type:table]
+ * - `to` [type:string]
  *
  * On success, the "result" table parameter passed to the callback function will include the following fields:
- * <ul>
- *   <li><code>request_id</code> (string)</li>
- *   <li><code>to</code> (table)</li>
- * </ul>
+ *
+ * - `request_id` [type:string]
+ * - `to` [type:table]
  *
  * Details for each parameter: <a href='https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters'>https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters</a>
  *
- * ## `feed`
+ * ### "feed"
  *
  * The Feed Dialog allows people to publish individual stories to their timeline.
  *
- * <ul>
- *   <li><code>caption</code> (string)</li>
- *   <li><code>description</code> (string)</li>
- *   <li><code>picture</code> (string)</li>
- *   <li><code>link</code> (string)</li>
- *   <li><code>people_ids</code> (table)</li>
- *   <li><code>place_id</code> (string)</li>
- *   <li><code>ref</code> (string)</li>
- * </ul>
+ * - `caption` [type:string]
+ * - `description` [type:string]
+ * - `picture` [type:string]
+ * - `link` [type:string]
+ * - `people_ids` [type:table]
+ * - `place_id` [type:string]
+ * - `ref` [type:string]
  *
  * On success, the "result" table parameter passed to the callback function will include the following fields:
- * <ul>
- *   <li><code>post_id</code> (string)</li>
- * </ul>
+ *
+ * - `post_id` [type:string]
  *
  * Details for each parameter: <a href='https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params'>https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params</a>
  *
- * ## `appinvite`
+ * ### "appinvite"
  *
- * The App Invite dialog is available only on iOS and Android. Note that the <code>url</code> parameter
+ * The App Invite dialog is available only on iOS and Android.
+ * Note that the <code>url</code> parameter
  * corresponds to the appLinkURL (iOS) and setAppLinkUrl (Android) properties.
  *
- * <ul>
- *   <li><code>url</code> (string)</li>
- *   <li><code>preview_image</code> (string)</li>
- * </ul>
+ * - `url` [type.string]
+ * - `preview_image` [type.string]
  *
  * Details for each parameter: <a href='https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/'>https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/</a>
  *
  * @name facebook.show_dialog
- * @param dialog dialog to show. "apprequests", "feed" or "appinvite" (string)
- * @param param table with dialog parameters (table)
- * @param callback callback function with parameters (self, result, error) that is called when the dialog is closed. Result is table with an url-field set. (function)
+ * @param dialog [type:string] dialog to show.
+ * - "apprequests"
+ * - "feed"
+ * - "appinvite"
+ * @param param [type:table] table with dialog parameters
+ * @param callback [type:function(self, result, error)] callback function that is called when the dialog is closed.
+ *
+ * `self`
+ * : [type:object] The context of the calling script
+ *
+ * `result`
+ * : [type:table] Table with dialog specific results. See above.
+ *
+ * `error`
+ * : [type:table] Error message. If there is no error, `error` is `nil`.
  */
 int Facebook_ShowDialog(lua_State* L)
 {
