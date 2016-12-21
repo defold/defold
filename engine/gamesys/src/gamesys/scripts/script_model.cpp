@@ -78,6 +78,29 @@ namespace dmGameSystem
      * <p>The playback_rate is a non-negative number, a negative value will be clamped to 0.</p>
      */
 
+     /*# model animation (hash)
+     *
+     * The current animation set on the component. The type of the property is hash.
+     *
+     * @name animation
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to read the current animation from a model component:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Get the current animation on component "model"
+     *  local animation = go.get("#model", "animation")
+     *  if animation == hash("run_left") then
+     *    -- Running left. Do something...
+     *  end
+     * end
+     * </pre>
+     */
+
+
     int LuaModelComp_Play(lua_State* L)
     {
         int top = lua_gettop(L);

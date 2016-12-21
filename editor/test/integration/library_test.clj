@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system spit-until-new-mtime]]
             [editor.library :as library]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
@@ -100,11 +100,11 @@
   (let [settings (-> (slurp game-project)
                    gpc/string-reader
                    gpc/parse-settings)]
-    (spit game-project (->
-                         settings
-                         (gpc/set-setting {} ["project" "dependencies"] deps)
-                         gpc/settings-with-value
-                         gpc/settings->str))))
+    (spit-until-new-mtime game-project (->
+                                         settings
+                                         (gpc/set-setting {} ["project" "dependencies"] deps)
+                                         gpc/settings-with-value
+                                         gpc/settings->str))))
 
 (deftest open-project
   (with-clean-system

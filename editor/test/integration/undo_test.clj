@@ -8,22 +8,6 @@
             [editor.outline :as outline]
             [integration.test-util :as test-util]))
 
-(deftest undo-node-deletion-reconnects-editor
-  (testing "Undoing the deletion of a node reconnects it to its editor"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   project-graph        (g/node-id->graph-id project)
-                   [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)
-                   check-conn           #(not (empty? (g/node-value view :scene)))
-                   connected-after-open (check-conn)]
-               (g/transact (g/delete-node atlas-node))
-               (let [connected-after-delete (check-conn)]
-                 (g/undo! project-graph)
-                 (let [connected-after-undo (check-conn)]
-                   (is connected-after-open)
-                   (is (not connected-after-delete))
-                   (is connected-after-undo)))))))
-
 (deftest undo-unseq-tx-does-not-coalesce
   (testing "Undoing in unsequenced transactions does not coalesce"
            (with-clean-system
