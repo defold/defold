@@ -1,18 +1,18 @@
 (ns editor.git
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
-            [clojure.set :as set]
             [editor
              [prefs :as prefs]
              [ui :as ui]])
   (:import javafx.scene.control.ProgressBar
-           [org.eclipse.jgit.api Git ResetCommand ResetCommand$ResetType]
+           [org.eclipse.jgit.api Git ResetCommand$ResetType]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
-           [org.eclipse.jgit.treewalk.filter NotIgnoredFilter PathFilter]))
+           [org.eclipse.jgit.treewalk.filter NotIgnoredFilter PathFilter]
+           [org.eclipse.jgit.api.errors StashApplyFailureException]))
 
 (set! *warn-on-reflection* true)
 
@@ -166,19 +166,62 @@
       (.setCleanDirectories true)
       (.call)))
 
-(defn stash [^Git git]
-  (-> (.stashCreate git)
-      (.setIncludeUntracked true)
-      (.call)))
+(defn stash!
+  "High-level stash. Before stashing, stages all untracked files. We do this
+  because stashes internally treat untracked files differently from tracked
+  files. Normally untracked files are not stashed at all, but even when using
+  the setIncludeUntracked flag, untracked files are dealt with separately from
+  tracked files.
 
-(defn stash-apply [^Git git ^RevCommit stash-ref]
-  (when stash-ref
-    (-> (.stashApply git)
-        (.setStashRef (.name stash-ref))
-        (.call))))
+  When later applied, a conflict among the tracked files will abort the stash
+  apply command before the untracked files are restored. For our purposes, we
+  want a unified set of conflicts among all the tracked and untracked files.
 
-(defn stash-drop [^Git git ^RevCommit stash-ref]
-  (let [stashes (map-indexed vector (.call (.stashList git)))
+  Returns a map with the stash ref and the result of git/status before the
+  stash operation without empty entries. This status shapshot is used when
+  applying the stash to restore the staged / unstaged state."
+  [^Git git]
+  (let [untracked (:untracked (status git))]
+    ; Stage any untracked files.
+    (if (seq untracked)
+      (let [add-command (.add git)]
+        (doseq [path untracked]
+          (.addFilepattern add-command path))
+        (.call add-command)))
+
+    ; Stash local changes and return stash info.
+    (if-let [stash-ref (-> git .stashCreate .call)]
+      {:ref stash-ref
+       :untracked untracked})))
+
+(defn stash-apply!
+  [^Git git stash-info]
+  (when stash-info
+    ; Apply the stash.
+    (let [apply-result (try
+                         (-> (.stashApply git)
+                             (.setStashRef (.name ^RevCommit (:ref stash-info)))
+                             (.call))
+                         (catch StashApplyFailureException error
+                           error))]
+      ; Restore untracked state of all non-conflicting files
+      ; that were untracked at the time the stash was made.
+      (let [paths-with-conflicts (set (keys (:conflicting-stage-state (status git))))
+            paths-to-unstage (into #{}
+                                   (remove paths-with-conflicts)
+                                   (:untracked stash-info))]
+        (if (seq paths-to-unstage)
+          (let [reset-command (.reset git)]
+            (doseq [path paths-to-unstage]
+              (.addPath reset-command path))
+            (.call reset-command))))
+      (if (instance? Throwable apply-result)
+        (throw apply-result)
+        apply-result))))
+
+(defn stash-drop! [^Git git stash-info]
+  (let [stash-ref ^RevCommit (:ref stash-info)
+        stashes (map-indexed vector (.call (.stashList git)))
         matching-stash (first (filter #(= stash-ref (second %)) stashes))]
     (when matching-stash
       (-> (.stashDrop git)
