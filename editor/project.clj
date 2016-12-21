@@ -22,6 +22,7 @@
                      [ch.qos.logback/logback-classic              "1.1.3"]
                      [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
+                     [commons-configuration/commons-configuration "1.10"]
                      [org.clojure/data.json                       "0.2.6"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]

@@ -14,7 +14,8 @@
             [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
-           [org.eclipse.jgit.api Git]))
+           [org.eclipse.jgit.api Git]
+           [java.io File]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,12 +46,16 @@
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}])
 
+(defn- path->file [workspace ^String path]
+  (File. ^File (workspace/project-path workspace) path))
+
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
             (pos? (count selection)))
   (run [selection git list-view workspace]
-       (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-       (workspace/resource-sync! workspace)))
+    (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
+      (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
+      (workspace/resource-sync! workspace true moved-files))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
