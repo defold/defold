@@ -3,7 +3,8 @@
             [clojure.java.io :as io]
             [editor
              [prefs :as prefs]
-             [ui :as ui]])
+             [ui :as ui]]
+            [util.text-util :as text-util])
   (:import javafx.scene.control.ProgressBar
            [java.io File]
            [java.util Collection]
@@ -278,10 +279,6 @@
 
 ;; =================================================================================
 
-(defn- text-character? [^Character char]
-  (or (Character/isWhitespace char)
-      (not (Character/isISOControl char))))
-
 (defn selection-diffable? [selection]
   (and (= 1 (count selection))
        (let [change-type (:change-type (first selection))]
@@ -295,7 +292,7 @@
         new-path (or (:new-path change) (:old-path change) )
         old (String. ^bytes (show-file git old-path))
         new (slurp (file git new-path))
-        binary? (not-every? text-character? new)]
+        binary? (not-every? text-util/text-char? new)]
     {:binary? binary?
      :new new
      :new-path new-path
