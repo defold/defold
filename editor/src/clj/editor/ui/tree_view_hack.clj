@@ -1,7 +1,6 @@
 (ns editor.ui.tree-view-hack
   (:import
-   (javafx.scene.control SelectionModel
-                         MultipleSelectionModelBase)))
+    (javafx.scene.control MultipleSelectionModel MultipleSelectionModelBase SelectionModel TreeView)))
 
 (set! *warn-on-reflection* true)
 
@@ -61,3 +60,15 @@
     (let [indices-seq (.get selected-indices-seq-field selection-model)]
       (.set last-get-index-field indices-seq (int -1))
       (.set last-get-value-field indices-seq (int -1)))))
+
+(defn broken-selected-tree-items
+  "Workaround for DEFEDIT-648.
+  Some MultipleSelectionModel implementations are broken and the list returned
+  by .getSelectedItems will contain nil entries instead of the selected items.
+  If the ui-test/tree-view-get-selected-items-bug-test fails after a JDK
+  upgrade, we can remove this workaround."
+  [^TreeView tree-view]
+  (let [selection-model ^MultipleSelectionModel (.getSelectionModel tree-view)
+        selected-indices (.getSelectedIndices selection-model)
+        selected-tree-items (map #(.getTreeItem tree-view %) selected-indices)]
+    (filter some? selected-tree-items)))
