@@ -47,34 +47,40 @@
 (defn- deserialize-ref [revision ^Git git]
   (some->> revision (git/get-commit (.getRepository git))))
 
+(defn- serialize-stash-info [stash-info]
+  (some-> stash-info (update :ref serialize-ref)))
+
+(defn- deserialize-stash-info [stash-info ^Git git]
+  (some-> stash-info (update :ref deserialize-ref git)))
+
 (defn- serialize-flow [flow]
   (-> flow
       (dissoc :git)
       (dissoc :creds)
       (update :start-ref serialize-ref)
-      (update :stash-ref serialize-ref)))
+      (update :stash-info serialize-stash-info)))
 
 (defn- deserialize-flow [serialized-flow ^Git git creds]
   (-> serialized-flow
       (assoc :git git)
       (assoc :creds creds)
       (update :start-ref deserialize-ref git)
-      (update :stash-ref deserialize-ref git)))
+      (update :stash-info deserialize-stash-info git)))
 
-(defn- make-flow [^Git git creds start-ref stash-ref]
-  {:state     :pull/start
-   :git       git
-   :creds     creds
-   :start-ref start-ref
-   :stash-ref stash-ref
-   :progress  (progress/make "pull" 4)
-   :conflicts {}
-   :resolved  {}
-   :staged    #{}
-   :modified  #{}})
+(defn- make-flow [^Git git creds start-ref stash-info]
+  {:state      :pull/start
+   :git        git
+   :creds      creds
+   :start-ref  start-ref
+   :stash-info stash-info
+   :progress   (progress/make "pull" 4)
+   :conflicts  {}
+   :resolved   {}
+   :staged     #{}
+   :modified   #{}})
 
 (defn- should-update-journal? [old-flow new-flow]
-  (let [simple-keys [:state :start-ref :stash-ref :conflicts :resolved :staged :modified]]
+  (let [simple-keys [:state :start-ref :stash-info :conflicts :resolved :staged :modified]]
     (or (not= (select-keys old-flow simple-keys)
               (select-keys new-flow simple-keys))
         (let [old-progress (:progress old-flow)
@@ -103,22 +109,22 @@
 
 (defn cancel-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
-  (let [{:keys [git start-ref stash-ref]} @!flow
+  (let [{:keys [git start-ref stash-info]} @!flow
         file (flow-journal-file git)]
     (when (.exists file)
       (io/delete-file file :silently))
     (git/revert-to-revision! git start-ref)
-    (when stash-ref
-      (git/stash-apply git stash-ref)
-      (git/stash-drop git stash-ref))))
+    (when stash-info
+      (git/stash-apply! git stash-info)
+      (git/stash-drop! git stash-info))))
 
 (defn begin-flow! [^Git git prefs]
   (when *login*
     (login/login prefs))
   (let [creds (git/credentials prefs)
         start-ref (git/get-current-commit-ref git)
-        stash-ref (git/stash git)
-        flow (make-flow git creds start-ref stash-ref)
+        stash-info (git/stash! git)
+        flow (make-flow git creds start-ref stash-info)
         !flow (atom flow)]
     (try
       (write-flow-journal! flow)
@@ -142,12 +148,12 @@
 
 (defn finish-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
-  (let [{:keys [git stash-ref]} @!flow
+  (let [{:keys [git stash-info]} @!flow
         file (flow-journal-file git)]
     (when (.exists file)
       (io/delete-file file :silently))
-    (when stash-ref
-      (git/stash-drop git stash-ref))))
+    (when stash-info
+      (git/stash-drop! git stash-info))))
 
 (defn- tick
   ([flow new-state]
@@ -195,7 +201,7 @@
   (merge flow (find-git-state (git/status git)
                               (git/unified-status git))))
 
-(defn advance-flow [{:keys [git state progress creds conflicts stash-ref message] :as flow} render-progress]
+(defn advance-flow [{:keys [git state progress creds conflicts stash-info message] :as flow} render-progress]
   (render-progress progress)
   (condp = state
     :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
@@ -205,15 +211,15 @@
                       (if (and pull-res (.isSuccessful pull-res))
                         (advance-flow (tick flow :pull/applying) render-progress)
                         (advance-flow (tick flow :pull/error) render-progress)))
-    :pull/applying  (let [stash-res (when stash-ref
-                                      (try (git/stash-apply git stash-ref)
-                                           (catch StashApplyFailureException e
+    :pull/applying  (let [stash-res (when stash-info
+                                      (try (git/stash-apply! git stash-info)
+                                           (catch StashApplyFailureException _
                                              :conflict)
                                            (catch Exception e
                                              (println e))))
                           status    (git/status git)]
                       (cond
-                        (nil? stash-ref)        (advance-flow (tick flow :pull/done 2) render-progress)
+                        (nil? stash-info)       (advance-flow (tick flow :pull/done 2) render-progress)
                         (= :conflict stash-res) (advance-flow (-> flow
                                                                   (tick :pull/conflicts)
                                                                   (assoc :conflicts (:conflicting-stage-state status)))
@@ -263,8 +269,8 @@
 (defn get-theirs [{:keys [git] :as flow} file]
   (String. ^bytes (git/show-file git file)))
 
-(defn get-ours [{:keys [git ^RevCommit stash-ref] :as flow} file]
-  (when stash-ref
+(defn get-ours [{:keys [git stash-info] :as flow} file]
+  (when-let [stash-ref ^RevCommit (:ref stash-info)]
     (String. ^bytes (git/show-file git file (.name stash-ref)))))
 
 (defn resolve-file! [!flow file]
