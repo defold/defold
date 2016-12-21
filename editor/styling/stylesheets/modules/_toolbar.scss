@@ -22,19 +22,16 @@
         -fx-border-color: $dark-black;
         -fx-alignment: center;
         -fx-padding: 4px 5px 4px 5px;
-    }
-
-    >.toggle-button {
         &:hover {
             .image-view {
-                @include effect-lighten();
-            }
+                -fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0) !important;
+            } 
         }
         &:selected {     
             -fx-border-color: $defold-orange;
             -fx-border-width: 0 0 2 0;
             .image-view {
-                @include effect-lighten();
+                -fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0) !important;
             } 
         }
     }

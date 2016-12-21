@@ -10,6 +10,15 @@
     }
     .list-view {
         -fx-background-color: $bright-black;
+        .list-cell {
+            -fx-background-color: $bright-black;
+            -fx-padding: 0;
+            -fx-border-width: 0;
+            &:selected {
+                -fx-background-color: $mid-grey !important;
+                -fx-border-width: 0;
+            }
+        }
     }
     .source-segment, .plain-source-segment {
         -fx-font-family: "Dejavu Sans Mono";
