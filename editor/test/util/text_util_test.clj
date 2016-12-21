@@ -1,0 +1,84 @@
+(ns util.text-util-test
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
+            [util.text-util :as text-util])
+  (:import [org.apache.commons.io IOUtils]))
+
+(deftest guess-line-endings-test
+  (let [make-reader (fn [^String content]
+                      (some-> content IOUtils/toInputStream (io/make-reader nil)))]
+    (are [expected content]
+      (= expected (text-util/guess-line-endings (make-reader content)))
+
+      ; Indeterminate. Used for nil or binary-looking input.
+      nil   nil
+      nil   (apply str (map char [0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A]))
+
+      ; Empty or no line endings.
+      :lf   ""
+      :lf   "eol"
+
+      ; Uniform line endings.
+      :lf   "\n"
+      :crlf "\r\n"
+      :lf   "eol\n"
+      :crlf "eol\r\n"
+      :lf   (str "id: \"sprite\"\n"
+                 "type: \"sprite\"\n"
+                 "position: {\n"
+                 "  x: 0.0\n"
+                 "  y: 0.0\n"
+                 "  z: 0.0\n"
+                 "}\n")
+      :crlf (str "id: \"sprite\"\r\n"
+                 "type: \"sprite\"\r\n"
+                 "position: {\r\n"
+                 "  x: 0.0\r\n"
+                 "  y: 0.0\r\n"
+                 "  z: 0.0\r\n"
+                 "}\r\n")
+
+      ; Mixed line endings.
+      :lf (str "\n"
+               "\n"
+               "\n"
+               "\r\n"
+               "\r\n"
+               "\r\n"
+               "\n")
+      :crlf (str "\r\n"
+                 "\r\n"
+                 "\r\n"
+                 "\n"
+                 "\n"
+                 "\n"
+                 "\r\n"))))
+
+(deftest lf->crlf-test
+  (testing "Base cases"
+    (are [expected content]
+      (= expected (text-util/lf->crlf content))
+      nil nil
+      "" ""
+      "\r\n" "\n"
+      "\r\n\r\n" "\n\n"
+      "\r\n" "\r\n"
+      "eol" "eol"
+      "eol\r\n" "eol\n"
+      "eol\r\n" "eol\r\n"))
+
+  (testing "Mixed line endings."
+    (is (= (str "id: \"sprite\"\r\n"
+                "type: \"sprite\"\r\n"
+                "position: {\r\n"
+                "  x: 0.0\r\n"
+                "  y: 0.0\r\n"
+                "  z: 0.0\r\n"
+                "}\r\n")
+           (text-util/lf->crlf (str "id: \"sprite\"\r\n"
+                                    "type: \"sprite\"\r\n"
+                                    "position: {\r\n"
+                                    "  x: 0.0\n"
+                                    "  y: 0.0\n"
+                                    "  z: 0.0\n"
+                                    "}\r\n"))))))
