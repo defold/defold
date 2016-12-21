@@ -183,14 +183,14 @@
   [^Git git]
   (let [untracked (:untracked (status git))]
     ; Stage any untracked files.
-    (if (seq untracked)
+    (when (seq untracked)
       (let [add-command (.add git)]
         (doseq [path untracked]
           (.addFilepattern add-command path))
         (.call add-command)))
 
     ; Stash local changes and return stash info.
-    (if-let [stash-ref (-> git .stashCreate .call)]
+    (when-let [stash-ref (-> git .stashCreate .call)]
       {:ref stash-ref
        :untracked untracked})))
 
@@ -211,7 +211,7 @@
             paths-to-unstage (into #{}
                                    (remove paths-with-conflicts)
                                    (:untracked stash-info))]
-        (if (seq paths-to-unstage)
+        (when (seq paths-to-unstage)
           (let [reset-command (.reset git)]
             (doseq [path paths-to-unstage]
               (.addPath reset-command path))
