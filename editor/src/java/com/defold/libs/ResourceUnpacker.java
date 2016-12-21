@@ -37,7 +37,7 @@ public class ResourceUnpacker {
         isInitialized = true;
 
         Path unpackPath  = getUnpackPath();
-        unpackResourceDir("/_unpack/", unpackPath);
+        unpackResourceDir("/_unpack", unpackPath);
 
         Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
         if (binDir.toFile().exists()) {
