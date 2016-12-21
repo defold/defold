@@ -258,6 +258,21 @@ foobar
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual(u'<p>example:</p>', elements[0].examples)
 
+    def test_replaces(self):
+        doc= """
+/*#
+ * MY_DESC
+ * @name MY_MESSAGE
+ * @replaces MY_REPLACEMENT
+ */
+"""
+        elements = script_doc.parse_document(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual(u'<p>MY_DESC</p>', elements[0].description)
+        self.assertEqual('MY_MESSAGE', elements[0].name)
+        self.assertEqual(u'<p>MY_REPLACEMENT</p>', elements[0].replaces)
+
+
     def test_ref(self):
         doc= """
 /*#
