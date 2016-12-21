@@ -26,9 +26,9 @@ namespace dmResource
         uint64_t length;
     };
 
-    Result MapFile(const char* path, void* out_map, uint32_t& out_size)
+    Result MapFile(const char* path, void*& out_map, uint32_t& out_size)
     {
-        int fd = open(path, O_RDONLY);
+        int fd = open(path, O_RDWR);
         if (fd < 0)
         {
             return RESULT_RESOURCE_NOT_FOUND;
@@ -41,10 +41,10 @@ namespace dmResource
             return RESULT_IO_ERROR;
         }
 
-        out_map = mmap(0, fs.st_size, PROT_READ, MAP_SHARED, fd, 0);
+        out_map = mmap(0, fs.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         close(fd);
 
-        if (!out_map)
+        if (!out_map || out_map == (void*)-1)
         {
             return RESULT_IO_ERROR;
         }

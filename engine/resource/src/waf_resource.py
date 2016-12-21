@@ -37,7 +37,7 @@ def apply_archive_file(self):
         arcc.env.append_value('ARCCFLAGS', ['-c'])
 
 # --- START darc2
-Task.simple_task_type('resource_archive2', 'python ${ARCC} ${ARCCFLAGS} ${ITGT} ${DTGT} ${SRC}',
+Task.simple_task_type('resource_archive2', 'python ${ARCC} ${ARCCFLAGS} ${ITGT} ${DTGT} ${SRC} ${RELPATH}',
                       color='PINK',
                       shell=False)
 
@@ -59,6 +59,7 @@ def apply_archive2_file(self):
         error('archive_target_data not specified')
         return
 
+    out_rel_path = self.rel_path
     out_index = self.path.find_or_declare(self.archive_target_index)
     out_data = self.path.find_or_declare(self.archive_target_data)
     arcc = self.create_task('resource_archive2')
@@ -73,6 +74,7 @@ def apply_archive2_file(self):
     arcc.env['ARCCFLAGS'] = ['-r', self.path.bldpath(self.env)]
     arcc.env['ITGT'] = ['-i', str(out_index)]
     arcc.env['DTGT'] = ['-d', str(out_data)]
+    arcc.env['RELPATH'] = ['-p', str(out_rel_path)]
 
     if self.use_compression:
         arcc.env.append_value('ARCCFLAGS', ['-c'])

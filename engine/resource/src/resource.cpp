@@ -55,6 +55,9 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
+const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
+const static uint32_t MANIFEST_VERSION = 0x01;
+
 struct Manifest
 {
     Manifest()
@@ -232,26 +235,33 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
 Result LoadManifest(const char* path, const char* location, HFactory factory)
 {
     // Read from file
-    // Parse from file into dmLiveUpdateDDF::ManifestFile struct
-    dmDDF::LoadMessageFromFile(path, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)(factory->m_Manifest->m_DDF));
+    dmDDF::Result ddf_res = dmDDF::LoadMessageFromFile(path, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)(&factory->m_Manifest->m_DDF));
+    if (ddf_res != dmDDF::RESULT_OK)
+    {
+        dmLogError("Failed to load manifest file, result = %i", ddf_res);
+        return RESULT_IO_ERROR;
+    }
 
     // TODO VALIDATE MAGIC NUMBER
 
     // Validate file version
     dmLiveUpdateDDF::ManifestHeader header = factory->m_Manifest->m_DDF->m_Data.m_Header;
-    if (header.m_Version != dmResourceArchive::VERSION)
+    if (header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
+    {
+        dmLogError("Magic number mismatch");
+        return RESULT_FORMAT_ERROR;
+    }
+
+    if (header.m_Version != MANIFEST_VERSION)
     {
         dmLogError("Version mismatch, engine version: %i,  manifest version: %i", dmResourceArchive::VERSION, header.m_Version);
         return RESULT_FORMAT_ERROR;
     }
 
-    // Construct path to archive index file
-    // Assumes same path as manifest file
+    // Construct path to archive index file. Assumes same path as manifest file.
     char archiveIndexPath[DMPATH_MAX_PATH];
-    dmStrlCpy(archiveIndexPath, location, strlen(location));
+    dmStrlCpy(archiveIndexPath, path, strlen(path) - 14); // game.dmanifest is 14 characters
     dmStrlCat(archiveIndexPath, "/game.arci", sizeof(archiveIndexPath));
-
-    dmLogInfo("Got .arci path: %s", archiveIndexPath);
 
     Result r = MountArchiveInternal(archiveIndexPath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo2);
     if (r != RESULT_OK)
@@ -345,7 +355,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         // Ok
     }
-    else if (strcmp(factory->m_UriParts.m_Scheme, "arc") == 0)
+    /*else if (strcmp(factory->m_UriParts.m_Scheme, "arc") == 0)
     {
         Result r = MountArchiveInternal(factory->m_UriParts.m_Path, &factory->m_Archive, &factory->m_ArchiveMountInfo);
         if (r != RESULT_OK)
@@ -355,16 +365,18 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             delete factory;
             return 0;
         }
-    }
-    else if (strcmp(factory->m_UriParts.m_Scheme, "dmanifest") == 0)
+    }*/
+    else if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") == 0)
     {
-        dmLogInfo("Got manifest file at path: %s", factory->m_UriParts.m_Path);
         factory->m_Manifest = new Manifest();
+        factory->m_Manifest->m_DDF = new dmLiveUpdateDDF::ManifestFile();
+
         Result r = LoadManifest(factory->m_UriParts.m_Path, factory->m_UriParts.m_Location, factory);
         if (r != RESULT_OK)
         {
             dmLogError("Unable to load manifest: %s", factory->m_UriParts.m_Path);
             dmMessage::DeleteSocket(socket);
+            delete factory->m_Manifest->m_DDF;
             delete factory->m_Manifest;
             delete factory;
             return 0;
@@ -438,6 +450,11 @@ void DeleteFactory(HFactory factory)
     }
     if (factory->m_Manifest)
     {
+        if (factory->m_Manifest->m_DDF)
+        {
+            delete factory->m_Manifest->m_DDF;
+        }
+
         delete factory->m_Manifest;
     }
     delete factory->m_Resources;
@@ -518,9 +535,8 @@ Result RegisterType(HFactory factory,
 Result LoadFromManifest(HFactory factory, const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
 {
     // Get resource hash from path_hash
-    uint32_t entry_count = manifest->m_DDF->m_Data.m_Header.m_Version;
+    uint32_t entry_count = manifest->m_DDF->m_Data.m_Resources.m_Count;
     dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDF->m_Data.m_Resources.m_Data;
-
     for (int i = 0; i < entry_count; ++i)
     {
         dmLiveUpdateDDF::ResourceEntry& e = entries[i];
@@ -644,11 +660,11 @@ Result DoLoadResourceLocked(HFactory factory, const char* path, const char* orig
         *resource_size = factory->m_HttpTotalBytesStreamed;
         return RESULT_OK;
     }
-    else if (factory->m_Archive)
+    /*else if (factory->m_Archive)
     {
         Result r = LoadFromArchive(factory, factory->m_Archive, path, original_name, resource_size, buffer);
         return r;
-    }
+    }*/
     else if (factory->m_Manifest)
     {
 
@@ -656,7 +672,7 @@ Result DoLoadResourceLocked(HFactory factory, const char* path, const char* orig
 
         // LOOKUP RESOURCE VIA MANIFEST!
         //uint64_t path_hash = dmHashBuffer64(path, strlen(path)); // Is this the complete path incl. filename?
-        Result r = LoadFromManifest(factory, factory->m_Manifest, path, resource_size, buffer);
+        Result r = LoadFromManifest(factory, factory->m_Manifest, original_name, resource_size, buffer);
 
         return r;
 

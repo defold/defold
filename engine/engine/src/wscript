@@ -10,7 +10,7 @@ def build(bld):
                           target = 'engine',
                           proto_gen_py = True,
                           protoc_includes = '../proto',
-                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins.arc ../content/builtins/connect/connect.project',
+                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins.arc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd',
                           source='engine.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')

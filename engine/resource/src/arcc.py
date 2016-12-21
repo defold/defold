@@ -110,21 +110,21 @@ def entry_data_hash_cmp(a, b):
     else:
         return -1
 
-def set_output_path(full_path):
-    return 'default/src/test/' + os.path.basename(full_path)
+def set_output_path(rel_path, full_path):
+    return rel_path + os.path.basename(full_path)
 
 def compile(input_files, options):
     # Sort file-names. Names must be sorted for binary search at run-time and for correct hash assignment for tests.
     input_files.sort()
 
     if not options.output_file:
-        oifn = set_output_path(options.output_file_index)
+        oifn = set_output_path(options.rel_path, options.output_file_index)
         out_index = open(oifn, 'wb+')
-        #odfn = options.output_file_data
-        odfn = set_output_path(options.output_file_data)
+        odfn = set_output_path(options.rel_path, options.output_file_data)
         out_data = open(odfn, 'wb+')
 
         # TODO magic number
+        out_index.seek(0)
         out_index.write(struct.pack('!I', VERSION)) # Version
         out_index.write(struct.pack('!I', 0)) # Pad
         out_index.write(struct.pack('!Q', 0)) # Userdata
@@ -138,6 +138,7 @@ def compile(input_files, options):
 
         # write resource data to datafile
         num_input_files = len(input_files)
+        out_data.seek(0)
         for i,f in enumerate(input_files):
             align_file(out_data, 4)
             e = EntryData(options.root, f, options.compress, num_input_files - i)
@@ -147,13 +148,13 @@ def compile(input_files, options):
             entry_count += 1
         out_data.close()
 
-        hash_offset = out_index.tell()
-
         # sort entrydatas on hash for binary search in runtime
         entry_datas.sort(entry_data_hash_cmp)
 
         # write hash data to linear array
         i = 0
+        align_file(out_index, 4)
+        hash_offset = out_index.tell()
         while i < entry_count:
             e = entry_datas[i]
             out_index.write(e.hash)
@@ -167,6 +168,7 @@ def compile(input_files, options):
 
         # write to index file
         i = 0
+        align_file(out_index, 4)
         while i < entry_count:
             e = entry_datas[i]
             out_index.write(struct.pack('!I', e.resource_offset))
@@ -259,6 +261,7 @@ if __name__ == '__main__':
     parser.add_option('-i', dest='output_file_index', help='Index output file', metavar='OUTPUTINDEX')
     parser.add_option('-d', dest='output_file_data', help='Data output file', metavar='OUTPUTDATA')
     parser.add_option('-c', dest='compress', action='store_true', help='Use compression', metavar='COMPRESSION', default=False)
+    parser.add_option('-p', dest='rel_path', help='Output relative target path')
     (options, args) = parser.parse_args()
     if not options.output_file and not options.output_file_index:
         parser.error('Output file not specified (-o)')
