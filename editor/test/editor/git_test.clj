@@ -586,7 +586,7 @@
 
     local-git))
 
-(deftest stash-apply_conflicting-test
+(deftest stash-apply-conflicting-test
   (with-git [remote-git (new-git)
              local-git (create-conflict-zoo! remote-git)]
     ; Commit conflicting changes on remote.
@@ -633,12 +633,13 @@
                        "src/local_moved.txt"
                        "src/local_moved_remote_modified.txt"}} (simple-status local-git)))
     (let [stash-info (git/stash! local-git)]
+      ; Verify our working directory is clean.
       (is (= {} (simple-status local-git)))
 
       ; Pull from remote.
       (-> local-git .pull .call)
 
-      ; Apply stashed changes on local.
+      ; Apply stashed changes.
       (is (thrown? StashApplyFailureException (git/stash-apply! local-git stash-info))))
 
     (testing "Files exist at new locations."
@@ -676,16 +677,16 @@
                   "src/local_moved_remote_modified.txt"
                   "src/remote_modified.txt"))
 
-    ; The stash is being merged onto the latest commit from the remote, so in
-    ; the :conflicting-stage-state map "us" is the remote and "them" is stash.
-    ;
     ; After the stash is applied, changes that were not staged at the time the
     ; stash was created will be staged in the working directory. I.e files that
     ; previously reported as :modified will now be reported as :changed, and
-    ; :missing files will report as :removed. This is how the `stash apply`
-    ; command works, but it does mean that the staged / unstaged state is not
-    ; preserved if the user cancels the sync process. We might want to address
-    ; this at some point if it becomes a problem.
+    ; :missing files will report as :removed. This is because we're in the
+    ; middle of a conflicting merge. If there were no conflicts the staged
+    ; state appears intact after a stash followed by a stash apply. This is
+    ; verified by stash-apply-test above.
+    ;
+    ; The stash is being merged onto the latest commit from the remote, so in
+    ; the :conflicting-stage-state map "us" is the remote and "them" is stash.
     (is (= {:untracked #{"src/moved/both_moved_conflicting_a.txt"
                          "src/moved/local_moved.txt"
                          "src/moved/local_moved_remote_modified.txt"

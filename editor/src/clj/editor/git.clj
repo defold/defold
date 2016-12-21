@@ -178,9 +178,8 @@
   apply command before the untracked files are restored. For our purposes, we
   want a unified set of conflicts among all the tracked and untracked files.
 
-  Returns a map with the stash ref and the result of git/status before the
-  stash operation without empty entries. This status shapshot is used when
-  applying the stash to restore the staged / unstaged state."
+  Returns nil if there was nothing to stash, or a map with the stash ref and
+  the set of file paths that were untracked at the time the stash was made."
   [^Git git]
   (let [untracked (:untracked (status git))]
     ; Stage any untracked files.
@@ -198,7 +197,8 @@
 (defn stash-apply!
   [^Git git stash-info]
   (when stash-info
-    ; Apply the stash.
+    ; Apply the stash. The apply-result will be either an ObjectId returned from
+    ; (.call StashApplyCommand) or a StashApplyFailureException if thrown.
     (let [apply-result (try
                          (-> (.stashApply git)
                              (.setStashRef (.name ^RevCommit (:ref stash-info)))
