@@ -1,7 +1,7 @@
 .context-menu {
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
-    -fx-background-color: $mid-grey;//$grey; //
+    -fx-background-color: $mid-grey;
     -fx-border-width: 0;
     -fx-padding: 5px;
     -fx-text-fill: $defold-white;
@@ -47,10 +47,11 @@
     }
     .separator {
         &:horizontal {
-            -fx-padding: 0;
-            -fx-min-height: 0; 
+            -fx-padding: 3 0 3 0;
+            -fx-min-height: 0;
+            -fx-background-color: transparent;
             .line {
-                -fx-border-color: $mid-grey;
+                -fx-border-color: $dark-grey-light;//$mid-grey;
                 -fx-border-insets: 0;
                 -fx-border-width: 1 0 0; 
             }
