@@ -62,7 +62,10 @@
   (io/make-input-stream  [this opts] (io/make-input-stream file opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (io/make-output-stream file opts))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+  io/Coercions
+  (io/as-file [this] file)
+  (io/as-url [this] (.toURL (.toURI file))))
 
 (core/register-read-handler!
  "file-resource"

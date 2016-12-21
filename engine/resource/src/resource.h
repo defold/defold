@@ -3,6 +3,11 @@
 
 #include <ddf/ddf.h>
 
+namespace dmBuffer
+{
+    typedef struct Buffer* HBuffer;
+}
+
 namespace dmResource
 {
     /**
@@ -59,14 +64,25 @@ namespace dmResource
         KIND_POINTER, //!< KIND_POINTER
     };
 
+    /** Data share state
+    * Describes the ownage of the resource/data
+    * NONE -> The descriptor owns all data -> delete/update all data
+    * SHALLOW -> The descriptor owns the "topmost" data, i.e. what's been previously duplicated -> delete the data that was instanced in the duplicate function
+    */
+    enum DataShareState
+    {
+        DATA_SHARE_STATE_NONE = 0,
+        DATA_SHARE_STATE_SHALLOW = 1,
+    };
+
     /// Resource descriptor
     struct SResourceDescriptor
     {
         /// Hash of resource name
         uint64_t m_NameHash;
 
-        /// Resource kind
-        Kind     m_ResourceKind;
+        /// Name of original resource
+        uint64_t m_OriginalNameHash;
 
         /// Union of DDF descriptor and resource name
         union
@@ -78,11 +94,17 @@ namespace dmResource
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
 
+        /// For internal use only
+        void*    m_ResourceType;        // For internal use.
+
         /// Reference count
         uint32_t m_ReferenceCount;
 
-        /// For internal use only
-        void*    m_ResourceType;        // For internal use.
+        /// Resource kind
+        Kind     m_ResourceKind;
+
+        /// The shared state tells who owns what data
+        uint8_t  m_SharedState:1;        // 0 == shared, 1 == "instanced" (not full copy), 2 == New copy of original resource . For internal use.
     };
 
     /**
@@ -187,12 +209,16 @@ namespace dmResource
         HFactory m_Factory;
         /// Resource context
         void* m_Context;
+        /// File name hash of the data
+        uint64_t m_NameHash;
         /// File name of the loaded file
         const char* m_Filename;
         /// Data buffer containing the loaded file
         const void* m_Buffer;
         /// Size of data buffer
         uint32_t m_BufferSize;
+        /// Pointer holding a precreated message
+        const void* m_Message;
         /// Resource descriptor to write into
         SResourceDescriptor* m_Resource;
     };
@@ -205,6 +231,31 @@ namespace dmResource
     typedef Result (*FResourceRecreate)(const ResourceRecreateParams& params);
 
     /**
+     * Parameters to ResourceDuplicate callback.
+     */
+    struct ResourceDuplicateParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// Resource descriptor to copy from
+        SResourceDescriptor* m_OriginalResource;
+        /// Resource descriptor to write into
+        SResourceDescriptor* m_Resource;
+    };
+
+    /**
+     * Resource duplicate function. Used to create a new resource, while still using the same payload (if possible)
+     * The responsibility of the duplicate function is to create a shallow copy: retaining the bulk payload, and handing out a light instance. E.g. HTexture vs OpenGL texture
+     * The resource system keeps track of reference counting.
+     * @params params Parameters for resource creation
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef Result (*FResourceDuplicate)(const ResourceDuplicateParams& params);
+
+
+    /**
      * Parameters to ResourceReloaded callback.
      */
     struct ResourceReloadedParams
@@ -215,6 +266,8 @@ namespace dmResource
         SResourceDescriptor* m_Resource;
         /// Name of the resource, same as provided to Get() when the resource was obtained
         const char* m_Name;
+        /// Hashed name of the resource
+        uint64_t m_NameHash;
     };
 
     /**
@@ -294,7 +347,8 @@ namespace dmResource
                                FResourcePreload preload_function,
                                FResourceCreate create_function,
                                FResourceDestroy destroy_function,
-                               FResourceRecreate recreate_function);
+                               FResourceRecreate recreate_function,
+                               FResourceDuplicate duplicate_function);
 
     /**
      * Get a resource from factory
@@ -315,6 +369,25 @@ namespace dmResource
      * @return RESULT_OK on success
      */
     Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
+
+    /**
+     * Updates a preexisting resource with new data
+     * @param factory Factory handle
+     * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
+     * @param buffer The buffer
+     * @return RESULT_OK on success
+     */
+    Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
+
+    /**
+     * Updates a preexisting resource with new data
+     * @param factory Factory handle
+     * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
+     * @param buffer The buffer
+     * @return RESULT_OK on success
+     */
+    Result SetResource(HFactory factory, uint64_t hashed_name, void* message);
+
 
     /**
      * Reload a specific resource
@@ -427,6 +500,20 @@ namespace dmResource
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
+
+    /**
+     * Determines if the resource could be unique
+     * @param name Resource name
+    */
+    bool IsPathTagged(const char* name);
+
+
+    /**
+     * Returns the hashed name of a resource
+     * @param factory Factory handle
+     * @param resource Resource
+    */
+    Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
 }
 
 #endif // RESOURCE_H

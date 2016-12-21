@@ -5,14 +5,15 @@
              [prefs :as prefs]
              [ui :as ui]])
   (:import javafx.scene.control.ProgressBar
+           [java.io File]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]
+           [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
-           [org.eclipse.jgit.treewalk.filter NotIgnoredFilter PathFilter]
-           [org.eclipse.jgit.api.errors StashApplyFailureException]))
+           [org.eclipse.jgit.treewalk.filter NotIgnoredFilter PathFilter]))
 
 (set! *warn-on-reflection* true)
 
@@ -298,3 +299,6 @@
      :new-path new-path
      :old old
      :old-path old-path}))
+
+(defn init [^String path]
+  (-> (Git/init) (.setDirectory (File. path)) (.call)))
