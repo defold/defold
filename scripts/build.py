@@ -232,17 +232,21 @@ class Configuration(object):
 
     def _install_go(self):
         urls = {
-            'darwin'       : 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
+            'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
             'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
             'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
             'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
             'x86_64-win32' : 'https://storage.googleapis.com/golang/go1.7.1.windows-amd64.zip'
         }
 
-        url = urls[self.host]
-        path = self._download(url)
-        
-        self._extract(path, self.ext)
+        url = urls.get(self.target_platform)
+
+        if url:
+            path = self._download(url)
+            target_path = join(self.ext, 'go', self.target_platform)
+            self._extract(path, target_path)
+        else:
+            print("No go found for %s" % self.target_platform)
 
     def _make_package_path(self, platform, package):
         return join(self.defold_root, 'packages', package) + '-%s.tar.gz' % platform
@@ -642,15 +646,19 @@ class Configuration(object):
         self._build_extender_libs(**build_flags)
 
     def build_go(self):
-        # TODO: shell=True is required only on windows otherwise it fails. WHY?
+        exe_ext = '.exe' if 'win32' in self.target_platform else ''
+        go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)
 
-        self.exec_env_command('go clean -i github.com/...', shell=True)
-        self.exec_env_command('go install github.com/...', shell=True)
+        if not os.path.exists(go):
+            self._log("Missing go for target platform, run install_ext with --platform set.")
+            exit(5)
 
-        self.exec_env_command('go clean -i defold/...', shell=True)
+        self.exec_env_command([go, 'clean', '-i', 'github.com/...'])
+        self.exec_env_command([go, 'install', 'github.com/...'])
+        self.exec_env_command([go, 'clean', '-i', 'defold/...'])
         if not self.skip_tests:
-            self.exec_env_command('go test defold/...', shell=True)
-        self.exec_env_command('go install defold/...', shell=True)
+            self.exec_env_command([go, 'test', 'defold/...'])
+        self.exec_env_command([go, 'install', 'defold/...'])
 
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
@@ -1388,18 +1396,20 @@ instructions.configure=\
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
+        go_root = '%s/ext/go/%s/go' % (self.dynamo_home, self.target_platform)
+
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, self.host),
-                                      '%s/ext/go/bin' % self.dynamo_home])
+                                      '%s/bin' % go_root])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
 
         go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
                                          join(self.defold, 'go')])
         env['GOPATH'] = go_paths
-        env['GOROOT'] = '%s/go' % self.ext
+        env['GOROOT'] = go_root
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
