@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <dlib/log.h>
+#include <dlib/hashtable.h>
 #include <dlib/ssdp.h>
 #include <dlib/ssdp_private.h>
 #include <dlib/dstrings.h>
@@ -118,6 +119,19 @@ namespace
         return instance;
     }
 
+    void DestroySSDPInstance(dmSSDP::SSDP* instance) {
+        dmHashTable64<dmSSDP::Device*>::Entry* current = 0x0;
+        while ((current = instance->m_RegistredEntries.GetFirstEntry()) != 0x0)
+        {
+            dmSSDP::Device** current_device = instance->m_RegistredEntries.Get(current->m_Key);
+            dmLogDebug("Removing device %s", (*current_device)->m_DeviceDesc->m_Id);
+            delete *current_device;
+            instance->m_RegistredEntries.Erase(current->m_Key);
+        }
+
+        dmSSDP::Delete(instance);
+    }
+
     void RemoveRegisteredDevice(dmSSDP::SSDP* instance, dmSSDP::DeviceDesc* deviceDesc)
     {
         dmhash_t hashId = dmHashString64(deviceDesc->m_Id);
@@ -196,7 +210,7 @@ TEST_F(dmSSDPInternalTest, New)
     ASSERT_TRUE(instance->m_HttpServer != NULL);
 
     // Teardown
-    dmSSDP::Delete(instance);
+    DestroySSDPInstance(instance);
 }
 
 TEST_F(dmSSDPInternalTest, Delete)
@@ -229,7 +243,7 @@ TEST_F(dmSSDPInternalTest, RegisterDevice)
 
     // Teardown
     FreeDeviceDescription(&deviceDesc);
-    dmSSDP::Delete(instance);
+    DestroySSDPInstance(instance);
 }
 
 TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
@@ -251,14 +265,14 @@ TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
     CreateDeviceDescription(&deviceDescOverflow);
     dmSSDP::Result actual = dmSSDP::RegisterDevice(instance, &deviceDescOverflow);
     ASSERT_EQ(dmSSDP::RESULT_OUT_OF_RESOURCES, actual);
-    FreeDeviceDescription(&deviceDescOverflow);
+    //FreeDeviceDescription(&deviceDescOverflow);
 
     // Teardown
     for (unsigned int i = 0; i < 32; ++i)
     {
-        FreeDeviceDescription(&deviceDescs[i]);
+        //FreeDeviceDescription(&deviceDescs[i]);
     }
-    dmSSDP::Delete(instance);
+    DestroySSDPInstance(instance);
 }
 
 TEST_F(dmSSDPInternalTest, DeregisterDevice)
@@ -281,7 +295,7 @@ TEST_F(dmSSDPInternalTest, DeregisterDevice)
 
     // Teardown
     FreeDeviceDescription(&deviceDesc);
-    dmSSDP::Delete(instance);
+    DestroySSDPInstance(instance);
 }
 
 /* -------------------------------------------------------------------------*
@@ -310,7 +324,7 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
     }
 
     // Teardown
-    dmSSDP::Delete(instance);
+    DestroySSDPInstance(instance);
 }
 
 TEST_F(dmSSDPInternalTest, SendAnnounce)
@@ -334,7 +348,7 @@ TEST_F(dmSSDPInternalTest, SendAnnounce)
 
     // Teardown
     FreeDeviceDescription(&deviceDesc);
-    dmSSDP::Delete(instance);
+    DestroySSDPInstance(instance);
 }
 
 TEST_F(dmSSDPInternalTest, SendUnannounce)
@@ -358,7 +372,7 @@ TEST_F(dmSSDPInternalTest, SendUnannounce)
 
     // Teardown
     FreeDeviceDescription(&deviceDesc);
-    dmSSDP::Delete(instance);
+    DestroySSDPInstance(instance);
 }
 
 TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
@@ -384,7 +398,7 @@ TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
 
     // Teardown
     dmSSDP::Delete(server);
-    dmSSDP::Delete(client);
+    DestroySSDPInstance(client);
 }
 
 int main(int argc, char **argv)
