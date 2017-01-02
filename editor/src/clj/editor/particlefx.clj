@@ -574,6 +574,7 @@
 
 (g/defnk produce-save-data [resource pb-data]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str Particle$ParticleFX pb-data)})
 
 (defn- build-pb [self basis resource dep-resources user-data]

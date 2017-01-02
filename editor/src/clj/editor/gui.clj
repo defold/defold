@@ -1200,6 +1200,7 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str (:pb-class pb-def) pb-msg)})
 
 (defn- build-pb [self basis resource dep-resources user-data]

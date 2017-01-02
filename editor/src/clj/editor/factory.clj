@@ -49,6 +49,7 @@
 
 (g/defnk produce-save-data [resource factory-type pb-msg]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str (get-in factory-types [factory-type :pb-type]) pb-msg)})
 
 (defn build-factory

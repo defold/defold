@@ -69,6 +69,7 @@
 
 (g/defnk produce-save-data [resource def pb]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str (:pb-class def) pb)})
 
 (defn- build-pb [self basis resource dep-resources user-data]

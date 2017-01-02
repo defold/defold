@@ -47,6 +47,7 @@
 
 (g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str Spine$SpineSceneDesc
               {:spine-json (resource/resource->proj-path spine-json-resource)
                :atlas (resource/resource->proj-path atlas-resource)
@@ -684,6 +685,7 @@
 
 (g/defnk produce-model-save-data [resource model-pb]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str Spine$SpineModelDesc model-pb)})
 
 (defn- build-spine-model [self basis resource dep-resources user-data]
