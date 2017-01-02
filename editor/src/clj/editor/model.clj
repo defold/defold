@@ -42,6 +42,7 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str ModelProto$ModelDesc pb-msg)})
 
 (g/defnk produce-rig-scene-pb-msg [pb-msg]

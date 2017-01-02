@@ -234,6 +234,7 @@
 
 (g/defnk produce-save-data [resource proto-msg]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str GameObject$PrototypeDesc proto-msg)})
 
 (defn- externalize [inst-data resources]

@@ -83,7 +83,9 @@
                                  (update s :value #(str % "c"))
                                  s)))
                   gpcore/settings->str)]
-    {:resource resource :content content}))
+    {:resource resource
+     :textual? true
+     :content content}))
 
 (defn- build-game-project [self basis resource dep-resources user-data]
   (let [ref-deps (:ref-deps user-data)

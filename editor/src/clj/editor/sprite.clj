@@ -176,6 +176,7 @@
 
 (g/defnk produce-save-data [_node-id resource image default-animation material blend-mode]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str Sprite$SpriteDesc
               {:tile-set (resource/resource->proj-path image)
                :default-animation default-animation
