@@ -92,11 +92,15 @@
       (workspace/resource-sync! workspace)
       workspace)))
 
-(defn setup-scratch-workspace! [graph project-path]
+(defn make-temp-project-copy! [project-path]
   (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
                               (.toFile)
                               (.getAbsolutePath))]
     (FileUtils/copyDirectory (io/file project-path) (io/file temp-project-path))
+    temp-project-path))
+
+(defn setup-scratch-workspace! [graph project-path]
+  (let [temp-project-path (make-temp-project-copy! project-path)]
     (setup-workspace! graph temp-project-path)))
 
 (defn setup-project!
