@@ -56,6 +56,7 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str Camera$CameraDesc pb-msg)})
 
 (defn build-camera

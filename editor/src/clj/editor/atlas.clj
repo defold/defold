@@ -241,6 +241,7 @@
 
 (g/defnk produce-save-data [resource margin inner-padding extrude-borders img-ddf anim-ddf]
   {:resource resource
+   :textual? true
    :content (let [m {:margin margin
                      :inner-padding inner-padding
                      :extrude-borders extrude-borders

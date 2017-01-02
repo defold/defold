@@ -295,6 +295,7 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str Font$FontDesc pb-msg)})
 
 (g/defnk produce-font-map [_node-id font pb-msg]

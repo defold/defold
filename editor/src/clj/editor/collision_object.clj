@@ -547,6 +547,7 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str Physics$CollisionObjectDesc pb-msg)})
 
 (defn build-collision-object

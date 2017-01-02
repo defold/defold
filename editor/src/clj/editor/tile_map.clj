@@ -334,6 +334,7 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
+   :textual? true
    :content  (protobuf/map->str Tile$TileGrid pb-msg)})
 
 (defn build-tile-map

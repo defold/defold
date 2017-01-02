@@ -104,8 +104,8 @@
 
 (g/defnk produce-save-data [resource code]
   {:resource resource
+   :textual? true
    :content code})
-
 
 (defn- build-script [self basis resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)

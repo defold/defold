@@ -83,6 +83,7 @@
                    :front front
                    :back back}]
     {:resource resource
+     :textual? true
      :content (protobuf/map->str Graphics$Cubemap proto-msg)}))
 
 (g/defnk produce-scene

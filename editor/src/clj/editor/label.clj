@@ -178,6 +178,7 @@
 
 (g/defnk produce-save-data [_node-id resource pb-msg]
   {:resource resource
+   :textual? true
    :content (protobuf/map->str Label$LabelDesc pb-msg)})
 
 (g/defnk produce-scene
