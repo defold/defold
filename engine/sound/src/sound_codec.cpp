@@ -50,7 +50,7 @@ namespace dmSoundCodec
         delete context;
     }
 
-    Result NewDecoder(HCodecContext context, Format format, const void* buffer, uint32_t buffer_size, HDecoder* decoder)
+    Result NewDecoder(HCodecContext context, Format format, dmSound::HSoundData sound_data, HDecoder* decoder)
     {
         if (context->m_DecodersPool.Remaining() == 0) {
             return RESULT_OUT_OF_RESOURCES;
@@ -66,7 +66,7 @@ namespace dmSoundCodec
         d->m_Index = index;
         d->m_DecoderInfo = decoderImpl;
 
-        Result r = decoderImpl->m_OpenStream(buffer, buffer_size, &d->m_Stream);
+        Result r = decoderImpl->m_OpenStream(sound_data, &d->m_Stream);
         if (r != RESULT_OK) {
             context->m_DecodersPool.Push(index);
             return r;

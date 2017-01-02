@@ -14,8 +14,9 @@ namespace dmSound
 
     enum SoundDataType
     {
-        SOUND_DATA_TYPE_WAV        = 0,
-        SOUND_DATA_TYPE_OGG_VORBIS = 1,
+        SOUND_DATA_TYPE_WAV         = 0,
+        SOUND_DATA_TYPE_OGG_VORBIS  = 1,
+        SOUND_DATA_TYPE_RAW         = 2,
     };
 
     enum Parameter
@@ -73,14 +74,25 @@ namespace dmSound
         }
     };
 
+    enum StreamResult
+    {
+        STREAM_RESULT_OK,
+        STREAM_RESULT_END_OF_STREAM,
+    };
+    typedef StreamResult (*FStreamSoundFetch)(HSoundData sound_data, uint32_t buffer_size, uint8_t* buffer, uint32_t* nread, void* user_ctx);
+
+    StreamResult FetchSoundData(HSoundData sound_data, uint32_t buffersize, uint8_t* buffer, uint32_t* nread);
+
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params);
     Result Finalize();
 
     void   GetStats(Stats* stats);
 
+    Result NewStreamSoundData(FStreamSoundFetch fn, void* fnctx, SoundDataType type, HSoundData* sound_data);
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data);
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size);
     Result DeleteSoundData(HSoundData sound_data);
+    Result SetFetchFunction(HSoundData sound_data, FStreamSoundFetch fn, void* fnctx);
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);
     Result DeleteSoundInstance(HSoundInstance sound_instance);

@@ -7,6 +7,8 @@
 #include "sound.h"
 #include "sound_decoder.h"
 
+// http://soundfile.sapp.org/doc/WaveFormat/
+
 #if DM_ENDIAN == DM_ENDIAN_LITTLE
 #define FOUR_CC(a,b,c,d) (((uint32_t)d << 24) | ((uint32_t)c << 16) | ((uint32_t)b << 8) | ((uint32_t)a))
 #else
@@ -96,13 +98,92 @@ namespace dmSoundCodec
 
         struct DecodeStreamInfo {
             Info m_Info;
-            uint32_t m_Cursor;
-            const void* m_Buffer;
+            //uint32_t m_Cursor;
+            //const void* m_Buffer;
+
+            dmSound::HSoundData m_SoundData;
         };
     }
 
-    static Result WavOpenStream(const void* buffer, uint32_t buffer_size, HDecodeStream* stream)
+    static Result WavOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
+        //dmSound::FetchSoundData();
+
+        RiffHeader riffheader;
+        uint32_t nread = 0;
+        if( dmSound::STREAM_RESULT_OK != dmSound::FetchSoundData(sound_data, sizeof(riffheader), (uint8_t*)&riffheader, &nread) )
+        {
+            return RESULT_INVALID_FORMAT;
+        }
+
+        riffheader.Swap();
+        if( riffheader.m_ChunkID != FOUR_CC('R', 'I', 'F', 'F') ||
+            riffheader.m_Format != FOUR_CC('W', 'A', 'V', 'E') )
+        {
+            return RESULT_INVALID_FORMAT;
+        }
+
+        // Now we know it's a riff wave format, start reading chunks
+
+        DecodeStreamInfo streamTemp;
+        int found_info = 0;
+
+        int numtries = 32; // We _really_ should find the format chunk in the first N chunks
+        do
+        {
+            CommonHeader commonheader;
+
+            if( dmSound::STREAM_RESULT_OK != dmSound::FetchSoundData(sound_data, sizeof(CommonHeader), (uint8_t*)&commonheader, &nread) )
+            {
+                return RESULT_INVALID_FORMAT;
+            }
+
+            if (commonheader.m_ChunkID == FOUR_CC('f', 'm', 't', ' '))
+            {
+                FmtChunk fmt;
+
+                // Read the rest of the format chunk
+                if( dmSound::STREAM_RESULT_OK != dmSound::FetchSoundData(sound_data, sizeof(FmtChunk) - sizeof(CommonHeader), ((uint8_t*)&fmt) + sizeof(CommonHeader), &nread) )
+                {
+                    return RESULT_INVALID_FORMAT;
+                }
+
+                fmt.Swap();
+
+                streamTemp.m_Info.m_Size = 0;
+                streamTemp.m_Info.m_Rate = fmt.m_SampleRate;
+                streamTemp.m_Info.m_Channels = fmt.m_NumChannels;
+                streamTemp.m_Info.m_BitsPerSample = fmt.m_BitsPerSample;
+
+                ++found_info;
+            }
+            else if (commonheader.m_ChunkID == FOUR_CC('d', 'a', 't', 'a'))
+            {
+                commonheader.SwapHeader();
+                streamTemp.m_Info.m_Size = commonheader.m_ChunkSize;
+                // The data is the bulk that we want, and it's coming next in the stream, so we don't want to read any further
+                ++found_info;
+            }
+            else
+            {
+                // Skip this chunk
+                if( dmSound::STREAM_RESULT_OK != dmSound::FetchSoundData(sound_data, commonheader.m_ChunkSize, 0, &nread) )
+                {
+                    return RESULT_INVALID_FORMAT;
+                }
+            }
+
+        }
+        while( --numtries > 0 && found_info < 2 );
+
+        DecodeStreamInfo* streamOut = new DecodeStreamInfo;
+        *streamOut = streamTemp;
+        streamOut->m_SoundData = sound_data;
+        *stream = streamOut;
+
+        return RESULT_OK;
+
+        /*
         RiffHeader* header = (RiffHeader*) buffer;
         DecodeStreamInfo streamTemp;
 
@@ -132,7 +213,7 @@ namespace dmSoundCodec
                 if (header.m_ChunkID == FOUR_CC('f', 'm', 't', ' ')) {
                     FmtChunk fmt;
                     if (current + sizeof(fmt) > end) {
-                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", current - begin, buffer_size);
+                        dmLogWarning("WAV sound data seems corrupt or truncated at position %ld out of %d", current - begin, buffer_size);
                         return RESULT_INVALID_FORMAT;
                     }
 
@@ -153,7 +234,7 @@ namespace dmSoundCodec
                     // NOTE: We don't byte-swap PCM-data and a potential problem on big-endian architectures
                     DataChunk data;
                     if (current + sizeof(data) > end) {
-                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", current - begin, buffer_size);
+                        dmLogWarning("WAV sound data seems corrupt or truncated at position %ld out of %d", current - begin, buffer_size);
                         return RESULT_INVALID_FORMAT;
                     }
 
@@ -180,7 +261,7 @@ namespace dmSoundCodec
             }
         } else {
             return RESULT_INVALID_FORMAT;
-        }
+        }*/
     }
 
     void WavCloseStream(HDecodeStream stream)
@@ -192,13 +273,17 @@ namespace dmSoundCodec
 
     Result WavResetStream(HDecodeStream stream)
     {
-        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-        streamInfo->m_Cursor = 0;
-        return RESULT_OK;
+        //DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        //streamInfo->m_Cursor = 0;
+        return RESULT_UNSUPPORTED;
     }
 
     Result WavDecodeStream(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
+        DecodeStreamInfo* streamInfo = (DecodeStreamInfo *) stream;
+        dmSound::FetchSoundData(streamInfo->m_SoundData, buffer_size, (uint8_t*)buffer, decoded);
+        return RESULT_OK;
+        /*
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
 
         DM_PROFILE(SoundCodec, "Wav")
@@ -209,16 +294,22 @@ namespace dmSoundCodec
         memcpy(buffer, (const char*) streamInfo->m_Buffer + streamInfo->m_Cursor, n);
         streamInfo->m_Cursor += n;
         return RESULT_OK;
+        */
     }
 
     Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
+        DecodeStreamInfo* streamInfo = (DecodeStreamInfo *) stream;
+        dmSound::FetchSoundData(streamInfo->m_SoundData, bytes, 0, skipped);
+        return RESULT_OK;
+        /*
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
         uint32_t n = dmMath::Min(bytes, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);
         *skipped = n;
         streamInfo->m_Cursor += n;
         return RESULT_OK;
+        */
     }
 
     void WavGetInfo(HDecodeStream stream, struct Info* out)

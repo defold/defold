@@ -78,11 +78,20 @@ message SetViewProjection
     required dmMath.Matrix4 projection  = 3;
 }
 
+message LuaCallback
+{
+    required uint64     lua_state       = 1 [default = 0];
+    required uint64     instance        = 2 [default = 0];
+    required uint64     function        = 3 [default = 0];
+}
+
 /* Documented in comp_sound.cpp */
 message PlaySound
 {
     optional float delay = 1 [default=0.0];
     optional float gain = 2 [default=1.0];
+    optional uint64 fetch_function = 3 [default=0];
+    optional LuaCallback lua_callback = 4;
 }
 
 message StopSound

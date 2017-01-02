@@ -16,12 +16,13 @@ namespace dmGameSystem
 {
     struct PlayEntry
     {
-        dmResource::HFactory    m_Factory;
-        Sound*                  m_Sound;
-        dmSound::HSoundInstance m_SoundInstance;
-        float                   m_Delay;
-        dmGameObject::HInstance m_Instance;
-        uint32_t                m_StopRequested : 1;
+        dmResource::HFactory        m_Factory;
+        Sound*                      m_Sound;
+        dmSound::HSoundInstance     m_SoundInstance;
+        dmGameSystem::LuaCallback   m_FetchCtx;         // If this is a streaming sound, this is the context
+        float                       m_Delay;
+        dmGameObject::HInstance     m_Instance;
+        uint32_t                    m_StopRequested : 1;
     };
 
     struct World
@@ -207,6 +208,13 @@ namespace dmGameSystem
                 entry.m_StopRequested = 0;
                 entry.m_Instance = params.m_Instance;
                 entry.m_Delay = play_sound->m_Delay;
+                entry.m_FetchCtx = play_sound->m_LuaCallback;
+                
+                if ( play_sound->m_FetchFunction )
+                {
+                    dmSound::SetFetchFunction(sound_data, (dmSound::FStreamSoundFetch)play_sound->m_FetchFunction, (void*)&entry.m_FetchCtx);
+                }
+
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)
                 {

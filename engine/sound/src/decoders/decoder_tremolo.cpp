@@ -66,8 +66,10 @@ namespace dmSoundCodec
         return info->m_Cursor;
     }
 
-    static Result TremoloOpenStream(const void* buffer, uint32_t buffer_size, HDecodeStream* stream)
+    static Result TremoloOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
+        return RESULT_INVALID_FORMAT;
+        /*
         DecodeStreamInfo *tmp = new DecodeStreamInfo();
         tmp->m_Buffer = (const char*) buffer;
         tmp->m_Size = buffer_size;
@@ -98,10 +100,13 @@ namespace dmSoundCodec
 
         *stream = tmp;
         return RESULT_OK;
+        */
     }
 
     static Result TremoloDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
+        return RESULT_DECODE_ERROR;
+        /*
         DM_PROFILE(SoundCodec, "Tremolo")
 
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
@@ -144,6 +149,7 @@ namespace dmSoundCodec
 
         *decoded = got_bytes;
         return RESULT_OK;
+        */
     }
 
     static Result TremoloResetStream(HDecodeStream stream)
@@ -156,6 +162,8 @@ namespace dmSoundCodec
 
     static Result TremoloSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
+        return RESULT_UNSUPPORTED;
+        /*
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
         if (streamInfo->m_PcmLength > 0)
         {
@@ -179,13 +187,13 @@ namespace dmSoundCodec
             // unseekable stream.
             *skipped = 0;
             return RESULT_UNSUPPORTED;
-        }
+        }*/
     }
 
     static void TremoloCloseStream(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
-        ov_clear(&streamInfo->m_File);
+        //ov_clear(&streamInfo->m_File);
         delete streamInfo;
     }
 

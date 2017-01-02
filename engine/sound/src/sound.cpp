@@ -13,26 +13,6 @@
 #include <math.h>
 #include <cfloat>
 
-namespace
-{
-
-    /**
-     * Return true if the two floats differs less than EPSILON.
-     *
-     * @note Precision cannot be guaranteed for really small numbers.
-     * @see http://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html
-     *
-     * @param a Float to compare
-     * @param b Float to compare
-     * @return true if the two floats differs less than FLT_EPSILON (as defined
-     * by IEEE), false otherwise.
-     */
-    inline bool EqFloat(float a, float b) {
-        float difference = fabsf(a - b);
-        return difference < FLT_EPSILON;
-    }
-}
-
 /**
  * Defold simple sound system
  * NOTE: Must units is in frames, i.e a sample in time with N channels
@@ -143,11 +123,15 @@ namespace dmSound
 
     struct SoundData
     {
-        SoundDataType m_Type;
-        void*         m_Data;
-        int           m_Size;
-        // Index in m_SoundData
-        uint16_t      m_Index;
+        FStreamSoundFetch   m_Fetch;
+        void*               m_FetchFnCtx; // User data
+        uint16_t            m_Index;    // Index in m_SoundData
+        SoundDataType       m_Type;
+
+        // For those sounds that come from the resource system
+        char*           m_SoundData;
+        uint32_t        m_SoundSize;
+        uint32_t        m_SoundOffset; // Cursor
     };
 
     struct SoundInstance
@@ -402,10 +386,9 @@ namespace dmSound
         *stats = g_SoundSystem->m_Stats;
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    Result NewStreamSoundData(FStreamSoundFetch fn, void* user_ctx, SoundDataType type, HSoundData* sound_data)
     {
         SoundSystem* sound = g_SoundSystem;
-
         if (sound->m_SoundDataPool.Remaining() == 0)
         {
             *sound_data = 0;
@@ -416,31 +399,80 @@ namespace dmSound
         SoundData* sd = &sound->m_SoundData[index];
         sd->m_Type = type;
         sd->m_Index = index;
-        sd->m_Data = 0;
-        sd->m_Size = 0;
+        sd->m_Fetch = fn;
+        sd->m_FetchFnCtx = user_ctx;
+        sd->m_SoundData = 0;
+        sd->m_SoundSize = 0;
+        sd->m_SoundOffset = 0;
 
-        Result result = SetSoundData(sd, sound_buffer, sound_buffer_size);
-        if (result == RESULT_OK)
-            *sound_data = sd;
-        else
-            DeleteSoundData(sd);
+        *sound_data = sd;
+        return RESULT_OK;
+    }
+
+    static StreamResult SoundStreamFetchGeneric(HSoundData sound_data, uint32_t buffer_size, uint8_t* buffer, uint32_t* nread, void* user_ctx)
+    {
+        (void)user_ctx;
+
+        assert(sound_data->m_SoundOffset <= sound_data->m_SoundSize);
+        uint32_t left = sound_data->m_SoundSize - sound_data->m_SoundOffset;
+        if (left == 0) {
+            *nread = 0;
+            return STREAM_RESULT_END_OF_STREAM;
+        }
+
+        uint32_t size = dmMath::Min(left, buffer_size);
+        // due to an issue that .wav files can have misrepresenting numbers in the file
+        // it can actually be shorter than reported
+        size = size & ~0x3;
+
+        if( buffer )
+        {
+            memcpy(buffer, sound_data->m_SoundData + sound_data->m_SoundOffset, size);
+        }
+        sound_data->m_SoundOffset += size;
+        *nread = size;
+
+        return STREAM_RESULT_OK;
+    }
+
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    {
+        Result result = NewStreamSoundData(SoundStreamFetchGeneric, 0, type, sound_data);
+        if( result != RESULT_OK )
+        {
+            return result;
+        }
+
+        result = SetSoundData(*sound_data, sound_buffer, sound_buffer_size);
+        if (result != RESULT_OK)
+        {
+            DeleteSoundData(*sound_data);
+            *sound_data = 0;
+        }
 
         return result;
     }
 
+    Result SetFetchFunction(HSoundData sound_data, FStreamSoundFetch fn, void* fnctx)
+    {
+        sound_data->m_Fetch = fn;
+        sound_data->m_FetchFnCtx = fnctx;
+        return RESULT_OK;
+    }
+
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
-        free(sound_data->m_Data);
-        sound_data->m_Data = malloc(sound_buffer_size);
-        sound_data->m_Size = sound_buffer_size;
-        memcpy(sound_data->m_Data, sound_buffer, sound_buffer_size);
+        free(sound_data->m_SoundData);
+        sound_data->m_SoundData = (char*)malloc(sound_buffer_size);
+        sound_data->m_SoundSize = sound_buffer_size;
+        memcpy(sound_data->m_SoundData, sound_buffer, sound_buffer_size);
         return RESULT_OK;
     }
 
     Result DeleteSoundData(HSoundData sound_data)
     {
-        if (sound_data->m_Data != 0x0)
-            free((void*) sound_data->m_Data);
+        if (sound_data->m_SoundData != 0x0)
+            free((void*) sound_data->m_SoundData);
 
         SoundSystem* sound = g_SoundSystem;
         sound->m_SoundDataPool.Push(sound_data->m_Index);
@@ -448,6 +480,12 @@ namespace dmSound
 
         return RESULT_OK;
     }
+    
+    StreamResult FetchSoundData(HSoundData sound_data, uint32_t buffersize, uint8_t* buffer, uint32_t* nread)
+    {
+        return sound_data->m_Fetch(sound_data, buffersize, buffer, nread, sound_data->m_FetchFnCtx);
+    }
+
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance)
     {
@@ -466,11 +504,13 @@ namespace dmSound
             codec_format = dmSoundCodec::FORMAT_WAV;
         } else if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS) {
             codec_format = dmSoundCodec::FORMAT_VORBIS;
+        } else if (sound_data->m_Type == SOUND_DATA_TYPE_RAW) {
+            codec_format = dmSoundCodec::FORMAT_RAW;
         } else {
             assert(0);
         }
 
-        dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data->m_Data, sound_data->m_Size, &decoder);
+        dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data, &decoder);
         if (r != dmSoundCodec::RESULT_OK) {
             dmLogError("Failed to decode sound (%d)", r);
             return RESULT_INVALID_STREAM_DATA;

@@ -48,11 +48,14 @@ public:
         for (unsigned int i=0;i<sizeof(m_UnCache);i++)
             m_UnCache[i] += junk;
 
+        dmSound::HSoundData sound_data;
+        NewSoundData(buf, size, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &sound_data);
+
         char tmp[4096];
         dmSoundCodec::HDecodeStream stream;
 
         const uint64_t time_beg = dmTime::GetTime();
-        ASSERT_EQ(decoder->m_OpenStream(buf, size, &stream), dmSoundCodec::RESULT_OK);
+        ASSERT_EQ(decoder->m_OpenStream(sound_data, &stream), dmSoundCodec::RESULT_OK);
         const uint64_t time_open = dmTime::GetTime();
 
         uint64_t max_chunk_time = 0;

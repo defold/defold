@@ -4,6 +4,12 @@
 /**
  * Sound decoding support
  */
+
+namespace dmSound
+{
+    typedef struct SoundData* HSoundData;
+}
+
 namespace dmSoundCodec
 {
     /// Codec context handle
@@ -29,8 +35,9 @@ namespace dmSoundCodec
      */
     enum Format
     {
-        FORMAT_WAV,   //!< FORMAT_WAV
-        FORMAT_VORBIS,//!< FORMAT_VORBIS
+        FORMAT_WAV,     //!< FORMAT_WAV
+        FORMAT_VORBIS,  //!< FORMAT_VORBIS
+        FORMAT_RAW      //!< FORMAT_RAW
     };
 
     /**
@@ -84,7 +91,7 @@ namespace dmSoundCodec
      * @param decoder decoder (out)
      * @return RESULT_OK on success
      */
-    Result NewDecoder(HCodecContext context, Format format, const void* buffer, uint32_t buffer_size, HDecoder* decoder);
+    Result NewDecoder(HCodecContext context, Format format, dmSound::HSoundData sound_data, HDecoder* decoder);
 
     /**
      * Delete decoder

@@ -5,6 +5,11 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/dstrings.h>
+
+#include "../gamesys.h"
+#include "../gamesys_private.h"
+#include "gamesys_ddf.h"
 
 #include <sound/sound.h>
 
@@ -228,6 +233,187 @@ namespace dmGameSystem
         return 1;
     }
 
+    static lua_Number CheckTableNumber(lua_State* L, int index, const char* name, lua_Number fallback)
+    {
+        int top = lua_gettop(L);
+
+        lua_Number result = -1;
+        lua_pushstring(L, name);
+        lua_gettable(L, index);
+        if (lua_isnumber(L, -1)) {
+            result = lua_tonumber(L, -1);
+        } else if (lua_isnil(L, -1)) {
+            result = fallback;
+        } else {
+            char msg[256];
+            DM_SNPRINTF(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
+            return luaL_error(L, msg);
+        }
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return result;
+    }
+
+    static int CheckTableFunction(lua_State* L, int index, const char* name, lua_Number fallback)
+    {
+        int top = lua_gettop(L);
+
+        int result = -1;
+        lua_pushstring(L, name);
+        lua_gettable(L, index);
+        if (lua_isfunction(L, -1)) {
+            result = dmScript::Ref(L, LUA_REGISTRYINDEX);
+            lua_pushnil(L); // so that stack matches for the check at the end
+        } else if (lua_isnil(L, -1)) {
+            result = fallback;
+        } else {
+            char msg[256];
+            DM_SNPRINTF(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
+            return luaL_error(L, msg);
+        }
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return result;
+    }
+
+
+    static dmSound::StreamResult SoundScriptFetchCallback(dmSound::HSoundData sound_data, uint32_t buffer_size, uint8_t* buffer, uint32_t* nread, void* user_ctx)
+    {
+        dmGameSystemDDF::LuaCallback& cbk = *(dmGameSystemDDF::LuaCallback*)user_ctx;
+        lua_State* L = (lua_State*)cbk.m_LuaState;
+
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk.m_Function);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk.m_Instance);
+        lua_pushvalue(L, -1); // SetInstance [-1, +0, e]
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run sound fetch callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return dmSound::STREAM_RESULT_END_OF_STREAM;
+        }
+
+        lua_pushnumber(L, 0); // ID
+        lua_pushnumber(L, buffer_size); // requested number of bytes
+
+
+        (void) dmScript::PCall(L, 3, 1);
+
+        if ( !dmScript::IsBuffer(L, -1) )
+        {
+            dmLogWarning("NO BUFFER -> END OF STREAM\n");
+            *nread = 0;
+
+            lua_pop(L, 1);
+            assert(top == lua_gettop(L));
+            return dmSound::STREAM_RESULT_END_OF_STREAM;
+        }
+
+        dmBuffer::HBuffer* soundbuffer = dmScript::CheckBuffer(L, -1);
+
+        uint8_t* data = 0;
+        uint32_t datasize = 0;
+        dmBuffer::GetBytes(*soundbuffer, (void**)&data, &datasize);
+
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+
+        // Due to the wav format, it may be that the reported data chunk size is larger than the actual file
+        // Internally we check that we get multiples of four bytes
+        datasize = datasize & ~0x3;
+
+        if( datasize == 0 )
+        {
+            *nread = 0;
+            return dmSound::STREAM_RESULT_END_OF_STREAM;
+        }
+
+        datasize = dmMath::Min(datasize, buffer_size);
+
+        memcpy(buffer, data, datasize);
+        *nread = datasize;
+
+        return dmSound::STREAM_RESULT_OK;
+    }
+
+
+
+    int Sound_Play(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+  
+        dmGameSystemDDF::PlaySound msg;
+        memset(&msg, 0, sizeof(msg));
+        msg.m_Gain = 1.0f;
+
+        if ( lua_istable(L, 2) )
+        {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            msg.m_Delay = CheckTableNumber(L, 2, "delay", msg.m_Delay);
+            msg.m_Gain = CheckTableNumber(L, 2, "gain", msg.m_Gain);
+
+            msg.m_LuaCallback.m_Function = CheckTableFunction(L, 2, "fetch_function", 0);
+            if( msg.m_LuaCallback.m_Function )
+            {
+                dmScript::GetInstance(L);
+
+                msg.m_FetchFunction = (uint64_t)SoundScriptFetchCallback;
+                msg.m_LuaCallback.m_Instance = dmScript::Ref(L, LUA_REGISTRYINDEX);
+                msg.m_LuaCallback.m_LuaState = (uint64_t)L;
+            }
+        }
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    int Sound_Stop(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+  
+        dmGameSystemDDF::StopSound msg;
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopSound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    int Sound_SetGain(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+  
+        dmGameSystemDDF::SetGain msg;
+        msg.m_Gain = luaL_checknumber(L, 2);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetGain::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor, &msg, sizeof(msg), 0);
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     static const luaL_reg SOUND_FUNCTIONS[] =
     {
         {"is_music_playing", Sound_IsMusicPlaying},
@@ -237,6 +423,9 @@ namespace dmGameSystem
         {"get_group_gain", Sound_GetGroupGain},
         {"get_groups", Sound_GetGroups},
         {"get_group_name", Sound_GetGroupName},
+        {"play", Sound_Play},
+        {"stop", Sound_Stop},
+        {"set_gain", Sound_SetGain},
         {"is_phone_call_active", Sound_IsPhoneCallActive},
         {0, 0}
     };

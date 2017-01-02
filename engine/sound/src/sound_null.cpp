@@ -72,6 +72,11 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    Result SetFetchFunction(HSoundData sound_data, FStreamSoundFetch fn, void* fnctx)
+    {
+        return RESULT_OK;   
+    }
+
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance)
     {
         SoundInstance* si = new SoundInstance();

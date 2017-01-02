@@ -18,8 +18,10 @@ namespace dmSoundCodec
         };
     }
 
-    static Result StbVorbisOpenStream(const void* buffer, uint32_t buffer_size, HDecodeStream* stream)
+    static Result StbVorbisOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
+        return RESULT_INVALID_FORMAT;
+        /*
         int error;
         stb_vorbis* vorbis = stb_vorbis_open_memory((unsigned char*) buffer, buffer_size, &error, NULL);
 
@@ -38,10 +40,13 @@ namespace dmSoundCodec
         } else {
             return RESULT_INVALID_FORMAT;
         }
+        */
     }
 
     static Result StbVorbisDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
+        return RESULT_INVALID_FORMAT;
+        /*
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
 
         DM_PROFILE(SoundCodec, "StbVorbis")
@@ -68,12 +73,14 @@ namespace dmSoundCodec
         }
 
         return RESULT_OK;
+        */
     }
 
     Result StbVorbisResetStream(HDecodeStream stream)
     {
-        stb_vorbis_seek_start(((DecodeStreamInfo*)stream)->m_StbVorbis);
-        return RESULT_OK;
+        return RESULT_INVALID_FORMAT;
+        //stb_vorbis_seek_start(((DecodeStreamInfo*)stream)->m_StbVorbis);
+        //return RESULT_OK;
     }
 
     Result StbVorbisSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
@@ -81,14 +88,15 @@ namespace dmSoundCodec
         // Decode with buffer = null corresponding number of bytes.
         // stb_vorbis has a special case for this skipping a lot of
         // decoding work.
-        Result r = StbVorbisDecode(stream, 0, bytes, skipped);
-        return r;
+        //Result r = StbVorbisDecode(stream, 0, bytes, skipped);
+        //return r;
+        return RESULT_INVALID_FORMAT;
     }
 
     void StbVorbisCloseStream(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
-        stb_vorbis_close(streamInfo->m_StbVorbis);
+        //stb_vorbis_close(streamInfo->m_StbVorbis);
         delete streamInfo;
     }
 
