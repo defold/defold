@@ -1123,12 +1123,12 @@
 
 (defn maybe-ignore-error-in-value
   [self-name ctx-name nodeid-sym description input forms]
-  (let [sub       (get-in description [:input input :options :substitute])
+  (let [sub       (get-in description [:input input :options :substitute] ::no-sub)
         input-val (gensym)]
     `(let [~input-val ~forms]
        (if (instance? ErrorValue ~input-val)
          (if (ie/worse-than (:ignore-errors ~ctx-name) ~input-val)
-           ~(if sub
+           ~(if (not= ::no-sub sub)
               `(util/apply-if-fn ~sub ~input-val)
               `(ie/error-aggregate [~input-val] :_node-id ~nodeid-sym :_label ~input))
            (:value ~input-val))
