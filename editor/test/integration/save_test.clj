@@ -46,6 +46,7 @@
                  "**/super_scene.gui"
                  "**/scene.gui"
                  "**/simple.gui"
+                 "**/spine.gui"
                  "**/fireworks_big.particlefx"
                  "**/new.collisionobject"
                  "**/three_shapes.collisionobject"
