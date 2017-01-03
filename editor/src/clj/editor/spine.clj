@@ -43,6 +43,9 @@
 (def spine-model-icon "icons/32/Icons_15-Spine-model.png")
 (def spine-bone-icon "icons/32/Icons_S_13_radiocircle.png")
 
+(def spine-scene-ext "spinescene")
+(def spine-model-ext "spinemodel")
+
 ; Node defs
 
 (g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
@@ -722,7 +725,7 @@
                                                   [:node-outline :source-outline]
                                                   [:anim-data :anim-data]
                                                   [:scene-structure :scene-structure])))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext "spinescene"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext spine-scene-ext}))
             (dynamic error (g/fnk [_node-id spine-scene]
                                   (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
   (property blend-mode g/Any (default :blend-mode-alpha)
@@ -788,7 +791,7 @@
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
-                                      :ext "spinescene"
+                                      :ext spine-scene-ext
                                       :build-ext "rigscenec"
                                       :label "Spine Scene"
                                       :node-type SpineSceneNode
@@ -797,7 +800,7 @@
                                       :view-types [:scene :text]
                                       :view-opts {:scene {:grid true}})
     (workspace/register-resource-type workspace
-                                     :ext "spinemodel"
+                                     :ext spine-model-ext
                                      :label "Spine Model"
                                      :node-type SpineModelNode
                                      :load-fn load-spine-model

@@ -1,0 +1,20 @@
+script: ""
+fonts {
+  name: "system_font"
+  font: "/builtins/fonts/system_font.font"
+}
+textures {
+  name: "main"
+  texture: "/gui/gui.atlas"
+}
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 1.0
+}
+adjust_reference: ADJUST_REFERENCE_PARENT
+spine_scenes {
+  name: "spine_scene"
+  spine_scene: "/spine/player/spineboy.spinescene"
+}
