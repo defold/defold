@@ -138,10 +138,13 @@
                           (:focused? new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
-                     (future
-                       (ui/with-disabled-ui
-                         (ui/with-progress [render-fn ui/default-render-progress!]
-                           (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
+                     (let [{:keys [^Stage stage render-progress-fn]} (dialogs/make-progress-dialog "Reloading modified resources" "")]
+                       (ui/run-later
+                         (try
+                           (ui/with-progress [render-fn render-progress-fn]
+                             (editor.workspace/resource-sync! workspace true [] render-fn))
+                           (finally
+                             (.close stage)))))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -210,7 +213,7 @@
       (ui/on-closing! stage (fn [_]
                               (or (not (workspace/version-on-disk-outdated? workspace))
                                   (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))))
-    
+
       (ui/on-closed! stage (fn [_]
                              (app-view/store-window-dimensions stage prefs)
                              (app-view/store-split-positions! stage prefs)

@@ -1096,23 +1096,37 @@
           (throw @return)
           @return))))
 
-(def ^:private last-focused-node (atom nil))
+(defn ui-disabled?
+  []
+  (run-now (.. (main-stage) getScene getRoot isDisabled)))
 
-(defn disable-ui [disabled]
+(def disabled-ui-event-filter
+  (event-handler e (.consume e)))
+
+(defn disable-ui
+  []
   (let [scene       (.getScene (main-stage))
         focus-owner (.getFocusOwner scene)
         root        (.getRoot scene)]
-    (.setDisable root disabled)
-    (when-let [^Node node @last-focused-node]
-      (.requestFocus node))
-    (reset! last-focused-node focus-owner)))
+    (.setDisable root true)
+    (.addEventFilter scene javafx.event.EventType/ROOT disabled-ui-event-filter)
+    focus-owner))
+
+(defn enable-ui
+  [^Node focus-owner]
+  (let [scene       (.getScene (main-stage))
+        root        (.getRoot scene)]
+    (.removeEventFilter scene javafx.event.EventType/ROOT disabled-ui-event-filter)
+    (.setDisable root false)
+    (when focus-owner
+      (.requestFocus focus-owner))))
 
 (defmacro with-disabled-ui [& body]
-  `(try
-     (run-now (disable-ui true))
-     ~@body
-     (finally
-       (run-now (disable-ui false)))))
+  `(let [focus-owner# (run-now (disable-ui))]
+     (try
+       ~@body
+       (finally
+         (run-now (enable-ui focus-owner#))))))
 
 (defn mouse-type
   []

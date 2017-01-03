@@ -484,14 +484,16 @@
       (.setTitle stage new-title))))
 
 (defn- refresh-ui! [^Stage stage project]
-  (ui/refresh (.getScene stage))
-  (refresh-app-title! stage project))
+  (when-not (ui/ui-disabled?)
+    (ui/refresh (.getScene stage))
+    (refresh-app-title! stage project)))
 
 (defn- refresh-views! [app-view]
-  (let [auto-pulls (g/node-value app-view :auto-pulls)]
-    (doseq [[node label] auto-pulls]
-      (profiler/profile "view" (:name @(g/node-type* node))
-                        (g/node-value node label)))))
+  (when-not (ui/ui-disabled?)
+    (let [auto-pulls (g/node-value app-view :auto-pulls)]
+      (doseq [[node label] auto-pulls]
+        (profiler/profile "view" (:name @(g/node-type* node))
+                          (g/node-value node label))))))
 
 ;; Here only because reports indicate that isDesktopSupported does
 ;; some kind of initialization behind the scenes on Linux:
