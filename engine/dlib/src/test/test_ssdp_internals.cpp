@@ -100,7 +100,7 @@ namespace
 
     dmSSDP::SSDP* CreateSSDPClient()
     {
-        dmSSDP::SSDP* instance = new dmSSDP::SSDP();
+        dmSSDP::SSDP* instance = 0x0;
         dmSSDP::NewParams params;
         dmSSDP::New(&params, &instance);
 
@@ -109,7 +109,7 @@ namespace
 
     dmSSDP::SSDP* CreateSSDPServer(int max_age = 1800, int announce_interval = 900, bool announce = false)
     {
-        dmSSDP::SSDP* instance = new dmSSDP::SSDP();
+        dmSSDP::SSDP* instance = 0x0;
         dmSSDP::NewParams params;
         params.m_MaxAge = max_age;
         params.m_AnnounceInterval = announce_interval;
@@ -119,16 +119,16 @@ namespace
         return instance;
     }
 
-    void DestroySSDPInstance(dmSSDP::SSDP* instance) {
-        dmHashTable64<dmSSDP::Device*>::Entry* current = 0x0;
-        while ((current = instance->m_RegistredEntries.GetFirstEntry()) != 0x0)
-        {
-            dmSSDP::Device** current_device = instance->m_RegistredEntries.Get(current->m_Key);
-            dmLogDebug("Removing device %s", (*current_device)->m_DeviceDesc->m_Id);
-            delete *current_device;
-            instance->m_RegistredEntries.Erase(current->m_Key);
-        }
+    void IterateCallbackDelete(int* context, const uint64_t* key, dmSSDP::Device** value)
+    {
+        dmLogDebug("Removing device %s", (*value)->m_DeviceDesc->m_Id);
+        delete *value;
+    }
 
+    void DestroySSDPInstance(dmSSDP::SSDP* instance) {
+        int context = 0x0;
+        instance->m_RegistredEntries.Iterate(IterateCallbackDelete, &context);
+        instance->m_RegistredEntries.Clear();
         dmSSDP::Delete(instance);
     }
 
@@ -242,8 +242,8 @@ TEST_F(dmSSDPInternalTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTRED, actual);
 
     // Teardown
-    FreeDeviceDescription(&deviceDesc);
     DestroySSDPInstance(instance);
+    FreeDeviceDescription(&deviceDesc);
 }
 
 TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
@@ -252,8 +252,9 @@ TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
     dmSSDP::SSDP* instance = CreateSSDPClient();
 
     // Test
-    dmSSDP::DeviceDesc deviceDescs[32];
-    for (unsigned int i = 0; i < 32; ++i)
+    const uint32_t CONST_DEVICE_COUNT = 32;
+    dmSSDP::DeviceDesc deviceDescs[CONST_DEVICE_COUNT];
+    for (unsigned int i = 0; i < CONST_DEVICE_COUNT; ++i)
     {
         CreateDeviceDescription(&deviceDescs[i]);
         dmSSDP::Result actual = dmSSDP::RegisterDevice(instance, &deviceDescs[i]);
@@ -265,14 +266,14 @@ TEST_F(dmSSDPInternalTest, RegisterDevice_MaximumDevices)
     CreateDeviceDescription(&deviceDescOverflow);
     dmSSDP::Result actual = dmSSDP::RegisterDevice(instance, &deviceDescOverflow);
     ASSERT_EQ(dmSSDP::RESULT_OUT_OF_RESOURCES, actual);
-    //FreeDeviceDescription(&deviceDescOverflow);
+    FreeDeviceDescription(&deviceDescOverflow);
 
     // Teardown
-    for (unsigned int i = 0; i < 32; ++i)
-    {
-        //FreeDeviceDescription(&deviceDescs[i]);
-    }
     DestroySSDPInstance(instance);
+    for (unsigned int i = 0; i < CONST_DEVICE_COUNT; ++i)
+    {
+        FreeDeviceDescription(&deviceDescs[i]);
+    }
 }
 
 TEST_F(dmSSDPInternalTest, DeregisterDevice)
@@ -294,8 +295,8 @@ TEST_F(dmSSDPInternalTest, DeregisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_NOT_REGISTRED, actual);
 
     // Teardown
-    FreeDeviceDescription(&deviceDesc);
     DestroySSDPInstance(instance);
+    FreeDeviceDescription(&deviceDesc);
 }
 
 /* -------------------------------------------------------------------------*
@@ -347,8 +348,8 @@ TEST_F(dmSSDPInternalTest, SendAnnounce)
     ASSERT_TRUE(dmSSDP::SendAnnounce(instance, *device, 0));
 
     // Teardown
-    FreeDeviceDescription(&deviceDesc);
     DestroySSDPInstance(instance);
+    FreeDeviceDescription(&deviceDesc);
 }
 
 TEST_F(dmSSDPInternalTest, SendUnannounce)
@@ -371,8 +372,8 @@ TEST_F(dmSSDPInternalTest, SendUnannounce)
     ASSERT_NO_FATAL_FAILURE(dmSSDP::SendUnannounce(instance, *device, 0));
 
     // Teardown
-    FreeDeviceDescription(&deviceDesc);
     DestroySSDPInstance(instance);
+    FreeDeviceDescription(&deviceDesc);
 }
 
 TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
