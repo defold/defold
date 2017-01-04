@@ -12,8 +12,8 @@
 #include "../resource.h"
 #include "test/test_resource_ddf.h"
 
-extern unsigned char TEST_ARCI[];
-extern uint32_t TEST_ARCI_SIZE;
+extern unsigned char RESOURCES_ARCI[];
+extern uint32_t RESOURCES_ARCI_SIZE;
 
 class ResourceTest : public ::testing::Test
 {
@@ -690,8 +690,8 @@ TEST(dmResource, Builtins)
 {
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
-    params.m_BuiltinsArchive = (const void*) TEST_ARCI;
-    params.m_BuiltinsArchiveSize = TEST_ARCI_SIZE;
+    params.m_BuiltinsArchive = (const void*) RESOURCES_ARCI;
+    params.m_BuiltinsArchiveSize = RESOURCES_ARCI_SIZE;
 
     dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
     ASSERT_NE((void*) 0, factory);
