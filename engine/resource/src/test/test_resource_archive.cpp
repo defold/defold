@@ -3,14 +3,19 @@
 #include "../resource_archive.h"
 
 // new file format, generated test data
-extern unsigned char TEST_ARCI[];
-extern uint32_t TEST_ARCI_SIZE;
-extern unsigned char TEST_ARCD[];
-extern uint32_t TEST_ARCD_SIZE;
-extern unsigned char TEST_COMPRESSED_ARCI[];
-extern uint32_t TEST_COMPRESSED_ARCI_SIZE;
-extern unsigned char TEST_COMPRESSED_ARCD[];
-extern uint32_t TEST_COMPRESSED_ARCD_SIZE;
+extern unsigned char RESOURCES_ARCI[];
+extern uint32_t RESOURCES_ARCI_SIZE;
+extern unsigned char RESOURCES_ARCD[];
+extern uint32_t RESOURCES_ARCD_SIZE;
+extern unsigned char RESOURCES_DMANIFEST[];
+extern uint32_t RESOURCES_DMANIFEST_SIZE;
+
+extern unsigned char RESOURCES_COMPRESSED_ARCI[];
+extern uint32_t RESOURCES_COMPRESSED_ARCI_SIZE;
+extern unsigned char RESOURCES_COMPRESSED_ARCD[];
+extern uint32_t RESOURCES_COMPRESSED_ARCD_SIZE;
+extern unsigned char RESOURCES_COMPRESSED_DMANIFEST[];
+extern uint32_t RESOURCES_COMPRESSED_DMANIFEST_SIZE;
 
 static const char* hashes[] = { "awesome hash here2", "awesome hash here5", "awesome hash here3", "awesome hash here4", "awesome hash here1" };
 static const char* hash_not_found = "awesome hash NOT here";
@@ -20,7 +25,7 @@ static const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1
 TEST(dmResourceArchive, Wrap)
 {
     dmResourceArchive::HArchiveIndex archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) TEST_ARCI, TEST_ARCI_SIZE, TEST_ARCD, &archive);
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
     char* buf = new char[1024 * 1024];
@@ -43,7 +48,7 @@ TEST(dmResourceArchive, Wrap)
 TEST(dmResourceArchive, WrapCompressed)
 {
     dmResourceArchive::HArchiveIndex archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) TEST_COMPRESSED_ARCI, TEST_COMPRESSED_ARCI_SIZE, (void*) TEST_COMPRESSED_ARCD, &archive);
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, (void*) RESOURCES_COMPRESSED_ARCD, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
     char* buf = new char[1024 * 1024];
