@@ -24,7 +24,7 @@ static const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1
 
 TEST(dmResourceArchive, Wrap)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
@@ -47,7 +47,7 @@ TEST(dmResourceArchive, Wrap)
 
 TEST(dmResourceArchive, WrapCompressed)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, (void*) RESOURCES_COMPRESSED_ARCD, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
@@ -69,7 +69,7 @@ TEST(dmResourceArchive, WrapCompressed)
 
 TEST(dmResourceArchive, LoadFromDisk)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
 
     const char* archives[] = { "build/default/src/test/test.arci" };
 
@@ -95,7 +95,7 @@ TEST(dmResourceArchive, LoadFromDisk)
 
 TEST(dmResourceArchive, LoadNonExistentArchiveFromDisk)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
 
     const char* archives[] = { "build/default/src/test/this-file-does-not-exist.arci" };
 
@@ -105,7 +105,7 @@ TEST(dmResourceArchive, LoadNonExistentArchiveFromDisk)
 
 TEST(dmResourceArchive, LoadFromDiskCompressed)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
 
     const char* archives[] = { "build/default/src/test/test_compressed.arci" };
 
