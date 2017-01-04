@@ -104,6 +104,35 @@
                   "\n"
                   "\r\n"))))
 
+(deftest crlf->lf-test
+  (testing "Base cases"
+    (are [expected content]
+      (= expected (text-util/crlf->lf content))
+      nil nil
+      "" ""
+      "\n" "\r\n"
+      "\n\n" "\r\n\r\n"
+      "\n" "\n"
+      "eol" "eol"
+      "eol\n" "eol\r\n"
+      "eol\n" "eol\n"))
+
+  (testing "Mixed line endings."
+    (is (= (str "id: \"sprite\"\n"
+                "type: \"sprite\"\n"
+                "position: {\n"
+                "  x: 0.0\n"
+                "  y: 0.0\n"
+                "  z: 0.0\n"
+                "}\n")
+           (text-util/crlf->lf (str "id: \"sprite\"\n"
+                                    "type: \"sprite\"\n"
+                                    "position: {\n"
+                                    "  x: 0.0\r\n"
+                                    "  y: 0.0\r\n"
+                                    "  z: 0.0\r\n"
+                                    "}\n"))))))
+
 (deftest lf->crlf-test
   (testing "Base cases"
     (are [expected content]
