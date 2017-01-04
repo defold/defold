@@ -28,7 +28,7 @@ namespace dmResource
 
     Result MapFile(const char* path, void*& out_map, uint32_t& out_size)
     {
-        int fd = open(path, O_RDWR);
+        int fd = open(path, O_RDONLY);
         if (fd < 0)
         {
             return RESULT_RESOURCE_NOT_FOUND;
@@ -41,7 +41,7 @@ namespace dmResource
             return RESULT_IO_ERROR;
         }
 
-        out_map = mmap(0, fs.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        out_map = mmap(0, fs.st_size, PROT_READ, MAP_SHARED, fd, 0);
         close(fd);
 
         if (!out_map || out_map == (void*)-1)
@@ -54,7 +54,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    Result MountArchiveInternal(const char* index_path, dmResourceArchive::HArchiveIndex* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         // Derive path of arcd file from path to arci
         char data_path[DMPATH_MAX_PATH];
@@ -137,7 +137,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndex archive, void* mount_info)
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info)
     {
         MountInfo2* info = (MountInfo2*) mount_info;
 

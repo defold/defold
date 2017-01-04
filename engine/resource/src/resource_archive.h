@@ -27,39 +27,12 @@
 
 */
 
-/*
- Resource archive index-data file format
- - Index dara is in network endian
- - All entries are numericallty sorted by hash
-
- uint32_t m_Version;     // No minor or bug-fix version numbering. Version must match identically.
- uint32_t m_Pad;
- uint64_t m_Userdata;    // For run-time use
- uint32_t m_EntryDataCount;
- uint32_t m_EntryDataOffset;
- uint32_t m_HashOffset;
- uint32_t m_HashLength;
-
- uint8_t* m_Hashes;
- EntryData* m_Entries;
- FILE* m_FileResourceData;
-
- struct EntryData
- {
-     uint32_t m_ResourceDataOffset;
-     uint32_t m_ResourceSize;
-     uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
-     uint32_t m_Flags;
- };
-
-*/
-
 namespace dmResourceArchive
 {
     const static uint32_t VERSION = 4;
     
     typedef struct Archive* HArchive;
-    typedef struct ArchiveIndex* HArchiveIndex;
+    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
 
     enum Result
     {
@@ -105,7 +78,7 @@ namespace dmResourceArchive
      * @param resource_data resource data handle
      * @return RESULT_OK on success
      */
-    Result WrapArchiveBuffer2(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndex* archive);
+    Result WrapArchiveBuffer2(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndexContainer* archive);
 
     /**
      * Wrap an archive already loaded in memory. Call delete Delete() on wrapped
@@ -124,7 +97,7 @@ namespace dmResourceArchive
      * @param archive archive index handle
      * @return RESULT_OK on success
      */
-    Result LoadArchive2(const char* file_name, HArchiveIndex* archive);
+    Result LoadArchive2(const char* file_name, HArchiveIndexContainer* archive);
 
     /**
      * Load archive from filename. Only the metadata is loaded into memory.
@@ -142,7 +115,7 @@ namespace dmResourceArchive
      * @param entry entry data
      * @return RESULT_OK on success
      */
-    Result FindEntry2(HArchiveIndex archive, const uint8_t* hash, EntryData* entry);
+    Result FindEntry2(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry);
 
     /**
      * Find file within archive
@@ -161,7 +134,7 @@ namespace dmResourceArchive
      * @param buffer buffer to load to
      * @return RESULT_OK on success
      */
-    Result Read2(HArchiveIndex archive, EntryData* entry_data, void* buffer);
+    Result Read2(HArchiveIndexContainer archive, EntryData* entry_data, void* buffer);
 
     /**
      * Read resource
@@ -176,7 +149,7 @@ namespace dmResourceArchive
      * Delete archive. Only required for archives created with LoadArchive2 function
      * @param archive archive index handle
      */
-    void Delete2(HArchiveIndex archive);
+    void Delete2(HArchiveIndexContainer archive);
 
     /**
      * Delete archive. Only required for archives created with the LoadArchive function
@@ -189,7 +162,7 @@ namespace dmResourceArchive
      * @param archive archive index handle
      * @return entry count
      */
-    uint32_t GetEntryCount2(HArchiveIndex archive);
+    uint32_t GetEntryCount2(HArchiveIndexContainer archive);
 
     /**
      * Get total entries, i.e. files/resources, in archive

@@ -2,6 +2,7 @@ package com.dynamo.bob.archive;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,10 +19,12 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -30,6 +33,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.security.auth.DestroyFailedException;
 
 import com.dynamo.bob.pipeline.ResourceNode;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
@@ -264,7 +268,25 @@ public class ManifestBuilder {
     private String projectIdentifier = null;
     private ResourceNode dependencies = null;
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
-    private Set<ResourceEntry> resourceEntries = new HashSet<ResourceEntry>();
+    private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
+        private int compare(byte[] left, byte[] right) {
+            for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
+                int a = (left[i] & 0xff);
+                int b = (right[j] & 0xff);
+                if (a != b) {
+                    return a - b;
+                }
+            }
+            return left.length - right.length;
+        }
+        
+        public int compare(ResourceEntry s1, ResourceEntry s2) {
+            // byte compare, because java does not have unsigned types
+            byte[] s1_bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s1.getUrlHash()).array();
+            byte[] s2_bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s2.getUrlHash()).array();
+            return compare(s1_bytes, s2_bytes);
+        }
+    });
 
     public ManifestBuilder() {
 
@@ -328,6 +350,7 @@ public class ManifestBuilder {
         try {
             ResourceEntry.Builder builder = ResourceEntry.newBuilder();
             builder.setUrl(url);
+            builder.setUrlHash(MurmurHash.hash64(url)); // sort on this
             HashDigest hash = CryptographicOperations.createHashDigest(data, this.resourceHashAlgorithm);
             builder.setHash(hash);
             this.resourceEntries.add(builder.buildPartial());

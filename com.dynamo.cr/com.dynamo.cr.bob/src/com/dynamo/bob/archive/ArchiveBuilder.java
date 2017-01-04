@@ -145,7 +145,7 @@ public class ArchiveBuilder {
             String normalisedPath = FilenameUtils.separatorsToUnix(entry.relName);
             manifestBuilder.addResourceEntry(normalisedPath, buffer);
 
-            // Calculate hash values for resource
+            // Calculate hash digest values for resource
             String hexDigest = null;
             try {
                 byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
