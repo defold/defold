@@ -5,13 +5,21 @@ context:
 main: |
     #include <stdio.h>
 
+    #if __cplusplus
+    extern "C" {
+    #endif
+
     {{#symbols}}
-    extern "C" void {{.}}();
+    void {{.}}();
     {{/symbols}}
 
     {{#ext.symbols}}
-    extern "C" void {{.}}();
+    void {{.}}();
     {{/ext.symbols}}
+
+    #if __cplusplus
+    }
+    #endif
 
     void dmExportedSymbols() {
         {{#symbols}}
@@ -51,13 +59,16 @@ platforms:
         engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin"]
         defines:    ["DM_PLATFORM_IOS"]
+        flags:      []
+        linkFlags:  []
+        libs:       []
 
     exeExt: ''
     shlibRe: 'lib(.+).dylib'
     stlibRe: 'lib(.+).a'
     sourceRe: '(?i).*(.cpp|.c|.cc|.cxx|.c++|.mm|.m)'
-    compileCmd: 'clang++ -c -arch arm64 -target arm-apple-darwin11 -isysroot /opt/iPhoneOS.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 {{#defines}}-D{{.}} {{/defines}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{.}} {{/ext.frameworkPaths}} {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
-    linkCmd: clang++ -arch arm64 -target arm-apple-darwin11 -isysroot /opt/iPhoneOS.sdk/ -m64 -O2 -g -stdlib=libstdc++ -miphoneos-version-min=6.0 {{#src}}{{.}} {{/src}} -o {{tgt}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#ext.frameworkPaths}}-F{{.}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{.}} {{/ext.frameworks}} {{#frameworks}}-framework {{.}} {{/frameworks}} {{#libPaths}}-L{{.}} {{/libPaths}} {{#engineLibs}}-l{{.}} {{/engineLibs}}
+    compileCmd: 'clang++ -c -arch arm64 -target arm-apple-darwin11 -isysroot /opt/iPhoneOS.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 {{#defines}}-D{{.}} {{/defines}} {{#flags}}{{.}}{{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{.}} {{/ext.frameworkPaths}} {{#includes}}-I{{.}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: clang++ -arch arm64 -target arm-apple-darwin11 -isysroot /opt/iPhoneOS.sdk/ -m64 -O2 -g -stdlib=libstdc++ -miphoneos-version-min=6.0 -o {{tgt}} {{#linkFlags}}{{.}}{{/linkFlags}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libs}}-l{{.}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#ext.frameworkPaths}}-F{{.}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{.}} {{/ext.frameworks}} {{#frameworks}}-framework {{.}} {{/frameworks}} {{#libPaths}}-L{{.}} {{/libPaths}} {{#engineLibs}}-l{{.}} {{/engineLibs}} {{#src}}{{.}} {{/src}}
     libCmd: 'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
 
   armv7-ios:
