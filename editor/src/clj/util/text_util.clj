@@ -76,8 +76,14 @@
           :else
           (recur (.read reader) ch line-ending))))))
 
+(defn crlf->lf
+  "Converts all CRLF line endings in the input string to LF.
+  Returns nil if the input is nil."
+  [^String text]
+  (some-> text (string/replace #"\r\n" "\n")))
+
 (defn lf->crlf
   "Converts all LF line endings in the input string to CRLF.
   Returns nil if the input is nil."
   [^String text]
-  (some-> text (string/replace #"\r\n|\n" "\r\n")))
+  (some-> text (string/replace #"\r?\n" "\r\n")))

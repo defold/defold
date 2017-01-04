@@ -1,7 +1,8 @@
 (ns editor.diff-view
   (:require [clojure.string :as str]
             [editor.dialogs :as dialogs]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.text-util :as text-util])
   (:import [javafx.scene Group Parent Scene]
            [javafx.scene.control Control ScrollBar]
            [javafx.scene.input KeyCode KeyEvent]
@@ -22,8 +23,8 @@
    :right {:begin (.getBeginB edit) :end (.getEndB edit)}
    :type (get edit-type->keyword (.getType edit))})
 
-; TODO: \r and windows?
 ; TODO: Lot of logic to get "correct" number of lines
+; NOTE: CRLF characters are expected to have been converted to LF in str
 ; NOTE: -1 is required to keep empty lines
 (defn- split-lines [^String str]
   (let [lines (.split str "\n" -1)]
@@ -119,10 +120,12 @@
     (.setMax scroll m)
     (.setVisibleAmount scroll (/ (* m w) total-width))))
 
-(defn make-diff-viewer [left-name str-left right-name str-right]
+(defn make-diff-viewer [left-name raw-str-left right-name raw-str-right]
   (let [root ^Parent (ui/load-fxml "diff.fxml")
         stage (ui/make-stage)
         scene (Scene. root)
+        str-left (text-util/crlf->lf raw-str-left)
+        str-right (text-util/crlf->lf raw-str-right)
         lines-left (split-lines str-left)
         lines-right (split-lines str-right)
         edits (diff str-left str-right)]
