@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GLContext;
 
 import com.defold.util.Profiler;
 import com.defold.util.Profiler.Sample;
@@ -22,19 +23,29 @@ import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class AsyncCopier {
 
     private static final int N_BUFFERS = 2;
     private List<Buffer> buffers = new ArrayList<>();
     private int pboIndex = 0;
+
     private int width;
     private int height;
+    private int pendingWidth;
+    private int pendingHeight;
+    private boolean pendingSizeChange;
+    
     private ExecutorService threadPool;
     private ImageView imageView;
 
     private BlockingQueue<WritableImage> freeImages = new ArrayBlockingQueue<>(N_BUFFERS);
     private ArrayList<WritableImage> readyImages = new ArrayList<>();
     private Task<Void> task;
+
+    private static Logger logger = LoggerFactory.getLogger(AsyncCopier.class);
 
     private static class Buffer {
         int pbo;
@@ -54,8 +65,7 @@ public class AsyncCopier {
     public AsyncCopier(GL2 gl, ExecutorService threadPool, ImageView imageView, int width, int height) {
         this.threadPool = threadPool;
         this.imageView = imageView;
-        this.width = width;
-        this.height = height;
+        setPendingSize(width, height);
         IntBuffer pboBuffers = IntBuffer.allocate(N_BUFFERS);
         gl.glGenBuffers(N_BUFFERS, pboBuffers);
         int[] pbos = pboBuffers.array();
@@ -64,7 +74,7 @@ public class AsyncCopier {
             buffers.add(b);
             freeImages.add(new WritableImage(width, height));
         }
-        setSize(gl, width, height);
+        realizeSize(gl);
     }
 
     private void displayImage(int frame) {
@@ -96,7 +106,7 @@ public class AsyncCopier {
         }
     }
 
-    public void beginFrame(GL2 gl)  {
+    public boolean tryBeginFrame(GL2 gl) {
         Sample begin = Profiler.begin("render-async", "begin");
 
         if (task != null) {
@@ -112,8 +122,18 @@ public class AsyncCopier {
             }
         }
 
-        gl.getContext().makeCurrent();
+        boolean success = gl.getContext().makeCurrent() != GLContext.CONTEXT_NOT_CURRENT;
+
         Profiler.end(begin);
+
+        if (success) {
+            realizeSize(gl);        
+        }
+        else {
+            logger.warn("makeCurrent() failed in beginFrame");
+        }
+
+        return success;
     }
 
     public void endFrame(GL2 gl) {
@@ -137,50 +157,53 @@ public class AsyncCopier {
 
             @Override
             protected Void call() throws Exception {
-                gl.getContext().makeCurrent();
+                if (gl.getContext().makeCurrent() != GLContext.CONTEXT_NOT_CURRENT) {
+                    try {
+                        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
+                        Sample mapBuffer = Profiler.begin("render-async", "map-buffer", end.getFrame());
+                        ByteBuffer buffer = gl.glMapBuffer(GL2.GL_PIXEL_PACK_BUFFER, GL2.GL_READ_ONLY);
+                        Profiler.end(mapBuffer);
 
-                try {
-                    gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
-                    Sample mapBuffer = Profiler.begin("render-async", "map-buffer", end.getFrame());
-                    ByteBuffer buffer = gl.glMapBuffer(GL2.GL_PIXEL_PACK_BUFFER, GL2.GL_READ_ONLY);
-                    Profiler.end(mapBuffer);
+                        PixelFormat<IntBuffer> pf = PixelFormat.getIntArgbPreInstance();
+                        Sample setPixels = Profiler.begin("render-async", "set-pixels", end.getFrame());
 
-                    PixelFormat<IntBuffer> pf = PixelFormat.getIntArgbPreInstance();
-                    Sample setPixels = Profiler.begin("render-async", "set-pixels", end.getFrame());
-
-                    WritableImage image = freeImages.poll(1, TimeUnit.MILLISECONDS);
-                    if (image != null) {
-                        if (image.getWidth() != width || image.getHeight() != height) {
-                            image = new WritableImage(width, height);
-                        }
-                        image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), width);
-                    } else {
-                        System.out.println("no image available");
-                    }
-
-                    Profiler.end(setPixels);
-
-                    gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
-                    gl.glUnmapBuffer(GL2.GL_PIXEL_PACK_BUFFER);
-                    gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, 0);
-
-                    synchronized (readyImages) {
+                        WritableImage image = freeImages.poll(1, TimeUnit.MILLISECONDS);
                         if (image != null) {
-                            readyImages.add(image);
-                        }
-                    }
-
-                    if (image != null) {
-                        Platform.runLater(new Runnable() {
-                            @Override
-                            public void run() {
-                                displayImage(end.getFrame());
+                            if (image.getWidth() != width || image.getHeight() != height) {
+                                image = new WritableImage(width, height);
                             }
-                        });
-                    }
+                            image.getPixelWriter().setPixels(0, 0, width, height, pf, buffer.asIntBuffer(), width);
+                        } else {
+                            logger.warn("no image available"); // happens pretty frequently when resizing
+                        }
 
-                } finally {
-                    gl.getContext().release();
+                        Profiler.end(setPixels);
+
+                        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
+                        gl.glUnmapBuffer(GL2.GL_PIXEL_PACK_BUFFER);
+                        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, 0);
+
+                        synchronized (readyImages) {
+                            if (image != null) {
+                                readyImages.add(image);
+                            }
+                        }
+
+                        if (image != null) {
+                            Platform.runLater(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        displayImage(end.getFrame());
+                                    }
+                                });
+                        }
+
+                    } finally {
+                        gl.getContext().release();
+                    }
+                }
+                else {
+                    logger.warn("makeCurrent() failed in endFrame/task");
                 }
 
                 return null;
@@ -190,11 +213,22 @@ public class AsyncCopier {
         Profiler.end(end);
     }
 
-    public void setSize(GL2 gl, int width, int height) {
-        this.width = width;
-        this.height = height;
-        for (Buffer buffer : buffers) {
-            buffer.setSize(gl, width, height);
+    public void setPendingSize(int width, int height) {
+        pendingWidth = width;
+        pendingHeight = height;
+        pendingSizeChange = true;
+    }
+
+    private void realizeSize(GL2 gl) {
+        if (pendingSizeChange) {
+            Sample begin = Profiler.begin("render-async", "resize");
+            for (Buffer buffer : buffers) {
+                buffer.setSize(gl, pendingWidth, pendingHeight);
+            }
+            width = pendingWidth;
+            height = pendingHeight;
+            pendingSizeChange = false;
+            Profiler.end(begin);
         }
     }
 
