@@ -12,8 +12,8 @@
 #include "../resource.h"
 #include "test/test_resource_ddf.h"
 
-extern unsigned char TEST_ARC[];
-extern uint32_t TEST_ARC_SIZE;
+extern unsigned char TEST_ARCI[];
+extern uint32_t TEST_ARCI_SIZE;
 
 class ResourceTest : public ::testing::Test
 {
@@ -139,7 +139,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         m_Factory = dmResource::NewFactory(&params, GetParam());
-        ASSERT_NE((void*) 0, m_Factory);
+        ASSERT_NE((void*) 0, m_Factory); //
         m_ResourceName = "/test.cont";
 
         dmResource::Result e;
@@ -395,7 +395,7 @@ TEST_P(GetResourceTest, Loop)
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
-                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "arc:build/default/src/test/test_resource.arc"));
+                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/test_resource.dmanif")); //
 
 TEST_P(GetResourceTest, GetReference1)
 {
@@ -690,8 +690,8 @@ TEST(dmResource, Builtins)
 {
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
-    params.m_BuiltinsArchive = (const void*) TEST_ARC;
-    params.m_BuiltinsArchiveSize = TEST_ARC_SIZE;
+    params.m_BuiltinsArchive = (const void*) TEST_ARCI;
+    params.m_BuiltinsArchiveSize = TEST_ARCI_SIZE;
 
     dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
     ASSERT_NE((void*) 0, factory);

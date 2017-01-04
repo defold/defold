@@ -22,40 +22,29 @@ new_copy_task('script', '.script', '.scriptc')
 
 def build(bld):
     resources = bld.new_task_gen(source = ['test.cont_pb'])
+    sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script']]
 
-    archive = bld.new_task_gen(features = 'archive',
-                               archive_target='test.arc',
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+    archive = bld.new_task_gen(features='barchive',
+                               source_root='test',
+                               resource_name='resources',
+                               use_compression=False,
+                               source=' '.join(sources))
 
-    compressed_archive = bld.new_task_gen(features = 'archive',
-                               archive_target='test_compressed.arc',
+    bld.add_group()
+
+    archive_compressed = bld.new_task_gen(features='barchive',
+                               source_root='test',
+                               resource_name='resources_compressed',
                                use_compression=True,
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+                               source=' '.join(sources))
 
-# --- START darc2
-    archive2 = bld.new_task_gen(features = 'archive2',
-                               archive_target_index='test.arci',
-                               archive_target_data='test.arcd',
-                               rel_path='default/src/test/',
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
-    
-    compressed_archive2 = bld.new_task_gen(features = 'archive2',
-                               archive_target_index='test_compressed.arci',
-                               archive_target_data='test_compressed.arcd',
-                               use_compression=True,
-                               rel_path='default/src/test/',
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
-# --- END darc2
+    bld.add_group()
 
-    # Same as above but created with the java-based archive builder
-    # jarchive = bld.new_task_gen(features = 'jarchive',
-    #                             archive_target='test.jarc',
-    #                             source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
-
-    # compressed_jarchive = bld.new_task_gen(features = 'jarchive',
-    #                             archive_target='test_compressed.jarc',
-    #                             use_compression=True,
-    #                             source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+    archive_pb = bld.new_task_gen(features='barchive',
+                               source_root='test',
+                               resource_name='resources_pb',
+                               use_compression=False,
+                               source=bld.path.ant_glob('*.*_pb'))
 
     bld.add_group()
 
@@ -66,26 +55,9 @@ def build(bld):
                                      proto_gen_py = True,
                                      target = 'test_resource',
                                      source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
-                                     embed_source = 'test.arc')
+                                     embed_source = 'resources.arci resources.arcd resources.dmanifest')
 
     test_resource.install_path = None
-
-    test_resource_arc = bld.new_task_gen(features='archive',
-                                         source = bld.path.ant_glob('*.*_pb'),
-                                         archive_target='test_resource.arc')
-
-    test_resource_arc.install_path = None
-
-# --- START darc2
-    test_resource_arc2 = bld.new_task_gen(featers='archive2',
-                                          source = bld.path.ant_glob('*.*_pb'),
-                                          archive_target_index='test.arci',
-                                          archive_target_data='test.arcd',
-                                          rel_path='default/src/test/',
-                                          )
-
-    test_resource_arc2.install_path = None
-# --- END darc2
 
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src',
@@ -94,6 +66,6 @@ def build(bld):
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',
                                              source = 'test_resource_archive.cpp',
-                                             embed_source = 'test.arc test_compressed.arc test.arci test.arcd test_compressed.arci test_compressed.arcd')
+                                             embed_source = 'resources.arci resources.arcd resources_compressed.arci resources_compressed.arcd')
 
     test_resource_archive.install_path = None
