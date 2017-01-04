@@ -355,17 +355,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         // Ok
     }
-    /*else if (strcmp(factory->m_UriParts.m_Scheme, "arc") == 0)
-    {
-        Result r = MountArchiveInternal(factory->m_UriParts.m_Path, &factory->m_Archive, &factory->m_ArchiveMountInfo);
-        if (r != RESULT_OK)
-        {
-            dmLogError("Unable to load archive: %s", factory->m_UriParts.m_Path);
-            dmMessage::DeleteSocket(socket);
-            delete factory;
-            return 0;
-        }
-    }*/
     else if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") == 0)
     {
         factory->m_Manifest = new Manifest();

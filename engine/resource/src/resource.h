@@ -233,6 +233,20 @@ namespace dmResource
      */
     void SetDefaultNewFactoryParams(struct NewFactoryParams* params);
 
+    struct EmbeddedResource
+    {
+        EmbeddedResource() : m_Data(NULL), m_Size(0)
+        {
+
+        }
+
+        // Pointer to a resource. Set to NULL for no resource (default value)
+        const void* m_Data;
+
+        // Size of resource.
+        uint32_t    m_Size;
+    };
+
     /**
      * New factory parmetes
      */
@@ -243,6 +257,10 @@ namespace dmResource
 
         /// Factory flags. Default is RESOURCE_FACTORY_FLAGS_EMPTY
         uint32_t m_Flags;
+
+        EmbeddedResource m_ArchiveIndex;
+        EmbeddedResource m_ArchiveData;
+        EmbeddedResource m_ArchiveManifest;
 
         /// Pointer to a resource archive for builtin resources. Set to NULL for no archive (default value)
         const void* m_BuiltinsArchive;
