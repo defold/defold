@@ -234,70 +234,74 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
     factory->m_HttpTotalBytesStreamed += content_data_size;
 }
 
-Result LoadManifest(const char* path, const char* location, HFactory factory)
+Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
 {
-    dmLogInfo("Loading the manifest! path: %s, strlen(path): %lu", path, strlen(path));
-
-    uint32_t manifest_file_size = 0;
-    uint32_t dummy_file_size = 0;
-    dmSys::ResourceSize(path, &manifest_file_size);
-    uint8_t* manifest_file_data = 0x0;
-    assert(dmMemory::RESULT_OK == dmMemory::AlignedMalloc((void**)&manifest_file_data, 16, manifest_file_size));
-    dmSys::Result res = dmSys::LoadResource(path, manifest_file_data, manifest_file_size, &dummy_file_size);
-
-    if (res != dmSys::RESULT_OK)
-    {
-        dmLogError("Failed to load manifest resource, result = %i", res);
-        dmMemory::AlignedFree(manifest_file_data);
-        return RESULT_IO_ERROR;
-    }
-
-    // Read from manifest resource
-    dmDDF::Result ddf_res = dmDDF::LoadMessage(manifest_file_data, manifest_file_size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)(&factory->m_Manifest->m_DDF));
-    dmMemory::AlignedFree(manifest_file_data);
-    if (ddf_res != dmDDF::RESULT_OK)
-    {
-        dmLogError("Failed to load manifest message, result = %i", ddf_res);
-        return RESULT_IO_ERROR;
-    }
-
-    // Validate file version
-    dmLiveUpdateDDF::ManifestHeader header = factory->m_Manifest->m_DDF->m_Data.m_Header;
-    if (header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
-    {
-        dmLogError("Magic number mismatch");
-        return RESULT_FORMAT_ERROR;
-    }
-
-    if (header.m_Version != MANIFEST_VERSION)
-    {
-        dmLogError("Version mismatch, engine version: %i,  manifest version: %i", dmResourceArchive::VERSION, header.m_Version);
-        return RESULT_FORMAT_ERROR;
-    }
-
-    // Construct path to archive index file. Assumes same path as manifest file.
+    const uint32_t extensionLength = strlen("dmanifest");
     char archiveIndexPath[DMPATH_MAX_PATH];
-    memset(&archiveIndexPath[0], '\0', DMPATH_MAX_PATH);
-    uint32_t manifest_str_len = 14; // 'game.dmanifest' is 14 characters
-    if (strlen(path) > manifest_str_len)
+    archiveIndexPath[0] = 0x0;
+
+    dmStrlCpy(archiveIndexPath, manifestPath, strlen(manifestPath) - extensionLength);
+    dmStrlCat(archiveIndexPath, "arci", DMPATH_MAX_PATH);
+
+    dmLogInfo("Archive Index filepath: '%s'", archiveIndexPath);
+    Result result = MountArchiveInternal(archiveIndexPath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo2);
+    return result;
+}
+
+Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile* manifestFile)
+{
+    // Read from manifest resource
+    dmDDF::Result result = dmDDF::LoadMessage(manifest, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifestFile);
+    dmMemory::AlignedFree(manifest);
+    if (result != dmDDF::RESULT_OK)
     {
-        dmStrlCpy(archiveIndexPath, path, strlen(path) - manifest_str_len);
-        dmStrlCat(archiveIndexPath, "/game.arci", DMPATH_MAX_PATH);
-    }
-    else
-    {
-        dmStrlCat(archiveIndexPath, "game.arci", DMPATH_MAX_PATH);
+        dmLogError("Failed to parse Manifest (%i)", result);
+        return RESULT_IO_ERROR;
     }
 
-    dmLogInfo("Constructed archive index file path: %s THE END", archiveIndexPath);
-
-    Result r = MountArchiveInternal(archiveIndexPath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo2);
-    if (r != RESULT_OK)
+    if (manifestFile->m_Data.m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
     {
-        return r;
+        dmLogError("Manifest format mismatch (expected '%x', actual '%x')",
+            MANIFEST_MAGIC_NUMBER, manifestFile->m_Data.m_Header.m_MagicNumber);
+        return RESULT_FORMAT_ERROR;
+    }
+
+    if (manifestFile->m_Data.m_Header.m_Version != MANIFEST_VERSION)
+    {
+        dmLogError("Manifest version mismatch (expected '%i', actual '%i')",
+            dmResourceArchive::VERSION, manifestFile->m_Data.m_Header.m_Version);
+        return RESULT_FORMAT_ERROR;
     }
 
     return RESULT_OK;
+}
+
+Result LoadManifest(const char* manifestPath, HFactory factory)
+{
+    dmLogInfo("Loading the manifest! path: %s, strlen(path): %lu", manifestPath, strlen(manifestPath));
+
+    uint32_t manifestLength = 0;
+    uint8_t* manifestBuffer = 0x0;
+
+    uint32_t dummy_file_size = 0;
+    dmSys::ResourceSize(manifestPath, &manifestLength);
+    assert(dmMemory::RESULT_OK == dmMemory::AlignedMalloc((void**)&manifestBuffer, 16, manifestLength));
+    dmSys::Result sysResult = dmSys::LoadResource(manifestPath, manifestBuffer, manifestLength, &dummy_file_size);
+
+    if (sysResult != dmSys::RESULT_OK)
+    {
+        dmLogError("Failed to read Manifest (%i)", sysResult);
+        dmMemory::AlignedFree(manifestBuffer);
+        return RESULT_IO_ERROR;
+    }
+
+    Result result = ParseManifest(manifestBuffer, manifestLength, factory);
+    if (result == RESULT_OK)
+    {
+        result = LoadArchiveIndex(manifestPath, factory);
+    }
+
+    return result;
 }
 
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
@@ -469,7 +473,7 @@ void DeleteFactory(HFactory factory)
     }
     if (factory->m_Manifest)
     {
-        
+
         if (factory->m_Manifest->m_DDF)
         {
             dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
