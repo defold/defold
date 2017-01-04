@@ -283,7 +283,7 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     private static void findResources(Project project, IResource resource, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
-        if (resource.getPath().equals("") || resource.getPath().startsWith("/builtins")) {
+        if (resource.getPath().equals("")) {
             return;
         }
 

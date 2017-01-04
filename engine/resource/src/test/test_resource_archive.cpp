@@ -24,7 +24,7 @@ static const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1
 
 TEST(dmResourceArchive, Wrap2)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) TEST_ARCI, TEST_ARCI_SIZE, TEST_ARCD, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
@@ -69,8 +69,8 @@ TEST(dmResourceArchive, Wrap)
 
 TEST(dmResourceArchive, WrapCompressed2)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
-    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) TEST_COMPRESSED_ARCI, TEST_COMPRESSED_ARC_SIZE, (void*) TEST_COMPRESSED_ARCD, &archive);
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer2((void*) TEST_COMPRESSED_ARCI, TEST_COMPRESSED_ARCI_SIZE, (void*) TEST_COMPRESSED_ARCD, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
     char* buf = new char[1024 * 1024];
@@ -113,7 +113,7 @@ TEST(dmResourceArchive, WrapCompressed)
 
 TEST(dmResourceArchive, LoadFromDisk2)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
 
     const char* archives[] = { "build/default/src/test/test.arci" };
 
@@ -168,7 +168,7 @@ TEST(dmResourceArchive, LoadFromDisk)
 
 TEST(dmResourceArchive, LoadNonExistentArchiveFromDisk2)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
 
     const char* archives[] = { "build/default/src/test/this-file-does-not-exist.arci" };
 
@@ -178,7 +178,7 @@ TEST(dmResourceArchive, LoadNonExistentArchiveFromDisk2)
 
 TEST(dmResourceArchive, LoadFromDiskCompressed2)
 {
-    dmResourceArchive::HArchiveIndex archive = 0;
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
 
     const char* archives[] = { "build/default/src/test/test_compressed.arci" };
 

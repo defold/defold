@@ -7,7 +7,7 @@
 
 namespace dmResource
 {
-	Result MountArchiveInternal(const char* index_path, dmResourceArchive::HArchiveIndex* archive, void** mount_info)
+	Result MountArchiveInternal(const char* index_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
 	{
 		*mount_info = 0;
 		dmResourceArchive::Result r = LoadArchive2(index_path, archive);
@@ -29,7 +29,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndex archive, void* mount_info)
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info)
     {
     	dmResourceArchive::Delete2(archive);
     }
@@ -38,5 +38,4 @@ namespace dmResource
     {
         dmResourceArchive::Delete(archive);
     }
-
 }

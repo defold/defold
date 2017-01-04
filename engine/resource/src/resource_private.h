@@ -53,10 +53,10 @@ namespace dmResource
     // Platform specific implementation of archive loading. Data written into mount_info must
     // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
     Result MountArchiveInternal(const char* path, dmResourceArchive::HArchive* archive, void** mount_info);
-    Result MountArchiveInternal(const char* path, dmResourceArchive::HArchiveIndex* archive, void** mount_info);
+    Result MountArchiveInternal(const char* path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
 
     void UnmountArchiveInternal(dmResourceArchive::HArchive archive, void* mount_info);
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndex archive, void* mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info);
 }
 
 #endif
