@@ -18,7 +18,11 @@
 (defonce ^:const local-target
   {:name "Local"
    :url  "http://localhost:8001"
-   :local-address "localhost"})
+   ;; :local-address must be an ipv4 address. dmengine
+   ;; will resolve "localhost" as an ipv6 address and not find
+   ;; the editor web server.
+   :local-address "127.0.0.1"})
+
 (defonce ^:private targets (atom #{local-target}))
 (defonce ^:private blacklist (atom #{}))
 (defonce ^:private descriptions (atom {}))
