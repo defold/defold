@@ -788,6 +788,7 @@
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
+                                      :textual? true
                                       :ext "spinescene"
                                       :build-ext "rigscenec"
                                       :label "Spine Scene"
@@ -797,14 +798,15 @@
                                       :view-types [:scene :text]
                                       :view-opts {:scene {:grid true}})
     (workspace/register-resource-type workspace
-                                     :ext "spinemodel"
-                                     :label "Spine Model"
-                                     :node-type SpineModelNode
-                                     :load-fn load-spine-model
-                                     :icon spine-model-icon
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}}
-                                     :tags #{:component})))
+                                      :textual? true
+                                      :ext "spinemodel"
+                                      :label "Spine Model"
+                                      :node-type SpineModelNode
+                                      :load-fn load-spine-model
+                                      :icon spine-model-icon
+                                      :view-types [:scene :text]
+                                      :view-opts {:scene {:grid true}}
+                                      :tags #{:component})))
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))

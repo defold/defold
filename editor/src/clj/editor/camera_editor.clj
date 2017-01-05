@@ -104,6 +104,7 @@
 (defn register-resource-types
   [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "camera"
                                     :node-type CameraNode
                                     :load-fn load-camera
