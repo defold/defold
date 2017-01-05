@@ -57,7 +57,8 @@
 (def ^:private node-icons {:type-box box-icon
                            :type-pie pie-icon
                            :type-text text-icon
-                           :type-template template-icon})
+                           :type-template template-icon
+                           :type-spine spine/spine-model-icon})
 
 (def pb-def {:ext "gui"
              :label "Gui"
@@ -176,7 +177,9 @@
                                                  (assoc :world-transform (:world-transform r))
                                                  (update-in [:outline 3] * alpha)
                                                  (update-in [:shadow 3] * alpha))))
-                                   renderables)))))
+                                   renderables))
+      (contains? user-data :spine-scene-pb)
+      (spine/gen-vb renderables))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [user-data (get-in renderables [0 :user-data])
@@ -299,7 +302,12 @@
                 (and parent (not-empty parent)) (assoc :parent parent)
                 (= type :type-template) (->
                                           (update :template (fn [t] (resource/resource->proj-path (:resource t))))
-                                          (assoc :color [1.0 1.0 1.0 1.0])))
+                                          (assoc :color [1.0 1.0 1.0 1.0]))
+
+                ;; To handle save "bugs" in the old editor; size and size-mode should not have been saved at all
+                (= type :type-spine) (->
+                                       (assoc :size [1.0 1.0 0.0 1.0])
+                                       (assoc :size-mode :size-mode-auto)))
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
         msg (-> (reduce (fn [msg [k default]] (update msg k v3->v4 default)) msg v3-fields)
               (update :rotation (fn [r] (conj (math/quat->euler (doto (Quat4d.) (math/clj->vecmath (or r [0.0 0.0 0.0 1.0])))) 1))))]
@@ -324,6 +332,9 @@
                                              [:material-shader :material-shader]]]
                               (g/connect scene from gui-node to))
       :type-text (g/connect scene :font-ids gui-node :font-ids)
+      :type-spine (for [[from to] [[:spine-scene-ids :spine-scene-ids]
+                                   [:material-shader :material-shader]]]
+                    (g/connect scene from gui-node to))
       :type-template (concat
                        (for [[from to] [[:texture-ids :texture-ids]
                                         [:font-ids :font-ids]]]
@@ -342,6 +353,7 @@
 (def PieNode)
 (def TextNode)
 (def TemplateNode)
+(def SpineNode)
 
 (defn- node->node-tree
   ([node]
@@ -449,7 +461,9 @@
                                                      {:node-type TextNode
                                                       :tx-attach-fn (gen-gui-node-attach-fn :type-text)}
                                                      {:node-type TemplateNode
-                                                      :tx-attach-fn (gen-gui-node-attach-fn :type-template)}]))
+                                                      :tx-attach-fn (gen-gui-node-attach-fn :type-template)}
+                                                     {:node-type SpineNode
+                                                      :tx-attach-fn (gen-gui-node-attach-fn :type-spine)}]))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id index node-outline-children node-outline-reqs type outline-overridden?]
                  {:node-id _node-id
@@ -514,17 +528,18 @@
   (output scene-renderable-user-data g/Any :abstract)
   (output scene-renderable g/Any :cached
           (g/fnk [_node-id index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data]
-                 {:render-fn render-nodes
-                  :passes [pass/transparent pass/selection pass/outline]
-                  :user-data (assoc scene-renderable-user-data
-                                    :gpu-texture gpu-texture
-                                    :inherit-alpha inherit-alpha
-                                    :material-shader material-shader
-                                    :blend-mode blend-mode)
-                  :batch-key {:texture gpu-texture :blend-mode blend-mode}
-                  :select-batch-key _node-id
-                  :index index
-                  :layer-index layer-index})))
+                 (let [gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))]
+                   {:render-fn render-nodes
+                    :passes [pass/transparent pass/selection pass/outline]
+                    :user-data (assoc scene-renderable-user-data
+                                 :gpu-texture gpu-texture
+                                 :inherit-alpha inherit-alpha
+                                 :material-shader material-shader
+                                 :blend-mode blend-mode)
+                    :batch-key {:texture gpu-texture :blend-mode blend-mode}
+                    :select-batch-key _node-id
+                    :index index
+                    :layer-index layer-index}))))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -895,6 +910,99 @@
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
   (output build-errors g/Any (validation/prop-error-fnk :fatal validation/prop-empty? template)))
 
+;; Spine nodes
+
+(g/defnode SpineNode
+  (inherits VisualNode)
+
+  (property spine-scene g/Str
+    (dynamic edit-type (g/fnk [spine-scene-ids] (properties/->choicebox (cons "" (keys spine-scene-ids)))))
+    (value (gu/passthrough spine-scene-input))
+    (set (fn [basis self _ ^String new-value]
+           (let [spine-scenes (g/node-value self :spine-scene-ids {:basis basis})]
+             (concat
+               (for [label [:spine-scene-input :spine-anim-ids :spine-scene-scene]]
+                 (g/disconnect-sources self label))
+               (if-let [spine-scene-node (get spine-scenes new-value)]
+                 (for [[from to] [[:spine-anim-ids :spine-anim-ids]
+                                  [:name :spine-scene-input]
+                                  [:spine-scene-scene :spine-scene-scene]
+                                  [:spine-scene-structure :spine-scene-structure]
+                                  [:spine-skin-ids :spine-skin-ids]]]
+                   (g/connect spine-scene-node from self to))
+                 []))))))
+  (property spine-default-animation g/Str
+    (dynamic label (g/constantly "Default Animation"))
+    (value (g/fnk [spine-default-animation spine-anim-ids]
+             (if (and (str/blank? spine-default-animation) spine-anim-ids)
+               (first (spine/sort-spine-anim-ids spine-anim-ids))
+               spine-default-animation)))
+    (dynamic error (g/fnk [_node-id spine-anim-ids spine-default-animation spine-scene]
+                     (when spine-scene
+                       (validation/prop-error :fatal _node-id
+                         :spine-default-animation (fn [anim ids]
+                                                    (when (not (contains? ids anim))
+                                                      (format "animation '%s' could not be found in the specified scene" anim)))
+                         spine-default-animation (set spine-anim-ids)))))
+    (dynamic edit-type (g/fnk [spine-anim-ids] (properties/->choicebox spine-anim-ids))))
+  (property spine-skin g/Str
+    (dynamic label (g/constantly "Skin"))
+    (dynamic error (g/fnk [_node-id spine-skin spine-skin-ids]
+                     (when spine-skin-ids
+                       (validation/prop-error :fatal _node-id
+                         :spine-skin (fn [skin ids]
+                                       (when (not (contains? ids skin))
+                                         (format "skin '%s' could not be found in the specified scene" skin)))
+                         spine-skin (conj (set spine-skin-ids) "")))))
+    (dynamic edit-type (g/fnk [spine-skin-ids] (properties/->choicebox (cons "" spine-skin-ids)))))
+
+  (property clipping-mode g/Keyword (default :clipping-mode-none)
+    (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
+  (property clipping-visible g/Bool (default true))
+  (property clipping-inverted g/Bool (default false))
+
+  (property size types/Vec3
+    (dynamic visible (g/constantly false)))
+
+  (display-order (into base-display-order
+                       [:spine-scene :spine-default-animation :spine-skin :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                        :adjust-mode :clipping :visible-clipper :inverted-clipper]))
+
+  (input spine-scene-ids IDMap)
+  (input spine-scene-input g/Str)
+  (input spine-anim-ids g/Any)
+  (input spine-scene-scene g/Any)
+  (input spine-scene-structure g/Any)
+  (input spine-skin-ids g/Any)
+  (output scene-renderable-user-data g/Any :cached
+    (g/fnk [spine-scene-scene color+alpha clipping-mode clipping-inverted clipping-visible]
+      (let [user-data (-> spine-scene-scene
+                        (get-in [:renderable :user-data])
+                        (assoc :color (premul color+alpha)))]
+        (cond-> user-data
+          (not= :clipping-mode-none clipping-mode)
+          (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
+  (output rt-pb-msgs g/Any :cached
+    (g/fnk [pb-msgs spine-scene-structure adjust-mode spine-skin-ids]
+      (let [pb-msg (first pb-msgs)
+            rt-pb-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))]
+            gui-node-id (:id pb-msg)
+            bones (tree-seq :children :children (:skeleton spine-scene-structure))
+            child-to-parent (reduce (fn [m b] (into m (map (fn [c] [(:name c) b]) (:children b)))) {} bones)
+            id-fn (fn [b] (format "%s/%s" gui-node-id (:name b)))
+            bone-msg {:spine-node-child true
+                      :size [0.0 0.0 0.0 0.0]
+                      :position [0.0 0.0 0.0 0.0]
+                      :scale [1.0 1.0 1.0 0.0]
+                      :type :type-box
+                      :adjust-mode adjust-mode}]
+        (->> bones
+          (map (fn [b] (assoc bone-msg :id (id-fn b) :parent (if (contains? child-to-parent (:name b))
+                                                               (id-fn (get child-to-parent (:name b)))
+                                                               gui-node-id))))
+          (into rt-pb-msgs)))))
+  (output build-errors g/Any (g/constantly nil)))
+
 (g/defnode ImageTextureNode
   (input image BufferedImage)
   (output packed-image BufferedImage (gu/passthrough image))
@@ -1015,14 +1123,28 @@
                    (project/resource-setter
                      basis self old-value new-value
                      [:resource :spine-scene-resource]
-                     [:build-targets :dep-build-targets])))
+                     [:build-targets :dep-build-targets]
+                     [:spine-anim-ids :spine-anim-ids]
+                     [:scene :spine-scene-scene]
+                     [:scene-structure :spine-scene-structure])))
             (dynamic error (g/fnk [_node-id spine-scene]
                                   (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
 
   (input spine-scene-resource resource/Resource)
+  (input spine-anim-ids g/Any)
   (input dep-build-targets g/Any)
+  (input spine-scene-scene g/Any)
+  (input spine-scene-structure g/Any)
 
+  (output spine-scene-id IDMap :cached (g/fnk [_node-id name]
+                                         {name _node-id}))
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
+  (output spine-anim-ids g/Any (gu/passthrough spine-anim-ids))
+  (output spine-scene-scene g/Any (gu/passthrough spine-scene-scene))
+  (output spine-scene-structure g/Any (gu/passthrough spine-scene-structure))
+  (output spine-skin-ids g/Any :cached (g/fnk [spine-scene-structure] (->> spine-scene-structure
+                                                                        :skins
+                                                                        vec)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
                                                            :label name
@@ -1122,7 +1244,9 @@
                                            {:node-type TextNode
                                             :tx-attach-fn (gen-gui-node-attach-fn :type-text)}
                                            {:node-type TemplateNode
-                                            :tx-attach-fn (gen-gui-node-attach-fn :type-template)}]))
+                                            :tx-attach-fn (gen-gui-node-attach-fn :type-template)}
+                                           {:node-type SpineNode
+                                            :tx-attach-fn (gen-gui-node-attach-fn :type-spine)}]))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
@@ -1248,16 +1372,18 @@
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
   (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (map #(do [(:name %) %]) (get msg kw))))
-        [textures fonts] (loop [textures (transient {})
-                                fonts (transient {})
-                                msgs (conj (mapv #(get-in % [:user-data :pb]) template-build-targets) rt-pb-msg)]
-                           (if-let [msg (first msgs)]
-                             (recur
-                               (merge-fn! textures msg :textures)
-                               (merge-fn! fonts msg :fonts)
-                               (next msgs))
-                             [(persistent! textures) (persistent! fonts)]))]
-    (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts))))
+        [textures fonts spine-scenes] (loop [textures (transient {})
+                                             fonts (transient {})
+                                             spine-scenes (transient {})
+                                             msgs (conj (mapv #(get-in % [:user-data :pb]) template-build-targets) rt-pb-msg)]
+                                        (if-let [msg (first msgs)]
+                                          (recur
+                                            (merge-fn! textures msg :textures)
+                                            (merge-fn! fonts msg :fonts)
+                                            (merge-fn! spine-scenes msg :spine-scenes)
+                                            (next msgs))
+                                          [(persistent! textures) (persistent! fonts) (persistent! spine-scenes)]))]
+    (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :spine-scenes (mapv second spine-scenes))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource rt-pb-msg dep-build-targets template-build-targets]
   (let [def pb-def
@@ -1360,6 +1486,7 @@
   (input texture-ids IDMap :array)
   (input font-ids IDMap :array)
   (input layer-ids IDMap :array)
+  (input spine-scene-ids IDMap :array)
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
@@ -1466,6 +1593,7 @@
     (g/connect spine-scene :node-outline spine-scenes-node :child-outlines)
     (for [[from to] [[:_node-id :nodes]
                      [:name :spine-scene-names]
+                     [:spine-scene-id :spine-scene-ids]
                      [:pb-msg :spine-scene-msgs]
                      [:dep-build-targets :dep-build-targets]]]
       (g/connect spine-scene from self to))))
@@ -1494,6 +1622,7 @@
                         :type-pie PieNode
                         :type-text TextNode
                         :type-template TemplateNode
+                        :type-spine SpineNode
                         GuiNode)]
     (-> (concat
           (g/operation-label "Add Gui Node")
@@ -1728,6 +1857,17 @@
                                         (project/connect-resource-node project resource texture [[:resource :texture-resource]
                                                                                                  [:build-targets :dep-build-targets]])
                                         (attach-texture self textures-node texture))))))
+      (g/make-nodes graph-id [spine-scenes-node SpineScenesNode]
+                   (g/connect spine-scenes-node :_node-id self :spine-scenes-node)
+                   (g/connect spine-scenes-node :_node-id self :nodes)
+                   (g/connect spine-scenes-node :node-outline self :child-outlines)
+                   (let [prop-keys (keys (g/public-properties SpineSceneNode))]
+                     (for [spine-scene-desc (:spine-scenes scene)
+                           :let [spine-scene-desc (select-keys spine-scene-desc prop-keys)]]
+                       (g/make-nodes graph-id [spine-scene [SpineSceneNode
+                                                            :name (:name spine-scene-desc)
+                                                            :spine-scene (workspace/resolve-resource resource (:spine-scene spine-scene-desc))]]
+                                     (attach-spine-scene self spine-scenes-node spine-scene)))))
       (g/make-nodes graph-id [layers-node LayersNode]
                     (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
@@ -1766,6 +1906,7 @@
                               :type-pie PieNode
                               :type-text TextNode
                               :type-template TemplateNode
+                              :type-spine SpineNode
                               GuiNode)
                   props (-> node-desc
                           (assoc :index index)
@@ -1792,18 +1933,7 @@
                                                                             (map (fn [v] [(:id v) (-> v extract-overrides convert-node-desc)]))
                                                                             (into {})))))]]
                        (g/make-nodes graph-id [layout [LayoutNode layout-desc]]
-                                     (attach-layout self layouts-node layout)))))
-      (g/make-nodes graph-id [spine-scenes-node SpineScenesNode]
-                   (g/connect spine-scenes-node :_node-id self :spine-scenes-node)
-                   (g/connect spine-scenes-node :_node-id self :nodes)
-                   (g/connect spine-scenes-node :node-outline self :child-outlines)
-                   (let [prop-keys (keys (g/public-properties SpineSceneNode))]
-                     (for [spine-scene-desc (:spine-scenes scene)
-                           :let [spine-scene-desc (select-keys spine-scene-desc prop-keys)]]
-                       (g/make-nodes graph-id [spine-scene [SpineSceneNode
-                                                            :name (:name spine-scene-desc)
-                                                            :spine-scene (workspace/resolve-resource resource (:spine-scene spine-scene-desc))]]
-                                     (attach-spine-scene self spine-scenes-node spine-scene))))))))
+                                     (attach-layout self layouts-node layout))))))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

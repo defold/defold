@@ -526,13 +526,16 @@
     (:meshes)
     (filter :visible)
     (sort-by :draw-order)
-    (map (partial transform-positions (:world-transform renderable)))))
+    (map (partial transform-positions (:world-transform renderable)))
+    (map (fn [mesh]
+           (let [color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])]
+             (update mesh :color (fn [src tint] (mapv * src tint)) color))))))
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
     (map (partial get verts) (:indices mesh))))
 
-(defn- gen-vb [renderables rcount]
+(defn gen-vb [renderables]
   (let [meshes (mapcat renderable->meshes renderables)
         vcount (reduce + 0 (map (comp count :indices) meshes))]
     (when (> vcount 0)
@@ -553,7 +556,7 @@
              vs)]
     (reduce (fn [vs bone] (skeleton-vs pos bone vs wt)) vs (:children bone))))
 
-(defn- gen-skeleton-vb [renderables rcount]
+(defn- gen-skeleton-vb [renderables]
   (let [vs (loop [renderables renderables
                   vs []]
              (if-let [r (first renderables)]
@@ -574,7 +577,7 @@
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
 
       (= pass pass/transparent)
-      (do (when-let [vb (gen-vb renderables rcount)]
+      (do (when-let [vb (gen-vb renderables)]
             (let [vertex-binding (vtx/use-with ::spine-trans vb render/shader-tex-tint)
                   user-data (:user-data (first renderables))
                   gpu-texture (:gpu-texture user-data)
@@ -587,13 +590,13 @@
                 (shader/set-uniform render/shader-tex-tint gl "texture" 0)
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
-        (when-let [vb (gen-skeleton-vb renderables rcount)]
+        (when-let [vb (gen-skeleton-vb renderables)]
             (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
               (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
                 (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
       (= pass pass/selection)
-      (when-let [vb (gen-vb renderables rcount)]
+      (when-let [vb (gen-vb renderables)]
         (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
@@ -706,7 +709,7 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
-(defn- sort-spine-anim-ids
+(defn sort-spine-anim-ids
   [spine-anim-ids]
   (sort-by str/lower-case spine-anim-ids))
 
