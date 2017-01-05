@@ -84,7 +84,6 @@
                                  s)))
                   gpcore/settings->str)]
     {:resource resource
-     :textual? true
      :content content}))
 
 (defn- build-game-project [self basis resource dep-resources user-data]
@@ -299,6 +298,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "project"
                                     :label "Project"
                                     :node-type GameProjectNode

@@ -373,7 +373,6 @@
               (update :embedded-instances clean-inst-ddfs)
               (update :collection-instances clean-coll-inst-ddfs))]
     {:resource resource
-     :textual? true
      :content (protobuf/map->str GameObject$CollectionDesc msg)}))
 
 (defn- externalize [inst-data resources]
@@ -811,6 +810,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "collection"
                                     :label "Collection"
                                     :node-type CollectionNode

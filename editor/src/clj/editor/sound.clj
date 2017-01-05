@@ -89,7 +89,6 @@
 (g/defnk produce-save-data
   [resource pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str Sound$SoundDesc pb-msg)})
 
 (defn build-sound
@@ -155,6 +154,7 @@
   [workspace]
   (concat
    (workspace/register-resource-type workspace
+                                     :textual? true
                                      :ext "sound"
                                      :node-type SoundNode
                                      :load-fn load-sound

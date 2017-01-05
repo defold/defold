@@ -95,7 +95,6 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str (:pb-class pb-def) pb-msg)})
 
 (g/defnode DisplayProfilesNode
@@ -120,6 +119,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext (:ext pb-def)
                                     :label (:label pb-def)
                                     :build-ext (:build-ext pb-def)
