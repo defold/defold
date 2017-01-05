@@ -359,13 +359,11 @@ bail:
         // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
         if (!archive->m_IsMemMapped)
         {
-            dmLogInfo("NOT MEMMAPPED!");
             hashes = archive->m_Hashes;
             entries = archive->m_Entries;
         }
         else
         {
-            dmLogInfo("MEMMAPPED!");
             hashes = (uint8_t*)(uintptr_t(archive->m_ArchiveIndex) + hash_offset);
             entries = (EntryData*)(uintptr_t(archive->m_ArchiveIndex) + entry_offset);
         }

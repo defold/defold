@@ -41,7 +41,7 @@ def apply_barchive_after(self):
     classpath    = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar', 'default/src/java']
     builder.env['CLASSPATH'] = os.pathsep.join(classpath)
 
-    arg_root     = os.path.abspath('build')
+    arg_root     = self.source_root
     arg_output   = os.path.abspath(os.path.join('build', self.path.bldpath(self.env), self.resource_name))
 
     builder.env.append_value('ARCHIVEBUILDER_ROOT', [arg_root])
