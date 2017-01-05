@@ -169,6 +169,7 @@
       (.setContext (.createContext drawable nil) true))))
 
 (defn make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
+  ;; TODO: what happens here if make-current fails
   (let [context ^GLContext (make-current drawable)
         gl ^GL2 (.getGL context)
         [w h] (vp-dims viewport)
@@ -320,11 +321,11 @@
     (profiler/profile "render" -1
                       (when-let [^GLContext context (.getContext drawable)]
                         (let [gl ^GL2 (.getGL context)]
-                          (.beginFrame async-copier gl)
-                          (render! viewport drawable camera all-renderables context gl)
-                          (scene-cache/prune-object-caches! gl)
-                          (.endFrame async-copier gl)
-                          :ok)))))
+                          (when (.tryBeginFrame async-copier gl)
+                            (render! viewport drawable camera all-renderables context gl)
+                            (scene-cache/prune-object-caches! gl)
+                            (.endFrame async-copier gl)
+                            :ok))))))
 
 ;; Scene selection
 
@@ -640,10 +641,8 @@
                          (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                            (doto drawable
                              (.setSurfaceSize w h))
-                           (let [context (make-current drawable)]
-                             (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                               (.setSize ^GL2 (.getGL context) w h))
-                             (.release context)))
+                           (doto ^AsyncCopier (g/node-value view-id :async-copier)
+                             (.setPendingSize w h)))
                          (do
                            (register-event-handler! parent view-id)
                            (ui/user-data! image-view ::view-id view-id)

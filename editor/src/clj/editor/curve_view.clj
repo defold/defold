@@ -120,11 +120,11 @@
     (profiler/profile "render-curves" -1
                       (when-let [^GLContext context (.getContext drawable)]
                         (let [gl ^GL2 (.getGL context)]
-                          (.beginFrame async-copier gl)
-                          (render! viewport drawable camera (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables)) context gl)
-                          (scene-cache/prune-object-caches! gl)
-                          (.endFrame async-copier gl)
-                          :ok)))))
+                          (when (.tryBeginFrame async-copier gl)
+                            (render! viewport drawable camera (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables)) context gl)
+                            (scene-cache/prune-object-caches! gl)
+                            (.endFrame async-copier gl)
+                            :ok))))))
 
 (defn- curve? [[_ p]]
   (let [t (g/value-type-dispatch-value (:type p))
@@ -579,10 +579,8 @@
                          (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                            (doto drawable
                              (.setSurfaceSize w h))
-                           (let [context (scene/make-current drawable)]
-                             (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                               (.setSize ^GL2 (.getGL context) w h))
-                             (.release context)))
+                           (doto ^AsyncCopier (g/node-value view-id :async-copier)
+                             (.setPendingSize  w h)))
                          (do
                            (scene/register-event-handler! view view-id)
                            (ui/user-data! image-view ::view-id view-id)
