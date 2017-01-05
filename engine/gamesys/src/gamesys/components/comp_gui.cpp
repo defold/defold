@@ -17,6 +17,7 @@
 #include <render/render_ddf.h>
 
 #include "comp_gui.h"
+#include "comp_spine_model.h"
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
@@ -33,6 +34,22 @@ namespace dmGameSystem
     dmRender::HRenderType g_GuiRenderType = dmRender::INVALID_RENDER_TYPE_HANDLE;
     dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
     bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
+
+    // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
+    static struct PlaybackGuiToRig
+    {
+        dmGui::Playback m_Table[dmGui::PLAYBACK_COUNT];
+        PlaybackGuiToRig()
+        {
+            m_Table[dmGameSystemDDF::PLAYBACK_NONE]            = dmGui::PLAYBACK_NONE;
+            m_Table[dmGameSystemDDF::PLAYBACK_ONCE_FORWARD]    = dmGui::PLAYBACK_ONCE_FORWARD;
+            m_Table[dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD]   = dmGui::PLAYBACK_ONCE_BACKWARD;
+            m_Table[dmGameSystemDDF::PLAYBACK_LOOP_FORWARD]    = dmGui::PLAYBACK_LOOP_FORWARD;
+            m_Table[dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD]   = dmGui::PLAYBACK_LOOP_BACKWARD;
+            m_Table[dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG]   = dmGui::PLAYBACK_LOOP_PINGPONG;
+            m_Table[dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG;
+        }
+    } ddf_playback_map;
 
     struct GuiWorld;
     struct GuiRenderNode
@@ -55,7 +72,7 @@ namespace dmGameSystem
             dmLogWarning("The gui world could not be stored since the buffer is full (%d). Reload will not work for the scenes in this world.", gui_context->m_Worlds.Size());
         }
 
-        gui_world->m_Components.SetCapacity(64);
+        gui_world->m_Components.SetCapacity(gui_context->m_MaxGuiComponents);
 
         dmGraphics::VertexElement ve[] =
         {
@@ -742,7 +759,8 @@ namespace dmGameSystem
         {
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            vertex_count += dmRig::GetVertexCount(rig_instance);
+            uint32_t count = dmRig::GetVertexCount(rig_instance);
+            vertex_count += count;
         }
 
         ro.Init();
@@ -775,20 +793,14 @@ namespace dmGameSystem
         // Fill in vertex buffer
         BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
         BoxVertex *vb_end = vb_begin;
-
-        dmRig::RigGenVertexDataParams params;
         for (uint32_t i = 0; i < node_count; ++i)
         {
-
             const dmGui::HNode node = entries[i].m_Node;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
-            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-            params.m_ModelMatrix = node_transforms[i];
-            params.m_VertexData = (void**)&vb_end;
-            params.m_VertexStride = sizeof(BoxVertex);
-            params.m_Color = Vector4(color.getXYZ() * node_opacities[i], node_opacities[i]); // Pre-multiplied alpha
-
-            vb_end = (BoxVertex *)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, params);
+            float opacity = node_opacities[i];
+            Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            color = Vector4(color.getXYZ() * opacity, opacity);
+            vb_end = (BoxVertex*)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, node_transforms[i], Matrix4::identity(), color, true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
@@ -853,7 +865,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
-        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
@@ -904,8 +916,8 @@ namespace dmGameSystem
                     us[uI[2]] = tc[2] - (su * slice9.getY());
                     us[uI[3]] = tc[2];
                     vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] + (sv * slice9.getX());
-                    vs[vI[2]] = tc[5] - (sv * slice9.getZ());
+                    vs[vI[1]] = tc[1] - (sv * slice9.getX());
+                    vs[vI[2]] = tc[5] + (sv * slice9.getZ());
                     vs[vI[3]] = tc[5];
                 }
                 else
@@ -917,8 +929,8 @@ namespace dmGameSystem
                     us[uI[2]] = tc[4] - (su * slice9.getZ());
                     us[uI[3]] = tc[4];
                     vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] - (sv * slice9.getW());
-                    vs[vI[2]] = tc[3] + (sv * slice9.getY());
+                    vs[vI[1]] = tc[1] + (sv * slice9.getW());
+                    vs[vI[2]] = tc[3] - (sv * slice9.getY());
                     vs[vI[3]] = tc[3];
                 }
             }
@@ -929,10 +941,10 @@ namespace dmGameSystem
                 us[1] = su * slice9.getX();
                 us[2] = 1 - su * slice9.getZ();
                 us[3] = 1;
-                vs[0] = 1;
-                vs[1] = 1 - sv * slice9.getW();
-                vs[2] = sv * slice9.getY();
-                vs[3] = 0;
+                vs[0] = 0;
+                vs[1] = sv * slice9.getW();
+                vs[2] = 1 - sv * slice9.getY();
+                vs[3] = 1;
             }
 
             xs[1] = sx * slice9.getX();
@@ -1071,7 +1083,7 @@ namespace dmGameSystem
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
-        	const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
@@ -1141,8 +1153,8 @@ namespace dmGameSystem
                 uv_rotated = false;
                 u0 = 0.0f;
                 su = 1.0f;
-                v0 = 0.0f;
-                sv = 1.0f;
+                v0 = 1.0f;
+                sv = -1.0f;
             }
 
             uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
@@ -1388,21 +1400,6 @@ namespace dmGameSystem
             out_data->m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
-
-            static struct PlaybackTranslation
-            {
-                dmGui::Playback m_Table[dmGui::PLAYBACK_COUNT];
-                PlaybackTranslation()
-                {
-                    m_Table[dmGameSystemDDF::PLAYBACK_NONE]            = dmGui::PLAYBACK_NONE;
-                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_FORWARD]    = dmGui::PLAYBACK_ONCE_FORWARD;
-                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD]   = dmGui::PLAYBACK_ONCE_BACKWARD;
-                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_FORWARD]    = dmGui::PLAYBACK_LOOP_FORWARD;
-                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD]   = dmGui::PLAYBACK_LOOP_BACKWARD;
-                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG]   = dmGui::PLAYBACK_LOOP_PINGPONG;
-                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG;
-                }
-            } ddf_playback_map;
             out_data->m_Playback = ddf_playback_map.m_Table[playback_index];
             return dmGui::FETCH_ANIMATION_OK;
         }
@@ -1421,6 +1418,8 @@ namespace dmGameSystem
         out_data->m_AnimationSet = rig_res->m_AnimationSetRes->m_AnimationSet;
         out_data->m_Texture = rig_res->m_TextureSet->m_Texture;
         out_data->m_TextureSet = rig_res->m_TextureSet->m_TextureSet;
+        out_data->m_PoseIdxToInfluence = &rig_res->m_PoseIdxToInfluence;
+        out_data->m_TrackIdxToPose     = &rig_res->m_TrackIdxToPose;
 
         return true;
     }
@@ -1570,6 +1569,8 @@ namespace dmGameSystem
             gui_input_action.m_ScreenY = params.m_InputAction->m_ScreenY;
             gui_input_action.m_ScreenDX = params.m_InputAction->m_ScreenDX;
             gui_input_action.m_ScreenDY = params.m_InputAction->m_ScreenDY;
+            gui_input_action.m_GamepadIndex = params.m_InputAction->m_GamepadIndex;
+            gui_input_action.m_IsGamepad = params.m_InputAction->m_IsGamepad;
 
             gui_input_action.m_TouchCount = params.m_InputAction->m_TouchCount;
             int tc = params.m_InputAction->m_TouchCount;

@@ -1,5 +1,6 @@
 (ns editor.spine
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [util.murmur :as murmur]
@@ -9,6 +10,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.scene :as scene]
@@ -46,8 +48,8 @@
 (g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
   {:resource resource
    :content (protobuf/map->str Spine$SpineSceneDesc
-              {:spine-json (resource/proj-path spine-json-resource)
-               :atlas (resource/proj-path atlas-resource)
+              {:spine-json (resource/resource->proj-path spine-json-resource)
+               :atlas (resource/resource->proj-path atlas-resource)
                :sample-rate sample-rate})})
 
 (defprotocol Interpolator
@@ -391,9 +393,10 @@
   [_node-id resource spine-scene-pb atlas dep-build-targets]
   (rig/make-rig-scene-build-targets _node-id
                                     resource
-                                    spine-scene-pb
+                                    (assoc spine-scene-pb
+                                           :texture-set atlas)
                                     dep-build-targets
-                                    [[:texture-set atlas]]))
+                                    [:texture-set]))
 
 (defn- connect-atlas [project node-id atlas]
   (if-let [atlas-node (project/get-resource-node project atlas)]
@@ -405,18 +408,14 @@
         []))
     []))
 
-(defn- disconnect-all [node-id label]
-  (for [[src-node-id src-label] (g/sources-of node-id label)]
-    (g/disconnect src-node-id src-label node-id label)))
-
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:atlas} labels)
     (let [atlas (g/node-value self :atlas)
           project (project/get-project self)]
       (concat
-        (disconnect-all self :anim-data)
-        (disconnect-all self :gpu-texture)
-        (disconnect-all self :dep-build-targets)
+        (gu/disconnect-all self :anim-data)
+        (gu/disconnect-all self :gpu-texture)
+        (gu/disconnect-all self :dep-build-targets)
         (connect-atlas project self atlas)))))
 
 (g/defnk produce-spine-scene-pb [spine-scene anim-data sample-rate]
@@ -677,10 +676,10 @@
                     :sample-rate (:sample-rate spine))))
 
 (g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
-  {:spine-scene (resource/proj-path spine-scene-resource)
+  {:spine-scene (resource/resource->proj-path spine-scene-resource)
    :default-animation default-animation
    :skin skin
-   :material (resource/proj-path material-resource)
+   :material (resource/resource->proj-path material-resource)
    :blend-mode blend-mode})
 
 (g/defnk produce-model-save-data [resource model-pb]
@@ -704,6 +703,10 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
+(defn- sort-spine-anim-ids
+  [spine-anim-ids]
+  (sort-by str/lower-case spine-anim-ids))
+
 (g/defnode SpineModelNode
   (inherits project/ResourceNode)
 
@@ -722,7 +725,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "spinescene"}))
             (dynamic error (g/fnk [_node-id spine-scene]
                                   (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
-  (property blend-mode g/Any (default :blend_mode_alpha)
+  (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
@@ -731,13 +734,15 @@
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource]
                                                 [:shader :material-shader]
-                                                [:sampler-data :sampler-data]
                                                 [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"}))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error _node-id :material material "Material"))))
   (property default-animation g/Str
-            (value (g/fnk [default-animation spine-anim-ids] (or (not-empty default-animation) (first spine-anim-ids))))
+            (value (g/fnk [default-animation spine-anim-ids]
+                     (if (and (str/blank? default-animation) spine-anim-ids)
+                       (first (sort-spine-anim-ids spine-anim-ids))
+                       default-animation)))
             (dynamic error (g/fnk [_node-id spine-anim-ids default-animation spine-scene]
                                   (when spine-scene
                                     (validation/prop-error :fatal _node-id
@@ -766,8 +771,6 @@
   (input anim-data g/Any)
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (input sampler-data g/KeywordMap)
-  (output sampler-data g/KeywordMap (gu/passthrough sampler-data))
   (output scene g/Any :cached (gu/passthrough spine-scene-scene))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-data g/Any :cached produce-model-save-data)

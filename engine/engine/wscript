@@ -79,8 +79,8 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    elif operating_sys == "win" and architecture == 'x86':
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])
+    elif operating_sys == "win":
+        conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup', 'opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib'])
     elif operating_sys == 'web' and architecture == 'js':
         pass
 

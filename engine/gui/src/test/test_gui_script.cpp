@@ -664,6 +664,68 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
     dmGui::DeleteScript(script);
 }
 
+// DEF-1972 Callback called to early (when finishing the first animation, not the last)
+TEST_F(dmGuiScriptTest, TestLocalTransformAnimWithCallback)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
+    dmGui::SetSceneScript(scene, script);
+
+    // Set position
+    const char* src =
+            "local n2 = nil"
+            "local function anim_done(self, node)\n"
+            "   local pos = gui.get_position(node)\n"
+            "   gui.set_position(n2, pos)\n"
+            "end\n"
+            "function init(self)\n"
+            "    local n1 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    n2 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_pivot(n1, gui.PIVOT_SW)\n"
+            "    gui.set_pivot(n2, gui.PIVOT_SW)\n"
+            "    gui.set_position(n1, vmath.vector3(0, 0, 0))\n"
+            "    gui.set_position(n2, vmath.vector3(0, 0, 0))\n"
+            "    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1, 0, anim_done)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    Vectormath::Aos::Matrix4 transforms[2];
+    dmGui::RenderScene(scene, RenderNodesStoreTransform, transforms);
+
+    ASSERT_NEAR(0.0f, transforms[0].getElem(3, 0), EPSILON);
+    ASSERT_NEAR(0.0f, transforms[0].getElem(3, 1), EPSILON);
+    ASSERT_NEAR(0.0f, transforms[0].getElem(3, 2), EPSILON);
+    ASSERT_NEAR(0.0f, transforms[1].getElem(3, 0), EPSILON);
+    ASSERT_NEAR(0.0f, transforms[1].getElem(3, 1), EPSILON);
+    ASSERT_NEAR(0.0f, transforms[1].getElem(3, 2), EPSILON);
+
+    dmGui::UpdateScene(scene, 1.0f);
+
+    dmGui::RenderScene(scene, RenderNodesStoreTransform, transforms);
+
+    ASSERT_NEAR(2.0f, transforms[0].getElem(3, 0), EPSILON);
+    ASSERT_NEAR(2.0f, transforms[0].getElem(3, 1), EPSILON);
+    ASSERT_NEAR(2.0f, transforms[0].getElem(3, 2), EPSILON);
+    ASSERT_NEAR(2.0f, transforms[1].getElem(3, 0), EPSILON);
+    ASSERT_NEAR(2.0f, transforms[1].getElem(3, 1), EPSILON);
+    ASSERT_NEAR(2.0f, transforms[1].getElem(3, 2), EPSILON);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
 TEST_F(dmGuiScriptTest, TestCustomEasingAnimation)
 {
 	dmGui::HScript script = NewScript(m_Context);
@@ -867,7 +929,7 @@ static void BuildBindPose(dmArray<dmRig::RigBone>* bind_pose, dmRigDDF::Skeleton
         {
             bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
         }
-        bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
+        bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(dmTransform::Inv(bind_bone->m_LocalToModel));
         bind_bone->m_ParentIndex = bone->m_Parent;
         bind_bone->m_Length = bone->m_Length;
     }

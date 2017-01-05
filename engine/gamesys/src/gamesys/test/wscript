@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import sys, os
 
 import Task, TaskGen
@@ -12,10 +14,10 @@ else:
     os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto:../src"
 
 def configure(conf):
-    conf.find_file('meshc.py', [os.path.abspath('tools')], var = 'MESHC', mandatory = True)
+    pass
 
 def build(bld):
-    dirs = [
+    dirs = ['animationset',
             'camera',
             'collection_proxy',
             'collision_object',
@@ -35,6 +37,7 @@ def build(bld):
             'render',
             'render_script',
             'display_profiles',
+            'resource',
             'script',
             'sound',
             'spine',
@@ -43,7 +46,8 @@ def build(bld):
             'texture',
             'vertex_program',
             'window']
-    exts = ['camera',
+    exts = ['animationset',
+            'camera',
             'collisionobject',
             'convexshape',
             'emitter',
@@ -65,6 +69,7 @@ def build(bld):
             'render',
             'render_script',
             'display_profiles',
+            'resource',
             'script',
             'sprite',
             'vp',

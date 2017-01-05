@@ -1,0 +1,16 @@
+.separator {
+    -fx-background-color: red;
+    &:horizontal {
+        .line {
+            -fx-border-color: $dark-black;
+            -fx-border-width: 1 0 0;
+        }
+    }
+
+    &:vertical {
+        .line {
+            -fx-border-color: $dark-black;
+            -fx-border-width: 0 1 0 0;
+        }
+    }
+}

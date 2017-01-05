@@ -18,10 +18,11 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
-import com.dynamo.bob.util.RigScene;
-import com.dynamo.bob.util.RigScene.Animation;
-import com.dynamo.bob.util.RigScene.Mesh;
-import com.dynamo.bob.util.RigScene.UVTransformProvider;
+import com.dynamo.bob.util.RigUtil;
+import com.dynamo.bob.util.RigUtil.Animation;
+import com.dynamo.bob.util.RigUtil.Mesh;
+import com.dynamo.bob.util.RigUtil.UVTransformProvider;
+import com.dynamo.bob.util.SpineSceneUtil;
 import com.dynamo.cr.guied.Activator;
 import com.dynamo.cr.guied.core.SpineScenesNode;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
@@ -52,7 +53,7 @@ public class SpineNode extends ClippingNode {
     private String skin = "";
 
     private transient SpineSceneDesc sceneDesc;
-    private transient RigScene scene;
+    private transient SpineSceneUtil scene;
     private transient TextureSetNode textureSetNode = null;
     private transient CompositeMesh mesh = new CompositeMesh();
 
@@ -69,10 +70,10 @@ public class SpineNode extends ClippingNode {
     }
 
     public boolean isAlphaVisible() {
-        return false;
+        return true;
     }
     public boolean isInheritAlphaVisible() {
-        return false;
+        return true;
     }
 
     public boolean isSizeVisible() {
@@ -84,7 +85,7 @@ public class SpineNode extends ClippingNode {
     }
 
     public boolean isBlendModeVisible() {
-        return false;
+        return true;
     }
 
     public boolean isPivotVisible() {
@@ -236,13 +237,13 @@ public class SpineNode extends ClippingNode {
         return null;
     }
 
-    private static RigScene loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
+    private static SpineSceneUtil loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
         if (!path.isEmpty()) {
             InputStream in = null;
             try {
                 IFile file = model.getFile(path);
                 in = file.getContents();
-                return RigScene.loadJson(in, provider);
+                return SpineSceneUtil.loadJson(in, provider);
             } catch (Exception e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             } finally {

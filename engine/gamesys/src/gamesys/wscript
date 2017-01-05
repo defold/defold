@@ -32,7 +32,9 @@ def build(bld):
         ('collision_object', ('../../proto/physics_ddf.proto', 'scripts/script_physics.cpp')),
         ('factory', ('scripts/script_factory.cpp')),
         ('label', ('../../proto/label_ddf.proto', 'scripts/script_label.cpp')),
+        ('model', ('../../proto/model_ddf.proto', 'scripts/script_model.cpp')),
         ('particlefx', ('scripts/script_particlefx.cpp')),
+        ('resource', ('scripts/script_resource.cpp')),
         ('sound', ('components/comp_sound.cpp', 'scripts/script_sound.cpp')),
         ('spine', ('../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp')),
         ('sprite', ('../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp')),
@@ -58,7 +60,6 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../../proto/gui_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/gamesys_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/model_ddf.proto')
-    bld.install_files('${PREFIX}/share/proto', '../../proto/mesh_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/sprite_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/spine_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/label_ddf.proto')

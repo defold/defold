@@ -12,6 +12,9 @@
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.AccessToken</class>
         <class>com.dynamo.cr.server.model.PasswordResetToken</class>
+        <class>com.dynamo.cr.server.model.ProjectSite</class>
+        <class>com.dynamo.cr.server.model.Screenshot</class>
+        <class>com.dynamo.cr.server.model.AppStoreReference</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://cr-production.ca6wkrihnffz.eu-west-1.rds.amazonaws.com/cr_production" />
@@ -22,7 +25,7 @@
             <property name="eclipselink.logging.level" value="WARNING"/>
 
             <!-- EclipseLink should create the database schema automatically -->
-            <property name="eclipselink.ddl-generation" value="create-tables" />
+            <property name="eclipselink.ddl-generation" value="create-or-extend-tables" />
             <property name="eclipselink.ddl-generation.output-mode" value="database" />
         </properties>
 
@@ -37,6 +40,9 @@
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.AccessToken</class>
         <class>com.dynamo.cr.server.model.PasswordResetToken</class>
+        <class>com.dynamo.cr.server.model.ProjectSite</class>
+        <class>com.dynamo.cr.server.model.Screenshot</class>
+        <class>com.dynamo.cr.server.model.AppStoreReference</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://cr-dev.ca6wkrihnffz.eu-west-1.rds.amazonaws.com/cr_production" />
@@ -47,7 +53,7 @@
             <property name="eclipselink.logging.level" value="WARNING"/>
 
             <!-- EclipseLink should create the database schema automatically -->
-            <property name="eclipselink.ddl-generation" value="create-tables" />
+            <property name="eclipselink.ddl-generation" value="create-or-extend-tables" />
             <property name="eclipselink.ddl-generation.output-mode" value="database" />
         </properties>
 
@@ -62,6 +68,9 @@
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.AccessToken</class>
         <class>com.dynamo.cr.server.model.PasswordResetToken</class>
+        <class>com.dynamo.cr.server.model.ProjectSite</class>
+        <class>com.dynamo.cr.server.model.Screenshot</class>
+        <class>com.dynamo.cr.server.model.AppStoreReference</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://localhost/local_developer" />
@@ -87,6 +96,9 @@
         <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.AccessToken</class>
         <class>com.dynamo.cr.server.model.PasswordResetToken</class>
+        <class>com.dynamo.cr.server.model.ProjectSite</class>
+        <class>com.dynamo.cr.server.model.Screenshot</class>
+        <class>com.dynamo.cr.server.model.AppStoreReference</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.apache.derby.jdbc.EmbeddedDriver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:derby:tmp/testdb;create=true" />

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform, math
+import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -16,14 +16,15 @@ Run build.py --help for help
 """
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6 webp-0.5.0".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 openal-1.1 luajit-2.0.3".split()
-PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3".split()
-PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847".split()
+PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 glut-3.7.6".split()
+PACKAGES_WIN32_64="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847".split()
+PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1".split()
+PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223a67482df2226622be372921847".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -40,13 +41,18 @@ EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VE
 PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL = os.environ.get('SHELL', 'bash')
 
+def is_64bit_machine():
+    return platform.machine().endswith('64')
+
 def get_host_platform():
-    arch = platform.architecture()[0]
     if sys.platform == 'linux2':
+        arch = platform.architecture()[0]
         if arch == '64bit':
             return 'x86_64-linux'
         else:
             return 'linux'
+    elif sys.platform == 'win32' and is_64bit_machine():
+        return 'x86_64-win32'
     else:
         return sys.platform
 
@@ -226,66 +232,109 @@ class Configuration(object):
 
     def _install_go(self):
         urls = {
-            'darwin'       : 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
+            'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
             'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
             'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
             'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
+            'x86_64-win32' : 'https://storage.googleapis.com/golang/go1.7.1.windows-amd64.zip'
         }
 
-        url = urls[self.host]
-        path = self._download(url)
-        self._extract(path, self.ext)
+        url = urls.get(self.target_platform)
+
+        if url:
+            path = self._download(url)
+            target_path = join(self.ext, 'go', self.target_platform)
+            self._extract(path, target_path)
+        else:
+            print("No go found for %s" % self.target_platform)
+
+    def _make_package_path(self, platform, package):
+        return join(self.defold_root, 'packages', package) + '-%s.tar.gz' % platform
+
+    def _make_package_paths(self, platform, packages):
+        return [self._make_package_path(platform, package) for package in packages]
+
+    def _extract_packages(self, platform, packages):
+        for package in packages:
+            self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
-        def make_path(platform):
-            return join(self.defold_root, 'packages', p) + '-%s.tar.gz' % platform
-
+        print("Installing go")
         self._install_go()
 
+        print("Installing common packages")
         for p in PACKAGES_ALL:
-            self._extract_tgz(make_path('common'), self.ext)
+            self._extract_tgz(self._make_package_path('common', p), self.ext)
 
-        for p in PACKAGES_HOST:
-            self._extract_tgz(make_path(self.host), self.ext)
+        # Target platform packages should take precendence when for instance
+        # extracting headers for a non-default version of PVRTexLib (windows, linux)
+        # For this reason we extract packages for other platforms first, followed by
+        # host/base platform packages, and finally target platform packages.
 
-        for p in PACKAGES_IOS:
-                self._extract_tgz(make_path('armv7-darwin'), self.ext)
+        platform_packages = {
+            'win32':          PACKAGES_WIN32,
+            'x86_64-win32':   PACKAGES_WIN32_64,
+            'linux':          PACKAGES_LINUX,
+            'x86_64-linux':   PACKAGES_LINUX_64,
+            'x86_64-darwin':  PACKAGES_DARWIN_64,
+            'armv7-darwin':   PACKAGES_IOS,
+            'arm64-darwin':   PACKAGES_IOS_64,
+            'armv7-android':  PACKAGES_ANDROID,
+            'js-web':         PACKAGES_EMSCRIPTEN
+        }
 
-        for p in PACKAGES_IOS_64:
-                self._extract_tgz(make_path('arm64-darwin'), self.ext)
+        base_platforms = self.get_base_platforms()
+        target_platform = self.target_platform
+        other_platforms = set(platform_packages.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
-        for p in PACKAGES_WIN32:
-                self._extract_tgz(make_path('win32'), self.ext)
+        installed_packages = set()
 
-        for p in PACKAGES_LINUX:
-                self._extract_tgz(make_path('linux'), self.ext)
+        for platform in other_platforms:
+            packages = platform_packages.get(platform, [])
+            package_paths = self._make_package_paths(platform, packages)
+            print("Installing %s packages" % platform)
+            for path in package_paths:
+                self._extract_tgz(path, self.ext)
+            installed_packages.update(package_paths)
 
-        for p in PACKAGES_LINUX_64:
-                self._extract_tgz(make_path('x86_64-linux'), self.ext)
+        for base_platform in self.get_base_platforms():
+            packages = list(PACKAGES_HOST)
+            packages.extend(platform_packages.get(base_platform, []))
+            package_paths = self._make_package_paths(base_platform, packages)
+            package_paths = [path for path in package_paths if path not in installed_packages]
+            if len(package_paths) != 0:
+                print("Installing %s packages" % base_platform)
+                for path in package_paths:
+                    self._extract_tgz(path, self.ext)
+                installed_packages.update(package_paths)
 
-        if self.host == 'darwin':
-            for p in PACKAGES_DARWIN_64:
-                self._extract_tgz(make_path('x86_64-darwin'), self.ext)
+        target_packages = platform_packages.get(self.target_platform, [])
+        target_package_paths = self._make_package_paths(self.target_platform, target_packages)
+        target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
-        for p in PACKAGES_ANDROID:
-            self._extract_tgz(make_path('armv7-android'), self.ext)
+        if len(target_package_paths) != 0:
+            print("Installing %s packages" % self.target_platform)
+            for path in target_package_paths:
+                self._extract_tgz(path, self.ext)
+            installed_packages.update(target_package_paths)
 
-        for p in PACKAGES_EMSCRIPTEN:
-            self._extract_tgz(make_path('js-web'), self.ext)
+        # Is as3-web a supported platform? doesn't say so in --platform?
+        print("Installing flash packages")
+        self._extract_packages('as3-web', PACKAGES_FLASH)
 
-        for p in PACKAGES_FLASH:
-            self._extract_tgz(make_path('as3-web'), self.ext)
-
+        print("Installing python eggs")
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
+        print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         for n in 'js-web-pre-engine.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
+        print("Installing profiles etc")
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
@@ -355,7 +404,7 @@ class Configuration(object):
         if not outfile:
             outfile = tempfile.NamedTemporaryFile(delete = False)
 
-        zip = zipfile.ZipFile(outfile, 'w')
+        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
         for root, dirs, files in os.walk(path):
             for f in files:
                 p = os.path.join(root, f)
@@ -367,12 +416,81 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
+    def _add_files_to_zip(self, zip, paths, directory=None, topfolder=None):
+        for p in paths:
+            if not os.path.isfile(p):
+                continue
+            an = p
+            if directory:
+                an = os.path.relpath(p, directory)
+            if topfolder:
+                an = os.path.join(topfolder, an)
+            zip.write(p, an)
+
     def is_cross_platform(self):
         return self.host != self.target_platform
 
+    def is_desktop_target(self):
+        return self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
+
+    # package the native SDK, return the path to the zip file
+    def _package_platform_sdk(self, platform):
+        outfile = tempfile.NamedTemporaryFile(delete = False)
+
+        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+
+        topfolder = 'defoldsdk'
+        defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
+
+        # Includes
+        #includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
+        includes = []
+        cwd = os.getcwd()
+        os.chdir(self.dynamo_home)
+        for root, dirs, files in os.walk("."):
+            for file in files:
+                if file.endswith('.h'):
+                    includes.append(os.path.join(root, file))
+                    print(includes[-1])
+
+        os.chdir(cwd)
+        includes = [os.path.join(self.dynamo_home, x) for x in includes]
+        self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
+
+        # Configs
+        configs = ['extender/build.yml']
+        configs = [os.path.join(self.dynamo_home, x) for x in configs]
+        self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
+
+        def _findlibs(libdir):
+            paths = os.listdir(libdir)
+            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+            return paths
+
+        # Dynamo libs
+        libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
+        paths = _findlibs(libdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+        # External libs
+        libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
+        paths = _findlibs(libdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+        zip.close()
+        return outfile.name
+
+    def build_platform_sdk(self):
+        # Helper function to make it easier to build a platform sdk locally
+        try:
+            path = self._package_platform_sdk(self.target_platform)
+        except Exception, e:
+            print "Failed to package sdk for platform %s: %s" % (self.target_platform, e)
+        else:
+            print "Wrote %s" % path
+
     def archive_engine(self):
         exe_prefix = ''
-        if self.target_platform == 'win32':
+        if 'win32' in self.target_platform:
             exe_ext = '.exe'
         elif 'android' in self.target_platform:
             exe_prefix = 'lib'
@@ -403,7 +521,7 @@ class Configuration(object):
         lib_dir = self.target_platform
 
         # upload editor 2.0 launcher
-        if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32']:
+        if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']:
             launcherbin = join(bin_dir, "launcher" + exe_ext)
             self.upload_file(launcherbin, '%s/%s%s' % (full_archive_path, "launcher", exe_ext))
 
@@ -441,29 +559,43 @@ class Configuration(object):
             self.upload_file(resources, '%s/android-resources.zip' % (full_archive_path))
 
         libs = ['particle']
-        if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
+        if self.is_desktop_target():
             libs.append('texc')
         for lib in libs:
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
             self.upload_file(lib_path, '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext))
 
-    def build_engine(self):
+        sdkpath = self._package_platform_sdk(self.target_platform)
+        self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
+
+    def _get_build_flags(self):
         supported_tests = {}
         supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
         supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
-
         eclipse = '--eclipse' if self.eclipse else ''
+        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'eclipse':eclipse}
 
-        libs="dlib ddf particle glfw graphics lua hid liveupdate input physics resource extension script tracking render gameobject rig gui sound gamesys tools record iap push iac adtruth webview facebook crash engine".split()
+    def get_base_platforms(self):
+        # Base platforms is the platforms to build the base libs for.
+        # The base libs are the libs needed to build bob, i.e. contains compiler code.
 
-        # Base platforms is the set of platforms to build the base libs for
-        # The base libs are the libs needed to build bob, i.e. contains compiler code
-        base_platforms = [self.host]
-        if self.host == 'darwin':
-            base_platforms.append('x86_64-darwin')
+        platform_dependencies = {'darwin': ['darwin', 'x86_64-darwin'], # x86_64-darwin from IOS fix 3dea8222
+                                 'x86_64-linux': [],
+                                 'x86_64-win32': ['win32']}
+
+        platforms = list(platform_dependencies.get(self.host, [self.host]))
+
+        if not self.host in platforms:
+            platforms.append(self.host)
+
+        return platforms
+
+    def _build_engine_base_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
+        self._log('Building base libs')
+        base_platforms = self.get_base_platforms()
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         base_libs = ['dlib', 'texc']
         for platform in base_platforms:
@@ -474,28 +606,59 @@ class Configuration(object):
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
                 self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
-        self._log('Building bob')
+    def build_engine_base_libs(self):
+        self._build_engine_base_libs(**self._get_build_flags())
 
+    def build_bob_light(self):
+        self._log('Building bob')
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                               cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
                               shell = True)
 
+    def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
+        self._log('Building libs')
+        libs="dlib ddf particle glfw graphics lua hid liveupdate input physics resource extension script tracking render gameobject rig gui sound gamesys tools record iap push iac adtruth webview facebook crash engine".split()
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
             self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
+    def build_engine_libs(self):
+        self._build_engine_libs(**self._get_build_flags())
+
+    def _build_extender_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
+        pf_arg = '--platform=%s' % (self.target_platform)
+        cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
+        for lib in ('extender',):
+            self._log('Building %s' % lib)
+            cwd = join(self.defold_root, 'share/%s' % lib)
+            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
+
+    def build_extender_libs(self):
+        self._build_extender_libs(**self._get_build_flags())
+
+    def build_engine(self):
+        build_flags = self._get_build_flags()
+        self._build_engine_base_libs(**build_flags)
+        self.build_bob_light()
+        self._build_engine_libs(**build_flags)
+        self._build_extender_libs(**build_flags)
+
     def build_go(self):
-        # TODO: shell=True is required only on windows otherwise it fails. WHY?
+        exe_ext = '.exe' if 'win32' in self.target_platform else ''
+        go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)
 
-        self.exec_env_command('go clean -i github.com/...', shell=True)
-        self.exec_env_command('go install github.com/...', shell=True)
+        if not os.path.exists(go):
+            self._log("Missing go for target platform, run install_ext with --platform set.")
+            exit(5)
 
-        self.exec_env_command('go clean -i defold/...', shell=True)
+        self.exec_env_command([go, 'clean', '-i', 'github.com/...'])
+        self.exec_env_command([go, 'install', 'github.com/...'])
+        self.exec_env_command([go, 'clean', '-i', 'defold/...'])
         if not self.skip_tests:
-            self.exec_env_command('go test defold/...', shell=True)
-        self.exec_env_command('go install defold/...', shell=True)
+            self.exec_env_command([go, 'test', 'defold/...'])
+        self.exec_env_command([go, 'install', 'defold/...'])
 
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
@@ -523,6 +686,44 @@ class Configuration(object):
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                           cwd = cwd,
                           shell = True)
+
+    def build_sdk(self):
+        tempdir = tempfile.mkdtemp() # where the sdk ends up
+
+        sha1 = self._git_sha1()
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+
+        root = urlparse.urlparse(self.archive_path).path[1:]
+        base_prefix = os.path.join(root, sha1)
+
+        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
+        for platform in platforms:
+            platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
+
+            prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
+            entry = bucket.get_key(prefix)
+
+            if entry is None:
+                raise Exception("Could not find sdk: %s" % prefix)
+
+            platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
+            print "Downloading", entry.key
+            entry.get_contents_to_filename(platform_sdk_zip.name)
+            print "Downloaded", entry.key, "to", platform_sdk_zip.name
+
+            self._extract_zip(platform_sdk_zip.name, tempdir)
+            print "Extracted", platform_sdk_zip.name, "to", tempdir
+
+            os.unlink(platform_sdk_zip.name)
+            print ""
+
+        treepath = os.path.join(tempdir, 'defoldsdk')
+        sdkpath = self._ziptree(treepath, directory=tempdir)
+        print "Packaged defold sdk"
+
+        sdkurl = join(self.archive_path, sha1, 'engine').replace('\\', '/')
+        self.upload_file(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -656,7 +857,7 @@ instructions.configure=\
         self.exec_env_command(['./scripts/lein', 'pack'], cwd = cwd)
         self.check_editor2_reflections()
         self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--version=%s' % self.version], cwd = cwd)
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--platform=x86_64-win32', '--version=%s' % self.version], cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -698,7 +899,7 @@ instructions.configure=\
 
     def shell(self):
         print 'Setting up shell with DYNAMO_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
-        if "win32" == self.host:
+        if "win32" in self.host:
             preexec_fn = None
         else:
             preexec_fn = self.check_ems
@@ -950,14 +1151,33 @@ instructions.configure=\
         prefix = self._get_s3_archive_prefix()
         bucket_items = bucket.list(prefix=prefix)
 
-        candidate = None
+        candidates = {}
+        print("Searching for editor signing candidates ...")
         for entry in bucket_items:
-            if 'Defold-macosx.cocoa.x86_64.zip' in entry.key:
-                candidate = entry
-            if 'Defold-macosx.cocoa.x86_64.dmg' in entry.key:
-                return True # The editor has already been signed
+            entrypath = os.path.dirname(entry.key)
+            if entry.key.endswith('Defold-macosx.cocoa.x86_64.zip'):
+                if entrypath not in candidates.keys():
+                    candidates[entrypath] = {}
+                candidates[entrypath]['zip'] = entry
+            if entry.key.endswith('Defold-macosx.cocoa.x86_64.dmg'):
+                if entrypath not in candidates.keys():
+                    candidates[entrypath] = {}
+                candidates[entrypath]['dmg'] = entry
 
-        if candidate is not None:
+        print("Found %d candidate(s) for editor signing ..." % len(candidates.keys()))
+        for candidate in candidates.keys():
+            if 'zip' in candidates[candidate].keys():
+                if 'dmg' in candidates[candidate].keys():
+                    print("Pruning candidate, dmg found: %s" % candidate)
+                    del candidates[candidate]
+            elif 'dmg' in candidates[candidate].keys():
+                print("Pruning candidate, dmg found but zip missing: %s" % candidate)
+                del candidates[candidate]
+
+        print("Found %d true candidate(s) for editor signing ..." % (len(candidates.keys())))
+        result = False
+        for candidate in candidates.keys():
+            candidate = candidates[candidate]['zip']
             root = None
             builddir = None
             try:
@@ -984,7 +1204,7 @@ instructions.configure=\
 
                 # Create a signature for Defold.app and the container
                 # This certificate must be installed on the computer performing the operation
-                certificate = 'Developer ID Application: Midasplayer AB (YFY47KYJ6N)'
+                certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
                 self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
                 self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
                 self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
@@ -993,7 +1213,7 @@ instructions.configure=\
                 # Upload the signed container to S3
                 target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
                 self.upload_file(fp_defold_dmg, target)
-                return True
+                result = True
             finally:
                 self.wait_uploads()
                 if root is not None:
@@ -1002,7 +1222,7 @@ instructions.configure=\
                             os.unlink(os.path.join(builddir, 'Applications'))
                     shutil.rmtree(root)
 
-        return False
+        return result
 
     def _sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
@@ -1075,7 +1295,7 @@ instructions.configure=\
 
         if u.netloc == '':
             # Assume scp syntax, e.g. host:path
-            if self.host == 'win32':
+            if 'win32' in self.host:
                 path = path.replace('\\', '/')
                 # scp interpret c:\path as a network location (host "c")
                 if path[1] == ':':
@@ -1099,7 +1319,12 @@ instructions.configure=\
                 self._log('Uploaded %s -> %s' % (path, url))
 
             def upload_multipart():
-                mp = bucket.initiate_multipart_upload(p)
+                headers = {}
+                contenttype, _ = mimetypes.guess_type(path)
+                if contenttype is not None:
+                    headers['Content-Type'] = contenttype
+
+                mp = bucket.initiate_multipart_upload(p, headers=headers)
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB
@@ -1171,18 +1396,20 @@ instructions.configure=\
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
+        go_root = '%s/ext/go/%s/go' % (self.dynamo_home, self.target_platform)
+
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, self.host),
-                                      '%s/ext/go/bin' % self.dynamo_home])
+                                      '%s/bin' % go_root])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
 
         go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
                                          join(self.defold, 'go')])
         env['GOPATH'] = go_paths
-        env['GOROOT'] = '%s/go' % self.ext
+        env['GOROOT'] = go_root
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
@@ -1253,7 +1480,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web'],
+                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
@@ -1331,5 +1558,9 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         f = getattr(c, cmd, None)
         if not f:
             parser.error('Unknown command %s' % cmd)
-        f()
-        c.wait_uploads()
+        else:
+            print('Running: %s' % cmd)
+            f()
+            c.wait_uploads()
+
+    print('Done')

@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system tx-nodes]]
             [integration.test-util :as test-util]
+            [editor.app-view :as app-view]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.gui :as gui]
@@ -184,6 +185,20 @@
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
 
+(deftest gui-text-node-validation
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value node-id :node-outline)
+         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+         text-node (get nodes "hexagon_text")]
+     (are [prop v test] (test-util/with-prop [text-node prop v]
+                          (is (test (test-util/prop-error text-node prop))))
+       :font nil                  g/error-info?
+       :font "not_a_defined_font" g/error-info?
+       :font "highscore"          nil?))))
+
 (deftest gui-text-node-text-layout
   (with-clean-system
    (let [workspace (test-util/setup-workspace! world)
@@ -206,11 +221,8 @@
 
 (deftest gui-layers
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
-          node-id (test-util/resource-node project "/gui/layers.gui")
-          view (test-util/open-scene-view! project app-view node-id 16 16)]
+    (let [[workspace project app-view] (test-util/setup! world)
+          [node-id view] (test-util/open-scene-view! project app-view "/gui/layers.gui" 16 16)]
       (is (= ["box" "pie" "box1" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "layer1")
       (is (= ["box1" "box" "pie" "text"] (render-order view)))
@@ -221,9 +233,7 @@
 
 (deftest gui-templates
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/scene.gui")
           original-template (test-util/resource-node project "/gui/sub_scene.gui")
           tmpl-node (gui-node node-id "sub_scene")
@@ -261,9 +271,7 @@
          (is (< elapsed 900))))
   (testing "drag-pull-outline"
            (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project (test-util/setup-project! workspace)
-                   app-view (test-util/setup-app-view!)
+             (let [[workspace project app-view] (test-util/setup! world)
                    node-id (test-util/resource-node project "/gui/scene.gui")
                    box (gui-node node-id "sub_scene/sub_box")]
                ;; (bench/bench (drag-pull-outline! node-id box))
@@ -277,9 +285,7 @@
 
 (deftest gui-template-ids
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/scene.gui")
           original-template (test-util/resource-node project "/gui/sub_scene.gui")
           tmpl-node (gui-node node-id "sub_scene")
@@ -301,9 +307,7 @@
 
 (deftest gui-templates-complex-property
  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project (test-util/setup-project! workspace)
-         app-view (test-util/setup-app-view!)
+   (let [[workspace project app-view] (test-util/setup! world)
          node-id (test-util/resource-node project "/gui/scene.gui")
          sub-node (gui-node node-id "sub_scene/sub_box")]
      (let [alpha (prop sub-node :alpha)]
@@ -314,9 +318,7 @@
 
 (deftest gui-template-hierarchy
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/super_scene.gui")
           sub-node (gui-node node-id "scene/sub_scene/sub_box")]
       (is (not= nil sub-node))
@@ -331,20 +333,16 @@
 
 (deftest gui-template-selection
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
-          node-id (test-util/resource-node project "/gui/super_scene.gui")
+    (let [[workspace project app-view] (test-util/setup! world)
+          node-id (test-util/open-tab! project app-view "/gui/super_scene.gui")
           tmpl-node (gui-node node-id "scene/sub_scene")]
-      (project/select! project [tmpl-node])
-      (let [props (g/node-value project :selected-node-properties)]
+      (app-view/select! app-view [tmpl-node])
+      (let [props (g/node-value app-view :selected-node-properties)]
         (is (not (empty? (keys props))))))))
 
 (deftest gui-template-set-leak
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/scene.gui")
           sub-node (test-util/resource-node project "/gui/sub_scene.gui")
           tmpl-node (gui-node node-id "sub_scene")]
@@ -357,9 +355,7 @@
 
 (deftest gui-template-dynamics
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/super_scene.gui")
           box (gui-node node-id "scene/box")
           text (gui-node node-id "scene/text")]
@@ -409,12 +405,11 @@
 
 (deftest gui-template-add
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
-          new-tmpl (gui/add-gui-node! project node-id parent :type-template)
+          new-tmpl (gui/add-gui-node! project node-id parent :type-template (fn [node-ids] (app-view/select app-view node-ids)))
           super-template (gui-node super "scene")]
       (is (= new-tmpl (gui-node node-id "template")))
       (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
@@ -423,9 +418,7 @@
 
 (deftest gui-template-overrides-anchors
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/scene.gui")
           box (gui-node node-id "sub_scene/sub_box")]
       (is (= :xanchor-left (g/node-value box :x-anchor))))))
@@ -442,10 +435,10 @@
 (defn- max-x [scene]
   (.getX ^Point3d (:max (:aabb scene))))
 
-(defn- add-layout! [project scene name]
+(defn- add-layout! [project app-view scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
-    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data}}] user-data)))
+    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
@@ -468,11 +461,10 @@
 
 (deftest gui-layout-add
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/layouts.gui")
           box (gui-node node-id "box")]
-      (add-layout! project node-id "Portrait")
+      (add-layout! project app-view node-id "Portrait")
       (set-visible-layout! node-id "Portrait")
       (is (not= box (gui-node node-id "box"))))))
 
@@ -503,9 +495,7 @@
 
 (deftest gui-legacy-alpha
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/legacy_alpha.gui")
           box (gui-node node-id "box")
           text (gui-node node-id "text")]
@@ -514,9 +504,7 @@
 
 (deftest set-gui-layout
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          app-view (test-util/setup-app-view!)
+    (let [[workspace project app-view] (test-util/setup! world)
           node-id (test-util/resource-node project "/gui/layouts.gui")
           gui-resource (g/node-value node-id :resource)
           context (handler/->context :workbench {:active-resource gui-resource :project project})

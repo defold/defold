@@ -1,0 +1,144 @@
+#tool-tabs {
+    -fx-tab-min-height: 25px;
+    -fx-tab-min-width: 40px;
+    -fx-padding: 0 0 17px 0;
+
+    .tab {
+        -fx-padding: 0 10 5 10;
+        -fx-background-insets: 0;
+
+        &:selected {
+            .tab-label {
+                -fx-padding: 0;
+            }
+        }
+    }
+
+    .console-buttons-base {
+        -fx-background-color: $mid-grey;
+        -fx-background-position: center;
+        -fx-background-repeat: no-repeat;
+        -fx-background-size: 9 14;
+        -fx-border-width: 0;
+        -fx-border-color: transparent;
+        -fx-width: 50px;
+        &:hover {
+            -fx-background-color: $mid-grey-light;
+        }
+        &:armed {
+            -fx-background-color: $input-background;
+        }
+    }
+    #prev-console {
+        @extend .console-buttons-base;
+        -fx-background-image: url('icons/left-arrow.png');
+        -fx-border-width: 0 1 0 0;
+        -fx-border-color: $dark-grey-light;
+        &:hover {
+            -fx-background-image: url('icons/left-arrow-on.png');
+        }        
+    }
+    #next-console {
+        @extend .console-buttons-base;
+        -fx-background-image: url('icons/right-arrow.png');
+        &:hover {
+            -fx-background-image: url('icons/right-arrow-on.png');
+        }
+    }
+    .list-view {
+        -fx-background-insets: 0;
+        -fx-border-width: 0;
+    }
+
+    .tab-content-area {
+        -fx-background-color: $dark-grey-light;
+        -fx-padding: 5px;
+
+        .label {
+            -fx-text-fill: $defold-white;
+        }
+
+
+        .content {
+            -fx-background-color: $dark-grey-light;
+            -fx-background-insets: 0;
+            -fx-padding: 0;
+            -fx-border-radius: 0;
+            -fx-border-width: 0;
+            -fx-border-insets: 0;
+        }
+
+        .text-area, .scroll-pane, .viewport {
+            -fx-background-color: $dark-grey-light;
+            -fx-background-insets: 0;
+            -fx-padding: 0;
+        }
+        .text-area {
+            -fx-padding: 15px 0 0 0;
+        }
+    }
+
+    GridPane {
+        -fx-padding: 10;
+    }
+
+    .console-tab-base {
+        -fx-background-position: 10 3;
+        -fx-background-repeat: no-repeat;
+        -fx-background-size: 17 17;
+        -fx-padding: 0 10 5 32;
+        -fx-spacing: 0;
+        &:selected {
+            .tab-label {
+                -fx-padding: 0;
+            }
+        }
+    }
+}
+
+#console-tab {
+    @extend .console-tab-base;
+    -fx-background-image: url("icons/tabs/ic_console-grey.png");
+    &:selected {
+        -fx-background-image: url("icons/tabs/ic_console-white.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/ic_console-white.png");
+    }
+}
+
+#curve-editor-tab {
+    @extend .console-tab-base;
+    -fx-background-image: url("icons/tabs/ic_curve-editor-grey.png");
+    -fx-background-position: 10 1 !important;
+    &:selected {
+        -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
+    }
+}
+
+#build-errors-tab {
+    @extend .console-tab-base;
+    -fx-background-image: url("icons/tabs/ic_build-problems-grey.png");
+    &:selected {
+        -fx-background-image: url("icons/tabs/ic_build-problems-white.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/ic_build-problems-white.png");
+    }
+    
+    .label {
+        -fx-padding: 5;
+    }
+}
+
+#build-errors-container {
+    .tree-view {
+        -fx-background-color: $dark-grey-light;
+        .tree-cell {
+            -fx-background-color: $dark-grey-light;
+        }
+    }
+}

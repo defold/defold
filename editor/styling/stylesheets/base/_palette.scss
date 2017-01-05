@@ -1,0 +1,74 @@
+/* Defold re-skin project stylesheet */
+/* Base */
+/* Colors
+ * Defold Light Blue   #60a8ff             Highlight borders and always together with Defold Blue
+ * Defold Blue         #2268e6             Highlight buttons
+ * Selected Blue       #264a8b             Select states and mouseover for blue buttons
+ * Bright Black        #292c30 #2e3236     Background of the application
+ * Mid Black           #25282b #292d31     Mouseover tabs
+ * Dark Black          #222426 #26282a     Text fields, selected (inactive) files, scroll bg & Outline tabs
+ * Dark Grey           #34373b #3b3e43     Module headers
+ * Mid Grey            #494b4e #54565a     Inactive text and icons
+ * Bright Grey         #8f9296 #a8abaf     Normal text & icon color
+ * Defold White        #f0f2f6 #f8f8fb     Active text & icon color
+ * Defold Red          #ff4646             Errors (text and icons), guides, 3D-Axels
+ * Defold Yellow       #fbce2f             Guides, etc.
+ * Defold Turquoise    #00e6e1             Guides, (also new update color together with Defold Blue)
+ * Defold Green        #00df64             Success, guides etc
+ * Defold Orange       #fd6623             Guides etc
+ */
+
+$defold-light-blue:   #60C1FF;
+$defold-blue:         #2268e6;
+$selected-blue:       #264a8b;
+$bright-black:        #292c30;
+$bright-black-light:  #2e3236;
+$mid-black:           #25282b;
+$mid-black-light:     #292d31;
+$dark-black:          #232529;
+$dark-black-light:    #26282a;
+$dark-grey:           #212428;//#171b1e;//#313439; // Main bakgrund
+$dark-grey-light:     #2c2e33;//#212428;//#1e2226;//#3a3f44; // Paneler
+$dark-grey-header:    #373a40;
+$dark-grey-selected:  #3B3F43;//#42474C;
+$dark-grey-border:    #424348;//#4d4e53;
+$mid-grey:            #393c41;//#454A4F;
+$mid-grey-light:      #45474B;//#54565a;
+$grey:                #52575C;
+$bright-grey:         #8f9296;
+$bright-grey-light:   #a2b0be;
+$defold-white:        #dddddd;
+$defold-white-light:  #f8f8fb;
+$defold-red:          #ff4646;
+$defold-yellow:       #fbce2f;
+$defold-turquoise:    #00e6e1;
+$defold-green:        #00df64;
+$defold-orange:       #fa6731;
+
+/* Revamp */
+$root-background:      #212428;
+$panel-background:     #2c2e33;
+$input-background:     #292a2f;//#23272b;
+$input-border:         #3e4147;
+$icon-grey:            #8f9296; 
+
+$tree-view-icon:      #6b7b8b;
+
+$defold-white:      #f0f2f6; // (text header & tools icon)
+$defold-dark-white: #cccfd3; // (text)
+$bright-grey:       #b0b0b0; // (icons)
+$bright-black:      #272b30; // (forms)
+$mid-black:         #1e2021; // (selected)
+
+/* Lua script colors */
+$script-helper:         #33cccc;
+$script-self:           #E066FF;
+$script-logic:          #E3A869;
+$script-constant:       #FFBBFF;
+$script-function:       #33cc33;
+$script-keyword:        #fd6623;
+$script-operator:       #33cccc;
+$script-string:         #fbce2f;
+$script-comment:        #ff00ff;
+$script-number:         #aaaaff;
+$script-intellisense:   #00FFFF;

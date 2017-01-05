@@ -3,7 +3,6 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -58,7 +57,7 @@ import com.dynamo.label.proto.Label.LabelDesc;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.lua.proto.Lua.LuaModule;
-import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.model.proto.ModelProto.Model;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.proto.DdfExtensions;
@@ -109,7 +108,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".fontc", FontMap.class);
         extToMessageClass.put(".soundc", SoundDesc.class);
         extToMessageClass.put(".labelc", LabelDesc.class);
-        extToMessageClass.put(".modelc", ModelDesc.class);
+        extToMessageClass.put(".modelc", Model.class);
         extToMessageClass.put(".input_bindingc", InputBinding.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
         extToMessageClass.put(".renderc", RenderPrototypeDesc.class);
@@ -130,7 +129,6 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".fpc");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
-        leafResourceTypes.add(".meshc");
     }
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
@@ -467,15 +465,15 @@ public class GameProjectBuilder extends Builder<Void> {
                 // Write outputs to the build system
                 archiveIndexInputStream = new FileInputStream(archiveIndexHandle);
                 task.getOutputs().get(1).setContent(archiveIndexInputStream);
-                
+
                 archiveDataInputStream = new FileInputStream(archiveDataHandle);
                 task.getOutputs().get(2).setContent(archiveDataInputStream);
-                
+
                 task.getOutputs().get(3).setContent(manifestFile);
 
                 resourcePackInputStream = new FileInputStream(resourcePackZip);
                 task.getOutputs().get(4).setContent(resourcePackInputStream);
-                
+
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(5).setContent(publicKeyInputStream);
             }

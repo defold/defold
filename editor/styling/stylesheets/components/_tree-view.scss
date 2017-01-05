@@ -1,0 +1,39 @@
+.tree-view {
+    -fx-background-color: $dark-grey-light;
+    -fx-background-insets: 0;
+}
+
+.tree-cell {
+    -fx-background-color: $dark-grey-light;
+    -fx-font-weight: normal;
+    &:filled {
+        -fx-padding: 5;
+        -fx-border-width: 0 0 0 2;
+        -fx-background-insets: 0 5 0 0;
+        -fx-border-color: transparent;
+        -fx-text-fill: $bright-grey-light;
+
+        &:hover {
+            -fx-text-fill: $defold-white;
+        }
+        &:selected {
+            -fx-border-width: 0 0 0 2;
+            -fx-border-color: $defold-orange;
+            -fx-text-fill: $defold-white;
+            -fx-background-color: $dark-grey-selected;
+            .image-view {
+                @include effect-lighten-blue();
+            }
+        }
+
+        .image-view {
+            @include effect-icon-grey();
+        }
+
+        .tree-disclosure-node {
+            .arrow {
+                @include effect-bright-grey();
+            }
+        }
+    }
+}

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
+#include <dlib/buffer.h>
 #include <dlib/vmath.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -144,6 +145,29 @@ namespace dmScript
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
+
+    /**
+     * Check if the value at #index is a HBuffer
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a HBuffer
+     */
+    bool IsBuffer(lua_State *L, int index);
+
+    /**
+     * Push a HBuffer onto the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param buffer HBuffer to push
+     */
+    void PushBuffer(lua_State* L, dmBuffer::HBuffer buffer);
+
+    /**
+     * Check if the value in the supplied index on the lua stack is a HBuffer and returns it.
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The pointer to a HBuffer
+     */
+    dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index);
 
     /**
      * Serialize a table to a buffer
@@ -479,17 +503,19 @@ namespace dmScript
      */
     int JsonToLua(lua_State*L, dmJson::Document* doc, int index);
 
-    /** A utility to make sure we check the lua stack state before leaving a function
+    /**
+     *  A utility to make sure we check the lua stack state before leaving a function. m_Diff is the expected difference of the stack size.
     */
     struct LuaStackCheck
     {
         lua_State* m_L;
         int m_Top;
-        LuaStackCheck(lua_State* L) : m_L(L), m_Top(lua_gettop(L)) {}
-        ~LuaStackCheck() { assert(lua_gettop(m_L) == m_Top); }
+        int m_Diff;
+        LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff) {}
+        ~LuaStackCheck() { assert(lua_gettop(m_L) == m_Top + m_Diff); }
     };
 
-    #define DM_LUA_STACK_CHECK(_L_)    dmScript::LuaStackCheck lua_stack_check(_L_);
+    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);
 
     /** A wrapper for luaL_ref(L, LUA_REGISTRYINDEX). It also tracks number of global references kept
      * @param L lua state

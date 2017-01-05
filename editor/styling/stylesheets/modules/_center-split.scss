@@ -1,0 +1,25 @@
+#center-split {
+    -fx-padding: 0px 0px 0px 0px;
+
+    .viewport {
+        -fx-background-color: $bright-black;//$dark-black;
+
+        .button {
+            -fx-min-width: 20px;
+            /*-fx-min-height: 10px;*/
+            -fx-background-color: $dark-black;
+            -fx-border-radius: 0;
+            -fx-border-width: 0;
+            -fx-border-color: transparent;
+        }
+    }
+
+    .tab {
+
+    }
+
+    .split-pane-divider {
+        //-fx-background-color: red !important;
+        -fx-padding: 0 5 !important;
+    }   
+}

@@ -14,7 +14,8 @@
            [com.dynamo.render.proto Font$FontDesc]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.label.proto Label$LabelDesc]
+           [com.dynamo.model.proto ModelProto$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.dynamo.tile.proto Tile$TileSet]))
@@ -23,7 +24,8 @@
                            "go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
-                           "model" Model$ModelDesc
+                           "label" Label$LabelDesc
+                           "model" ModelProto$ModelDesc
                            "particlefx" Particle$ParticleFX
                            "spinescene" Spine$SpineSceneDesc
                            "spinemodel" Spine$SpineModelDesc
@@ -50,6 +52,7 @@
                  "**/tile_map_collision_shape.collisionobject"
                  "**/spineboy.spinescene"
                  "**/spineboy.spinemodel"
+                 "**/primary.model"
                  "**/new.factory"
                  "**/with_prototype.factory"
                  "**/new.sound"
@@ -59,7 +62,9 @@
                  "**/new.tilemap"
                  "**/with_layers.tilemap"
                  "**/test.model"
-                 "**/empty_mesh.model"]]
+                 "**/empty_mesh.model"
+                 "**/test.label"
+                 "**/with_collection.collectionproxy"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)

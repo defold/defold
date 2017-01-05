@@ -10,32 +10,58 @@
 #include "../dlib/hash.h"
 #include "../dlib/socket.h"
 
+static const char* DEVICE_DESC_STATIC =
+    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+    "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
+    "    <specVersion>\n"
+    "        <major>1</major>\n"
+    "        <minor>0</minor>\n"
+    "    </specVersion>\n"
+    "    <device>\n"
+    "        <deviceType>upnp:rootdevice</deviceType>\n"
+    "        <friendlyName>Defold System</friendlyName>\n"
+    "        <manufacturer>Defold</manufacturer>\n"
+    "        <modelName>Defold Engine 1.0</modelName>\n"
+    "        <UDN>uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8</UDN>\n"
+    "    </device>\n"
+    "</root>\n";
+
 static const char* DEVICE_DESC =
-"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-"<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
-"    <specVersion>\n"
-"        <major>1</major>\n"
-"        <minor>0</minor>\n"
-"    </specVersion>\n"
-"    <device>\n"
-"        <deviceType>upnp:rootdevice</deviceType>\n"
-"        <friendlyName>Defold System</friendlyName>\n"
-"        <manufacturer>Defold</manufacturer>\n"
-"        <modelName>Defold Engine 1.0</modelName>\n"
-"        <UDN>uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8</UDN>\n"
-"    </device>\n"
-"</root>\n";
+    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+    "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
+    "    <specVersion>\n"
+    "        <major>1</major>\n"
+    "        <minor>0</minor>\n"
+    "    </specVersion>\n"
+    "    <device>\n"
+    "        <deviceType>upnp:rootdevice</deviceType>\n"
+    "        <friendlyName>Defold System</friendlyName>\n"
+    "        <manufacturer>Defold</manufacturer>\n"
+    "        <modelName>Defold Engine 1.0</modelName>\n"
+    "        <UDN>%s</UDN>\n"
+    "    </device>\n"
+    "</root>\n";
 
-static const char* TEST_UDN = "uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8";
-static const char* TEST_USN = "uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
-static dmhash_t TEST_USN_HASH = dmHashString64(TEST_USN);
-
-void InitDeviceDesc(dmSSDP::DeviceDesc& device_desc)
+void CreateRandomNumberString(char* string, unsigned int size)
 {
-    device_desc.m_Id = "my_root_device";
-    device_desc.m_DeviceDescription = DEVICE_DESC;
-    device_desc.m_DeviceType = "upnp:rootdevice";
-    dmStrlCpy(device_desc.m_UDN, TEST_UDN, sizeof(device_desc.m_UDN));
+    for (unsigned int i = 0; i < (size - 1); ++i) {
+        int ascii = '0' + (rand() % 10);
+        string[i] = (char) ascii;
+    }
+
+    string[size - 1] = 0x0;
+}
+
+void CreateRandomUDN(char* string, unsigned int size)
+{
+    char deviceId[9] = { 0 };
+    CreateRandomNumberString(deviceId, 9);
+    DM_SNPRINTF(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", deviceId);
+}
+
+void CreateDeviceDescriptionXML(char* string, const char* udn, unsigned int size)
+{
+    DM_SNPRINTF(string, size, DEVICE_DESC, udn);
 }
 
 void WaitPackage()
@@ -56,11 +82,16 @@ public:
 
     dmSSDP::HSSDP m_Server;
     dmSSDP::HSSDP m_Client;
+
+    char* m_DeviceUDN;
+    char* m_DeviceUSN;
+    char* m_DeviceDescriptionXML;
+    dmhash_t m_DeviceUSNHash;
     dmSSDP::DeviceDesc m_DeviceDesc;
 
     bool TestDeviceDiscovered()
     {
-        return m_ClientDevices.find(TEST_USN_HASH) != m_ClientDevices.end();
+        return m_ClientDevices.find(m_DeviceUSNHash) != m_ClientDevices.end();
     }
 
     void UpdateClient(bool search = false)
@@ -102,7 +133,6 @@ public:
         server_params.m_Announce = announce;
         r = dmSSDP::New(&server_params, &m_Server);
         ASSERT_EQ(dmSSDP::RESULT_OK, r);
-        InitDeviceDesc(m_DeviceDesc);
         r = dmSSDP::RegisterDevice(m_Server, &m_DeviceDesc);
         ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
@@ -114,6 +144,28 @@ public:
 
     virtual void SetUp()
     {
+        m_DeviceUDN = (char*) calloc(43, sizeof(char));
+        m_DeviceUSN = (char*) calloc(60, sizeof(char));
+        m_DeviceDescriptionXML = (char*) calloc(513, sizeof(char));
+
+        CreateRandomUDN(m_DeviceUDN, 43);
+
+        dmStrlCat(m_DeviceUSN, m_DeviceUDN, 60);
+        dmStrlCat(m_DeviceUSN, "::upnp:rootdevice", 60);
+
+        m_DeviceUSNHash = dmHashString64(m_DeviceUSN);
+
+        CreateDeviceDescriptionXML(m_DeviceDescriptionXML, m_DeviceUDN, 513);
+
+        printf("(SETUP) Using UDN = \"%s\"\n", m_DeviceUDN);
+        printf("(SETUP) Using USN = \"%s\"\n", m_DeviceUSN);
+        printf("(SETUP) Using USN_HASH = \"%llu\"\n", m_DeviceUSNHash);
+
+        m_DeviceDesc.m_Id = "my_root_device";
+        m_DeviceDesc.m_DeviceDescription = m_DeviceDescriptionXML;
+        m_DeviceDesc.m_DeviceType = "upnp:rootdevice";
+        dmStrlCpy(m_DeviceDesc.m_UDN, m_DeviceUDN, sizeof(m_DeviceDesc.m_UDN));
+
         m_Client = 0;
         m_Server = 0;
     }
@@ -134,30 +186,32 @@ public:
             r = dmSSDP::Delete(m_Client);
             ASSERT_EQ(dmSSDP::RESULT_OK, r);
         }
+
+        m_DeviceUSNHash = 0;
+        free(m_DeviceUDN);
+        free(m_DeviceUSN);
+        free(m_DeviceDescriptionXML);
     }
 };
 
-TEST(dmSSDP, RegisterDevice)
+TEST_F(dmSSDPTest, RegisterDevice)
 {
     dmSSDP::HSSDP ssdp;
-
-    dmSSDP::DeviceDesc device_desc;
-    InitDeviceDesc(device_desc);
 
     dmSSDP::NewParams params;
     dmSSDP::Result r = dmSSDP::New(&params, &ssdp);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
-    r = dmSSDP::RegisterDevice(ssdp, &device_desc);
+    r = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
-    r = dmSSDP::RegisterDevice(ssdp, &device_desc);
+    r = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
     ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTRED, r);
 
     r = dmSSDP::DeregisterDevice(ssdp, "my_root_device");
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
-    r = dmSSDP::RegisterDevice(ssdp, &device_desc);
+    r = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
     r = dmSSDP::DeregisterDevice(ssdp, "my_root_device");
@@ -192,13 +246,16 @@ TEST_F(dmSSDPTest, Search)
     // it might be farfetched that packages are lost on the local network.
     // Another possible explanation is interference with UPnP devices on the network, i.e. router.
     // It could of course also be a bug in the SSDP implementation
+    bool discovered = false;
     int iter = 0;
-    while (!TestDeviceDiscovered() && iter++ < 5) {
+    while (!discovered && iter++ < 10) {
         UpdateServer();
         WaitPackage();
         UpdateClient();
+        discovered = TestDeviceDiscovered();
     }
-    ASSERT_TRUE(TestDeviceDiscovered());
+
+    ASSERT_TRUE(discovered);
 }
 
 TEST_F(dmSSDPTest, Announce)
@@ -253,10 +310,7 @@ TEST_F(dmSSDPTest, Renew)
  * Port this test to use WaitForSingleObject or other windows appropriate stuff
  */
 
-static const char* TEST_JAVA_UDN1 = "uuid:00000001-3d4f-339c-8c4d-f7c6da6771c8";
-static const char* TEST_JAVA_UDN2 = "uuid:00000002-3d4f-339c-8c4d-f7c6da6771c8";
-
-TEST(dmSSDP, JavaClient)
+TEST_F(dmSSDPTest, JavaClient)
 {
     /*
      * About the servers:
@@ -271,6 +325,18 @@ TEST(dmSSDP, JavaClient)
     dmSSDP::HSSDP server1, server2;
     dmSSDP::DeviceDesc device_desc1, device_desc2;
 
+    char device1_udn[43] = { 0 };
+    char device1_usn[60] = { 0 };
+    CreateRandomUDN(device1_udn, 43);
+    dmStrlCat(device1_usn, device1_udn, 60);
+    dmStrlCat(device1_usn, "::upnp:rootdevice", 60);
+
+    char device2_udn[43] = { 0 };
+    char device2_usn[60] = { 0 };
+    CreateRandomUDN(device2_udn, 43);
+    dmStrlCat(device2_usn, device2_udn, 60);
+    dmStrlCat(device2_usn, "::upnp:rootdevice", 60);
+
     dmSSDP::Result r;
     dmSSDP::NewParams server_params1;
     server_params1.m_MaxAge = 1;
@@ -279,9 +345,9 @@ TEST(dmSSDP, JavaClient)
     r = dmSSDP::New(&server_params1, &server1);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
     device_desc1.m_Id = "my_root_device1";
-    device_desc1.m_DeviceDescription = DEVICE_DESC;
+    device_desc1.m_DeviceDescription = DEVICE_DESC_STATIC;
     device_desc1.m_DeviceType = "upnp:rootdevice";
-    dmStrlCpy(device_desc1.m_UDN, TEST_JAVA_UDN1, sizeof(device_desc1.m_UDN));
+    dmStrlCpy(device_desc1.m_UDN, device1_udn, sizeof(device_desc1.m_UDN));
     r = dmSSDP::RegisterDevice(server1, &device_desc1);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
@@ -292,9 +358,9 @@ TEST(dmSSDP, JavaClient)
     r = dmSSDP::New(&server_params2, &server2);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
     device_desc2.m_Id = "my_root_device2";
-    device_desc2.m_DeviceDescription = DEVICE_DESC;
+    device_desc2.m_DeviceDescription = DEVICE_DESC_STATIC;
     device_desc2.m_DeviceType = "upnp:rootdevice";
-    dmStrlCpy(device_desc2.m_UDN, TEST_JAVA_UDN2, sizeof(device_desc2.m_UDN));
+    dmStrlCpy(device_desc2.m_UDN, device2_udn, sizeof(device_desc2.m_UDN));
     r = dmSSDP::RegisterDevice(server2, &device_desc2);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
@@ -302,10 +368,12 @@ TEST(dmSSDP, JavaClient)
     dmSSDP::Update(server2, false);
     WaitPackage();
 
+    printf("(C++) Sending USN1 = \"%s\"\n", device1_usn);
+    printf("(C++) Sending USN2 = \"%s\"\n", device2_usn);
     char* dynamo_home = getenv("DYNAMO_HOME");
-    char command[1024];
+    char command[2048];
     DM_SNPRINTF(command, sizeof(command),
-            "java -cp build/default/src/java:build/default/src/java_test:%s/ext/share/java/junit-4.6.jar  org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home);
+            "java -cp build/default/src/java:build/default/src/java_test:%s/ext/share/java/junit-4.6.jar -DUSN1=%s -DUSN2=%s org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home, device1_usn, device2_usn);
 
     const char* mode = "r";
     FILE* f = popen(command, mode);
@@ -314,6 +382,7 @@ TEST(dmSSDP, JavaClient)
     timeout.tv_sec = 0;
     timeout.tv_usec = 5 * 1000;
     int fd = fileno(f);
+
     while (true) {
         FD_ZERO(&set);
         FD_SET(fd, &set);
@@ -328,7 +397,6 @@ TEST(dmSSDP, JavaClient)
         dmSSDP::Update(server1, false);
         dmSSDP::Update(server2, false);
     }
-
     int ret = pclose(f);
     ASSERT_EQ(0, ret);
 
@@ -348,7 +416,8 @@ TEST(dmSSDP, JavaClient)
 
 int main(int argc, char **argv)
 {
-    dmLogSetlevel(DM_LOG_SEVERITY_INFO);
+    srand(time(NULL));
+    dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();

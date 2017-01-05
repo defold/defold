@@ -57,46 +57,54 @@ public enum Platform {
         return null;
     }
 
-    public static Platform getJavaPlatform() {
-        String os_name = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
-
-        if (os_name.indexOf("win") != -1) {
-            return Platform.X86Win32;
-        } else if (os_name.indexOf("mac") != -1) {
-            return Platform.X86_64Darwin;
-        } else if (os_name.indexOf("linux") != -1) {
+    public static Platform createPlatform(String os, String arch)
+    {
+        if (os.indexOf("win") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
-                return Platform.X86_64Linux;
+                return Platform.X86_64Win32;
             } else {
-                return Platform.X86Linux;
+                return Platform.X86Win32;
             }
-        } else {
-            throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
-        }
-    }
-
-    public static Platform getHostPlatform() {
-        String os_name = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
-
-        if (os_name.indexOf("win") != -1) {
-            return Platform.X86Win32;
-        } else if (os_name.indexOf("mac") != -1) {
+        } else if (os.indexOf("mac") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Darwin;
             } else {
                 return Platform.X86Darwin;
             }
-        } else if (os_name.indexOf("linux") != -1) {
+        } else if (os.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;
             } else {
                 return Platform.X86Linux;
             }
         } else {
-            throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
+            throw new RuntimeException(String.format("Could not identify OS + arch: '%s %s'", os, arch));
         }
     }
 
+    public static Platform getHostPlatform()
+    {
+        String os_name = System.getProperty("os.name").toLowerCase();
+        String arch = System.getProperty("os.arch").toLowerCase();
+        return createPlatform(os_name, arch);
+    }
+
+    public static Platform getJavaPlatform()
+    {
+        // Useful for determining f.i. which native dynamic library to load: must be same bitness as jvm
+
+        String os_name = System.getProperty("os.name").toLowerCase();
+        String bitness = System.getProperty("sun.arch.data.model");
+
+        String arch = "unknown";
+
+        if (bitness.equals("32")) {
+            arch = "x86";
+        }
+        else if (bitness.equals("64")) {
+            arch = "x86_64";
+        }
+
+        return createPlatform(os_name, arch);
+    }
 }

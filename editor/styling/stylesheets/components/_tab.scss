@@ -1,0 +1,114 @@
+.tab-pane {
+    &:top {
+        -fx-tab-min-height: 3.0em;
+        -fx-tab-max-height: 100.0em;
+        -fx-border-width: 0;
+        -fx-border-color: $mid-grey;
+        -fx-padding: 0.0em;
+        -fx-background-insets: 0;
+        -fx-open-tab-animation: NONE;
+        -fx-close-tab-animation: NONE; }
+        
+        .tab {
+            -fx-background-radius: 0;
+            -fx-background-insets: 0;
+            -fx-background-color: $dark-grey;
+            -fx-border-width: 0 0 2 0;
+            -fx-border-insets: 0 8 0 0;
+            -fx-border-color: $dark-grey;
+            -fx-padding: 0 18 0 2;  
+            
+            &:hover {
+                -fx-background-insets: 0;
+                /*-fx-background-color: $mid-black;*/
+                .tab-label {
+                    -fx-text-fill: $defold-white;
+                    .image-view {
+                        @include effect-lighten();
+                    }
+                }
+            }
+            &:selected { 
+                /*-fx-background-insets: 0, 0;*/
+                -fx-padding: 0 0 0 2;
+                -fx-border-insets: 0 8 0 0;
+                -fx-border-color: $defold-orange;
+                -fx-color: $defold-white;
+
+                .tab-label {
+                    -fx-padding: 0 2 0 0;
+                    -fx-text-fill: $defold-white;
+                    .image-view {
+                        @include effect-lighten();
+                    }
+                }
+                .focus-indicator {
+                    -fx-border-width: 0; 
+                }
+            }
+
+            .tab-label {
+                -fx-text-fill: $bright-grey;
+            }
+        }
+    }
+
+.tab-header-area {
+    -fx-padding: 0;
+    -fx-border-width: 0 0 0 0;
+    >.headers-region {
+        -fx-padding: 0;
+    }
+}
+
+.tab-header-background {
+    -fx-background-color: $dark-grey;
+    -fx-background-insets: 0;
+    -fx-border-width: 0 0 0 0;
+    -fx-padding: 0; 
+}
+
+.tab-label {
+    -fx-padding: 0 0 0 0;
+    -fx-font-weight: bold;
+}
+
+.tab-close-button {
+    -fx-shape: "M 0,0 H1 L 4,3 7,0 H8 V1 L 5,4 8,7 V8 H7 L 4,5 1,8 H0 V7 L 3,4 0,1 Z";
+    -fx-background-color: $bright-grey;
+    -fx-effect: none;
+    &:hover {
+        -fx-background-color: white;
+    }
+}
+
+.control-buttons-tab {
+    .container {
+        -fx-padding: 0;
+    }
+}
+
+.tab-down-button {
+    -fx-background-radius: 0px;
+    -fx-border-radius: 0px;
+    -fx-background-insets: 0;
+    -fx-background-color: $dark-grey;
+    -fx-border-color: $mid-grey;
+    -fx-border-width: 0 0 0 0;
+    -fx-padding: 5px 10px;
+    &:hover {
+        -fx-text-fill: $defold-white;
+        .arrow {
+            -fx-background-color: $defold-white;
+        }
+    }
+}
+
+.tab-content-area {
+    -fx-border-width: 0;
+    -fx-border-color: $mid-grey;
+    -fx-padding: 0;
+    .text-area {
+        //-fx-background-color: $mid-black;
+    }
+}

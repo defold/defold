@@ -71,3 +71,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/shared_state/test_shared_state.collection\"\n"
 }
+embedded_components {
+  id: "label_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/label/test_label.collection\"\n"
+}

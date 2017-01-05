@@ -3,6 +3,7 @@
    [clojure.string :as s]
    [plumbing.core :as pc]
    [dynamo.graph :as g]
+   [editor.app-view :as app-view]
    [editor.colors :as colors]
    [editor.collision-groups :as collision-groups]            
    [editor.defold-project :as project]
@@ -19,6 +20,7 @@
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.types :as types]
+   [editor.util :as util]
    [editor.validation :as validation]
    [editor.workspace :as workspace]
    [editor.scene :as scene]
@@ -464,7 +466,7 @@
    :height h})
 
 (defn make-shape-node
-  [parent {:keys [shape-type] :as shape}]
+  [parent {:keys [shape-type] :as shape} select-fn]
   (let [graph-id (g/node-id->graph-id parent)
         node-type (case shape-type
                     :type-sphere SphereShape
@@ -474,7 +476,9 @@
     (g/make-nodes
      graph-id
      [shape-node [node-type node-props]]
-     (attach-shape-node parent shape-node))))
+     (attach-shape-node parent shape-node)
+     (when select-fn
+       (select-fn [shape-node])))))
 
 
 (defn load-collision-object
@@ -498,7 +502,7 @@
        (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
          (let [data (subvec (:data embedded-shape) index (+ index count))
                shape-with-decoded-data (merge shape (decode-shape-data shape data))]
-           (make-shape-node self shape-with-decoded-data)))))))
+           (make-shape-node self shape-with-decoded-data nil)))))))
 
 (g/defnk produce-scene
   [_node-id child-scenes]
@@ -643,7 +647,9 @@
                                                      {:node-id _node-id
                                                       :label "Collision Object"
                                                       :icon collision-object-icon
-                                                      :children child-outlines}))
+                                                      :children (outline/natural-sort child-outlines)
+                                                      :child-reqs [{:node-type Shape
+                                                                    :tx-attach-fn attach-shape-node}]}))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-data g/Any :cached produce-save-data)
@@ -674,11 +680,11 @@
            :type-capsule {:diameter 20.0 :height 40.0})))
 
 (defn- add-shape-handler
-  [collision-object-node shape-type]
+  [collision-object-node shape-type select-fn]
   (g/transact
    (concat
     (g/operation-label "Add Shape")
-    (make-shape-node collision-object-node (default-shape shape-type)))))
+    (make-shape-node collision-object-node (default-shape shape-type) select-fn))))
 
 (defn- selection->collision-object [selection]
   (handler/adapt-single selection CollisionObjectNode))
@@ -689,7 +695,8 @@
            "Add Shape"
            (shape-type-label (:shape-type user-data))))
   (active? [selection] (selection->collision-object selection))
-  (run [selection user-data] (add-shape-handler (selection->collision-object selection) (:shape-type user-data)))
+  (run [selection user-data app-view]
+    (add-shape-handler (selection->collision-object selection) (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]
            (let [self (selection->collision-object selection)]
              (when-not user-data

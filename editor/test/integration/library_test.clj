@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system spit-until-new-mtime]]
             [editor.library :as library]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
@@ -100,11 +100,11 @@
   (let [settings (-> (slurp game-project)
                    gpc/string-reader
                    gpc/parse-settings)]
-    (spit game-project (->
-                         settings
-                         (gpc/set-setting {} ["project" "dependencies"] deps)
-                         gpc/settings-with-value
-                         gpc/settings->str))))
+    (spit-until-new-mtime game-project (->
+                                         settings
+                                         (gpc/set-setting {} ["project" "dependencies"] deps)
+                                         gpc/settings-with-value
+                                         gpc/settings->str))))
 
 (deftest open-project
   (with-clean-system
@@ -119,7 +119,7 @@
             int-gui (test-util/resource-node project "/gui/empty.gui")]
         (is (some? ext-gui))
         (is (some? int-gui))
-        (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template)]
+        (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template nil)]
           (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
                                                     :overrides {}}))
         (let [original (:node-id (test-util/outline ext-gui [0 0]))

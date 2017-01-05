@@ -1,4 +1,5 @@
-(ns editor.progress)
+(ns editor.progress
+  (:refer-clojure :exclude [mapv]))
 
 ;; Progress can be represented as a single progress map (produced by make)
 ;; or a vector of progress maps (when a job has subtasks).
@@ -70,3 +71,22 @@
                   [(conj result (f e progress)) (advance progress)]))
               [[] progress]
               coll)))))
+
+(defn mapv
+  "Similar to progress-mapv, but is mapv compatible and will call f with same
+  args as regular mapv."
+  ([f coll render-progress!]
+   (progress-mapv f coll render-progress! (constantly "")))
+  ([f coll render-progress! message-fn]
+   (let [progress (make "" (count coll))]
+     (first
+      (reduce (fn [[result progress] e]
+                (let [progress (message progress (or (message-fn e) ""))]
+                  (render-progress! progress)
+                  [(conj result (f e)) (advance progress)]))
+              [[] progress]
+              coll)))))
+
+(defn make-mapv
+  [render-progress! message-fn]
+  (fn [f coll] (mapv f coll render-progress! message-fn)))

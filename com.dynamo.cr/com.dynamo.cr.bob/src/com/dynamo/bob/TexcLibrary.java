@@ -9,7 +9,12 @@ import com.sun.jna.Pointer;
 public class TexcLibrary {
     static {
         try {
-            File lib = new File(Bob.getLib(Platform.getJavaPlatform(), "texc_shared"));
+            Platform platform = Platform.getJavaPlatform();
+            File lib = new File(Bob.getLib(platform, "texc_shared"));
+            if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
+                // TODO: sad with a platform specific hack and placing dependency knowledge here but...
+                Bob.getLib(platform, "PVRTexLib");
+            }
             System.setProperty("jna.library.path", lib.getParent());
             Bob.verbose("Added '%s' to 'jna.library.path'", lib.getParent());
             Native.register("texc_shared");
@@ -54,6 +59,12 @@ public class TexcLibrary {
         public static int CT_WEBP_LOSSY = 2;
     }
 
+    public interface FlipAxis {
+        public static int FLIP_AXIS_X = 0;
+        public static int FLIP_AXIS_Y = 1;
+        public static int FLIP_AXIS_Z = 2;
+    }
+
     public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
@@ -66,6 +77,7 @@ public class TexcLibrary {
     public static native boolean TEXC_Resize(Pointer texture, int width, int height);
     public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
     public static native boolean TEXC_GenMipMaps(Pointer texture);
+    public static native boolean TEXC_Flip(Pointer texture, int flipAxis);
     public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType);
 
 }

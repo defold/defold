@@ -4,6 +4,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [schema.core :as s]
+            [editor.app-view :as app-view]
             [editor.graph-util :as gu]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -77,7 +78,7 @@
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error
-  {:node-id 0
+  {:node-id -1
    :icon ""
    :label ""})
 
@@ -110,16 +111,19 @@
 
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id node-outline-label id source-outline source-properties source-resource]
+    (g/fnk [_node-id id source-outline source-properties source-resource]
       (let [source-outline (or source-outline {:icon unknown-icon})
+            source-id (when-let [source-id (:node-id source-outline)]
+                        (and (not= source-id -1) source-id))
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
-        (-> source-outline
-          (assoc :node-id _node-id
-                 :label node-outline-label
-                 :outline-overridden? overridden?)
+        (-> {:node-id _node-id
+             :label id
+             :icon (:icon source-outline)
+             :outline-overridden? overridden?
+             :children (:children source-outline)}
           (cond->
-            (and source-resource (resource/path source-resource)) (assoc :link source-resource))))))
-  (output node-outline-label g/Str (gu/passthrough id))
+            (and source-resource (resource/path source-resource)) (assoc :link source-resource)
+            source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
@@ -127,7 +131,7 @@
                                        (assoc :node-id _node-id
                                               :transform transform
                                               :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
-                                       (update :node-path (partial cons _node-id)))))
+                                       (update :node-path (partial into [_node-id])))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]
@@ -138,7 +142,9 @@
                                                                                 :transform transform})])
                                                [])))
   (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
-                                                  (merge-with into _declared-properties source-properties))))
+                                                  (-> _declared-properties
+                                                    (update :properties into (:properties source-properties))
+                                                    (update :display-order into (:display-order source-properties))))))
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
@@ -219,8 +225,6 @@
                               :type (:go-prop-type p)
                               :value (properties/go-prop->str (:value p) (:go-prop-type p))}))))))
   (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties)))
-  (output node-outline-label g/Str :cached (g/fnk [id source-resource]
-                                                  (format "%s - %s" id (resource/resource->proj-path source-resource))))
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
                                               (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
 
@@ -261,8 +265,12 @@
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
-(defn- attach-component [self-id comp-id ddf-input]
+(defn- attach-component [self-id comp-id ddf-input resolve-id?]
   (concat
+    (when resolve-id?
+      (->> (g/node-value self-id :component-ids)
+        keys
+        (g/update-property comp-id :id outline/resolve-id)))
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
@@ -275,20 +283,26 @@
       (g/connect self-id from comp-id to))))
 
 (defn- attach-ref-component [self-id comp-id]
-  (attach-component self-id comp-id :ref-ddf))
+  (attach-component self-id comp-id :ref-ddf false))
 
 (defn- attach-embedded-component [self-id comp-id]
-  (attach-component self-id comp-id :embed-ddf))
+  (attach-component self-id comp-id :embed-ddf false))
+
+(defn- outline-attach-ref-fn [self-id comp-id]
+  (attach-component self-id comp-id :embed-ddf true))
+
+(defn- outline-attach-embedded-component [self-id comp-id]
+  (attach-component self-id comp-id :embed-ddf true))
 
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Game Object"
    :icon game-object-icon
-   :children (vec (sort-by :label util/natural-order child-outlines))
+   :children (outline/natural-sort child-outlines)
    :child-reqs [{:node-type ReferencedComponent
-                 :tx-attach-fn attach-ref-component}
+                 :tx-attach-fn outline-attach-ref-fn}
                 {:node-type EmbeddedComponent
-                 :tx-attach-fn attach-embedded-component}]})
+                 :tx-attach-fn outline-attach-embedded-component}]})
 
 (g/defnode GameObjectNode
   (inherits project/ResourceNode)
@@ -329,35 +343,28 @@
           id
           (recur (inc postfix)))))))
 
-(defn- add-component [self project source-resource id position rotation properties]
+(defn- add-component [self project source-resource id position rotation properties select-fn]
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
                   [comp-node [ReferencedComponent :id id :position position :rotation rotation :path path]]
-                  (attach-ref-component self comp-node))))
+                  (attach-ref-component self comp-node)
+                  (when select-fn
+                    (select-fn [comp-node])))))
 
-(defn add-component-file [go-id resource]
+(defn add-component-file [go-id resource select-fn]
   (let [project (project/get-project go-id)
-        id (gen-component-id go-id (:ext (resource/resource-type resource)))
-        op-seq (gensym)
-        [comp-node] (g/tx-nodes-added
-                      (g/transact
-                        (concat
-                          (g/operation-label "Add Component")
-                          (g/operation-sequence op-seq)
-                          (add-component go-id project resource id [0 0 0] [0 0 0 1] {}))))]
-    ;; Selection
+        id (gen-component-id go-id (:ext (resource/resource-type resource)))]
     (g/transact
       (concat
-        (g/operation-sequence op-seq)
         (g/operation-label "Add Component")
-        (project/select project [comp-node])))))
+        (add-component go-id project resource id [0 0 0] [0 0 0 1] {} select-fn)))))
 
-(defn add-component-handler [workspace project go-id]
+(defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
                                          (workspace/get-resource-types workspace :embeddable)))]
     (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
-      (add-component-file go-id resource))))
+      (add-component-file go-id resource select-fn))))
 
 (defn- selection->game-object [selection]
   (handler/adapt-single selection GameObjectNode))
@@ -365,16 +372,16 @@
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->game-object selection))
   (label [] "Add Component File")
-  (run [workspace project selection]
-       (add-component-handler workspace project (selection->game-object selection))))
+  (run [workspace project selection app-view]
+       (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
-(defn- add-embedded-component [self project type data id position rotation select?]
+(defn- add-embedded-component [self project type data id position rotation select-fn]
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project type data)]
     (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation]]
       (g/connect comp-node :_node-id self :nodes)
-      (if select?
-        (project/select project [comp-node])
+      (if select-fn
+        (select-fn [comp-node])
         [])
       (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:resource :source-resource]
                                                                                         [:_properties :source-properties]
@@ -389,7 +396,7 @@
             []
             (attach-embedded-component self comp-node)))))))
 
-(defn add-embedded-component-handler [user-data]
+(defn add-embedded-component-handler [user-data select-fn]
   (let [self (:_node-id user-data)
         project (project/get-project self)
         component-type (:resource-type user-data)
@@ -398,7 +405,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0 1] true)))))
+      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] select-fn)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -406,9 +413,15 @@
     (let [rt (:resource-type user-data)]
       (or (:label rt) (:ext rt)))))
 
+(defn embeddable-component-resource-types [workspace]
+  (->> (workspace/get-resource-types workspace :component)
+       (filter (fn [resource-type]
+                 (and (not (contains? (:tags resource-type) :non-embeddable))
+                      (workspace/has-template? resource-type))))))
+
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
-    (->> (remove (comp :non-embeddable :tags) (workspace/get-resource-types workspace :component))
+    (->> (embeddable-component-resource-types workspace)
          (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                               :icon (:icon res-type)
                               :command :add
@@ -419,7 +432,7 @@
 (handler/defhandler :add :workbench
   (label [user-data] (add-embedded-component-label user-data))
   (active? [selection] (selection->game-object selection))
-  (run [user-data] (add-embedded-component-handler user-data))
+  (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]
            (let [self (selection->game-object selection)
                  workspace (:workspace (g/node-value self :resource))]
@@ -432,7 +445,7 @@
       (for [component (:components prototype)
             :let [source-resource (workspace/resolve-resource resource (:component component))
                   properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
-        (add-component self project source-resource (:id component) (:position component) (:rotation component) properties))
+        (add-component self project source-resource (:id component) (:position component) (:rotation component) properties nil))
       (for [embedded (:embedded-components prototype)]
         (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (:rotation embedded) false)))))
 
