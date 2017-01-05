@@ -9,6 +9,8 @@
 #include <dlib/math.h>
 
 #include "../graphics.h"
+#define DM_PLATFORM_EXPOSE_NATIVE_EMPTY
+#include "../graphics_native.h"
 #include "graphics_null.h"
 #include "glsl_uniform_parser.h"
 
@@ -235,6 +237,12 @@ namespace dmGraphics
     void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
     {
         // NOP
+    }
+
+    NativeHandles GetNativeHandles()
+    {
+        NativeHandles native_window_ref = {0};
+        return native_window_ref;
     }
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)

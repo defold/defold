@@ -1,9 +1,10 @@
+#include "push_utils.h"
+
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/json.h>
-#include <extension/extension.h>
 #include <script/script.h>
-#include "push_utils.h"
+#include <extension/extension.h>
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>

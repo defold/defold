@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <dlib/configfile.h>
+#include <graphics/graphics_native.h> // Needed for dmGraphics::NativeHandles
 
 extern "C"
 {
@@ -32,6 +33,8 @@ namespace dmExtension
         }
         /// Config file
         dmConfigFile::HConfig m_ConfigFile;
+        /// Native window, view and context references
+        dmGraphics::NativeHandles m_NativeHandles;
     };
 
     /**

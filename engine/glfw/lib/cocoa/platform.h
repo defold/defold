@@ -33,16 +33,12 @@
 
 // This is the Mac OS X version of GLFW
 #define _GLFW_MAC_OS_X
-
-#if defined(__OBJC__)
-#import <Cocoa/Cocoa.h>
-#else
-typedef void *id;
-#endif
+#define GLFW_EXPOSE_NATIVE_OSX
 
 #include <pthread.h>
 
 #include "../../include/GL/glfw.h"
+#include "../../include/GL/glfw_native.h"
 
 
 #ifndef GL_VERSION_3_0

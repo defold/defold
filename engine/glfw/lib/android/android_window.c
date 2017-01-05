@@ -403,3 +403,17 @@ void _glfwAndroidSetInputMethod(int use_hidden_input)
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
+
+//========================================================================
+// Defold extension: Get native references (window, view and context)
+//========================================================================
+
+GLFWAPI struct GLFWNativeHandles glfwGetNativeHandles(void)
+{
+    struct GLFWNativeHandles handles;
+    handles.m_EGLContext = _glfwWin.context;
+    handles.m_EGLSurface = _glfwWin.surface;
+    handles.m_JNIEnv     = g_AndroidApp->activity->env;
+    handles.m_Activity   = g_AndroidApp->activity->clazz;
+    return handles;
+}

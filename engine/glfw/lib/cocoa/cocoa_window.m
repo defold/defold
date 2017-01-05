@@ -1003,6 +1003,18 @@ void _glfwResetKeyboard( void )
 
 int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
-	return 0;
+    return 0;
 }
 
+//========================================================================
+// Defold extension: Get native references (window, view and context)
+//========================================================================
+
+GLFWAPI struct GLFWNativeHandles glfwGetNativeHandles(void)
+{
+    struct GLFWNativeHandles handles;
+    handles.m_NSWindow        = _glfwWin.window;
+    handles.m_NSView          = [_glfwWin.window contentView];
+    handles.m_NSOpenGLContext = _glfwWin.context;
+    return handles;
+}

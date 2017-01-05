@@ -32,22 +32,14 @@
 
 #include <setjmp.h>
 
-// This is the Mac OS X version of GLFW
-#define _GLFW_MAC_OS_X
-
-#if defined(__OBJC__)
-#if defined(__arm__) || defined(__arm64__)
-#import <UIKit/UIKit.h>
-#else
-#import <Cocoa/Cocoa.h>
-#endif
-#else
-typedef void *id;
-#endif
+// This is the iOS version of GLFW
+#define _GLFW_IOS
+#define GLFW_EXPOSE_NATIVE_IOS
 
 #include <pthread.h>
 
 #include "../../include/GL/glfw.h"
+#include "../../include/GL/glfw_native.h"
 
 
 #ifndef GL_VERSION_3_0

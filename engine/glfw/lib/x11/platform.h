@@ -34,7 +34,7 @@
 
 // This is the X11 version of GLFW
 #define _GLFW_X11
-
+#define GLFW_EXPOSE_NATIVE_LINUX
 
 // Include files
 #include <sys/time.h>
@@ -45,6 +45,7 @@
 #include <X11/Xatom.h>
 #include <GL/glx.h>
 #include "../../include/GL/glfw.h"
+#include "../../include/GL/glfw_native.h"
 
 // Do we have pthread support?
 #ifdef _GLFW_HAS_PTHREAD

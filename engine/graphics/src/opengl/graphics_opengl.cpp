@@ -12,6 +12,7 @@
 #endif
 
 #include "../graphics.h"
+#include "../graphics_native.h"
 #include "graphics_opengl.h"
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
@@ -20,6 +21,26 @@
 #endif
 
 #include <graphics/glfw/glfw.h>
+
+#if defined(__APPLE_CC__)
+    #if defined(__arm__) || defined(__arm64__)
+        // iOS
+        #define GLFW_EXPOSE_NATIVE_IOS
+    #else
+        // macOS
+        #define GLFW_EXPOSE_NATIVE_OSX
+    #endif
+#elif defined(ANDROID)
+    // Android
+    #define GLFW_EXPOSE_NATIVE_ANDROID
+#elif defined(_WIN32)
+    // Windows
+    #define GLFW_EXPOSE_NATIVE_WINDOWS
+#else
+    // Linux
+    #define GLFW_EXPOSE_NATIVE_LINUX
+#endif
+#include <graphics/glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
 #include <GL/glext.h>
@@ -657,6 +678,27 @@ static void LogFrameBufferError(GLenum status)
     void SetSwapInterval(HContext context, uint32_t swap_interval)
     {
         glfwSwapInterval(swap_interval);
+    }
+
+    NativeHandles GetNativeHandles()
+    {
+        GLFWNativeHandles glfw_native_handles = glfwGetNativeHandles();
+        NativeHandles native_window_ref;
+#if defined(__APPLE_CC__)
+  #if defined(__arm__) || defined(__arm64__)
+        // iOS
+        native_window_ref.m_UIWindow = glfw_native_handles.m_UIWindow;
+        native_window_ref.m_UIView = glfw_native_handles.m_UIView;
+        native_window_ref.m_EAGLContext = glfw_native_handles.m_EAGLContext;
+  #else
+        // macOS
+        native_window_ref.m_NSWindow = glfw_native_handles.m_NSWindow;
+        native_window_ref.m_NSView = glfw_native_handles.m_NSView;
+        native_window_ref.m_NSOpenGLContext = glfw_native_handles.m_NSOpenGLContext;
+  #endif
+#endif
+
+        return native_window_ref;
     }
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
