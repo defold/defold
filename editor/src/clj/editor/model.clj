@@ -42,7 +42,6 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str ModelProto$ModelDesc pb-msg)})
 
 (g/defnk produce-rig-scene-pb-msg [pb-msg]
@@ -249,10 +248,11 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
-                                 :ext "model"
-                                 :label "Model"
-                                 :node-type ModelNode
-                                 :load-fn (fn [project self resource] (load-model project self resource))
-                                 :icon model-icon
-                                 :view-types [:scene :text]
-                                 :tags #{:component}))
+                                    :textual? true
+                                    :ext "model"
+                                    :label "Model"
+                                    :node-type ModelNode
+                                    :load-fn (fn [project self resource] (load-model project self resource))
+                                    :icon model-icon
+                                    :view-types [:scene :text]
+                                    :tags #{:component}))

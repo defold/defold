@@ -174,11 +174,11 @@
       (if-not (g/error? save-data)
         (do
           (progress/progress-mapv
-            (fn [{:keys [resource content textual?]} _]
+            (fn [{:keys [resource content]} _]
               (when-not (resource/read-only? resource)
                 ; If the file is non-binary, convert line endings
                 ; to the type used by the existing file.
-                (if (and textual?
+                (if (and (:textual? (resource/resource-type resource))
                          (resource/exists? resource)
                          (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
                   (spit resource (text-util/lf->crlf content))

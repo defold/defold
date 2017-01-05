@@ -234,7 +234,6 @@
 
 (g/defnk produce-save-data [resource proto-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str GameObject$PrototypeDesc proto-msg)})
 
 (defn- externalize [inst-data resources]
@@ -452,6 +451,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "go"
                                     :label "Game Object"
                                     :node-type GameObjectNode

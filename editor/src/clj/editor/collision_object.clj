@@ -547,7 +547,6 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str Physics$CollisionObjectDesc pb-msg)})
 
 (defn build-collision-object
@@ -660,6 +659,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "collisionobject"
                                     :node-type CollisionObjectNode
                                     :load-fn load-collision-object

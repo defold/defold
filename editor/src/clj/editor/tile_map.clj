@@ -334,7 +334,6 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
-   :textual? true
    :content  (protobuf/map->str Tile$TileGrid pb-msg)})
 
 (defn build-tile-map
@@ -1059,6 +1058,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext ["tilemap" "tilegrid"]
                                     :build-ext "tilegridc"
                                     :node-type TileMapNode

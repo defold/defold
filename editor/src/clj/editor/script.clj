@@ -104,7 +104,6 @@
 
 (g/defnk produce-save-data [resource code]
   {:resource resource
-   :textual? true
    :content code})
 
 (defn- build-script [self basis resource dep-resources user-data]
@@ -191,7 +190,8 @@
 
 (defn- register [workspace def]
   (let [args (merge def
-               {:node-type ScriptNode
+               {:textual? true
+                :node-type ScriptNode
                 :load-fn load-script})]
     (apply workspace/register-resource-type workspace (mapcat seq (seq args)))))
 

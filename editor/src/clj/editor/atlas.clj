@@ -241,7 +241,6 @@
 
 (g/defnk produce-save-data [resource margin inner-padding extrude-borders img-ddf anim-ddf]
   {:resource resource
-   :textual? true
    :content (let [m {:margin margin
                      :inner-padding inner-padding
                      :extrude-borders extrude-borders
@@ -478,6 +477,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "atlas"
                                     :label "Atlas"
                                     :build-ext "texturesetc"

@@ -56,7 +56,6 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str Camera$CameraDesc pb-msg)})
 
 (defn build-camera
@@ -105,6 +104,7 @@
 (defn register-resource-types
   [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "camera"
                                     :node-type CameraNode
                                     :load-fn load-camera

@@ -49,7 +49,6 @@
 
 (g/defnk produce-save-data [resource factory-type pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str (get-in factory-types [factory-type :pb-type]) pb-msg)})
 
 (defn build-factory
@@ -122,6 +121,7 @@
   [workspace]
   (concat
    (workspace/register-resource-type workspace
+                                     :textual? true
                                      :ext "factory"
                                      :node-type FactoryNode
                                      :load-fn (partial load-factory :game-object)
@@ -131,6 +131,7 @@
                                      :tags #{:component}
                                      :label "Factory Object")
    (workspace/register-resource-type workspace
+                                     :textual? true
                                      :ext "collectionfactory"
                                      :node-type FactoryNode
                                      :load-fn (partial load-factory :collection)
