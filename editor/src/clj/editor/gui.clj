@@ -1739,16 +1739,17 @@
         exts (if (vector? ext) ext [ext])]
     (for [ext exts]
       (workspace/register-resource-type workspace
-                                     :ext ext
-                                     :label (:label def)
-                                     :build-ext (:build-ext def)
-                                     :node-type GuiSceneNode
-                                     :load-fn load-gui-scene
-                                     :icon (:icon def)
-                                     :tags (:tags def)
-                                     :template (:template def)
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}}))))
+                                        :textual? true
+                                        :ext ext
+                                        :label (:label def)
+                                        :build-ext (:build-ext def)
+                                        :node-type GuiSceneNode
+                                        :load-fn load-gui-scene
+                                        :icon (:icon def)
+                                        :tags (:tags def)
+                                        :template (:template def)
+                                        :view-types [:scene :text]
+                                        :view-opts {:scene {:grid true}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))

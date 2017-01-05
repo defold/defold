@@ -3,9 +3,11 @@
             [clojure.java.io :as io]
             [editor
              [prefs :as prefs]
-             [ui :as ui]])
+             [ui :as ui]]
+            [util.text-util :as text-util])
   (:import javafx.scene.control.ProgressBar
            [java.io File]
+           [java.util Collection]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
@@ -13,7 +15,7 @@
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
-           [org.eclipse.jgit.treewalk.filter NotIgnoredFilter PathFilter]))
+           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
 
 (set! *warn-on-reflection* true)
 
@@ -65,31 +67,26 @@
                                      (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
                                              (.getConflictingStageState s)))}))
 
-(defmacro with-autocrlf-disabled
-  [repo & body]
-  `(let [config# (.getConfig ~repo)
-         autocrlf# (.getString config# "core" nil "autocrlf")]
-     (try
-       (.setString config# "core" nil "autocrlf" "false")
-       ~@body
-       (finally
-         (.setString config# "core" nil "autocrlf" autocrlf#)))))
-
 (defn unified-status
   "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored"
-  [^Git git]
-  (let [repository (.getRepository git)]
-    ;; without this, whitespace conversion will happen when diffing
-    (with-autocrlf-disabled repository
-      (let [tw               (TreeWalk. repository)
-            rev-commit-index (.addTree tw (.getTree ^RevCommit (get-commit repository "HEAD")))
-            file-tree-index  (.addTree tw (FileTreeIterator. repository))]
-        (.setRecursive tw true)
-        (.setFilter tw (NotIgnoredFilter. file-tree-index))
-        (let [rd (RenameDetector. repository)]
-          (.addAll rd (DiffEntry/scan tw))
-          (->> (.compute rd (.getObjectReader tw) nil)
-               (mapv diff-entry->map)))))))
+  ([^Git git]
+   (unified-status git (status git)))
+  ([^Git git git-status]
+   (let [changed-paths (into #{}
+                             (mapcat git-status)
+                             [:added :changed :missing :modified :removed :untracked])]
+     (if (empty? changed-paths)
+       []
+       (let [repository (.getRepository git)
+             tree-walk (doto (TreeWalk. repository)
+                         (.addTree (.getTree ^RevCommit (get-commit repository "HEAD")))
+                         (.addTree (FileTreeIterator. repository))
+                         (.setFilter (PathFilterGroup/createFromStrings ^Collection changed-paths))
+                         (.setRecursive true))
+             rename-detector (doto (RenameDetector. repository)
+                               (.addAll (DiffEntry/scan tree-walk)))
+             diff-entries (.compute rename-detector nil)]
+         (mapv diff-entry->map diff-entries))))))
 
 (defn file ^java.io.File [^Git git file-path]
   (io/file (str (worktree git) "/" file-path)))
@@ -294,8 +291,10 @@
         old-path (or (:old-path change) (:new-path change) )
         new-path (or (:new-path change) (:old-path change) )
         old (String. ^bytes (show-file git old-path))
-        new (slurp (file git new-path))]
-    {:new new
+        new (slurp (file git new-path))
+        binary? (not-every? text-util/text-char? new)]
+    {:binary? binary?
+     :new new
      :new-path new-path
      :old old
      :old-path old-path}))

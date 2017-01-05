@@ -154,6 +154,7 @@
   [workspace]
   (concat
    (workspace/register-resource-type workspace
+                                     :textual? true
                                      :ext "sound"
                                      :node-type SoundNode
                                      :load-fn load-sound

@@ -810,6 +810,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "collection"
                                     :label "Collection"
                                     :node-type CollectionNode
