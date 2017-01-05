@@ -57,9 +57,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
-const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
-const static uint32_t MANIFEST_VERSION = 0x01;
-
 struct Manifest
 {
     Manifest()
@@ -248,11 +245,10 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     return result;
 }
 
-Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile* manifestFile)
+Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile)
 {
     // Read from manifest resource
     dmDDF::Result result = dmDDF::LoadMessage(manifest, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifestFile);
-    dmMemory::AlignedFree(manifest);
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest (%i)", result);
@@ -295,7 +291,8 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifest(manifestBuffer, manifestLength, factory);
+    Result result = ParseManifest(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
+    dmMemory::AlignedFree(manifestBuffer);
     if (result == RESULT_OK)
     {
         result = LoadArchiveIndex(manifestPath, factory);
@@ -394,7 +391,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
         //dmLogInfo("path: %s, location: %s", factory->m_UriParts.m_Path, factory->m_UriParts.m_Location);
 
-        Result r = LoadManifest(factory->m_UriParts.m_Path, factory->m_UriParts.m_Location, factory);
+        Result r = LoadManifest(factory->m_UriParts.m_Path, factory);
         if (r != RESULT_OK)
         {
             dmLogError("Unable to load manifest: %s", factory->m_UriParts.m_Path);
