@@ -18,7 +18,7 @@
            [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control TextField TreeView TreeItem ListView]
+           [javafx.scene.control TextField TreeView TreeItem ListView ProgressBar]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.stage Stage StageStyle Modality DirectoryChooser]))
@@ -70,6 +70,24 @@
   (ui/observe (.focusedProperty stage)
               (fn [property old-val new-val]
                 (record-focus-change! new-val))))
+
+(defn make-progress-dialog [title message]
+  (let [root     ^Parent (ui/load-fxml "progress.fxml")
+        stage    (ui/make-stage)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["title" "message" "progress"])]
+    (observe-focus stage)
+    (ui/title! stage title)
+    (ui/text! (:title controls) title)
+    (ui/text! (:message controls) message)
+    (.setProgress ^ProgressBar (:progress controls) 0)
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setScene stage scene)
+    (.setAlwaysOnTop stage true)
+    (.show stage)
+    {:stage              stage
+     :render-progress-fn (fn [progress]
+                           (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
 
 (defn make-alert-dialog [message]
   (let [root     ^Parent (ui/load-fxml "alert.fxml")
