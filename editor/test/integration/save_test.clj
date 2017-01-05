@@ -161,7 +161,7 @@
 
 (defn- resource-line-endings
   [resource]
-  (when (and (resource/exists? resource) (satisfies? io/IOFactory resource))
+  (when (and (resource/exists? resource))
     (text-util/scan-line-endings (io/make-reader resource nil))))
 
 (defn- line-endings-by-resource

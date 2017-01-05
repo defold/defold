@@ -3,7 +3,6 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.code-completion :as code-completion]
-            [editor.code :as code]
             [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -19,7 +18,8 @@
             [editor.gl.pass :as pass]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
-            [editor.luajit :as luajit])
+            [editor.luajit :as luajit]
+            [util.text-util :as text-util])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.google.protobuf ByteString]
@@ -187,7 +187,7 @@
                                            (code-completion/combine-completions completion-info module-completion-infos))))
 
 (defn load-script [project self resource]
-  (g/set-property self :code (code/lf-normalize-line-endings (slurp resource))))
+  (g/set-property self :code (text-util/crlf->lf (slurp resource))))
 
 (defn- register [workspace def]
   (let [args (merge def
