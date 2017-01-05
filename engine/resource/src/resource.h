@@ -266,12 +266,6 @@ namespace dmResource
         EmbeddedResource m_ArchiveData;
         EmbeddedResource m_ArchiveManifest;
 
-        /// Pointer to a resource archive for builtin resources. Set to NULL for no archive (default value)
-        const void* m_BuiltinsArchive;
-
-        /// sizeof of m_BuiltinsArchive
-        uint32_t    m_BuiltinsArchiveSize;
-
         uint32_t m_Reserved[5];
 
         NewFactoryParams()
