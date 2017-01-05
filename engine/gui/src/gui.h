@@ -126,6 +126,8 @@ namespace dmGui
         dmRigDDF::Skeleton*      m_Skeleton;
         dmRigDDF::MeshSet*       m_MeshSet;
         dmRigDDF::AnimationSet*  m_AnimationSet;
+        const dmArray<uint32_t>* m_PoseIdxToInfluence;
+        const dmArray<uint32_t>* m_TrackIdxToPose;
         void*                    m_Texture;
         void*                    m_TextureSet;
     };
@@ -393,6 +395,8 @@ namespace dmGui
         int32_t  m_TouchCount;
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
+        uint32_t m_GamepadIndex;
+        uint32_t m_IsGamepad : 1;
         uint32_t m_HasText : 1;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
@@ -539,11 +543,12 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size);
+    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Delete dynamic texture
@@ -560,11 +565,24 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size);
+    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+
+    /**
+     * Get texture data for a dynamic texture
+     * @param scene
+     * @param texture_name
+     * @param out_width
+     * @param out_height
+     * @param out_type
+     * @param out_buffer
+     * @return
+     */
+    Result GetDynamicTextureData(HScene scene, const char* texture_name, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer);
 
     /**
      * Adds a font with the specified name to the scene.
@@ -875,6 +893,8 @@ namespace dmGui
     Result SetNodeSpineScene(HScene scene, HNode node, dmhash_t spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones);
     Result SetNodeSpineScene(HScene scene, HNode node, const char* spine_scene_id, dmhash_t skin_id, dmhash_t default_animation_id, bool generate_bones);
     dmhash_t GetNodeSpineScene(HScene scene, HNode node);
+    Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id);
+    dmhash_t GetNodeSpineSkin(HScene scene, HNode node);
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
@@ -896,7 +916,11 @@ namespace dmGui
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2);
+    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
+    float GetNodeSpineCursor(HScene scene, HNode node);
+    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate);
+    float GetNodeSpinePlaybackRate(HScene scene, HNode node);
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
 
     /**

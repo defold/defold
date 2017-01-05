@@ -1,0 +1,22 @@
+.split-pane {
+  -fx-padding: 0.0em;
+  &:horizontal {
+    -fx-border-width: 0;
+    -fx-background-insets: 0;
+    
+    >.split-pane-divider {
+      -fx-padding: 0 9 0 8;
+      -fx-background-color: transparent;//$dark-grey;
+    }
+  }
+
+  &:vertical {
+    -fx-border-width: 0;
+    -fx-background-insets: 0;
+    
+    >.split-pane-divider {
+      -fx-padding: 1;
+      -fx-background-color: transparent;//$dark-grey;
+    }
+  }
+}

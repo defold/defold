@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
+            [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
             [editor.handler :as handler]
@@ -60,23 +61,21 @@
 (deftest add-embedded-instance
   (testing "Hierarchical scene"
            (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project   (test-util/setup-project! workspace)
+             (let [[workspace project app-view] (test-util/setup! world)
                    node-id   (test-util/resource-node project "/logic/hierarchy.collection")]
                ; Two game objects under the collection
                (is (= 2 (count (:children (g/node-value node-id :node-outline)))))
                ; Select the collection node
-               (project/select! project [node-id])
+               (app-view/select! app-view [node-id])
                ; Run the add handler
-               (test-util/handler-run :add [{:name :workbench :env {:selection [node-id]}}] {})
+               (test-util/handler-run :add [{:name :workbench :env {:workspace workspace :project project :app-view app-view :selection [node-id]}}] {})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
 (deftest empty-go
   (testing "Collection with a single empty game object"
            (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project   (test-util/setup-project! workspace)
+             (let [[workspace project app-view] (test-util/setup! world)
                    node-id   (test-util/resource-node project "/collection/empty_go.collection")
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
                    outline   (g/node-value node-id :node-outline)
@@ -89,14 +88,13 @@
 (deftest unknown-components
   (testing "Load a collection with unknown components"
            (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project   (test-util/setup-project! workspace)
+             (let [[workspace project app-view] (test-util/setup! world)
                    node-id   (test-util/resource-node project "/collection/unknown_components.collection")
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
                ; Verify outline labels
-               (is (= (list "Collection" "my_instance - /game_object/unknown_components.go" "unknown - /game_object/test.unknown")
+               (is (= (list "Collection" "my_instance" "unknown")
                       (map :label (tree-seq :children :children outline))))
                ; Verify AABBs
                (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
@@ -112,8 +110,7 @@
 (deftest urls
   (testing "Checks URLs at different levels"
            (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project   (test-util/setup-project! workspace)
+             (let [[workspace project app-view] (test-util/setup! world)
                    node-id   (test-util/resource-node project "/collection/sub_sub_props.collection")]
                (is (= "/sub_props" (url-prop node-id [0])))
                (is (= "/sub_props/props" (url-prop node-id [0 0])))
@@ -134,15 +131,15 @@
 
 (deftest add-script-properties
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           coll-id   (test-util/resource-node project "/collection/test.collection")
           go-id     (test-util/resource-node project "/game_object/test.go")
-          script-id (test-util/resource-node project "/script/props.script")]
-      (collection/add-game-object-file coll-id (test-util/resource workspace "/game_object/test.go"))
+          script-id (test-util/resource-node project "/script/props.script")
+          select-fn (fn [node-ids] (app-view/select app-view node-ids))]
+      (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
       (is (nil? (test-util/outline coll-id [0 0])))
-      (let [inst (first (test-util/selection project))]
-        (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script"))
+      (let [inst (first (test-util/selection app-view))]
+        (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script") select-fn)
         (let [coll-comp (:node-id (test-util/outline coll-id [0 0]))
               go-comp (:node-id (test-util/outline go-id [0]))]
           (is (= [coll-comp] (g/overrides go-comp)))
@@ -169,8 +166,7 @@
 
 (deftest validation
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           coll-id   (test-util/resource-node project "/collection/props.collection")
           inst-id   (:node-id (test-util/outline coll-id [0]))]
       (testing "game object ref instance"

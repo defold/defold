@@ -1,4 +1,3 @@
-
 # Release guide
 
 ## Release branches/channels
@@ -70,6 +69,8 @@ Important: *Make sure your branches are up to date!*
     Log in and open "Build with Parameters"
 
     In "DEFOLD_CHANNEL" select "beta"
+    
+    Let ATL or PO know about the started build so they can monitor and smoke test the apps when build is done.
 
  1. Verify release by updating an old editor, OSX, Win and Linux.
 
@@ -79,10 +80,11 @@ Important: *Make sure your branches are up to date!*
 
 ### QRT
 When the beta has been released the following apps needs to be bundled and sent to QRT:
-* Defold Examples - iOS, Android
+* Defold Examples - iOS, Android, desktops
 * Defold IAP Tester - iOS, Android (Google Play and Amazon)
-* "Geometry Wars" - iOS, Android
-* BBS - iOS, Android
+* "Geometry Wars" - iOS, Android, desktops
+* Defold Facebook test app - iOs, Android
+* BBS - iOS, Android, desktops
 * Presto - iOS, Android
 
 Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
@@ -137,7 +139,7 @@ The following smoke tests are currently performed by the team on each platform (
     Important: *Make sure the SHA1 and channel is correct!*
 
 2. Verify release by updating an old editor, OSX, Win and Linux.
-3. Post release notes on forum.defold.com and send notification email to defold-users@king.com
+3. Post release notes on forum.defold.com and send notification email to defold-users@king.com and releasenotification@king.com
 4. Publish latest documentation by logging into http://www.defold.com/ref/update/latest
 5. Merge master into dev
 

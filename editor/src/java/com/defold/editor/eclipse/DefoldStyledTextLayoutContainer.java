@@ -15,6 +15,8 @@ import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.WeakChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -109,6 +111,7 @@ public class DefoldStyledTextLayoutContainer extends Region {
 	int caretIndex = -1;
 
 	private final ReadOnlyBooleanProperty ownerFocusedProperty;
+	private final ChangeListener<Boolean> ownerFocusedChangedListener;
 
 	/**
 	 * Create a container to layout text and allows to show e.g. a selection
@@ -159,11 +162,13 @@ public class DefoldStyledTextLayoutContainer extends Region {
 		Bindings.bindContent(this.textLayoutNode.getChildren(), this.textNodes);
 		getChildren().setAll(this.selectionMarker, this.textLayoutNode, this.caret);
 		selectionProperty().addListener(this::handleSelectionChange);
-		ownerFocusedProperty.addListener( o -> {
-			if( ! ownerFocusedProperty.get() ) {
+
+		this.ownerFocusedChangedListener = (observable, oldValue, newValue) -> {
+			if(!newValue) {
 				this.caret.setVisible(false);
 			}
-		});
+		};
+		this.ownerFocusedProperty.addListener(new WeakChangeListener<>(this.ownerFocusedChangedListener));
 	}
 
 	private int getEndOffset() {
@@ -346,8 +351,8 @@ public class DefoldStyledTextLayoutContainer extends Region {
 	 */
 	public @Nullable Point2D getCaretLocation(int index) {
 		for (DefoldStyledTextNode t : this.textNodes) {
-			if (t.getStartOffset() <= index && t.getEndOffset() >= index) {
-				double x = t.getCharLocation(index);
+			if (index >= t.getStartOffset() && index <= t.getEndOffset()) {
+				double x = t.getCharLocation(index - t.getStartOffset());
 				return sceneToLocal(t.localToScene(x, 0));
 			}
 		}

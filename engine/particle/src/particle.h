@@ -86,6 +86,7 @@ namespace dmParticle
 
         void* m_Texture;
         float* m_TexCoords;
+        float* m_TexDims;
         AnimPlayback m_Playback;
         uint32_t m_TileWidth;
         uint32_t m_TileHeight;

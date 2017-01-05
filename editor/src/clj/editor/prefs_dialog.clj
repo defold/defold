@@ -84,7 +84,9 @@
     (.add (.getTabs pane) tab)))
 
 (defpage "General"
-  {:label "Enable Texture Profiles" :type :boolean :key "general-enable-texture-profiles" :default true})
+  {:label "Enable Texture Profiles" :type :boolean :key "general-enable-texture-profiles" :default true}
+  {:label "Enable Extensions (only enable if you have the required setup)" :type :boolean :key "enable-extensions" :default false}
+  {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false})
 
 (defpage "Scene"
   {:label "Selection Color" :type :color :key "scene-selection-color" :default (Color/web "#00ff00ff")}

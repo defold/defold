@@ -53,6 +53,22 @@ namespace dmGui
         "on_reload"
     };
 
+    // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
+    static struct PlaybackGuiToRig
+    {
+        dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
+        PlaybackGuiToRig()
+        {
+            m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
+            m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
+            m_Table[dmGui::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
+            m_Table[dmGui::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
+        }
+    } ddf_playback_map;
+
 #define PROP(name, prop)\
     { dmHashString64(#name), prop, 0xff }, \
     { dmHashString64(#name ".x"), prop, 0 }, \
@@ -455,7 +471,32 @@ namespace dmGui
         }
     }
 
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size)
+    static bool CopyImageBufferFlipped(uint32_t width, uint32_t height, const uint8_t* buffer, uint32_t buffer_size, dmImage::Type type, uint8_t* out_buffer)
+    {
+        uint32_t stride = width*sizeof(uint8_t);
+        if (type == dmImage::TYPE_RGB) {
+            stride *= 3;
+        } else if (type == dmImage::TYPE_RGBA) {
+            stride *= 4;
+        }
+
+        if (stride*height != buffer_size) {
+            dmLogError("Invalid data size when flipping image buffer.");
+            return false;
+        }
+
+        const uint8_t* read_buffer = buffer+buffer_size;
+        for (int y = 0; y < height; ++y)
+        {
+            read_buffer -= stride;
+            memcpy(out_buffer, read_buffer, stride);
+            out_buffer += stride;
+        }
+
+        return true;
+    }
+
+    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         dmhash_t texture_hash = dmHashString64(texture_name);
         uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
@@ -479,7 +520,15 @@ namespace dmGui
 
         DynamicTexture t(0);
         t.m_Buffer = malloc(buffer_size);
-        memcpy(t.m_Buffer, buffer, buffer_size);
+        if (flip) {
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t.m_Buffer)) {
+                free(t.m_Buffer);
+                t.m_Buffer = 0;
+                return RESULT_DATA_ERROR;
+            }
+        } else {
+            memcpy(t.m_Buffer, buffer, buffer_size);
+        }
         t.m_Width = width;
         t.m_Height = height;
         t.m_Type = type;
@@ -507,7 +556,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size)
+    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
@@ -527,10 +576,45 @@ namespace dmGui
         }
 
         t->m_Buffer = malloc(buffer_size);
-        memcpy(t->m_Buffer, buffer, buffer_size);
+        if (flip) {
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t->m_Buffer)) {
+                free(t->m_Buffer);
+                t->m_Buffer = 0;
+                return RESULT_DATA_ERROR;
+            }
+        } else {
+            memcpy(t->m_Buffer, buffer, buffer_size);
+        }
         t->m_Width = width;
         t->m_Height = height;
         t->m_Type = type;
+
+        return RESULT_OK;
+    }
+
+    Result GetDynamicTextureData(HScene scene, const char* texture_name, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
+    {
+        dmhash_t texture_hash = dmHashString64(texture_name);
+        DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
+
+        if (!t) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        if (t->m_Deleted) {
+            dmLogError("Can't get texture data for deleted texture");
+            return RESULT_INVAL_ERROR;
+        }
+
+        if (!t->m_Buffer) {
+            dmLogError("No texture data available for dynamic texture");
+            return RESULT_DATA_ERROR;
+        }
+
+        *out_width = t->m_Width;
+        *out_height = t->m_Height;
+        *out_type = t->m_Type;
+        *out_buffer = t->m_Buffer;
 
         return RESULT_OK;
     }
@@ -762,14 +846,14 @@ namespace dmGui
         {
             // uv-rotated
             w = tc[2]-tc[0];
-            h = tc[5]-tc[1];
+            h = tc[1]-tc[5];
             n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_TextureHeight;
             n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_TextureWidth;
         }
         else
         {
             w = tc[4]-tc[0];
-            h = tc[1]-tc[3];
+            h = tc[3]-tc[1];
             n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_TextureWidth;
             n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_TextureHeight;
         }
@@ -1391,6 +1475,12 @@ namespace dmGui
                     }
 
                     lua_newtable(L);
+
+                    if (ia->m_IsGamepad) {
+                        lua_pushliteral(L, "gamepad");
+                        lua_pushnumber(L, ia->m_GamepadIndex);
+                        lua_settable(L, -3);
+                    }
 
                     if (ia->m_ActionId != 0)
                     {
@@ -2345,6 +2435,8 @@ namespace dmGui
         create_params.m_Skeleton         = rig_data.m_Skeleton;
         create_params.m_MeshSet          = rig_data.m_MeshSet;
         create_params.m_AnimationSet     = rig_data.m_AnimationSet;
+        create_params.m_PoseIdxToInfluence = rig_data.m_PoseIdxToInfluence;
+        create_params.m_TrackIdxToPose     = rig_data.m_TrackIdxToPose;
         create_params.m_MeshId           = skin_id;
         create_params.m_DefaultAnimation = default_animation_id;
 
@@ -2398,6 +2490,19 @@ namespace dmGui
         }
 
         return n->m_Node.m_SpineSceneHash;
+    }
+
+    Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        dmRig::Result result = dmRig::SetMesh(rig_instance, skin_id);
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    dmhash_t GetNodeSpineSkin(HScene scene, HNode node)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        return dmRig::GetMesh(rig_instance);
     }
 
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
@@ -2523,30 +2628,71 @@ namespace dmGui
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2)
+    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        dmRig::Result result = dmRig::SetCursor(rig_instance, cursor, true);
+
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    float GetNodeSpineCursor(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            dmLogError("Can only get cursor for spine node");
+            return 0.0f;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        float cursor = dmRig::GetCursor(rig_instance, true);
+        return cursor;
+    }
+
+    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        dmRig::Result result = dmRig::SetPlaybackRate(rig_instance, playback_rate);
+
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    float GetNodeSpinePlaybackRate(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            dmLogError("Can only get playback_rate for spine node");
+            return 0.0f;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        float playback_rate = dmRig::GetPlaybackRate(rig_instance);
+        return playback_rate;
+    }
+
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
             return RESULT_WRONG_TYPE;
         }
 
-        static struct PlaybackTranslation
-        {
-            dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
-            PlaybackTranslation()
-            {
-                m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
-                m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
-                m_Table[dmGui::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
-                m_Table[dmGui::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
-            }
-        } ddf_playback_map;
-
         dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend)) {
+        if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend, offset, playback_rate)) {
             return RESULT_INVAL_ERROR;
         }
 
@@ -2885,11 +3031,9 @@ namespace dmGui
 
             if (pd->m_Component == 0xff) {
                 for (int j = 0; j < 4; ++j) {
-                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
-                    // Only run callback for the first component
-                    animation_complete = 0;
-                    userdata1 = 0;
-                    userdata2 = 0;
+                    // Only run callback for the lastcomponent
+                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay,
+                                    j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
                 }
             } else {
                 AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);

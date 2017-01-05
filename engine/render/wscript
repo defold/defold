@@ -44,7 +44,7 @@ def configure(conf):
         pass
     elif platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    elif platform == "win32":
+    elif "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
 
 

@@ -5,6 +5,7 @@
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
+                     [lein-sass "0.4.0"]
                      [codox "0.9.3"]]
 
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
@@ -21,6 +22,7 @@
                      [ch.qos.logback/logback-classic              "1.1.3"]
                      [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
+                     [commons-configuration/commons-configuration "1.10"]
                      [org.clojure/data.json                       "0.2.6"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
@@ -28,6 +30,7 @@
                      [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
                      [com.sun.jersey/jersey-client                "1.19"]
+                     [com.sun.jersey.contribs/jersey-multipart    "1.19"]
                      [javax.vecmath/vecmath                       "1.5.2"]
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
@@ -50,8 +53,7 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
 
-  :source-paths      ["src/clj"
-                      "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
+  :source-paths      ["src/clj"]
 
   :java-source-paths ["src/java"]
 
@@ -79,9 +81,13 @@
 
   :protobuf-exclude  ["../engine/ddf/src/test"]
 
+  :sass              {:src "styling/stylesheets/main.sass"
+                      :output-directory "resources/editor.css"
+                      :source-maps false}
+
   :aliases           {"ci"        ["do" "test," "uberjar"]
                       "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "init"      ["do" "clean," "builtins," "protobuf," "pack"]}
+                      "init"      ["do" "clean," "builtins," "protobuf," "sass" "once," "pack"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -97,10 +103,10 @@
   :main ^:skip-aot   com.defold.editor.Start
 
   :uberjar-exclusions [#"^natives/"]
-  
+
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]
                                 :resource-paths ["test/resources"]}
-                      :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" "javac" ["run" "-m" "aot"]]
+                      :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}

@@ -33,6 +33,9 @@ public class Project {
     @OneToMany
     private Set<User> members = new HashSet<>();
 
+    @OneToOne(cascade = CascadeType.ALL)
+    private ProjectSite projectSite;
+
     @PreRemove
     private void preRemove() {
         // Remove project from members' project lists before removing the project.
@@ -100,4 +103,11 @@ public class Project {
         return String.format("%s (%d) (%s)", getName(), getId(), getOwner().getEmail());
     }
 
+    public ProjectSite getProjectSite() {
+        return projectSite;
+    }
+
+    public void setProjectSite(ProjectSite projectSite) {
+        this.projectSite = projectSite;
+    }
 }

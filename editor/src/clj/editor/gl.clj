@@ -72,7 +72,12 @@
   (first (gl-get-integer-v gl GL2/GL_MAX_TEXTURE_UNITS 1)))
 
 (defn text-renderer [font-name font-style font-size]
-  (TextRenderer. (Font. font-name font-style font-size) false false))
+  (doto (TextRenderer. (Font. font-name font-style font-size) false false)
+    ;; NOTE: the TextRenderer implementation has two modes, one using
+    ;; vertex arrays and VBOs, and one using immediate mode. This
+    ;; forces the use of the immediate mode implementation as we've
+    ;; seen issues on some platforms with the other one.
+    (.setUseVertexArrays false)))
 
 (defn gl-clear [^GL2 gl r g b a]
   (.glDepthMask gl true)
@@ -242,14 +247,18 @@
 
 (defn overlay
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc]
-    (overlay gl text-renderer chars xloc yloc 1 1 1 1))
+   (overlay gl text-renderer chars xloc yloc 1 1 1 1))
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a]
-    (gl-push-matrix gl
-                    (.glScaled gl 1 -1 1)
-                    (.setColor text-renderer r g b a)
-                    (.begin3DRendering text-renderer)
-                    (.draw3D text-renderer chars xloc yloc 1.0 1.0)
-                    (.end3DRendering text-renderer))))
+   (overlay gl text-renderer chars xloc yloc r g b a 0.0))
+  ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a ^Float rot-z]
+   (gl-push-matrix gl
+                   (.glScaled gl 1 -1 1)
+                   (.glTranslated gl xloc yloc 0)
+                   (.glRotated gl rot-z 0 0 1)
+                   (.setColor text-renderer r g b a)
+                   (.begin3DRendering text-renderer)
+                   (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
+                   (.end3DRendering text-renderer))))
 
 (defn select-buffer-names
   "Returns a collection of names from a GL_SELECT buffer.

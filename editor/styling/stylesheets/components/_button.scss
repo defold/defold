@@ -1,0 +1,101 @@
+.button {
+  -fx-background-radius: 5;
+  -fx-border-radius: 4;
+  -fx-padding: 6px 17px;
+  -fx-min-width: 100px;
+  -fx-background-color: $mid-grey;
+  -fx-background-insets: 0;
+  -fx-border-color: rgba($dark-grey, 0.8);
+  -fx-border-width: 1;
+  -fx-text-fill: rgba($defold-white, 0.8);
+  -fx-font-size: 12px;
+  &:hover {
+    -fx-background-color: $mid-grey-light;
+  }
+  &:armed {
+    -fx-background-color: $input-background;
+  }
+  &.low-prio {
+    -fx-background-color: $dark-grey;
+    -fx-border-color: $mid-grey;
+    -fx-text-fill: $bright-grey;
+    -fx-font-weight: normal; 
+  }
+  &.low-prio:hover {
+      -fx-background-color: $bright-black;
+  }
+  &.low-prio:armed {
+      -fx-background-color: $bright-black;
+      -fx-border-color: $bright-grey;
+      -fx-text-fill: $defold-white;
+  }
+}
+
+.button-small {
+	@extend .button;
+	-fx-padding: 2px 17px;//4px 22px;
+	-fx-min-width: 0px;
+}
+
+.button-large {
+	@extend .button;
+	-fx-padding: 10px 25px;
+	-fx-min-width: 200px;
+  }
+
+
+.clear-button {
+  -fx-background-radius: 0;
+  -fx-border-radius: 0;
+  -fx-background-color: $mid-grey;
+  -fx-padding: 0;
+  -fx-min-width: 27px;
+  -fx-max-width: 27px;
+  -fx-min-height: 27px;
+  -fx-max-height: 27px;
+  -fx-border-width: 0;
+  -fx-text-fill: $defold-white;
+  &:hover {
+      -fx-background-color: $grey !important; 
+  }
+  &:armed {
+      -fx-background-color: $dark-grey-header !important;
+  }
+}
+
+.toggle-button, .embedded-properties-button {
+  -fx-background-radius: 4px;
+  -fx-border-radius: 4px;
+  -fx-padding: 4px;
+  -fx-background-insets: 0px;
+  -fx-border-insets: 0px;
+  -fx-background-color: $mid-grey;
+  &:hover {
+    -fx-background-color: $mid-grey-light;
+  }
+  &:selected {
+    -fx-background-color: $dark-grey;
+    .image-view {
+      @include effect-lighten-blue()
+    }
+  }
+  &:armed {
+    -fx-background-color: $input-background;
+  }
+}
+
+.toggle-button,
+.color-picker.split-button > .color-picker-label {
+  -fx-background-color: $mid-grey;
+  -fx-background-insets: 0;
+  -fx-background-radius: 4;
+  -fx-border-width: 1;
+  -fx-border-radius: 4;
+  -fx-border-color: $dark-black;
+  -fx-text-fill: -fx-text-base-color;
+}
+
+.color-picker.split-button > .arrow-button:hover,
+.color-picker.split-button > .color-picker-label:hover {
+  -fx-background-color: $mid-grey;
+  -fx-text-fill: -fx-text-base-color; }

@@ -3,6 +3,9 @@
 /tmp
 /lib/*texc_shared*
 /lib/*/*texc_shared*
+/lib/*/*OpenAL32*
+/lib/*/*wrap_oal*
+/lib/*/*PVRTexLib*
 /lib/builtins.zip
 /lib/classes.dex
 /lib/android.jar

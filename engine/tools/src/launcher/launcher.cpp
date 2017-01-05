@@ -1,3 +1,4 @@
+#include <launcher.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -23,6 +24,7 @@
 
 // bootstrap.resourcespath must default to resourcespath of the installation
 #define RESOURCES_PATH_KEY ("bootstrap.resourcespath")
+#define LOG_PATH_KEY ("launcher.log")
 #define MAX_ARGS_SIZE (10 * DMPATH_MAX_PATH)
 
 struct ReplaceContext
@@ -30,15 +32,23 @@ struct ReplaceContext
     dmConfigFile::HConfig m_Config;
     // Will be set to either bootstrap.resourcespath (if set) or the default installation resources path
     const char* m_ResourcesPath;
+    // Will be set to launcher.log or default log path
+    const char* m_LogPath;
 };
 
 static const char* ReplaceCallback(void* user_data, const char* key)
 {
     ReplaceContext* context = (ReplaceContext*)user_data;
+
     if (dmStrCaseCmp(key, RESOURCES_PATH_KEY) == 0)
     {
         return context->m_ResourcesPath;
     }
+    else if (dmStrCaseCmp(key, LOG_PATH_KEY) == 0)
+    {
+        return context->m_LogPath;
+    }
+
     return dmConfigFile::GetString(context->m_Config, key, 0x0);
 }
 
@@ -80,6 +90,8 @@ static bool ConfigGetString(ReplaceContext* context, const char* key, char* buf,
 int Launch(int argc, char **argv) {
     char default_resources_path[DMPATH_MAX_PATH];
     char config_path[DMPATH_MAX_PATH];
+    char application_support_path[DMPATH_MAX_PATH];
+    char default_logfile_path[DMPATH_MAX_PATH];
     char java_path[DMPATH_MAX_PATH];
     char jar_path[DMPATH_MAX_PATH];
     char os_args[MAX_ARGS_SIZE];
@@ -93,6 +105,15 @@ int Launch(int argc, char **argv) {
 
     dmStrlCpy(config_path, default_resources_path, sizeof(config_path));
     dmStrlCat(config_path, "/config", sizeof(config_path));
+
+    r = dmSys::GetApplicationSupportPath("Defold", application_support_path, sizeof(application_support_path));
+    if (r != dmSys::RESULT_OK) {
+        dmLogFatal("Failed to locate application support path (%d)", r);
+        return 5;
+    }
+
+    dmStrlCpy(default_logfile_path, application_support_path, sizeof(default_logfile_path));
+    dmStrlCat(default_logfile_path, "/editor2.log", sizeof(default_logfile_path));
 
     dmConfigFile::HConfig config;
     dmConfigFile::Result cr = dmConfigFile::Load(config_path, argc, (const char**) argv, &config);
@@ -112,6 +133,12 @@ int Launch(int argc, char **argv) {
     if (*context.m_ResourcesPath == '\0')
     {
         context.m_ResourcesPath = default_resources_path;
+    }
+
+    context.m_LogPath = dmConfigFile::GetString(config, LOG_PATH_KEY, default_logfile_path);
+    if (*context.m_LogPath == '\0')
+    {
+        context.m_LogPath = default_logfile_path;
     }
 
     const char* main = dmConfigFile::GetString(config, "launcher.main", "Main");
@@ -161,21 +188,8 @@ int Launch(int argc, char **argv) {
     PROCESS_INFORMATION pi;
     int buffer_size = 32000;
     char* buffer = new char[buffer_size];
-    buffer[0] = 0;
 
-    for (int j = 0; j < i - 1; j++) {
-        // We must quote on windows...
-        if (j == 0) {
-            dmStrlCat(buffer, "\"", buffer_size);
-        }
-        dmStrlCat(buffer, args[j], buffer_size);
-        if (j == 0) {
-            dmStrlCat(buffer, "\"", buffer_size);
-        }
-        if (j != i - 2) {
-            dmStrlCat(buffer, " ", buffer_size);
-        }
-    }
+    QuoteArgv(args, buffer);
 
     dmLogDebug("%s", buffer);
 
@@ -192,8 +206,8 @@ int Launch(int argc, char **argv) {
         char* msg;
         DWORD err = GetLastError();
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
-        LocalFree((HLOCAL) msg);
         dmLogFatal("Failed to launch application: %s (%d)", msg, err);
+        LocalFree((HLOCAL) msg);
         exit(5);
     }
 

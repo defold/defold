@@ -6,6 +6,7 @@
 #include <dlib/log.h>
 #include <dlib/utf8.h>
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 
 #include <graphics/glfw/glfw.h>
 
@@ -145,7 +146,7 @@ namespace dmHID
                 {
                     GamepadPacket& packet = pad->m_Packet;
                     pad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
-                    pad->m_ButtonCount = glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS);
+                    pad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
                     glfwGetJoystickPos(glfw_joystick, packet.m_Axis, pad->m_AxisCount);
                     unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
                     glfwGetJoystickButtons(glfw_joystick, buttons, pad->m_ButtonCount);

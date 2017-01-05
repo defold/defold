@@ -1,0 +1,40 @@
+.color-picker {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-background-color: $input-background;
+    -fx-background-insets: 0;
+    &:showing {
+        -fx-background-color: $dark-grey;
+        -fx-color: $defold-white;
+        .color-picker-label {
+            -fx-text-fill: $defold-white;
+        }
+    }
+    &:showing .arrow {
+        -fx-background-color: $defold-white;
+    }
+    .color-picker-label {
+        -fx-border-width: 1;
+        -fx-border-color: $input-border;
+    }
+    .arrow-button {
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+        -fx-border-width: 0;
+        -fx-background-insets: 0;
+        -fx-padding: 5 7;
+        -fx-background-color: $mid-grey;
+        &:hover {
+            -fx-background-color: $mid-grey-light;
+        }
+        &:armed, &:pressed {
+            -fx-background-color: $input-background;
+        }
+    }
+}
+.color-palette {
+  -fx-background-radius: 3;
+  -fx-border-radius: 3;
+  -fx-border-color: $mid-grey;
+  -fx-background-color: $input-background
+}

@@ -1,0 +1,88 @@
+.combo-box {
+    -fx-background-radius: 0px;
+    -fx-border-radius: 0px;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-background-color: $panel-background;
+    &:focused {
+        -fx-background-insets: 0;
+        -fx-background-color: $panel-background;
+    }
+    &:hover {
+        >.list-cell {
+            -fx-border-width: 0;/*
+            -fx-border-color: $mid-grey;
+            -fx-text-fill: $defold-white;*/
+        }
+    }
+    &:showing {
+        .arrow {
+            -fx-background-color: $defold-white;
+            -fx-rotate: 180;
+        }
+        >.list-cell {
+            -fx-background-color: red !important;
+            -fx-border-width: 1 1 1 1;
+            -fx-border-color: $bright-grey;
+            -fx-text-fill: $defold-white;
+        }
+        .list-view {
+            -fx-border-color: $bright-grey;
+        }
+    }
+    .list-view {
+        -fx-min-width: 10em;
+        -fx-background-color: $dark-black-light;
+        -fx-border-width: 0;
+        -fx-border-color: $mid-grey;
+        -fx-border-insets: 0;
+        -fx-background-insets: 0;
+        -fx-text-fill: $mid-grey; 
+    }
+    .list-cell {
+        -fx-background-color: $root-background;//$dark-black-light;
+        -fx-color: $bright-grey;
+        &:hover {
+            -fx-cursor: hand;
+            -fx-text-fill: $defold-white;
+        }
+    }
+    .arrow-button {
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+        -fx-background-insets: 0;
+        -fx-background-color: $mid-grey !important;
+        -fx-border-width: 0;
+        -fx-padding: 5 7;
+
+        &:hover {
+            -fx-background-color: $mid-grey-light !important;
+            -fx-background-insets: 0;
+        }
+        &:pressed, &:focused {
+            -fx-background-color: $input-background;
+            -fx-text-fill: $defold-white;
+        }
+    }
+    >.list-cell {
+        -fx-border-width: 0;
+        -fx-border-color: transparent;
+        -fx-text-fill: $bright-grey;
+    }
+    .text-field, .text-input {
+        /*-fx-border-width: 0;*/
+        -fx-background-insets: 0;
+        &:hover {
+            -fx-background-insets: 0;
+            /*-fx-border-width: 0;*/
+        }
+        &:focused {
+            -fx-border-width: 1;
+            -fx-border-color: $input-border;
+            -fx-padding: 4px 8px;
+        }
+    }
+}
+.combo-box-base {
+    -fx-border-width: 0;
+}

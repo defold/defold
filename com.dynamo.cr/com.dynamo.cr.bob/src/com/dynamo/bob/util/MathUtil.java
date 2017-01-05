@@ -1,8 +1,18 @@
 package com.dynamo.bob.util;
 
+import java.nio.FloatBuffer;
+
+import javax.vecmath.Matrix3d;
+import javax.vecmath.Matrix3f;
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Matrix4f;
 import javax.vecmath.Point3d;
+import javax.vecmath.Point3f;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Quat4f;
+import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.proto.DdfMath.Point3;
@@ -70,4 +80,93 @@ public class MathUtil {
         q.mul(q1, q);
     }
 
+    /**
+     * Convert a Matrix4f between different vecmath versions.
+     * @param m Matrix4f of vecmath2 flavor
+     * @return A new vecmath1 Matrix4f
+     */
+    public static Matrix4f vecmath2ToVecmath1(org.openmali.vecmath2.Matrix4f mv2) {
+        Matrix4f mv1 = new Matrix4f();
+        for (int r = 0; r < 4; ++r) {
+            for (int c = 0; c < 4; ++c) {
+                mv1.setElement(r, c, mv2.get(r, c));
+            }
+        }
+        return mv1;
+    }
+    
+    /**
+     * Convert a Matrix4f between different vecmath versions.
+     * @param m Matrix4f of vecmath1 flavor
+     * @return A new vecmath2 Matrix4f
+     */
+    public static org.openmali.vecmath2.Matrix4f vecmath1ToVecmath2(Matrix4f mv1) {
+        org.openmali.vecmath2.Matrix4f mv2 = new org.openmali.vecmath2.Matrix4f();
+        for (int r = 0; r < 4; ++r) {
+            for (int c = 0; c < 4; ++c) {
+                mv2.set(r, c, mv1.getElement(r, c));
+            }
+        }
+        return mv2;
+    }
+
+    public static Matrix4d floatToDouble(Matrix4f mf) {
+        Matrix4d md = new Matrix4d();
+        for (int r = 0; r < 4; ++r) {
+            for (int c = 0; c < 4; ++c) {
+                md.setElement(r, c, mf.getElement(r, c));
+            }
+        }
+        return md;
+    }
+
+    public static void decompose(Matrix4d m, Vector3d p, Quat4d r, Vector3d s) {
+        m.get(p);
+
+        // get rotation and scale sub matrix 
+        Matrix3d rotScale = new Matrix3d();
+        m.getRotationScale(rotScale);
+
+        Vector3d rsColumns[] = new Vector3d[]{ new Vector3d(), new Vector3d(), new Vector3d() };
+        rotScale.getColumn(0, rsColumns[0]);
+        rotScale.getColumn(1, rsColumns[1]);
+        rotScale.getColumn(2, rsColumns[2]);
+
+        // extract the scaling factors
+        s.setX(rsColumns[0].length());
+        s.setY(rsColumns[1].length());
+        s.setZ(rsColumns[2].length());
+
+        // TODO Figure out how to handle negative scaling correctly.
+        // if (rotScale.determinant() < 0) {
+        //     s.scale(-1.0);
+        // }
+
+        // undo any scaling on the rotscale matrix
+        if(s.getX() != 0.0) {
+            rsColumns[0].scale(1.0 / s.getX());
+        }
+        if(s.getY() != 0.0) {
+            rsColumns[1].scale(1.0 / s.getY());
+        }
+        if(s.getZ() != 0.0) {
+            rsColumns[2].scale(1.0 / s.getZ());
+        }
+
+        // build a 3x3 rotation matrix (scale has been removed)
+        Matrix3d rotmat = new Matrix3d(rsColumns[0].getX(), rsColumns[1].getX(), rsColumns[2].getX(),
+                                       rsColumns[0].getY(), rsColumns[1].getY(), rsColumns[2].getY(),
+                                       rsColumns[0].getZ(), rsColumns[1].getZ(), rsColumns[2].getZ());
+        r.set(rotmat);
+    }
+
+    public static void decompose(Matrix4f m, Vector3f p, Quat4f r, Vector3f s) {
+        Vector3d dP = new Vector3d();
+        Quat4d dR = new Quat4d();
+        Vector3d dS = new Vector3d();
+        decompose(new Matrix4d(m), dP, dR, dS);
+        p.set(dP);
+        r.set(dR);
+        s.set(dS);
+    }
 }

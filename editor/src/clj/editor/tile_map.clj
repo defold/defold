@@ -366,10 +366,6 @@
 (g/defnode TileMapNode
   (inherits project/ResourceNode)
 
-  ;; TODO: better way?
-  (property tool-controller g/Any
-            (dynamic visible (g/constantly false)))
-
   (input layer-ids g/Any :array)
   (input layer-msgs g/Any :array)
   (input child-scenes g/Any :array)
@@ -968,8 +964,7 @@
    (g/connect resource-id :texture-set-data tool-id :texture-set-data)
    (g/connect resource-id :material-shader tool-id :material-shader)
    (g/connect resource-id :gpu-texture tool-id :gpu-texture)
-   (g/connect resource-id :tile-dimensions tool-id :tile-dimensions)
-   (g/set-property resource-id :tool-controller tool-id)))
+   (g/connect resource-id :tile-dimensions tool-id :tile-dimensions)))
 
 
 ;; handlers/menu
@@ -1014,30 +1009,42 @@
   (active? [selection] (selection->tile-map selection))
   (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
 
-(defn- erase-tool-handler
-  [tile-map-node]
-  (when-let [tool-controller (g/node-value tile-map-node :tool-controller)]
-    (g/transact
-     (g/set-property tool-controller :brush erase-brush)))  )
+(defn- erase-tool-handler [tool-controller]
+  (g/set-property! tool-controller :brush erase-brush))
+
+(defn- active-tile-map? [app-view]
+  (when-let [resource-node (g/node-value app-view :active-resource-node)]
+    (when (g/node-instance? TileMapNode resource-node)
+      resource-node)))
+
+(defn- active-scene-view? [app-view]
+  (when-let [view-node (g/node-value app-view :active-view)]
+    (when (g/node-instance? scene/SceneView view-node)
+      view-node)))
+
+(defn- scene-view->tool-controller [scene-view]
+  ;; TODO Hack, but better than before
+  (let [input-handlers (map first (g/sources-of scene-view :input-handlers))]
+    (first (filter (partial g/node-instance? TileMapController) input-handlers))))
 
 (handler/defhandler :erase-tool :workbench
   (label [user-data] "Select Eraser")
+  (active? [app-view] (and (active-tile-map? app-view)
+                        (active-scene-view? app-view)))
   (enabled? [selection] (selection->layer selection))
-  (run [selection] (erase-tool-handler (tile-map-node selection))))
+  (run [app-view] (erase-tool-handler (-> (active-scene-view? app-view) scene-view->tool-controller))))
 
-
-(defn tile-map-palette-handler
-  [tile-map-node]
-  (when-let [tool-controller (g/node-value tile-map-node :tool-controller)]
-    (g/transact
-     (g/update-property tool-controller :mode (toggler :palette :editor)))))
+(defn- tile-map-palette-handler [tool-controller]
+  (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
 (handler/defhandler :tile-map-palette :workbench
-  (active? [selection] (or (selection->tile-map selection)
-                           (selection->layer selection)))
-  (enabled? [selection] (some-> (tile-map-node selection)
-                          (g/node-value :tile-source-resource)))
-  (run [selection] (tile-map-palette-handler (tile-map-node selection))))
+  (active? [app-view] (and (active-tile-map? app-view)
+                        (active-scene-view? app-view)))
+  (enabled? [app-view selection]
+    (and (selection->layer selection)
+      (-> (active-tile-map? app-view)
+        (g/node-value :tile-source-resource))))
+  (run [app-view] (tile-map-palette-handler (-> (active-scene-view? app-view) scene-view->tool-controller))))
 
 (ui/extend-menu ::menubar :editor.scene/scene-end
                 [{:label    "Tile Map"

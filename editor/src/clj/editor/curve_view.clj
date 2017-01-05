@@ -1,6 +1,7 @@
 (ns editor.curve-view
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.background :as background]
             [editor.camera :as c]
             [editor.scene-selection :as selection]
@@ -13,7 +14,6 @@
             [editor.curve-grid :as curve-grid]
             [editor.input :as i]
             [editor.math :as math]
-            [editor.defold-project :as project]
             [util.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
@@ -588,7 +588,7 @@
                            (ui/user-data! image-view ::view-id view-id)
                            (let [^Tab tab      (:tab opts)
                                  repainter     (ui/->timer "refresh-curve-view"
-                                                (fn [dt]
+                                                (fn [_ dt]
                                                   (when (.isSelected tab)
                                                     (update-image-view! image-view dt)
                                                     (g/node-value view-id :update-list-view))))]
@@ -634,11 +634,13 @@
            :focus-point (Vector4d. 0.5 y z 1.0)
            :fov-x 1.2)))
 
-(defrecord SubSelectionProvider [project]
+(defrecord SubSelectionProvider [app-view]
   handler/SelectionProvider
-  (selection [this] (g/node-value project :sub-selection)))
+  (selection [this] (g/node-value app-view :sub-selection))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
-(defn- on-list-selection [project values]
+(defn- on-list-selection [app-view values]
   (when-not *programmatic-selection*
     (let [selection (loop [values values
                            res []]
@@ -655,18 +657,18 @@
                           (recur (rest values)
                                  res))
                         res))]
-      (project/sub-select! project selection))))
+      (app-view/sub-select! app-view selection))))
 
 (defn make-view!
-  ([project graph ^Parent parent ^ListView list ^AnchorPane view opts]
-    (let [view-id (make-view! project graph parent list view opts false)]
-      (reset! view-state {:project project :graph graph :parent parent :list list :view view :opts opts :view-id view-id})
+  ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts]
+    (let [view-id (make-view! app-view graph parent list view opts false)]
+      (reset! view-state {:app-view app-view :graph graph :parent parent :list list :view view :opts opts :view-id view-id})
       view-id))
-  ([project graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
+  ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
                       (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{}]
-                                                       controller [CurveController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
-                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
+                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        background background/Gradient
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
                                                        grid       curve-grid/Grid
@@ -684,18 +686,18 @@
                                                 (g/connect background :_node-id view-id :background-id)
                                                 (g/connect background :renderable view-id :aux-renderables)
 
-                                                (g/connect project :selected-node-properties view-id :selected-node-properties)
-                                                (g/connect project :sub-selection view-id :sub-selection)
+                                                (g/connect app-view :selected-node-properties view-id :selected-node-properties)
+                                                (g/connect app-view :sub-selection view-id :sub-selection)
 
                                                 (g/connect view-id :curve-handle controller :curve-handle)
-                                                (g/connect project :sub-selection controller :sub-selection)
+                                                (g/connect app-view :sub-selection controller :sub-selection)
                                                 (g/connect controller :input-handler view-id :input-handlers)
 
                                                 (g/connect selection            :renderable                view-id          :tool-renderables)
                                                 (g/connect selection            :input-handler             view-id          :input-handlers)
                                                 (g/connect selection            :picking-rect              view-id          :picking-rect)
                                                 (g/connect view-id              :picking-selection         selection        :picking-selection)
-                                                (g/connect project              :sub-selection             selection        :selection)
+                                                (g/connect app-view             :sub-selection             selection        :selection)
 
                                                 (g/connect camera :camera rulers :camera)
                                                 (g/connect rulers :renderables view-id :aux-renderables)
@@ -703,7 +705,7 @@
                                                 (g/connect view-id :cursor-pos rulers :cursor-pos))))]
       (when parent
         (let [^Node pane (make-gl-pane node-id view opts)]
-          (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. project))
+          (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
           (ui/fill-control pane)
           (ui/children! view [pane])
           (let [converter (proxy [StringConverter] []
@@ -721,7 +723,7 @@
                                                             (g/update-property! node-id :hidden-curves disj kw)
                                                             (g/update-property! node-id :hidden-curves conj kw)))))))))]
             (let [items (ui/selection list)]
-              (ui/observe-list list items (fn [_ values] (on-list-selection project values))))
+              (ui/observe-list list items (fn [_ values] (on-list-selection app-view values))))
             (doto (.getSelectionModel list)
               (.setSelectionMode SelectionMode/MULTIPLE))
             (.setCellFactory list
@@ -738,10 +740,10 @@
 
 (defn- reload-curve-view []
   (when @view-state
-    (let [{:keys [project graph ^Parent parent ^ListView list ^AnchorPane view opts view-id]} @view-state]
+    (let [{:keys [app-view graph ^Parent parent ^ListView list ^AnchorPane view opts view-id]} @view-state]
       (ui/run-now
         (destroy-view! parent view view-id list)
-        (make-view! project graph parent list view opts true)))))
+        (make-view! app-view graph parent list view opts true)))))
 
 (reload-curve-view)
 

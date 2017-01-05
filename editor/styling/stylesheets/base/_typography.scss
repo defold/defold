@@ -1,0 +1,22 @@
+@font-face {
+  font-family: 'Open Sans';
+  src: url("OpenSans-Regular.ttf"); }
+@font-face {
+  font-family: 'Source Sans Pro';
+  src: url("source-sans-pro.semibold.ttf");
+}
+/* Dejavu Sans Mono */
+@font-face {
+  font-family: 'Dejavu Sans Mono Book';
+  src: url("DejaVuSansMono.ttf"); }
+
+@font-face {
+  font-family: 'Dejavu Sans Mono Oblique';
+  src: url("DejaVuSansMono-Oblique.ttf"); }
+
+@font-face {
+  font-family: 'Dejavu Sans Mono Bold';
+  src: url("DejaVuSansMono-Bold.ttf"); }
+
+$default-font: 'Source Sans Pro';
+$default-font-size: 12px;

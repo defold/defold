@@ -7,7 +7,9 @@
             [editor.camera-editor :as camera]
             [editor.changes-view :as changes-view]
             [editor.code-view :as code-view]
+            [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
+            [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
             [editor.console :as console]
             [editor.core :as core]
@@ -27,9 +29,9 @@
             [editor.hot-reload :as hot-reload]
             [editor.image :as image]
             [editor.json :as json]
+            [editor.label :as label]
             [editor.login :as login]
             [editor.material :as material]
-            [editor.mesh :as mesh]
             [editor.model :as model]
             [editor.outline-view :as outline-view]
             [editor.particlefx :as particlefx]
@@ -91,7 +93,9 @@
       (concat
         (atlas/register-resource-types workspace)
         (camera/register-resource-types workspace)
+        (collada-scene/register-resource-types workspace)
         (collection/register-resource-types workspace)
+        (collection-proxy/register-resource-types workspace)
         (collision-object/register-resource-types workspace)
         (cubemap/register-resource-types workspace)
         (display-profiles/register-resource-types workspace)
@@ -102,8 +106,8 @@
         (gui/register-resource-types workspace)
         (image/register-resource-types workspace)
         (json/register-resource-types workspace)
+        (label/register-resource-types workspace)
         (material/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
         (model/register-resource-types workspace)
         (particlefx/register-resource-types workspace)
         (protobuf-types/register-resource-types workspace)
@@ -134,17 +138,20 @@
                           (:focused? new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
-                     (future
-                       (ui/with-disabled-ui
-                         (ui/with-progress [render-fn ui/default-render-progress!]
-                           (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
+                     (let [{:keys [^Stage stage render-progress-fn]} (dialogs/make-progress-dialog "Reloading modified resources" "")]
+                       (ui/run-later
+                         (try
+                           (ui/with-progress [render-fn render-progress-fn]
+                             (editor.workspace/resource-sync! workspace true [] render-fn))
+                           (finally
+                             (.close stage)))))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes editor-tabs]
-  (doseq [resource (:removed changes)]
-    (app-view/remove-resource-tab editor-tabs resource)))
+(defn- handle-resource-changes! [changes changes-view editor-tabs]
+  (ui/run-later
+    (changes-view/refresh! changes-view)))
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -175,39 +182,38 @@
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
-          properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
-                                                                 (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))
+          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs prefs)
+          outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
+          properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
-                                                                         (fn [resource node-id]
+                                                                         (fn [resource node-id opts]
                                                                            (app-view/open-resource app-view
                                                                                                    (g/node-value project :workspace)
                                                                                                    project
-                                                                                                   resource)
-                                                                           (project/select! project node-id)))
+                                                                                                   resource
+                                                                                                   opts)
+                                                                           (app-view/select! app-view node-id)))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
-          curve-view           (curve-view/make-view! project *view-graph*
+          curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ changes _]
-                                                      (handle-resource-changes! changes editor-tabs))))
+                                                      (handle-resource-changes! changes changes-view editor-tabs))))
 
       (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
                               (or (not (workspace/version-on-disk-outdated? workspace))
                                   (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))))
-    
+
       (ui/on-closed! stage (fn [_]
                              (app-view/store-window-dimensions stage prefs)
                              (app-view/store-split-positions! stage prefs)
@@ -232,16 +238,21 @@
                          :main-stage        stage
                          :asset-browser     asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
-        (ui/context! root :global context-env assets dynamics)
-        (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
+        (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
+        (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
-          (g/connect project :selected-node-ids outline-view :selection)
-          (for [label [:active-resource :active-outline :open-resources]]
+          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+            (g/connect project label app-view label))
+          (g/connect project :_node-id app-view :project-id)
+          (g/connect app-view :selected-node-ids outline-view :selection)
+          (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
-          (for [view [outline-view asset-browser]]
-            (g/update-property app-view :auto-pulls conj [view :tree-view]))
-          (g/update-property app-view :auto-pulls conj [properties-view :pane])))
+          (let [auto-pulls [[properties-view :pane]
+                            [app-view :refresh-tab-pane]
+                            [outline-view :tree-view]
+                            [asset-browser :tree-view]]]
+            (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
@@ -251,7 +262,8 @@
             prefs (g/node-value changes-view :prefs)]
         (when (sync/flow-in-progress? git)
           (ui/run-later
-            (sync/open-sync-dialog (sync/resume-flow git prefs))))))
+            (sync/open-sync-dialog (sync/resume-flow git prefs))
+            (workspace/resource-sync! workspace)))))
 
     (reset! the-root root)
     root))
