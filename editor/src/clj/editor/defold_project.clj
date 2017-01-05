@@ -180,7 +180,6 @@
                 ; to the type used by the existing file.
                 (if (and textual?
                          (resource/exists? resource)
-                         (satisfies? io/IOFactory resource)
                          (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
                   (spit resource (text-util/lf->crlf content))
                   (spit resource content))))

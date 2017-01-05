@@ -3,7 +3,8 @@
             [editor.code :as code]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.text-util :as text-util])
   (:import  [com.sun.javafx.tk Toolkit]
             [javafx.stage Stage]
             [javafx.scene.input Clipboard KeyEvent KeyCode MouseEvent]))
@@ -362,7 +363,7 @@
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer clipboard]
     (when-let [clipboard-text (text clipboard)]
-      (let [clipboard-text (code/lf-normalize-line-endings clipboard-text)
+      (let [clipboard-text (text-util/crlf->lf clipboard-text)
             caret (caret source-viewer)]
         (if (pos? (selection-length source-viewer))
           (replace-text-selection source-viewer clipboard-text)
