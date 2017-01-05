@@ -22,7 +22,7 @@ def build(bld):
     obj.find_sources_in_dirs('materials')
 
     builtins = bld.new_task_gen(features='barchive',
-                                source_root='test',
+                                source_root='default/content',
                                 resource_name='builtins',
                                 use_compression=True)
 

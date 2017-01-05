@@ -247,7 +247,7 @@ public class ArchiveBuilder {
             if (args[i].equals("-c")) {
                 doCompress = true;
             } else {
-                File currentInput = new File(dirpathRoot, args[i]);
+                File currentInput = new File(args[i]);
                 if (!currentInput.isFile()) {
                     printUsageAndTerminate("file does not exist: " + currentInput.getAbsolutePath());
                 }
@@ -277,7 +277,7 @@ public class ArchiveBuilder {
         ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
         System.out.println("Adding " + Integer.toString(inputs.size()) + " entries to archive ...");
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.getAbsolutePath(), manifestBuilder);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
         for (File currentInput : inputs) {
             archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());

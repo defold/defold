@@ -25,7 +25,7 @@ def build(bld):
     sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script']]
 
     archive = bld.new_task_gen(features='barchive',
-                               source_root='test',
+                               source_root='default/src/test',
                                resource_name='resources',
                                use_compression=False,
                                source=' '.join(sources))
@@ -33,7 +33,7 @@ def build(bld):
     bld.add_group()
 
     archive_compressed = bld.new_task_gen(features='barchive',
-                               source_root='test',
+                               source_root='default/src/test',
                                resource_name='resources_compressed',
                                use_compression=True,
                                source=' '.join(sources))
@@ -41,7 +41,7 @@ def build(bld):
     bld.add_group()
 
     archive_pb = bld.new_task_gen(features='barchive',
-                               source_root='test',
+                               source_root='default/src/test',
                                resource_name='resources_pb',
                                use_compression=False,
                                source=bld.path.ant_glob('*.*_pb'))
@@ -61,7 +61,7 @@ def build(bld):
 
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src',
-                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA LIVEUPDATE',
                                              uselib_local = 'resource',
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',
