@@ -178,7 +178,6 @@
 
 (g/defnk produce-save-data [_node-id resource pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str Label$LabelDesc pb-msg)})
 
 (g/defnk produce-scene
@@ -342,6 +341,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "label"
                                     :node-type LabelNode
                                     :load-fn load-label

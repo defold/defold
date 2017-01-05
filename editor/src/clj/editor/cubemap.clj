@@ -83,7 +83,6 @@
                    :front front
                    :back back}]
     {:resource resource
-     :textual? true
      :content (protobuf/map->str Graphics$Cubemap proto-msg)}))
 
 (g/defnk produce-scene
@@ -132,6 +131,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "cubemap"
                                     :label "Cubemap"
                                     :node-type CubemapNode

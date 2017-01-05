@@ -47,7 +47,6 @@
 
 (g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str Spine$SpineSceneDesc
               {:spine-json (resource/resource->proj-path spine-json-resource)
                :atlas (resource/resource->proj-path atlas-resource)
@@ -685,7 +684,6 @@
 
 (g/defnk produce-model-save-data [resource model-pb]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str Spine$SpineModelDesc model-pb)})
 
 (defn- build-spine-model [self basis resource dep-resources user-data]
@@ -790,6 +788,7 @@
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
+                                      :textual? true
                                       :ext "spinescene"
                                       :build-ext "rigscenec"
                                       :label "Spine Scene"
@@ -799,14 +798,15 @@
                                       :view-types [:scene :text]
                                       :view-opts {:scene {:grid true}})
     (workspace/register-resource-type workspace
-                                     :ext "spinemodel"
-                                     :label "Spine Model"
-                                     :node-type SpineModelNode
-                                     :load-fn load-spine-model
-                                     :icon spine-model-icon
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}}
-                                     :tags #{:component})))
+                                      :textual? true
+                                      :ext "spinemodel"
+                                      :label "Spine Model"
+                                      :node-type SpineModelNode
+                                      :load-fn load-spine-model
+                                      :icon spine-model-icon
+                                      :view-types [:scene :text]
+                                      :view-opts {:scene {:grid true}}
+                                      :tags #{:component})))
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))

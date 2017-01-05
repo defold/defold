@@ -87,7 +87,6 @@
 (g/defnk produce-save-data [resource pb]
   (let [pb (dissoc pb :convex-hull-points)]
     {:resource resource
-     :textual? true
      :content (protobuf/map->str Tile$TileSet pb)}))
 
 (defn- build-texture [self basis resource dep-resources user-data]
@@ -889,6 +888,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext ["tilesource" "tileset"]
                                     :label "Tile Source"
                                     :build-ext "texturesetc"

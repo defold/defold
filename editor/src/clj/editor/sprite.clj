@@ -176,7 +176,6 @@
 
 (g/defnk produce-save-data [_node-id resource image default-animation material blend-mode]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str Sprite$SpriteDesc
               {:tile-set (resource/resource->proj-path image)
                :default-animation default-animation
@@ -306,6 +305,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "sprite"
                                     :node-type SpriteNode
                                     :load-fn load-sprite

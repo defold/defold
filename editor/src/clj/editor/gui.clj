@@ -1200,7 +1200,6 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str (:pb-class pb-def) pb-msg)})
 
 (defn- build-pb [self basis resource dep-resources user-data]
@@ -1740,16 +1739,17 @@
         exts (if (vector? ext) ext [ext])]
     (for [ext exts]
       (workspace/register-resource-type workspace
-                                     :ext ext
-                                     :label (:label def)
-                                     :build-ext (:build-ext def)
-                                     :node-type GuiSceneNode
-                                     :load-fn load-gui-scene
-                                     :icon (:icon def)
-                                     :tags (:tags def)
-                                     :template (:template def)
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}}))))
+                                        :textual? true
+                                        :ext ext
+                                        :label (:label def)
+                                        :build-ext (:build-ext def)
+                                        :node-type GuiSceneNode
+                                        :load-fn load-gui-scene
+                                        :icon (:icon def)
+                                        :tags (:tags def)
+                                        :template (:template def)
+                                        :view-types [:scene :text]
+                                        :view-opts {:scene {:grid true}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))

@@ -39,7 +39,6 @@
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
-   :textual? true
    :content (protobuf/map->str GameSystem$CollectionProxyDesc pb-msg)})
 
 (defn build-collection-proxy
@@ -101,6 +100,7 @@
 (defn register-resource-types
   [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "collectionproxy"
                                     :node-type CollectionProxyNode
                                     :load-fn load-collection-proxy
