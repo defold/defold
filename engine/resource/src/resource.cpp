@@ -122,11 +122,7 @@ struct SResourceFactory
 
     // Resource manifest
     Manifest*                                    m_Manifest;
-
-    // Resource archive
-    dmResourceArchive::HArchive                  m_Archive;
     void*                                        m_ArchiveMountInfo;
-    void*                                        m_ArchiveMountInfo2;
 
     // Shared resources
     uint32_t                                    m_NonSharedCount; // a running number, helping id the potentially non shared assets
@@ -251,7 +247,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     dmStrlCat(archiveIndexPath, "arci", DMPATH_MAX_PATH);
 
     dmLogInfo("Archive Index filepath: '%s'", archiveIndexPath);
-    Result result = MountArchiveInternal(archiveIndexPath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo2);
+    Result result = MountArchiveInternal(archiveIndexPath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
     return result;
 }
 
@@ -449,7 +445,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         factory->m_BuiltinsManifest = new dmLiveUpdateDDF::ManifestFile;
         dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest);
-        dmResourceArchive::WrapArchiveBuffer2(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, &factory->m_BuiltinsArchiveContainer);
+        dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, &factory->m_BuiltinsArchiveContainer);
     }
 
 
@@ -471,10 +467,6 @@ void DeleteFactory(HFactory factory)
     {
         dmHttpCache::Close(factory->m_HttpCache);
     }
-    if (factory->m_Archive)
-    {
-        UnmountArchiveInternal(factory->m_Archive, factory->m_ArchiveMountInfo);
-    }
     if (factory->m_LoadMutex)
     {
         dmMutex::Delete(factory->m_LoadMutex);
@@ -489,7 +481,7 @@ void DeleteFactory(HFactory factory)
 
         if (factory->m_Manifest->m_ArchiveIndex)
         {
-            UnmountArchiveInternal(factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo2);
+            UnmountArchiveInternal(factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
         }
         delete factory->m_Manifest;
     }
@@ -591,7 +583,7 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
         if (h == path_hash)
         {
             dmResourceArchive::EntryData ed;
-            dmResourceArchive::Result res = dmResourceArchive::FindEntry2(archiveIndex, entries[mid].m_Hash.m_Data.m_Data, &ed);
+            dmResourceArchive::Result res = dmResourceArchive::FindEntry(archiveIndex, entries[mid].m_Hash.m_Data.m_Data, &ed);
             if (res == dmResourceArchive::RESULT_OK)
             {
                 uint32_t file_size = ed.m_ResourceSize;
@@ -601,7 +593,7 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
                 }
 
                 buffer->SetSize(0);
-                dmResourceArchive::Read2(archiveIndex, &ed, buffer->Begin());
+                dmResourceArchive::Read(archiveIndex, &ed, buffer->Begin());
                 buffer->SetSize(file_size);
                 *resource_size = file_size;
 
@@ -628,35 +620,6 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
     }
 
     return RESULT_RESOURCE_NOT_FOUND;
-}
-
-// Assumes m_LoadMutex is already held
-static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive archive, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
-{
-    dmResourceArchive::EntryInfo entry_info;
-    dmResourceArchive::Result r = dmResourceArchive::FindEntry(archive, original_name, &entry_info);
-    if (r == dmResourceArchive::RESULT_OK)
-    {
-        uint32_t file_size = entry_info.m_Size;
-        if (buffer->Capacity() < file_size) {
-            buffer->SetCapacity(file_size);
-        }
-
-        buffer->SetSize(0);
-        dmResourceArchive::Read(archive, &entry_info, buffer->Begin());
-        buffer->SetSize(file_size);
-        *resource_size = file_size;
-
-        return RESULT_OK;
-    }
-    else if (r == dmResourceArchive::RESULT_NOT_FOUND)
-    {
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
-    else
-    {
-        return RESULT_IO_ERROR;
-    }
 }
 
 // Assumes m_LoadMutex is already held
@@ -1534,7 +1497,6 @@ void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallba
         }
     }
 }
-
 
 // If the path ends with ":", the path is not shared, i.e. you can later update to a unique resource
 bool IsPathTagged(const char* name)

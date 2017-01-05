@@ -30,64 +30,6 @@ namespace dmResourceArchive
         ENTRY_FLAG_ENCRYPTED = 1 << 0,
     };
 
-    struct Entry
-    {
-        uint32_t m_NameOffset;
-        uint32_t m_ResourceOffset;
-        uint32_t m_ResourceSize;
-        // 0xFFFFFFFF if uncompressed
-        uint32_t m_ResourceCompressedSize;
-        uint32_t m_Flags;
-    };
-
-    struct Meta
-    {
-        char*   m_StringPool;
-        Entry*  m_Entries;
-        FILE*   m_File;
-
-        Meta()
-        {
-            m_StringPool = 0;
-            m_Entries = 0;
-            m_File = 0;
-        }
-
-        ~Meta()
-        {
-            if (m_StringPool)
-            {
-                delete[] m_StringPool;
-            }
-
-            if (m_Entries)
-            {
-                delete[] m_Entries;
-            }
-
-            if (m_File)
-            {
-                fclose(m_File);
-            }
-        }
-
-    };
-
-    struct Archive
-    {
-        uint32_t m_Version;
-        uint32_t m_Pad;
-        union
-        {
-            uint64_t m_Userdata;
-            Meta*    m_Meta;
-        };
-        uint32_t m_StringPoolOffset;
-        uint32_t m_StringPoolSize;
-        uint32_t m_EntryCount;
-        uint32_t m_FirstEntryOffset;
-    };
-
     struct ArchiveIndex
     {
         ArchiveIndex()
@@ -121,7 +63,7 @@ namespace dmResourceArchive
         uint8_t* m_ResourceData;
     };
 
-    Result WrapArchiveBuffer2(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndexContainer* archive)
+    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
         (*archive)->m_IsMemMapped = true;
@@ -133,19 +75,6 @@ namespace dmResourceArchive
         }
         (*archive)->m_ResourceData = (uint8_t*)resource_data;
         (*archive)->m_ArchiveIndex = a;
-        return RESULT_OK;
-    }
-
-    Result WrapArchiveBuffer(const void* buffer, uint32_t buffer_size, HArchive* archive)
-    {
-        Archive* a = (Archive*) buffer;
-        uint32_t version = htonl(a->m_Version);
-        if (version != VERSION)
-        {
-            return RESULT_VERSION_MISMATCH;
-        }
-
-        *archive = a;
         return RESULT_OK;
     }
 
@@ -167,7 +96,7 @@ namespace dmResourceArchive
         }
     }
 
-    Result LoadArchive2(const char* path_index, HArchiveIndexContainer* archive)
+    Result LoadArchive(const char* path_index, HArchiveIndexContainer* archive)
     {
         uint32_t filename_count = 0;
         while (true)
@@ -257,71 +186,7 @@ namespace dmResourceArchive
         return r;
     }
 
-#define READ_AND_BAIL(p, n) \
-        if (fread(p, 1, n, f) != n)\
-        {\
-            r = RESULT_IO_ERROR;\
-            goto bail;\
-        }\
-
-    Result LoadArchive(const char* file_name, HArchive* archive)
-    {
-        *archive = 0;
-
-        FILE* f = fopen(file_name, "rb");
-        Archive* a = 0;
-        Meta* meta = 0;
-        Result r = RESULT_OK;
-
-        if (!f)
-        {
-            r = RESULT_IO_ERROR;
-            goto bail;
-        }
-
-        a = new Archive;
-
-        READ_AND_BAIL(a, sizeof(Archive));
-        if (htonl(a->m_Version) != VERSION)
-        {
-            r = RESULT_VERSION_MISMATCH;
-            goto bail;
-        }
-
-        meta = new Meta();
-        fseek(f, htonl(a->m_StringPoolOffset), SEEK_SET);
-        meta->m_StringPool = new char[htonl(a->m_StringPoolSize)];
-        READ_AND_BAIL(meta->m_StringPool, htonl(a->m_StringPoolSize));
-
-        fseek(f, htonl(a->m_FirstEntryOffset), SEEK_SET);
-        meta->m_Entries = new Entry[htonl(a->m_EntryCount)];
-        READ_AND_BAIL(meta->m_Entries, sizeof(Entry) * htonl(a->m_EntryCount));
-
-        *archive = a;
-        meta->m_File = f;
-        a->m_Meta = meta;
-
-        return r;
-bail:
-       if (f)
-       {
-           fclose(f);
-       }
-
-       if (a)
-       {
-           delete a;
-       }
-
-       if (meta)
-       {
-           delete meta;
-       }
-
-       return r;
-    }
-
-    void Delete2(HArchiveIndexContainer archive)
+    void Delete(HArchiveIndexContainer archive)
     {
         // Only cleanup if not mem-mapped
         if(!archive->m_IsMemMapped)
@@ -338,16 +203,7 @@ bail:
         }
     }
 
-    void Delete(HArchive archive)
-    {
-        if (archive->m_Meta)
-        {
-            delete archive->m_Meta;
-            delete archive;
-        }
-    }
-
-    Result FindEntry2(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry)
+    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry)
     {
         uint32_t entry_count = htonl(archive->m_ArchiveIndex->m_EntryDataCount);
         uint32_t entry_offset = htonl(archive->m_ArchiveIndex->m_EntryDataOffset);
@@ -399,58 +255,7 @@ bail:
         return RESULT_NOT_FOUND;
     }
 
-    Result FindEntry(HArchive archive, const char* name, EntryInfo* entry)
-    {
-        uint32_t count = htonl(archive->m_EntryCount);
-        uint32_t first_offset = htonl(archive->m_FirstEntryOffset);
-        uint32_t string_pool_offset = htonl(archive->m_StringPoolOffset);
-
-        Entry* entries;
-        const char* string_pool;
-        if (archive->m_Meta)
-        {
-            Meta* meta = archive->m_Meta;
-            entries = meta->m_Entries;
-            string_pool = meta->m_StringPool;
-        }
-        else
-        {
-            entries = (Entry*) (first_offset + uintptr_t(archive));
-            string_pool = (const char*) (uintptr_t(archive) + uintptr_t(string_pool_offset));
-        }
-
-        int first = 0;
-        int last = (int)count-1;
-        while( first <= last )
-        {
-            int mid = first + (last - first) / 2;
-            Entry* file_entry = &entries[mid];
-            const char* entry_name = (const char*) (htonl(file_entry->m_NameOffset) + string_pool);
-            int cmp = strcmp(name, entry_name);
-            if( cmp == 0 )
-            {
-                entry->m_Name = name;
-                //entry->m_Resource = (const void*) (htonl(file_entry->m_ResourceOffset) + uintptr_t(archive));
-                entry->m_Offset = htonl(file_entry->m_ResourceOffset);
-                entry->m_Size = htonl(file_entry->m_ResourceSize);
-                entry->m_CompressedSize = htonl(file_entry->m_ResourceCompressedSize);
-                entry->m_Flags = htonl(file_entry->m_Flags);
-                entry->m_Entry = file_entry;
-                return RESULT_OK;
-            }
-            else if( cmp > 0 )
-            {
-                first = mid + 1;
-            }
-            else if( cmp < 0 )
-            {
-                last = mid - 1;
-            }
-        }
-        return RESULT_NOT_FOUND;
-    }
-
-    Result Read2(HArchiveIndexContainer archive, EntryData* entry_data, void* buffer)
+    Result Read(HArchiveIndexContainer archive, EntryData* entry_data, void* buffer)
     {
         uint32_t size = entry_data->m_ResourceSize;
         uint32_t compressed_size = entry_data->m_ResourceCompressedSize;
@@ -564,127 +369,8 @@ bail:
         
     }
 
-    Result Read(HArchive archive, EntryInfo* entry_info, void* buffer)
-    {
-        uint32_t size = entry_info->m_Size;
-        uint32_t compressed_size = entry_info->m_CompressedSize;
-
-        if (archive->m_Meta)
-        {
-            Meta* meta = archive->m_Meta;
-            fseek(meta->m_File, entry_info->m_Offset, SEEK_SET);
-
-            if (compressed_size != 0xFFFFFFFF)
-            {
-                // Entry is compressed
-                char *compressed_buf = (char *)malloc(compressed_size);
-                if(!compressed_buf)
-                {
-                    return RESULT_MEM_ERROR;
-                }
-
-                if (fread(compressed_buf, 1, compressed_size, meta->m_File) != compressed_size)
-                {
-                    free(compressed_buf);
-                    return RESULT_IO_ERROR;
-                }
-
-                if (entry_info->m_Flags & ENTRY_FLAG_ENCRYPTED)
-                {
-                    dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) compressed_buf, compressed_size, (const uint8_t*) KEY, strlen(KEY));
-                    if (cr != dmCrypt::RESULT_OK)
-                    {
-                        free(compressed_buf);
-                        return RESULT_UNKNOWN;
-                    }
-                }
-                dmLZ4::Result r = dmLZ4::DecompressBufferFast(compressed_buf, compressed_size, buffer, size);
-                free(compressed_buf);
-
-                if (r == dmLZ4::RESULT_OK)
-                {
-                    return RESULT_OK;
-                }
-                else
-                {
-                    return RESULT_OUTBUFFER_TOO_SMALL;
-                }
-            }
-            else
-            {
-                // Entry is uncompressed
-                if (fread(buffer, 1, size, meta->m_File) == size)
-                {
-                    dmCrypt::Result cr = dmCrypt::RESULT_OK;
-                    if (entry_info->m_Flags & ENTRY_FLAG_ENCRYPTED)
-                    {
-                        cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, size, (const uint8_t*) KEY, strlen(KEY));
-                    }
-                    return (cr == dmCrypt::RESULT_OK) ? RESULT_OK : RESULT_UNKNOWN;
-                }
-                else
-                {
-                    return RESULT_OUTBUFFER_TOO_SMALL;
-                }
-            }
-        }
-        else
-        {
-            void* r = (void*) (entry_info->m_Offset + uintptr_t(archive));
-            void* decrypted = r;
-
-            if (entry_info->m_Flags & ENTRY_FLAG_ENCRYPTED)
-            {
-                uint32_t bufsize = (compressed_size != 0xFFFFFFFF) ? compressed_size : size;
-                decrypted = (uint8_t*) malloc(bufsize);
-                memcpy(decrypted, r, bufsize);
-                dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) decrypted, bufsize, (const uint8_t*) KEY, strlen(KEY));
-                if (cr != dmCrypt::RESULT_OK)
-                {
-                    free(decrypted);
-                    return RESULT_UNKNOWN;
-                }
-            }
-
-            Result ret;
-            if (compressed_size != 0xFFFFFFFF)
-            {
-                // Entry is compressed
-                dmLZ4::Result result = dmLZ4::DecompressBufferFast(decrypted, compressed_size, buffer, size);
-                if (result == dmLZ4::RESULT_OK)
-                {
-                    ret = RESULT_OK;
-                }
-                else
-                {
-                    ret = RESULT_OUTBUFFER_TOO_SMALL;
-                }
-            }
-            else
-            {
-                // Entry is uncompressed
-                memcpy(buffer, decrypted, size);
-                ret = RESULT_OK;
-            }
-
-            // if needed aux buffer
-            if (decrypted != r)
-            {
-                free(decrypted);
-            }
-
-            return ret;
-        }
-    }
-
-    uint32_t GetEntryCount2(HArchiveIndexContainer archive)
+    uint32_t GetEntryCount(HArchiveIndexContainer archive)
     {
         return htonl(archive->m_ArchiveIndex->m_EntryDataCount);
     }
-
-    uint32_t GetEntryCount(HArchive archive)
-    {
-        return htonl(archive->m_EntryCount);
-    }
-
 }  // namespace dmResourceArchive

@@ -74,7 +74,7 @@ namespace dmResource
             dmLogInfo("Error when mapping data file, result: %i", r);
         }
 
-        dmResourceArchive::Result res = WrapArchiveBuffer2(index_map, index_length, data_map, archive);
+        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, data_map, archive);
         if (res != dmResourceArchive::RESULT_OK)
         {
             AAsset_close(index_asset);
@@ -85,37 +85,6 @@ namespace dmResource
         MountInfo2* info = new MountInfo2();
         info->index_asset = index_asset;
         info->data_asset = data_asset;
-        *mount_info = (void*)info;
-        return RESULT_OK;
-    }
-
-    Result MountArchiveInternal(const char* path, dmResourceArchive::HArchive* archive, void** mount_info)
-    {
-
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
-        if (!asset)
-        {
-            return RESULT_RESOURCE_NOT_FOUND;
-        }
-
-        const void *map = AAsset_getBuffer(asset);
-        if (!map)
-        {
-            AAsset_close(asset);
-            return RESULT_IO_ERROR;
-        }
-
-        uint32_t length = AAsset_getLength(asset);
-        dmResourceArchive::Result r = WrapArchiveBuffer(map, length, archive);
-        if (r != dmResourceArchive::RESULT_OK)
-        {
-            AAsset_close(asset);
-            return RESULT_IO_ERROR;
-        }
-
-        MountInfo* info = new MountInfo();
-        info->asset = asset;
         *mount_info = (void*)info;
         return RESULT_OK;
     }
@@ -140,15 +109,5 @@ namespace dmResource
         }
 
         delete info;
-    }
-
-    void UnmountArchiveInternal(dmResourceArchive::HArchive archive, void* mount_info)
-    {
-        MountInfo* info = (MountInfo*) mount_info;
-        if (info)
-        {
-            AAsset_close(info->asset);
-            delete info;
-        }
     }
 }
