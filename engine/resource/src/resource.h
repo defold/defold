@@ -6,6 +6,10 @@
 
 namespace dmResource
 {
+    const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
+
+    const static uint32_t MANIFEST_VERSION = 0x01;
+
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
@@ -446,6 +450,13 @@ namespace dmResource
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
+
+    Result LoadArchiveIndex(const char* manifestPath, HFactory factory);
+
+    Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
+
+    Result LoadManifest(const char* manifestPath, HFactory factory);
+
 }
 
 #endif // RESOURCE_H
