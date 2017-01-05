@@ -84,16 +84,16 @@
                  :test-fn (fn [pb targets]
                             (is (= "default" (:collision-group (first (:convex-hulls pb)))))
                             (is (< 0 (count (:convex-hull-points pb)))))}
-                {:label "Spine Scene"
-                 :path "/player/spineboy.spinescene"
-                 :pb-class Rig$RigScene
-                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                 :test-fn (fn [pb targets]
-                            (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+               {:label "Spine Scene"
+                :path "/player/spineboy.spinescene"
+                :pb-class Rig$RigScene
+                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                :test-fn (fn [pb targets]
+                           (is (some? (-> pb :texture-set (target targets) :texture)))
+                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc
@@ -147,7 +147,12 @@
                [{:label "Gui with spine scene"
                  :path "/gui/spine.gui"
                  :pb-class Gui$SceneDesc
-                 :resource-fields [[:spine-scenes :spine-scene]]}]})
+                 :resource-fields [[:spine-scenes :spine-scene]]
+                 :test-fn (fn [pb targets]
+                            (let [main-node (first (:nodes pb))
+                                  nodes (into #{} (map :id (:nodes pb)))]
+                              (is (= "default" (:spine-skin main-node)))
+                              (is (every? nodes ["spine" "spine/root"]))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
