@@ -117,7 +117,18 @@
       "eol\n" "eol\r\n"
       "eol\n" "eol\n"))
 
-  (testing "Mixed line endings."
+  (testing "Broken line endings"
+    (are [expected content]
+      (= expected (text-util/crlf->lf content))
+      "" "\r"
+      "" "\r\r"
+      "\n" "\r\r\n"
+      "\n" "\r\n\r"
+      "\n" "\r\r\r\n"
+      "\n" "\r\r\n\r"
+      "\n\n" "\r\r\n\n"))
+
+  (testing "Mixed line endings"
     (is (= (str "id: \"sprite\"\n"
                 "type: \"sprite\"\n"
                 "position: {\n"
@@ -146,7 +157,18 @@
       "eol\r\n" "eol\n"
       "eol\r\n" "eol\r\n"))
 
-  (testing "Mixed line endings."
+  (testing "Broken line endings"
+    (are [expected content]
+      (= expected (text-util/lf->crlf content))
+      "" "\r"
+      "" "\r\r"
+      "\r\n" "\r\r\n"
+      "\r\n" "\r\n\r"
+      "\r\n" "\r\r\r\n"
+      "\r\n" "\r\r\n\r"
+      "\r\n\r\n" "\r\r\n\n"))
+
+  (testing "Mixed line endings"
     (is (= (str "id: \"sprite\"\r\n"
                 "type: \"sprite\"\r\n"
                 "position: {\r\n"

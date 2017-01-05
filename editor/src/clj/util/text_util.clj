@@ -78,12 +78,16 @@
 
 (defn crlf->lf
   "Converts all CRLF line endings in the input string to LF.
+  Broken line endings such as CRCRLF will be converted into a single LF.
+  Rouge CR characters will be removed.
   Returns nil if the input is nil."
   [^String text]
-  (some-> text (string/replace #"\r\n" "\n")))
+  (some-> text (string/replace #"\r" "")))
 
 (defn lf->crlf
   "Converts all LF line endings in the input string to CRLF.
+  Broken line endings such as CRCRLF will be converted into a single CRLF.
+  Rouge CR characters will be removed.
   Returns nil if the input is nil."
   [^String text]
-  (some-> text (string/replace #"\r?\n" "\r\n")))
+  (some-> text (string/replace #"\r" "") (string/replace #"\n" "\r\n")))
