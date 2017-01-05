@@ -179,7 +179,6 @@ public class AsyncCopier {
 
                         Profiler.end(setPixels);
 
-                        gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, readTo.pbo);
                         gl.glUnmapBuffer(GL2.GL_PIXEL_PACK_BUFFER);
                         gl.glBindBuffer(GL2.GL_PIXEL_PACK_BUFFER, 0);
 
@@ -201,8 +200,7 @@ public class AsyncCopier {
                     } finally {
                         gl.getContext().release();
                     }
-                }
-                else {
+                } else {
                     logger.warn("makeCurrent() failed in endFrame/task");
                 }
 
