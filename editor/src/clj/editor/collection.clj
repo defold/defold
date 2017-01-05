@@ -57,7 +57,7 @@
   (let [proto-msg (-> proto-msg
                     (update :components strip-properties))]
     {:id id
-     :children child-ids
+     :children (sort child-ids)
      :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
      :position position
      :rotation rotation
@@ -66,7 +66,7 @@
 
 (defn- gen-ref-ddf [id child-ids position rotation scale path ddf-component-properties]
   {:id id
-   :children child-ids
+   :children (sort child-ids)
    :prototype (resource/resource->proj-path path)
    :position position
    :rotation rotation
