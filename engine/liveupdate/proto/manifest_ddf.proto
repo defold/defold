@@ -86,8 +86,9 @@ message ManifestHeader {
  */
 message ResourceEntry {
     required string             url = 1;
-    required HashDigest         hash = 2;
-    repeated HashDigest         dependants = 3;
+    required uint64             url_hash = 2;
+    required HashDigest         hash = 3;
+    repeated HashDigest         dependants = 4;
 }
 
 /*

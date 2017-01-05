@@ -12,8 +12,12 @@
 #include "../resource.h"
 #include "test/test_resource_ddf.h"
 
-extern unsigned char TEST_ARC[];
-extern uint32_t TEST_ARC_SIZE;
+extern unsigned char RESOURCES_ARCI[];
+extern uint32_t RESOURCES_ARCI_SIZE;
+extern unsigned char RESOURCES_ARCD[];
+extern uint32_t RESOURCES_ARCD_SIZE;
+extern unsigned char RESOURCES_DMANIFEST[];
+extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
 class ResourceTest : public ::testing::Test
 {
@@ -139,7 +143,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         m_Factory = dmResource::NewFactory(&params, GetParam());
-        ASSERT_NE((void*) 0, m_Factory);
+        ASSERT_NE((void*) 0, m_Factory); //
         m_ResourceName = "/test.cont";
 
         dmResource::Result e;
@@ -395,7 +399,7 @@ TEST_P(GetResourceTest, Loop)
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
-                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "arc:build/default/src/test/test_resource.arc"));
+                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/test_resource.dmanif")); //
 
 TEST_P(GetResourceTest, GetReference1)
 {
@@ -690,8 +694,15 @@ TEST(dmResource, Builtins)
 {
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
-    params.m_BuiltinsArchive = (const void*) TEST_ARC;
-    params.m_BuiltinsArchiveSize = TEST_ARC_SIZE;
+
+    params.m_ArchiveIndex.m_Data    = (const void*) RESOURCES_ARCI;
+    params.m_ArchiveIndex.m_Size    = RESOURCES_ARCI_SIZE;
+
+    params.m_ArchiveData.m_Data     = (const void*) RESOURCES_ARCD;
+    params.m_ArchiveData.m_Size     = RESOURCES_ARCD_SIZE;
+
+    params.m_ArchiveManifest.m_Data = (const void*) RESOURCES_DMANIFEST;
+    params.m_ArchiveManifest.m_Size = RESOURCES_DMANIFEST_SIZE;
 
     dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
     ASSERT_NE((void*) 0, factory);
@@ -699,13 +710,21 @@ TEST(dmResource, Builtins)
     dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, AdResourceDestroy, 0);
 
     void* resource;
-    const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
-    const char* data[] = { "file4_data", "file1_data", "file3_data", "file2_data" };
-    for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
+    const uint64_t path_hash[]  = { 0x1db7f0530911b1ce, 0x731d3cc48697dfe4, 0x8417331f14a42e4b, 0xb4870d43513879ba, 0xe1f97b41134ff4a6 };
+    const char* path_name[]     = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
+    const char* content[]       = {
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "file1_datafile1_datafile1_data",
+        "file3_data",
+        "file2_datafile2_datafile2_data"
+    };
+
+    for (uint32_t i = 0; i < (sizeof(path_name) / sizeof(path_name[0])); ++i)
     {
-        dmResource::Result r = dmResource::Get(factory, names[i], &resource);
-        ASSERT_EQ(dmResource::RESULT_OK, r);
-        ASSERT_TRUE(strncmp(data[i], (const char*) resource, strlen(data[i])) == 0);
+        dmResource::Result result = dmResource::Get(factory, path_name[i], &resource);
+        ASSERT_EQ(dmResource::RESULT_OK, result);
+        ASSERT_STRCASEEQ(content[i], (const char*) resource);
+
         dmResource::Release(factory, resource);
     }
 

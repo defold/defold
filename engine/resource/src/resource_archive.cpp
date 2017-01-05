@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "resource_archive.h"
 #include <dlib/lz4.h>
+#include <dlib/log.h>
 #include <dlib/crypt.h>
 #include <dlib/path.h>
 
@@ -21,7 +22,6 @@
 
 namespace dmResourceArchive
 {
-    const static uint32_t VERSION = 4;
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 
@@ -97,29 +97,42 @@ namespace dmResourceArchive
 
         uint32_t m_Version;
         uint32_t m_Pad;
-        uint64_t m_Userdata; // Used in runtime to distinguish between archive loaded from file or memory-mapped.
+        uint64_t m_Userdata;
         uint32_t m_EntryDataCount;
         uint32_t m_EntryDataOffset;
         uint32_t m_HashOffset;
         uint32_t m_HashLength;
+    };
 
+    struct ArchiveIndexContainer
+    {
+        ArchiveIndexContainer()
+        {
+            memset(this, 0, sizeof(ArchiveIndexContainer));
+        }
+
+        ArchiveIndex* m_ArchiveIndex; // this could be mem-mapped or loaded into memory from file
+        bool m_IsMemMapped;
+
+        /// Used if the archive is loaded from file
         uint8_t* m_Hashes;
         EntryData* m_Entries;
         FILE* m_FileResourceData;
+        uint8_t* m_ResourceData;
     };
 
-    Result WrapArchiveBuffer2(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndex* archive)
+    Result WrapArchiveBuffer2(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndexContainer* archive)
     {
+        *archive = new ArchiveIndexContainer;
+        (*archive)->m_IsMemMapped = true;
         ArchiveIndex* a = (ArchiveIndex*) index_buffer;
         uint32_t version = htonl(a->m_Version);
         if (version != VERSION)
         {
             return RESULT_VERSION_MISMATCH;
         }
-
-        a->m_Userdata = (uint64_t) resource_data;
-
-        *archive = a;
+        (*archive)->m_ResourceData = (uint8_t*)resource_data;
+        (*archive)->m_ArchiveIndex = a;
         return RESULT_OK;
     }
 
@@ -136,7 +149,7 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndex* archive)
+    void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndexContainer* archive)
     {
         if (index_file)
         {
@@ -154,7 +167,7 @@ namespace dmResourceArchive
         }
     }
 
-    Result LoadArchive2(const char* path_index, HArchiveIndex* archive)
+    Result LoadArchive2(const char* path_index, HArchiveIndexContainer* archive)
     {
         uint32_t filename_count = 0;
         while (true)
@@ -171,26 +184,32 @@ namespace dmResourceArchive
         uint32_t entry_count = 0, entry_offset = 0, hash_len = 0, hash_offset = 0, hash_total_size = 0, entries_total_size = 0;
         FILE* f_index = fopen(path_index, "rb");
         FILE* f_data = 0;
+
+        ArchiveIndexContainer* aic = 0;
         ArchiveIndex* ai = 0;
+
         Result r = RESULT_OK;
         *archive = 0;
 
         if (!f_index)
         {
-            CleanupResources(f_index, f_data, ai);
+            CleanupResources(f_index, f_data, aic);
             return RESULT_IO_ERROR;
         }
+
+        aic = new ArchiveIndexContainer;
+        aic->m_IsMemMapped = false;
 
         ai = new ArchiveIndex;
         if (fread(ai, 1, sizeof(ArchiveIndex), f_index) != sizeof(ArchiveIndex))
         {
-            CleanupResources(f_index, f_data, ai);
+            CleanupResources(f_index, f_data, aic);
             return RESULT_IO_ERROR;
         }
 
         if(htonl(ai->m_Version) != VERSION)
         {
-            CleanupResources(f_index, f_data, ai);
+            CleanupResources(f_index, f_data, aic);
             return RESULT_VERSION_MISMATCH;
         }
 
@@ -200,20 +219,20 @@ namespace dmResourceArchive
         hash_offset = htonl(ai->m_HashOffset);
 
         fseek(f_index, hash_offset, SEEK_SET);
-        ai->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
+        aic->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
         hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
-        if (fread(ai->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
+        if (fread(aic->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
         {
-            CleanupResources(f_index, f_data, ai);
+            CleanupResources(f_index, f_data, aic);
             return RESULT_IO_ERROR;
         }
 
         fseek(f_index, entry_offset, SEEK_SET);
-        ai->m_Entries = new EntryData[entry_count];
+        aic->m_Entries = new EntryData[entry_count];
         entries_total_size = entry_count * sizeof(EntryData);
-        if (fread(ai->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
+        if (fread(aic->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
         {
-            CleanupResources(f_index, f_data, ai);
+            CleanupResources(f_index, f_data, aic);
             return RESULT_IO_ERROR;
         }
 
@@ -227,12 +246,13 @@ namespace dmResourceArchive
 
         if (!f_data)
         {
-            CleanupResources(f_index, f_data, ai);
+            CleanupResources(f_index, f_data, aic);
             return RESULT_IO_ERROR;
         }
 
-        ai->m_FileResourceData = f_data;
-        *archive = ai;
+        aic->m_FileResourceData = f_data;
+        aic->m_ArchiveIndex = ai;
+        *archive = aic;
 
         return r;
     }
@@ -301,10 +321,10 @@ bail:
        return r;
     }
 
-    void Delete2(HArchiveIndex archive)
+    void Delete2(HArchiveIndexContainer archive)
     {
         // Only cleanup if not mem-mapped
-        if (archive->m_Userdata == FILE_LOADED_INDICATOR)
+        if(!archive->m_IsMemMapped)
         {
             delete[] archive->m_Entries;
             delete[] archive->m_Hashes;
@@ -313,6 +333,7 @@ bail:
             {
                 fclose(archive->m_FileResourceData);
             }
+            delete archive->m_ArchiveIndex;
             delete archive;
         }
     }
@@ -326,25 +347,25 @@ bail:
         }
     }
 
-    Result FindEntry2(HArchiveIndex archive, const uint8_t* hash, EntryData* entry)
+    Result FindEntry2(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry)
     {
-        uint32_t entry_count = htonl(archive->m_EntryDataCount);
-        uint32_t entry_offset = htonl(archive->m_EntryDataOffset);
-        uint32_t hash_offset = htonl(archive->m_HashOffset);
-        uint32_t hash_len = htonl(archive->m_HashLength);
+        uint32_t entry_count = htonl(archive->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t entry_offset = htonl(archive->m_ArchiveIndex->m_EntryDataOffset);
+        uint32_t hash_offset = htonl(archive->m_ArchiveIndex->m_HashOffset);
+        uint32_t hash_len = htonl(archive->m_ArchiveIndex->m_HashLength);
         uint8_t* hashes = 0;
         EntryData* entries = 0;
 
         // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-        if (archive->m_Userdata == FILE_LOADED_INDICATOR)
+        if (!archive->m_IsMemMapped)
         {
             hashes = archive->m_Hashes;
             entries = archive->m_Entries;
         }
         else
         {
-            hashes = (uint8_t*)(uintptr_t(archive) + hash_offset);
-            entries = (EntryData*)(uintptr_t(archive) + entry_offset);
+            hashes = (uint8_t*)(uintptr_t(archive->m_ArchiveIndex) + hash_offset);
+            entries = (EntryData*)(uintptr_t(archive->m_ArchiveIndex) + entry_offset);
         }
         
         // Search for hash with binary search (entries are sorted on hash)
@@ -429,12 +450,12 @@ bail:
         return RESULT_NOT_FOUND;
     }
 
-    Result Read2(HArchiveIndex archive, EntryData* entry_data, void* buffer)
+    Result Read2(HArchiveIndexContainer archive, EntryData* entry_data, void* buffer)
     {
         uint32_t size = entry_data->m_ResourceSize;
         uint32_t compressed_size = entry_data->m_ResourceCompressedSize;
         
-        if (archive->m_Userdata == FILE_LOADED_INDICATOR)
+        if (!archive->m_IsMemMapped)
         {
             fseek(archive->m_FileResourceData, entry_data->m_ResourceDataOffset, SEEK_SET);
             if (compressed_size != 0xFFFFFFFF) // resource is compressed
@@ -495,7 +516,7 @@ bail:
         {
             Result ret;
 
-            void* r = (void*) ((uintptr_t(archive->m_Userdata) + entry_data->m_ResourceDataOffset));
+            void* r = (void*) ((uintptr_t(archive->m_ResourceData) + entry_data->m_ResourceDataOffset));
             void* decrypted = r;
 
             if (entry_data->m_Flags & ENTRY_FLAG_ENCRYPTED)
@@ -656,9 +677,9 @@ bail:
         }
     }
 
-    uint32_t GetEntryCount2(HArchiveIndex archive)
+    uint32_t GetEntryCount2(HArchiveIndexContainer archive)
     {
-        return htonl(archive->m_EntryDataCount);
+        return htonl(archive->m_ArchiveIndex->m_EntryDataCount);
     }
 
     uint32_t GetEntryCount(HArchive archive)

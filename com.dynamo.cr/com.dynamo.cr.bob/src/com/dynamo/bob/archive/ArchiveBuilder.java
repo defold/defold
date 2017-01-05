@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.channels.ShutdownChannelGroupException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -17,8 +18,10 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.crypt.Crypt;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
+import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -125,13 +128,15 @@ public class ArchiveBuilder {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
 
-            // Compress data
-            byte[] compressed = this.compressResourceData(buffer);
-            if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                buffer = compressed;
-                entry.compressedSize = compressed.length;
-            } else {
-                entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
+            if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+                // Compress data
+                byte[] compressed = this.compressResourceData(buffer);
+                if (this.shouldUseCompressedResourceData(buffer, compressed)) {
+                    buffer = compressed;
+                    entry.compressedSize = compressed.length;
+                } else {
+                    entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
+                }
             }
 
             // Encrypt data
@@ -145,7 +150,7 @@ public class ArchiveBuilder {
             String normalisedPath = FilenameUtils.separatorsToUnix(entry.relName);
             manifestBuilder.addResourceEntry(normalisedPath, buffer);
 
-            // Calculate hash values for resource
+            // Calculate hash digest values for resource
             String hexDigest = null;
             try {
                 byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
@@ -207,41 +212,110 @@ public class ArchiveBuilder {
         }
     }
 
-    public static void main(String[] args) throws IOException {
-        if (args.length < 2) {
-            System.err.println("USAGE: ArchiveBuilder <ROOT> <(out) archive-index> <(out) archive-data> [-c] <FILE1> <FILE2>...");
+    private static void printUsageAndTerminate(String message) {
+        System.err.println("Usage: ArchiveBuilder <root> <output> [-c] <file> [<file> ...]\n");
+        System.err.println("  <root>            - directorypath to root of input files (<file>)");
+        System.err.println("  <output>          - filepath for output content.");
+        System.err.println("                      Three files (arci, arcd, dmanifest) will be generated.");
+        System.err.println("  <file>            - filepath relative to <root> of file to build.");
+        System.err.println("  -c                - Compress archive (default false).");
+        if (message != null) {
+            System.err.println("\nError: " + message);
         }
 
-        int firstFileArg = 3;
+        System.exit(1);
+    }
+
+    public static void main(String[] args) throws IOException, NoSuchAlgorithmException {
+        // Validate input
+        if (args.length < 3) {
+            printUsageAndTerminate("Too few arguments");
+        }
+
+        File dirpathRoot            = new File(args[0]);
+        File filepathArchiveIndex   = new File(args[1] + ".arci");
+        File filepathArchiveData    = new File(args[1] + ".arcd");
+        File filepathManifest       = new File(args[1] + ".dmanifest");
+        File filepathPublicKey      = new File(args[1] + ".public");
+        File filepathPrivateKey     = new File(args[1] + ".private");
+
+        if (!dirpathRoot.isDirectory()) {
+            printUsageAndTerminate("root does not exist: " + dirpathRoot.getAbsolutePath());
+        }
+
         boolean doCompress = false;
-        if(args.length > 3)
-        {
-            if("-c".equals(args[3])) {
+        List<File> inputs = new ArrayList<File>();
+        for (int i = 2; i < args.length; ++i) {
+            if (args[i].equals("-c")) {
                 doCompress = true;
-                firstFileArg = 4;
             } else {
-                doCompress = false;
-                firstFileArg = 3;
+                File currentInput = new File(args[i]);
+                if (!currentInput.isFile()) {
+                    printUsageAndTerminate("file does not exist: " + currentInput.getAbsolutePath());
+                }
+
+                inputs.add(currentInput);
             }
         }
 
-        ManifestBuilder manifestBuilder = new ManifestBuilder();
-        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
-        ArchiveBuilder ab = new ArchiveBuilder(args[0], manifestBuilder);
-        for (int i = firstFileArg; i < args.length; ++i) {
-            ab.add(args[i], doCompress);
+        if (inputs.isEmpty()) {
+            printUsageAndTerminate("There must be at least one file");
         }
 
-        RandomAccessFile archiveIndex = new RandomAccessFile(args[1], "rw");
+        // Create manifest and archive
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setProjectIdentifier("<anonymous project>");
+        manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+
+        System.out.println("Generating private key: " + filepathPrivateKey.getCanonicalPath());
+        System.out.println("Generating public key: " + filepathPublicKey.getCanonicalPath());
+        ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, filepathPrivateKey.getAbsolutePath(), filepathPublicKey.getAbsolutePath());
+        manifestBuilder.setPrivateKeyFilepath(filepathPrivateKey.getAbsolutePath());
+        manifestBuilder.setPublicKeyFilepath(filepathPublicKey.getAbsolutePath());
+
+        ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
+
+        System.out.println("Adding " + Integer.toString(inputs.size()) + " entries to archive ...");
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
+        for (File currentInput : inputs) {
+            archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
+            ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
+            rootNode.addChild(currentNode);
+        }
+
+        manifestBuilder.setDependencies(rootNode);
+
+        RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
+        RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");
         archiveIndex.setLength(0);
-        RandomAccessFile archiveData  = new RandomAccessFile(args[2], "rw");
         archiveData.setLength(0);
 
         Path resourcePackDirectory = Files.createTempDirectory("tmp.defold.resourcepack_");
-        ab.write(archiveIndex, archiveData, resourcePackDirectory, new ArrayList<String>());
+        FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
+        try {
+        	System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
+        	System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-        archiveIndex.close();
-        archiveData.close();
+        	List<String> excludedResources = new ArrayList<String>();
+        	archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
 
+            System.out.println("Writing " + filepathManifest.getCanonicalPath());
+            byte[] manifestFile = manifestBuilder.buildManifest();
+            outputStreamManifest.write(manifestFile);
+        } finally {
+        	FileUtils.deleteDirectory(resourcePackDirectory.toFile());
+        	try {
+	        	archiveIndex.close();
+	        	archiveData.close();
+	        	outputStreamManifest.close();
+        	} catch (IOException exception) {
+        		// Nothing to do, moving on ...
+        	}
+        }
+
+        System.out.println("Done.");
     }
 }
