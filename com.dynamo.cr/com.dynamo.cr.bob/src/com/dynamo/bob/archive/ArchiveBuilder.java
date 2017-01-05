@@ -128,13 +128,15 @@ public class ArchiveBuilder {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
 
-            // Compress data
-            byte[] compressed = this.compressResourceData(buffer);
-            if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                buffer = compressed;
-                entry.compressedSize = compressed.length;
-            } else {
-                entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
+            if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+                // Compress data
+                byte[] compressed = this.compressResourceData(buffer);
+                if (this.shouldUseCompressedResourceData(buffer, compressed)) {
+                    buffer = compressed;
+                    entry.compressedSize = compressed.length;
+                } else {
+                    entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
+                }
             }
 
             // Encrypt data
