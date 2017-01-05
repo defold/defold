@@ -117,6 +117,9 @@ struct SResourceFactory
     int                                          m_HttpStatus;
     Result                                       m_HttpFactoryResult;
 
+    dmLiveUpdateDDF::ManifestFile*               m_BuiltinsManifest;
+    dmResourceArchive::HArchiveIndexContainer    m_BuiltinsArchiveContainer;
+
     Manifest*                                    m_Manifest;
 
     // -----------------------------
@@ -189,6 +192,13 @@ void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
     params->m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
     params->m_BuiltinsArchive = 0;
     params->m_BuiltinsArchiveSize = 0;
+
+    params->m_ArchiveManifest.m_Data = 0;
+    params->m_ArchiveManifest.m_Size = 0;
+    params->m_ArchiveIndex.m_Data = 0;
+    params->m_ArchiveIndex.m_Size = 0;
+    params->m_ArchiveData.m_Data = 0;
+    params->m_ArchiveData.m_Size = 0;
 }
 
 static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
@@ -240,7 +250,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     char archiveIndexPath[DMPATH_MAX_PATH];
     archiveIndexPath[0] = 0x0;
 
-    dmStrlCpy(archiveIndexPath, manifestPath, strlen(manifestPath) - extensionLength);
+    dmStrlCpy(archiveIndexPath, manifestPath, strlen(manifestPath) - extensionLength+1);
     dmStrlCat(archiveIndexPath, "arci", DMPATH_MAX_PATH);
 
     dmLogInfo("Archive Index filepath: '%s'", archiveIndexPath);
@@ -248,7 +258,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     return result;
 }
 
-Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile* manifestFile)
+Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile)
 {
     // Read from manifest resource
     dmDDF::Result result = dmDDF::LoadMessage(manifest, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifestFile);
@@ -278,7 +288,7 @@ Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::Manifest
 
 Result LoadManifest(const char* manifestPath, HFactory factory)
 {
-    dmLogInfo("Loading the manifest! path: %s, strlen(path): %lu", manifestPath, strlen(manifestPath));
+    dmLogInfo("Loading thee manifest! path: %s, strlen(path): %lu", manifestPath, strlen(manifestPath));
 
     uint32_t manifestLength = 0;
     uint8_t* manifestBuffer = 0x0;
@@ -295,7 +305,7 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifest(manifestBuffer, manifestLength, factory);
+    Result result = ParseManifest(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
     if (result == RESULT_OK)
     {
         result = LoadArchiveIndex(manifestPath, factory);
@@ -394,12 +404,12 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
         //dmLogInfo("path: %s, location: %s", factory->m_UriParts.m_Path, factory->m_UriParts.m_Location);
 
-        Result r = LoadManifest(factory->m_UriParts.m_Path, factory->m_UriParts.m_Location, factory);
+        Result r = LoadManifest(factory->m_UriParts.m_Path, factory);
         if (r != RESULT_OK)
         {
             dmLogError("Unable to load manifest: %s", factory->m_UriParts.m_Path);
             dmMessage::DeleteSocket(socket);
-            delete factory->m_Manifest->m_DDF;
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
             delete factory->m_Manifest;
             delete factory;
             return 0;
@@ -445,6 +455,25 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         factory->m_BuiltinsArchive = 0;
     //}
 
+    if (params->m_ArchiveManifest.m_Size)
+    {
+        dmLogInfo("Wrapping builtin archive index buffer!");
+        factory->m_BuiltinsManifest = new dmLiveUpdateDDF::ManifestFile;
+        dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest);
+        dmResourceArchive::WrapArchiveBuffer2(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, &factory->m_BuiltinsArchiveContainer);
+
+        // DEBUG
+        uint32_t entry_count = factory->m_BuiltinsManifest->m_Data.m_Resources.m_Count;
+        dmLiveUpdateDDF::ResourceEntry* entries = factory->m_BuiltinsManifest->m_Data.m_Resources.m_Data;
+        dmLogInfo("Print builtins, entry_count = %u", entry_count);
+        for (int i = 0; i < entry_count; ++i)
+        {
+            dmLogInfo("hash: %llu", entries[i].m_UrlHash);
+            dmLogInfo("path: %s", entries[i].m_Url);
+        }
+    }
+
+
     factory->m_LoadMutex = dmMutex::New();
     return factory;
 }
@@ -484,6 +513,10 @@ void DeleteFactory(HFactory factory)
             UnmountArchiveInternal(factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo2);
         }
         delete factory->m_Manifest;
+    }
+    if (factory->m_BuiltinsManifest)
+    {
+        dmDDF::FreeMessage(factory->m_BuiltinsManifest);
     }
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
@@ -560,16 +593,16 @@ Result RegisterType(HFactory factory,
     return RESULT_OK;
 }
 
-Result LoadFromManifest(HFactory factory, const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
+Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmResourceArchive::HArchiveIndexContainer archiveIndex, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
 {
     // Get resource hash from path_hash
-    dmLogInfo("Loading from manifest! path: %s", path);
-    uint32_t entry_count = manifest->m_DDF->m_Data.m_Resources.m_Count;
-    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDF->m_Data.m_Resources.m_Data;
+    uint32_t entry_count = manifest->m_Data.m_Resources.m_Count;
+    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_Data.m_Resources.m_Data;
 
     uint32_t first = 0;
     uint32_t last = entry_count-1;
     uint64_t path_hash = dmHashString64(path);
+    dmLogInfo("Loading from manifest! path: %s, path_hash = %llu", path, path_hash);
 
     while (first <= last)
     {
@@ -579,7 +612,7 @@ Result LoadFromManifest(HFactory factory, const Manifest* manifest, const char* 
         if (h == path_hash)
         {
             dmResourceArchive::EntryData ed;
-            dmResourceArchive::Result res = dmResourceArchive::FindEntry2(manifest->m_ArchiveIndex, entries[mid].m_Hash.m_Data.m_Data, &ed);
+            dmResourceArchive::Result res = dmResourceArchive::FindEntry2(archiveIndex, entries[mid].m_Hash.m_Data.m_Data, &ed);
             if (res == dmResourceArchive::RESULT_OK)
             {
                 uint32_t file_size = ed.m_ResourceSize;
@@ -589,7 +622,7 @@ Result LoadFromManifest(HFactory factory, const Manifest* manifest, const char* 
                 }
 
                 buffer->SetSize(0);
-                dmResourceArchive::Read2(manifest->m_ArchiveIndex, &ed, buffer->Begin());
+                dmResourceArchive::Read2(archiveIndex, &ed, buffer->Begin());
                 buffer->SetSize(file_size);
                 *resource_size = file_size;
 
@@ -660,6 +693,15 @@ Result DoLoadResourceLocked(HFactory factory, const char* path, const char* orig
     //     }
     // }
 
+    if (factory->m_BuiltinsManifest)
+    {
+        dmLogInfo("Loading from builtins manifest!, path: %s", path);
+        if (LoadFromManifest(factory->m_BuiltinsManifest, factory->m_BuiltinsArchiveContainer, path, resource_size, buffer))
+        {
+            return RESULT_OK;
+        }
+    }
+
     // NOTE: No else if here. Fall through
     if (factory->m_HttpClient)
     {
@@ -711,7 +753,7 @@ Result DoLoadResourceLocked(HFactory factory, const char* path, const char* orig
     }*/
     else if (factory->m_Manifest)
     {
-        Result r = LoadFromManifest(factory, factory->m_Manifest, original_name, resource_size, buffer);
+        Result r = LoadFromManifest(factory->m_Manifest->m_DDF, factory->m_Manifest->m_ArchiveIndex, original_name, resource_size, buffer);
         return r;
     }
     else
@@ -821,6 +863,10 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
                 dmLogWarning("Resource not found: %s", name);
             }
             return result;
+        }
+        else
+        {
+            dmLogInfo("OKAAAJ!");
         }
 
         assert(buffer == factory->m_Buffer.Begin());
