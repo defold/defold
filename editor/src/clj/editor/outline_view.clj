@@ -2,6 +2,7 @@
   (:require
    [dynamo.graph :as g]
    [editor.app-view :as app-view]
+   [editor.error-reporting :as error-reporting]
    [editor.handler :as handler]
    [editor.jfx :as jfx]
    [editor.outline :as outline]
@@ -411,7 +412,7 @@
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
       (.setOnDragOver (ui/event-handler e (drag-over proj-graph outline-view e)))
-      (.setOnDragDropped (ui/event-handler e (drag-dropped proj-graph app-view outline-view e)))
+      (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped proj-graph app-view outline-view e))))
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/bind-double-click! :open)
