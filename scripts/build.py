@@ -604,8 +604,10 @@ class Configuration(object):
                 cwd = join(self.defold_root, 'engine/%s' % (lib))
                 pf_arg = "--platform=%s" % (platform)
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s --skip-tests %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_codesign, disable_ccache, eclipse)
-                skip_build_tests = [] if '--skip-build-tests' in self.waf_options else ['--skip-build-tests']
-                self.exec_env_command(cmd.split() + waf_options + skip_build_tests, cwd = cwd)
+                skip_build_tests = []
+                if '--skip-build-tests' not in self.waf_options:
+                    skip_build_tests.append('--skip-build-tests')
+                self.exec_env_command(cmd.split() + self.waf_options + skip_build_tests, cwd = cwd)
 
     def build_engine_base_libs(self):
         self._build_engine_base_libs(**self._get_build_flags())
