@@ -401,7 +401,7 @@ TEST_P(GetResourceTest, Loop)
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
-                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/test_resource.dmanif")); //
+                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"));
 
 TEST_P(GetResourceTest, GetReference1)
 {
