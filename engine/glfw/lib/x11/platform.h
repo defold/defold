@@ -34,7 +34,6 @@
 
 // This is the X11 version of GLFW
 #define _GLFW_X11
-#define GLFW_EXPOSE_NATIVE_LINUX
 
 // Include files
 #include <sys/time.h>

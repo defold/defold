@@ -21,25 +21,6 @@
 #endif
 
 #include <graphics/glfw/glfw.h>
-
-#if defined(__APPLE_CC__)
-    #if defined(__arm__) || defined(__arm64__)
-        // iOS
-        #define GLFW_EXPOSE_NATIVE_IOS
-    #else
-        // macOS
-        #define GLFW_EXPOSE_NATIVE_OSX
-    #endif
-#elif defined(ANDROID)
-    // Android
-    #define GLFW_EXPOSE_NATIVE_ANDROID
-#elif defined(_WIN32)
-    // Windows
-    #define GLFW_EXPOSE_NATIVE_WINDOWS
-#else
-    // Linux
-    #define GLFW_EXPOSE_NATIVE_LINUX
-#endif
 #include <graphics/glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
@@ -683,21 +664,23 @@ static void LogFrameBufferError(GLenum status)
     NativeHandles GetNativeHandles()
     {
         GLFWNativeHandles glfw_native_handles = glfwGetNativeHandles();
-        NativeHandles native_window_ref;
-#if defined(DM_PLATFORM_EXPOSE_NATIVE_IOS)
+        NativeHandles native_window_ref = {0};
+
         native_window_ref.m_UIWindow = glfw_native_handles.m_UIWindow;
         native_window_ref.m_UIView = glfw_native_handles.m_UIView;
         native_window_ref.m_EAGLContext = glfw_native_handles.m_EAGLContext;
-#elif defined(DM_PLATFORM_EXPOSE_NATIVE_OSX)
+
         native_window_ref.m_NSWindow = glfw_native_handles.m_NSWindow;
         native_window_ref.m_NSView = glfw_native_handles.m_NSView;
         native_window_ref.m_NSOpenGLContext = glfw_native_handles.m_NSOpenGLContext;
-#elif defined(DM_PLATFORM_EXPOSE_NATIVE_WINDOWS)
+
         native_window_ref.m_HWND = glfw_native_handles.m_HWND;
         native_window_ref.m_HGLRC = glfw_native_handles.m_HGLRC;
-#else
-        #error "GetNativeHandles not implemented on this platform!"
-#endif
+
+        native_window_ref.m_EGLContext = glfw_native_handles.m_EGLContext;
+        native_window_ref.m_EGLSurface = glfw_native_handles.m_EGLSurface;
+        native_window_ref.m_JNIEnv = glfw_native_handles.m_JNIEnv;
+        native_window_ref.m_Activity = glfw_native_handles.m_Activity;
 
         return native_window_ref;
     }

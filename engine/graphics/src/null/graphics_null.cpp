@@ -9,7 +9,6 @@
 #include <dlib/math.h>
 
 #include "../graphics.h"
-#define DM_PLATFORM_EXPOSE_NATIVE_EMPTY
 #include "../graphics_native.h"
 #include "graphics_null.h"
 #include "glsl_uniform_parser.h"

@@ -1609,7 +1609,7 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 
 GLFWAPI struct GLFWNativeHandles glfwGetNativeHandles(void)
 {
-    struct GLFWNativeHandles handles;
+    struct GLFWNativeHandles handles = {0};
     handles.m_UIWindow    = _glfwWin.window;
     handles.m_UIView      = _glfwWin.view;
     handles.m_EAGLContext = _glfwWin.context;

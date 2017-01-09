@@ -33,7 +33,6 @@
 
 // This is the Mac OS X version of GLFW
 #define _GLFW_MAC_OS_X
-#define GLFW_EXPOSE_NATIVE_OSX
 
 #include <pthread.h>
 

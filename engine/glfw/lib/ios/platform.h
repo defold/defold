@@ -34,7 +34,6 @@
 
 // This is the iOS version of GLFW
 #define _GLFW_IOS
-#define GLFW_EXPOSE_NATIVE_IOS
 
 #include <pthread.h>
 

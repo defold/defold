@@ -34,7 +34,6 @@
 
 // This is the X11 version of GLFW
 #define _GLFW_ANDROID
-#define GLFW_EXPOSE_NATIVE_ANDROID
 
 // Include files
 #include <sys/time.h>

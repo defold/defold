@@ -410,7 +410,7 @@ void _glfwAndroidSetInputMethod(int use_hidden_input)
 
 GLFWAPI struct GLFWNativeHandles glfwGetNativeHandles(void)
 {
-    struct GLFWNativeHandles handles;
+    struct GLFWNativeHandles handles = {0};
     handles.m_EGLContext = _glfwWin.context;
     handles.m_EGLSurface = _glfwWin.surface;
     handles.m_JNIEnv     = g_AndroidApp->activity->env;

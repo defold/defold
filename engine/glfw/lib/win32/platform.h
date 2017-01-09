@@ -34,7 +34,6 @@
 
 // This is the Windows version of GLFW
 #define _GLFW_WIN32
-#define GLFW_EXPOSE_NATIVE_WINDOWS
 
 // We don't need all the fancy stuff
 #define NOMINMAX

@@ -14,7 +14,7 @@ extern "C"
 static dmGraphics::NativeHandles CreateDummyHandles()
 {
     dmGraphics::NativeHandles native_handles;
-    native_handles.m_Dummy = (void*)TEST_EXTENSION_DUMMY_HANDLE;
+    native_handles.m_UIWindow = (void*)TEST_EXTENSION_DUMMY_HANDLE;
     return native_handles;
 }
 

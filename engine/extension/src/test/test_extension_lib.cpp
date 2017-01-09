@@ -16,7 +16,7 @@ int g_TestAppEventCount = 0;
 
 dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
-    int t = (int)params->m_NativeHandles.m_Dummy;
+    long t = (long)params->m_NativeHandles.m_UIWindow;
     if (t != TEST_EXTENSION_DUMMY_HANDLE)
     {
         return dmExtension::RESULT_INIT_ERROR;
