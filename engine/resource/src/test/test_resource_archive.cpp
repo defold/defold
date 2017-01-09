@@ -123,7 +123,7 @@ TEST(dmResourceArchive, Wrap)
     dmResourceArchive::EntryData entry;
     for (uint32_t i = 0; i < (sizeof(path_hash) / sizeof(path_hash[0])); ++i)
     {
-        char buffer[1024 * 1024] = { 0 };
+        char buffer[1024] = { 0 };
         result = dmResourceArchive::FindEntry(archive, content_hash[i], &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
@@ -149,7 +149,7 @@ TEST(dmResourceArchive, Wrap_Compressed)
     dmResourceArchive::EntryData entry;
     for (uint32_t i = 0; i < (sizeof(path_hash) / sizeof(path_hash[0])); ++i)
     {
-        char buffer[1024 * 1024] = { 0 };
+        char buffer[1024] = { 0 };
         result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
@@ -176,7 +176,7 @@ TEST(dmResourceArchive, LoadFromDisk)
     dmResourceArchive::EntryData entry;
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
-        char buffer[1024 * 1024] = { 0 };
+        char buffer[1024] = { 0 };
         result = dmResourceArchive::FindEntry(archive, content_hash[i], &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
@@ -211,7 +211,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     dmResourceArchive::EntryData entry;
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
-        char buffer[1024 * 1024] = { 0 };
+        char buffer[1024] = { 0 };
         result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
