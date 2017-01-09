@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <gtest/gtest.h>
 #include "../extension.h"
+#include "test_extension.h"
 
 extern "C"
 {
@@ -10,6 +11,12 @@ extern "C"
 
 // Extension in a separate library. See comment in test_extension_lib.cpp
 
+static dmGraphics::NativeHandles CreateDummyHandles()
+{
+    dmGraphics::NativeHandles native_handles;
+    native_handles.m_Dummy = (void*)TEST_EXTENSION_DUMMY_HANDLE;
+    return native_handles;
+}
 
 extern int g_TestAppInitCount;
 extern int g_TestAppEventCount;
@@ -17,8 +24,9 @@ extern int g_TestAppEventCount;
 TEST(dmExtension, Basic)
 {
     dmExtension::AppParams appparams;
+    appparams.m_NativeHandles = CreateDummyHandles();
     ASSERT_EQ(0, g_TestAppInitCount);
-    dmExtension::AppInitialize(&appparams);
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&appparams));
     ASSERT_EQ(1, g_TestAppInitCount);
     ASSERT_STREQ("test", dmExtension::GetFirstExtension()->m_Name);
     ASSERT_EQ(0, dmExtension::GetFirstExtension()->m_Next);

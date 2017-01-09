@@ -684,18 +684,19 @@ static void LogFrameBufferError(GLenum status)
     {
         GLFWNativeHandles glfw_native_handles = glfwGetNativeHandles();
         NativeHandles native_window_ref;
-#if defined(__APPLE_CC__)
-  #if defined(__arm__) || defined(__arm64__)
-        // iOS
+#if defined(DM_PLATFORM_EXPOSE_NATIVE_IOS)
         native_window_ref.m_UIWindow = glfw_native_handles.m_UIWindow;
         native_window_ref.m_UIView = glfw_native_handles.m_UIView;
         native_window_ref.m_EAGLContext = glfw_native_handles.m_EAGLContext;
-  #else
-        // macOS
+#elif defined(DM_PLATFORM_EXPOSE_NATIVE_OSX)
         native_window_ref.m_NSWindow = glfw_native_handles.m_NSWindow;
         native_window_ref.m_NSView = glfw_native_handles.m_NSView;
         native_window_ref.m_NSOpenGLContext = glfw_native_handles.m_NSOpenGLContext;
-  #endif
+#elif defined(DM_PLATFORM_EXPOSE_NATIVE_WINDOWS)
+        native_window_ref.m_HWND = glfw_native_handles.m_HWND;
+        native_window_ref.m_HGLRC = glfw_native_handles.m_HGLRC;
+#else
+        #error "GetNativeHandles not implemented on this platform!"
 #endif
 
         return native_window_ref;

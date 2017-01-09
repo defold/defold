@@ -47,9 +47,11 @@ struct GLFWNativeHandles
 
 // Windows
 #elif defined(GLFW_EXPOSE_NATIVE_WINDOWS)
+#include <windows.h>
 struct GLFWNativeHandles
 {
-  void* dummy;
+  HWND  m_HWND;
+  HGLRC m_HGLRC;
 };
 
 // Linux

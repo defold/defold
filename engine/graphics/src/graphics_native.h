@@ -30,7 +30,7 @@
     {
         struct NativeHandles
         {
-            void* dummy;
+            void* m_Dummy;
         };
     }
 
@@ -85,8 +85,18 @@
             jobject    m_Activity;
         };
     }
-#elif defined(DM_PLATFORM_EXPOSE_NATIVE_WIN32)
-    // Windows
+
+// Windows
+#elif defined(DM_PLATFORM_EXPOSE_NATIVE_WINDOWS)
+    #include <windows.h>
+    namespace dmGraphics
+    {
+        struct NativeHandles
+        {
+            HWND  m_HWND;
+            HGLRC m_HGLRC;
+        };
+    }
 #else
     // Linux
 #endif

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "../extension.h"
+#include "test_extension.h"
 
 extern "C"
 {
@@ -15,6 +16,12 @@ int g_TestAppEventCount = 0;
 
 dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
+    int t = (int)params->m_NativeHandles.m_Dummy;
+    if (t != TEST_EXTENSION_DUMMY_HANDLE)
+    {
+        return dmExtension::RESULT_INIT_ERROR;
+    }
+
     g_TestAppInitCount++;
     return dmExtension::RESULT_OK;
 }

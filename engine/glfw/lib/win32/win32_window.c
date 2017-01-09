@@ -1936,3 +1936,15 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
 	return 0;
 }
+
+//========================================================================
+// Defold extension: Get native references (window, view and context)
+//========================================================================
+
+GLFWAPI struct GLFWNativeHandles glfwGetNativeHandles(void)
+{
+    struct GLFWNativeHandles handles;
+    handles.m_HWND  = _glfwWin.window;
+    handles.m_HGLRC = _glfwWin.context;
+    return handles;
+}
