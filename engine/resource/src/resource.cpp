@@ -482,13 +482,21 @@ void DeleteFactory(HFactory factory)
         if (factory->m_Manifest->m_ArchiveIndex)
         {
             UnmountArchiveInternal(factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
+            dmResourceArchive::Delete(factory->m_Manifest->m_ArchiveIndex);
         }
         delete factory->m_Manifest;
     }
+
+    if (factory->m_BuiltinsArchiveContainer)
+    {
+        dmResourceArchive::Delete(factory->m_BuiltinsArchiveContainer);
+    }
+
     if (factory->m_BuiltinsManifest)
     {
         dmDDF::FreeMessage(factory->m_BuiltinsManifest);
     }
+
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     if (factory->m_ResourceHashToFilename)
