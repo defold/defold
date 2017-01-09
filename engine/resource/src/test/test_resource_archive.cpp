@@ -116,18 +116,18 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 TEST(dmResourceArchive, Wrap)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer2((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
     dmResourceArchive::EntryData entry;
     for (uint32_t i = 0; i < (sizeof(path_hash) / sizeof(path_hash[0])); ++i)
     {
         char buffer[1024 * 1024] = { 0 };
-        result = dmResourceArchive::FindEntry2(archive, content_hash[i], &entry);
+        result = dmResourceArchive::FindEntry(archive, content_hash[i], &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read2(archive, &entry, buffer);
+        result = dmResourceArchive::Read(archive, &entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -135,25 +135,25 @@ TEST(dmResourceArchive, Wrap)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry2(archive, invalid_hash, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 }
 
 TEST(dmResourceArchive, Wrap_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer2((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, (void*) RESOURCES_COMPRESSED_ARCD, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, (void*) RESOURCES_COMPRESSED_ARCD, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
     dmResourceArchive::EntryData entry;
     for (uint32_t i = 0; i < (sizeof(path_hash) / sizeof(path_hash[0])); ++i)
     {
         char buffer[1024 * 1024] = { 0 };
-        result = dmResourceArchive::FindEntry2(archive, compressed_content_hash[i], &entry);
+        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read2(archive, &entry, buffer);
+        result = dmResourceArchive::Read(archive, &entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -161,7 +161,7 @@ TEST(dmResourceArchive, Wrap_Compressed)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry2(archive, invalid_hash, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 }
 
@@ -169,18 +169,18 @@ TEST(dmResourceArchive, LoadFromDisk)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/resources.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive2(archive_path, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
     dmResourceArchive::EntryData entry;
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
         char buffer[1024 * 1024] = { 0 };
-        result = dmResourceArchive::FindEntry2(archive, content_hash[i], &entry);
+        result = dmResourceArchive::FindEntry(archive, content_hash[i], &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read2(archive, &entry, buffer);
+        result = dmResourceArchive::Read(archive, &entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -188,7 +188,7 @@ TEST(dmResourceArchive, LoadFromDisk)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry2(archive, invalid_hash, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 }
 
@@ -196,7 +196,7 @@ TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/missing-archive.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive2(archive_path, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, result);
 }
 
@@ -204,18 +204,18 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/resources_compressed.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive2(archive_path, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount2(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
     dmResourceArchive::EntryData entry;
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
         char buffer[1024 * 1024] = { 0 };
-        result = dmResourceArchive::FindEntry2(archive, compressed_content_hash[i], &entry);
+        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read2(archive, &entry, buffer);
+        result = dmResourceArchive::Read(archive, &entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -223,7 +223,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry2(archive, invalid_hash, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 }
 
