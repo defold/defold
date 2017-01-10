@@ -319,33 +319,27 @@
               (update :rotation (fn [r] (conj (math/quat->euler (doto (Quat4d.) (math/clj->vecmath (or r [0.0 0.0 0.0 1.0])))) 1))))]
     msg))
 
-(defn- attach-gui-node [scene node-tree parent gui-node type]
+(defn- attach-gui-node [parent gui-node type]
   (concat
-    (g/connect gui-node :_node-id node-tree :nodes)
     (g/connect parent :id gui-node :parent)
+    (g/connect parent :texture-ids gui-node :texture-ids)
+    (g/connect parent :material-shader gui-node :material-shader)
+    (g/connect parent :font-ids gui-node :font-ids)
+    (g/connect parent :layer-ids gui-node :layer-ids)
+    (g/connect parent :id-prefix gui-node :id-prefix)
+    (g/connect parent :current-layout gui-node :current-layout)
+
+    (g/connect gui-node :_node-id parent :nodes)
+    (g/connect gui-node :node-ids parent :node-ids)
     (g/connect gui-node :node-outline parent :child-outlines)
     (g/connect gui-node :scene parent :child-scenes)
     (g/connect gui-node :index parent :child-indices)
-    (g/connect gui-node :pb-msgs node-tree :node-msgs)
-    (g/connect gui-node :rt-pb-msgs node-tree :node-rt-msgs)
-    (g/connect gui-node :node-ids node-tree :node-ids)
-    (g/connect gui-node :node-overrides node-tree :node-overrides)
-    (g/connect gui-node :build-errors scene :build-errors)
-    (g/connect node-tree :layer-ids gui-node :layer-ids)
-    (g/connect node-tree :id-prefix gui-node :id-prefix)
-    (case type
-      (:type-box :type-pie) (for [[from to] [[:texture-ids :texture-ids]
-                                             [:material-shader :material-shader]]]
-                              (g/connect scene from gui-node to))
-      :type-text (g/connect scene :font-ids gui-node :font-ids)
-      :type-template (concat
-                       (for [[from to] [[:texture-ids :texture-ids]
-                                        [:font-ids :font-ids]]]
-                         (g/connect scene from gui-node to))
-                       (g/connect node-tree :current-layout gui-node :current-layout)
-                       (for [[from to] [[:scene-build-targets :template-build-targets]]]
-                         (g/connect gui-node from scene to)))
-      [])))
+    (g/connect gui-node :pb-msgs parent :pb-msgs)
+    (g/connect gui-node :rt-pb-msgs parent :rt-pb-msgs)
+    (g/connect gui-node :node-ids parent :node-ids)
+    (g/connect gui-node :node-overrides parent :node-overrides)
+    (g/connect gui-node :build-errors parent :build-errors)
+    (g/connect gui-node :template-build-targets parent :template-build-targets)))
 
 (def GuiSceneNode nil)
 (def GuiNode)
@@ -363,27 +357,28 @@
   ([basis node]
     (if (g/node-instance? basis NodeTree node)
       node
-      (ffirst (g/targets-of basis node :_node-id)))))
+      (recur basis (core/scope node)))))
 
 (defn- node->gui-scene
   ([node]
     (node->gui-scene (g/now) node))
   ([basis node]
-    (if (g/node-instance? basis GuiSceneNode node)
-      node
-      (if (g/node-instance? basis GuiNode node)
-        (let [node-tree (node->node-tree basis node)]
-          (ffirst (g/targets-of basis node-tree :_node-id)))
-        (ffirst (g/targets-of basis node :_node-id))))))
+   (cond
+     (g/node-instance? basis GuiSceneNode node)
+     node
+
+     (g/node-instance? basis GuiNode node)
+     (node->gui-scene (node->node-tree node))
+
+     :else
+     (core/scope node))))
 
 (defn- gen-gui-node-attach-fn [type]
   (fn [target source]
-    (let [scene (node->gui-scene target)
-          node-tree (g/node-value scene :node-tree)]
+    (let [scene (node->gui-scene target)]
       (concat
-        (g/update-property source :id outline/resolve-id
-                           (keys (g/node-value scene :node-ids)))
-        (attach-gui-node scene node-tree target source type)))))
+        (g/update-property source :id outline/resolve-id (keys (g/node-value scene :node-ids)))
+        (attach-gui-node target source type)))))
 
 (def ^:private font-connections [[:name :font-input]
                                  [:gpu-texture :gpu-texture]
@@ -405,6 +400,7 @@
 (def base-display-order [:id :generated-id scene/ScalableSceneNode :size])
 
 (g/defnode GuiNode
+  (inherits core/Scope)
   (inherits scene/ScalableSceneNode)
   (inherits outline/OutlineNode)
 
@@ -413,6 +409,8 @@
   (property animation g/Str (dynamic visible (g/constantly false)) (default ""))
 
   (input id-prefix g/Str)
+  (output id-prefix g/Str (gu/passthrough id-prefix))
+
   (property id g/Str (default "")
             (dynamic visible no-override?))
   (property generated-id g/Str
@@ -448,14 +446,22 @@
                          []))))))
 
   (input parent g/Str)
+
+  (input texture-ids IDMap)
+  (output texture-ids IDMap (gu/passthrough texture-ids))
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
+  (input font-ids IDMap)
+  (output font-ids IDMap (gu/passthrough font-ids))
   (input layer-ids IDMap)
   (output layer-ids IDMap (gu/passthrough layer-ids))
+
   (input layer-input g/Str)
   (input layer-index g/Int)
   (input child-scenes g/Any :array)
   (input child-indices g/Int :array)
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [child-outlines]
-                                                                     (vec (sort-by :index child-outlines))))
+                                                                (vec (sort-by :index child-outlines))))
   (output node-outline-reqs g/Any :cached (g/fnk [] [{:node-type BoxNode
                                                       :tx-attach-fn (gen-gui-node-attach-fn :type-box)}
                                                      {:node-type PieNode
@@ -477,8 +483,11 @@
                                             (not= node-id (g/node-value node-id :parent)))))
                   :children node-outline-children
                   :outline-overridden? outline-overridden?}))
+
   (output pb-msg g/Any :cached produce-node-msg)
-  (output pb-msgs g/Any :cached (g/fnk [pb-msg] [pb-msg]))
+  (input pb-msgs g/Any :array)
+  (output pb-msgs g/Any :cached (g/fnk [pb-msgs pb-msg] (into [pb-msg] pb-msgs)))
+  (input rt-pb-msgs g/Any :array)
   (output rt-pb-msgs g/Any (gu/passthrough pb-msgs))
   (output aabb g/Any :abstract)
   (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
@@ -491,14 +500,22 @@
                                       :children scene-children
                                       :renderable scene-renderable}))
 
-  (input node-ids IDMap)
+  (input node-ids IDMap :array)
   (output id g/Str (g/fnk [id-prefix id] (str id-prefix id)))
-  (output node-ids IDMap (g/fnk [_node-id id node-ids] (into {id _node-id} node-ids)))
-  (output node-overrides g/Any :cached (g/fnk [id _properties]
-                                             {id (into {} (map (fn [[k v]] [k (:value v)])
-                                                               (filter (fn [[_ v]] (contains? v :original-value))
-                                                                       (:properties _properties))))}))
-  (output build-errors g/Any :abstract))
+  (output node-ids IDMap (g/fnk [_node-id id node-ids] (reduce merge {id _node-id} node-ids)))
+
+  (input node-overrides g/Any :array)
+  (output node-overrides g/Any :cached (g/fnk [node-overrides id _properties]
+                                         (into {id (into {} (->> (:properties _properties)
+                                                                 (filter (fn [[_ v]] (contains? v :original-value)))
+                                                                 (map (fn [[k v]] [k (:value v)]))))}
+                                               node-overrides)))
+  (input current-layout g/Str)
+  (output current-layout g/Str (gu/passthrough current-layout))
+  (input build-errors g/Any :array)
+  (output build-errors g/Any (gu/passthrough build-errors))
+  (input template-build-targets g/Any :array)
+  (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
 (g/defnode VisualNode
   (inherits GuiNode)
@@ -578,8 +595,6 @@
 
   (input texture-input g/Str)
   (input anim-data g/Any)
-  (input textures IDMap)
-  (input texture-ids IDMap)
   (output texture-size g/Any :cached (g/fnk [anim-data texture]
                                             (when-let [anim (get anim-data texture)]
                                               [(double (:width anim)) (double (:height anim)) 0.0])))
@@ -706,9 +721,11 @@
   (inherits VisualNode)
 
   ; Text
-  (property text g/Str)
+  (property text g/Str
+            (default "<text>"))
   (property line-break g/Bool (default false))
   (property font g/Str
+    (default "")
     (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
     (dynamic error (validation/prop-error-fnk :info validation/prop-empty? font))
     (value (gu/passthrough font-input))
@@ -832,7 +849,7 @@
                                                               (for [[from to] [[:node-ids :node-ids]
                                                                                [:node-outline :template-outline]
                                                                                [:scene :template-scene]
-                                                                               [:build-targets :scene-build-targets]
+                                                                               [:build-targets :template-build-targets]
                                                                                [:resource :template-resource]
                                                                                [:pb-msg :scene-pb-msg]
                                                                                [:rt-pb-msg :scene-rt-pb-msg]
@@ -1094,12 +1111,12 @@
                        'child-outlines)}))
 
 (g/defnode NodeTree
+  (inherits core/Scope)
+  (inherits outline/OutlineNode)
+
   (property id g/Str (default (g/constantly ""))
             (dynamic visible (g/constantly false)))
 
-  (inherits outline/OutlineNode)
-
-  (input nodes g/Any :array :cascade-delete)
   (input child-scenes g/Any :array)
   (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
   (input child-indices g/Int :array)
@@ -1116,20 +1133,30 @@
                                      {:node-id _node-id
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
                                       :children child-scenes}))
-  (input node-msgs g/Any :array)
-  (output node-msgs g/Any :cached (g/fnk [node-msgs] (map #(dissoc % :index) (flatten (sort-by #(get-in % [0 :index]) node-msgs)))))
-  (input node-rt-msgs g/Any :array)
-  (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs] (map #(dissoc % :index) (flatten (sort-by #(get-in % [0 :index]) node-rt-msgs)))))
+  (input pb-msgs g/Any :array)
+  (output node-msgs g/Any :cached (g/fnk [pb-msgs] (map #(dissoc % :index) (flatten (sort-by #(get-in % [0 :index]) pb-msgs)))))
+  (input rt-pb-msgs g/Any :array)
+  (output node-rt-msgs g/Any :cached (g/fnk [rt-pb-msgs] (map #(dissoc % :index) (flatten (sort-by #(get-in % [0 :index]) rt-pb-msgs)))))
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
-  (output node-ids IDMap :cached (g/fnk [node-ids] (into {} node-ids)))
+  (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge node-ids)))
+  (input texture-ids IDMap)
+  (output texture-ids IDMap (gu/passthrough texture-ids))
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
+  (input font-ids IDMap)
+  (output font-ids IDMap (gu/passthrough font-ids))
   (input layer-ids IDMap)
   (output layer-ids IDMap (gu/passthrough layer-ids))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
   (input current-layout g/Str)
-  (output current-layout g/Str (gu/passthrough current-layout)))
+  (output current-layout g/Str (gu/passthrough current-layout))
+  (input build-errors g/Any :array)
+  (output build-errors g/Any (gu/passthrough build-errors))
+  (input template-build-targets g/Any :array)
+  (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
 
 (g/defnode TexturesNode
@@ -1331,16 +1358,23 @@
   (output layer-msgs g/Any :cached (g/fnk [layer-msgs] (map #(dissoc % :index) (sort-by :index layer-msgs))))
   (input layout-msgs g/Any :array)
   (input layout-rt-msgs g/Any :array)
+
   (input node-ids IDMap)
   (output node-ids IDMap (gu/passthrough node-ids))
-  (input texture-names g/Str :array)
-  (input font-names g/Str :array)
-  (input layer-names g/Str :array)
+
   (input layout-names g/Str :array)
 
   (input texture-ids IDMap :array)
+  (output texture-ids IDMap (g/fnk [texture-ids] (reduce merge texture-ids)))
+  (input texture-names g/Str :array)
+
   (input font-ids IDMap :array)
+  (output font-ids IDMap (g/fnk [font-ids] (reduce merge font-ids)))
+  (input font-names g/Str :array)
+
   (input layer-ids IDMap :array)
+  (output layer-ids IDMap (g/fnk [layer-ids] (reduce merge layer-ids)))
+  (input layer-names g/Str :array)
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
@@ -1459,7 +1493,6 @@
 (defn add-gui-node! [project scene parent node-type select-fn]
   (let [index (inc (reduce max 0 (g/node-value parent :child-indices)))
         id (outline/resolve-id (subs (name node-type) 5) (keys (g/node-value scene :node-ids)))
-        node-tree (g/node-value scene :node-tree)
         def-node-type (case node-type
                         :type-box BoxNode
                         :type-pie PieNode
@@ -1469,10 +1502,7 @@
     (-> (concat
           (g/operation-label "Add Gui Node")
           (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :index index :type node-type :size [200.0 100.0 0.0]]]
-                        (attach-gui-node scene node-tree parent gui-node node-type)
-                        (if (= node-type :type-text)
-                          (g/set-property gui-node :text "<text>" :font "")
-                          [])
+                        (attach-gui-node parent gui-node node-type)
                         (when select-fn
                           (select-fn [gui-node]))))
       g/transact
@@ -1604,6 +1634,12 @@
 (defn- convert-node-desc [node-desc]
   (into {} (map (fn [[key val]] (let [[new-key f] (get node-property-fns key [key key])]
                                   [new-key (f node-desc)])) node-desc)))
+(defn- sort-node-descs
+  [node-descs]
+  (let [parent-id->children (group-by :parent node-descs)
+        parent->children #(parent-id->children (:id %))
+        root {:id ""}]
+    (rest (tree-seq parent->children parent->children root))))
 
 (defn load-gui-scene [project self input]
   (let [def                pb-def
@@ -1705,36 +1741,41 @@
                                      [:node-rt-msgs :node-rt-msgs]
                                      [:scene :default-scene]
                                      [:node-ids :node-ids]
-                                     [:node-overrides :node-overrides]]]
+                                     [:node-overrides :node-overrides]
+                                     [:build-errors :build-errors]
+                                     [:template-build-targets :template-build-targets]]]
                       (g/connect node-tree from self to))
-                    (for [[from to] [[:layer-ids :layer-ids]
+                    (for [[from to] [[:texture-ids :texture-ids]
+                                     [:material-shader :material-shader]
+                                     [:font-ids :font-ids]
+                                     [:layer-ids :layer-ids]
                                      [:id-prefix :id-prefix]
                                      [:current-layout :current-layout]]]
                       (g/connect self from node-tree to))
-        (loop [node-descs node-descs
-               id->node {}
-               all-tx-data []
-               index 0]
-          (if-let [node-desc (first node-descs)]
-            (let [node-type (case (:type node-desc)
-                              :type-box BoxNode
-                              :type-pie PieNode
-                              :type-text TextNode
-                              :type-template TemplateNode
-                              GuiNode)
-                  props (-> node-desc
-                          (assoc :index index)
-                          (select-keys (keys (g/public-properties node-type)))
-                          (cond->
-                            (= :type-template (:type node-desc))
-                            (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
-                                              :overrides (get template-data (:id node-desc) {})})))
-                  tx-data (g/make-nodes graph-id [gui-node [node-type props]]
-                                        (let [parent (if (empty? (:parent node-desc)) node-tree (id->node (:parent node-desc)))]
-                                          (attach-gui-node self node-tree parent gui-node (:type node-desc))))
-                 node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
-              (recur (rest node-descs) (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc index)))
-            all-tx-data)))
+                    (loop [[node-desc & more] (sort-node-descs node-descs)
+                           id->node {}
+                           all-tx-data []
+                           index 0]
+                      (if node-desc
+                        (let [node-type (case (:type node-desc)
+                                          :type-box BoxNode
+                                          :type-pie PieNode
+                                          :type-text TextNode
+                                          :type-template TemplateNode
+                                          GuiNode)
+                              props (-> node-desc
+                                        (assoc :index index)
+                                        (select-keys (keys (g/public-properties node-type)))
+                                        (cond->
+                                            (= :type-template (:type node-desc))
+                                          (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
+                                                            :overrides (get template-data (:id node-desc) {})})))
+                              tx-data (g/make-nodes graph-id [gui-node [node-type props]]
+                                                    (let [parent (if (empty? (:parent node-desc)) node-tree (id->node (:parent node-desc)))]
+                                                      (attach-gui-node parent gui-node (:type node-desc))))
+                              node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
+                          (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc index)))
+                        all-tx-data)))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
                    (g/connect layouts-node :_node-id self :layouts-node)
                    (g/connect layouts-node :_node-id self :nodes)
