@@ -224,8 +224,9 @@
                                                                :cache            cache})
                             (workspace/update-version-on-disk! workspace)
                             (update-system-cache! old-cache-val cache))
-          (ui/run-later
-            (on-complete-fn))
+          (when (some? on-complete-fn)
+            (ui/run-later
+              (on-complete-fn)))
           (finally (reset! ongoing-build-save-atom false)))))))
 
 
