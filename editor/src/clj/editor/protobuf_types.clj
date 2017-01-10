@@ -136,15 +136,16 @@
         exts (if (vector? ext) ext [ext])]
     (for [ext exts]
       (workspace/register-resource-type workspace
-                                     :ext ext
-                                     :label (:label def)
-                                     :build-ext (:build-ext def)
-                                     :node-type ProtobufNode
-                                     :load-fn (fn [project self resource] (load-pb project self resource def))
-                                     :icon (:icon def)
-                                     :view-types (:view-types def)
-                                     :tags (:tags def)
-                                     :template (:template def)))))
+                                        :textual? true
+                                        :ext ext
+                                        :label (:label def)
+                                        :build-ext (:build-ext def)
+                                        :node-type ProtobufNode
+                                        :load-fn (fn [project self resource] (load-pb project self resource def))
+                                        :icon (:icon def)
+                                        :view-types (:view-types def)
+                                        :tags (:tags def)
+                                        :template (:template def)))))
 
 (defn register-resource-types [workspace]
   (for [def pb-defs]

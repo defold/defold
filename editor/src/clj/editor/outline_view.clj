@@ -2,6 +2,7 @@
   (:require
    [dynamo.graph :as g]
    [editor.app-view :as app-view]
+   [editor.error-reporting :as error-reporting]
    [editor.handler :as handler]
    [editor.jfx :as jfx]
    [editor.outline :as outline]
@@ -104,12 +105,12 @@
         (update :children (fn [children] (mapv #(pathify path %) children)))))))
 
 (g/defnk produce-tree-root
-  [active-outline active-resource open-resources raw-tree-view]
-  (let [resource-set (set open-resources)
+  [active-outline active-resource-node open-resource-nodes raw-tree-view]
+  (let [resource-node-set (set open-resource-nodes)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
-        root (get root-cache active-resource)
+        root (get root-cache active-resource-node)
         new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
-        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
+        new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node new-root)]
     (ui/user-data! raw-tree-view ::root-cache new-cache)
     new-root))
 
@@ -150,8 +151,8 @@
   (property raw-tree-view TreeView)
 
   (input active-outline g/Any :substitute {})
-  (input active-resource resource/Resource :substitute nil)
-  (input open-resources g/Any :substitute [])
+  (input active-resource-node g/NodeID :substitute nil)
+  (input open-resource-nodes g/Any :substitute [])
   (input selection g/Any :substitute [])
 
   (output root TreeItem :cached produce-tree-root)
@@ -411,7 +412,7 @@
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
       (.setOnDragOver (ui/event-handler e (drag-over proj-graph outline-view e)))
-      (.setOnDragDropped (ui/event-handler e (drag-dropped proj-graph app-view outline-view e)))
+      (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped proj-graph app-view outline-view e))))
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/bind-double-click! :open)

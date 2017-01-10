@@ -22,8 +22,7 @@ import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.jogamp.opengl.util.texture.Texture;
 
 public class SpineNodeRenderer implements INodeRenderer<SpineNode> {
-    
-    private static final float COLOR[] = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
     private Shader spriteShader;
     private Shader lineShader;
@@ -84,6 +83,13 @@ public class SpineNodeRenderer implements INodeRenderer<SpineNode> {
         }
         Texture texture = textureSet.getTextureHandle().getTexture(gl);
 
+        boolean clipping = renderData.getUserData() != null;
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.beginClipping(gl);
+            ClippingState state = (ClippingState)renderData.getUserData();
+            Clipping.setupClipping(gl, state);
+        }
+
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
             texture.bind(gl);
@@ -114,7 +120,8 @@ public class SpineNodeRenderer implements INodeRenderer<SpineNode> {
         } else {
             shader = lineShader;
         }
-        float[] color = renderContext.selectColor(node, COLOR);
+        float[] color = node.calcNormRGBA();
+        color = renderContext.selectColor(node, color);
         if (transparent) {
             node.getCompositeMesh().draw(gl, shader, color);
         } else {
@@ -136,6 +143,9 @@ public class SpineNodeRenderer implements INodeRenderer<SpineNode> {
         if (transparent) {
             texture.disable(gl);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+        }
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.endClipping(gl);
         }
     }
 

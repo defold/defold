@@ -115,14 +115,14 @@
                 on-targets-changed-fn] :as context} (make-context)]
     (testing "iPhone joins"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
-      (is (= [iphone-hostname local-hostname] (targets-hostnames @targets-atom)))
-      (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom)))
+      (is (= [local-hostname iphone-hostname] (targets-hostnames @targets-atom)))
+      (is (= [local-hostname iphone-hostname] (descriptions-hostnames @descriptions-atom)))
       (is (= [] (blacklist-hostnames @blacklist-atom)))
       (is (= 1 (call-count on-targets-changed-fn))))
     (testing "iPhone remains, tablet joins"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info) (make-tablet-device-info)])
-      (is (= [iphone-hostname local-hostname tablet-hostname] (targets-hostnames @targets-atom)))
-      (is (= [iphone-hostname local-hostname tablet-hostname] (descriptions-hostnames @descriptions-atom)))
+      (is (= [local-hostname iphone-hostname tablet-hostname] (targets-hostnames @targets-atom)))
+      (is (= [local-hostname iphone-hostname tablet-hostname] (descriptions-hostnames @descriptions-atom)))
       (is (= [] (blacklist-hostnames @blacklist-atom)))
       (is (= 2 (call-count on-targets-changed-fn))))))
 
@@ -134,8 +134,8 @@
     (testing "iPhone joins, then remains"
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
       (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
-      (is (= [iphone-hostname local-hostname] (targets-hostnames @targets-atom)))
-      (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom)))
+      (is (= [local-hostname iphone-hostname] (targets-hostnames @targets-atom)))
+      (is (= [local-hostname iphone-hostname] (descriptions-hostnames @descriptions-atom)))
       (is (= [] (blacklist-hostnames @blacklist-atom)))
       (is (= 1 (call-count on-targets-changed-fn))))))
 
@@ -178,7 +178,7 @@
       (testing "Target is rejected"
         (is (= [local-hostname] (targets-hostnames @targets-atom))))
       (testing "Incomplete description is cached"
-        (is (= [iphone-hostname local-hostname] (descriptions-hostnames @descriptions-atom))))
+        (is (= [local-hostname iphone-hostname] (descriptions-hostnames @descriptions-atom))))
       (testing "Host is blacklisted"
         (is (= [iphone-hostname] (blacklist-hostnames @blacklist-atom)))))))
 
