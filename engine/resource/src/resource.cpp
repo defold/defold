@@ -394,9 +394,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     else if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") == 0)
     {
         factory->m_Manifest = new Manifest();
-        factory->m_Manifest->m_DDF = new dmLiveUpdateDDF::ManifestFile();
-
-        //dmLogInfo("path: %s, location: %s", factory->m_UriParts.m_Path, factory->m_UriParts.m_Location);
 
         Result r = LoadManifest(factory->m_UriParts.m_Path, factory);
         if (r != RESULT_OK)
@@ -443,7 +440,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (params->m_ArchiveManifest.m_Size)
     {
-        factory->m_BuiltinsManifest = new dmLiveUpdateDDF::ManifestFile;
         dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest);
         dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, &factory->m_BuiltinsArchiveContainer);
     }
