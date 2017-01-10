@@ -156,6 +156,13 @@
           nil)
         context))))
 
+(defmacro with-drawable-as-current [^GLAutoDrawable drawable & forms]
+  `(when-let [^GLContext ~'gl-context (make-current ~drawable)]
+     (try
+       (let [^GL2 ~'gl (.getGL ~'gl-context)]
+         ~@forms)
+       (finally (.release ~'gl-context)))))
+
 (defn make-drawable ^GLOffscreenAutoDrawable [w h]
   (let [profile (GLProfile/getDefault)
         factory (GLDrawableFactory/getFactory profile)
@@ -314,15 +321,12 @@
                                 :let [context (assoc context :world-transform (:world-transform updatable))]]
                           ((get updatable :update-fn) context))))
     (profiler/profile "render" -1
-                      (when-let [^GLContext context (make-current drawable)]
-                        (try
-                          (let [gl ^GL2 (.getGL context)]
-                            (render! viewport drawable camera all-renderables context gl)
-                            (when-let [^WritableImage image (.flip async-copier gl)]
-                              (.setImage image-view image))
-                            (scene-cache/prune-object-caches! gl)
-                            :ok)
-                          (finally (.release context)))))))
+      (with-drawable-as-current drawable
+        (render! viewport drawable camera all-renderables gl-context gl)
+        (when-let [^WritableImage image (.flip async-copier gl)]
+          (.setImage image-view image))
+        (scene-cache/prune-object-caches! gl)
+        :ok))))
 
 ;; Scene selection
 
@@ -366,43 +370,37 @@
         (persistent! selected)))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
-  (if-let [^GLContext context (and picking-rect (make-current drawable))]
-    (try
-      (let [gl ^GL2 (.getGL context)
-            render-args (generic-render-args viewport camera)
-            selection-set (set selection)]
-        (->> (for [pass pass/selection-passes
-                   :let [render-args (assoc render-args :pass pass)]]
-               (do
-                 (begin-select gl select-buffer)
-                 (setup-pass context gl pass camera viewport picking-rect)
-                 (let [renderables (get renderables pass)
-                       batches (batch-render gl render-args renderables true :select-batch-key)]
-                   (render-sort (end-select gl select-buffer renderables batches)))))
-          flatten
-          (mapv :node-id)))
-      (finally
-        (.release context)))
+  (or (and picking-rect
+        (with-drawable-as-current drawable
+          (let [render-args (generic-render-args viewport camera)
+                selection-set (set selection)]
+            (->> (for [pass pass/selection-passes
+                       :let [render-args (assoc render-args :pass pass)]]
+                   (do
+                     (begin-select gl select-buffer)
+                     (setup-pass gl-context gl pass camera viewport picking-rect)
+                     (let [renderables (get renderables pass)
+                           batches (batch-render gl render-args renderables true :select-batch-key)]
+                       (render-sort (end-select gl select-buffer renderables batches)))))
+              flatten
+              (mapv :node-id)))))
     []))
 
 (g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
-  (if-let [^GLContext context (and tool-picking-rect (make-current drawable))]
-    (try
-      (let [gl ^GL2 (.getGL context)
-            render-args (generic-render-args viewport camera)
-            tool-renderables (apply merge-with into tool-renderables)
-            passes [pass/manipulator-selection pass/overlay-selection]]
-        (flatten
-          (for [pass passes
-                :let [render-args (assoc render-args :pass pass)]]
-            (do
-              (begin-select gl select-buffer)
-              (setup-pass context gl pass camera viewport tool-picking-rect)
-              (let [renderables (get tool-renderables pass)
-                    batches (batch-render gl render-args renderables true :select-batch-key)]
-                (render-sort (end-select gl select-buffer renderables batches)))))))
-      (finally
-        (.release context)))
+  (or (and tool-picking-rect
+        (with-drawable-as-current drawable
+          (let [render-args (generic-render-args viewport camera)
+                tool-renderables (apply merge-with into tool-renderables)
+                passes [pass/manipulator-selection pass/overlay-selection]]
+            (flatten
+              (for [pass passes
+                    :let [render-args (assoc render-args :pass pass)]]
+                (do
+                  (begin-select gl select-buffer)
+                  (setup-pass gl-context gl pass camera viewport tool-picking-rect)
+                  (let [renderables (get tool-renderables pass)
+                        batches (batch-render gl render-args renderables true :select-batch-key)]
+                    (render-sort (end-select gl select-buffer renderables batches)))))))))
     []))
 
 (g/defnk produce-selected-tool-renderables [tool-selection]
@@ -675,15 +673,12 @@
     view-id))
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera renderables]
-  (when-let [^GLContext context (make-current drawable)]
-    (try
-      (let [gl ^GL2 (.getGL context)]
-        (render! viewport drawable camera renderables context gl)
-        (let [[w h] (vp-dims viewport)
-              buf-image (read-to-buffered-image w h)]
-          (scene-cache/prune-object-caches! gl)
-          buf-image))
-      (finally (.release context)))))
+  (with-drawable-as-current drawable
+    (render! viewport drawable camera renderables gl-context gl)
+    (let [[w h] (vp-dims viewport)
+          buf-image (read-to-buffered-image w h)]
+      (scene-cache/prune-object-caches! gl)
+      buf-image)))
 
 (g/defnode PreviewView
   (inherits view/WorkbenchView)
