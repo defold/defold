@@ -118,15 +118,12 @@
 (g/defnk produce-async-frame [^Region viewport ^ImageView image-view ^GLAutoDrawable drawable camera all-renderables ^AsyncCopier async-copier]
   (when async-copier
     (profiler/profile "render-curves" -1
-      (when-let [^GLContext context (scene/make-current drawable)]
-        (try
-          (let [gl ^GL2 (.getGL context)]
-            (render! viewport drawable camera all-renderables context gl)
-            (when-let [^WritableImage image (.flip async-copier gl)]
-              (.setImage image-view image))
-            (scene-cache/prune-object-caches! gl)
-            :ok)
-          (finally (.release context)))))))
+      (scene/with-drawable-as-current drawable
+        (render! viewport drawable camera all-renderables gl-context gl)
+        (when-let [^WritableImage image (.flip async-copier gl)]
+          (.setImage image-view image))
+        (scene-cache/prune-object-caches! gl)
+        :ok))))
 
 (defn- curve? [[_ p]]
   (let [t (g/value-type-dispatch-value (:type p))
