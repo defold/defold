@@ -168,14 +168,9 @@
     (doto drawable
       (.setContext (.createContext drawable nil) true))))
 
-(defn make-copier [^ImageView image-view ^GLAutoDrawable drawable ^Region viewport]
-  ;; TODO: what happens here if make-current fails
-  (let [context ^GLContext (make-current drawable)
-        gl ^GL2 (.getGL context)
-        [w h] (vp-dims viewport)
-        copier (AsyncCopier. gl executor image-view w h)]
-    (.release context)
-    copier))
+(defn make-copier [^Region viewport]
+  (let [[w h] (vp-dims viewport)]
+    (AsyncCopier. w h)))
 
 (defn render-nodes
   ([^GL2 gl render-args renderables count]
@@ -309,7 +304,7 @@
                                                                  [(:node-id u) (assoc u :world-transform (:world-transform r))])))
                                                        flat-renderables))))))
 
-(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera all-renderables ^AsyncCopier async-copier active-updatables play-mode]
+(g/defnk produce-async-frame [^Region viewport ^ImageView image-view ^GLAutoDrawable drawable camera all-renderables ^AsyncCopier async-copier active-updatables play-mode]
   (when async-copier
     (profiler/profile "updatables" -1
                       ; Fixed dt for deterministic playback
@@ -319,13 +314,15 @@
                                 :let [context (assoc context :world-transform (:world-transform updatable))]]
                           ((get updatable :update-fn) context))))
     (profiler/profile "render" -1
-                      (when-let [^GLContext context (.getContext drawable)]
-                        (let [gl ^GL2 (.getGL context)]
-                          (when (.tryBeginFrame async-copier gl)
+                      (when-let [^GLContext context (make-current drawable)]
+                        (try
+                          (let [gl ^GL2 (.getGL context)]
                             (render! viewport drawable camera all-renderables context gl)
+                            (when-let [^WritableImage image (.flip async-copier gl)]
+                              (.setImage image-view image))
                             (scene-cache/prune-object-caches! gl)
-                            (.endFrame async-copier gl)
-                            :ok))))))
+                            :ok)
+                          (finally (.release context)))))))
 
 ;; Scene selection
 
@@ -432,13 +429,13 @@
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (output active-tool g/Keyword (gu/passthrough active-tool))
-  (output active-updatables g/Any (g/fnk [updatables active-updatable-ids]
-                                         (mapv updatables (filter #(contains? updatables %) active-updatable-ids))))
+  (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
+                                                 (mapv updatables (filter #(contains? updatables %) active-updatable-ids))))
 
   (output selection g/Any (gu/passthrough selection))
   (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables]
                                                        (reduce (partial merge-with into) renderables tool-renderables)))
-  (output async-frame g/Keyword :cached produce-async-frame)
+  (output async-frame g/Keyword produce-async-frame)
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
@@ -625,7 +622,9 @@
 
 (defn- make-gl-pane [view-id parent opts]
   (let [image-view (doto (ImageView.)
-                     (.setScaleY -1.0))
+                     (.setScaleY -1.0)
+                     (.setPreserveRatio false)
+                     (.setSmooth false))
         pane (proxy [com.defold.control.Region] []
                (layoutChildren []
                  (let [this ^com.defold.control.Region this
@@ -642,7 +641,7 @@
                            (doto drawable
                              (.setSurfaceSize w h))
                            (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                             (.setPendingSize w h)))
+                             (.setSize w h)))
                          (do
                            (register-event-handler! parent view-id)
                            (ui/user-data! image-view ::view-id view-id)
@@ -661,7 +660,7 @@
                              (g/transact
                               (concat
                                (g/set-property view-id :drawable drawable)
-                               (g/set-property view-id :async-copier (make-copier image-view drawable viewport)))))
+                               (g/set-property view-id :async-copier (make-copier viewport)))))
                            (frame-selection view-id false)))))
                    (proxy-super layoutChildren))))]
     (.add (.getChildren pane) image-view)
@@ -677,13 +676,14 @@
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera renderables]
   (when-let [^GLContext context (make-current drawable)]
-    (let [gl ^GL2 (.getGL context)]
-      (render! viewport drawable camera renderables context gl)
-      (let [[w h] (vp-dims viewport)
-            buf-image (read-to-buffered-image w h)]
-        (scene-cache/prune-object-caches! gl)
-        (.release context)
-        buf-image))))
+    (try
+      (let [gl ^GL2 (.getGL context)]
+        (render! viewport drawable camera renderables context gl)
+        (let [[w h] (vp-dims viewport)
+              buf-image (read-to-buffered-image w h)]
+          (scene-cache/prune-object-caches! gl)
+          buf-image))
+      (finally (.release context)))))
 
 (g/defnode PreviewView
   (inherits view/WorkbenchView)
