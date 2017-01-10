@@ -115,16 +115,18 @@
       (scene/setup-pass context gl pass camera viewport)
       (scene/batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables cp-renderables tool-renderables]
+(g/defnk produce-async-frame [^Region viewport ^ImageView image-view ^GLAutoDrawable drawable camera all-renderables ^AsyncCopier async-copier]
   (when async-copier
     (profiler/profile "render-curves" -1
-                      (when-let [^GLContext context (.getContext drawable)]
-                        (let [gl ^GL2 (.getGL context)]
-                          (when (.tryBeginFrame async-copier gl)
-                            (render! viewport drawable camera (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables)) context gl)
-                            (scene-cache/prune-object-caches! gl)
-                            (.endFrame async-copier gl)
-                            :ok))))))
+      (when-let [^GLContext context (scene/make-current drawable)]
+        (try
+          (let [gl ^GL2 (.getGL context)]
+            (render! viewport drawable camera all-renderables context gl)
+            (when-let [^WritableImage image (.flip async-copier gl)]
+              (.setImage image-view image))
+            (scene-cache/prune-object-caches! gl)
+            :ok)
+          (finally (.release context)))))))
 
 (defn- curve? [[_ p]]
   (let [t (g/value-type-dispatch-value (:type p))
@@ -481,7 +483,9 @@
   (input picking-rect Rect)
   (input sub-selection g/Any)
 
-  (output async-frame g/Keyword :cached produce-async-frame)
+  (output all-renderables g/Any :cached (g/fnk [renderables curve-renderables cp-renderables tool-renderables]
+                                          (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables))))
+  (output async-frame g/Keyword produce-async-frame)
   (output curves g/Any :cached produce-curves)
   (output visible-curves g/Any :cached (g/fnk [curves hidden-curves] (remove #(contains? hidden-curves (:property %)) curves)))
   (output curve-renderables g/Any :cached produce-curve-renderables)
@@ -563,7 +567,9 @@
 (defn make-gl-pane [view-id ^AnchorPane view opts]
   (let [image-view (doto (ImageView.)
                      (.setScaleY -1.0)
-                     (.setFocusTraversable true))
+                     (.setFocusTraversable true)
+                     (.setPreserveRatio false)
+                     (.setSmooth false))
         pane (proxy [com.defold.control.Region] []
                (layoutChildren []
                  (let [this ^com.defold.control.Region this
@@ -580,7 +586,7 @@
                            (doto drawable
                              (.setSurfaceSize w h))
                            (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                             (.setPendingSize  w h)))
+                             (.setSize  w h)))
                          (do
                            (scene/register-event-handler! view view-id)
                            (ui/user-data! image-view ::view-id view-id)
@@ -599,7 +605,7 @@
                              (g/transact
                               (concat
                                (g/set-property view-id :drawable drawable)
-                               (g/set-property view-id :async-copier (scene/make-copier image-view drawable viewport)))))
+                               (g/set-property view-id :async-copier (scene/make-copier viewport)))))
                            (frame-selection view-id false)))))
                    (proxy-super layoutChildren))))]
     (.setFocusTraversable pane true)
