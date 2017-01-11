@@ -237,14 +237,16 @@
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
           root (test-util/resource-node project "/logic/main.gui")]
-      (let [first-id (get (outline root [0 1]) :label)]
+      (let [first-id (get (outline root [0 1]) :label)
+            next-id (get (outline root [0 2]) :label)]
         (drag! root [0 1])
         (drop! project app-view root [0 0])
         (let [second-id (get (outline root [0 0 0]) :label)]
           (is (= first-id second-id))
+          (is (= next-id (get (outline root [0 1]) :label)))
           (drag! root [0 0 0])
           (drop! project app-view root [0])
-          (is (= second-id (get (outline root [0 1]) :label))))))))
+          (is (= second-id (get (outline root [0 5]) :label))))))))
 
 (defn- prop [root path property]
   (let [p (g/node-value (:node-id (outline root path)) :_properties)]
