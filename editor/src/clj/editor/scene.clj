@@ -611,6 +611,10 @@
                                   y (:y action)
                                   pos [x y 0.0]
                                   picking-rect (selection/calc-picking-rect pos pos)]
+                              (when (= :mouse-pressed (:type action))
+                                ;; request focus and consume event to prevent someone else from stealing focus
+                                (.requestFocus parent)
+                                (.consume e))
                               ; Only look for tool selection when the mouse is moving with no button pressed
                               (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
                                 (let [s (g/node-value view-id :selected-tool-renderables)
