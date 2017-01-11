@@ -137,6 +137,8 @@ TEST(dmResourceArchive, Wrap)
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
     result = dmResourceArchive::FindEntry(archive, invalid_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
+
+    dmResourceArchive::Delete(archive);
 }
 
 TEST(dmResourceArchive, Wrap_Compressed)
@@ -163,6 +165,8 @@ TEST(dmResourceArchive, Wrap_Compressed)
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
     result = dmResourceArchive::FindEntry(archive, invalid_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
+
+    dmResourceArchive::Delete(archive);
 }
 
 TEST(dmResourceArchive, LoadFromDisk)
@@ -190,6 +194,8 @@ TEST(dmResourceArchive, LoadFromDisk)
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
     result = dmResourceArchive::FindEntry(archive, invalid_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
+
+    dmResourceArchive::Delete(archive);
 }
 
 TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
@@ -225,6 +231,8 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
     result = dmResourceArchive::FindEntry(archive, invalid_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
+
+    dmResourceArchive::Delete(archive);
 }
 
 int main(int argc, char **argv)

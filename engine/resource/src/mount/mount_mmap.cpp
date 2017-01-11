@@ -120,5 +120,7 @@ namespace dmResource
         }
 
         delete info;
+
+        dmResourceArchive::Delete(archive);
     }
 }
