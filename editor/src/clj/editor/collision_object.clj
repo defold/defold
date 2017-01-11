@@ -659,6 +659,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "collisionobject"
                                     :node-type CollisionObjectNode
                                     :load-fn load-collision-object

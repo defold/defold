@@ -119,6 +119,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext (:ext pb-def)
                                     :label (:label pb-def)
                                     :build-ext (:build-ext pb-def)

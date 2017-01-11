@@ -2053,7 +2053,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * end
      * </pre>
      * <p>
-     * Script of intance "b":
+     * Script of instance "b":
      * </p>
      * <pre>
      * function init(self)
