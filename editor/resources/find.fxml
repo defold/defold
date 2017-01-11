@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import java.lang.*?>
+<?import javafx.scene.layout.*?>
+
+<GridPane hgap="6.0" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefWidth="600.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <columnConstraints>
+    <ColumnConstraints hgrow="NEVER" minWidth="10.0" />
+      <ColumnConstraints hgrow="NEVER" minWidth="10.0" />
+      <ColumnConstraints hgrow="NEVER" minWidth="10.0" />
+      <ColumnConstraints hgrow="ALWAYS" minWidth="10.0" />
+      <ColumnConstraints hgrow="NEVER" minWidth="10.0" />
+    <ColumnConstraints hgrow="NEVER" minWidth="10.0" />
+  </columnConstraints>
+  <rowConstraints>
+    <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+  </rowConstraints>
+   <children>
+      <CheckBox id="whole-word" mnemonicParsing="false" text="Word" GridPane.halignment="CENTER" />
+      <CheckBox id="case-insensitive" mnemonicParsing="false" text="Case" GridPane.columnIndex="1" GridPane.halignment="CENTER" />
+      <CheckBox id="wrap" mnemonicParsing="false" text="Wrap" GridPane.columnIndex="2" GridPane.halignment="CENTER" />
+      <TextField id="term" GridPane.columnIndex="3" />
+      <Button id="next" mnemonicParsing="false" text="Next" GridPane.columnIndex="4" GridPane.halignment="CENTER" />
+      <Button id="prev" mnemonicParsing="false" text="Prev" GridPane.columnIndex="5" GridPane.halignment="CENTER" />
+   </children>
+   <padding>
+      <Insets left="3.0" right="3.0" />
+   </padding>
+</GridPane>
