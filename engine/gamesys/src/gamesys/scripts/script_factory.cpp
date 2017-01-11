@@ -31,6 +31,7 @@ namespace dmGameSystem
      */
 
     /*# make a factory create a new game object
+     *
      * The URL identifies which factory should create the game object.
      * If the game object is created inside of the frame (e.g. from an update callback), the game object will be created instantly, but none of its component will be updated in the same frame.
      *
@@ -50,9 +51,10 @@ namespace dmGameSystem
      * </p>
      * <pre>
      * function init(self)
+     *     -- create a new game object and provide property values
      *     self.my_created_object = factory.create("#factory", nil, nil, {my_value = 1})
      *     -- communicate with the object
-     *     msg.post(msg.url(nil, self.my_created_object), "hello")
+     *     msg.post(self.my_created_object, "hello")
      * end
      * </pre>
      * <p>
