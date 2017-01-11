@@ -1001,7 +1001,7 @@
                                                                (id-fn (get child-to-parent (:name b)))
                                                                gui-node-id))))
           (into rt-pb-msgs)))))
-  (output build-errors g/Any (g/constantly nil)))
+  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? spine-scene)))
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
