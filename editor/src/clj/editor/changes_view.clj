@@ -62,8 +62,7 @@
   (enabled? [selection]
             (git/selection-diffable? selection))
   (run [selection ^Git git list-view]
-       (let [{:keys [new new-path old old-path]} (git/selection-diff-data git selection)]
-         (diff-view/make-diff-viewer old-path old new-path new))))
+       (diff-view/present-diff-data (git/selection-diff-data git selection))))
 
 (handler/defhandler :synchronize :global
   (enabled? [changes-view]

@@ -65,7 +65,22 @@
              :resource-fields [:script :material [:fonts :font] [:textures :texture]]
              :tags #{:component :non-embeddable}})
 
-; Line shader
+; Selection shader
+
+(shader/defshader selection-vert
+  (attribute vec4 position)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
+
+(shader/defshader selection-frag
+  (defn void main []
+    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
+
+; TODO - macro of this
+(def selection-shader (shader/make-shader ::selection-shader selection-vert selection-frag))
+
+
+; Fallback shader
 
 (vtx/defvertex color-vtx
   (vec3 position)
@@ -187,7 +202,7 @@
         vcount (count vb)]
     (when (> vcount 0)
       (let [shader (if (types/selection? (:pass render-args))
-                     shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
+                     selection-shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
                      (or material-shader shader))
             vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
@@ -1739,16 +1754,17 @@
         exts (if (vector? ext) ext [ext])]
     (for [ext exts]
       (workspace/register-resource-type workspace
-                                     :ext ext
-                                     :label (:label def)
-                                     :build-ext (:build-ext def)
-                                     :node-type GuiSceneNode
-                                     :load-fn load-gui-scene
-                                     :icon (:icon def)
-                                     :tags (:tags def)
-                                     :template (:template def)
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}}))))
+                                        :textual? true
+                                        :ext ext
+                                        :label (:label def)
+                                        :build-ext (:build-ext def)
+                                        :node-type GuiSceneNode
+                                        :load-fn load-gui-scene
+                                        :icon (:icon def)
+                                        :tags (:tags def)
+                                        :template (:template def)
+                                        :view-types [:scene :text]
+                                        :view-opts {:scene {:grid true}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
