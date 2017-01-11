@@ -10,11 +10,14 @@
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
             DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer DefoldStyledTextLayoutContainer]
-           [javafx.scene Parent Cursor]
-           [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
+           [javafx.beans.property SimpleStringProperty]
+           [javafx.scene Node Parent Cursor]
+           [javafx.scene.layout GridPane Priority ColumnConstraints]
+           [javafx.scene.shape Rectangle]
+           [javafx.scene.input Clipboard ClipboardContent KeyEvent KeyCode MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
-           [javafx.scene.control ListView ListCell Tab Label]
+           [javafx.scene.control ListView ListCell Tab Label TextField CheckBox]
            [org.eclipse.fx.text.ui TextAttribute]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
@@ -297,9 +300,14 @@
 
 (defn setup-source-viewer [opts]
   (let [source-viewer (DefoldSourceViewer.)
+        clip-rectangle (Rectangle. 0 0)
         source-viewer-config (create-viewer-config source-viewer opts)
         document (Document. "")
         partitioner (make-partitioner opts)]
+
+    (.setClip source-viewer clip-rectangle)
+    (.bind (.heightProperty clip-rectangle) (.heightProperty source-viewer))
+    (.bind (.widthProperty clip-rectangle) (.widthProperty source-viewer))
 
     (when partitioner
       (.setDocumentPartitioner document (.getConfiguredDocumentPartitioning source-viewer-config source-viewer) partitioner)
@@ -662,14 +670,100 @@
 (defn- ^DefoldStyledTextSkin skin [^SourceViewer source-viewer]
   (-> source-viewer (.getTextWidget) (.getSkin)))
 
+(defn- setup-find-bar [^GridPane find-bar source-viewer]
+  (doto find-bar
+    (ui/context! :find-bar {:find-bar find-bar :source-viewer source-viewer} nil)
+    (.setMaxWidth Double/MAX_VALUE))
+  (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-insensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
+    (.bindBidirectional (.textProperty term) cvx/find-term)
+    (.bindBidirectional (.selectedProperty whole-word) cvx/find-whole-word)
+    (.bindBidirectional (.selectedProperty case-insensitive) cvx/find-case-insensitive)
+    (.bindBidirectional (.selectedProperty wrap) cvx/find-wrap)
+    (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
+    (ui/bind-action! next :find-next)
+    (ui/bind-action! prev :find-prev))
+  find-bar)
+
+(defn- setup-replace-bar [^GridPane replace-bar source-viewer]
+  (doto replace-bar
+    (ui/context! :replace-bar {:replace-bar replace-bar :source-viewer source-viewer} nil)
+    (.setMaxWidth Double/MAX_VALUE))
+  (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-insensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
+    (.bindBidirectional (.textProperty term) cvx/find-term)
+    (.bindBidirectional (.textProperty replacement) cvx/find-replacement)
+    (.bindBidirectional (.selectedProperty whole-word) cvx/find-whole-word)
+    (.bindBidirectional (.selectedProperty case-insensitive) cvx/find-case-insensitive)
+    (.bindBidirectional (.selectedProperty wrap) cvx/find-wrap)
+    (ui/bind-action! next :find-next)
+    (ui/bind-action! replace :replace-next)
+    (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
+    (ui/bind-action! replace-all :replace-all))
+  replace-bar)
+
+(defn- hide-bars [^GridPane grid]
+  (let [visible-bars (filter #(= (GridPane/getRowIndex %) 1) (.. grid getChildren))]
+    (.. grid getChildren (removeAll (to-array visible-bars)))))
+
+(defn- show-bar [^GridPane grid ^Parent bar]
+  (when-not (.. grid getChildren (contains bar))
+    (hide-bars grid)
+    (GridPane/setConstraints bar 0 1)
+    (.. grid getChildren (add bar))))
+
+(defn- focus-text-area [^SourceViewer source-viewer]
+  (.requestFocus (.getTextWidget source-viewer)))
+
+(defn- focus-term-field [^Parent bar]
+  (ui/with-controls bar [^TextField term]
+    (.requestFocus term)
+    (.selectAll term)))
+
+(defn- non-empty-text-selection [source-viewer]
+  (let [text (cvx/text-selection source-viewer)]
+    (when (seq text) text)))
+
+(handler/defhandler :find-text :console
+  (run [grid source-viewer find-bar]
+    (when-let [text (non-empty-text-selection source-viewer)]
+      (cvx/set-find-term text))
+    (show-bar grid find-bar)
+    (focus-term-field find-bar)))
+
+(handler/defhandler :replace-text :console
+  (run [grid source-viewer replace-bar]
+    (when-let [text (non-empty-text-selection source-viewer)]
+      (cvx/set-find-term text))
+    (show-bar grid replace-bar)
+    (focus-term-field replace-bar)))
+
+(handler/defhandler :hide-bars :console
+  (run [grid source-viewer find-bar replace-bar]
+    (hide-bars grid)
+    (focus-text-area source-viewer)))
+
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))
         repainter (ui/->timer 10 "refresh-code-view" (fn [_ dt] (g/node-value view-id :new-content)))
         context-env {:view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer}
-        context-dynamics {:code-node [:view-node :resource-node]}]
-    (ui/children! parent [source-viewer])
-    (ui/fill-control source-viewer)
+        context-dynamics {:code-node [:view-node :resource-node]}
+        grid (GridPane.)
+        find-bar (setup-find-bar ^GridPane (ui/load-fxml "find.fxml") source-viewer)
+        replace-bar (setup-replace-bar ^GridPane (ui/load-fxml "replace.fxml") source-viewer)]
+
+    (ui/context! grid :console {:grid grid :source-viewer source-viewer :find-bar find-bar :replace-bar replace-bar} nil)
+    (ui/bind-keys! grid {KeyCode/ESCAPE :hide-bars})
+
+    (doto (.getColumnConstraints grid)
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/ALWAYS))))
+
+    (GridPane/setConstraints source-viewer 0 0)
+    (GridPane/setVgrow source-viewer Priority/ALWAYS)
+
+    (ui/children! grid [source-viewer])
+    (ui/children! parent [grid])
+    (ui/fill-control grid)
     (ui/context! source-viewer :code-view context-env source-viewer context-dynamics)
     (ui/observe (.selectedProperty ^Tab (:tab opts)) (fn [this old new]
                                                        (when (= true new)
