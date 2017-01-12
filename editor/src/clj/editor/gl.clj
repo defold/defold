@@ -115,17 +115,6 @@
        (finally
          (.swapBuffers ~canvas)))))
 
-(defmacro with-context
-  [ctx bindings & body]
-  (assert (= 2 (count bindings)) "Bindings vector must provide names to bind to the GL2 and GLU objects")
-  `(try
-     (.makeCurrent ~ctx)
-     (let [~(first bindings)  (.. ~ctx getGL getGL2)
-           ~(second bindings) (GLU.)]
-       ~@body)
-     (finally
-       (.release ~ctx))))
-
 (defmacro with-gl-bindings
   [glsymb render-args-symb gl-stuff & body]
   (assert (vector? gl-stuff) (str "GL objects must be a vector of values that satisfy GlBind" gl-stuff))

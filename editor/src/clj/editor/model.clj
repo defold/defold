@@ -248,10 +248,11 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
-                                 :ext "model"
-                                 :label "Model"
-                                 :node-type ModelNode
-                                 :load-fn (fn [project self resource] (load-model project self resource))
-                                 :icon model-icon
-                                 :view-types [:scene :text]
-                                 :tags #{:component}))
+                                    :textual? true
+                                    :ext "model"
+                                    :label "Model"
+                                    :node-type ModelNode
+                                    :load-fn (fn [project self resource] (load-model project self resource))
+                                    :icon model-icon
+                                    :view-types [:scene :text]
+                                    :tags #{:component}))

@@ -126,6 +126,19 @@
                               "attachment" :visible
                               "drawOrder" :order-offset})
 
+(defn key->curve-data
+  [key]
+  ; NOTE:
+  ; We've seen Spine scenes produced from non-conforming exporters that would
+  ; write a null value in place of "stepped". We treat this the same way the
+  ; old editor and the official Spine runtimes do - we consider the value to be
+  ; unspecified and fall back on the default of "linear".
+  (let [curve (get key "curve")]
+    (cond
+      (= "stepped" curve) [0 0 1 0]
+      (and (vector? curve) (= 4 (count curve))) curve
+      :else [0 0 1 1])))
+
 (defn- sample [type keys duration sample-rate spf val-fn default-val interpolate?]
   (let [pb-field (timeline-type->pb-field type)
         val-fn (or val-fn key->value)
@@ -168,11 +181,7 @@
                                   (if-let [k1 (get keys (get sample->key-idx sample))]
                                     (if (>= cursor (get k1 "time"))
                                       v1
-                                      (let [c (let [curve (get k0 "curve" "linear")]
-                                                (case curve
-                                                  "linear" [0 0 1 1]
-                                                  "stepped" [0 0 1 0]
-                                                  curve))
+                                      (let [c (key->curve-data k0)
                                             t (/ (- cursor (get k0 "time")) (- (get k1 "time") (get k0 "time")))
                                             rate (curve c t)]
                                         (interpolate v0 v1 rate)))
@@ -794,6 +803,7 @@
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
+                                      :textual? true
                                       :ext spine-scene-ext
                                       :build-ext "rigscenec"
                                       :label "Spine Scene"
@@ -803,14 +813,15 @@
                                       :view-types [:scene :text]
                                       :view-opts {:scene {:grid true}})
     (workspace/register-resource-type workspace
-                                     :ext spine-model-ext
-                                     :label "Spine Model"
-                                     :node-type SpineModelNode
-                                     :load-fn load-spine-model
-                                     :icon spine-model-icon
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}}
-                                     :tags #{:component})))
+                                      :textual? true
+                                      :ext spine-model-ext
+                                      :label "Spine Model"
+                                      :node-type SpineModelNode
+                                      :load-fn load-spine-model
+                                      :icon spine-model-icon
+                                      :view-types [:scene :text]
+                                      :view-opts {:scene {:grid true}}
+                                      :tags #{:component})))
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))

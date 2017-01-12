@@ -83,7 +83,8 @@
                                  (update s :value #(str % "c"))
                                  s)))
                   gpcore/settings->str)]
-    {:resource resource :content content}))
+    {:resource resource
+     :content content}))
 
 (defn- build-game-project [self basis resource dep-resources user-data]
   (let [ref-deps (:ref-deps user-data)
@@ -297,6 +298,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "project"
                                     :label "Project"
                                     :node-type GameProjectNode
