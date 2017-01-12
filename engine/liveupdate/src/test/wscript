@@ -1,0 +1,23 @@
+#!/usr/bin/python
+
+def init():
+    pass
+
+def set_options(opt):
+    pass
+
+def configure(conf):
+    pass
+
+def build(bld):
+    test_liveupdate = bld.new_task_gen(features = 'cxx cprogram test',
+                                       includes = '../../../src',
+                                       uselib = 'GTEST DLIB THREAD LUA',
+                                       uselib_local = 'liveupdate',
+                                       target = 'test_liveupdate',
+                                       source = 'test_liveupdate.cpp')
+
+    test_liveupdate.install_path = None
+
+def shutdown():
+    pass

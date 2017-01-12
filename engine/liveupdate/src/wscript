@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+def init():
+    pass
+
+def set_options(opt):
+    pass
+
+def configure(conf):
+    pass
+
+def build(bld):
+    liveupdate = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                                  includes = '. ../proto',
+                                  protoc_includes = '../proto',
+                                  proto_gen_py = True,
+                                  target = 'liveupdate')
+
+    liveupdate.find_sources_in_dirs('.')
+    liveupdate.find_sources_in_dirs('../proto')
+
+    bld.add_subdirs('test')
+
+    bld.install_files('${PREFIX}/include/liveupdate', 'liveupdate.h')
+    bld.install_files('${PREFIX}/share/proto', '../proto/manifest_ddf.proto')
+
+def shutdown():
+    pass
