@@ -61,9 +61,12 @@
                                          (update-fn nil)))))
   (ui/on-edit! node (fn [old new] (ui/user-data! node ::auto-commit? true))))
 
+(defn edit-type->type [edit-type]
+  (or (some-> edit-type :type g/value-type-dispatch-value)
+    (:type edit-type)))
+
 (defmulti create-property-control! (fn [edit-type _ property-fn]
-                                     (or (some-> edit-type :type g/value-type-dispatch-value)
-                                         (:type edit-type))))
+                                     (edit-type->type edit-type)))
 
 (defmethod create-property-control! g/Str [_ _ property-fn]
   (let [text         (TextField.)
@@ -602,7 +605,7 @@
         (update-ui-fn property)))))
 
 (defn- properties->template [properties]
-  (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) (:properties properties)))
+  (mapv (fn [[k v]] [k (edit-type->type (:edit-type v))]) (:properties properties)))
 
 (defn- update-pane [parent id context properties]
   ; NOTE: We cache the ui based on the ::template user-data
