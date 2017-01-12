@@ -184,6 +184,10 @@
   (or (get-setting settings path)
       (get-default-setting meta-settings path)))
 
+(defn get-meta-setting
+  [meta-settings path]
+  (nth meta-settings (setting-index meta-settings path)))
+
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))
 
