@@ -124,18 +124,22 @@
                             :textures {"texture" texture/white-pixel}}
                 :passes [pass/opaque pass/selection pass/outline]}})
 
-(defn- mesh->vb [m]
-  (let [vcount (count (:positions m))]
-    (when (> vcount 0)
-      (loop [vb (->vtx-pos-nrm-tex vcount)
-             ps (partition 3 (:positions m))
-             ns (partition 3 (:normals m))
-             ts (partition 2 (:texcoord0 m))]
-        (if-let [[x y z] (first ps)]
-          (let [[nx ny nz] (first ns)
-                [tu tv] (first ts)]
-            (recur (conj! vb [x y z nx ny nz tu tv]) (rest ps) (rest ns) (rest ts)))
-          (persistent! vb))))))
+(defn- mesh->vb [mesh]
+  (let [positions (vec (partition 3 (:positions mesh)))
+        positions-indices (:indices mesh)
+        vcount (count positions-indices)
+        normals (vec (partition 3 (or (:normals mesh) [0.0 0.0 1.0])))
+        normals-indices (or (:normals-indices mesh) (repeat vcount 0))
+        texcoords (vec (partition 2 (or (:texcoord0 mesh) [0.0 0.0])))
+        texcoords-indices (or (:texcoord0-indices mesh) (repeat vcount 0))]
+    (loop [vb (->vtx-pos-nrm-tex vcount)
+           vi 0]
+      (if (< vi vcount)
+        (let [[px py pz] (-> vi positions-indices positions)
+              [nx ny nz] (-> vi normals-indices normals)
+              [tu tv] (-> vi texcoords-indices texcoords)]
+          (recur (conj! vb [px py pz nx ny nz tu tv]) (inc vi)))
+        (persistent! vb)))))
 
 (g/defnode ColladaSceneNode
   (inherits project/ResourceNode)
@@ -148,12 +152,11 @@
                                            (partition 3 (get-in content [:components 0 :positions])))))
   (output build-targets g/Any :cached produce-build-targets)
   (output vbs g/Any :cached (g/fnk [content]
-                                   (loop [meshes (mapcat :meshes (:mesh-entries content))
-                                          vbs []]
-                                     (if-let [c (first meshes)]
-                                       (let [vb (mesh->vb c)]
-                                         (recur (rest meshes) (if vb (conj vbs vb) vbs)))
-                                       vbs))))
+                              (into []
+                                    (comp (mapcat :meshes)
+                                          (remove (comp :positions empty?))
+                                          (map mesh->vb))
+                                    (:mesh-entries content))))
   (output scene g/Any :cached produce-scene))
 
 (defn register-resource-types [workspace]
