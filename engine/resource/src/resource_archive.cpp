@@ -224,7 +224,7 @@ namespace dmResourceArchive
             hashes = (uint8_t*)(uintptr_t(archive->m_ArchiveIndex) + hash_offset);
             entries = (EntryData*)(uintptr_t(archive->m_ArchiveIndex) + entry_offset);
         }
-        
+
         // Search for hash with binary search (entries are sorted on hash)
         int first = 0;
         int last = (int)entry_count-1;
@@ -236,11 +236,15 @@ namespace dmResourceArchive
             int cmp = memcmp(hash, h, hash_len);
             if (cmp == 0)
             {
-                EntryData* e = &entries[mid];
-                entry->m_ResourceDataOffset = htonl(e->m_ResourceDataOffset);
-                entry->m_ResourceSize = htonl(e->m_ResourceSize);
-                entry->m_ResourceCompressedSize = htonl(e->m_ResourceCompressedSize);
-                entry->m_Flags = htonl(e->m_Flags);
+                if (entry != NULL)
+                {
+                    EntryData* e = &entries[mid];
+                    entry->m_ResourceDataOffset = htonl(e->m_ResourceDataOffset);
+                    entry->m_ResourceSize = htonl(e->m_ResourceSize);
+                    entry->m_ResourceCompressedSize = htonl(e->m_ResourceCompressedSize);
+                    entry->m_Flags = htonl(e->m_Flags);
+                }
+
                 return RESULT_OK;
             }
             else if (cmp > 0)
@@ -260,7 +264,7 @@ namespace dmResourceArchive
     {
         uint32_t size = entry_data->m_ResourceSize;
         uint32_t compressed_size = entry_data->m_ResourceCompressedSize;
-        
+
         if (!archive->m_IsMemMapped)
         {
             fseek(archive->m_FileResourceData, entry_data->m_ResourceDataOffset, SEEK_SET);
@@ -367,7 +371,7 @@ namespace dmResourceArchive
             return ret;
         }
 
-        
+
     }
 
     uint32_t GetEntryCount(HArchiveIndexContainer archive)

@@ -12,7 +12,7 @@ def configure(conf):
 def build(bld):
     test_liveupdate = bld.new_task_gen(features = 'cxx cprogram test',
                                        includes = '../../../src',
-                                       uselib = 'GTEST DLIB THREAD LUA',
+                                       uselib = 'GTEST RESOURCE DLIB DDF THREAD LUA',
                                        uselib_local = 'liveupdate',
                                        target = 'test_liveupdate',
                                        source = 'test_liveupdate.cpp')
