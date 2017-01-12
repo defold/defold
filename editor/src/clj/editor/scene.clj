@@ -837,8 +837,9 @@
 
 (defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position {:basis basis})))
-        p (doto (Vector3d. orig-p) (.add delta))]
-    (g/set-property node-id :position [(.x p) (.y p) (.z p)])))
+        p (doto (Vector3d. orig-p) (.add delta))
+        p' (mapv #(math/round-with-precision % 0.001) [(.x p) (.y p) (.z p)])]
+    (g/set-property node-id :position p')))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [basis node-id delta]
   (let [new-rotation (math/vecmath->clj
