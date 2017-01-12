@@ -56,7 +56,8 @@
             [editor.sync :as sync]
             [editor.system :as system]
             [util.http-server :as http-server])
-  (:import  [java.io File]
+  (:import  [com.defold.editor EditorApplication]
+            [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
             [javafx.stage Stage]
@@ -268,6 +269,21 @@
     (reset! the-root root)
     root))
 
+(defn- make-blocking-save-action
+  "Returns a function that when called will save the specified project and block
+  until the operation completes. Used as a pre-update action to ensure the
+  project is saved before installing updates and restarting the editor."
+  [project]
+  (fn []
+    ; If a build or save was in progress, wait for it to complete.
+    (while (project/ongoing-build-save?)
+      (Thread/sleep 300))
+
+    ; Save the project and block until complete.
+    (let [save-future (project/save-all! project nil)]
+      (when (future? save-future)
+        (deref save-future)))))
+
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [project-path (.getPath (.getParentFile game-project-file))
@@ -276,4 +292,5 @@
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
         ^VBox root   (ui/run-now (load-stage workspace project prefs))]
     (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)))
+    (g/reset-undo! *project-graph*)
+    (EditorApplication/registerPreUpdateAction (make-blocking-save-action project))))

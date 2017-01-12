@@ -21,6 +21,25 @@
 (defn- outline-label [nid path]
   (get (test-util/outline nid path) :label))
 
+(deftest key->curve-data-test
+  (testing "well-formed input"
+    (are [expected input]
+      (= expected (spine/key->curve-data {"curve" input}))
+      [0 0 1 1] "linear"
+      [0 0 1 0] "stepped"
+      [0.1 0.2 0.3 0.4] [0.1, 0.2, 0.3, 0.4]))
+  (testing "malformed input falls back to linear"
+    (are [expected input]
+      (= expected (spine/key->curve-data {"curve" input}))
+      [0 0 1 1] nil
+      [0 0 1 1] ""
+      [0 0 1 1] "other"
+      [0 0 1 1] []
+      [0 0 1 1] [0 0 0]
+      [0 0 1 1] [0 0 0 0 0]
+      [0 0 1 1] #{0.1 0.2 0.3 0.4}
+      [0 0 1 1] {:a 1 :b 2 :c 3 :d 4})))
+
 (deftest load-spine-scene-json
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
