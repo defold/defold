@@ -1,19 +1,10 @@
 (ns integration.collada-test
   (:require [clojure.test :refer :all]
             [clojure.java.io :as io]
-            [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
-            [integration.test-util :as test-util]
+            [editor.collada :as collada]
             [editor.workspace :as workspace]
-            [editor.defold-project :as project]
-            [editor.geom :as geom]
-            [editor.spine :as spine]
-            [editor.types :as types]
-            [editor.collada :as collada])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [org.apache.commons.io FilenameUtils FileUtils]
-           [javax.vecmath Point3d]))
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]))
 
 (deftest normals
   (with-clean-system
@@ -33,14 +24,12 @@
                     io/input-stream
                     collada/->mesh-set)]
       (let [c (get-in content [:mesh-entries 0 :meshes 0])
-            ys (map second (partition 3 (:positions c)))
+            zs (map #(nth % 2) (partition 3 (:positions c)))
             vs (map second (partition 2 (:texcoord0 c)))]
-        (is (every? identity (map (fn [y v] (= v (- 1.0 (* (+ y 1.0) 0.5)))) ys vs)))))))
+        (is (= vs (map (fn [y] (- 1.0 (* (+ y 1.0) 0.5))) zs)))))))
 
-(deftest comma-decimal-points
+(deftest comma-decimal-points-throws-number-format-exception
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
-          content (-> (workspace/file-resource workspace "/mesh/test_autodesk_dae.dae")
-                    io/input-stream
-                    collada/->mesh-set)]
-      (is (not-empty (get-in content [:mesh-entries 0 :meshes 0 :normals]))))))
+          malformed-resource (workspace/file-resource workspace "/mesh/test_autodesk_dae.dae")]
+      (is (thrown? NumberFormatException (-> malformed-resource io/input-stream collada/->mesh-set))))))

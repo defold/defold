@@ -16,7 +16,8 @@
             [editor.geom :as geom]
             [editor.render :as render]
             [editor.rig :as rig]
-            [editor.collada :as collada])
+            [editor.collada :as collada]
+            [internal.graph.error-values :as error-values])
   (:import [com.dynamo.rig.proto Rig$MeshSet]
            [editor.types AABB]
            [com.jogamp.opengl GL GL2]))
@@ -107,7 +108,10 @@
     :user-data {:content content}}])
 
 (g/defnk produce-content [resource]
-  (collada/->mesh-set (io/input-stream resource)))
+  (try
+    (collada/->mesh-set (io/input-stream resource))
+    (catch NumberFormatException _
+      (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter."))))
 
 (g/defnk produce-scene [_node-id aabb vbs]
   {:node-id _node-id
