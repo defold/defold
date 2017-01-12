@@ -288,8 +288,8 @@
 (defn- attach-embedded-component [self-id comp-id]
   (attach-component self-id comp-id :embed-ddf false))
 
-(defn- outline-attach-ref-fn [self-id comp-id]
-  (attach-component self-id comp-id :embed-ddf true))
+(defn- outline-attach-ref-component [self-id comp-id]
+  (attach-component self-id comp-id :ref-ddf true))
 
 (defn- outline-attach-embedded-component [self-id comp-id]
   (attach-component self-id comp-id :embed-ddf true))
@@ -300,7 +300,7 @@
    :icon game-object-icon
    :children (outline/natural-sort child-outlines)
    :child-reqs [{:node-type ReferencedComponent
-                 :tx-attach-fn outline-attach-ref-fn}
+                 :tx-attach-fn outline-attach-ref-component}
                 {:node-type EmbeddedComponent
                  :tx-attach-fn outline-attach-embedded-component}]})
 
