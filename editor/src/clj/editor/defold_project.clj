@@ -20,6 +20,7 @@
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
+            [util.text-util :as text-util]
             ;; TODO - HACK
             [internal.graph.types :as gt]
             [clojure.string :as str])
@@ -175,7 +176,13 @@
           (progress/progress-mapv
             (fn [{:keys [resource content]} _]
               (when-not (resource/read-only? resource)
-                (spit resource content)))
+                ; If the file is non-binary, convert line endings
+                ; to the type used by the existing file.
+                (if (and (:textual? (resource/resource-type resource))
+                         (resource/exists? resource)
+                         (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
+                  (spit resource (text-util/lf->crlf content))
+                  (spit resource content))))
             save-data
             render-progress!
             (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
@@ -217,8 +224,9 @@
                                                                :cache            cache})
                             (workspace/update-version-on-disk! workspace)
                             (update-system-cache! old-cache-val cache))
-          (ui/run-later
-            (on-complete-fn))
+          (when (some? on-complete-fn)
+            (ui/run-later
+              (on-complete-fn)))
           (finally (reset! ongoing-build-save-atom false)))))))
 
 

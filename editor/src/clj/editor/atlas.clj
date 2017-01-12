@@ -477,6 +477,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "atlas"
                                     :label "Atlas"
                                     :build-ext "texturesetc"

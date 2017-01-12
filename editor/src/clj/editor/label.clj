@@ -341,6 +341,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "label"
                                     :node-type LabelNode
                                     :load-fn load-label
