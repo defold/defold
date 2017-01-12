@@ -84,54 +84,54 @@
                  :test-fn (fn [pb targets]
                             (is (= "default" (:collision-group (first (:convex-hulls pb)))))
                             (is (< 0 (count (:convex-hull-points pb)))))}
-                {:label "Spine Scene"
-                 :path "/player/spineboy.spinescene"
-                 :pb-class Rig$RigScene
-                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                 :test-fn (fn [pb targets]
-                            (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
-                {:label "Spine Model"
-                 :path "/player/spineboy.spinemodel"
-                 :pb-class Spine$SpineModelDesc
-                 :resource-fields [:spine-scene :material]}
-                {:label "Label"
-                 :path "/main/label.label"
-                 :pb-class Label$LabelDesc
-                 :resource-fields [:font :material]
-                 :test-fn (fn [pb targets]
-                            (is (= {:color [1.0 1.0 1.0 1.0],
-                                    :line-break false,
-                                    :scale [1.0 1.0 1.0 0.0],
-                                    :blend-mode :blend-mode-alpha,
-                                    :leading 1.0,
-                                    :font "/builtins/fonts/system_font.fontc",
-                                    :size [128.0 32.0 0.0 0.0],
-                                    :tracking 0.0,
-                                    :material "/builtins/fonts/label.materialc",
-                                    :outline [0.0 0.0 0.0 1.0],
-                                    :pivot :pivot-center,
-                                    :shadow [0.0 0.0 0.0 1.0],
-                                    :text "Label"}
-                                   pb)))}
-                {:label "Collada Scene"
-                 :path "/model/book_of_defold.dae"
-                 :pb-class Rig$MeshSet
-                 :test-fn (fn [pb targets]
-                            ;; TODO - id must be 0 currently because of the runtime
-                            ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
-                            (is (= 0 (get-in pb [:mesh-entries 0 :id]))))}
-                {:label "Model"
-                 :path "/model/book_of_defold.model"
-                 :pb-class ModelProto$Model
-                 :resource-fields [:rig-scene :material]
-                 :test-fn (fn [pb targets]
-                            ;; TODO - id must be 0 currently because of the runtime
-                            ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
-                            (is (= 0 (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}
+               {:label "Spine Scene"
+                :path "/player/spineboy.spinescene"
+                :pb-class Rig$RigScene
+                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                :test-fn (fn [pb targets]
+                           (is (some? (-> pb :texture-set (target targets) :texture)))
+                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+               {:label "Spine Model"
+                :path "/player/spineboy.spinemodel"
+                :pb-class Spine$SpineModelDesc
+                :resource-fields [:spine-scene :material]}
+               {:label "Label"
+                :path "/main/label.label"
+                :pb-class Label$LabelDesc
+                :resource-fields [:font :material]
+                :test-fn (fn [pb targets]
+                           (is (= {:color [1.0 1.0 1.0 1.0],
+                                   :line-break false,
+                                   :scale [1.0 1.0 1.0 0.0],
+                                   :blend-mode :blend-mode-alpha,
+                                   :leading 1.0,
+                                   :font "/builtins/fonts/system_font.fontc",
+                                   :size [128.0 32.0 0.0 0.0],
+                                   :tracking 0.0,
+                                   :material "/builtins/fonts/label.materialc",
+                                   :outline [0.0 0.0 0.0 1.0],
+                                   :pivot :pivot-center,
+                                   :shadow [0.0 0.0 0.0 1.0],
+                                   :text "Label"}
+                                 pb)))}
+               {:label "Collada Scene"
+                :path "/model/book_of_defold.dae"
+                :pb-class Rig$MeshSet
+                :test-fn (fn [pb targets]
+                           ;; TODO - id must be 0 currently because of the runtime
+                           ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
+                           (is (= 0 (get-in pb [:mesh-entries 0 :id]))))}
+               {:label "Model"
+                :path "/model/book_of_defold.model"
+                :pb-class ModelProto$Model
+                :resource-fields [:rig-scene :material]
+                :test-fn (fn [pb targets]
+                           ;; TODO - id must be 0 currently because of the runtime
+                           ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
+                           (is (= 0 (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}
                {:label "Model with animations"
                 :path "/model/primary.model"
                 :pb-class ModelProto$Model
@@ -142,7 +142,17 @@
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
                  :pb-class GameSystem$CollectionProxyDesc
-                 :resource-fields [:collection]}]})
+                 :resource-fields [:collection]}]
+               "/gui/spine.gui"
+               [{:label "Gui with spine scene"
+                 :path "/gui/spine.gui"
+                 :pb-class Gui$SceneDesc
+                 :resource-fields [[:spine-scenes :spine-scene]]
+                 :test-fn (fn [pb targets]
+                            (let [main-node (first (:nodes pb))
+                                  nodes (into #{} (map :id (:nodes pb)))]
+                              (is (= "default" (:spine-skin main-node)))
+                              (is (every? nodes ["spine" "spine/root"]))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -153,8 +163,12 @@
              (when test-fn
                (test-fn pb content-by-target))
              (doseq [field (:resource-fields case)]
-               (is (contains? content-by-target (get pb field)))
-               (is (> (count (get content-by-target (get pb field))) 0))))))
+               (doseq [field (if (vector? field)
+                               (map-indexed (fn [i v] [(first field) i (second field)]) (get pb (first field)))
+                               [[field]])
+                       :let [path (get-in pb field)]]
+                 (is (contains? content-by-target path))
+                 (is (> (count (get content-by-target path)) 0)))))))
 
 (defmacro with-build-results [path & forms]
   `(with-clean-system
