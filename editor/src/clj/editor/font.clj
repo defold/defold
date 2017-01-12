@@ -468,12 +468,13 @@
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
-                                     :ext "font"
-                                     :label "Font"
-                                     :node-type FontNode
-                                     :load-fn load-font
-                                     :icon font-icon
-                                     :view-types [:scene :text])
+                                      :textual? true
+                                      :ext "font"
+                                      :label "Font"
+                                      :node-type FontNode
+                                      :load-fn load-font
+                                      :icon font-icon
+                                      :view-types [:scene :text])
     (workspace/register-resource-type workspace
                                       :ext ["ttf" "otf" "fnt"]
                                       :label "Font"
