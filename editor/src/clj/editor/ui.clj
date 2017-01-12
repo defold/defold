@@ -374,12 +374,12 @@
   (value! [this val] (text! this val))
   Text
   (text [this] (.getText this))
-  ; TODO: This is hack to reduce the cpu usage due to bug DEFEDIT-131
-  (text! [this val] (when-not (= val (.getText this))
-                      (.setText this val)
-                      (when (.isFocused this)
-                        (.end this)
-                        (.selectAll this))))
+  (text! [this val]
+    (doto this
+      (.setText val)
+      (.end))
+    (when (.isFocused this)
+      (.selectAll this)))
   Editable
   (editable [this] (.isEditable this))
   (editable! [this val] (.setEditable this val))
@@ -407,10 +407,7 @@
 
 (extend-type TextField
   HasAction
-  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
-  Text
-  (text [this] (.getText this))
-  (text! [this val] (.setText this val)))
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
 
 (extend-type Labeled
   Text
