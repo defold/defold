@@ -26,12 +26,16 @@
 (defn- sequence-vertices-in-mesh-set [mesh-set]
   (update mesh-set :mesh-entries #(mapv sequence-vertices-in-mesh-entry %)))
 
+(defn- load-mesh-set [workspace file-path]
+  (with-open [stream (->> file-path
+                          (workspace/file-resource workspace)
+                          io/input-stream)]
+    (collada/->mesh-set stream)))
+
 (deftest normals
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
-          content (-> (workspace/file-resource workspace "/mesh/box_blender.dae")
-                    io/input-stream
-                    collada/->mesh-set
+          content (-> (load-mesh-set workspace "/mesh/box_blender.dae")
                     sequence-vertices-in-mesh-set)]
       (is (every? (fn [[x y z]]
                     (< (Math/abs (- (Math/sqrt (+ (* x x) (* y y) (* z z))) 1.0)) 0.000001))
@@ -41,9 +45,7 @@
 (deftest texcoords
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
-          content (-> (workspace/file-resource workspace "/mesh/plane.dae")
-                    io/input-stream
-                    collada/->mesh-set
+          content (-> (load-mesh-set workspace "/mesh/plane.dae")
                     sequence-vertices-in-mesh-set)]
       (let [c (get-in content [:mesh-entries 0 :meshes 0])
             zs (map #(nth % 2) (partition 3 (:positions c)))
@@ -52,6 +54,5 @@
 
 (deftest comma-decimal-points-throws-number-format-exception
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          malformed-resource (workspace/file-resource workspace "/mesh/test_autodesk_dae.dae")]
-      (is (thrown? NumberFormatException (-> malformed-resource io/input-stream collada/->mesh-set))))))
+    (let [workspace (test-util/setup-workspace! world)]
+      (is (thrown? NumberFormatException (load-mesh-set workspace "/mesh/test_autodesk_dae.dae"))))))
