@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
@@ -25,6 +26,8 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
+
+import com.defold.extender.client.ExtenderClient;
 
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
@@ -80,9 +83,43 @@ public class IOSBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
 
+    	boolean debug = project.hasOption("debug");
+
+    	File root = new File(project.getRootDirectory());
+    	boolean hasNativeExtensions = ExtenderClient.hasExtensions(root);
+
+    	File exeArmv7 = null;
+    	File exeArm64 = null;
+
+    	if (hasNativeExtensions) {
+            String platform64 = "arm64-ios";
+            String platformv7 = "armv7-ios";
+
+	    	String sdkVersion = project.option("defoldsdk", "");
+	    	String buildServer = project.option("build-server", "");
+    		ExtenderClient extender = new ExtenderClient(buildServer);
+            File logFile = File.createTempFile("build_" + sdkVersion, ".txt");
+            logFile.deleteOnExit();
+
+            exeArm64 = File.createTempFile("engine_" + sdkVersion + "_" + platform64, "");
+            exeArm64.deleteOnExit();
+
+            exeArmv7 = File.createTempFile("engine_" + sdkVersion + "_" + platformv7, "");
+            exeArmv7.deleteOnExit();
+
+	    	List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, exeArm64);
+
+            allSource = ExtenderClient.getExtensionSource(root, platformv7);
+            BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, root, allSource, logFile, exeArmv7);
+    	}
+    	else
+    	{
+            exeArmv7 = new File( Bob.getDmengineExe(Platform.Armv7Darwin, debug) );
+            exeArm64 = new File( Bob.getDmengineExe(Platform.Arm64Darwin, debug) );
+    	}
+
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exeArmv7 = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("debug"));
-        String exeArm64 = Bob.getDmengineExe(Platform.Arm64Darwin, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -213,10 +250,10 @@ public class IOSBundler implements IBundler {
         String exe = tmpFile.getPath();
 
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
+        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
 
         // Strip executable
-        if( !project.hasOption("debug") )
+        if( !debug )
         {
             Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
         }
