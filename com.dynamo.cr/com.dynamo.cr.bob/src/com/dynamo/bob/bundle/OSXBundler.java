@@ -3,9 +3,10 @@ package com.dynamo.bob.bundle;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-
+import java.util.List;
 import org.apache.commons.io.FileUtils;
 
+import com.defold.extender.client.ExtenderClient;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -37,7 +38,31 @@ public class OSXBundler implements IBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         File macosDir = new File(contentsDir, "MacOS");
 
-        String exe = Bob.getDmengineExe(Platform.X86Darwin, project.hasOption("debug"));
+
+    	boolean debug = project.hasOption("debug");
+
+    	File root = new File(project.getRootDirectory());
+    	boolean hasNativeExtensions = ExtenderClient.hasExtensions(root);
+
+        File exe = null;
+
+        if (hasNativeExtensions) {
+            String platform64 = "x86_64-osx";
+
+	    	String sdkVersion = project.option("defoldsdk", "");
+	    	String buildServer = project.option("build-server", "");
+    		ExtenderClient extender = new ExtenderClient(buildServer);
+            File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
+            logFile.deleteOnExit();
+
+            exe = File.createTempFile("engine_" + sdkVersion + "_" + platform64, "");
+	    	exe.deleteOnExit();
+
+	    	List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
+	    	BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, exe);
+        } else {
+        	exe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
+        }
 
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
@@ -59,7 +84,7 @@ public class OSXBundler implements IBundler {
 
         // Copy Executable
         File exeOut = new File(macosDir, title);
-        FileUtils.copyFile(new File(exe), exeOut);
+        FileUtils.copyFile(exe, exeOut);
         exeOut.setExecutable(true);
     }
 
