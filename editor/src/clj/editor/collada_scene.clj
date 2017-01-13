@@ -109,7 +109,8 @@
 
 (g/defnk produce-content [resource]
   (try
-    (collada/->mesh-set (io/input-stream resource))
+    (with-open [stream (io/input-stream resource)]
+      (collada/->mesh-set stream))
     (catch NumberFormatException _
       (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter."))))
 
