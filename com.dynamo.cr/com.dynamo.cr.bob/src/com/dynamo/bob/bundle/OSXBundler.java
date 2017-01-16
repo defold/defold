@@ -38,30 +38,28 @@ public class OSXBundler implements IBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         File macosDir = new File(contentsDir, "MacOS");
 
+        boolean debug = project.hasOption("debug");
 
-    	boolean debug = project.hasOption("debug");
-
-    	File root = new File(project.getRootDirectory());
-    	boolean hasNativeExtensions = ExtenderClient.hasExtensions(root);
-
+        File root = new File(project.getRootDirectory());
+        boolean hasNativeExtensions = ExtenderClient.hasExtensions(root);
         File exe = null;
 
         if (hasNativeExtensions) {
             String platform64 = "x86_64-osx";
 
-	    	String sdkVersion = project.option("defoldsdk", "");
-	    	String buildServer = project.option("build-server", "");
-    		ExtenderClient extender = new ExtenderClient(buildServer);
+            String sdkVersion = project.option("defoldsdk", "");
+            String buildServer = project.option("build-server", "");
+            ExtenderClient extender = new ExtenderClient(buildServer);
             File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
             logFile.deleteOnExit();
 
             exe = File.createTempFile("engine_" + sdkVersion + "_" + platform64, "");
-	    	exe.deleteOnExit();
+            exe.deleteOnExit();
 
-	    	List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-	    	BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, exe);
+            List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, exe);
         } else {
-        	exe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
+            exe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
         }
 
         FileUtils.deleteDirectory(appDir);
