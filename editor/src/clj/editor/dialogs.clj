@@ -355,6 +355,7 @@
                      :filter ""
                      :cell-fn (fn [r] {:text (resource/proj-path r)
                                        :icon (workspace/resource-icon r)
+                                       :style (resource/style-classes r)
                                        :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
                                                   (tooltip-gen r))})
                      :filter-fn (fn [filter-value items]
@@ -448,9 +449,11 @@
 
     (ui/cell-factory! (:resources-tree controls) (fn [r] (if (instance? MatchContextResource r)
                                                            {:text (resource/resource-name r)
-                                                            :icon (workspace/resource-icon r)}
+                                                            :icon (workspace/resource-icon r)
+                                                            :style (resource/style-classes r)}
                                                            {:text (resource/proj-path r)
-                                                            :icon (workspace/resource-icon r)})))
+                                                            :icon (workspace/resource-icon r)
+                                                            :style (resource/style-classes r)})))
 
     (ui/observe (.textProperty term-field) on-input-changed!)
     (ui/observe (.textProperty exts-field) on-input-changed!)

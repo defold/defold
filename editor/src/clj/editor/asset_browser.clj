@@ -539,8 +539,7 @@
                             {}
                             {:text (resource/resource-name resource)
                              :icon (workspace/resource-icon resource)
-                             :style (into #{} (keep not-empty) [(some->> resource resource/ext not-empty (str "resource-ext-"))
-                                                                (when (resource/read-only? resource) "resource-read-only")])
+                             :style (resource/style-classes resource)
                              :over-handler over-handler
                              :dropped-handler dropped-handler
                              :entered-handler entered-handler
