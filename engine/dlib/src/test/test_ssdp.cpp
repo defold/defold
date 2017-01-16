@@ -224,6 +224,8 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 }
 
+#ifdef _WIN32
+
 TEST_F(dmSSDPTest, Search)
 {
     // To search for devices we must invoke client -> server -> client
@@ -282,6 +284,8 @@ TEST_F(dmSSDPTest, Unannounce)
     ASSERT_FALSE(TestDeviceDiscovered());
 }
 
+#endif
+
 TEST_F(dmSSDPTest, Expire)
 {
     Init(1, false);
@@ -290,6 +294,8 @@ TEST_F(dmSSDPTest, Expire)
     UpdateClient();
     ASSERT_FALSE(TestDeviceDiscovered());
 }
+
+#ifdef _WIN32
 
 TEST_F(dmSSDPTest, Renew)
 {
@@ -300,6 +306,8 @@ TEST_F(dmSSDPTest, Renew)
     UpdateClient();
     ASSERT_TRUE(TestDeviceDiscovered());
 }
+
+#endif
 
 #ifndef _WIN32
 #include <sys/select.h>
