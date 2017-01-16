@@ -76,13 +76,8 @@
       (for [[p root] roots]
         (g/set-property self (path->property p) root)))))
 
-(g/defnk produce-save-data [resource raw-settings meta-info _declared-properties]
-  (let [content (->> raw-settings
-                  gpcore/settings-with-value
-                  (map (fn [s] (if (contains? path->property (:path s))
-                                 (update s :value #(str % "c"))
-                                 s)))
-                  gpcore/settings->str)]
+(g/defnk produce-save-data [_node-id resource raw-settings meta-info _declared-properties]
+  (let [content (gpcore/settings->str (gpcore/settings-with-value raw-settings))]
     {:resource resource
      :content content}))
 
@@ -166,7 +161,7 @@
 (defn- set-form-op [{:keys [node-id meta-settings]} path value]
   (if (contains? path->property path)
     (g/set-property! node-id (path->property path) value)
-    (let [meta-setting (nth meta-settings (gpcore/setting-index meta-settings path))
+    (let [meta-setting (gpcore/get-meta-setting meta-settings path)
           value (if (satisfies? resource/Resource value)
                   (resource/proj-path value)
                   value)]
@@ -266,10 +261,10 @@
   (output raw-settings g/Any
           (g/fnk [raw-settings meta-info ref-settings]
                  (reduce (fn [raw [p v]]
-                           (let [meta (:settings meta-info)
-                                 old (gpcore/get-setting-or-default meta raw-settings p)]
+                           (let [meta-settings (:settings meta-info)
+                                 old (gpcore/get-setting-or-default meta-settings raw-settings p)]
                              (if (not= old v)
-                               (gpcore/set-setting raw meta p v)
+                               (gpcore/set-setting raw (gpcore/get-meta-setting meta-settings p) p v)
                                raw)))
                          raw-settings ref-settings)))
   (output settings-map g/Any :cached produce-settings-map)
