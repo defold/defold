@@ -403,7 +403,7 @@ int Push_Register(lua_State* L)
  * on if the application was activated via the notification.
  *
  * @name push.set_listener
- * @param listener listener callback function (function)
+ * @param listener listener callback function. Pass an empty function if you no longer wish to receive callbacks. (function)
  *
  * @examples
  * <p>
