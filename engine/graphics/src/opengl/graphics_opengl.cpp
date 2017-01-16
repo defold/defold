@@ -661,29 +661,24 @@ static void LogFrameBufferError(GLenum status)
         glfwSwapInterval(swap_interval);
     }
 
-    NativeHandles GetNativeHandles()
-    {
-        GLFWNativeHandles glfw_native_handles = glfwGetNativeHandles();
-        NativeHandles native_window_ref = {0};
+    #define WRAP_GLFW_NATIVE_HANDLE_CALL(return_type, func_name) return_type GetNative##func_name() { return glfwGet##func_name(); }
 
-        native_window_ref.m_UIWindow = glfw_native_handles.m_UIWindow;
-        native_window_ref.m_UIView = glfw_native_handles.m_UIView;
-        native_window_ref.m_EAGLContext = glfw_native_handles.m_EAGLContext;
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUVWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIView);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSEAGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSView);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSOpenGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(HWND, WindowsHWND);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(HGLRC, WindowsHGLRC);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLContext, AndroidEGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
 
-        native_window_ref.m_NSWindow = glfw_native_handles.m_NSWindow;
-        native_window_ref.m_NSView = glfw_native_handles.m_NSView;
-        native_window_ref.m_NSOpenGLContext = glfw_native_handles.m_NSOpenGLContext;
-
-        native_window_ref.m_HWND = glfw_native_handles.m_HWND;
-        native_window_ref.m_HGLRC = glfw_native_handles.m_HGLRC;
-
-        native_window_ref.m_EGLContext = glfw_native_handles.m_EGLContext;
-        native_window_ref.m_EGLSurface = glfw_native_handles.m_EGLSurface;
-        native_window_ref.m_JNIEnv = glfw_native_handles.m_JNIEnv;
-        native_window_ref.m_Activity = glfw_native_handles.m_Activity;
-
-        return native_window_ref;
-    }
+    #undef WRAP_GLFW_NATIVE_HANDLE_CALL
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {

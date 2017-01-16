@@ -23,12 +23,10 @@
 #endif
 
 // Include needed header for types, and typedef unknowns to void*
-#if defined(__OBJC__)
-    #if defined(DM_PLATFORM_EXPOSE_NATIVE_IOS)
-        #import <UIKit/UIKit.h>
-    #elif defined(DM_PLATFORM_EXPOSE_NATIVE_OSX)
-        #import <Cocoa/Cocoa.h>
-    #endif
+#if defined(DM_PLATFORM_EXPOSE_NATIVE_IOS)
+    #include <objc/objc.h>
+#elif defined(DM_PLATFORM_EXPOSE_NATIVE_OSX)
+    #include <objc/objc.h>
 #else
     typedef void* id;
 #endif
@@ -41,7 +39,7 @@
 #else
     typedef void* EGLContext;
     typedef void* EGLSurface;
-    typedef void* JNIEnv;
+    typedef void* JavaVM;
     typedef void* jobject;
 #endif
 
@@ -53,8 +51,10 @@
 #endif
 
 #if defined(DM_PLATFORM_EXPOSE_NATIVE_LINUX)
-    // Linux
+    #include <GL/glx.h>
 #else
+    typedef void* Window;
+    typedef void* GLXContext;
 #endif
 
 #if defined(DM_PLATFORM_EXPOSE_NATIVE_HTML5)
@@ -64,30 +64,29 @@
 
 namespace dmGraphics
 {
-    struct NativeHandles
-    {
-        // iOS
-        id m_UIWindow;
-        id m_UIView;
-        id m_EAGLContext;
+    // iOS
+    id GetNativeiOSUVWindow(void);
+    id GetNativeiOSUIView(void);
+    id GetNativeiOSEAGLContext(void);
 
-        // OSX
-        id m_NSWindow;
-        id m_NSView;
-        id m_NSOpenGLContext;
+    // OSX
+    id GetNativeOSXNSWindow(void);
+    id GetNativeOSXNSView(void);
+    id GetNativeOSXNSOpenGLContext(void);
 
-        // Android
-        EGLContext m_EGLContext;
-        EGLSurface m_EGLSurface;
-        JNIEnv*    m_JNIEnv;
-        jobject    m_Activity;
+    // Win32
+    HWND GetNativeWindowsHWND(void);
+    HGLRC GetNativeWindowsHGLRC(void);
 
-        // Windows
-        HWND  m_HWND;
-        HGLRC m_HGLRC;
-    };
+    // Android
+    EGLContext GetNativeAndroidEGLContext(void);
+    EGLSurface GetNativeAndroidEGLSurface(void);
+    JavaVM* GetNativeAndroidJavaVM(void);
+    jobject GetNativeAndroidActivity(void);
 
-    NativeHandles GetNativeHandles();
+    // Linux (X11)
+    Window GetNativeX11Window(void);
+    GLXContext GetNativeX11GLXContext(void);
 }
 
 #endif

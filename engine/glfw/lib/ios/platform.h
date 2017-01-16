@@ -39,6 +39,11 @@
 
 #include "../../include/GL/glfw.h"
 #include "../../include/GL/glfw_native.h"
+#if defined(__OBJC__)
+#import <UIKit/UIKit.h>
+#else
+#include <objc/objc.h>
+#endif
 
 
 #ifndef GL_VERSION_3_0

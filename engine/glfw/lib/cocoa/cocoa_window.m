@@ -1009,12 +1009,17 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 //========================================================================
 // Defold extension: Get native references (window, view and context)
 //========================================================================
-
-GLFWAPI struct GLFWNativeHandles glfwGetNativeHandles(void)
+GLFWAPI id glfwGetOSXNSWindow()
 {
-    struct GLFWNativeHandles handles = {0};
-    handles.m_NSWindow        = _glfwWin.window;
-    handles.m_NSView          = [_glfwWin.window contentView];
-    handles.m_NSOpenGLContext = _glfwWin.context;
-    return handles;
+    return _glfwWin.window;
+}
+
+GLFWAPI id glfwGetOSXNSView()
+{
+    return [_glfwWin.window contentView];
+}
+
+GLFWAPI id glfwGetOSXNSOpenGLContext()
+{
+    return _glfwWin.context;
 }

@@ -457,6 +457,14 @@ namespace dmEngine
             }
         }
 
+        dmExtension::AppParams app_params;
+        app_params.m_ConfigFile = engine->m_Config;
+        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
+        if (er != dmExtension::RESULT_OK) {
+            dmLogFatal("Failed to initialize extensions (%d)", er);
+            return false;
+        }
+
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
             char path[DMPATH_MAX_PATH];
@@ -516,15 +524,6 @@ namespace dmEngine
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
-
-        dmExtension::AppParams app_params;
-        app_params.m_ConfigFile = engine->m_Config;
-        app_params.m_NativeHandles = dmGraphics::GetNativeHandles();
-        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
-        if (er != dmExtension::RESULT_OK) {
-            dmLogFatal("Failed to initialize extensions (%d)", er);
-            return false;
-        }
 
         engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
