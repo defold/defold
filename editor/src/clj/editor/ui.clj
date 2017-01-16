@@ -476,21 +476,32 @@
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
 
 (defn- make-tree-cell [render-fn]
-  (let [cell (proxy [TreeCell] []
-               (updateItem [resource empty]
+  (let [apply-style-classes! (make-style-applier)
+        cell (proxy [TreeCell] []
+               (updateItem [item empty]
                  (let [^TreeCell this this
-                       render-data (and resource (render-fn resource))]
-                   (proxy-super updateItem resource empty)
+                       render-data (and item (render-fn item))]
+                   (proxy-super updateItem item empty)
                    (update-tree-cell-style! this)
                    (if empty
                      (do
+                       (apply-style-classes! this #{})
                        (proxy-super setText nil)
-                       (proxy-super setGraphic nil))
+                       (proxy-super setGraphic nil)
+                       (proxy-super setTooltip nil)
+                       (proxy-super setOnDragOver nil)
+                       (proxy-super setOnDragDropped nil)
+                       (proxy-super setOnDragEntered nil)
+                       (proxy-super setOnDragExited nil))
                      (do
-                       (when-let [text (:text render-data)]
-                         (proxy-super setText text))
-                       (when-let [icon (:icon render-data)]
-                         (proxy-super setGraphic (jfx/get-image-view icon 16))))))))]
+                       (apply-style-classes! this (:style render-data #{}))
+                       (proxy-super setText (:text render-data))
+                       (proxy-super setGraphic (some-> (:icon render-data) (jfx/get-image-view (:icon-size render-data 16))))
+                       (proxy-super setTooltip (:tooltip render-data))
+                       (proxy-super setOnDragOver (:over-handler render-data))
+                       (proxy-super setOnDragDropped (:dropped-handler render-data))
+                       (proxy-super setOnDragEntered (:entered-handler render-data))
+                       (proxy-super setOnDragExited (:exited-handler render-data)))))))]
     cell))
 
 (defn- make-tree-cell-factory [render-fn]
