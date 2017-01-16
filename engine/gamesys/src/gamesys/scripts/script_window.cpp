@@ -118,7 +118,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback (function) A callback which receives info about window events. Can be nil.
+ * @param callback (function) A callback which receives info about window events.
  *
  * <ul>
  *     <li>self (object) The calling script</li>
