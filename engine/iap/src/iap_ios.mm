@@ -525,7 +525,7 @@ int IAP_Restore(lua_State* L)
  * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  * </ul>
  * @name iap.set_listener
- * @param listener listener function
+ * @param listener listener function. Pass an empty function if you no longer wish to receive callbacks.
  */
 int IAP_SetListener(lua_State* L)
 {
