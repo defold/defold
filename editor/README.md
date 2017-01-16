@@ -33,13 +33,13 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 ## OS X/Linux
 
 * `cd` to the `defold` directory
-* run `./scripts/build.py shell`
+* run `./scripts/build.py shell --platform=...`
 
 This is the shell environment that you must have to run the project.
 Consider putting it in an alias in your bash profile.
 
 ## Setup
-* Build the engine with `scripts/build.py build_engine --skip-tests`
+* Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
   from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
 
