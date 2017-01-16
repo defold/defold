@@ -221,3 +221,9 @@
                   out (io/output-stream f)]
         (IOUtils/copy in out))
       (.getAbsolutePath f))))
+
+(defn style-classes [resource]
+  (into #{}
+        (keep not-empty)
+        [(some->> resource ext not-empty (str "resource-ext-"))
+         (when (read-only? resource) "resource-read-only")]))
