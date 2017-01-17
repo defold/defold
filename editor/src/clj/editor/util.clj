@@ -62,3 +62,6 @@
 
 (defn to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
+
+(defn is-mac-os? []
+  (= "Mac OS X" (System/getProperty "os.name")))
