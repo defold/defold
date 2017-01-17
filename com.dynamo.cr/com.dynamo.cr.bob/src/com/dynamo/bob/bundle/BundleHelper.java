@@ -145,7 +145,7 @@ public class BundleHelper {
             extender.build(platform, sdkVersion, root, allSource, zipFile, logFile);
     	} catch(ExtenderClientException e) {
     		String log = FileUtils.readFileToString(logFile);
-            throw new RuntimeException("Failed to build remotely. Is the server running?\n" + log);
+            throw new RuntimeException(String.format("Failed to build remotely.\nError: '%s'\nLog: '%s'", e.toString(), log));
     	}
 
         FileSystem zip = FileSystems.newFileSystem(zipFile.toPath(), null);

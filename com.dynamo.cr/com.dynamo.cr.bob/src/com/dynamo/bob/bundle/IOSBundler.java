@@ -91,13 +91,13 @@ public class IOSBundler implements IBundler {
     	File exeArmv7 = null;
     	File exeArm64 = null;
 
-    	if (hasNativeExtensions) {
+        if (hasNativeExtensions) {
             String platform64 = "arm64-ios";
             String platformv7 = "armv7-ios";
 
-	    	String sdkVersion = project.option("defoldsdk", "");
-	    	String buildServer = project.option("build-server", "");
-    		ExtenderClient extender = new ExtenderClient(buildServer);
+            String sdkVersion = project.option("defoldsdk", "");
+            String buildServer = project.option("build-server", "");
+            ExtenderClient extender = new ExtenderClient(buildServer);
             File logFile = File.createTempFile("build_" + sdkVersion, ".txt");
             logFile.deleteOnExit();
 
@@ -107,17 +107,17 @@ public class IOSBundler implements IBundler {
             exeArmv7 = File.createTempFile("engine_" + sdkVersion + "_" + platformv7, "");
             exeArmv7.deleteOnExit();
 
-	    	List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
+            List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
             BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, exeArm64);
 
             allSource = ExtenderClient.getExtensionSource(root, platformv7);
             BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, root, allSource, logFile, exeArmv7);
-    	}
-    	else
-    	{
+        }
+        else
+        {
             exeArmv7 = new File( Bob.getDmengineExe(Platform.Armv7Darwin, debug) );
             exeArm64 = new File( Bob.getDmengineExe(Platform.Arm64Darwin, debug) );
-    	}
+        }
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
