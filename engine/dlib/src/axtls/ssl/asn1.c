@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -36,16 +36,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "os_port.h"
-#include "crypto.h"
-#include "crypto_misc.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/crypto/crypto.h>
+#include <axtls/ssl/crypto_misc.h>
 
 #define SIG_OID_PREFIX_SIZE 8
 #define SIG_IIS6_OID_SIZE   5
 #define SIG_SUBJECT_ALT_NAME_SIZE 3
 
 /* Must be an RSA algorithm with either SHA1 or MD5 for verifying to work */
-static const uint8_t sig_oid_prefix[SIG_OID_PREFIX_SIZE] = 
+static const uint8_t sig_oid_prefix[SIG_OID_PREFIX_SIZE] =
 {
     0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01
 };
@@ -139,7 +139,7 @@ end_int_array:
 }
 
 /**
- * Get all the RSA private key specifics from an ASN.1 encoded file 
+ * Get all the RSA private key specifics from an ASN.1 encoded file
  */
 int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
 {
@@ -180,7 +180,7 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     if (p_len <= 0 || q_len <= 0 || dP_len <= 0 || dQ_len <= 0 || qInv_len <= 0)
         return X509_INVALID_PRIV_KEY;
 
-    RSA_priv_key_new(rsa_ctx, 
+    RSA_priv_key_new(rsa_ctx,
             modulus, mod_len, pub_exp, pub_len, priv_exp, priv_len,
             p, p_len, q, p_len, dP, dP_len, dQ, dQ_len, qInv, qInv_len);
 
@@ -190,7 +190,7 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     free(dQ);
     free(qInv);
 #else
-    RSA_priv_key_new(rsa_ctx, 
+    RSA_priv_key_new(rsa_ctx,
             modulus, mod_len, pub_exp, pub_len, priv_exp, priv_len);
 #endif
 
@@ -259,7 +259,7 @@ int asn1_validity(const uint8_t *cert, int *offset, X509_CTX *x509_ctx)
 }
 
 /**
- * Get the components of a distinguished name 
+ * Get the components of a distinguished name
  */
 static int asn1_get_oid_x520(const uint8_t *buf, int *offset)
 {
@@ -269,7 +269,7 @@ static int asn1_get_oid_x520(const uint8_t *buf, int *offset)
     if ((len = asn1_next_obj(buf, offset, ASN1_OID)) < 0)
         goto end_oid;
 
-    /* expect a sequence of 2.5.4.[x] where x is a one of distinguished name 
+    /* expect a sequence of 2.5.4.[x] where x is a one of distinguished name
        components we are interested in. */
     if (len == 3 && buf[(*offset)++] == 0x55 && buf[(*offset)++] == 0x04)
         dn_type = buf[(*offset)++];
@@ -291,10 +291,10 @@ static int asn1_get_printable_str(const uint8_t *buf, int *offset, char **str)
     int asn1_type = buf[*offset];
 
     /* some certs have this awful crud in them for some reason */
-    if (asn1_type != ASN1_PRINTABLE_STR &&  
-            asn1_type != ASN1_PRINTABLE_STR2 &&  
-            asn1_type != ASN1_TELETEX_STR &&  
-            asn1_type != ASN1_IA5_STR &&  
+    if (asn1_type != ASN1_PRINTABLE_STR &&
+            asn1_type != ASN1_PRINTABLE_STR2 &&
+            asn1_type != ASN1_TELETEX_STR &&
+            asn1_type != ASN1_IA5_STR &&
             asn1_type != ASN1_UNICODE_STR)
         goto end_pnt_str;
 
@@ -431,7 +431,7 @@ end_sig:
 }
 
 /*
- * Compare 2 distinguished name components for equality 
+ * Compare 2 distinguished name components for equality
  * @return 0 if a match
  */
 static int asn1_compare_dn_comp(const char *dn1, const char *dn2)
@@ -466,7 +466,7 @@ void remove_ca_certs(CA_CERT_CTX *ca_cert_ctx)
 }
 
 /*
- * Compare 2 distinguished names for equality 
+ * Compare 2 distinguished names for equality
  * @return 0 if a match
  */
 int asn1_compare_dn(char * const dn1[], char * const dn2[])
@@ -482,7 +482,7 @@ int asn1_compare_dn(char * const dn1[], char * const dn2[])
     return 0;       /* all good */
 }
 
-int asn1_find_oid(const uint8_t* cert, int* offset, 
+int asn1_find_oid(const uint8_t* cert, int* offset,
                     const uint8_t* oid, int oid_length)
 {
     int seqlen;
@@ -501,7 +501,7 @@ int asn1_find_oid(const uint8_t* cert, int* offset,
                 type = cert[(*offset)++];
                 length = get_asn1_length(cert, offset);
 
-                if (type == ASN1_OID && length == oid_length && 
+                if (type == ASN1_OID && length == oid_length &&
                               memcmp(cert + *offset, oid, oid_length) == 0)
                 {
                     *offset += oid_length;
@@ -518,7 +518,7 @@ int asn1_find_oid(const uint8_t* cert, int* offset,
 
 int asn1_find_subjectaltname(const uint8_t* cert, int offset)
 {
-    if (asn1_find_oid(cert, &offset, sig_subject_alt_name, 
+    if (asn1_find_oid(cert, &offset, sig_subject_alt_name,
                                 SIG_SUBJECT_ALT_NAME_SIZE))
     {
         return offset;
@@ -533,7 +533,7 @@ int asn1_find_subjectaltname(const uint8_t* cert, int offset)
  * Read the signature type of the certificate. We only support RSA-MD5 and
  * RSA-SHA1 signature types.
  */
-int asn1_signature_type(const uint8_t *cert, 
+int asn1_signature_type(const uint8_t *cert,
                                 int *offset, X509_CTX *x509_ctx)
 {
     int ret = X509_NOT_OK, len;
@@ -543,7 +543,7 @@ int asn1_signature_type(const uint8_t *cert,
 
     len = get_asn1_length(cert, offset);
 
-    if (len == 5 && memcmp(sig_sha1WithRSAEncrypt, &cert[*offset], 
+    if (len == 5 && memcmp(sig_sha1WithRSAEncrypt, &cert[*offset],
                                     SIG_IIS6_OID_SIZE) == 0)
     {
         x509_ctx->sig_type = SIG_TYPE_SHA1;
