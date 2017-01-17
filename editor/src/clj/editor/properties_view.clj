@@ -50,7 +50,7 @@
 
 (declare update-field-message)
 
-(defn- update-text-fn [^TextInputControl text values message read-only?]
+(defn- update-text-fn [^TextInputControl text values edit-type message read-only?]
   (ui/text! text (str (properties/unify-values values)))
   (update-field-message [text] message)
   (ui/editable! text (not read-only?)))
@@ -88,6 +88,7 @@
                          (let [property (property-fn)]
                            (properties/set-values! property (repeat v))
                            (update-ui-fn (properties/values property)
+                                         (properties/edit-type property)
                                          (properties/validation-message property)
                                          (properties/read-only? property)))))]
     (doto text
@@ -102,6 +103,7 @@
         update-fn    (fn [_] (if-let [v (field-expression/to-double (.getText text))]
                                (properties/set-values! (property-fn) (repeat v))
                                (update-ui-fn (properties/values (property-fn))
+                                             (properties/edit-type (property-fn))
                                              (properties/validation-message (property-fn))
                                              (properties/read-only? (property-fn)))))]
     (doto text
@@ -112,7 +114,7 @@
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
   (let [check (CheckBox.)
-        update-ui-fn (fn [values message read-only?]
+        update-ui-fn (fn [values edit-type message read-only?]
                        (let [v (properties/unify-values values)]
                          (if (nil? v)
                            (.setIndeterminate check true)
@@ -142,7 +144,7 @@
                            labels)
         box          (doto (GridPane.)
                        (.setHgap grid-hgap))
-        update-ui-fn (fn [values message read-only?]
+        update-ui-fn (fn [values edit-type message read-only?]
                        (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
                                                                       [t (str (properties/unify-values
                                                                                 (map #(nth % i) values)))])
@@ -156,7 +158,9 @@
                                             current-vals (properties/values (property-fn))]
                                         (if v
                                           (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
-                                          (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                          (update-ui-fn current-vals
+                                                        (properties/edit-type (property-fn))
+                                                        (properties/validation-message (property-fn))
                                                         (properties/read-only? (property-fn))))))])
                                text-fields)]
       (ui/on-action! ^TextField t f)
@@ -190,7 +194,7 @@
                            fields)
         box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn (fn [values message read-only?]
+        update-ui-fn (fn [values edit-type message read-only?]
                        (doseq [[^TextInputControl t v] (map (fn [f t]
                                                               (let [get-fn (or (:get-fn f)
                                                                                #(get-in % (:path f)))]
@@ -208,7 +212,9 @@
                                       current-vals (properties/values (property-fn))]
                                   (if v
                                     (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
-                                    (update-ui-fn current-vals (properties/validation-message (property-fn))
+                                    (update-ui-fn current-vals
+                                                  (properties/edit-type (property-fn))
+                                                  (properties/validation-message (property-fn))
                                                   (properties/read-only? (property-fn))))))]))
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
@@ -252,8 +258,8 @@
                 {:label "Spread" :path [:spread]}]
         [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
         ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
-        update-ui-fn (fn [values message read-only?]
-                       (update-ui-fn values message read-only?)
+        update-ui-fn (fn [values edit-type message read-only?]
+                       (update-ui-fn values edit-type message read-only?)
                        (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
                          (.setSelected toggle-button curved?)
                          (ui/disable! text-field curved?)))]
@@ -266,8 +272,8 @@
                  :control toggle-button}]
         [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
           ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
-          update-ui-fn (fn [values message read-only?]
-                         (update-ui-fn values message read-only?)
+          update-ui-fn (fn [values edit-type message read-only?]
+                         (update-ui-fn values edit-type message read-only?)
                          (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
                            (.setSelected toggle-button curved?)
                            (ui/disable! text-field curved?)))]
@@ -276,7 +282,7 @@
 (defmethod create-property-control! types/Color [edit-type _ property-fn]
   (let [color-picker (doto (ColorPicker.)
                        (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn  (fn [values message read-only?]
+        update-ui-fn  (fn [values edit-type message read-only?]
                         (let [v (properties/unify-values values)]
                           (if (nil? v)
                             (.setValue color-picker nil)
@@ -294,25 +300,30 @@
     [color-picker update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [edit-type _ property-fn]
-  (let [options      (:options edit-type)
-        inv-options  (clojure.set/map-invert options)
+  (let [options      (atom nil)
+        inv-options  (atom nil)
         converter    (proxy [StringConverter] []
                        (toString [value]
-                         (get options value (str value)))
+                         (get @options value (str value)))
                        (fromString [s]
-                         (inv-options s)))
+                         (@inv-options s)))
         cb           (doto (ComboBox.)
                        (.setPrefWidth Double/MAX_VALUE)
                        (.setConverter converter)
-                       (ui/cell-factory! (fn [val]  {:text (options val)}))
-                       (-> (.getItems) (.addAll (object-array (map first options)))))
-        update-ui-fn (fn [values message read-only?]
+                       (ui/cell-factory! (fn [val]  {:text (@options val)})))
+        update-ui-fn (fn [values edit-type message read-only?]
                        (binding [*programmatic-setting* true]
+                         (let [new-options (:options edit-type)
+                               new-inv-options (clojure.set/map-invert new-options)]
+                           (when (not= @options new-options)
+                             (reset! options new-options)
+                             (reset! inv-options new-inv-options)
+                             (-> cb (.getItems) (.setAll (object-array (map first new-options))))))
                          (let [value (properties/unify-values values)]
-                           (if (contains? options value)
+                           (if (contains? @options value)
                              (do
                                (.setValue cb value)
-                               (.setText (.getEditor cb) (options value)))
+                               (.setText (.getEditor cb) (@options value)))
                              (do
                                (.setValue cb nil)
                                (.. cb (getSelectionModel) (clearSelection)))))
@@ -334,7 +345,7 @@
         text          (doto (TextField.)
                         (GridPane/setFillWidth true))
         dialog-opts   (if (:ext edit-type) {:ext (:ext edit-type)} {})
-        update-ui-fn  (fn [values message read-only?]
+        update-ui-fn  (fn [values edit-type message read-only?]
                         (let [val (properties/unify-values values)]
                           (ui/text! text (when val (resource/proj-path val)))
                           (update-field-message [text] message)
@@ -382,8 +393,8 @@
         val (:value edit-type max)
         precision (:precision edit-type)
         slider (Slider. min max val)
-        update-ui-fn (fn [values message read-only?]
-                       (tf-update-ui-fn values message read-only?)
+        update-ui-fn (fn [values edit-type message read-only?]
+                       (tf-update-ui-fn values edit-type message read-only?)
                        (binding [*programmatic-setting* true]
                          (if-let [v (properties/unify-values values)]
                            (doto slider
@@ -414,7 +425,7 @@
   (let [text         (TextField.)
         wrapper      (doto (HBox.)
                        (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn (fn [values message read-only?]
+        update-ui-fn (fn [values edit-type message read-only?]
                        (ui/text! text (properties/unify-values (map str values)))
                        (update-field-message [wrapper] message)
                        (ui/editable! text (not read-only?)))]
@@ -525,6 +536,7 @@
                            (f c "overridden"))
                          (update-label-box overridden?)
                          (update-ctrl-fn (properties/values property)
+                                         (properties/edit-type property)
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
 
@@ -603,8 +615,7 @@
     (ui/user-data! pane ::properties properties)
     (doseq [[key property] (:properties properties)
             ;; Only update the UI when the props actually differ
-            ;; Differing :edit-type's would have recreated the UI so no need to compare them here
-            :when (not= (dissoc property :edit-type) (dissoc (get prev-properties key) :edit-type))]
+            :when (not= property (get prev-properties key))]
       (when-let [update-ui-fn (get update-fns key)]
         (update-ui-fn property)))))
 
