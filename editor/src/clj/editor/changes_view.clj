@@ -9,6 +9,7 @@
             [editor.sync :as sync]
             [editor.ui :as ui]
             [editor.resource :as resource]
+            [editor.resource-watch :as resource-watch]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
             [service.log :as log])
@@ -61,8 +62,7 @@
   (enabled? [selection]
             (git/selection-diffable? selection))
   (run [selection ^Git git list-view]
-       (let [{:keys [new new-path old old-path]} (git/selection-diff-data git selection)]
-         (diff-view/make-diff-viewer old-path old new-path new))))
+       (diff-view/present-diff-data (git/selection-diff-data git selection))))
 
 (handler/defhandler :synchronize :global
   (enabled? [changes-view]
@@ -70,9 +70,18 @@
   (run [changes-view workspace project]
        (let [git   (g/node-value changes-view :git)
              prefs (g/node-value changes-view :prefs)]
+         ; Save the project before we initiate the sync process. We need to do this because
+         ; the unsaved files may also have changed on the server, and we'll need to merge.
          (project/save-all! project (fn []
                                       (sync/open-sync-dialog (sync/begin-flow! git prefs))
-                                      (workspace/resource-sync! workspace))))))
+                                      (let [diff (workspace/resource-sync! workspace)]
+                                        ; The call to resource-sync! will refresh the changes view if it detected any
+                                        ; changes since last time it was called. However, we also want to refresh the
+                                        ; changes view if our changes were pushed to the server. In this scenario the
+                                        ; files on disk will not have changed, so we explicitly refresh the changes
+                                        ; view here in case resource-sync! reported no changes.
+                                        (when (resource-watch/empty-diff? diff)
+                                          (refresh! changes-view))))))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."

@@ -845,14 +845,15 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
-                                     :ext "particlefx"
-                                     :label "Particle FX"
-                                     :node-type ParticleFXNode
-                                     :load-fn load-particle-fx
-                                     :icon particle-fx-icon
-                                     :tags #{:component :non-embeddable}
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}}))
+                                    :textual? true
+                                    :ext "particlefx"
+                                    :label "Particle FX"
+                                    :node-type ParticleFXNode
+                                    :load-fn load-particle-fx
+                                    :icon particle-fx-icon
+                                    :tags #{:component :non-embeddable}
+                                    :view-types [:scene :text]
+                                    :view-opts {:scene {:grid true}}))
 
 (defn- make-pfx-sim [_ data]
   (let [[max-emitter-count max-particle-count rt-pb-data world-transform] data]

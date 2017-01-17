@@ -198,8 +198,9 @@
           unified-status))
 
 (defn refresh-git-state [{:keys [git] :as flow}]
-  (merge flow (find-git-state (git/status git)
-                              (git/unified-status git))))
+  (let [status (git/status git)]
+    (merge flow (find-git-state status
+                                (git/unified-status git status)))))
 
 (defn advance-flow [{:keys [git state progress creds conflicts stash-info message] :as flow} render-progress]
   (render-progress progress)
@@ -297,8 +298,7 @@
 (handler/defhandler :show-change-diff :sync
   (enabled? [selection] (git/selection-diffable? selection))
   (run [selection !flow]
-       (let [{:keys [new new-path old old-path]} (git/selection-diff-data (:git @!flow) selection)]
-         (diff-view/make-diff-viewer old-path old new-path new))))
+       (diff-view/present-diff-data (git/selection-diff-data (:git @!flow) selection))))
 
 (handler/defhandler :use-ours :sync
   (enabled? [selection] (pos? (count selection)))
