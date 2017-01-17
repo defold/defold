@@ -23,11 +23,10 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 
     The problem seems to be that the (windows) java class path points to an invalid home directory.
 
-  - If this fails because the github certificate cannot be verified, a hacky workaround is as follows:
-    - open `lein.sh` with notepad
-    - search for `wget`, you should get a hit near `HTTP_CLIENT` definition
-    - stick in a `--no-check-certificate` flag
-    - save, retry
+  - If this fails because the github certificate cannot be verified:
+
+          export HTTP_CLIENT='wget --no-check-certificate -O'
+
 * Follow the OS X/Linux instructions!
 
 ## OS X/Linux
