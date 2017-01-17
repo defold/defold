@@ -2,7 +2,7 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
-#include <liveupdate/manifest_ddf.h>
+#include "manifest_ddf.h"
 #include "resource_archive.h"
 
 namespace dmBuffer
