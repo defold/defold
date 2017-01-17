@@ -2,7 +2,8 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
-#include <liveupdate/manifest_ddf.h>
+#include "manifest_ddf.h"
+#include "resource_archive.h"
 
 namespace dmBuffer
 {
@@ -78,6 +79,17 @@ namespace dmResource
     {
         DATA_SHARE_STATE_NONE = 0,
         DATA_SHARE_STATE_SHALLOW = 1,
+    };
+
+    struct Manifest
+    {
+        Manifest()
+        {
+            memset(this, 0, sizeof(Manifest));
+        }
+
+        dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
+        dmLiveUpdateDDF::ManifestFile*              m_DDF;
     };
 
     /// Resource descriptor
@@ -517,6 +529,8 @@ namespace dmResource
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
+
+    Manifest* GetManifest(HFactory factory);
 
     Result LoadArchiveIndex(const char* manifestPath, HFactory factory);
 

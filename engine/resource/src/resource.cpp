@@ -32,7 +32,6 @@
 #include <dlib/mutex.h>
 
 #include "resource.h"
-#include "resource_archive.h"
 #include "resource_ddf.h"
 #include "resource_private.h"
 
@@ -57,17 +56,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 #define RESOURCE_SOCKET_NAME "@resource"
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
-
-struct Manifest
-{
-    Manifest()
-    {
-        memset(this, 0, sizeof(Manifest));
-    }
-
-    dmResourceArchive::HArchiveIndexContainer    m_ArchiveIndex;
-    dmLiveUpdateDDF::ManifestFile*      m_DDF;
-};
 
 const char SHARED_NAME_CHARACTER = ':';
 
@@ -235,6 +223,11 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
 
     factory->m_HttpBuffer->PushArray((const char*) content_data, content_data_size);
     factory->m_HttpTotalBytesStreamed += content_data_size;
+}
+
+Manifest* GetManifest(HFactory factory)
+{
+    return factory->m_Manifest;
 }
 
 Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
