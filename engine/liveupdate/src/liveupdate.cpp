@@ -1,13 +1,15 @@
 #include "liveupdate.h"
 #include "liveupdate_private.h"
-
 #include <string.h>
 
 #include <ddf/ddf.h>
-#include <dlib/dstrings.h>
-#include <dlib/log.h>
+
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
+
+#include <dlib/log.h>
+#include <dlib/dstrings.h>
+#include <axtls/crypto/crypto.h>
 
 namespace dmLiveUpdate
 {
@@ -70,6 +72,71 @@ namespace dmLiveUpdate
         return resourceCount;
     }
 
+    void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, uint32_t buflen, uint8_t* digest)
+    {
+        if (algorithm == dmLiveUpdateDDF::HASH_MD5)
+        {
+            MD5_CTX context;
+
+            MD5_Init(&context);
+            MD5_Update(&context, (const uint8_t*) buf, buflen);
+            MD5_Final(digest, &context);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        {
+            SHA1_CTX context;
+
+            SHA1_Init(&context);
+            SHA1_Update(&context, (const uint8_t*) buf, buflen);
+            SHA1_Final(digest, &context);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
+        {
+            dmLogError("The algorithm SHA256 specified for resource hashing is currently not supported");
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
+        {
+            dmLogError("The algorithm SHA512 specified for resource hashing is currently not supported");
+        }
+        else
+        {
+            dmLogError("The algorithm specified for resource hashing is not supported");
+        }
+    }
+
+    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen)
+    {
+        bool result = true;
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
+        uint32_t digestLength = HashLength(algorithm);
+        uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
+        CreateResourceHash(algorithm, buf, buflen, digest);
+
+        uint32_t hexDigestLength = digestLength * 2 + 1;
+        char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
+        HashToString(algorithm, digest, hexDigest, hexDigestLength);
+
+        if (expectedLength == (hexDigestLength - 1))
+        {
+            for (uint32_t i = 0; i < expectedLength; ++i)
+            {
+                if (expected[i] != hexDigest[i])
+                {
+                    result = false;
+                    break; // This is prone to side-channel attacks
+                }
+            }
+        }
+        else
+        {
+            result = false;
+        }
+
+        free(digest);
+        free(hexDigest);
+        return result;
+    }
+
     static int addManifest(dmResource::Manifest* manifest)
     {
         for (int i = 0; i < MAX_MANIFESTS; ++i)
@@ -82,6 +149,24 @@ namespace dmLiveUpdate
         }
 
         return -1;
+    }
+
+    static dmResource::Manifest* getManifest(int manifestIndex)
+    {
+        if (manifestIndex == CURRENT_MANIFEST)
+        {
+            return g_LiveUpdate.m_Manifest;
+        }
+
+        for (int i = 0; i < MAX_MANIFESTS; ++i)
+        {
+            if (i == manifestIndex)
+            {
+                return g_LiveUpdate.m_Manifests[i];
+            }
+        }
+
+        return 0x0;
     }
 
     static bool removeManifest(int manifestIndex)
@@ -114,10 +199,19 @@ namespace dmLiveUpdate
     int LiveUpdate_CreateManifest(lua_State* L)
     {
         int top = lua_gettop(L);
-        const char* manifestData = luaL_checkstring(L, 1);
+        unsigned long manifestLength = 0;
+        const char* manifestData = luaL_checklstring(L, 1, &manifestLength);
 
         dmResource::Manifest* manifest = new dmResource::Manifest();
-        // TODO: Create manifest from manifestData
+        dmResource::Result result = dmResource::ParseManifest((uint8_t*) manifestData, manifestLength, manifest->m_DDF);
+
+        if (result != dmResource::RESULT_OK)
+        {
+            delete manifest;
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "The manifest could not be parsed");
+        }
+
         int manifestIndex = addManifest(manifest);
 
         if (manifestIndex == -1)
@@ -128,7 +222,7 @@ namespace dmLiveUpdate
         }
 
         lua_pushnumber(L, manifestIndex);
-        assert(top == (lua_gettop(L) + 1));
+        assert(lua_gettop(L) == (top + 1));
         return 1;
     }
 
@@ -137,19 +231,25 @@ namespace dmLiveUpdate
         int top = lua_gettop(L);
         int manifestIndex = luaL_checkint(L, 1);
 
+        if (manifestIndex == CURRENT_MANIFEST)
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "Cannot destroy the current manifest");
+        }
+
         if (!removeManifest(manifestIndex))
         {
             assert(top == lua_gettop(L));
             return luaL_error(L, "The manifest identifier does not exist");
         }
 
-        assert(top == lua_gettop(L));
+        assert(lua_gettop(L) == top);
         return 0;
     }
 
     int LiveUpdate_MissingResources(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0);
+        DM_LUA_STACK_CHECK(L, 1);
         const char* path = luaL_checkstring(L, 1);
 
         char** buffer = 0x0;
@@ -168,12 +268,46 @@ namespace dmLiveUpdate
 
     int LiveUpdate_VerifyResource(lua_State* L)
     {
+        int top = lua_gettop(L);
+
+        int manifestIndex = luaL_checkint(L, 1);
+
+        unsigned long hexDigestLength = 0;
+        const char* hexDigest = luaL_checklstring(L, 2, &hexDigestLength);
+
+        unsigned long buflen = 0;
+        const char* buf = luaL_checklstring(L, 3, &buflen);
+
+        dmResource::Manifest* manifest = getManifest(manifestIndex);
+
+        if (manifest == 0x0)
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "The manifest identifier does not exist");
+        }
+
+        bool validResource = VerifyResource(manifest, hexDigest, hexDigestLength, buf, buflen);
+        lua_pushboolean(L, (int) validResource);
+
+        assert(lua_gettop(L) == (top + 1));
+        return 1;
+    }
+
+    int LiveUpdate_StoreResource(lua_State* L)
+    {
         DM_LUA_STACK_CHECK(L, 0);
 
         return 0;
     }
 
-    int LiveUpdate_StoreResource(lua_State* L)
+    int LiveUpdate_VerifyManifest(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        return 0;
+    }
+
+    int LiveUpdate_StoreManifest(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -193,6 +327,8 @@ namespace dmLiveUpdate
         {"missing_resources", LiveUpdate_MissingResources},
         {"verify_resource", LiveUpdate_VerifyResource},
         {"store_resource", LiveUpdate_StoreResource},
+        {"verify_manifest", LiveUpdate_VerifyManifest},
+        {"store_manifest", LiveUpdate_StoreManifest},
         {0, 0}
     };
 
