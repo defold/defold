@@ -243,7 +243,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     char archiveIndexPath[DMPATH_MAX_PATH];
     archiveIndexPath[0] = 0x0;
 
-    dmStrlCpy(archiveIndexPath, manifestPath, strlen(manifestPath) - extensionLength+1);
+    dmStrlCpy(archiveIndexPath, manifestPath, DMPATH_MAX_PATH);
     dmStrlCat(archiveIndexPath, "arci", DMPATH_MAX_PATH);
 
     dmLogInfo("Archive Index filepath: '%s'", archiveIndexPath);
@@ -280,8 +280,6 @@ Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::Manifest
 
 Result LoadManifest(const char* manifestPath, HFactory factory)
 {
-    //dmLogInfo("Loading the manifest! path: %s, strlen(path): %lu", manifestPath, strlen(manifestPath));
-
     uint32_t manifestLength = 0;
     uint8_t* manifestBuffer = 0x0;
 
@@ -684,7 +682,6 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
     }
     else if (factory->m_Manifest)
     {
-        //dmLogInfo("Loading from manifest file! original_name: %s", original_name);
         Result r = LoadFromManifest(factory->m_Manifest->m_DDF, factory->m_Manifest->m_ArchiveIndex, original_name, resource_size, buffer);
         return r;
     }

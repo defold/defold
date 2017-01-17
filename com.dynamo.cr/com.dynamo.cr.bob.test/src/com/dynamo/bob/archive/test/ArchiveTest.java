@@ -121,7 +121,7 @@ public class ArchiveTest {
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
-        ar.read2();
+        ar.read();
         ar.close();
     }
 
@@ -145,7 +145,7 @@ public class ArchiveTest {
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
-        ar.read2();
+        ar.read();
         List<ArchiveEntry> entries = ar.getEntries();
 
         Boolean correctOrder = false;

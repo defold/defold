@@ -1,5 +1,6 @@
 #include <dlib/log.h>
 #include <dlib/path.h>
+#include <dlib/dstrings.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <stdio.h>
@@ -12,18 +13,12 @@
 
 namespace dmResource
 {
-    struct MountInfo2
+    struct MountInfo
     {
         void *index_map;
         uint64_t index_length;
         void *data_map;
         uint64_t data_length;
-    };
-
-    struct MountInfo
-    {
-        void *map;
-        uint64_t length;
     };
 
     Result MapFile(const char* path, void*& out_map, uint32_t& out_size)
@@ -58,8 +53,8 @@ namespace dmResource
     {
         // Derive path of arcd file from path to arci
         char data_path[DMPATH_MAX_PATH];
-        memcpy(&data_path, index_path, strlen(index_path)+1); // copy NULL terminator as well
-        data_path[strlen(index_path)-1] = 'd';
+        dmStrlCpy(data_path, index_path, DMPATH_MAX_PATH);
+        data_path[strlen(index_path) - 1] = 'd';
 
         void* index_map = 0x0;
         uint32_t index_size = 0;
@@ -90,7 +85,7 @@ namespace dmResource
             return RESULT_IO_ERROR;
         }
 
-        MountInfo2* info = new MountInfo2();
+        MountInfo* info = new MountInfo();
         info->index_map = index_map;
         info->index_length = index_size;
         info->data_map = data_map;
@@ -102,7 +97,7 @@ namespace dmResource
 
     void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info)
     {
-        MountInfo2* info = (MountInfo2*) mount_info;
+        MountInfo* info = (MountInfo*) mount_info;
 
         if (!info)
         {

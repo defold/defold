@@ -112,15 +112,15 @@ public class BundlerTest {
         int entryOffset = archiveIndex.readInt();
         int hashOffset  = archiveIndex.readInt();
         int hashLength  = archiveIndex.readInt();
-        
+
         long fileSize = archiveIndex.length();
-        
+
         Set<byte[]> entries = new HashSet<byte[]>();
         for (int i = 0; i < entryCount; ++i) {
         	int offset = hashOffset + (i * ArchiveBuilder.HASH_MAX_LENGTH);
         	archiveIndex.seek(offset);
         	byte[] buffer = new byte[ArchiveBuilder.HASH_MAX_LENGTH];
-        	
+
         	for (int n = 0; n < buffer.length; ++n) {
         		buffer[n] = archiveIndex.readByte();
         	}
@@ -149,7 +149,7 @@ public class BundlerTest {
     public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError {
         createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
         createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
-        
+
         Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
@@ -168,8 +168,6 @@ public class BundlerTest {
         Set<byte[]> entries = readDarcEntries(contentRootUnused);
 
         assertEquals(2, entries.size());
-        // assertTrue(entries.contains("/main.collectionc"));
-        // assertTrue(entries.contains("/unused.collectionc"));
     }
 
     @Test
@@ -177,10 +175,9 @@ public class BundlerTest {
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
-        
+
         Set<byte[]> entries = readDarcEntries(contentRoot);
         assertEquals(1, entries.size());
-        // assertTrue(entries.contains("/m.txt"));
     }
 
     @Test
@@ -201,20 +198,10 @@ public class BundlerTest {
         build();
         Set<byte[]> entries = readDarcEntries(contentRoot);
         assertEquals(5, entries.size());
-        // assertTrue(entries.contains("/m.txt"));
-        // assertTrue(entries.contains("/custom/sub1/s1-1.txt"));
-        // assertTrue(entries.contains("/custom/sub1/s1-2.txt"));
-        // assertTrue(entries.contains("/custom/sub2/s2-1.txt"));
-        // assertTrue(entries.contains("/custom/sub2/s2-2.txt"));
 
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
         entries = readDarcEntries(contentRoot);
         assertEquals(2, entries.size());
-        // assertFalse(entries.contains("/m.txt"));
-        // assertFalse(entries.contains("/custom/sub1/s1-1.txt"));
-        // assertFalse(entries.contains("/custom/sub1/s1-2.txt"));
-        // assertTrue(entries.contains("/custom/sub2/s2-1.txt"));
-        // assertTrue(entries.contains("/custom/sub2/s2-2.txt"));
     }
 }

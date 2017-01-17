@@ -145,7 +145,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         m_Factory = dmResource::NewFactory(&params, GetParam());
-        ASSERT_NE((void*) 0, m_Factory); //
+        ASSERT_NE((void*) 0, m_Factory);
         m_ResourceName = "/test.cont";
 
         dmResource::Result e;

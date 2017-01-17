@@ -32,12 +32,4 @@ public class ResourceNode {
         return this.parent;
     }
 
-    public void print(int indent) {
-        String padding = new String(new char[indent]).replace('\0', ' ');
-        System.out.println(padding + this.relativeFilepath);
-        for (ResourceNode child : this.children) {
-            child.print(indent + 4);
-        }
-    }
-
 }

@@ -16,12 +16,8 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 
 namespace dmResource
 {
-    struct MountInfo
-    {
-        AAsset *asset;
-    };
 
-    struct MountInfo2
+    struct MountInfo
     {
         AAsset *index_asset;
         AAsset *data_asset;
@@ -82,7 +78,7 @@ namespace dmResource
             return RESULT_IO_ERROR;
         }
 
-        MountInfo2* info = new MountInfo2();
+        MountInfo* info = new MountInfo();
         info->index_asset = index_asset;
         info->data_asset = data_asset;
         *mount_info = (void*)info;
@@ -91,7 +87,7 @@ namespace dmResource
 
     void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info)
     {
-        MountInfo2* info = (MountInfo2*) mount_info;
+        MountInfo* info = (MountInfo*) mount_info;
 
         if (!info)
         {

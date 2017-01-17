@@ -5,8 +5,13 @@
 
 namespace dmResourceArchive
 {
+    /**
+     * This specifies the version of the resource archive and allows the engine
+     * to check a manifest to ensure that it's compatible with the engine's
+     * version of the archive format.
+     */
     const static uint32_t VERSION = 4;
-    
+
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
 
     enum Result
@@ -22,7 +27,7 @@ namespace dmResourceArchive
 
     struct DM_ALIGNED(16) EntryData
     {
-        EntryData() : 
+        EntryData() :
             m_ResourceDataOffset(0),
             m_ResourceSize(0),
             m_ResourceCompressedSize(0),
@@ -33,7 +38,7 @@ namespace dmResourceArchive
         uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
         uint32_t m_Flags;
     };
-    
+
     /**
      * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
      * archive is not needed.
@@ -84,13 +89,6 @@ namespace dmResourceArchive
      * @return entry count
      */
     uint32_t GetEntryCount(HArchiveIndexContainer archive);
-
-    /**
-     * Get total entries, i.e. files/resources, in archive
-     * @param archive archive handle
-     * @return entry count
-     */
-    //uint32_t GetEntryCount(HArchive archive);
 
 }  // namespace dmResourceArchive
 
