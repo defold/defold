@@ -246,7 +246,6 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     dmStrlCpy(archiveIndexPath, manifestPath, DMPATH_MAX_PATH);
     dmStrlCat(archiveIndexPath, "arci", DMPATH_MAX_PATH);
 
-    dmLogInfo("Archive Index filepath: '%s'", archiveIndexPath);
     Result result = MountArchiveInternal(archiveIndexPath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
     return result;
 }
