@@ -114,21 +114,27 @@ public class LaunchHandler extends AbstractHandler {
         	        List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
         	        BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, exe);
         	        exeName = exe.getAbsolutePath();
-        	    } catch (IOException e) {
-        	        return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("'%s' could not be built", platform));
-        	    } catch (RuntimeException e) {
-
-        	        buildError = "<no log file>";
-        	        if (logFile != null) {
-        	            try {
-        	                buildError = FileUtils.readFileToString(logFile);
-        	            } catch (IOException ioe) {
-        	                buildError = "<failed reading log>";
-        	            }
-        	        }
-        	        buildError = String.format("'%s' could not be built. Sdk version: '%s' \n%s", platform, sdkVersion, buildError);
-        	    }
-
+                } catch (IOException e) {
+                    buildError = "<no log file>";
+                    if (logFile != null) {
+                        try {
+                            buildError = FileUtils.readFileToString(logFile);
+                        } catch (IOException ioe) {
+                            buildError = "<failed reading log>";
+                        }
+                    }
+                    buildError = String.format("'%s' could not be built. Sdk version: '%s' \nError: '%s'\nLog: '%s'", buildPlatform, sdkVersion, e.toString(), buildError);
+                } catch (RuntimeException e) {
+                    buildError = "<no log file>";
+                    if (logFile != null) {
+                        try {
+                            buildError = FileUtils.readFileToString(logFile);
+                        } catch (IOException ioe) {
+                            buildError = "<failed reading log>";
+                        }
+                    }
+                    buildError = String.format("'%s' could not be built. Sdk version: '%s' \nError: '%s'\nLog: '%s'", buildPlatform, sdkVersion, e.toString(), buildError);
+                }
         	}
         	else {
         	    exeName = Engine.getDefault().getEnginePath();
