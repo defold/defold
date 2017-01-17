@@ -416,15 +416,15 @@ namespace dmEngine
             dmStrlCpy(tmp, content_root, sizeof(tmp));
             if (content_root[0])
             {
-                dmStrlCat(tmp, "/game.darc", sizeof(tmp));
+                dmStrlCat(tmp, "/game.dmanifest", sizeof(tmp));
             }
             else
             {
-                dmStrlCat(tmp, "game.darc", sizeof(tmp));
+                dmStrlCat(tmp, "game.dmanifest", sizeof(tmp));
             }
             if (dmSys::ResourceExists(tmp))
             {
-                dmStrlCpy(content_root, "arc:", sizeof(content_root));
+                dmStrlCpy(content_root, "dmanif:", sizeof(content_root));
                 dmStrlCat(content_root, tmp, sizeof(content_root));
             }
         }
@@ -540,8 +540,15 @@ namespace dmEngine
             if (http_cache)
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
-        params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
-        params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
+
+        params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
+        params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
+
+        params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
+        params.m_ArchiveData.m_Size = BUILTINS_ARCD_SIZE;
+
+        params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_DMANIFEST;
+        params.m_ArchiveManifest.m_Size = BUILTINS_DMANIFEST_SIZE;
 
         const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
         dmLogInfo("Loading data from: %s", resource_uri);

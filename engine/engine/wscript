@@ -108,6 +108,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_INPUT'] = 'input'
+    conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
     conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
     conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'

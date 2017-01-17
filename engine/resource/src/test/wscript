@@ -22,55 +22,50 @@ new_copy_task('script', '.script', '.scriptc')
 
 def build(bld):
     resources = bld.new_task_gen(source = ['test.cont_pb'])
+    sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script']]
 
-    archive = bld.new_task_gen(features = 'archive',
-                               archive_target='test.arc',
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+    archive = bld.new_task_gen(features='barchive',
+                               source_root='default/src/test',
+                               resource_name='resources',
+                               use_compression=False,
+                               source=' '.join(sources))
 
-    compressed_archive = bld.new_task_gen(features = 'archive',
-                               archive_target='test_compressed.arc',
+    bld.add_group()
+
+    archive_compressed = bld.new_task_gen(features='barchive',
+                               source_root='default/src/test',
+                               resource_name='resources_compressed',
                                use_compression=True,
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+                               source=' '.join(sources))
 
-    # Same as above but created with the java-based archive builder
-    jarchive = bld.new_task_gen(features = 'jarchive',
-                                archive_target='test.jarc',
-                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+    bld.add_group()
 
-    compressed_jarchive = bld.new_task_gen(features = 'jarchive',
-                                archive_target='test_compressed.jarc',
-                                use_compression=True,
-                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
+    archive_pb = bld.new_task_gen(features='barchive',
+                               source_root='default/src/test',
+                               resource_name='resources_pb',
+                               use_compression=False,
+                               source=bld.path.ant_glob('*.*_pb'))
 
     bld.add_group()
 
     test_resource = bld.new_task_gen(features = 'cxx cprogram embed test',
                                      includes = '../../../src ../../proto',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA LIVEUPDATE',
                                      uselib_local = 'resource',
                                      proto_gen_py = True,
                                      target = 'test_resource',
                                      source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
-                                     embed_source = 'test.arc')
+                                     embed_source = 'resources.arci resources.arcd resources.dmanifest')
 
     test_resource.install_path = None
 
-    test_resource_arc = bld.new_task_gen(features='archive',
-                                         source = bld.path.ant_glob('*.*_pb'),
-                                         archive_target='test_resource.arc')
-
-    test_resource_arc.install_path = None
-
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src',
-                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA LIVEUPDATE',
                                              uselib_local = 'resource',
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',
                                              source = 'test_resource_archive.cpp',
-                                             embed_source = 'test.arc test_compressed.arc')
+                                             embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
 
     test_resource_archive.install_path = None
-
-
-

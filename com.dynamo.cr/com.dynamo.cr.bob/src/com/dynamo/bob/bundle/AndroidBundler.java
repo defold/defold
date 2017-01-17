@@ -193,7 +193,7 @@ public class AndroidBundler implements IBundler {
                 inE = zipIn.getNextEntry();
             }
 
-            for (String name : Arrays.asList("game.projectc", "game.darc")) {
+            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 File source = new File(new File(projectRoot, contentRoot), name);
                 ZipEntry ze = new ZipEntry(normalize("assets/" + name, true));
                 zipOut.putNextEntry(ze);
@@ -269,7 +269,7 @@ public class AndroidBundler implements IBundler {
                 // Some files need to be STORED instead of DEFLATED to
                 // get "correct" memory mapping at runtime.
                 int zipMethod = ZipEntry.DEFLATED;
-                if (Arrays.asList("assets/game.projectc", "assets/game.darc").contains(inE.getName())) {
+                if (Arrays.asList("assets/game.projectc", "assets/game.arci", "assets/game.arcd", "assets/game.dmanifest", "assets/game.public.der").contains(inE.getName())) {
                     // Set up uncompresed file, unfortunately need to calculate crc32 and other data for this to work.
                     // https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
                     crc = new CRC32();
@@ -279,16 +279,17 @@ public class AndroidBundler implements IBundler {
 
                 ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
                 try {
-                    int count;
-                    entryData = new byte[(int) inE.getSize()];
-                    InputStream stream = zipFileIn.getInputStream(inE);
-                    while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
-                        byteOut.write(entryData, 0, count);
-                        if (zipMethod == ZipEntry.STORED) {
-                            crc.update(entryData, 0, count);
-                        }
-                    }
-
+                	if (inE.getSize() > 0) {
+	                    int count;
+	                    entryData = new byte[(int) inE.getSize()];
+	                    InputStream stream = zipFileIn.getInputStream(inE);
+	                    while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
+	                        byteOut.write(entryData, 0, count);
+	                        if (zipMethod == ZipEntry.STORED) {
+	                            crc.update(entryData, 0, count);
+	                        }
+	                    }
+                	}
                 } finally {
                     if(null != byteOut) {
                         byteOut.close();
