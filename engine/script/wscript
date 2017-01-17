@@ -30,7 +30,6 @@ def configure(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
     conf.env['SCRIPT_DOC'] = os.path.abspath('src/script_doc.py')
 
