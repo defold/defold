@@ -1,6 +1,8 @@
 (ns leiningen.local-jars
   (:require [clojure.java.shell :as shell]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [cemerick.pomegranate.aether :as aether]
+            [leiningen.core.main :as main])
   (:import (java.io File)
            (java.nio.file Paths)))
 
@@ -29,26 +31,7 @@
 (defn local-jars
   "Install local jar dependencies into the ~/.m2 Maven repository."
   [_project & _arg-list]
-  (if-let [dynamo-home (System/getenv "DYNAMO_HOME")]
-    (let [mvn-exe-path (maven-exe-path dynamo-home)]
-      (doseq [jar-decl (sort-by :jar-file jar-decls)]
-        (let [mvn-command (maven-install-command mvn-exe-path jar-decl)
-              {:keys [exit out err] :as result} (apply shell/sh mvn-command)]
-          (print out)
-          (print err)
-          (when (not= 0 exit)
-            (let [work-dir (working-directory)
-                  command (string/join " " mvn-command)]
-              (println (str "From \"" work-dir "\""))
-              (println (str "Command \"" command "\""))
-              (println "Failed with exit code" exit)
-              (println "When processing" (pr-str jar-decl))
-              (throw (ex-info (str "Failed to install required jar \"" (:jar-file jar-decl) "\" into local maven repository.")
-                              {:command command
-                               :exit-code exit
-                               :jar-decl jar-decl
-                               :stderr err
-                               :stdout out
-                               :work-dir work-dir}))))
-          exit)))
-    (throw (ex-info "The DYNAMO_HOME environment variable must be set." {}))))
+  (doseq [{:keys [group-id artifact-id version jar-file]} (sort-by :jar-file jar-decls)]
+       (main/info (format "Installing %s" jar-file))
+       (aether/install-artifacts
+         :files {[(symbol group-id artifact-id) version] jar-file})))
