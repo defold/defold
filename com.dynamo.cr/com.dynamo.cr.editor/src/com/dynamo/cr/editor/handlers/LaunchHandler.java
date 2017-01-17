@@ -126,7 +126,7 @@ public class LaunchHandler extends AbstractHandler {
         	                buildError = "<failed reading log>";
         	            }
         	        }
-        	        buildError = String.format("'%s' could not be built. Sdk version: '%s' \n%s", platform, sdkVersion, buildError);
+        	        buildError = String.format("'%s' could not be built. Sdk version: '%s' \nError: '%s'", buildPlatform, sdkVersion, buildError);
         	    }
 
         	}
