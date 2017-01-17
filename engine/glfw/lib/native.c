@@ -37,7 +37,7 @@
     GLFW_EXPOSE_NATIVE_STUB(jobject, AndroidActivity);
 #endif
 
-#if !defined(__linux__) || defined(__MACH__)
+#if !defined(__linux__) || defined(__EMSCRIPTEN__) || defined(ANDROID)
     GLFW_EXPOSE_NATIVE_STUB(Window, X11Window);
     GLFW_EXPOSE_NATIVE_STUB(GLXContext, X11GLXContext);
 #endif
