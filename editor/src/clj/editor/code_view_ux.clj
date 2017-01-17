@@ -4,6 +4,7 @@
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.util :as util]
             [util.text-util :as text-util])
   (:import  [com.sun.javafx.tk Toolkit]
             [javafx.stage Stage]
@@ -264,9 +265,6 @@
                2 :Double-Click
                :Single-Click)]
     (get mappings code)))
-
-(defn- is-mac-os? []
-  (= "Mac OS X" (System/getProperty "os.name")))
 
 (defn- handler-context [source-viewer]
   (handler/->context :code-view {:source-viewer source-viewer :clipboard (Clipboard/getSystemClipboard)}))
@@ -1431,8 +1429,8 @@
 (defn- is-not-typable-modifier? [^KeyEvent e]
   (if (or (.isControlDown e)
           (.isAltDown e)
-          (and (is-mac-os?) (.isMetaDown e)))
-    (not (and (or (.isControlDown e) (is-mac-os?))
+          (and (util/is-mac-os?) (.isMetaDown e)))
+    (not (and (or (.isControlDown e) (util/is-mac-os?))
               (.isAltDown e)))))
 
 (handler/defhandler :key-typed :code-view
