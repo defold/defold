@@ -83,13 +83,14 @@ public class IOSBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
 
-    	boolean debug = project.hasOption("debug");
+        boolean debug = project.hasOption("debug");
 
-    	File root = new File(project.getRootDirectory());
-    	boolean hasNativeExtensions = ExtenderClient.hasExtensions(root);
+        File root = new File(project.getRootDirectory());
+        boolean nativeExtEnabled = project.hasOption("native-ext");
+        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
 
-    	File exeArmv7 = null;
-    	File exeArm64 = null;
+        File exeArmv7 = null;
+        File exeArm64 = null;
 
         if (hasNativeExtensions) {
             String platform64 = "arm64-ios";
