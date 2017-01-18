@@ -174,7 +174,7 @@ public class BundleHelper {
             Path source = zip.getPath("dmengine");
             Files.copy(source, new FileOutputStream(outputEngine));
         } catch (IOException e) {
-            throw new CompileExceptionError(String.format("Failed to dmengine to %s", outputEngine.getAbsolutePath()), e.getCause());
+            throw new CompileExceptionError(String.format("Failed to copy dmengine to %s", outputEngine.getAbsolutePath()), e.getCause());
         }
     }
 
