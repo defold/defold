@@ -1094,6 +1094,9 @@
 (defn default-render-progress! [progress]
   (run-later (update-progress! progress)))
 
+(defn default-render-progress-now! [progress]
+  (update-progress! progress))
+
 (defn init-progress!
   []
   (update-progress! progress/done))
