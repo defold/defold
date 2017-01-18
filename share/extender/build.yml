@@ -41,7 +41,7 @@ platforms:
   x86_64-osx:
     context:
         frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo"]
-        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx"]
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin"]
         defines:    ["DM_PLATFORM_OSX"]
         flags:      []
@@ -59,7 +59,7 @@ platforms:
   arm64-ios:
     context:
         frameworks: ["Foundation", "OpenGLES", "OpenAL", "QuartzCore", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AdSupport", "CoreTelephony"]
-        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "FBSDKCore", "FBSDKLogin", "FBSDKShare"]
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "FBSDKCore", "FBSDKLogin", "FBSDKShare"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin"]
         defines:    ["DM_PLATFORM_IOS"]
         flags:      ['-fno-exceptions']
@@ -77,7 +77,7 @@ platforms:
   armv7-ios:
     context:
         frameworks: ["Foundation", "OpenGLES", "OpenAL", "QuartzCore", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AdSupport", "CoreTelephony"]
-        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "FBSDKCore", "FBSDKLogin", "FBSDKShare" ]
+        engineLibs: ["engine", "adtruthext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "FBSDKCore", "FBSDKLogin", "FBSDKShare" ]
         libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin"]
         defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE"]
         flags:      ['-fno-exceptions']
