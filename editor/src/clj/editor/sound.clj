@@ -28,12 +28,8 @@
 
 (defn- build-sound-source
   [self basis resource dep-resources user-data]
-  (let [source (:resource resource)
-        in (io/input-stream source)
-        out (ByteArrayOutputStream.)
-        _ (IOUtils/copy in out)
-        content (.toByteArray out)]
-    {:resource resource :content content}))
+  (with-open [in (io/input-stream (:resource resource))]
+    {:resource resource :content (IOUtils/toByteArray in)}))
 
 (g/defnk produce-source-build-targets [_node-id resource]
   [{:node-id _node-id
