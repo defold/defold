@@ -80,7 +80,8 @@
   (update-in meta-info [:settings]
              (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
 
-(def basic-meta-info (add-type-defaults (edn/read (pushback-reader (resource-reader "meta.edn")))))
+(def basic-meta-info (with-open [r (pushback-reader (resource-reader "meta.edn"))]
+                       (add-type-defaults (edn/read r))))
 
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))

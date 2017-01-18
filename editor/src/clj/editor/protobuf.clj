@@ -308,10 +308,14 @@
 
 (defn read-text
   [^java.lang.Class class input]
-  (let [input   (if (instance? Reader input) input (io/reader input))
-        builder (new-builder class)]
-    (TextFormat/merge ^Reader input builder)
-    (pb->map (.build builder))))
+  (let [^Reader reader (if (instance? Reader input) input (io/reader input))]
+    (try
+      (let [builder (new-builder class)]
+        (TextFormat/merge ^Reader reader builder)
+        (pb->map (.build builder)))
+      (finally
+        (when-not (= input reader)
+          (.close reader))))))
 
 (defn bytes->map [^java.lang.Class cls bytes]
   (let [parse-method (.getMethod cls "parseFrom" (into-array Class [(.getClass (byte-array 0))]))
