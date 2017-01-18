@@ -1,0 +1,8 @@
+#properties {
+    .button {
+        &:focused {
+            // Tabbed to button
+            -fx-background-color: $root-background !important;
+        }
+    }
+}
