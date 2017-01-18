@@ -1,6 +1,6 @@
 #include <dlib/log.h>
-#include <extension/extension.h>
 #include <script/script.h>
+#include <extension/extension.h>
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <FBSDKCoreKit/FBSDKCoreKit.h>
