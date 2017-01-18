@@ -86,7 +86,8 @@ public class IOSBundler implements IBundler {
     	boolean debug = project.hasOption("debug");
 
     	File root = new File(project.getRootDirectory());
-    	boolean hasNativeExtensions = ExtenderClient.hasExtensions(root);
+        boolean nativeExtEnabled = project.hasOption("native-ext");
+    	boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
 
     	File exeArmv7 = null;
     	File exeArm64 = null;

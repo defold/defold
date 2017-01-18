@@ -29,13 +29,16 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.core.ITargetService;
@@ -83,7 +86,8 @@ public class LaunchHandler extends AbstractHandler {
         	IBranchClient branchClient = Activator.getDefault().getBranchClient();
         	String location = branchClient.getNativeLocation();
         	File root = new File(location);
-        	hasNativeExtensions = ExtenderClient.hasExtensions(root);
+            boolean nativeExtEnabled = EditorUtil.isDev();
+        	hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
 
         	String platform = EditorCorePlugin.getPlatform();
         	if (hasNativeExtensions) {
@@ -115,25 +119,9 @@ public class LaunchHandler extends AbstractHandler {
         	        BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, exe);
         	        exeName = exe.getAbsolutePath();
                 } catch (IOException e) {
-                    buildError = "<no log file>";
-                    if (logFile != null) {
-                        try {
-                            buildError = FileUtils.readFileToString(logFile);
-                        } catch (IOException ioe) {
-                            buildError = "<failed reading log>";
-                        }
-                    }
-                    buildError = String.format("'%s' could not be built. Sdk version: '%s' \nError: '%s'\nLog: '%s'", buildPlatform, sdkVersion, e.toString(), buildError);
-                } catch (RuntimeException e) {
-                    buildError = "<no log file>";
-                    if (logFile != null) {
-                        try {
-                            buildError = FileUtils.readFileToString(logFile);
-                        } catch (IOException ioe) {
-                            buildError = "<failed reading log>";
-                        }
-                    }
-                    buildError = String.format("'%s' could not be built. Sdk version: '%s' \nError: '%s'\nLog: '%s'", buildPlatform, sdkVersion, e.toString(), buildError);
+                    buildError = e.getMessage();
+                } catch (CompileExceptionError e) {
+                    buildError = e.getMessage();
                 }
         	}
         	else {
