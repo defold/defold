@@ -18,7 +18,7 @@
 (defn- resource-reader [resource-name]
   (io/reader (io/resource resource-name)))
 
-(defn- pushback-reader [reader]
+(defn- pushback-reader ^PushbackReader [reader]
   (PushbackReader. reader))
 
 (defn string-reader [content]
