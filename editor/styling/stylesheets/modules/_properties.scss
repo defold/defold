@@ -1,8 +1,10 @@
 #properties {
-    .button {
-        &:focused {
-            // Tabbed to button
-            -fx-background-color: $root-background !important;
+    .composite-property-control-container {
+        .button {
+            &:focused {
+                // Tabbed to button
+                -fx-background-color: $root-background; //!important;
+            }
         }
     }
 }
