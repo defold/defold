@@ -21,11 +21,12 @@ namespace dmScript
 {
 #define SCRIPT_LIB_NAME "msg"
 #define SCRIPT_TYPE_NAME_URL "url"
-    
+
     /*# Messaging API documentation
      *
      * Functions for passing messages and constructing URL objects.
      *
+     * @document
      * @name Message
      * @namespace msg
      */

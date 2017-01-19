@@ -8,6 +8,7 @@ option java_outer_classname = "Engine";
 
 /*# System API documentation
  *
+ * @document
  * @name System
  * @namespace sys
  */
