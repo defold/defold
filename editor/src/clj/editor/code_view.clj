@@ -722,17 +722,27 @@
   (let [text (cvx/text-selection source-viewer)]
     (when (seq text) text)))
 
-(handler/defhandler :find-text :console
+(handler/defhandler :find-text :code-view
   (run [grid source-viewer find-bar]
     (when-let [text (non-empty-text-selection source-viewer)]
       (cvx/set-find-term text))
     (show-bar grid find-bar)
     (focus-term-field find-bar)))
 
-(handler/defhandler :replace-text :console
+(handler/defhandler :replace-text :code-view
   (run [grid source-viewer replace-bar]
     (when-let [text (non-empty-text-selection source-viewer)]
       (cvx/set-find-term text))
+    (show-bar grid replace-bar)
+    (focus-term-field replace-bar)))
+
+(handler/defhandler :find-text :console ;; in practice, from find/replace bars
+  (run [grid find-bar]
+    (show-bar grid find-bar)
+    (focus-term-field find-bar)))
+
+(handler/defhandler :replace-text :console
+  (run [grid replace-bar]
     (show-bar grid replace-bar)
     (focus-term-field replace-bar)))
 
@@ -745,13 +755,12 @@
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))
         repainter (ui/->timer 10 "refresh-code-view" (fn [_ dt] (g/node-value view-id :new-content)))
-        context-env {:view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer}
-        context-dynamics {:code-node [:view-node :resource-node]}
         grid (GridPane.)
         find-bar (setup-find-bar ^GridPane (ui/load-fxml "find.fxml") source-viewer)
-        replace-bar (setup-replace-bar ^GridPane (ui/load-fxml "replace.fxml") source-viewer)]
+        replace-bar (setup-replace-bar ^GridPane (ui/load-fxml "replace.fxml") source-viewer)
+        context-env {:view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer :grid grid :find-bar find-bar :replace-bar replace-bar}]
 
-    (ui/context! grid :console {:grid grid :source-viewer source-viewer :find-bar find-bar :replace-bar replace-bar} nil)
+    (ui/context! grid :console context-env nil)
     (ui/bind-keys! grid {KeyCode/ESCAPE :hide-bars})
 
     (doto (.getColumnConstraints grid)
@@ -764,7 +773,7 @@
     (ui/children! grid [source-viewer])
     (ui/children! parent [grid])
     (ui/fill-control grid)
-    (ui/context! source-viewer :code-view context-env source-viewer context-dynamics)
+    (ui/context! source-viewer :code-view context-env source-viewer {:code-node [:view-node :resource-node]})
     (ui/observe (.selectedProperty ^Tab (:tab opts)) (fn [this old new]
                                                        (when (= true new)
                                                          (ui/run-later (cvx/refresh! source-viewer)))))
