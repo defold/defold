@@ -17,12 +17,15 @@ def configure(conf):
     pass
 
 def build(bld):
-#        bld.new_task_gen(source = source,
-#                         target = '%s_doc.sdoc' % source,
-#                         rule = 'python ${SCRIPT_DOC} ${SRC} ${TGT}')
-#        bld.new_task_gen(source = source,
-#                         target = '%s_doc.json' % source,
-#                         rule = 'python ${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+    files = bld.path.ant_glob('*.apidoc_')
+    for source in files.split():
+        namespace, _ = os.path.splitext(source)
+        bld.new_task_gen(source = source,
+                     target = '%s_doc.sdoc' % namespace,
+                     rule = 'python ${SCRIPT_DOC} ${SRC} ${TGT}')
+        bld.new_task_gen(source = source,
+                     target = '%s_doc.json' % namespace,
+                     rule = 'python ${SCRIPT_DOC} -t json ${SRC} ${TGT}')
 
 def install(bld):
     pass

@@ -15,6 +15,7 @@ def init():
 
 def configure(conf):
     conf.find_program('find', var='FIND', mandatory = True)
+    conf.sub_config('src')
     pass
 
 def build(bld):
@@ -39,10 +40,12 @@ def build(bld):
         comments = '\n'.join([Utils.readf(f) for f in files])
         with open('src/%s.apidoc_' % ns, 'w') as out_f:
             out_f.write(comments)
+    bld.add_subdirs('src')
 
 def install(bld):
     pass
 
 def set_options(opt):
+    opt.sub_options('src')
     opt.tool_options('waf_dynamo')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
