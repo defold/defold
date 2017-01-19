@@ -674,10 +674,10 @@
   (doto find-bar
     (ui/context! :find-bar {:find-bar find-bar :source-viewer source-viewer} nil)
     (.setMaxWidth Double/MAX_VALUE))
-  (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-insensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
+  (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
     (.bindBidirectional (.textProperty term) cvx/find-term)
     (.bindBidirectional (.selectedProperty whole-word) cvx/find-whole-word)
-    (.bindBidirectional (.selectedProperty case-insensitive) cvx/find-case-insensitive)
+    (.bindBidirectional (.selectedProperty case-sensitive) cvx/find-case-sensitive)
     (.bindBidirectional (.selectedProperty wrap) cvx/find-wrap)
     (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
     (ui/bind-action! next :find-next)
@@ -688,11 +688,11 @@
   (doto replace-bar
     (ui/context! :replace-bar {:replace-bar replace-bar :source-viewer source-viewer} nil)
     (.setMaxWidth Double/MAX_VALUE))
-  (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-insensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
+  (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
     (.bindBidirectional (.textProperty term) cvx/find-term)
     (.bindBidirectional (.textProperty replacement) cvx/find-replacement)
     (.bindBidirectional (.selectedProperty whole-word) cvx/find-whole-word)
-    (.bindBidirectional (.selectedProperty case-insensitive) cvx/find-case-insensitive)
+    (.bindBidirectional (.selectedProperty case-sensitive) cvx/find-case-sensitive)
     (.bindBidirectional (.selectedProperty wrap) cvx/find-wrap)
     (ui/bind-action! next :find-next)
     (ui/bind-action! replace :replace-next)

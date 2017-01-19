@@ -20,7 +20,7 @@
   </rowConstraints>
    <children>
       <CheckBox id="whole-word" mnemonicParsing="false" text="Word" GridPane.halignment="CENTER" />
-      <CheckBox id="case-insensitive" mnemonicParsing="false" text="Case" GridPane.columnIndex="1" GridPane.halignment="CENTER" />
+      <CheckBox id="case-sensitive" mnemonicParsing="false" text="Case" GridPane.columnIndex="1" GridPane.halignment="CENTER" />
       <CheckBox id="wrap" mnemonicParsing="false" text="Wrap" GridPane.columnIndex="2" GridPane.halignment="CENTER" />
       <TextField id="term" GridPane.columnIndex="3" />
       <TextField id="replacement" GridPane.columnIndex="3" GridPane.rowIndex="1" />
