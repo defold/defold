@@ -24,7 +24,7 @@
                    :platforms [{:os :os-id-generic
                                 :formats [{:format :texture-format-rgba
                                            :compression-level :fast}]
-                                :mipmaps false}]})
+                                :mipmaps true}]})
 
 (defn- build-texture [self basis resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
