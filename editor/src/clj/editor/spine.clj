@@ -325,10 +325,12 @@
                  ("mesh" "skinnedmesh")
                  (let [vertices (get attachment "vertices" [])
                        uvs (get attachment "uvs" [])
-                       skinned? (= type "skinnedmesh")
+                       ; A mesh is weighted if the number of vertices > number of UVs.
+                       ; Both are x, y pairs if the mesh is not weighted.
+                       weighted? (> (count vertices) (count uvs))
                        ; Use uvs because vertices have a dynamic format
                        vertex-count (/ (count uvs) 2)]
-                   (if skinned?
+                   (if weighted?
                      (let [[positions
                             bone-indices
                             bone-weights] (loop [vertices vertices
