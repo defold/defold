@@ -8,6 +8,7 @@ import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.target.bundle.BundleiOSDialog;
 import com.dynamo.cr.target.bundle.BundleiOSPresenter;
@@ -58,6 +59,9 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         options.put("platform", "armv7-darwin");
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
 
+        if (EditorUtil.isDev()) {
+            options.put("native-ext", "true");
+        }
         EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
     	String sdkVersion = corePlugin.getSha1();
     	if (sdkVersion == "NO SHA1") {

@@ -1,9 +1,9 @@
-#include <dlib/array.h>
-#include <dlib/log.h>
-#include <extension/extension.h>
-#include <script/script.h>
 #include "iap.h"
 #include "iap_private.h"
+#include <dlib/array.h>
+#include <dlib/log.h>
+#include <script/script.h>
+#include <extension/extension.h>
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>

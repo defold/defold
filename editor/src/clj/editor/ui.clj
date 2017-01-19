@@ -9,6 +9,7 @@
    [editor.progress :as progress]
    [editor.menu :as menu]
    [editor.ui.tree-view-hack :as tree-view-hack]
+   [editor.util :as eutil]
    [internal.util :as util]
    [service.log :as log]
    [util.profiler :as profiler])
@@ -42,7 +43,7 @@
 (import com.sun.javafx.application.PlatformImpl)
 (PlatformImpl/startup (constantly nil))
 
-(defonce ^:dynamic *menu-key-combos* (atom #{}))
+(defonce key-combo->menu-item (atom {}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
 (defprotocol Text
@@ -106,6 +107,15 @@
     (when (seq missing)
       (throw (Exception. (format "controls %s are missing" missing))))
     controls))
+
+(defmacro with-controls [parent child-syms & body]
+  (let [child-keys (map keyword child-syms)
+        child-ids (mapv str child-syms)
+        all-controls-sym (gensym)
+        assignment-pairs (map #(vector %1 (list %2 all-controls-sym)) child-syms child-keys)]
+    `(let [~all-controls-sym (collect-controls ~parent ~child-ids)
+           ~@(mapcat identity assignment-pairs)]
+       ~@body)))
 
 ; TODO: Better name?
 (defn fill-control [control]
@@ -314,7 +324,7 @@
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
 
-(defn load-fxml [path]
+(defn ^Parent load-fxml [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))
         css (io/file "editor.css")]
     (when (and (.exists css) (seq (.getStylesheets root)))
@@ -476,21 +486,32 @@
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
 
 (defn- make-tree-cell [render-fn]
-  (let [cell (proxy [TreeCell] []
-               (updateItem [resource empty]
+  (let [apply-style-classes! (make-style-applier)
+        cell (proxy [TreeCell] []
+               (updateItem [item empty]
                  (let [^TreeCell this this
-                       render-data (and resource (render-fn resource))]
-                   (proxy-super updateItem resource empty)
+                       render-data (and item (render-fn item))]
+                   (proxy-super updateItem item empty)
                    (update-tree-cell-style! this)
                    (if empty
                      (do
+                       (apply-style-classes! this #{})
                        (proxy-super setText nil)
-                       (proxy-super setGraphic nil))
+                       (proxy-super setGraphic nil)
+                       (proxy-super setTooltip nil)
+                       (proxy-super setOnDragOver nil)
+                       (proxy-super setOnDragDropped nil)
+                       (proxy-super setOnDragEntered nil)
+                       (proxy-super setOnDragExited nil))
                      (do
-                       (when-let [text (:text render-data)]
-                         (proxy-super setText text))
-                       (when-let [icon (:icon render-data)]
-                         (proxy-super setGraphic (jfx/get-image-view icon 16))))))))]
+                       (apply-style-classes! this (:style render-data #{}))
+                       (proxy-super setText (:text render-data))
+                       (proxy-super setGraphic (some-> (:icon render-data) (jfx/get-image-view (:icon-size render-data 16))))
+                       (proxy-super setTooltip (:tooltip render-data))
+                       (proxy-super setOnDragOver (:over-handler render-data))
+                       (proxy-super setOnDragDropped (:dropped-handler render-data))
+                       (proxy-super setOnDragEntered (:entered-handler render-data))
+                       (proxy-super setOnDragExited (:exited-handler render-data)))))))]
     cell))
 
 (defn- make-tree-cell-factory [render-fn]
@@ -740,7 +761,7 @@
       (.setId menu-item (name command)))
     (when key-combo
       (.setAccelerator menu-item key-combo)
-      (swap! *menu-key-combos* conj key-combo))
+      (swap! key-combo->menu-item assoc key-combo menu-item))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
     (.setDisable menu-item (not enabled?))
@@ -824,17 +845,46 @@
     (.setImpl_showRelativeToWindow cm true)
     (.setContextMenu tab cm)))
 
+(defn- handle-shortcut
+  [^MenuBar menu-bar ^Event event]
+  (when-let [^MenuItem menu-item (first (keep (fn [[^KeyCombination c ^MenuItem m]]
+                                                (when (.match c event) m))
+                                              @key-combo->menu-item))]
+    ;; Workaround for https://bugs.openjdk.java.net/browse/JDK-8087863
+    ;;
+    ;; Normally, when a KeyEvent has a MenuItem with a matching
+    ;; accelerator, the corresponding onAction handler will not be
+    ;; invoked if the event is consumed. This is in line with the
+    ;; normal JavaFX capturing/bubbling event mechanism. However, on
+    ;; OSX, when using the system menubar, the onAction handler is
+    ;; always invoked and there is no way to prevent its execution.
+    ;;
+    ;; We do the following:
+    ;;
+    ;; - Always consume the event if it's bound to a command,
+    ;;   preventing further propagation.
+    ;;
+    ;; - In the normal case, we eagerly invoke the handler bound to
+    ;;   the key combination here, as it won't be invoked by the menu
+    ;;   system.
+    ;;
+    ;; - For the bug case, we don't do anything here, but exploit the
+    ;;   bug and rely on the handler being invoked by the menu system
+    ;;   even though the event has been consumed.
+    (when-not (and (eutil/is-mac-os?)
+                   (.isUseSystemMenuBar menu-bar))
+      (when-let [action-handler (.getOnAction menu-item)]
+        (.handle action-handler nil)))
+    (.consume event)))
+
 (defn register-menubar [^Scene scene  menubar-id menu-id ]
-  ; TODO: See comment below about top-level items. Should be enforced here
+  ;; TODO: See comment below about top-level items. Should be enforced here
  (let [root (.getRoot scene)]
    (if-let [menubar (.lookup root menubar-id)]
      (let [desc (make-desc menubar menu-id)]
-       (user-data! root ::menubar desc))
-     (log/warn :message (format "menubar %s not found" menubar-id))))
-  (.addEventFilter scene KeyEvent/KEY_PRESSED
-    (event-handler event
-      (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
-        (.consume event)))))
+       (user-data! root ::menubar desc)
+       (.addEventFilter scene KeyEvent/KEY_PRESSED (event-handler event (handle-shortcut menubar event))))
+     (log/warn :message (format "menubar %s not found" menubar-id)))))
 
 (defn run-command
   ([^Node node command]
@@ -1052,6 +1102,9 @@
 
 (defn default-render-progress! [progress]
   (run-later (update-progress! progress)))
+
+(defn default-render-progress-now! [progress]
+  (update-progress! progress))
 
 (defn init-progress!
   []
