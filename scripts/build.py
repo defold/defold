@@ -327,7 +327,7 @@ class Configuration(object):
             self._log('Installing %s' % basename(egg))
             self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
-        print("Installing javascripts")            
+        print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
@@ -611,7 +611,7 @@ class Configuration(object):
 
     def build_engine_base_libs(self):
         self._build_engine_base_libs(**self._get_build_flags())
-                
+
     def build_bob_light(self):
         self._log('Building bob')
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
@@ -620,7 +620,7 @@ class Configuration(object):
 
     def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
         self._log('Building libs')
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject rig gui sound gamesys tools record iap push iac adtruth webview facebook crash engine".split()
+        libs="dlib ddf particle glfw graphics lua hid liveupdate input physics resource extension script tracking render gameobject rig gui sound gamesys tools record iap push iac adtruth webview facebook crash engine".split()
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)

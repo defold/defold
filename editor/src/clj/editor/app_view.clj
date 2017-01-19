@@ -563,6 +563,7 @@
     (g/transact
       (select app-view resource-node [resource-node]))
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
+    (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-context-menu tab ::tab-menu)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler

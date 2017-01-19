@@ -139,13 +139,13 @@
                           (:focused? new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
-                     (let [{:keys [^Stage stage render-progress-fn]} (dialogs/make-progress-dialog "Reloading modified resources" "")]
-                       (ui/run-later
-                         (try
-                           (ui/with-progress [render-fn render-progress-fn]
-                             (editor.workspace/resource-sync! workspace true [] render-fn))
-                           (finally
-                             (.close stage)))))))))))
+                     (ui/default-render-progress-now! (progress/make "Reloading modified resources"))
+                     (ui/->future 0.01
+                                  #(try
+                                     (ui/with-progress [render-fn ui/default-render-progress!]
+                                       (editor.workspace/resource-sync! workspace true [] render-fn))
+                                     (finally
+                                       (ui/default-render-progress-now! progress/done))))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))

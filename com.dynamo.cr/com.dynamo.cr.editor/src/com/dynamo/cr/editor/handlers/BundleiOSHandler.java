@@ -4,7 +4,12 @@ import java.util.Map;
 
 import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jface.dialogs.Dialog;
+import org.eclipse.jface.preference.IPreferenceStore;
 
+import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.target.bundle.BundleiOSDialog;
 import com.dynamo.cr.target.bundle.BundleiOSPresenter;
 import com.dynamo.cr.target.bundle.IBundleiOSView;
@@ -46,11 +51,24 @@ public class BundleiOSHandler extends AbstractBundleHandler {
 
     @Override
     protected void setProjectOptions(Map<String, String> options) {
+        final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         String profile = presenter.getProvisioningProfile();
         String identity = presenter.getIdentity();
         options.put("mobileprovisioning", profile);
         options.put("identity", identity);
         options.put("platform", "armv7-darwin");
+        options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
+
+        if (EditorUtil.isDev()) {
+            options.put("native-ext", "true");
+        }
+        EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+    	String sdkVersion = corePlugin.getSha1();
+    	if (sdkVersion == "NO SHA1") {
+    		sdkVersion = "";
+    	}
+    	options.put("defoldsdk", sdkVersion);
+
         if(!presenter.isReleaseMode()) {
             options.put("debug", "true");
         }

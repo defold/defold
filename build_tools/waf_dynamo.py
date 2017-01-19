@@ -910,6 +910,7 @@ Task.task_type_from_func('embed_file',
 def embed_file(self):
     Utils.def_attrs(self, embed_source=[])
     for name in Utils.to_list(self.embed_source):
+        Logs.info("Embedding '%s' ..." % name)
         node = self.path.find_resource(name)
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])

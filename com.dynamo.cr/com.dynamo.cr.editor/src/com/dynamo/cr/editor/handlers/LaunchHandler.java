@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.io.FileUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -28,13 +29,16 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.core.ITargetService;
@@ -72,51 +76,57 @@ public class LaunchHandler extends AbstractHandler {
 
         final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
 
+        String buildError = null;
         boolean hasNativeExtensions = false;
-        String exeName;
+        String exeName = "";
+
         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
             exeName = store.getString(PreferenceConstants.P_APPLICATION);
         } else {
-
             IBranchClient branchClient = Activator.getDefault().getBranchClient();
             String location = branchClient.getNativeLocation();
-        	File root = new File(location);
-        	hasNativeExtensions = ExtenderClient.hasExtensions(root);
+            File root = new File(location);
+            boolean nativeExtEnabled = EditorUtil.isDev();
+            hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
 
             String platform = EditorCorePlugin.getPlatform();
-        	if (hasNativeExtensions) {
+            if (hasNativeExtensions) {
+                File logFile = null;
 
                 String buildPlatform = null;
+                String sdkVersion = "";
                 if (platform == "darwin" )
-                	buildPlatform = "x86_64-osx";
+                    buildPlatform = "x86_64-osx";
 
                 try {
                     EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
-        	    	String sdkVersion = corePlugin.getSha1();
-        	    	if (sdkVersion == "NO SHA1") {
-        	    		sdkVersion = "";
-        	    	}
-                	String serverURL = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
+                    sdkVersion = corePlugin.getSha1();
+                    if (sdkVersion == "NO SHA1") {
+                        sdkVersion = "";
+                    }
+                    String serverURL = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
 
-	        		ExtenderClient extender = new ExtenderClient(serverURL);
-	                File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
-	                logFile.deleteOnExit();
+                    ExtenderClient extender = new ExtenderClient(serverURL);
+                    logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
+                    logFile.deleteOnExit();
 
-	                // Store the engine one level above the content build since that folder gets removed during a distclean
-	                File buildDir = new File(location + File.separator + "build" + File.separator + buildPlatform);
-	                buildDir.mkdirs();
-	                File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
+                    // Store the engine one level above the content build since that folder gets removed during a distclean
+                    File buildDir = new File(location + File.separator + "build" + File.separator + buildPlatform);
+                    buildDir.mkdirs();
+                    File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
 
-	    	    	List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
-	    	    	BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, exe);
-	    	    	exeName = exe.getAbsolutePath();
+                    List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
+                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, exe);
+                    exeName = exe.getAbsolutePath();
                 } catch (IOException e) {
-                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("'%s' could not be built", platform));
+                    buildError = e.getMessage();
+                } catch (CompileExceptionError e) {
+                    buildError = e.getMessage();
                 }
-        	}
-        	else {
-	            exeName = Engine.getDefault().getEnginePath();
-        	}
+            }
+            else {
+                exeName = Engine.getDefault().getEnginePath();
+            }
 
             if (!platform.contains("win32")) {
                 try {
@@ -127,10 +137,7 @@ public class LaunchHandler extends AbstractHandler {
             }
         }
         final File exe = new File(exeName);
-
-        if (!exe.exists()) {
-            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", exeName));
-        }
+        final String buildErrorLog = buildError;
 
         final IProject project = getActiveProject(event);
         final boolean remoteBuiltEngine = hasNativeExtensions;
@@ -141,6 +148,15 @@ public class LaunchHandler extends AbstractHandler {
         Job job = new Job("Building") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
+
+                if (buildErrorLog != null) {
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, buildErrorLog);
+                }
+
+                if (!exe.exists()) {
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", exe.getAbsolutePath()));
+                }
+
                 Map<String, String> args = new HashMap<String, String>();
                 final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
                 if (localBranch)
@@ -173,7 +189,7 @@ public class LaunchHandler extends AbstractHandler {
                         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
                             customApplication = store.getString(PreferenceConstants.P_APPLICATION);
                         } else if (remoteBuiltEngine) {
-                        	customApplication = exe.getAbsolutePath();
+                            customApplication = exe.getAbsolutePath();
                         }
 
                         targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy,

@@ -1602,3 +1602,19 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
     *z = _glfwInput.AccZ;
     return 1;
 }
+
+//========================================================================
+// Defold extension: Get native references (window, view and context)
+//========================================================================
+GLFWAPI id glfwGetiOSUVWindow(void)
+{
+    return _glfwWin.window;
+};
+GLFWAPI id glfwGetiOSUIView(void)
+{
+    return _glfwWin.view;
+};
+GLFWAPI id glfwGetiOSEAGLContext(void)
+{
+    return _glfwWin.context;
+};
