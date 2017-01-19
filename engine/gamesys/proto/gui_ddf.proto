@@ -8,6 +8,7 @@ option java_outer_classname = "Gui";
 
 /*# GUI API documentation
  *
+ * @document
  * @name GUI
  * @namespace gui
  */

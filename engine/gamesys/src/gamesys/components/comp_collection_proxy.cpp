@@ -24,6 +24,7 @@ namespace dmGameSystem
      * Messages for controlling and interacting with collection proxies 
      * which are used to dynamically load collections into the runtime.
      *
+     * @document
      * @name Collection proxy
      * @namespace collection_proxy
      */

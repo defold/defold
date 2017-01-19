@@ -19,7 +19,8 @@ namespace dmScript
     /*# Image API documentation
      *
      * Functions for creating image objects.
-     * 
+     *
+     * @document
      * @name Image
      * @namespace image
      */

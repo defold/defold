@@ -5,8 +5,103 @@ import logging
 import sys
 import StringIO
 from optparse import OptionParser
+from markdown import Markdown
+from markdown import Extension
+from markdown.util import etree
+from markdown.inlinepatterns import Pattern
 
 import script_doc_ddf_pb2
+
+#
+#   This extension allows the use of [ref:go.animate] or [ref:animate] reference tags in source
+#
+class RefExtensionException(Exception):
+    pass
+
+class RefExtension(Extension):
+    def extendMarkdown(self, md, md_globals):
+        pattern = r'\[(?P<prefix>ref:)(?P<type>.+?)\]'
+        tp = RefPattern(pattern)
+        tp.md = md
+        tp.ext = self
+        # Add inline pattern before "reference" pattern
+        md.inlinePatterns.add("ref", tp, "<reference")
+
+class RefPattern(Pattern):
+    def getCompiledRegExp(self):
+        return re.compile("^(.*?)%s(.*)$" % self.pattern, re.DOTALL | re.UNICODE | re.IGNORECASE)
+
+    def handleMatch(self, m):
+        ref = m.group(3)
+        s = ref.split('.')
+        if len(s) == 2:
+            refurl = ('/ref/%s#%s') % (s[0], ref)
+        else:
+            refurl = ('#%s') % (s[0])
+        el = etree.Element('a')
+        el.text = ref
+        el.set('href', refurl)
+        return el
+
+#
+#   This extension allows the use of [icon:icon_type] tags in source
+#
+class IconExtensionException(Exception):
+    pass
+
+class IconExtension(Extension):
+    def extendMarkdown(self, md, md_globals):
+        pattern = r'\[(?P<prefix>icon:)(?P<type>[\w| ]+)\]'
+        tp = IconPattern(pattern)
+        tp.md = md
+        tp.ext = self
+        # Add inline pattern before "reference" pattern
+        md.inlinePatterns.add("icon", tp, "<reference")
+
+class IconPattern(Pattern):
+    def getCompiledRegExp(self):
+        return re.compile("^(.*?)%s(.*)$" % self.pattern, re.DOTALL | re.UNICODE | re.IGNORECASE)
+
+    def handleMatch(self, m):
+        el = etree.Element('span')
+        el.set('class', 'icon-' + m.group(3).lower())
+        return el
+
+#
+#   This extension allows the use of [type:some_type] tags in source
+#
+class TypeExtensionException(Exception):
+    pass
+
+class TypeExtension(Extension):
+    def extendMarkdown(self, md, md_globals):
+        pattern = r'\[(?P<prefix>type:)(?P<type>.+?)\]'
+        tp = TypePattern(pattern)
+        tp.md = md
+        tp.ext = self
+        # Add inline pattern before "reference" pattern
+        md.inlinePatterns.add("type", tp, "<reference")
+
+class TypePattern(Pattern):
+    def getCompiledRegExp(self):
+        return re.compile("^(.*?)%s(.*)$" % self.pattern, re.DOTALL | re.UNICODE | re.IGNORECASE)
+
+    def handleMatch(self, m):
+        el = etree.Element('span')
+        el.set('class', 'type')
+        types = m.group(3)
+         # Make sure types are shown as type1 | type2
+        types = re.sub(' or ', ' | ', types)
+        types = re.sub(r'(?<=\w)[|](?=\w)', ' | ', types)
+        el.text = types
+        return el
+
+#
+#   Instance a markdown converter with some useful extensions
+#
+md = Markdown(extensions=['markdown.extensions.fenced_code','markdown.extensions.def_list',
+    'markdown.extensions.codehilite','markdown.extensions.tables',
+    TypeExtension(), IconExtension(), RefExtension()])
 
 def _strip_comment_stars(str):
     lines = str.split('\n')
@@ -30,7 +125,7 @@ def _parse_comment(str):
     lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
 
     name_found = False
-    docinfo_comment = False
+    document_comment = False
     element_type = script_doc_ddf_pb2.FUNCTION
     for (tag, value) in lst:
         tag = tag.strip()
@@ -43,33 +138,34 @@ def _parse_comment(str):
             element_type = script_doc_ddf_pb2.MESSAGE
         elif tag == 'property':
             element_type = script_doc_ddf_pb2.PROPERTY
-        elif tag == 'namespace':
-            # This is a docinfo comment.
-            docinfo_comment = True
+        elif tag == 'document':
+            document_comment = True
 
     if not name_found:
         logging.warn('Missing tag @name in "%s"' % str)
-        return
+        return None
 
     desc_start = min(len(str), str.find('\n'))
     brief = str[0:desc_start]
     desc_end = min(len(str), str.find('\n@'))
     description = str[desc_start:desc_end].strip()
 
-    element = script_doc_ddf_pb2.Element()
+    element = None
 
-    # Is this element a doc info?
-    if docinfo_comment:
+    if document_comment:
         element = script_doc_ddf_pb2.Info()
+        element.brief = md.convert(brief)
+        element.description = md.convert(description)
     else:
-        # A regular element
+        element = script_doc_ddf_pb2.Element()
         element.type = element_type
+        element.brief = md.convert(brief)
+        element.description = md.convert(description)
 
-    element.brief = brief
-    element.description = description
-
+    namespace_found = False
     for (tag, value) in lst:
         value = value.strip()
+        md.reset()
         if tag == 'name':
             element.name = value
         elif tag == 'return':
@@ -78,22 +174,30 @@ def _parse_comment(str):
                 tmp = [tmp[0], '']
             ret = element.returnvalues.add()
             ret.name = tmp[0]
-            ret.doc = tmp[1]            
+            ret.doc = md.convert(tmp[1])
         elif tag == 'param':
             tmp = value.split(' ', 1)
             if len(tmp) < 2:
                 tmp = [tmp[0], '']
             param = element.parameters.add()
             param.name = tmp[0]
-            param.doc = tmp[1]
+            param.doc = md.convert(tmp[1])
         elif tag == 'note':
-            element.note = value
+            element.note = md.convert(value)
         elif tag == 'examples':
-            element.examples = value
+            element.examples = md.convert(value)
         elif tag == 'deprecated':
-            element.deprecated = value
+            element.deprecated = md.convert(value)
+        elif tag == 'replaces':
+            element.replaces = md.convert(value)
         elif tag == 'namespace':
             element.namespace = value
+            namespace_found = True
+
+    if document_comment and not namespace_found:
+        logging.warn('Missing tag @namespace in "%s"' % str)
+        return None
+
     return element
 
 def parse_document(doc_str):
@@ -108,15 +212,12 @@ def parse_document(doc_str):
         if type(element) is script_doc_ddf_pb2.Info:
             doc_info = element
 
-    if not doc_info:
-        logging.error('Missing @namespace in document')
-        return
+    if doc_info:
+        doc.info.CopyFrom(doc_info)
 
     element_list.sort(cmp = lambda x,y: cmp(x.name, y.name))
     for i, e in enumerate(element_list):
         doc.elements.add().MergeFrom(e)
-
-    doc.info.CopyFrom(doc_info)
 
     return doc
 

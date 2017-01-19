@@ -67,4 +67,6 @@ def shutdown():
     if not getattr(Options.options, 'skip_tests', False):
         python_path = os.environ.get('PYTHONPATH', '')
         os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/src' + os.pathsep + python_path
-        os.system('python %s' % 'src/test/test_script_doc.py')
+        ret = os.system('python %s' % 'src/test/test_script_doc.py')
+        if ret != 0:
+            sys.exit(1)

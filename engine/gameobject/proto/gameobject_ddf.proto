@@ -115,16 +115,19 @@ message CollectionDesc
  * Post this message to a game object instance to make that instance acquire the user input focus.
  * </p>
  * <p>
- * User input is distributed by the engine to every instance that has requested it. The last instance
- * to request focus will receive it first. This means that the scripts in the instance will have
- * first-hand-chance at reacting on user input, possibly consuming it so that no other instances
- * can react on it. The most common case is for a script to send this message to itself when it needs to
- * respond to user input.
+ * User input is distributed by the engine to every instance that has 
+ * requested it. The last instance to request focus will receive it first.
+ * This means that the scripts in the instance will have first-hand-chance
+ * at reacting on user input, possibly consuming it (by returning 
+ * <code>true</code> from <code>on_input</code>) so that no other instances
+ * can react on it. The most common case is for a script to send this message
+ * to itself when it needs to respond to user input.
  * </p>
  * <p>
- * A script belonging to an instance which has the user input focus will receive the input actions
- * in its <code>on_input</code> callback function. See <code>on_input</code> for more information on
- * how user input can be handled.
+ * A script belonging to an instance which has the user input focus will
+ * receive the input actions in its <code>on_input</code> callback function. 
+ * See <code>on_input</code> for more information on how user input can be
+ * handled.
  * </p>
  *
  * @message
@@ -281,6 +284,7 @@ message SetParent
  *   <li>Collection Proxy</li>
  *   <li>Collision Object</li>
  *   <li>Gui</li>
+ *   <li>Label</li>
  *   <li>Spine Model</li>
  *   <li>Sprite</li>
  *   <li>Tile Grid</li>
