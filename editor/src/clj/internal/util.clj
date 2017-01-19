@@ -29,6 +29,35 @@
 (defn conjv [coll x]
   (conj (or coll []) x))
 
+(defn distinct-by
+  "Returns a lazy sequence of the elements of coll with duplicates removed.
+  Elements are considered equal if they return equivalent values for keyfn.
+  If coll does contain duplicate elements, only the first equivalent is kept.
+  Returns a stateful transducer when no collection is provided."
+  ([keyfn]
+   (fn [rf]
+     (let [seen (volatile! #{})]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (let [key (keyfn input)]
+            (if (contains? @seen key)
+              result
+              (do (vswap! seen conj key)
+                  (rf result input)))))))))
+  ([keyfn coll]
+   (let [step (fn step [xs seen]
+                (lazy-seq
+                  ((fn [[f :as xs] seen]
+                     (when-let [s (seq xs)]
+                       (let [key (keyfn f)]
+                         (if (contains? seen key)
+                           (recur (rest s) seen)
+                           (cons f (step (rest s) (conj seen key)))))))
+                    xs seen)))]
+     (step coll #{}))))
+
 (defn filterm [pred m]
   "like filter but applys the predicate to each key value pair of the map"
   (into {} (filter pred m)))

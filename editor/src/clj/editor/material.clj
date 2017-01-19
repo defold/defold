@@ -14,7 +14,8 @@
             [editor.math :as math]
             [editor.resource :as resource]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [internal.util :as util])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -224,14 +225,26 @@
   (let [resource (workspace/resolve-resource resource path)]
     (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
 
+(defn- make-sampler [name]
+  (assoc default-sampler :name name))
+
+(defn- convert-textures-to-samplers
+  "The old format specified :textures as string names. Convert these into
+  :samplers if we encounter them. Ignores :textures that already have
+  :samplers with the same name. Also ensures that there are no duplicate
+  entries in the :samplers list, based on :name."
+  [pb]
+  (let [existing-samplers (:samplers pb)
+        samplers-created-from-textures (map make-sampler (:textures pb))
+        samplers (into [] (util/distinct-by :name) (concat existing-samplers samplers-created-from-textures))]
+    (-> pb
+        (assoc :samplers samplers)
+        (dissoc :textures))))
+
 (defn load-material [project self resource]
   (let [def pb-def
-        pb (protobuf/read-text (:pb-class def) resource)
-        pb (-> pb
-             (update :samplers into
-                     (mapv (fn [tex] (assoc default-sampler :name tex))
-                       (:textures pb)))
-             (dissoc :textures))]
+        read-pb (protobuf/read-text (:pb-class def) resource)
+        pb (convert-textures-to-samplers read-pb)]
     (concat
       (g/set-property self :pb pb)
       (g/set-property self :def def)
