@@ -26,6 +26,7 @@ namespace dmGameSystem
      *
      * Functions, messages and properties used to manipulate sprite components.
      *
+     * @document
      * @name Sprite
      * @namespace sprite
      */

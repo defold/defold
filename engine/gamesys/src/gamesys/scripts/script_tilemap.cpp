@@ -20,6 +20,7 @@ namespace dmGameSystem
      *
      * Functions and messages used to manipulate tile map components.
      *
+     * @document
      * @name Tilemap
      * @namespace tilemap
      */
