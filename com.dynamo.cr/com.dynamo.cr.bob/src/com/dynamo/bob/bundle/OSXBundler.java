@@ -59,7 +59,7 @@ public class OSXBundler implements IBundler {
             exe.deleteOnExit();
 
             List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, exe);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exe);
         } else {
             exe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
         }
