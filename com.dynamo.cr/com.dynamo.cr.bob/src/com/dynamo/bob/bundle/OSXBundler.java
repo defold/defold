@@ -7,6 +7,7 @@ import java.util.List;
 import org.apache.commons.io.FileUtils;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -41,7 +42,8 @@ public class OSXBundler implements IBundler {
         boolean debug = project.hasOption("debug");
 
         File root = new File(project.getRootDirectory());
-        boolean hasNativeExtensions = ExtenderClient.hasExtensions(root);
+        boolean nativeExtEnabled = project.hasOption("native-ext");
+        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
         File exe = null;
 
         if (hasNativeExtensions) {
@@ -71,7 +73,7 @@ public class OSXBundler implements IBundler {
         BundleHelper helper = new BundleHelper(project, Platform.X86Darwin, bundleDir, ".app");
 
         // Copy archive and game.projectc
-        for (String name : Arrays.asList("game.projectc", "game.darc")) {
+        for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
         }
 
