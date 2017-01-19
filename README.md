@@ -8,6 +8,9 @@ Repository for engine, editor and server.
 Follow current code style and use 4 spaces for tabs. Never commit code
 with trailing white-spaces.
 
+API documentation is generated from source comments. See README_DOCS.md for help on style and
+conventions.
+
 For Eclipse:
 * Install [AnyEditTools](http://andrei.gmxhome.de/eclipse.html) for easy Tabs to Spaces support
 * Import the code formating xml: Eclipse -> Preferences: C/C++ -> CodeStyle -> Formatter .. Import 'defold/share/codestyle.xml' and set ”Dynamo” as active profile
@@ -24,31 +27,35 @@ For Eclipse:
     >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential
 
 * Windows:
-    - [Visual C++ 2015 Express](https://drive.google.com/open?id=0BxFxQdv6jzseVG5ELWNRUVB5bnM)
 
-        Newer versions have not been properly tested and might not be recognized by waf.
+    Binaries are available on this shared [drive](https://drive.google.com/drive/folders/0BxFxQdv6jzsec0RPeEpaOHFCZ2M?usp=sharing)
 
-    - [Python](https://www.python.org/downloads/windows/)
+    - [Visual C++ 2015 Community](https://www.visualstudio.com/downloads/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseY3liUDZmd0I3Z1E)
 
-        Install the 32-bit [2.7.12](https://www.python.org/ftp/python/2.7.12/python-2.7.12.msi) (latest tested version). We only build 32-bit versions of Defold on Windows, and during the build process a python script needs to load a defold library. A 64-bit version of python will get you pretty far and then fail. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually.
+        We only use Visual Studio 2015. Professional/Enterprise version should also work if you have a proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
 
-    - [easy_install](https://pypi.python.org/pypi/setuptools#id3) - [ez_setup](https://bootstrap.pypa.io/ez_setup.py)
+    - [Python](https://www.python.org/downloads/windows/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzsedW1iNXFIbGFYLVE)
+
+        Install the 32-bit 2.7.12 version. This is latest one known to work. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually
+        During the build of the 32 bit version of Defold, a python script needs to load a shared defold library (texc). This will not work using a 64 bit python.
+        Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
+  
+    - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
         Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
 
-    - [MSYS/MinGW](http://www.mingw.org/download/installer)
+    - [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
 
         This will get you a shell that behaves like Linux and is much easier to build Defold through. Run `mingw-get.exe` (from C:\MinGW\bin), add `mingw32-base` (bin) from `MinGW Base System` and `msys-base` (bin) and `msys-bash` from `MSYS Base System` then Installation > Apply Changes. You also need to install wget, from a cmd command line run
+			mingw-get install msys-wget-bin.
 
-                mingw-get install msys-wget-bin.
+    - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
 
-    - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+    This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_112`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
 
-        This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_102`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
+    - [Git](https://git-scm.com/download/win) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzseQ0JfX2todndWZmM/view?usp=sharing)
 
-    - [Git](https://git-scm.com/download/win)
-
-        The 32-bit version is known to work. During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
+        During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
         - Run Git GUI
         - Help > Show SSH Key
         - If you don't have an SSH Key, press Generate Key
@@ -171,56 +178,62 @@ If eclipse doesn’t get the JDK setup automatically:
 
 ## Build Engine
 
+*In the instructions below, the `--platform` argument to `build.py` will default to the host platform if not specified.*
+
 ### Windows
 
-* Run `Visual Studio Command Prompt (2010)`
+Start msys by running `C:\MinGW\msys\1.0\msys.bat`. You should now have a bash prompt. Verify that:
 
-* You should now have a cmd prompt. Start msys as follows:
+- `which git` points to the git from the windows installation instructions above
+- `which javac` points to the `javac.exe` in the JDK directory
+- `which python` points to `/c/Python27/python.exe`
 
-        C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC> C:\MinGW\msys\1.0\msys.bat
+Note that your C: drive is mounted to /c under MinGW/MSYS.
 
-* You should now have a bash prompt. Verify that:
+Next, `cd` your way to the directory you cloned Defold into.
 
-    - `which git` points to the git from the windows installation instructions above
-    - `which javac` points to the `javac.exe` in the JDK directory
-    - `which python` points to `/c/Python27/python.exe`
+    $ cd /c/Users/erik.angelin/Documents/src/defold
 
-    Note that your C: drive is mounted to /c under MinGW/MSYS
+Setup the build environment. The `--platform` argument is needed for instance to find the version of `go` relevant for the target platform.
 
-* `cd` your way to the directory you cloned Defold into, for instance
+	$ ./scripts/build.py shell --platform=x86_64-win32
 
-        cd /c/Users/erik.angelin/Documents/src/defold
+This will start a new shell and land you in your msys home (for instance `/usr/home/Erik.Angelin`) so `cd` back to Defold.
 
-* Run `./scripts/build.py shell`
+    $ cd /c/Users/erik.angelin/Documents/src/defold
 
-    This will start a new shell and land you in your msys home (for instance `/usr/home/Erik.Angelin`) so `cd` back to Defold.
+Install external packages. This step is required whenever you switch target platform, as different packages are installed.
 
-* Run `./scripts/build.py install_ext`
+	$ ./scripts/build.py install_ext --platform=x86_64-win32
 
-* Now, you should be able to build the engine
+Now, you should be able to build the engine.
 
-        ./scripts/build.py build_engine --skip-tests -- --skip-build-tests
+	$ ./scripts/build.py build_engine --platform=x86_64-win32 --skip-tests -- --skip-build-tests
+
+When the initial build is complete the workflow is to use waf directly.
+
+    $ cd engine/dlib
+    $ waf
 
 ### OS X/Linux
 
-Setup build environment with `$PATH` and other environment variables.
+Setup the build environment. The `--platform` argument is needed for instance to find the version of `go` relevant for the target platform..
 
-    $ ./scripts/build.py shell
+    $ ./scripts/build.py shell --platform=...
 
-Install external packages. This step is required once only.
+Install external packages. This step is required whenever you switch target platform, as different packages are installed.
 
-    $ ./scripts/build.py install_ext
+    $ ./scripts/build.py install_ext --platform=...
 
-Build engine for host target. For other targets use ``--platform=``
+Build engine for target platform.
 
-    $ ./scripts/build.py build_engine --skip-tests
+    $ ./scripts/build.py build_engine --skip-tests --platform=...
 
-Build at least once with 64 bit support (to support the particle editor, i.e. allowing opening collections)
+Build at least once with 64 bit support (to support the particle editor, i.e. allowing opening collections).
 
     $ ./scripts/build.py build_engine --skip-tests --platform=x86_64-darwin
 
-When the initial build is complete the workflow is to use waf directly. For
-example
+When the initial build is complete the workflow is to use waf directly.
 
     $ cd engine/dlib
     $ waf
@@ -623,4 +636,8 @@ $ openssl pkcs8 -topk8 -inform PEM -outform DER -in private.pem -out private.der
 $ openssl rsa -in private.pem -out public.der -outform DER -pubout
 $ rm -f private.pem # This is optional!
 
+
+## Porting to another compiler
+
+You will likely need to recompile external libraries. Source code for most is available [here](https://drive.google.com/open?id=0BxFxQdv6jzseeXh2TzBnYnpwdUU).
 

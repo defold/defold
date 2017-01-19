@@ -7,6 +7,7 @@ import java.util.List;
 import org.apache.commons.io.FileUtils;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -41,7 +42,8 @@ public class OSXBundler implements IBundler {
         boolean debug = project.hasOption("debug");
 
         File root = new File(project.getRootDirectory());
-        boolean hasNativeExtensions = ExtenderClient.hasExtensions(root);
+        boolean nativeExtEnabled = project.hasOption("native-ext");
+        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
         File exe = null;
 
         if (hasNativeExtensions) {

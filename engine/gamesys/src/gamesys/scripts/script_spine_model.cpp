@@ -27,6 +27,7 @@ namespace dmGameSystem
      * Functions and messages for interacting with the 'Spine' 2D bone 
      * animation system.
      *
+     * @document
      * @name Spine
      * @namespace spine
      */
