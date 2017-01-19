@@ -23,5 +23,6 @@
                 @include effect-lighten-blue();
             }
         }
+        @include extensions(tree);
     }
 }
