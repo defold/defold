@@ -31,6 +31,7 @@ namespace dmScript
      *
      * Functions for performing HTTP and HTTPS requests.
      *
+     * @document
      * @name HTTP
      * @namespace http
      */
@@ -43,6 +44,7 @@ namespace dmScript
      * Perform a HTTP/HTTPS request.
      *
      * @name http.request
+     * @replaces facebook.me
      * @param url target url
      * @param method HTTP/HTTPS method, e.g. GET/PUT/POST/DELETE/...
      * @param callback response callback

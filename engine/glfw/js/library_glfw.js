@@ -755,6 +755,10 @@ var LibraryGLFW = {
 
   glfwGetDefaultFramebuffer: function() {
 	  return 0;
+  },
+
+  glfwGetNativeHandles: function() {
+    return 0;
   }
 };
 

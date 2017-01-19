@@ -26,6 +26,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.LibraryUtil;
 
@@ -202,6 +203,7 @@ public class Bob {
         options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
         options.addOption("brhtml", "build-report-html", true, "Filepath where to save a build report as HTML");
 
+        options.addOption("", "native-ext", false, "If set, the native ext support is turned on");
         options.addOption("", "build-server", true, "The build server (when using native extensions)");
         options.addOption("", "defoldsdk", true, "What version of the defold sdk (sha1) to use");
 
@@ -242,6 +244,12 @@ public class Bob {
         }
         if (cmd.hasOption('u')) {
             project.setOption("auth", getOptionsValue(cmd, 'u', null));
+        }
+        if (!cmd.hasOption("defoldsdk")) {
+            project.setOption("defoldsdk", EngineVersion.sha1);
+        }
+        if (!cmd.hasOption("build-server")) {
+            project.setOption("build-server", "https://build.defold.com");
         }
 
         Option[] options = cmd.getOptions();

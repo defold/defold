@@ -26,6 +26,7 @@ namespace dmGui
      * creation and manipulation of GUI nodes. The "gui" namespace is
      * accessible only from gui scripts.
      *
+     * @document
      * @name GUI
      * @namespace gui
      */
@@ -317,8 +318,8 @@ namespace dmGui
     /*# gets the node with the specified id
      *
      * @name gui.get_node
-     * @param id id of the node to retrieve (string|hash)
-     * @return node instance (node)
+     * @param id id of the node to retrieve [type:string|hash]
+     * @return instance [type:node] a new node instance
      */
     int LuaGetNode(lua_State* L)
     {
@@ -365,8 +366,8 @@ namespace dmGui
     /*# gets the id of the specified node
      *
      * @name gui.get_id
-     * @param node node to retrieve the id from (node)
-     * @return id of the node (hash)
+     * @param node [type:node] the node to retrieve the id from
+     * @return id [type:hash] the id of the node
      */
     int LuaGetId(lua_State* L)
     {
@@ -386,8 +387,8 @@ namespace dmGui
     /*# sets the id of the specified node
      *
      * @name gui.set_id
-     * @param node node to set the id for (node)
-     * @param id id to set (string|hash)
+     * @param node [type:node] node to set the id for
+     * @param id [type:string|hash] id to set
      */
     int LuaSetId(lua_State* L)
     {
@@ -418,8 +419,8 @@ namespace dmGui
      * The index defines the order in which a node appear in a gui scene.
      * Higher index means the node is drawn above lower indexed nodes.
      * @name gui.get_index
-     * @param node node to retrieve the id from (node)
-     * @return id of the node (hash)
+     * @param node [type:node] the node to retrieve the id from
+     * @return index [type:number] the index of the node
      */
     int LuaGetIndex(lua_State* L)
     {
@@ -453,7 +454,7 @@ namespace dmGui
     /*# deletes a node
      *
      * @name gui.delete_node
-     * @param node node to delete (node)
+     * @param node [type:node] node to delete
      */
     int LuaDeleteNode(lua_State* L)
     {
@@ -758,78 +759,81 @@ namespace dmGui
      */
 
     /*# animates a node property
-     * <p>
-     * This starts an animation of a node property according to the specified parameters. If the node property is already being
-     * animated, that animation will be canceled and replaced by the new one. Note however that several different node properties
-     * can be animated simultaneously. Use <code>gui.cancel_animation</code> to stop the animation before it has completed.
-     * </p>
-     * <p>
-     * Composite properties of type vector3, vector4 or quaternion also expose their sub-components (x, y, z and w).
-     * You can address the components individually by suffixing the name with a dot '.' and the name of the component.
-     * For instance, "position.x" (the position x coordinate) or "color.w" (the color alpha value).
-     * </p>
-     * <p>
-     * If a <code>complete_function</code> (Lua function) is specified, that function will be called when the animation has completed.
-     * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
-     * </p>
+     * This starts an animation of a node property according to the specified parameters.
+     * If the node property is already being animated, that animation will be canceled and
+     * replaced by the new one. Note however that several different node properties
+     * can be animated simultaneously. Use `gui.cancel_animation` to stop the animation
+     * before it has completed.
+     *
+     * Composite properties of type [type:vector3], [type:vector4] or [type:quaternion]
+     * also expose their sub-components (x, y, z and w).
+     * You can address the components individually by suffixing the name with a dot '.'
+     * and the name of the component.
+     * For instance, `"position.x"` (the position x coordinate) or `"color.w"`
+     * (the color alpha value).
+     *
+     * If a `complete_function` (Lua function) is specified, that function will be called
+     * when the animation has completed.
+     * By starting a new animation in that function, several animations can be sequenced
+     * together. See the examples below for more information.
      *
      * @name gui.animate
-     * @param node node to animate (node)
-     * @param property property to animate (string|constant)
-     * <ul>
-     *   <li><code>"position"</code></li>
-     *   <li><code>"rotation"</code></li>
-     *   <li><code>"scale"</code></li>
-     *   <li><code>"color"</code></li>
-     *   <li><code>"outline"</code></li>
-     *   <li><code>"shadow"</code></li>
-     *   <li><code>"size"</code></li>
-     *   <li><code>"fill_angle"</code> (pie nodes)</li>
-     *   <li><code>"inner_radius"</code> (pie nodes)</li>
-     *   <li><code>"slice9"</code> (slice9 nodes)</li>
-     * </ul>
-     * The following property constants are also defined equalling the corresponding property string names.
-     * <ul>
-     *   <li><code>gui.PROP_POSITION</code></li>
-     *   <li><code>gui.PROP_ROTATION</code></li>
-     *   <li><code>gui.PROP_SCALE</code></li>
-     *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_OUTLINE</code></li>
-     *   <li><code>gui.PROP_SHADOW</code></li>
-     *   <li><code>gui.PROP_SIZE</code></li>
-     *   <li><code>gui.PROP_FILL_ANGLE</code></li>
-     *   <li><code>gui.PROP_INNER_RADIUS</code></li>
-     *   <li><code>gui.PROP_SLICE9</code></li>
-     * </ul>
-     * <p>
+     * @param node [type:node] node to animate
+     * @param property [type:string|constant] property to animate
      *
-     * </p>
-     * @param to target property value (vector3|vector4)
-     * @param easing easing to use during animation. Either specify one of the gui.EASING_* constants or provide a vmath.vector with a custom curve. (constant|vector)
-     * @param duration duration of the animation (number)
-     * @param [delay] delay before the animation starts (number)
-     * @param [complete_function] function to call when the animation has completed (function)
-     * @param [playback] playback mode (constant)
-     * <ul>
-     *   <li><code>gui.PLAYBACK_ONCE_FORWARD</code></li>
-     *   <li><code>gui.PLAYBACK_ONCE_BACKWARD</code></li>
-     *   <li><code>gui.PLAYBACK_ONCE_PINGPONG</code></li>
-     *   <li><code>gui.PLAYBACK_LOOP_FORWARD</code></li>
-     *   <li><code>gui.PLAYBACK_LOOP_BACKWARD</code></li>
-     *   <li><code>gui.PLAYBACK_LOOP_PINGPONG</code></li>
-     * </ul>
+     * - `"position"`
+     * - `"rotation"`
+     * - `"scale"`
+     * - `"color"`
+     * - `"outline"`
+     * - `"shadow"`
+     * - `"size"`
+     * - `"fill_angle"` (pie)
+     * - `"inner_radius"` (pie)
+     * - `"slice9"` (slice9)
+     *
+     * The following property constants are defined equaling the corresponding property string names.
+     *
+     * - `gui.PROP_POSITION`
+     * - `gui.PROP_ROTATION`
+     * - `gui.PROP_SCALE`
+     * - `gui.PROP_COLOR`
+     * - `gui.PROP_OUTLINE`
+     * - `gui.PROP_SHADOW`
+     * - `gui.PROP_SIZE`
+     * - `gui.PROP_FILL_ANGLE`
+     * - `gui.PROP_INNER_RADIUS`
+     * - `gui.PROP_SLICE9`
+     *
+     * @param to [type:vector3|vector4] target property value
+     * @param easing [type:constant|vector] easing to use during animation.
+     *      Either specify one of the `gui.EASING_*` constants or provide a
+     *      [type:vector] with a custom curve.
+     * @param duration [type:number] duration of the animation
+     * @param [delay] [type:number] delay before the animation starts
+     * @param [complete_function] [type:function(self, node)] function to call when the
+     *      animation has completed
+     * @param [playback] [type:constant] playback mode
+     *
+     * - `gui.PLAYBACK_ONCE_FORWARD`
+     * - `gui.PLAYBACK_ONCE_BACKWARD`
+     * - `gui.PLAYBACK_ONCE_PINGPONG`
+     * - `gui.PLAYBACK_LOOP_FORWARD`
+     * - `gui.PLAYBACK_LOOP_BACKWARD`
+     * - `gui.PLAYBACK_LOOP_PINGPONG`
+     *
      * @examples
-     * <p>
+     *
      * How to start a simple color animation, where the node fades in to white during 0.5 seconds:
-     * <pre>
+     *
+     * ```lua
      * gui.set_color(node, vmath.vector4(0, 0, 0, 0)) -- node is fully transparent
      * gui.animate(node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5) -- start animation
-     * </pre>
-     * </p>
-     * <p>
+     * ```
+     *
      * How to start a sequenced animation where the node fades in to white during 0.5 seconds, stays visible for 2 seconds and then fades out:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * local function on_animation_done(self, node)
      *     -- fade out node, but wait 2 seconds before the animation starts
      *     gui.animate(node, gui.PROP_COLOR, vmath.vector4(0, 0, 0, 0), gui.EASING_OUTQUAD, 0.5, 2.0)
@@ -843,9 +847,11 @@ namespace dmGui
      *     -- animate the node immediately and call on_animation_done when the animation has completed
      *     gui.animate(my_node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5, 0.0, on_animation_done)
      * end
-     * </pre>
-     * <p>How to animate a node's y position using a crazy custom easing curve:</p>
-     * <pre>
+     * ```
+     *
+     * How to animate a node's y position using a crazy custom easing curve:
+     *
+     * ```lua
      * function init(self)
      *     local values = { 0, 0, 0, 0, 0, 0, 0, 0,
      *                      1, 1, 1, 1, 1, 1, 1, 1,
@@ -859,7 +865,7 @@ namespace dmGui
      *     local node = gui.get_node("box")
      *     gui.animate(node, "position.y", 100, vec, 4.0, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
      * end
-     * </pre>
+     * ```
      */
     int LuaAnimate(lua_State* L)
     {
@@ -960,20 +966,19 @@ namespace dmGui
      * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
      *
      * @name gui.cancel_animation
-     * @param node node that should have its animation canceled (node)
-     * @param property property for which the animation should be canceled (string|constant)
-     * <ul>
-     *   <li><code>"position"</code></li>
-     *   <li><code>"rotation"</code></li>
-     *   <li><code>"scale"</code></li>
-     *   <li><code>"color"</code></li>
-     *   <li><code>"outline"</code></li>
-     *   <li><code>"shadow"</code></li>
-     *   <li><code>"size"</code></li>
-     *   <li><code>"fill_angle"</code> (pie nodes)</li>
-     *   <li><code>"inner_radius"</code> (pie nodes)</li>
-     *   <li><code>"slice9"</code> (slice9 nodes)</li>
-     * </ul>
+     * @param node [type:node] node that should have its animation canceled
+     * @param property [type:string|constant] property for which the animation should be canceled
+     *
+     * - `"position"`
+     * - `"rotation"`
+     * - `"scale"`
+     * - `"color"`
+     * - `"outline"`
+     * - `"shadow"`
+     * - `"size"`
+     * - `"fill_angle"` (pie)
+     * - `"inner_radius"` (pie)
+     * - `"slice9"` (slice9)
      */
     int LuaCancelAnimation(lua_State* L)
     {
@@ -1033,11 +1038,12 @@ namespace dmGui
     }
 
     /*# creates a new box node
+     * Dynamically create a new box node.
      *
      * @name gui.new_box_node
-     * @param pos node position (vector3|vector4)
-     * @param size node size (vector3)
-     * @return new box node (node)
+     * @param pos [type:vector3|vector4] node position
+     * @param size [type:vector3] node size
+     * @return node [type:node] new box node
      */
     static int LuaNewBoxNode(lua_State* L)
     {
@@ -1057,11 +1063,12 @@ namespace dmGui
     }
 
     /*# creates a new text node
+     * Dynamically create a new text node.
      *
      * @name gui.new_text_node
-     * @param pos node position (vector3|vector4)
-     * @param text node text (string)
-     * @return new text node (node)
+     * @param pos [type:vector3|vector4] node position
+     * @param text [type:string] node text
+     * @return node [type:node] new text node
      */
     static int LuaNewTextNode(lua_State* L)
     {
@@ -1093,11 +1100,12 @@ namespace dmGui
     }
 
     /*# creates a new pie node
+     * Dynamically create a new pie node.
      *
      * @name gui.new_pie_node
-     * @param pos node position (vector3|vector4)
-     * @param size node size (vector3)
-     * @return new box node (node)
+     * @param pos [type:vector3|vector4] node position
+     * @param size [type:vector3] node size
+     * @return node [type:node] new box node
      */
     static int LuaNewPieNode(lua_State* L)
     {
@@ -1117,11 +1125,12 @@ namespace dmGui
     }
 
     /*# creates a new spine node
+     * Dynamically create a new spine node.
      *
      * @name gui.new_spine_node
-     * @param pos node position (vector3|vector4)
-     * @param spine_scene spine scene id (string|hash)
-     * @return new spine node (node)
+     * @param pos [type:vector3|vector4] node position
+     * @param spine_scene [type:string|hash] spine scene id
+     * @return node [type:node] new spine node
      */
     static int LuaNewSpineNode(lua_State* L)
     {
@@ -1155,11 +1164,11 @@ namespace dmGui
     }
 
     /*# gets the node text
-     * This is only useful for text nodes.
+     * Returns the text value of a text node. This is only useful for text nodes.
      *
      * @name gui.get_text
-     * @param node node from which to get the text (node)
-     * @return text value (string)
+     * @param node [type:node] node from which to get the text
+     * @return text [type:string] text value
      */
     static int LuaGetText(lua_State* L)
     {
@@ -1169,11 +1178,11 @@ namespace dmGui
     }
 
     /*# sets the node text
-     * This is only useful for text nodes.
+     * Set the text value of a text node. This is only useful for text nodes.
      *
      * @name gui.set_text
-     * @param node node to set text for (node)
-     * @param text text to set (string)
+     * @param node [type:node] node to set text for
+     * @param text [type:string] text to set
      */
     static int LuaSetText(lua_State* L)
     {
@@ -1187,11 +1196,12 @@ namespace dmGui
     }
 
     /*# get line-break mode
+     * Returns whether a text node is in line-break mode or not.
      * This is only useful for text nodes.
      *
      * @name gui.get_line_break
-     * @param node node from which to get the line-break for (node)
-     * @return line-break (bool)
+     * @param node [type:node] node from which to get the line-break for
+     * @return line-break [type:boolean] true or false
      */
     static int LuaGetLineBreak(lua_State* L)
     {
@@ -1201,11 +1211,12 @@ namespace dmGui
     }
 
     /*# set line-break mode
+     * Sets the line-break mode on a text node.
      * This is only useful for text nodes.
      *
      * @name gui.set_line_break
-     * @param node node to set line-break for (node)
-     * @param text text to set (string)
+     * @param node [type:node] node to set line-break for
+     * @param line-break [type:boolean] true of false
      */
     static int LuaSetLineBreak(lua_State* L)
     {
@@ -1217,17 +1228,17 @@ namespace dmGui
     }
 
     /*# gets the node blend mode
+     * Returns the blend mode of a node.
      * Blend mode defines how the node will be blended with the background.
      *
      * @name gui.get_blend_mode
-     * @param node node from which to get the blend mode (node)
-     * @return node blend mode (constant)
-     * <ul>
-     *   <li><code>gui.BLEND_ALPHA</code></li>
-     *   <li><code>gui.BLEND_ADD</code></li>
-     *   <li><code>gui.BLEND_ADD_ALPHA</code></li>
-     *   <li><code>gui.BLEND_MULT</code></li>
-     * </ul>
+     * @param node [type:node] node from which to get the blend mode
+     * @return blend_mode [type:constant] blend mode
+     *
+     * - `gui.BLEND_ALPHA`
+     * - `gui.BLEND_ADD`
+     * - `gui.BLEND_ADD_ALPHA`
+     * - `gui.BLEND_MULT`
      */
     static int LuaGetBlendMode(lua_State* L)
     {
@@ -1237,17 +1248,17 @@ namespace dmGui
     }
 
     /*# sets node blend mode
+     * Set the blend mode of a node.
      * Blend mode defines how the node will be blended with the background.
      *
      * @name gui.set_blend_mode
-     * @param node node to set blend mode for (node)
-     * @param blend_mode blend mode to set (constant)
-     * <ul>
-     *   <li><code>gui.BLEND_ALPHA</code></li>
-     *   <li><code>gui.BLEND_ADD</code></li>
-     *   <li><code>gui.BLEND_ADD_ALPHA</code></li>
-     *   <li><code>gui.BLEND_MULT</code></li>
-     * </ul>
+     * @param node [type:node] node to set blend mode for
+     * @param blend_mode [type:constant] blend mode to set
+     *
+     * - `gui.BLEND_ALPHA`
+     * - `gui.BLEND_ADD`
+     * - `gui.BLEND_ADD_ALPHA`
+     * - `gui.BLEND_MULT`
      */
     static int LuaSetBlendMode(lua_State* L)
     {
@@ -1258,12 +1269,14 @@ namespace dmGui
         return 0;
     }
 
-    /*# gets the node texture
-     * This is currently only useful for box or pie nodes. The texture must be mapped to the gui scene in the gui editor.
+    /*# gets node texture
+     * Returns the texture of a node.
+     * This is currently only useful for box or pie nodes.
+     * The texture must be mapped to the gui scene in the gui editor.
      *
      * @name gui.get_texture
-     * @param node node to get texture from (node)
-     * @return texture id (hash)
+     * @param node [type:node] node to get texture from
+     * @return texture [type:hash] texture id
      */
     static int LuaGetTexture(lua_State* L)
     {
@@ -1278,11 +1291,41 @@ namespace dmGui
     }
 
     /*# sets the node texture
-     * Set the texture on a box or pie node. The texture must be mapped to the gui scene in the gui editor.
+     * Set the texture on a box or pie node. The texture must be mapped to
+     * the gui scene in the gui editor. The function points out which texture
+     * the node should render from. If the texture is an atlas, further
+     * information is needed to select which image/animation in the atlas
+     * to render. In such cases, use <code>gui.play_flipbook()</code> in
+     * addition to this function.
      *
      * @name gui.set_texture
-     * @param node node to set texture for (node)
-     * @param texture texture id (string|hash)
+     * @param node [type:node] node to set texture for
+     * @param texture [type:string|hash] texture id
+     * @examples
+     *
+     * To set a texture (or animation) from an atlas:
+     *
+     * ```lua
+     * local node = gui.get_node("box_node")
+     * gui.set_texture(node, "my_atlas")
+     * gui.play_flipbook(node, "image")
+     * ```
+     *
+     * Set a dynamically created texture to a node. Note that there is only
+     * one texture image in this case so <code>gui.set_texture()</code> is
+     * sufficient.
+     *
+     * ```lua
+     * local w = 200
+     * local h = 300
+     * -- A nice orange. String with the RGB values.
+     * local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+     * -- Create the texture. Repeat the color string for each pixel.
+     * if gui.new_texture("orange_tx", w, h, "rgb", string.rep(orange, w * h)) then
+     *     local node = gui.get_node("box_node")
+     *     gui.set_texture(node, "orange_tx")
+     * end
+     * ```
      */
     static int LuaSetTexture(lua_State* L)
     {
@@ -1326,8 +1369,8 @@ namespace dmGui
      * Get node flipbook animation.
      *
      * @name gui.get_flipbook
-     * @param node node to get flipbook animation from (node)
-     * @return animation animation id (hash)
+     * @param node [type:node] node to get flipbook animation from
+     * @return animation [type:hash] animation id
      */
     static int LuaGetFlipbook(lua_State* L)
     {
@@ -1342,12 +1385,39 @@ namespace dmGui
     }
 
     /*# play node flipbook animation
-     * Play flipbook animation on a box or pie node. The current node texture must contain the animation.
+     * Play flipbook animation on a box or pie node.
+     * The current node texture must contain the animation.
+     * Use this function to set one-frame still images on the node.
      *
      * @name gui.play_flipbook
-     * @param node node to set animation for (node)
-     * @param animation animation id (string|hash)
-     * @param [complete_function] function to call when the animation has completed (function)
+     * @param node [type:node] node to set animation for
+     * @param animation [type:string|hash] animation id
+     * @param [complete_function] [type:function(self, node)] function to call when the animation has completed
+     * @examples
+     *
+     * Set the texture of a node to a flipbook animation from an atlas:
+     *
+     * ```lua
+     * local function anim_callback(self, node)
+     *     -- Take action after animation has played.
+     * end
+     *
+     * function init(self)
+     *     -- Create a new node and set the texture to a flipbook animation
+     *     local node = gui.get_node("button_node")
+     *     gui.set_texture(node, "gui_sprites")
+     *     gui.play_flipbook(node, "animated_button")
+     * end
+     * ```
+     *
+     * Set the texture of a node to an image from an atlas:
+     *
+     * ```lua
+     * -- Create a new node and set the texture to a "button.png" from atlas
+     * local node = gui.get_node("button_node")
+     * gui.set_texture(node, "gui_sprites")
+     * gui.play_flipbook(node, "button")
+     * ```
      */
     static int LuaPlayFlipbook(lua_State* L)
     {
@@ -1415,12 +1485,13 @@ namespace dmGui
      * Cancels any running flipbook animation on the specified node.
      *
      * @name gui.cancel_flipbook
-     * @param node node cancel flipbook animation for (node)
+     * @param node [type:node] node cancel flipbook animation for
      * @examples
-     * <pre>
+     *
+     * ```lua
      * local node = gui.get_node("anim_node")
      * gui.cancel_flipbook(node)
-     * </pre>
+     * ```
      */
     static int LuaCancelFlipbook(lua_State* L)
     {
@@ -1452,20 +1523,21 @@ namespace dmGui
      * Dynamically create a new texture.
      *
      * @name gui.new_texture
-     * @param texture texture id (string|hash)
-     * @param width texture width (number)
-     * @param height texture height (number)
-     * @param type texture type (string|constant)
+     * @param texture [type:string|hash] texture id
+     * @param width [type:number] texture width
+     * @param height [type:number] texture height
+     * @param type [type:string|constant] texture type
      * <ul>
      *   <li><code>"rgb"</code> - RGB</li>
      *   <li><code>"rgba"</code> - RGBA</li>
      *   <li><code>"l"</code> - LUMINANCE</li>
      * </ul>
-     * @param buffer texture data (string)
-     * @param flip flip texture vertically (boolean)
-     * @return texture creation was successful (boolean)
+     * @param buffer [type:string] texture data
+     * @param flip [type:boolean] flip texture vertically
+     * @return success [type:boolean] texture creation was successful
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *      local w = 200
      *      local h = 300
@@ -1483,7 +1555,7 @@ namespace dmGui
      *          ...
      *      end
      * end
-     * </pre>
+     * ```
      */
     static int LuaNewTexture(lua_State* L)
     {
@@ -1527,9 +1599,10 @@ namespace dmGui
      * Delete a dynamically created texture.
      *
      * @name gui.delete_texture
-     * @param texture texture id (string|hash)
+     * @param texture [type:string|hash] texture id
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *      -- Create a texture.
      *      if gui.new_texture("temp_tx", 10, 10, "rgb", string.rep('\0', 10 * 10 * 3)) then
@@ -1540,7 +1613,7 @@ namespace dmGui
      *          gui.delete_texture("temp_tx")
      *      end
      * end
-     * </pre>
+     * ```
      */
     static int LuaDeleteTexture(lua_State* L)
     {
@@ -1564,10 +1637,10 @@ namespace dmGui
      * Set the texture buffer data for a dynamically created texture.
      *
      * @name gui.set_texture_data
-     * @param texture texture id (string|hash)
-     * @param width texture width (number)
-     * @param height texture height (number)
-     * @param type texture type (string|constant)
+     * @param texture [type:string|hash] texture id
+     * @param width [type:number] texture width
+     * @param height [type:number] texture height
+     * @param type [type:string|constant] texture type
      * <ul>
      *   <li><code>"rgb"</code> - RGB</li>
      *   <li><code>"rgba"</code> - RGBA</li>
@@ -1577,7 +1650,8 @@ namespace dmGui
      * @param flip flip texture vertically (boolean)
      * @return setting the data was successful (boolean)
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *      local w = 200
      *      local h = 300
@@ -1601,7 +1675,7 @@ namespace dmGui
      *          ...
      *      end
      * end
-     * </pre>
+     * ```
      */
     static int LuaSetTextureData(lua_State* L)
     {
@@ -1646,8 +1720,8 @@ namespace dmGui
      * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
      *
      * @name gui.get_font
-     * @param node node from which to get the font (node)
-     * @return font id (hash)
+     * @param node [type:node] node from which to get the font
+     * @return font [type:hash] font id
      */
     static int LuaGetFont(lua_State* L)
     {
@@ -1666,11 +1740,12 @@ namespace dmGui
     }
 
     /*# sets the node font
-     * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
+     * This is only useful for text nodes.
+     * The font must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_font
-     * @param node node for which to set the font (node)
-     * @param font font id (string|hash)
+     * @param node [type:node] node for which to set the font
+     * @param font [type:string|hash] font id
      */
     static int LuaSetFont(lua_State* L)
     {
@@ -1714,8 +1789,8 @@ namespace dmGui
      * The layer must be mapped to the gui scene in the gui editor.
      *
      * @name gui.get_layer
-     * @param node node from which to get the layer (node)
-     * @return layer id (hash)
+     * @param node [type:node] node from which to get the layer
+     * @return layer [type:hash] layer id
      */
     static int LuaGetLayer(lua_State* L)
     {
@@ -1737,8 +1812,8 @@ namespace dmGui
      * The layer must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_layer
-     * @param node node for which to set the layer (node)
-     * @param layer layer id (string|hash)
+     * @param node [type:node] node for which to set the layer
+     * @param layer [type:string|hash] layer id
      */
     static int LuaSetLayer(lua_State* L)
     {
@@ -1781,7 +1856,7 @@ namespace dmGui
     /*# gets the scene current layout
      *
      * @name gui.get_layout
-     * @return layout id (hash)
+     * @return layout [type:hash] layout id
      */
     static int LuaGetLayout(lua_State* L)
     {
@@ -1798,8 +1873,8 @@ namespace dmGui
      * Clipping mode defines how the node will clipping it's children nodes
      *
      * @name gui.get_clipping_mode
-     * @param node node from which to get the clipping mode (node)
-     * @return node clipping mode (constant)
+     * @param node [type:node] node from which to get the clipping mode
+     * @return clipping_mode [type:constant] clipping mode
      * <ul>
      *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
      *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
@@ -1816,8 +1891,8 @@ namespace dmGui
      * Clipping mode defines how the node will clipping it's children nodes
      *
      * @name gui.set_clipping_mode
-     * @param node node to set clipping mode for (node)
-     * @param clipping_mode clipping mode to set (constant)
+     * @param node [type:node] node to set clipping mode for
+     * @param clipping_mode [type:constant] clipping mode to set
      * <ul>
      *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
      *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
@@ -1836,8 +1911,8 @@ namespace dmGui
      * If node is set as visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
      *
      * @name gui.get_clipping_visible
-     * @param node node from which to get the clipping visibility state (node)
-     * @return true or false
+     * @param node [type:node] node from which to get the clipping visibility state
+     * @return visible [type:boolean] true or false
      */
     static int LuaGetClippingVisible(lua_State* L)
     {
@@ -1851,8 +1926,8 @@ namespace dmGui
      * If node is set as an visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
      *
      * @name gui.set_clipping_visible
-     * @param node node to set clipping visibility for (node)
-     * @param visible true or false
+     * @param node [type:node] node to set clipping visibility for
+     * @param visible [type:boolean] true or false
      */
     static int LuaSetClippingVisible(lua_State* L)
     {
@@ -1867,8 +1942,8 @@ namespace dmGui
      * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
      *
      * @name gui.get_clipping_inverted
-     * @param node node from which to get the clipping inverted state (node)
-     * @return true or false
+     * @param node [type:node] node from which to get the clipping inverted state
+     * @return inverted [type:boolean] true or false
      */
     static int LuaGetClippingInverted(lua_State* L)
     {
@@ -1878,12 +1953,12 @@ namespace dmGui
         return 1;
     }
 
-    /*# sets node clipping visibility
+    /*# sets node clipping inversion
      * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
      *
      * @name gui.set_clipping_inverted
-     * @param node node to set clipping inverted state for (node)
-     * @param visible true or false
+     * @param node [type:node] node to set clipping inverted state for
+     * @param inverted [type:boolean] true or false
      */
     static int LuaSetClippingInverted(lua_State* L)
     {
@@ -1923,11 +1998,16 @@ namespace dmGui
     }
 
     /*# get text metrics from node
-     * Get text metrics
+     * Get the text metrics from a text node.
      *
      * @name gui.get_text_metrics_from_node
-     * @param node text node to measure text from
-     * @return a table with the following fields: width, height, max_ascent, max_descent
+     * @param node [type:node] text node to measure text from
+     * @return metrics [type:table] a table with the following fields:
+     *
+     * - width
+     * - height
+     * - max_ascent
+     * - max_descent
      */
     static int LuaGetTextMetricsFromNode(lua_State* L)
     {
@@ -1971,16 +2051,21 @@ namespace dmGui
     }
 
     /*# get text metrics
-     * Get text metrics
+     * Get text metrics given the provided font, text and parameters.
      *
      * @name gui.get_text_metrics
-     * @param font font id. (hash|string)
-     * @param text text to measure
-     * @param width max-width. use for line-breaks (default=FLT_MAX)
-     * @param line_breaks true to break lines accordingly to width (default=false)
-     * @param leading scale value for line spacing (default=1)
-     * @param tracking scale value for letter spacing (default=0)
-     * @return a table with the following fields: width, height, max_ascent, max_descent
+     * @param font [type:hash|string] font id
+     * @param text [type:string] text to measure
+     * @param width [type:number] max-width. Use for line-breaks (default=FLT_MAX)
+     * @param line_breaks [type:boolean] true to break lines accordingly to width (default=false)
+     * @param leading [type:number] scale value for line spacing (default=1)
+     * @param tracking [type:number] scale value for letter spacing (default=0)
+     * @return metrics [type:table] a table with the following fields:
+     *
+     * - width
+     * - height
+     * - max_ascent
+     * - max_descent
      */
     static int LuaGetTextMetrics(lua_State* L)
     {
@@ -2013,13 +2098,12 @@ namespace dmGui
      * The x-anchor specifies how the node is moved when the game is run in a different resolution.
      *
      * @name gui.get_xanchor
-     * @param node node to get x-anchor from (node)
-     * @return anchor anchor constant (constant)
-     * <ul>
-     *   <li><code>gui.ANCHOR_NONE</code></li>
-     *   <li><code>gui.ANCHOR_LEFT</code></li>
-     *   <li><code>gui.ANCHOR_RIGHT</code></li>
-     * </ul>
+     * @param node [type:node] node to get x-anchor from
+     * @return anchor [type:constant] anchor constant
+     *
+     * - `gui.ANCHOR_NONE`
+     * - `gui.ANCHOR_LEFT`
+     * - `gui.ANCHOR_RIGHT`
      */
     static int LuaGetXAnchor(lua_State* L)
     {
@@ -2038,13 +2122,12 @@ namespace dmGui
      * The x-anchor specifies how the node is moved when the game is run in a different resolution.
      *
      * @name gui.set_xanchor
-     * @param node node to set x-anchor for (node)
-     * @param anchor anchor constant (constant)
-     * <ul>
-     *   <li><code>gui.ANCHOR_NONE</code></li>
-     *   <li><code>gui.ANCHOR_LEFT</code></li>
-     *   <li><code>gui.ANCHOR_RIGHT</code></li>
-     * </ul>
+     * @param node [type:node] node to set x-anchor for
+     * @param anchor [type:constant] anchor constant
+     *
+     * - `gui.ANCHOR_NONE`
+     * - `gui.ANCHOR_LEFT`
+     * - `gui.ANCHOR_RIGHT`
      */
     static int LuaSetXAnchor(lua_State* L)
     {
@@ -2073,13 +2156,12 @@ namespace dmGui
      * The y-anchor specifies how the node is moved when the game is run in a different resolution.
      *
      * @name gui.get_yanchor
-     * @param node node to get y-anchor from (node)
-     * @return anchor anchor constant (constant)
-     * <ul>
-     *   <li><code>gui.ANCHOR_NONE</code></li>
-     *   <li><code>gui.ANCHOR_TOP</code></li>
-     *   <li><code>gui.ANCHOR_BOTTOM</code></li>
-     * </ul>
+     * @param node [type:node] node to get y-anchor from
+     * @return anchor [type:constant] anchor constant
+     *
+     * - `gui.ANCHOR_NONE`
+     * - `gui.ANCHOR_TOP`
+     * - `gui.ANCHOR_BOTTOM`
      */
     static int LuaGetYAnchor(lua_State* L)
     {
@@ -2102,13 +2184,12 @@ namespace dmGui
      * The y-anchor specifies how the node is moved when the game is run in a different resolution.
      *
      * @name gui.set_yanchor
-     * @param node node to set y-anchor for (node)
-     * @param anchor anchor constant (constant)
-     * <ul>
-     *   <li><code>gui.ANCHOR_NONE</code></li>
-     *   <li><code>gui.ANCHOR_TOP</code></li>
-     *   <li><code>gui.ANCHOR_BOTTOM</code></li>
-     * </ul>
+     * @param node [type:node] node to set y-anchor for
+     * @param anchor [type:constant] anchor constant
+     *
+     * - `gui.ANCHOR_NONE`
+     * - `gui.ANCHOR_TOP`
+     * - `gui.ANCHOR_BOTTOM`
      */
     static int LuaSetYAnchor(lua_State* L)
     {
@@ -2137,8 +2218,8 @@ namespace dmGui
      * The pivot specifies how the node is drawn and rotated from its position.
      *
      * @name gui.get_pivot
-     * @param node node to get pivot from (node)
-     * @return pivot constant (constant)
+     * @param node [type:node] node to get pivot from
+     * @return pivot [type:constant] pivot constant
      * <ul>
      *   <li><code>gui.PIVOT_CENTER</code></li>
      *   <li><code>gui.PIVOT_N</code></li>
@@ -2172,8 +2253,8 @@ namespace dmGui
      * The pivot specifies how the node is drawn and rotated from its position.
      *
      * @name gui.set_pivot
-     * @param node node to set pivot for (node)
-     * @param pivot pivot constant (constant)
+     * @param node [type:node] node to set pivot for
+     * @param pivot [type:constant] pivot constant
      * <ul>
      *   <li><code>gui.PIVOT_CENTER</code></li>
      *   <li><code>gui.PIVOT_N</code></li>
@@ -2210,9 +2291,10 @@ namespace dmGui
     }
 
     /*# gets the scene width
+     * Returns the scene width.
      *
      * @name gui.get_width
-     * @return scene width (number)
+     * @return width [type:number] scene width
      */
     static int LuaGetWidth(lua_State* L)
     {
@@ -2223,9 +2305,10 @@ namespace dmGui
     }
 
     /*# gets the scene height
+     * Returns the scene height.
      *
      * @name gui.get_height
-     * @return scene height (number)
+     * @return height [type:number] scene height
      */
     static int LuaGetHeight(lua_State* L)
     {
@@ -2236,10 +2319,11 @@ namespace dmGui
     }
 
     /*# set the slice9 configuration for the node
+     * Set the slice9 configuration values for the node.
      *
      * @name gui.set_slice9
-     * @param node node to manipulate
-     * @param params new value (vector4)
+     * @param node [type:node] node to manipulate
+     * @param values [type:vector4] new values
      */
     static int LuaSetSlice9(lua_State* L)
     {
@@ -2266,10 +2350,11 @@ namespace dmGui
     }
 
     /*# get the slice9 values for the node
+     * Returns the slice9 configuration values for the node.
      *
      * @name gui.get_slice9
-     * @param node node to manipulate
-     * @return vector4 with configuration values
+     * @param node [type:node] node to manipulate
+     * @return values [type:vector4] configuration values
      */
     static int LuaGetSlice9(lua_State* L)
     {
@@ -2282,10 +2367,12 @@ namespace dmGui
         return 1;
     }
 
-    /*# sets the number of generarted vertices around the perimeter
+    /*# sets the number of generated vertices around the perimeter
+     * Sets the number of generated vertices around the perimeter of a pie node.
      *
      * @name gui.set_perimeter_vertices
-     * @param vertex count (number)
+     * @param node [type:node] pie node
+     * @param vertices [type:number] vertex count
      */
     static int LuaSetPerimeterVertices(lua_State* L)
     {
@@ -2309,9 +2396,12 @@ namespace dmGui
     }
 
     /*# gets the number of generarted vertices around the perimeter
+     * Returns the number of generated vertices around the perimeter
+     * of a pie node.
      *
      * @name gui.get_perimeter_vertices
-     * @return vertex count (number)
+     * @param node [type:node] pie node
+     * @return vertices [type:number] vertex count
      */
     static int LuaGetPerimeterVertices(lua_State* L)
     {
@@ -2331,10 +2421,11 @@ namespace dmGui
     }
 
     /*# sets the angle for the filled pie sector
+     * Set the sector angle of a pie node.
      *
      * @name gui.set_fill_angle
-     * @param node node to set the fill angle for (node)
-     * @param sector angle
+     * @param node [type:node] node to set the fill angle for
+     * @param angle [type:number] sector angle
      */
     static int LuaSetPieFillAngle(lua_State* L)
     {
@@ -2358,10 +2449,11 @@ namespace dmGui
     }
 
     /*# gets the angle for the filled pie sector
+     * Returns the sector angle of a pie node.
      *
      * @name gui.get_fill_angle
-     * @param node node from which to get the fill angle (node)
-     * @return sector angle
+     * @param node [type:node] node from which to get the fill angle
+     * @return angle [type:number] sector angle
      */
     static int LuaGetPieFillAngle(lua_State* L)
     {
@@ -2380,11 +2472,13 @@ namespace dmGui
         return 1;
     }
 
-    /*# sets the pie inner radius (defined along the x dimension)
+    /*# sets the pie inner radius
+     * Sets the inner radius of a pie node.
+     * The radius is defined along the x axis.
      *
      * @name gui.set_inner_radius
-     * @param node node to set the inner radius for (node)
-     * @param inner radius
+     * @param node [type:node] node to set the inner radius for
+     * @param radius [type:number] inner radius
      */
     static int LuaSetInnerRadius(lua_State* L)
     {
@@ -2407,11 +2501,13 @@ namespace dmGui
         return 0;
     }
 
-    /*# gets the pie inner radius (defined along the x dimension)
+    /*# gets the pie inner radius
+     * Returns the inner radius of a pie node.
+     * The radius is defined along the x axis.
      *
      * @name gui.get_inner_radius
-     * @param node node from where to get the inner radius (node)
-     * @return inner radius
+     * @param node [type:node] node from where to get the inner radius
+     * @return radius [type:number] inner radius
      */
     static int LuaGetInnerRadius(lua_State* L)
     {
@@ -2430,11 +2526,15 @@ namespace dmGui
         return 1;
     }
 
-    /*# sets the pie outer bounds mode
+    /*# sets the pie node outer bounds mode
+     * Sets the outer bounds mode for a pie node.
      *
      * @name gui.set_outer_bounds
-     * @param node node for which to set the outer bounds mode (node)
-     * @param gui.PIEBOUNDS_RECTANGLE or gui.PIEBOUNDS_ELLIPSE
+     * @param node [type:node] node for which to set the outer bounds mode
+     * @param bounds_mode [type:constant] the outer bounds mode of the pie node:
+     *
+     * - `gui.PIEBOUNDS_RECTANGLE`
+     * - `gui.PIEBOUNDS_ELLIPSE`
      */
     static int LuaSetOuterBounds(lua_State* L)
     {
@@ -2458,10 +2558,14 @@ namespace dmGui
     }
 
     /*# gets the pie outer bounds mode
+     * Returns the outer bounds mode for a pie node.
      *
      * @name gui.get_outer_bounds
-     * @param node node from where to get the outer bounds mode (node)
-     * @return gui.PIEBOUNDS_RECTANGLE or gui.PIEBOUNDS_ELLIPSE
+     * @param node [type:node] node from where to get the outer bounds mode
+     * @return bounds_mode [type:constant] the outer bounds mode of the pie node:
+     *
+     * - `gui.PIEBOUNDS_RECTANGLE`
+     * - `gui.PIEBOUNDS_ELLIPSE`
      */
     static int LuaGetOuterBounds(lua_State* L)
     {
@@ -2481,10 +2585,12 @@ namespace dmGui
     }
 
     /*# sets the leading of the text node
+     * Sets the leading value for a text node. This value is used to
+     * scale the line spacing of text.
      *
      * @name gui.set_leading
-     * @param node node for which to set the leading (node)
-     * @param leading a scaling number for the line spacing (default=1) (number)
+     * @param node [type:node] node for which to set the leading
+     * @param leading [type:number] a scaling value for the line spacing (default=1)
      */
     static int LuaSetLeading(lua_State* L)
     {
@@ -2504,10 +2610,11 @@ namespace dmGui
     }
 
     /*# gets the leading of the text node
+     * Returns the leading value for a text node.
      *
      * @name gui.get_leading
-     * @param node node from where to get the leading (node)
-     * @return scaling number (default=1) (number)
+     * @param node [type:node] node from where to get the leading
+     * @return leading [type:number] leading scaling value (default=1)
      */
     static int LuaGetLeading(lua_State* L)
     {
@@ -2527,10 +2634,12 @@ namespace dmGui
     }
 
     /*# sets the tracking of the text node
+     * Sets the tracking value of a text node. This value is used to
+     * adjust the vertical spacing of characters in the text.
      *
      * @name gui.set_tracking
-     * @param node node for which to set the tracking (node)
-     * @param tracking a scaling number for the letter spacing (default=0) (number)
+     * @param node [type:node] node for which to set the tracking
+     * @param tracking [type:number] a scaling number for the letter spacing (default=0)
      */
     static int LuaSetTracking(lua_State* L)
     {
@@ -2550,10 +2659,11 @@ namespace dmGui
     }
 
     /*# gets the tracking of the text node
+     * Returns the tracking value of a text node.
      *
      * @name gui.get_tracking
-     * @param node node from where to get the tracking (node)
-     * @return scaling number (default=0) (number)
+     * @param node [type:node] node from where to get the tracking
+     * @return tracking [type:number] tracking scaling number (default=0)
      */
     static int LuaGetTracking(lua_State* L)
     {
@@ -2573,12 +2683,14 @@ namespace dmGui
     }
 
     /*# determines if the node is pickable by the supplied coordinates
+     * Tests whether a coordinate is within the bounding box of a
+     * node.
      *
      * @name gui.pick_node
-     * @param node node to be tested for picking (node)
-     * @param x x-coordinate (see <a href="#on_input">on_input</a> )
-     * @param y y-coordinate (see <a href="#on_input">on_input</a> )
-     * @return pick result (boolean)
+     * @param node [type:node] node to be tested for picking
+     * @param x [type:number] x-coordinate (see <a href="#on_input">on_input</a> )
+     * @param y [type:number] y-coordinate (see <a href="#on_input">on_input</a> )
+     * @return pickable [type:boolean] pick result
      */
     static int LuaPickNode(lua_State* L)
     {
@@ -2595,13 +2707,13 @@ namespace dmGui
         return 1;
     }
 
-    /*# retrieves if a node is enabled or not
-     *
+    /*# returns if a node is enabled or not
+     * Returns `true` if a node is enabled and `false` if it's not.
      * Disabled nodes are not rendered and animations acting on them are not evaluated.
      *
      * @name gui.is_enabled
-     * @param node node to query (node)
-     * @return whether the node is enabled or not (boolean)
+     * @param node [type:node] node to query
+     * @return enabled [type:boolean] whether the node is enabled or not
      */
     static int LuaIsEnabled(lua_State* L)
     {
@@ -2617,12 +2729,12 @@ namespace dmGui
     }
 
     /*# enables/disables a node
-     *
+     * Sets a node to the disabled or enabled state.
      * Disabled nodes are not rendered and animations acting on them are not evaluated.
      *
      * @name gui.set_enabled
-     * @param node node to be enabled/disabled (node)
-     * @param enabled whether the node should be enabled or not (boolean)
+     * @param node [type:node] node to be enabled/disabled
+     * @param enabled [type:boolean] whether the node should be enabled or not
      */
     static int LuaSetEnabled(lua_State* L)
     {
@@ -2640,16 +2752,17 @@ namespace dmGui
     }
 
     /*# gets the node adjust mode
-     * Adjust mode defines how the node will adjust itself to a screen resolution which differs from the project settings.
+     * Returns the adjust mode of a node.
+     * The adjust mode defines how the node will adjust itself to screen
+     * resolutions that differs from the one in the project settings.
      *
      * @name gui.get_adjust_mode
-     * @param node node from which to get the adjust mode (node)
-     * @return node adjust mode (constant)
-     * <ul>
-     *   <li><code>gui.ADJUST_FIT</code></li>
-     *   <li><code>gui.ADJUST_ZOOM</code></li>
-     *   <li><code>gui.ADJUST_STRETCH</code></li>
-     * </ul>
+     * @param node [type:node] node from which to get the adjust mode (node)
+     * @return adjust_mode [type:constant] the current adjust mode
+     *
+     * - `gui.ADJUST_FIT`
+     * - `gui.ADJUST_ZOOM`
+     * - `gui.ADJUST_STRETCH`
      */
     static int LuaGetAdjustMode(lua_State* L)
     {
@@ -2659,16 +2772,17 @@ namespace dmGui
     }
 
     /*# sets node adjust mode
-     * Adjust mode defines how the node will adjust itself to a screen resolution which differs from the project settings.
+     * Sets the adjust mode on a node.
+     * The adjust mode defines how the node will adjust itself to screen
+     * resolutions that differs from the one in the project settings.
      *
      * @name gui.set_adjust_mode
-     * @param node node to set adjust mode for (node)
-     * @param adjust_mode adjust mode to set (constant)
-     * <ul>
-     *   <li><code>gui.ADJUST_FIT</code></li>
-     *   <li><code>gui.ADJUST_ZOOM</code></li>
-     *   <li><code>gui.ADJUST_STRETCH</code></li>
-     * </ul>
+     * @param node [type:node] node to set adjust mode for
+     * @param adjust_mode [type:constant] adjust mode to set
+     *
+     * - `gui.ADJUST_FIT`
+     * - `gui.ADJUST_ZOOM`
+     * - `gui.ADJUST_STRETCH`
      */
     static int LuaSetAdjustMode(lua_State* L)
     {
@@ -2680,15 +2794,15 @@ namespace dmGui
     }
 
     /*# gets the node size mode
-     * Size mode defines how the node will adjust itself in size according to mode.
+     * Returns the size node of a node.
+     * The size mode defines how the node will adjust itself in size. Automatic
+     * size mode alters the node size based on the node's content.
      *
      * @name gui.get_size_mode
-     * @param node node from which to get the size mode (node)
-     * @return node size mode (constant)
-     * <ul>
-     *   <li><code>gui.SIZE_MODE_MANUAL</code></li>
-     *   <li><code>gui.SIZE_MODE_AUTO</code></li>
-     * </ul>
+     * @param node [type:node] node from which to get the size mode (node)
+     * @return size_mode [type:constant] the current size mode
+     *   - `gui.SIZE_MODE_MANUAL`
+     *   - `gui.SIZE_MODE_AUTO`
      */
     static int LuaGetSizeMode(lua_State* L)
     {
@@ -2698,15 +2812,15 @@ namespace dmGui
     }
 
     /*# sets node size mode
-     * Size mode defines how the node will adjust itself in size according to mode.
+     * Sets the size mode of a node.
+     * The size mode defines how the node will adjust itself in size. Automatic
+     * size mode alters the node size based on the node's content.
      *
      * @name gui.set_size_mode
-     * @param node node to set size mode for (node)
-     * @param size_mode size mode to set (constant)
-     * <ul>
-     *   <li><code>gui.SIZE_MODE_MANUAL</code></li>
-     *   <li><code>gui.SIZE_MODE_AUTO</code></li>
-     * </ul>
+     * @param node [type:node] node to set size mode for
+     * @param size_mode [type:constant] size mode to set
+     *   - `gui.SIZE_MODE_MANUAL`
+     *   - `gui.SIZE_MODE_AUTO`
      */
     static int LuaSetSizeMode(lua_State* L)
     {
@@ -2719,11 +2833,13 @@ namespace dmGui
     }
 
     /*# moves the first node above the second
-     * Supply nil as the second argument to move the first node to the top.
+     * Alters the ordering of the two supplied nodes by moving the first node
+     * above the second.
+     * If the second argument is `nil` the first node is moved to the top.
      *
      * @name gui.move_above
-     * @param node to move (node)
-     * @param ref reference node above which the first node should be moved (node)
+     * @param node [type:node] to move
+     * @param node [type:node|nil] reference node above which the first node should be moved
      */
     static int LuaMoveAbove(lua_State* L)
     {
@@ -2740,11 +2856,13 @@ namespace dmGui
     }
 
     /*# moves the first node below the second
-     * Supply nil as the second argument to move the first node to the bottom.
+     * Alters the ordering of the two supplied nodes by moving the first node
+     * below the second.
+     * If the second argument is `nil` the first node is moved to the bottom.
      *
      * @name gui.move_below
-     * @param node to move (node)
-     * @param ref reference node below which the first node should be moved (node)
+     * @param node [type:node] to move
+     * @param node [type:node|nil] reference node below which the first node should be moved
      */
     static int LuaMoveBelow(lua_State* L)
     {
@@ -2761,12 +2879,12 @@ namespace dmGui
     }
 
     /*# gets the parent of the specified node
-     *
-     * If the specified node does not have a parent, nil is returned.
+     * Returns the parent node of the specified node.
+     * If the supplied node does not have a parent, `nil` is returned.
      *
      * @name gui.get_parent
-     * @param node the node from which to retrieve its parent (node)
-     * @return parent instance (node)
+     * @param node [type:node] the node from which to retrieve its parent
+     * @return parent [type:node] parent instance or nil
      */
     int LuaGetParent(lua_State* L)
     {
@@ -2797,11 +2915,12 @@ namespace dmGui
         return 1;
     }
 
-    /*# set the parent of the node
+    /*# sets the parent of the node
+     * Sets the parent node of the specified node.
      *
      * @name gui.set_parent
-     * @param node node for which to set its parent (node)
-     * @param parent parent node to set (node)
+     * @param node [type:node] node for which to set its parent
+     * @param parent [type:node] parent node to set
      */
     static int LuaSetParent(lua_State* L)
     {
@@ -2829,12 +2948,13 @@ namespace dmGui
     }
 
     /*# clone a node
-     *
-     * This does not include its children. Use gui.clone_tree for that purpose.
+     * Make a clone instance of a node.
+     * This function does not clone the supplied node's children nodes.
+     * Use gui.clone_tree for that purpose.
      *
      * @name gui.clone
-     * @param node node to clone (node)
-     * @return the cloned node (node)
+     * @param node [type:node] node to clone
+     * @return clone [type:node] the cloned node
      */
     static int LuaClone(lua_State* L)
     {
@@ -2912,12 +3032,12 @@ namespace dmGui
     }
 
     /*# clone a node including its children
-     *
+     * Make a clone instance of a node and all its children.
      * Use gui.clone to clone a node excluding its children.
      *
      * @name gui.clone_tree
-     * @param node root node to clone (node)
-     * @return a table mapping node ids to the corresponding cloned nodes (table)
+     * @param node [type:node] root node to clone
+     * @return clones [type:table] a table mapping node ids to the corresponding cloned nodes
      */
     static int LuaCloneTree(lua_State* L)
     {
@@ -2969,8 +3089,10 @@ namespace dmGui
         }
     }
 
-    /*# reset all nodes to initial state
-     * reset only applies to static node loaded from the scene. Nodes created dynamically from script are not affected
+    /*# resets all nodes to initial state
+     * Resets all nodes in the current GUI scene to their initial state.
+     * The reset only applies to static node loaded from the scene.
+     * Nodes that are created dynamically from script are not affected.
      *
      * @name gui.reset_nodes
      */
@@ -2981,15 +3103,16 @@ namespace dmGui
         return 0;
     }
 
-    /*# set the render ordering for the current GUI scene
-     *
-     * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words
-     * in which order the scene will be rendered in relation to other currently rendered GUI scenes.
+    /*# sets the render ordering for the current GUI scene
+     * Set the order number for the current GUI scene.
+     * The number dictates the sorting of the "gui" render predicate,
+     * in other words in which order the scene will be rendered in relation
+     * to other currently rendered GUI scenes.
      *
      * The number must be in the range 0 to 15.
      *
      * @name gui.set_render_order
-     * @param order rendering order (number)
+     * @param order [type:number] rendering order (0-15)
      */
     static int LuaSetRenderOrder(lua_State* L)
     {
@@ -3028,20 +3151,19 @@ namespace dmGui
      * @variable
      */
 
-    /*# display on-display keyboard if available
-     *
-     * The specified type of keyboard is displayed, if it is available on
+    /*# shows the on-display keyboard if available
+     * Shows the on-display touch keyboard.
+     * The specified type of keyboard is displayed if it is available on
      * the device.
      *
      * @name gui.show_keyboard
-     * @param type keyboard type (constant)
-     * <ul>
-     *   <li><code>gui.KEYBOARD_TYPE_DEFAULT</code></li>
-     *   <li><code>gui.KEYBOARD_TYPE_EMAIL</code></li>
-     *   <li><code>gui.KEYBOARD_TYPE_NUMBER_PAD</code></li>
-     *   <li><code>gui.KEYBOARD_TYPE_PASSWORD</code></li>
-     * </ul>
-     * @param autoclose close keyboard automatically when clicking outside
+     * @param type [type:constant] keyboard type
+     *
+     * - `gui.KEYBOARD_TYPE_DEFAULT`
+     * - `gui.KEYBOARD_TYPE_EMAIL`
+     * - `gui.KEYBOARD_TYPE_NUMBER_PAD`
+     * - `gui.KEYBOARD_TYPE_PASSWORD`
+     * @param autoclose [type:boolean] if the keyboard should automatically close when clicking outside
      */
     static int LuaShowKeyboard(lua_State* L)
     {
@@ -3053,9 +3175,8 @@ namespace dmGui
         return 0;
     }
 
-    /*# hide on-display keyboard if available
-     *
-     * Hide the on-display keyboard on the device.
+    /*# hides on-display keyboard if available
+     * Hides the on-display touch keyboard on the device.
      *
      * @name gui.hide_keyboard
      */
@@ -3066,9 +3187,8 @@ namespace dmGui
         return 0;
     }
 
-    /*# reset on-display keyboard if available
-     *
-     * Reset input context of keyboard. This will clear marked text.
+    /*# resets on-display keyboard if available
+     * Resets the input context of keyboard. This will clear marked text.
      *
      * @name gui.reset_keyboard
      */
@@ -3080,87 +3200,121 @@ namespace dmGui
     }
 
     /*# gets the node position
+     * Returns the position of the supplied node.
      *
      * @name gui.get_position
-     * @param node node to get the position from (node)
-     * @return node position (vector3)
+     * @param node [type:node] node to get the position from
+     * @return position [type:vector3] node position
      */
 
     /*# sets the node position
+     * Sets the position of the supplied node.
      *
      * @name gui.set_position
-     * @param node node to set the position for (node)
-     * @param position new position (vector3|vector4)
+     * @param node [type:node] node to set the position for
+     * @param position [type:vector3|vector4] new position
      */
 
     /*# gets the node rotation
+     * Returns the rotation of the supplied node.
+     * The rotation is expressed in degree Euler angles.
      *
      * @name gui.get_rotation
-     * @param node node to get the rotation from (node)
-     * @return node rotation (vector3)
+     * @param node [type:node] node to get the rotation from
+     * @return rotation [type:vector3] node rotation
      */
 
     /*# sets the node rotation
+     * Sets the rotation of the supplied node.
+     * The rotation is expressed in degree Euler angles.
      *
      * @name gui.set_rotation
-     * @param node node to set the rotation for (node)
-     * @param rotation new rotation (vector3|vector4)
+     * @param node [type:node] node to set the rotation for
+     * @param rotation [type:vector3|vector4] new rotation
      */
 
     /*# gets the node scale
+     * Returns the scale of the supplied node.
      *
      * @name gui.get_scale
-     * @param node node to get the scale from (node)
-     * @return node scale (vector3)
+     * @param node [type:node] node to get the scale from
+     * @return scale [type:vector3] node scale
      */
 
     /*# sets the node scale
+     * Sets the scaling of the supplied node.
      *
      * @name gui.set_scale
-     * @param node node to set the scale for (node)
-     * @param scale new scale (vector3|vector4)
+     * @param node [type:node] node to set the scale for
+     * @param scale [type:vector3|vector4] new scale
      */
 
     /*# gets the node color
+     * Returns the color of the supplied node. The components
+     * of the [type:vector4] contains the color channel values:
+     *
+     * Component | Color value
+     * --------- | -------------
+     * x         | Red value
+     * y         | Green value
+     * z         | Blue value
+     * w         | Alpha value
      *
      * @name gui.get_color
-     * @param node node to get the color from (node)
-     * @return node color (vector4)
+     * @param node [type:node] node to get the color from
+     * @return color [type:vector4] node color
      */
 
     /*# sets the node color
+     * Sets the color of the supplied node. The components
+     * of the supplied [type:vector3] or [type:vector4] should contain the color channel values:
+     *
+     * Component        | Color value
+     * ---------------- | -------------
+     * x                | Red value
+     * y                | Green value
+     * z                | Blue value
+     * w [type:vector4] | Alpha value
      *
      * @name gui.set_color
-     * @param node node to set the color for (node)
-     * @param color new color (vector3|vector4)
+     * @param node [type:node] node to set the color for
+     * @param color [type:vector3|vector4] new color
      */
 
     /*# gets the node outline color
+     * Returns the outline color of the supplied node.
+     * See [ref:gui.get_color] for info how vectors encode color values.
      *
      * @name gui.get_outline
-     * @param node node to get the outline color from (node)
-     * @return node outline color (vector4)
+     * @param node [type:node] node to get the outline color from
+     * @return color [type:vector4] outline color
      */
 
     /*# sets the node outline color
+     * Sets the outline color of the supplied node.
+     * See [ref:gui.set_color] for info how vectors encode color values.
      *
      * @name gui.set_outline
-     * @param node node to set the outline color for (node)
-     * @param color new outline color (vector3|vector4)
+     * @param node [type:node] node to set the outline color for
+     * @param color [type:vector3|vector4] new outline color
      */
 
     /*# gets the node shadow color
+     * Returns the shadow color of the supplied node.
+     * See [ref:gui.get_color] for info how vectors encode color values.
      *
      * @name gui.get_shadow
-     * @param node node to get the shadow color from (node)
-     * @return node shadow color (vector4)
+     * @param node [type:node] node to get the shadow color from
+     * @return color [type:vector4] node shadow color
      */
 
     /*# sets the node shadow color
+     * Sets the shadow color of the supplied node.
+     * See [ref:gui.set_color] for info how vectors encode color values.
      *
      * @name gui.set_shadow
-     * @param node node to set the shadow color for (node)
-     * @param color new shadow color (vector3|vector4)
+     * @param node [type:node] node to set the shadow color for
+     * @param color [type:vector3|vector4] new shadow color
      */
 
 #define LUASET(name, property) \
@@ -3223,12 +3377,13 @@ namespace dmGui
     }
 
     /*# sets the node size
+     * Sets the size of the supplied node.
      *
-     * <b>NOTE!</b> You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
+     * @note You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
      *
      * @name gui.set_size
-     * @param node node to set the size for (node)
-     * @param size new size (vector3|vector4)
+     * @param node [type:node] node to set the size for
+     * @param size [type:vector3|vector4] new size
      */
     int LuaSetSize(lua_State* L)
     {
@@ -3258,10 +3413,11 @@ namespace dmGui
     }
 
     /*# gets the node size
+     * Returns the size of the supplied node.
      *
      * @name gui.get_size
-     * @param node node to get the size from (node)
-     * @return node size (vector3)
+     * @param node [type:node] node to get the size from
+     * @return size [type:vector3] node size
      */
     int LuaGetSize(lua_State* L)
     {
@@ -3272,10 +3428,11 @@ namespace dmGui
     }
 
     /*# gets the node screen position
+     * Returns the screen position of the supplied node.
      *
      * @name gui.get_screen_position
-     * @param node node to get the screen position from (node)
-     * @return node screen position (vector3)
+     * @param node [type:node] node to get the screen position from
+     * @return position [type:vector3] node screen position
      */
     int LuaGetScreenPosition(lua_State* L)
     {
@@ -3350,26 +3507,33 @@ namespace dmGui
     }
 
     /*# play a spine animation
+     * Starts a spine animation.
      *
      * @name gui.play_spine_anim
-     * @param node spine node that should play the animation (node)
-     * @param animation_id id of the animation to play (string|hash)
-     * @param playback playback mode (constant)
-     * <ul>
-     *   <li><code>gui.PLAYBACK_ONCE_FORWARD</code></li>
-     *   <li><code>gui.PLAYBACK_ONCE_BACKWARD</code></li>
-     *   <li><code>gui.PLAYBACK_ONCE_PINGPONG</code></li>
-     *   <li><code>gui.PLAYBACK_LOOP_FORWARD</code></li>
-     *   <li><code>gui.PLAYBACK_LOOP_BACKWARD</code></li>
-     *   <li><code>gui.PLAYBACK_LOOP_PINGPONG</code></li>
-     * </ul>
-     * @param [play_properties] optional table with properties (table)
-     * <ul>
-     *   <li><code>blend_duration</code> duration of a linear blend between the current and new animation (number)</li>
-     *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
-     *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
-     * </ul>
-     * @param [complete_function] function to call when the animation has completed (function)
+     * @replaces gui.play_spine
+     * @param node [type:node] spine node that should play the animation
+     * @param animation_id [type:string|hash] id of the animation to play
+     * @param playback [type:constant] playback mode
+     *
+     * - `gui.PLAYBACK_ONCE_FORWARD`
+     * - `gui.PLAYBACK_ONCE_BACKWARD`
+     * - `gui.PLAYBACK_ONCE_PINGPONG`
+     * - `gui.PLAYBACK_LOOP_FORWARD`
+     * - `gui.PLAYBACK_LOOP_BACKWARD`
+     * - `gui.PLAYBACK_LOOP_PINGPONG`
+     *
+     * @param [play_properties] [type:table] optional table with properties
+     *
+     * `blend_duration`
+     * : [type:number] The duration of a linear blend between the current and new animation
+     *
+     * `offset`
+     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing
+     *
+     * `playback_rate`
+     * : [type:number] The rate with which the animation will be played. Must be positive
+     *
+     * @param [complete_function] [type:function(self, node)] function to call when the animation has completed
      */
     int LuaPlaySpineAnim(lua_State* L)
     {
@@ -3452,7 +3616,7 @@ namespace dmGui
     /*# cancel a spine animation
      *
      * @name gui.cancel_spine
-     * @param node spine node that should cancel its animation
+     * @param node [type:node] spine node that should cancel its animation
      */
     int LuaCancelSpine(lua_State* L)
     {
@@ -3475,9 +3639,9 @@ namespace dmGui
      * This function has complexity O(n), where n is the number of bones in the spine model skeleton.
      *
      * @name gui.get_spine_bone
-     * @param node spine node to query for bone node (node)
-     * @param bone_id id of the corresponding bone (string|hash)
-     * @return node corresponding to the spine bone (node)
+     * @param node [type:node] spine node to query for bone node
+     * @param bone_id [type:string|hash] id of the corresponding bone
+     * @return bone [type:node] node corresponding to the spine bone
      */
     int LuaGetSpineBone(lua_State* L)
     {
@@ -3514,8 +3678,8 @@ namespace dmGui
      * Set the spine scene on a spine node. The spine scene must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_spine_scene
-     * @param node node to set spine scene for (node)
-     * @param spine_scene spine scene id (string|hash)
+     * @param node [type:node] node to set spine scene for
+     * @param spine_scene [type:string|hash] spine scene id
      */
     int LuaSetSpineScene(lua_State* L)
     {
@@ -3523,7 +3687,7 @@ namespace dmGui
         HNode node;
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &node);
-        if (dmGui::GetNodeIsBone(scene, node)) 
+        if (dmGui::GetNodeIsBone(scene, node))
         {
             return 0;
         }
@@ -3538,11 +3702,13 @@ namespace dmGui
     }
 
     /*# gets the spine scene of a node
-     * This is currently only useful for spine nodes. The spine scene must be mapped to the gui scene in the gui editor.
+     * Returns the spine scene id of the supplied node.
+     * This is currently only useful for spine nodes.
+     * The returned spine scene must be mapped to the gui scene in the gui editor.
      *
      * @name gui.get_spine_scene
-     * @param node node to get spine scene from (node)
-     * @return spine scene id (hash)
+     * @param node [type:node] node to get texture from
+     * @return spine_scene [type:hash] spine scene id
      */
     int LuaGetSpineScene(lua_State* L)
     {
@@ -4254,14 +4420,15 @@ namespace dmGui
      * to set the initial state of the script and gui scene.
      *
      * @name init
-     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param self [type:object] reference to the script state to be used for storing data
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     -- set up useful data
      *     self.my_value = 1
      * end
-     * </pre>
+     * ```
      */
 
     /*# called when a gui component is finalized
@@ -4271,14 +4438,15 @@ namespace dmGui
      * from this function since the gui component is about to be destroyed.
      *
      * @name final
-     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param self [type:object] reference to the script state to be used for storing data
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function final(self)
      *     -- report finalization
      *     msg.post("my_friend_instance", "im_dead", {my_stats = self.some_value})
      * end
-     * </pre>
+     * ```
      */
 
     /*# called every frame to update the gui component
@@ -4286,14 +4454,14 @@ namespace dmGui
      * It can be used to perform any kind of gui related tasks, e.g. animating nodes.
      *
      * @name update
-     * @param self reference to the script state to be used for storing data (script_ref)
-     * @param dt the time-step of the frame update
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
      * @examples
-     * <p>
+     *
      * This example demonstrates how to update a text node that displays game score in a counting fashion.
      * It is assumed that the gui component receives messages from the game when a new score is to be shown.
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     -- fetch the score text node for later use (assumes it is called "score")
      *     self.score_node = gui.get_node("score")
@@ -4325,7 +4493,7 @@ namespace dmGui
      *         self.target_score = message.score
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# called when a message has been sent to the gui component
@@ -4340,82 +4508,86 @@ namespace dmGui
      * <p>See the <code>update</code> function for examples on how to use this callback-function.</p>
      *
      * @name on_message
-     * @param self reference to the script state to be used for storing data (script_ref)
-     * @param message_id id of the received message (hash)
-     * @param message a table containing the message data (table)
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param message_id [type:hash] id of the received message
+     * @param message [type:table] a table containing the message data
      */
 
     /*# called when user input is received
-     * <p>
      * This is a callback-function, which is called by the engine when user input is sent to the instance of the gui component.
      * It can be used to take action on the input, e.g. modify the gui according to the input.
-     * </p>
-     * <p>
-     * For an instance to obtain user input, it must first acquire input focuse through the message <code>acquire_input_focus</code>.
-     * See the documentation of that message for more information.
-     * </p>
-     * <p>
-     * The <code>action</code> parameter is a table containing data about the input mapped to the <code>action_id</code>.
+     *
+     * For an instance to obtain user input, it must first acquire input
+     * focus through the message `acquire_input_focus`.
+     *
+     * Any instance that has obtained input will be put on top of an
+     * input stack. Input is sent to all listeners on the stack until the
+     * end of stack is reached, or a listener returns `true`
+     * to signal that it wants input to be consumed.
+     *
+     * See the documentation of [ref:go.acquire_input_focus] for more
+     * information.
+     *
+     * The `action` parameter is a table containing data about the input mapped to the
+     * `action_id`.
      * For mapped actions it specifies the value of the input and if it was just pressed or released.
      * Actions are mapped to input in an input_binding-file.
-     * </p>
-     * <p>
-     * Mouse movement is specifically handled and uses <code>nil</code> as its <code>action_id</code>.
-     * The <code>action</code> only contains positional parameters in this case, such as x and y of the pointer.
-     * </p>
-     * <p>
-     * Here is a brief description of the available table fields:
-     * </p>
-     * <table>
-     *   <th>Field</th>
-     *   <th>Description</th>
-     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_x</code></td><td>The screen space x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_y</code></td><td>The screen space y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_dx</code></td><td>The change in screen space x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_dy</code></td><td>The change in screen space y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>touch</code></td><td>List of touch input, one element per finger, if present. See table below about touch input</td></tr>
-     * </table>
      *
-     * <p>
+     * Mouse movement is specifically handled and uses `nil` as its `action_id`.
+     * The `action` only contains positional parameters in this case, such as x and y of the pointer.
+     *
+     * Here is a brief description of the available table fields:
+     *
+     * Field       | Description
+     * ----------- | ----------------------------------------------------------
+     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
+     * `pressed`   | If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.
+     * `released`  | If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.
+     * `repeated`  | If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
+     * `x`         | The x value of a pointer device, if present.
+     * `y`         | The y value of a pointer device, if present.
+     * `screen_x`  | The screen space x value of a pointer device, if present.
+     * `screen_y`  | The screen space y value of a pointer device, if present.
+     * `dx`        | The change in x value of a pointer device, if present.
+     * `dy`        | The change in y value of a pointer device, if present.
+     * `screen_dx` | The change in screen space x value of a pointer device, if present.
+     * `screen_dy` | The change in screen space y value of a pointer device, if present.
+     * `gamepad`   | The index of the gamepad device that provided the input.
+     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     *
      * Touch input table:
-     * </p>
-     * <table>
-     *   <th>Field</th>
-     *   <th>Description</th>
-     *   <tr><td><code>pressed</code></td><td>True if the finger was pressed this frame.</td></tr>
-     *   <tr><td><code>released</code></td><td>True if the finger was released this frame.</td></tr>
-     *   <tr><td><code>tap_count</code></td><td>Number of taps, one for single, two for double-tap, etc</td></tr>
-     *   <tr><td><code>x</code></td><td>The x touch location.</td></tr>
-     *   <tr><td><code>y</code></td><td>The y touch location.</td></tr>
-     *   <tr><td><code>dx</code></td><td>The change in x value.</td></tr>
-     *   <tr><td><code>dy</code></td><td>The change in y value.</td></tr>
-     *   <tr><td><code>acc_x</code></td><td>Accelerometer x value (if present).</td></tr>
-     *   <tr><td><code>acc_y</code></td><td>Accelerometer y value (if present).</td></tr>
-     *   <tr><td><code>acc_z</code></td><td>Accelerometer z value (if present).</td></tr>
-     * </table>
+     *
+     * Field       | Description
+     * ----------- | ----------------------------------------------------------
+     * `pressed`   | True if the finger was pressed this frame.
+     * `released`  | True if the finger was released this frame.
+     * `tap_count` | Number of taps, one for singledouble-tap, etc.
+     * `x`         | The x touch location.
+     * `y`         | The y touch location.
+     * `dx`        | The change in x value.
+     * `dy`        | The change in y value.
+     * `acc_x`     | Accelerometer x value (if present).
+     * `acc_y`     | Accelerometer y value (if present).
+     * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self reference to the script state to be used for storing data (script_ref)
-     * @param action_id id of the received input action, as mapped in the input_binding-file (hash)
-     * @param action a table containing the input data, see above for a description (table)
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
+     * @param action [type:table] a table containing the input data, see above for a description
+     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function on_input(self, action_id, action)
      *     -- check for input
      *     if action_id == hash("my_action") then
      *         -- take appropritate action
      *         self.my_value = action.value
      *     end
+     *     -- consume input
+     *     return true
      * end
-     * </pre>
+     * ```
      */
 
     /*# called when the gui script is reloaded
@@ -4425,14 +4597,15 @@ namespace dmGui
      * </p>
      *
      * @name on_reload
-     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param self [type:object] reference to the script state to be used for storing data
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function on_reload(self)
      *     -- restore some color (or similar)
      *     gui.set_color(gui.get_node("my_node"), self.my_original_color)
      * end
-     * </pre>
+     * ```
      */
 
     HScene GetSceneFromLua(lua_State* L) {

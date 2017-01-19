@@ -1919,3 +1919,17 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
 	return 0;
 }
+
+//========================================================================
+// Defold extension: Get native references (window, view and context)
+//========================================================================
+
+GLFWAPI Window glfwGetX11Window()
+{
+    return _glfwWin.window;
+}
+
+GLFWAPI GLXContext glfwGetX11GLXContext()
+{
+    return _glfwWin.context;
+}

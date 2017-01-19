@@ -17,11 +17,12 @@ namespace dmGameSystem
  *
  * Functions to manipulate a label component.
  *
+ * @document
  * @name Label
  * @namespace label
  */
 
-/*# label color (vector4)
+/*# [type:vector4] label color
  *
  * The color of the label. The type of the property is vector4.
  *
@@ -29,17 +30,18 @@ namespace dmGameSystem
  * @property
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * function init(self)
- *  -- Get the current color's y component
- *  local red_component = go.get("#label", "color.y")
- *  -- Animate the color
- *  go.animate("#label", "color", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(0,1,0,1), go.EASING_INOUTSINE, 1)
+ *    -- Get the current color's y component
+ *    local red_component = go.get("#label", "color.y")
+ *    -- Animate the color
+ *    go.animate("#label", "color", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(0,1,0,1), go.EASING_INOUTSINE, 1)
  * end
- * </pre>
+ * ```
  */
 
-/*# label outline (vector4)
+/*# [type:vector4] label outline
  *
  * The outline color of the label. The type of the property is vector4.
  *
@@ -47,17 +49,18 @@ namespace dmGameSystem
  * @property
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * function init(self)
- *  -- Get the current outline color
- *  local outline = go.get("#label", "outline")
- *  -- Animate the property
- *  go.animate("#label", "outline", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(0,1,0,1), go.EASING_INOUTSINE, 1)
+ *    -- Get the current outline color
+ *    local outline = go.get("#label", "outline")
+ *    -- Animate the property
+ *    go.animate("#label", "outline", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(0,1,0,1), go.EASING_INOUTSINE, 1)
  * end
- * </pre>
+ * ```
  */
 
-/*# label shadow (vector4)
+/*# [type:vector4] label shadow
  *
  * The shadow color of the label. The type of the property is vector4.
  *
@@ -65,41 +68,43 @@ namespace dmGameSystem
  * @property
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * function init(self)
  *  -- Get the current shadow color
  *  local shadow = go.get("#label", "shadow")
  *  -- Animate the property
  *  go.animate("#label", "shadow", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(0,1,0,1), go.EASING_INOUTSINE, 1)
  * end
- * </pre>
+ * ```
  */
 
-/*# label scale (vector3|number)
+/*# [type:number|vector3] label scale
  *
- * The scale of the label. The type of the property is vector3.
+ * The scale of the label. The type of the property is number (uniform)
+ * or vector3 (non uniform).
  *
  * @name scale
  * @property
  *
  * @examples
- * <p>
+ *
  * How to scale a label independently along the X and Y axis:
- * </p>
- * <pre>
+ *
+ * ```lua
  * function init(self)
- *  -- Double the y-axis scaling on component "label"
- *  local yscale = go.get("#label", "scale.y")
- *  go.set("#label", "scale.y", yscale * 2)
- *  -- Set the new scale altogether
- *  go.set("#label", "scale", vmath.vector3(2,2,2))
- *  -- Animate the scale
- *  go.animate("#label", "scale", go.PLAYBACK_LOOP_PINGPONG, vmath.vector3(2,2,2), go.EASING_INOUTSINE, 1)
+ *    -- Double the y-axis scaling on component "label"
+ *    local yscale = go.get("#label", "scale.y")
+ *    go.set("#label", "scale.y", yscale * 2)
+ *    -- Set the new scale altogether
+ *    go.set("#label", "scale", vmath.vector3(2,2,2))
+ *    -- Animate the scale
+ *    go.animate("#label", "scale", go.PLAYBACK_LOOP_PINGPONG, vmath.vector3(2,2,2), go.EASING_INOUTSINE, 1)
  * end
- * </pre>
+ * ```
  */
 
-/*# label size (vector3)
+/*# [type:vector3] label size
  *
  * Returns the size of the label. The size will constrain the text if line break is enabled
  * The type of the property is vector3.
@@ -108,10 +113,10 @@ namespace dmGameSystem
  * @property
  *
  * @examples
- * <p>
+ *
  * How to query a label's size, either as a vector or selecting a specific dimension:
- * </p>
- * <pre>
+ *
+ * ```lua
  * function init(self)
  *  -- get size from component "label"
  *  local size = go.get("#label", "size")
@@ -119,7 +124,7 @@ namespace dmGameSystem
  *  -- do something useful
  *  assert(size.x == sizex)
  * end
- * </pre>
+ * ```
  */
 
 static void FreeLabelString(dmMessage::Message* message)
@@ -129,17 +134,19 @@ static void FreeLabelString(dmMessage::Message* message)
 }
 
 /*# set the text for a label
+ *
  * Sets the text of a label component
  *
  * @name label.set_text
- * @param url the label that should have a constant set (url)
- * @param text the text (string|hash)
+ * @param url [type:string|hash|url] the label that should have a constant set
+ * @param text [type:string] the text
  * @examples
- * <pre>
+ *
+ * ```lua
  * function init(self)
  *     label.set_text("#label", "Hello World!")
  * end
- * </pre>
+ * ```
  */
 static int SetText(lua_State* L)
 {
