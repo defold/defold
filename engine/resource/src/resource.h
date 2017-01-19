@@ -2,6 +2,7 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
+#include <liveupdate/manifest_ddf.h>
 
 namespace dmBuffer
 {
@@ -10,6 +11,10 @@ namespace dmBuffer
 
 namespace dmResource
 {
+    const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
+
+    const static uint32_t MANIFEST_VERSION = 0x01;
+
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
@@ -285,6 +290,20 @@ namespace dmResource
      */
     void SetDefaultNewFactoryParams(struct NewFactoryParams* params);
 
+    struct EmbeddedResource
+    {
+        EmbeddedResource() : m_Data(NULL), m_Size(0)
+        {
+
+        }
+
+        // Pointer to a resource. Set to NULL for no resource (default value)
+        const void* m_Data;
+
+        // Size of resource.
+        uint32_t    m_Size;
+    };
+
     /**
      * New factory parmetes
      */
@@ -296,11 +315,9 @@ namespace dmResource
         /// Factory flags. Default is RESOURCE_FACTORY_FLAGS_EMPTY
         uint32_t m_Flags;
 
-        /// Pointer to a resource archive for builtin resources. Set to NULL for no archive (default value)
-        const void* m_BuiltinsArchive;
-
-        /// sizeof of m_BuiltinsArchive
-        uint32_t    m_BuiltinsArchiveSize;
+        EmbeddedResource m_ArchiveIndex;
+        EmbeddedResource m_ArchiveData;
+        EmbeddedResource m_ArchiveManifest;
 
         uint32_t m_Reserved[5];
 
@@ -500,6 +517,12 @@ namespace dmResource
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
+
+    Result LoadArchiveIndex(const char* manifestPath, HFactory factory);
+
+    Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
+
+    Result LoadManifest(const char* manifestPath, HFactory factory);
 
     /**
      * Determines if the resource could be unique

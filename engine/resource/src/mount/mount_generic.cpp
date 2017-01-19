@@ -7,20 +7,19 @@
 
 namespace dmResource
 {
-    Result MountArchiveInternal(const char* path, dmResourceArchive::HArchive* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         *mount_info = 0;
-        dmResourceArchive::Result r = LoadArchive(path, archive);
+        dmResourceArchive::Result r = LoadArchive(index_path, archive);
         if (r != dmResourceArchive::RESULT_OK)
         {
             return RESULT_RESOURCE_NOT_FOUND;
         }
         return RESULT_OK;
     }
-    
-    void UnmountArchiveInternal(dmResourceArchive::HArchive archive, void* mount_info)
+
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info)
     {
         dmResourceArchive::Delete(archive);
     }
-
 }

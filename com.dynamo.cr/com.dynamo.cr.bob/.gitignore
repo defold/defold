@@ -19,3 +19,4 @@
 /libexec/*/*apkc*
 /share/luajit
 /res
+/src/com/dynamo/bob/archive/EngineVersion.java

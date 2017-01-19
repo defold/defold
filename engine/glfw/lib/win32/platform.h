@@ -45,6 +45,7 @@
 #include <mmsystem.h>
 #include <xinput.h>
 #include "../../include/GL/glfw.h"
+#include "../../include/GL/glfw_native.h"
 
 
 //========================================================================

@@ -16,6 +16,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public int flags;
     public String relName;
     public String fileName;
+    public byte[] hash = null;
 
     public ArchiveEntry(String fileName) throws IOException {
         this.fileName = fileName;
@@ -47,9 +48,24 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.fileName = fileName;
     }
 
-    @Override
-    public int compareTo(ArchiveEntry other) {
-        return relName.compareTo(other.relName);
+    private int compare(byte[] left, byte[] right) {
+        for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
+            int a = (left[i] & 0xff);
+            int b = (right[j] & 0xff);
+            if (a != b) {
+                return a - b;
+            }
+        }
+        return left.length - right.length;
     }
 
+
+    @Override
+    public int compareTo(ArchiveEntry other) {
+        if (this.hash == null) {
+            return this.relName.compareTo(other.relName);
+        }
+
+        return this.compare(this.hash, other.hash);
+    }
 }
