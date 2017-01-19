@@ -108,6 +108,15 @@
       (throw (Exception. (format "controls %s are missing" missing))))
     controls))
 
+(defmacro with-controls [parent child-syms & body]
+  (let [child-keys (map keyword child-syms)
+        child-ids (mapv str child-syms)
+        all-controls-sym (gensym)
+        assignment-pairs (map #(vector %1 (list %2 all-controls-sym)) child-syms child-keys)]
+    `(let [~all-controls-sym (collect-controls ~parent ~child-ids)
+           ~@(mapcat identity assignment-pairs)]
+       ~@body)))
+
 ; TODO: Better name?
 (defn fill-control [control]
   (AnchorPane/setTopAnchor control 0.0)
@@ -315,7 +324,7 @@
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
 
-(defn load-fxml [path]
+(defn ^Parent load-fxml [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))
         css (io/file "editor.css")]
     (when (and (.exists css) (seq (.getStylesheets root)))
