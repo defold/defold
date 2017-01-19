@@ -212,21 +212,21 @@
 (defonce ^SimpleStringProperty find-term (doto (SimpleStringProperty.) (.setValue "")))
 (defonce ^SimpleStringProperty find-replacement (doto (SimpleStringProperty.) (.setValue "")))
 (defonce ^SimpleBooleanProperty find-whole-word (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-case-insensitive (doto (SimpleBooleanProperty.) (.setValue false)))
+(defonce ^SimpleBooleanProperty find-case-sensitive (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-wrap (doto (SimpleBooleanProperty.) (.setValue false)))
 
 (defn- get-find-params []
   {:term (.getValue find-term)
    :replacement (.getValue find-replacement)
    :whole-word (.getValue find-whole-word)
-   :case-insensitive (.getValue find-case-insensitive)
+   :case-sensitive (.getValue find-case-sensitive)
    :wrap (.getValue find-wrap)})
 
-(defn- create-find-expr [{:keys [term whole-word case-insensitive]}]
+(defn- create-find-expr [{:keys [term whole-word case-sensitive]}]
   (when (seq term)
     (cond-> (Pattern/quote term)
       whole-word (#(str "\\b" % "\\b"))
-      case-insensitive (#(str "(?i)" %)))))
+      (not case-sensitive) (#(str "(?i)" %)))))
 
 (defn set-find-term [text]
   (.setValue find-term (or text "")))
