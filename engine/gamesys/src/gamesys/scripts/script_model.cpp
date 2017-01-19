@@ -21,6 +21,7 @@ namespace dmGameSystem
      *
      * Functions and messages for interacting with model components.
      *
+     * @document
      * @name Model
      * @namespace model
      */

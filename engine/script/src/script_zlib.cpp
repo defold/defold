@@ -24,6 +24,7 @@ namespace dmScript
      *
      * Functions for compression and decompression of string buffers.
      *
+     * @document
      * @name Zlib
      * @namespace zlib
      */
@@ -44,8 +45,8 @@ namespace dmScript
      * A lua error is raised is on error
      *
      * @name zlib.inflate
-     * @param buf buffer to inflate (string)
-     * @return inflated buffer (string)
+     * @param buf [type:string] buffer to inflate
+     * @return buf [type:string] inflated buffer
      */
     int Zlib_Inflate(lua_State* L)
     {
@@ -74,8 +75,8 @@ namespace dmScript
      * A lua error is raised is on error
      *
      * @name zlib.deflate
-     * @param buf buffer to deflate (string)
-     * @return deflated buffer (string)
+     * @param buf [type:string] buffer to deflate
+     * @return buf [type:string] deflated buffer
      */
     int Zlib_Deflate(lua_State* L)
     {

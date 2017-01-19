@@ -8,6 +8,7 @@ import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.target.bundle.BundleGenericDialog;
 import com.dynamo.cr.target.bundle.BundleGenericPresenter;
@@ -63,6 +64,10 @@ public class BundleGenericHandler extends AbstractBundleHandler {
         }
         if(presenter.shouldGenerateReport()) {
             options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));
+        }
+
+        if (EditorUtil.isDev()) {
+            options.put("native-ext", "true");
         }
 
         final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
