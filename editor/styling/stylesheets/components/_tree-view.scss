@@ -35,5 +35,8 @@
                 @include effect-bright-grey();
             }
         }
+
+        // Generate css for file extensions
+        @include extensions(tree);
     }
 }

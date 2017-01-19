@@ -2,7 +2,7 @@
     .image-view {
         @include colorize-image-view($color);  
     }
-    &:selected {
+    &:selected, &:hover {
         @if($element == "tab") {
             .tab-container {
                 .tab-label {
@@ -24,8 +24,7 @@
         /* Script files */
         &fp, &gui_script, &lua,
         &render_script, &script, &vp {
-            //@extend .script-ext-base;
-            @include extension-template($element, maroon, red);
+            @include extension-template($element, $script-file, $script-file-active);
         }
 
         /* Design files */
@@ -34,7 +33,7 @@
         &gui, &label, &model, &particlefx,
         &spinemodel, &spinescene, &sprite,
         &tilemap, &tilesource {
-            @include extension-template($element, blue, lightblue);
+            @include extension-template($element, $design-file, $design-file-active);
         }
 
         /* Property container files */
@@ -42,15 +41,7 @@
         &display_profiles, &factory,
         &gamepads, &input_binding, &material, &project,
         &render, &sound, &texture_profiles {
-            @include extension-template($element, green, lightgreen);
+            @include extension-template($element, $property-file, $property-file-active);
         }
     }
-}
-
-.tree-cell {
-    @include extensions(tree);
-}
-
-.tab {
-    @include extensions(tab);
 }
