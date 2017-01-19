@@ -6,19 +6,39 @@ APPNAME='docs'
 srcdir = '.'
 blddir = 'build'
 
-import sys, os, re
-import Task, TaskGen
-from TaskGen import extension
+import Utils
+import sys, os, re, fnmatch
 import waf_dynamo
 
 def init():
     pass
 
 def configure(conf):
+    conf.find_program('find', var='FIND', mandatory = True)
     pass
 
 def build(bld):
-    pass
+    # Clean up src
+    files = os.listdir('src')
+    for filename in fnmatch.filter(files, '*.apidoc_'):
+        os.remove(os.path.join('src', filename))
+    # Find all the built .apidoc files in the engine tree
+    print("Scanning for .apidoc files...")
+    apidoc_files = []
+    for root, dirs, files in os.walk('..'):
+        for filename in fnmatch.filter(files, '*.apidoc'):
+            apidoc_files.append(os.path.join(root, filename))
+    # Concat per namespace into 'src'
+    namespace_files = {}
+    for apidoc_file in apidoc_files:
+        namespace, _ = os.path.splitext(os.path.basename(apidoc_file))
+        if namespace not in namespace_files:
+            namespace_files[namespace] = []
+        namespace_files[namespace].append(apidoc_file)
+    for ns, files in namespace_files.items():
+        comments = '\n'.join([Utils.readf(f) for f in files])
+        with open('src/%s.apidoc_' % ns, 'w') as out_f:
+            out_f.write(comments)
 
 def install(bld):
     pass

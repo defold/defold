@@ -1,0 +1,339 @@
+/*# Lua math standard library
+ *
+ * Documentation for the Lua math standard library.
+ *
+ * @document
+ * @name Math
+ * @namespace math
+ */
+
+/*# absolute value
+ * 
+ * 
+ * Returns the absolute value of x.
+ * 
+ * 
+ * @name math.abs
+ * @param x
+ */
+
+/*# arc cosine
+ * 
+ * 
+ * Returns the arc cosine of x (in radians).
+ * 
+ * 
+ * @name math.acos
+ * @param x
+ */
+
+/*# arc sine
+ * 
+ * 
+ * Returns the arc sine of x (in radians).
+ * 
+ * 
+ * @name math.asin
+ * @param x
+ */
+
+/*# arc tangent
+ * 
+ * 
+ * Returns the arc tangent of x (in radians).
+ * 
+ * 
+ * @name math.atan
+ * @param x
+ */
+
+/*# arc tangent of v1/v2
+ * 
+ * 
+ * Returns the arc tangent of ```y/x``` (in radians),
+ * but uses the signs of both parameters to find the
+ * quadrant of the result.
+ * (It also handles correctly the case of x being zero.)
+ * 
+ * 
+ * @name math.atan2
+ * @param y
+ * @param x
+ */
+
+/*# next higher integer value
+ * 
+ * 
+ * Returns the smallest integer larger than or equal to x.
+ * 
+ * 
+ * @name math.ceil
+ * @param x
+ */
+
+/*# cosine
+ * 
+ * 
+ * Returns the cosine of x (assumed to be in radians).
+ * 
+ * 
+ * @name math.cos
+ * @param x
+ */
+
+/*# hyperbolic cosine
+ * 
+ * 
+ * Returns the hyperbolic cosine of x.
+ * 
+ * 
+ * @name math.cosh
+ * @param x
+ */
+
+/*# convert from radians to degrees
+ * 
+ * 
+ * Returns the angle x (given in radians) in degrees.
+ * 
+ * 
+ * @name math.deg
+ * @param x
+ */
+
+/*# raises e to a power
+ * 
+ * 
+ * Returns the value e<sup>x</sup>.
+ * 
+ * 
+ * @name math.exp
+ * @param x
+ */
+
+/*# next smaller integer value
+ * 
+ * 
+ * Returns the largest integer smaller than or equal to x.
+ * 
+ * 
+ * @name math.floor
+ * @param x
+ */
+
+/*# the modulus (remainder) of doing: v1 / v2
+ * 
+ * 
+ * Returns the remainder of the division of x by y
+ * that rounds the quotient towards zero.
+ * 
+ * 
+ * @name math.fmod
+ * @param x
+ * @param y
+ */
+
+/*# break number into mantissa and exponent
+ * 
+ * 
+ * Returns m and e such that x = m2<sup>e</sup>,
+ * e is an integer and the absolute value of m is
+ * in the range [0.5, 1)
+ * (or zero when x is zero).
+ * 
+ * 
+ * @name math.frexp
+ * @param x
+ */
+
+/*# a huge value
+ * 
+ * 
+ * The value HUGE_VAL,
+ * a value larger than or equal to any other numerical value.
+ * 
+ * 
+ * @name math.huge
+ */
+
+/*# compute m* 2^n
+ * 
+ * 
+ * Returns m2<sup>e</sup> (e should be an integer).
+ * 
+ * 
+ * @name math.ldexp
+ * @param m
+ * @param e
+ */
+
+/*# natural log
+ * 
+ * 
+ * Returns the natural logarithm of x.
+ * 
+ * 
+ * @name math.log
+ * @param x
+ */
+
+/*# log to the base 10
+ * 
+ * 
+ * Returns the base-10 logarithm of x.
+ * 
+ * 
+ * @name math.log10
+ * @param x
+ */
+
+/*# the highest of one or more numbers
+ * 
+ * 
+ * Returns the maximum value among its arguments.
+ * 
+ * 
+ * @name math.max
+ * @param x
+ * @param ...
+ */
+
+/*# the lowest of one or more numbers
+ * 
+ * 
+ * Returns the minimum value among its arguments.
+ * 
+ * 
+ * @name math.min
+ * @param x
+ * @param ...
+ */
+
+/*# returns the integral and fractional part of its argument
+ * 
+ * 
+ * Returns two numbers,
+ * the integral part of x and the fractional part of x.
+ * 
+ * 
+ * @name math.modf
+ * @param x
+ */
+
+/*# the value of pi
+ * 
+ * 
+ * The value of PI.
+ * 
+ * 
+ * @name math.pi
+ */
+
+/*# raise a number to a power
+ * 
+ * 
+ * Returns x<sup>y</sup>.
+ * (You can also use the expression ```x^y``` to compute this value.)
+ * 
+ * 
+ * @name math.pow
+ * @param x
+ * @param y
+ */
+
+/*# convert degrees to radians
+ * 
+ * 
+ * Returns the angle x (given in degrees) in radians.
+ * 
+ * 
+ * @name math.rad
+ * @param x
+ */
+
+/*# generate a random number
+ * 
+ * 
+ * This function is an interface to the simple
+ * pseudo-random generator function rand provided by ANSI C.
+ * (No guarantees can be given for its statistical properties.)
+ * 
+ * When called without arguments,
+ * returns a uniform pseudo-random real number
+ * in the range [0,1).  
+ * When called with an integer number m,
+ * math.random returns
+ * a uniform pseudo-random integer in the range [1, m].
+ * When called with two integer numbers m and n,
+ * math.random returns a uniform pseudo-random
+ * integer in the range [m, n].
+ * 
+ * 
+ * @name math.random
+ * @param [m]
+ * @param [n]
+ */
+
+/*# seeds the random number generator
+ * 
+ * 
+ * Sets x as the "seed"
+ * for the pseudo-random generator:
+ * equal seeds produce equal sequences of numbers.
+ * 
+ * 
+ * @name math.randomseed
+ * @param x
+ */
+
+/*# sine
+ * 
+ * 
+ * Returns the sine of x (assumed to be in radians).
+ * 
+ * 
+ * @name math.sin
+ * @param x
+ */
+
+/*# hyperbolic sine
+ * 
+ * 
+ * Returns the hyperbolic sine of x.
+ * 
+ * 
+ * @name math.sinh
+ * @param x
+ */
+
+/*# square root
+ * 
+ * 
+ * Returns the square root of x.
+ * (You can also use the expression ```x^0.5``` to compute this value.)
+ * 
+ * 
+ * @name math.sqrt
+ * @param x
+ */
+
+/*# tangent
+ * 
+ * 
+ * Returns the tangent of x (assumed to be in radians).
+ * 
+ * 
+ * @name math.tan
+ * @param x
+ */
+
+/*# hyperbolic tangent
+ * 
+ * 
+ * Returns the hyperbolic tangent of x.
+ * 
+ * 
+ * @name math.tanh
+ * @param x
+ */
+
