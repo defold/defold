@@ -314,22 +314,22 @@ union SaveLoadBuffer
     }
 
     /*# loads resource from game data
+     *
      * Loads a custom resource. Specify the full filename of the resource that you want
-     * to load. When loaded, it is returned as a string.
+     * to load. When loaded, the file data is returned as a string.
+     * If loading fails, the function returns nil.
      *
      * In order for the engine to include custom resources in the build process, you need
-     * to specify them in the "game.project" settings file:
+     * to specify them in the "custom_resources" key in your "game.project" settings file.
+     * You can specify single resource files or directories. If a directory is is included
+     * in the resource list, all files and directories in that directory is recursively
+     * included:
      *
-     * ```
-     * [project]
-     * title = My project
-     * version = 0.1
-     * custom_resources = main/data/,assets/level_data.json
-     * ```
+     * For example "main/data/,assets/level_data.json".
      *
      * @name sys.load_resource
      * @param filename [type:string] resource to load, full path
-     * @return data [type:string] loaded data, which is empty if the file could not be found
+     * @return data [type:string] loaded data, or nil if the resource could not be loaded
      * @examples
      *
      * ```lua

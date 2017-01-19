@@ -413,17 +413,18 @@ int Push_Register(lua_State* L)
  *
  * @name push.set_listener
  * @param listener [type:function(self, payload, origin, activated)] listener callback function.
+ * Pass an empty function if you no longer wish to receive callbacks.
  *
- * self
+ * `self`
  * :    [type:object] The current object
  *
- * payload
+ * `payload`
  * :    [type:function] the push payload
  *
- * origin
+ * `origin`
  * :    [type:constant] push.ORIGIN_LOCAL or push.ORIGIN_REMOTE
  *
- * activated
+ * `activated`
  * :    [type:boolean] true or false depending on if the application was
  *      activated via the notification.
  *

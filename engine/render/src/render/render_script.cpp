@@ -375,7 +375,7 @@ namespace dmRender
     /*# disables a render state
      *
      * @name render.disable_state
-     * @param state state to enable (constant)
+     * @param state state to disable (constant)
      * <ul>
      *   <li><code>render.STATE_DEPTH_TEST</code></li>
      *   <li><code>render.STATE_STENCIL_TEST</code></li>

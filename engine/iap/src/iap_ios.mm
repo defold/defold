@@ -532,7 +532,8 @@ int IAP_Restore(lua_State* L)
  * Set the callback function to receive transaction events.
  *
  * @name iap.set_listener
- * @param listener [type:function(self, transaction, error)] listener callback function
+ * @param listener [type:function(self, transaction, error)] listener callback function.
+ * Pass an empty function if you no longer wish to receive callbacks.
  *
  * `self`
  * : [type:object] The current object.
@@ -550,7 +551,6 @@ int IAP_Restore(lua_State* L)
  *
  * `error`
  * : [type:table] a table containing any error information. The error parameter is `nil` on success.
- *
  *
  */
 int IAP_SetListener(lua_State* L)

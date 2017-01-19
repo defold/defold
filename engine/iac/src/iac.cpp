@@ -23,15 +23,16 @@ extern int IAC_PlatformSetListener(lua_State* L);
  * Sets the listener function for inter-app communication events.
  *
  * @name iac.set_listener
- * @param listener [type:function(self, payload, type)] listener callback function
+ * @param listener [type:function(self, payload, type)] listener callback function.
+ * Pass an empty function if you no longer wish to receive callbacks.
  *
- * self
+ * `self`
  * :        [type:object] The current object.
  *
- * payload
+ * `payload`
  * :        [type:table] The iac payload.
  *
- * type
+ * `type`
  * :        [type:constant] The type of iac, an iac.TYPE_<TYPE> enumeration.
  *
  * @examples

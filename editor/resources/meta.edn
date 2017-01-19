@@ -1,4 +1,5 @@
 {:settings
+  ; Project
  ({:type :string,
    :filter nil,
    :help "the title of the application",
@@ -21,9 +22,40 @@
    :path ["project" "compress_archive"]}
   {:type :string,
    :filter nil,
-   :help "projects required by this projectx",
+   :help "a comma separated list of URL:s to projects required by this project",
    :default nil,
    :path ["project" "dependencies"]}
+  {:type :string,
+   :filter nil,
+   :help "a comma separated list of resources that will be included in the project. If directories are specified, all files and directories in that directory are recursively included"
+   :default nil,
+   :path ["project" "custom_resources"]}
+   ; Bootstrap
+  {:type :resource,
+   :filter "collection",
+   :help
+   "file reference of the collection to use for starting the application, /logic/main.collection by default",
+   :default "/logic/main.collection",
+   :path ["bootstrap" "main_collection"]}
+  {:type :resource,
+   :filter "render",
+   :help
+   "which render file to use, which defines the render pipeline, /builtins/render/default.render by default",
+   :default "/builtins/render/default.render",
+   :path ["bootstrap" "render"]}
+   ; Library
+  {:type :string,
+   :filter nil,
+   :help "dirs to include in this project when used as a library",
+   :default "",
+   :path ["library" "include_dirs"]}
+   ; Script
+  {:type :boolean,
+   :filter nil,
+   :help "single Lua state shared between all script types",
+   :default false,
+   :path ["script" "shared_state"]}
+   ; Display
   {:type :integer,
    :filter nil,
    :help
@@ -71,6 +103,7 @@
    :help "dynamic screen orientation support",
    :default false,
    :path ["display" "dynamic_orientation"]}
+   ; Physics
   {:type :string,
    :filter nil,
    :help "which type of physics to use, 2D (default) or 3D",
@@ -140,18 +173,7 @@
    "contacts with an impulse below this limit will not be reported to scripts, 0 (disabled) by default",
    :default 0.0,
    :path ["physics" "contact_impulse_limit"]}
-  {:type :resource,
-   :filter "collection",
-   :help
-   "file reference of the collection to use for starting the application, /logic/main.collection by default",
-   :default "/logic/main.collection",
-   :path ["bootstrap" "main_collection"]}
-  {:type :resource,
-   :filter "render",
-   :help
-   "which render file to use, which defines the render pipeline, /builtins/render/default.render by default",
-   :default "/builtins/render/default.render",
-   :path ["bootstrap" "render"]}
+   ; Graphics
   {:type :string,
    :filter nil,
    :help
@@ -172,10 +194,61 @@
    :path ["graphics" "max_debug_vertices"]}
   {:type :resource,
    :filter "texture_profiles",
+   :preserve-extension true
    :help
    "specify which texture profiles (format, mipmaps and max textures size) to use for which resource path",
    :default "/builtins/graphics/default.texture_profiles",
    :path ["graphics" "texture_profiles"]}
+   ; Input
+  {:type :number,
+   :filter nil,
+   :help
+   "seconds to wait before treating a held down keyboard-key to start repeating itself",
+   :default 0.5,
+   :path ["input" "repeat_delay"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "seconds to wait between each repetition of a held down keyboard-key",
+   :default 0.2,
+   :path ["input" "repeat_interval"]}
+  {:type :resource,
+   :filter "gamepads",
+   :help
+   "file reference of the gamepads config file, which maps gamepad signals to OS, /builtins/input/default.gamepads by default",
+   :default "/builtins/input/default.gamepads",
+   :path ["input" "gamepads"]}
+  {:type :resource,
+   :filter "input_binding",
+   :help
+   "file reference of the input config file, which maps HW inputs to actions, /input/game.input_binding by default",
+   :default "/input/game.input_binding",
+   :path ["input" "game_binding"]}
+   ; Resource
+  {:type :boolean,
+   :filter nil,
+   :help
+   "if the http cache should be enabled for faster loads over network, 1 for yes (default) and 0 for no",
+   :default false,
+   :path ["resource" "http_cache"]}
+  {:type :string,
+   :filter nil,
+   :help "where to find game.project, in URI format",
+   :default nil,
+   :path ["resource" "uri"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "the max number of resources that can be loaded at the same time, 1024 by default",
+   :default 1024,
+   :path ["resource" "max_resources"]}
+   ; Network
+  {:type :number,
+   :filter nil,
+   :help "http timeout in seconds. zero to disable timeout",
+   :default 0.0,
+   :path ["network" "http_timeout"]}
+   ; Sound
   {:type :number,
    :filter nil,
    :help "global gain (volume), 0 - 1, 1 by default",
@@ -201,47 +274,7 @@
    :help "max number of concurrent sound instances, 256 by default",
    :default 256,
    :path ["sound" "max_sound_instances"]}
-  {:type :boolean,
-   :filter nil,
-   :help
-   "if the http cache should be enabled for faster loads over network, 1 for yes (default) and 0 for no",
-   :default false,
-   :path ["resource" "http_cache"]}
-  {:type :string,
-   :filter nil,
-   :help "where to find game.project, in URI format",
-   :default nil,
-   :path ["resource" "uri"]}
-  {:type :integer,
-   :filter nil,
-   :help
-   "the max number of resources that can be loaded at the same time, 1024 by default",
-   :default 1024,
-   :path ["resource" "max_resources"]}
-  {:type :number,
-   :filter nil,
-   :help
-   "seconds to wait before treating a held down keyboard-key to start repeating itself",
-   :default 0.5,
-   :path ["input" "repeat_delay"]}
-  {:type :number,
-   :filter nil,
-   :help
-   "seconds to wait between each repetition of a held down keyboard-key",
-   :default 0.2,
-   :path ["input" "repeat_interval"]}
-  {:type :resource,
-   :filter "gamepads",
-   :help
-   "file reference of the gamepads config file, which maps gamepad signals to OS, /builtins/input/default.gamepads by default",
-   :default "/builtins/input/default.gamepads",
-   :path ["input" "gamepads"]}
-  {:type :resource,
-   :filter "input_binding",
-   :help
-   "file reference of the input config file, which maps HW inputs to actions, /input/game.input_binding by default",
-   :default "/input/game.input_binding",
-   :path ["input" "game_binding"]}
+   ; Sprite
   {:type :integer,
    :filter nil,
    :help "max number of sprites, 128 by default",
@@ -253,21 +286,36 @@
    "whether to allow sprites to appear unaligned with respect to pixels, 1 for yes (default) and 0 for no",
    :default true,
    :path ["sprite" "subpixels"]}
+   ; Spine
   {:type :integer,
    :filter nil,
    :help "max number of spine models, 128 by default",
    :default 128,
    :path ["spine" "max_count"]}
+   ; Particle fx
+  {:type :integer,
+   :filter nil,
+   :help "max number of particle fx components, 64 by default",
+   :default 64,
+   :path ["particle_fx" "max_count"]}
+  {:type :integer,
+   :filter nil,
+   :help "max total number of living particles, 1024 by default",
+   :default 1024,
+   :path ["particle_fx" "max_particle_count"]}
+   ; Collection proxy
   {:type :integer,
    :filter nil,
    :help "max number of collection proxies, 8 by default",
    :default 8,
    :path ["collection_proxy" "max_count"]}
+   ; Factory
   {:type :integer,
    :filter nil,
    :help "max number of factories, 128 by default",
    :default 128,
    :path ["factory" "max_count"]}
+   ; iOS
   {:type :resource,
    :filter "png",
    :preserve-extension true
@@ -395,6 +443,7 @@
    :help "custom Info.plist template file",
    :default nil,
    :path ["ios" "infoplist"]}
+   ; Android
   {:type :resource,
    :filter "png",
    :preserve-extension true
@@ -452,6 +501,7 @@
    :help "custom AndroidManifest.xml template file",
    :default nil,
    :path ["android" "manifest"]}
+   ; OSX (change to macOS eventually?)
   {:type :resource,
    :filter "icns",
    :preserve-extension true
@@ -469,12 +519,14 @@
    :help "bundle identifier (CFBundleIdentifier)",
    :default "example.unnamed",
    :path ["osx" "bundle_identifier"]}
+   ; Windows
   {:type :resource,
    :filter "ico",
    :preserve-extension true
    :help "executable icon file (.ico)",
    :default "",
    :path ["windows" "app_icon"]}
+   ; HTML5
   {:type :boolean,
    :filter nil,
    :help
@@ -509,31 +561,12 @@
    :help "custom html splash screen image",
    :default nil,
    :path ["html5" "splash_image"]}
-  {:type :integer,
-   :filter nil,
-   :help "max number of particle fx components, 64 by default",
-   :default 64,
-   :path ["particle_fx" "max_count"]}
-  {:type :integer,
-   :filter nil,
-   :help "max total number of living particles, 1024 by default",
-   :default 1024,
-   :path ["particle_fx" "max_particle_count"]}
-  {:type :number,
-   :filter nil,
-   :help "http timeout in seconds. zero to disable timeout",
-   :default 0.0,
-   :path ["network" "http_timeout"]}
+   ; Facebook
   {:type :string,
    :filter nil,
-   :help "dirs to include in this project when used as a library",
-   :default "",
-   :path ["library" "include_dirs"]}
-  {:type :boolean,
-   :filter nil,
-   :help "Single lua state shared between all script types",
-   :default false,
-   :path ["script" "shared_state"]}),
+   :help "the application id as issued by Facebook",
+   :default nil,
+   :path ["facebook" "appid"]}),
  :categories
  {"sound" {:help "Sound related settings"},
   "html5" {:help "HTML5 related settings"},
@@ -555,5 +588,6 @@
    "Settings for when this project is used as a library by another project"},
   "display" {:help "Resolution and other display related settings"},
   "ios" {:help "iOS related settings"},
+  "facebook" {:help "Facebook related settings"},
   "particle_fx" {:help "Particle FX related settings"},
   "android" {:help "Android related settings"}}}

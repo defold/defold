@@ -106,7 +106,7 @@ namespace dmGameSystem
 
 /*# [type:vector3] label size
  *
- * Returns the size of the label. THe size will constrain the text if line break is enabled
+ * Returns the size of the label. The size will constrain the text if line break is enabled
  * The type of the property is vector3.
  *
  * @name size
