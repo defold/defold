@@ -534,7 +534,7 @@ namespace dmResource
 
     Result LoadArchiveIndex(const char* manifestPath, HFactory factory);
 
-    Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
+    Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
 
     Result LoadManifest(const char* manifestPath, HFactory factory);
 

@@ -243,7 +243,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     return result;
 }
 
-Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile)
+Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile)
 {
     // Read from manifest resource
     dmDDF::Result result = dmDDF::LoadMessage(manifest, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifestFile);
@@ -287,7 +287,7 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifest(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
+    Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
     dmMemory::AlignedFree(manifestBuffer);
 
     if (result == RESULT_OK)

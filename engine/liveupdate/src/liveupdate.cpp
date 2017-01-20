@@ -14,7 +14,7 @@
 namespace dmLiveUpdate
 {
 
-    const int MAX_MANIFESTS = 8;
+    const int MAX_MANIFEST_COUNT = 8;
     const int CURRENT_MANIFEST = 0x0ac83fcc;
 
     struct LiveUpdate
@@ -25,7 +25,7 @@ namespace dmLiveUpdate
         }
 
         dmResource::Manifest* m_Manifest;
-        dmResource::Manifest* m_Manifests[MAX_MANIFESTS];
+        dmResource::Manifest* m_Manifests[MAX_MANIFEST_COUNT];
     };
 
     LiveUpdate g_LiveUpdate;
@@ -123,7 +123,7 @@ namespace dmLiveUpdate
                 if (expected[i] != hexDigest[i])
                 {
                     result = false;
-                    break; // This is prone to side-channel attacks
+                    break;
                 }
             }
         }
@@ -137,9 +137,9 @@ namespace dmLiveUpdate
         return result;
     }
 
-    static int addManifest(dmResource::Manifest* manifest)
+    static int AddManifest(dmResource::Manifest* manifest)
     {
-        for (int i = 0; i < MAX_MANIFESTS; ++i)
+        for (int i = 0; i < MAX_MANIFEST_COUNT; ++i)
         {
             if (g_LiveUpdate.m_Manifests[i] == 0x0)
             {
@@ -151,14 +151,14 @@ namespace dmLiveUpdate
         return -1;
     }
 
-    static dmResource::Manifest* getManifest(int manifestIndex)
+    static dmResource::Manifest* GetManifest(int manifestIndex)
     {
         if (manifestIndex == CURRENT_MANIFEST)
         {
             return g_LiveUpdate.m_Manifest;
         }
 
-        for (int i = 0; i < MAX_MANIFESTS; ++i)
+        for (int i = 0; i < MAX_MANIFEST_COUNT; ++i)
         {
             if (i == manifestIndex)
             {
@@ -169,9 +169,9 @@ namespace dmLiveUpdate
         return 0x0;
     }
 
-    static bool removeManifest(int manifestIndex)
+    static bool RemoveManifest(int manifestIndex)
     {
-        if (manifestIndex >= 0 && manifestIndex < MAX_MANIFESTS)
+        if (manifestIndex >= 0 && manifestIndex < MAX_MANIFEST_COUNT)
         {
             if (g_LiveUpdate.m_Manifests[manifestIndex] != 0x0)
             {
@@ -203,7 +203,7 @@ namespace dmLiveUpdate
         const char* manifestData = luaL_checklstring(L, 1, &manifestLength);
 
         dmResource::Manifest* manifest = new dmResource::Manifest();
-        dmResource::Result result = dmResource::ParseManifest((uint8_t*) manifestData, manifestLength, manifest->m_DDF);
+        dmResource::Result result = dmResource::ParseManifestDDF((uint8_t*) manifestData, manifestLength, manifest->m_DDF);
 
         if (result != dmResource::RESULT_OK)
         {
@@ -212,13 +212,13 @@ namespace dmLiveUpdate
             return luaL_error(L, "The manifest could not be parsed");
         }
 
-        int manifestIndex = addManifest(manifest);
+        int manifestIndex = AddManifest(manifest);
 
         if (manifestIndex == -1)
         {
             delete manifest;
             assert(top == lua_gettop(L));
-            return luaL_error(L, "The manifest buffer is full (%d/%d)", MAX_MANIFESTS, MAX_MANIFESTS);
+            return luaL_error(L, "The manifest buffer is full (%d/%d)", MAX_MANIFEST_COUNT, MAX_MANIFEST_COUNT);
         }
 
         lua_pushnumber(L, manifestIndex);
@@ -237,7 +237,7 @@ namespace dmLiveUpdate
             return luaL_error(L, "Cannot destroy the current manifest");
         }
 
-        if (!removeManifest(manifestIndex))
+        if (!RemoveManifest(manifestIndex))
         {
             assert(top == lua_gettop(L));
             return luaL_error(L, "The manifest identifier does not exist");
@@ -255,7 +255,7 @@ namespace dmLiveUpdate
         char** buffer = 0x0;
         uint32_t resourceCount = GetMissingResources(path, &buffer);
 
-        lua_newtable(L);
+        lua_createtable(L, resourceCount, 0);
         for (uint32_t i = 0; i < resourceCount; ++i)
         {
             lua_pushnumber(L, i + 1);
@@ -278,7 +278,7 @@ namespace dmLiveUpdate
         unsigned long buflen = 0;
         const char* buf = luaL_checklstring(L, 3, &buflen);
 
-        dmResource::Manifest* manifest = getManifest(manifestIndex);
+        dmResource::Manifest* manifest = GetManifest(manifestIndex);
 
         if (manifest == 0x0)
         {
