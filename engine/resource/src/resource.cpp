@@ -32,7 +32,6 @@
 #include <dlib/mutex.h>
 
 #include "resource.h"
-#include "resource_archive.h"
 #include "resource_ddf.h"
 #include "resource_private.h"
 
@@ -57,17 +56,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 #define RESOURCE_SOCKET_NAME "@resource"
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
-
-struct Manifest
-{
-    Manifest()
-    {
-        memset(this, 0, sizeof(Manifest));
-    }
-
-    dmResourceArchive::HArchiveIndexContainer    m_ArchiveIndex;
-    dmLiveUpdateDDF::ManifestFile*      m_DDF;
-};
 
 const char SHARED_NAME_CHARACTER = ':';
 
@@ -237,6 +225,11 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
     factory->m_HttpTotalBytesStreamed += content_data_size;
 }
 
+Manifest* GetManifest(HFactory factory)
+{
+    return factory->m_Manifest;
+}
+
 Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
 {
     const uint32_t extensionLength = strlen("dmanifest");
@@ -250,7 +243,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     return result;
 }
 
-Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile)
+Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile)
 {
     // Read from manifest resource
     dmDDF::Result result = dmDDF::LoadMessage(manifest, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifestFile);
@@ -294,7 +287,7 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifest(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
+    Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
     dmMemory::AlignedFree(manifestBuffer);
 
     if (result == RESULT_OK)

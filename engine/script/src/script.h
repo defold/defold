@@ -9,6 +9,7 @@
 #include <dlib/message.h>
 #include <dlib/configfile.h>
 #include <dlib/json.h>
+#include <dlib/log.h>
 #include <resource/resource.h>
 #include <ddf/ddf.h>
 
@@ -512,7 +513,16 @@ namespace dmScript
         int m_Top;
         int m_Diff;
         LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff) {}
-        ~LuaStackCheck() { assert(lua_gettop(m_L) == m_Top + m_Diff); }
+        ~LuaStackCheck() {
+            uint32_t expected = m_Top + m_Diff;
+            uint32_t actual = lua_gettop(m_L);
+            if (expected != actual)
+            {
+                dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
+                assert(expected == actual);
+            }
+
+        }
     };
 
     #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);

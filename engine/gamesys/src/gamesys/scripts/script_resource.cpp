@@ -6,6 +6,7 @@
 #include <graphics/graphics_ddf.h>
 #include <script/script.h>
 #include "../gamesys.h"
+#include "script_resource_liveupdate.h"
 
 
 namespace dmGameSystem
@@ -206,7 +207,7 @@ static int SetTexture(lua_State* L)
     texture_image->m_Alternatives.m_Data = new dmGraphics::TextureImage::Image[1];
     texture_image->m_Alternatives.m_Count = 1;
     texture_image->m_Type = (dmGraphics::TextureImage::Type)GraphicsTextureTypeToImageType(type);
-    
+
     for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
     {
         dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
@@ -261,6 +262,16 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
+
+    // LiveUpdate functionality in resource namespace
+    {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
+    {"create_manifest", dmLiveUpdate::Resource_CreateManifest},
+    {"destroy_manifest", dmLiveUpdate::Resource_DestroyManifest},
+    {"verify_resource", dmLiveUpdate::Resource_VerifyResource},
+    {"store_resource", dmLiveUpdate::Resource_StoreResource},
+    {"verify_manifest", dmLiveUpdate::Resource_VerifyManifest},
+    {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
+
     {0, 0}
 };
 
