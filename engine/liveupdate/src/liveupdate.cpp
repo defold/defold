@@ -1,6 +1,7 @@
 #include "liveupdate.h"
 #include "liveupdate_private.h"
 #include <string.h>
+#include <stdlib.h>
 
 #include <ddf/ddf.h>
 

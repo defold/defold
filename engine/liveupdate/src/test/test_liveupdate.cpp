@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <gtest/gtest.h>
 #include "../liveupdate.h"
 #include "../liveupdate_private.h"
