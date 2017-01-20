@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -28,13 +28,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
+#include <axtls/config/config.h>
 
 #ifdef CONFIG_SSL_GENERATE_X509_CERT
 #include <string.h>
 #include <stdlib.h>
-#include "os_port.h"
-#include "ssl.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/ssl/ssl.h>
 
 /**
  * Generate a basic X.509 certificate
@@ -57,7 +57,7 @@ static uint8_t set_gen_length(int len, uint8_t *buf, int *offset)
             length_bytes = 2;
         else if (len & 0x000000FF)
             length_bytes = 1;
-            
+
         buf[(*offset)++] = 0x80 + length_bytes;
 
         for (i = length_bytes-1; i >= 0; i--)
@@ -80,10 +80,10 @@ static int pre_adjust_with_size(uint8_t type,
     return *offset;
 }
 
-static void adjust_with_size(int seq_size, int seq_start, 
+static void adjust_with_size(int seq_size, int seq_start,
                 uint8_t *buf, int *offset)
 {
-    uint8_t seq_byte_size; 
+    uint8_t seq_byte_size;
     int orig_seq_size = seq_size;
     int orig_seq_start = seq_start;
 
@@ -92,7 +92,7 @@ static void adjust_with_size(int seq_size, int seq_start,
 
     if (seq_byte_size != 4)
     {
-        memmove(&buf[orig_seq_start+seq_byte_size], 
+        memmove(&buf[orig_seq_start+seq_byte_size],
                 &buf[orig_seq_size], seq_size);
         *offset -= 4-seq_byte_size;
     }
@@ -108,9 +108,9 @@ static void gen_serial_number(uint8_t *buf, int *offset)
 static void gen_signature_alg(uint8_t *buf, int *offset)
 {
     /* OBJECT IDENTIFIER sha1withRSAEncryption (1 2 840 113549 1 1 5) */
-    static const uint8_t sig_oid[] = 
+    static const uint8_t sig_oid[] =
     {
-        ASN1_SEQUENCE, 0x0d, ASN1_OID, 0x09, 
+        ASN1_SEQUENCE, 0x0d, ASN1_OID, 0x09,
         0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x05,
         ASN1_NULL, 0x00
     };
@@ -119,7 +119,7 @@ static void gen_signature_alg(uint8_t *buf, int *offset)
     *offset += sizeof(sig_oid);
 }
 
-static int gen_dn(const char *name, uint8_t dn_type, 
+static int gen_dn(const char *name, uint8_t dn_type,
                         uint8_t *buf, int *offset)
 {
     int ret = X509_OK;
@@ -155,7 +155,7 @@ static int gen_issuer(const char * dn[], uint8_t *buf, int *offset)
     int seq_offset;
     int seq_size = pre_adjust_with_size(
                             ASN1_SEQUENCE, &seq_offset, buf, offset);
-    char fqdn[128]; 
+    char fqdn[128];
 
     /* we need the common name, so if not configured, work out the fully
      * qualified domain name */
@@ -198,11 +198,11 @@ error:
 
 static void gen_utc_time(uint8_t *buf, int *offset)
 {
-    static const uint8_t time_seq[] = 
+    static const uint8_t time_seq[] =
     {
-        ASN1_SEQUENCE, 30, 
-        ASN1_UTC_TIME, 13, 
-        '0', '7', '0', '1', '0', '1', '0', '0', '0', '0', '0', '0', 'Z', 
+        ASN1_SEQUENCE, 30,
+        ASN1_UTC_TIME, 13,
+        '0', '7', '0', '1', '0', '1', '0', '0', '0', '0', '0', '0', 'Z',
         ASN1_UTC_TIME, 13,  /* make it good for 30 or so years */
         '3', '8', '0', '1', '0', '1', '0', '0', '0', '0', '0', '0', 'Z'
     };
@@ -214,7 +214,7 @@ static void gen_utc_time(uint8_t *buf, int *offset)
 
 static void gen_pub_key2(const RSA_CTX *rsa_ctx, uint8_t *buf, int *offset)
 {
-    static const uint8_t pub_key_seq[] = 
+    static const uint8_t pub_key_seq[] =
     {
         ASN1_INTEGER, 0x03, 0x01, 0x00, 0x01 /* INTEGER 65537 */
     };
@@ -272,14 +272,14 @@ static void gen_pub_key(const RSA_CTX *rsa_ctx, uint8_t *buf, int *offset)
     adjust_with_size(seq_size, seq_offset, buf, offset);
 }
 
-static void gen_signature(const RSA_CTX *rsa_ctx, const uint8_t *sha_dgst, 
+static void gen_signature(const RSA_CTX *rsa_ctx, const uint8_t *sha_dgst,
                         uint8_t *buf, int *offset)
 {
-    static const uint8_t asn1_sig[] = 
+    static const uint8_t asn1_sig[] =
     {
-        ASN1_SEQUENCE,  0x21, ASN1_SEQUENCE, 0x09, ASN1_OID, 0x05, 
+        ASN1_SEQUENCE,  0x21, ASN1_SEQUENCE, 0x09, ASN1_OID, 0x05,
         0x2b, 0x0e, 0x03, 0x02, 0x1a, /* sha1 (1 3 14 3 2 26) */
-        ASN1_NULL, 0x00, ASN1_OCTET_STRING, 0x14 
+        ASN1_NULL, 0x00, ASN1_OCTET_STRING, 0x14
     };
 
     uint8_t *enc_block = (uint8_t *)alloca(rsa_ctx->num_octets);
@@ -290,7 +290,7 @@ static void gen_signature(const RSA_CTX *rsa_ctx, const uint8_t *sha_dgst,
     memcpy(block, asn1_sig, sizeof(asn1_sig));
     memcpy(&block[sizeof(asn1_sig)], sha_dgst, SHA1_SIZE);
 
-    sig_size = RSA_encrypt(rsa_ctx, block, 
+    sig_size = RSA_encrypt(rsa_ctx, block,
                             sizeof(asn1_sig) + SHA1_SIZE, enc_block, 1);
 
     buf[(*offset)++] = ASN1_BIT_STRING;
@@ -344,7 +344,7 @@ EXP_FUNC int STDCALL ssl_x509_create(SSL_CTX *ssl_ctx, uint32_t options, const c
     /* allocate enough space to load a new certificate */
     uint8_t *buf = (uint8_t *)alloca(ssl_ctx->rsa_ctx->num_octets*2 + 512);
     uint8_t sha_dgst[SHA1_SIZE];
-    int seq_size = pre_adjust_with_size(ASN1_SEQUENCE, 
+    int seq_size = pre_adjust_with_size(ASN1_SEQUENCE,
                                     &seq_offset, buf, &offset);
 
     if ((ret = gen_tbs_cert(dn, ssl_ctx->rsa_ctx, buf, &offset, sha_dgst)) < 0)

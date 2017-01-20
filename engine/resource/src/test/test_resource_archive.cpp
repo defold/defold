@@ -51,7 +51,7 @@ static const uint8_t compressed_content_hash[][20] = {
 TEST(dmResourceArchive, ManifestHeader)
 {
     dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifest(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, instance);
+    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, instance);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     ASSERT_EQ(dmResource::MANIFEST_MAGIC_NUMBER, instance->m_Data.m_Header.m_MagicNumber);
@@ -68,7 +68,7 @@ TEST(dmResourceArchive, ManifestHeader)
 TEST(dmResourceArchive, ResourceEntries)
 {
     dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifest(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, instance);
+    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, instance);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     ASSERT_EQ(5, instance->m_Data.m_Resources.m_Count);
@@ -92,7 +92,7 @@ TEST(dmResourceArchive, ResourceEntries)
 TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
     dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifest(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, instance);
+    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, instance);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     ASSERT_EQ(5, instance->m_Data.m_Resources.m_Count);

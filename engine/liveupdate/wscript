@@ -17,18 +17,18 @@ def configure(conf):
     conf.check_tool('java')
 
     waf_ddf.configure(conf)
+    conf.sub_config('src')
 
+    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DDF'] = 'ddf'
+    conf.env['STATICLIB_RESOURCE'] = 'resource'
+    conf.env['STATICLIB_DLIB'] = 'dlib'
+
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="LIVEUPDATE"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="LIVEUPDATE"')
 
 def build(bld):
-    liveupdate = bld.new_task_gen(
-        features = 'cxx cstaticlib ddf',
-        protoc_includes = 'proto',
-        target = 'liveupdate')
-
-    liveupdate.find_sources_in_dirs(['proto'])
-
-    bld.install_files('${PREFIX}/share/proto', 'proto/manifest_ddf.proto')
+    bld.add_subdirs('src')
 
 def shutdown():
-    pass
+    waf_dynamo.run_gtests(valgrind = True)

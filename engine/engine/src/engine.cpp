@@ -27,6 +27,7 @@
 #include <particle/particle.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
+#include <liveupdate/liveupdate.h>
 
 #include "engine_service.h"
 #include "engine_version.h"
