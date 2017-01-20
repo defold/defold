@@ -24,7 +24,7 @@
                    :platforms [{:os :os-id-generic
                                 :formats [{:format :texture-format-rgba
                                            :compression-level :fast}]
-                                :mipmaps false}]})
+                                :mipmaps true}]})
 
 (defn- read-image
   [source]
