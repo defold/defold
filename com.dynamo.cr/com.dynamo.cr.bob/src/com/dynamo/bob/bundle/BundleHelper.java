@@ -22,6 +22,7 @@ import org.apache.commons.io.IOUtils;
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
 import com.dynamo.bob.Bob;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -137,20 +138,44 @@ public class BundleHelper {
         return this;
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, File root, List<File> allSource, File logFile, File outputEngine) throws IOException, RuntimeException {
-        File zipFile = File.createTempFile("build_" + sdkVersion, ".zip");
-        zipFile.deleteOnExit();
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, File root, List<File> allSource, File logFile, File outputEngine) throws CompileExceptionError {
+        File zipFile = null;
 
-    	try {
+        try {
+            zipFile = File.createTempFile("build_" + sdkVersion, ".zip");
+            zipFile.deleteOnExit();
+        } catch (IOException e) {
+            throw new CompileExceptionError("Failed to create temp zip file", e.getCause());
+        }
+
+        try {
             extender.build(platform, sdkVersion, root, allSource, zipFile, logFile);
-    	} catch(ExtenderClientException e) {
-    		String log = FileUtils.readFileToString(logFile);
-            throw new RuntimeException(String.format("Failed to build remotely.\nError: '%s'\nLog: '%s'", e.toString(), log));
-    	}
+        } catch (ExtenderClientException e) {
+            String buildError = "<no log file>";
+            if (logFile != null) {
+                try {
+                    buildError = FileUtils.readFileToString(logFile);
+                } catch (IOException ioe) {
+                    buildError = "<failed reading log>";
+                }
+            }
+            buildError = String.format("'%s' could not be built. Sdk version: '%s'\nLog: '%s'", platform, sdkVersion, buildError);
+            throw new CompileExceptionError(buildError, e.getCause());
+        }
 
-        FileSystem zip = FileSystems.newFileSystem(zipFile.toPath(), null);
-        Path source = zip.getPath("dmengine");
-        Files.copy(source, new FileOutputStream(outputEngine));
+        FileSystem zip = null;
+        try {
+            zip = FileSystems.newFileSystem(zipFile.toPath(), null);
+        } catch (IOException e) {
+            throw new CompileExceptionError(String.format("Failed to mount temp zip file %s", zipFile.getAbsolutePath()), e.getCause());
+        }
+
+        try {
+            Path source = zip.getPath("dmengine");
+            Files.copy(source, new FileOutputStream(outputEngine));
+        } catch (IOException e) {
+            throw new CompileExceptionError(String.format("Failed to copy dmengine to %s", outputEngine.getAbsolutePath()), e.getCause());
+        }
     }
 
 }

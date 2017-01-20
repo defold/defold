@@ -22,7 +22,8 @@ namespace dmRender
      * Rendering functions, messages and constants. The "render" namespace is
      * accessible only from render scripts.
      *
-     * @name Rendering
+     * @document
+     * @name Render
      * @namespace render
      */
 

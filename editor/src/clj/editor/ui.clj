@@ -63,7 +63,8 @@
   (editable! [this val])
   (on-edit! [this fn]))
 
-(def application-icon-image (Image. (io/input-stream (io/resource "logo_blue.png"))))
+(def application-icon-image (with-open [in (io/input-stream (io/resource "logo_blue.png"))]
+                              (Image. in)))
 
 (defn make-stage
   ^Stage []
@@ -107,6 +108,15 @@
     (when (seq missing)
       (throw (Exception. (format "controls %s are missing" missing))))
     controls))
+
+(defmacro with-controls [parent child-syms & body]
+  (let [child-keys (map keyword child-syms)
+        child-ids (mapv str child-syms)
+        all-controls-sym (gensym)
+        assignment-pairs (map #(vector %1 (list %2 all-controls-sym)) child-syms child-keys)]
+    `(let [~all-controls-sym (collect-controls ~parent ~child-ids)
+           ~@(mapcat identity assignment-pairs)]
+       ~@body)))
 
 ; TODO: Better name?
 (defn fill-control [control]
@@ -315,7 +325,7 @@
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
 
-(defn load-fxml [path]
+(defn ^Parent load-fxml [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))
         css (io/file "editor.css")]
     (when (and (.exists css) (seq (.getStylesheets root)))
@@ -477,21 +487,32 @@
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
 
 (defn- make-tree-cell [render-fn]
-  (let [cell (proxy [TreeCell] []
-               (updateItem [resource empty]
+  (let [apply-style-classes! (make-style-applier)
+        cell (proxy [TreeCell] []
+               (updateItem [item empty]
                  (let [^TreeCell this this
-                       render-data (and resource (render-fn resource))]
-                   (proxy-super updateItem resource empty)
+                       render-data (and item (render-fn item))]
+                   (proxy-super updateItem item empty)
                    (update-tree-cell-style! this)
                    (if empty
                      (do
+                       (apply-style-classes! this #{})
                        (proxy-super setText nil)
-                       (proxy-super setGraphic nil))
+                       (proxy-super setGraphic nil)
+                       (proxy-super setTooltip nil)
+                       (proxy-super setOnDragOver nil)
+                       (proxy-super setOnDragDropped nil)
+                       (proxy-super setOnDragEntered nil)
+                       (proxy-super setOnDragExited nil))
                      (do
-                       (when-let [text (:text render-data)]
-                         (proxy-super setText text))
-                       (when-let [icon (:icon render-data)]
-                         (proxy-super setGraphic (jfx/get-image-view icon 16))))))))]
+                       (apply-style-classes! this (:style render-data #{}))
+                       (proxy-super setText (:text render-data))
+                       (proxy-super setGraphic (some-> (:icon render-data) (jfx/get-image-view (:icon-size render-data 16))))
+                       (proxy-super setTooltip (:tooltip render-data))
+                       (proxy-super setOnDragOver (:over-handler render-data))
+                       (proxy-super setOnDragDropped (:dropped-handler render-data))
+                       (proxy-super setOnDragEntered (:entered-handler render-data))
+                       (proxy-super setOnDragExited (:exited-handler render-data)))))))]
     cell))
 
 (defn- make-tree-cell-factory [render-fn]
@@ -1082,6 +1103,9 @@
 
 (defn default-render-progress! [progress]
   (run-later (update-progress! progress)))
+
+(defn default-render-progress-now! [progress]
+  (update-progress! progress))
 
 (defn init-progress!
   []

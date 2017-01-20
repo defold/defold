@@ -403,3 +403,26 @@ void _glfwAndroidSetInputMethod(int use_hidden_input)
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
+
+//========================================================================
+// Defold extension: Get native references (window, view and context)
+//========================================================================
+GLFWAPI EGLContext glfwGetAndroidEGLContext()
+{
+    return _glfwWin.context;
+}
+
+GLFWAPI EGLSurface glfwGetAndroidEGLSurface()
+{
+    return _glfwWin.surface;
+}
+
+GLFWAPI JavaVM* glfwGetAndroidJavaVM()
+{
+    return g_AndroidApp->activity->vm;
+}
+
+GLFWAPI jobject glfwGetAndroidActivity()
+{
+    return g_AndroidApp->activity->clazz;
+}

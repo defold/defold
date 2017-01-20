@@ -25,6 +25,7 @@ namespace dmGameSystem
      * Functions and messages for controlling sound components and
      * mixer groups.
      *
+     * @document
      * @name Sound
      * @namespace sound
      */

@@ -299,10 +299,9 @@
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))
           next (-> (handler/succeeding-selection selection-provider)
                  (handler/adapt-single resource/Resource))]
-      (and (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
-           (delete selection))
-      (when next
-        (select-resource! asset-browser next)))))
+      (when (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
+        (when (and (delete selection) next)
+          (select-resource! asset-browser next))))))
 
 (handler/defhandler :new-file :global
   (label [user-data] (if-not user-data
@@ -534,21 +533,16 @@
     (doto tree-view
       (ui/bind-double-click! :open)
       (.setOnDragDetected detected-handler)
-      (.setCellFactory (reify Callback (call ^TreeCell [this view]
-                                         (let [cell (proxy [TreeCell] []
-                                                    (updateItem [resource empty]
-                                                      (let [this ^TreeCell this]
-                                                        (proxy-super updateItem resource empty)
-                                                        (ui/update-tree-cell-style! this)
-                                                        (let [name (or (and (not empty) (not (nil? resource)) (resource/resource-name resource)) nil)]
-                                                          (proxy-super setText name))
-                                                        (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource) 16)))))]
-                                           (doto cell
-                                             (.setOnDragOver over-handler)
-                                             (.setOnDragDropped dropped-handler)
-                                             (.setOnDragEntered entered-handler)
-                                             (.setOnDragExited exited-handler))))))
-      
+      (ui/cell-factory! (fn [resource]
+                          (if (nil? resource)
+                            {}
+                            {:text (resource/resource-name resource)
+                             :icon (workspace/resource-icon resource)
+                             :style (resource/style-classes resource)
+                             :over-handler over-handler
+                             :dropped-handler dropped-handler
+                             :entered-handler entered-handler
+                             :exited-handler exited-handler})))
       (ui/register-context-menu ::resource-menu)
       (ui/context! :asset-browser {:workspace workspace :asset-browser asset-browser} selection-provider))))
 

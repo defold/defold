@@ -23,6 +23,7 @@ namespace dmCrash
      *
      * Native crash logging functions and constants.
      *
+     * @document
      * @name Crash
      * @namespace crash
      */
@@ -55,7 +56,7 @@ namespace dmCrash
      * Crashes occuring before the path is set will be stored to a default engine location.
      *
      * @name crash.set_file_path
-     * @param path file path to use (string)
+     * @param path [type:string] file path to use
      */
     int Crash_SetFilePath(lua_State* L)
     {
@@ -70,7 +71,7 @@ namespace dmCrash
      * load, so loading is one-shot.
      *
      * @name crash.load_previous
-     * @return handle handle to the loaded dump, or nil if no dump was found. (number)
+     * @return handle [type:number] handle to the loaded dump, or nil if no dump was found
      */
     int Crash_LoadPrevious(lua_State* L)
     {
@@ -90,7 +91,7 @@ namespace dmCrash
     /*# releases a previously loaded crash dump
      *
      * @name crash.release
-     * @param handle handle to loaded crash dump (number)
+     * @param handle [type:number] handle to loaded crash dump
      */
     int Crash_ReleasePrevious(lua_State* L)
     {
@@ -105,8 +106,8 @@ namespace dmCrash
      * There are 32 slots indexed from 0. Each slot stores at most 255 characters.
      *
      * @name crash.set_user_field
-     * @param index slot index. 0-indexed. (number)
-     * @param value string value to store (string)
+     * @param index [type:number] slot index. 0-indexed
+     * @param value [type:string] string value to store
      */
     int Crash_SetUserField(lua_State* L)
     {
@@ -130,11 +131,11 @@ namespace dmCrash
     /*# get all loaded modules from when the crash occured
      *
      * The function returns a table containing entries with sub-tables that
-     * have 'name' and 'address' set for all loaded modules.
+     * have fields 'name' and 'address' set for all loaded modules.
      *
      * @name crash.get_modules
-     * @param handle crash dump handle (number)
-     * @return modules module table (table)
+     * @param handle [type:number] crash dump handle
+     * @return modules [type:table] module table
      */
     int Crash_GetModules(lua_State* L)
     {
@@ -176,9 +177,9 @@ namespace dmCrash
     /*# reads user field from a loaded crash dump
      *
      * @name crash.get_user_field
-     * @param handle crash dump handle (number)
-     * @param index user data slot index (number)
-     * @return value user data value recorded in the crash dump (string)
+     * @param handle [type:number] crash dump handle
+     * @param index [type:number] user data slot index
+     * @return value [type:string] user data value recorded in the crash dump
      */
     int Crash_GetUserField(lua_State* L)
     {
@@ -205,9 +206,9 @@ namespace dmCrash
     /*# reads a system field from a loaded crash dump
      *
      * @name crash.get_sys_field
-     * @param handle crash dump handle (number)
-     * @param index system field enum (number)
-     * @return value value recorded in the crash dump (string)
+     * @param handle [type:number] crash dump handle
+     * @param index [type:number] system field enum
+     * @return value [type:string] value recorded in the crash dump
      */
     int Crash_GetSysField(lua_State* L)
     {
@@ -234,8 +235,8 @@ namespace dmCrash
     /*# read signal number from a crash report
      *
      * @name crash.get_signum
-     * @param handle crash dump handle (number)
-     * @return signal signal number (number)
+     * @param handle [type:number] crash dump handle
+     * @return signal [type:number] signal number
      */
     int Crash_GetSignum(lua_State* L)
     {
@@ -249,8 +250,8 @@ namespace dmCrash
      * A table is returned containing the addresses of the call stack.
      *
      * @name crash.get_backtrace
-     * @param handle crash dump handle (number)
-     * @return backtrace table containing the backtrace (table)
+     * @param handle [type:number] crash dump handle
+     * @return backtrace [type:table] table containing the backtrace
      */
     int Crash_GetBacktrace(lua_State* L)
     {
@@ -278,8 +279,8 @@ namespace dmCrash
      * but can be useful for manual inspection.
      *
      * @name crash.get_extra_data
-     * @param handle crash dump handle (number)
-     * @return blob string with the platform specific data (string)
+     * @param handle [type:number] crash dump handle
+     * @return blob [type:string] string with the platform specific data
      */
     int Crash_GetExtraData(lua_State* L)
     {
