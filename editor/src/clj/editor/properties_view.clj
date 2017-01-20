@@ -64,7 +64,7 @@
 
 (defn edit-type->type [edit-type]
   (or (some-> edit-type :type g/value-type-dispatch-value)
-    (:type edit-type)))
+      (:type edit-type)))
 
 (defmulti create-property-control! (fn [edit-type _ property-fn]
                                      (edit-type->type edit-type)))
@@ -608,8 +608,13 @@
       (when-let [update-ui-fn (get update-fns key)]
         (update-ui-fn property)))))
 
+(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn])
+
+(defn- edit-type->template [edit-type]
+  (apply dissoc edit-type ephemeral-edit-type-fields))
+
 (defn- properties->template [properties]
-  (mapv (fn [[k v]] [k (edit-type->type (:edit-type v))]) (:properties properties)))
+  (mapv (fn [[k v]] [k (edit-type->template (:edit-type v))]) (:properties properties)))
 
 (defn- update-pane [parent id context properties]
   ; NOTE: We cache the ui based on the ::template and ::properties user-data
