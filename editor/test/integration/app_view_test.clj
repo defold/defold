@@ -140,7 +140,7 @@
 
 (deftest rename-directory-handles-all-files-in-directory
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_project")
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
           project (test-util/setup-project! workspace)
           game-project (test-util/resource-node project "/game.project")
           main-dir (workspace/find-resource workspace "/main")]
