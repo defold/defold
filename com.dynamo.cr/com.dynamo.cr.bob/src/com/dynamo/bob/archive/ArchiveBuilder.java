@@ -166,6 +166,8 @@ public class ArchiveBuilder {
 
             // Write resource to data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
+            	
+            	// publisher.add_entry(entry);
                 entries.remove(i);
             } else {
                 alignBuffer(archiveData, 4);

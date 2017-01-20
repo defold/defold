@@ -3,6 +3,9 @@ package com.dynamo.cr.target.bundle;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IMessageProvider;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
+import org.eclipse.jface.resource.JFaceResources;
+import org.eclipse.jface.viewers.ArrayContentProvider;
+import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
@@ -10,10 +13,14 @@ import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
 
 public class BundleGenericDialog extends TitleAreaDialog implements
         IBundleGenericView {
@@ -27,10 +34,17 @@ public class BundleGenericDialog extends TitleAreaDialog implements
     }
 
     private Button packageApplication;
+    private Button liveUpdateSettings;
+    private Button advancedSettings;
+    
     private IPresenter presenter;
     private Button releaseMode;
     private Button generateReport;
+    private Button publishLiveUpdate;
     private String title = "";
+
+    private Text privateKeyText;
+    private Text publicKeyText;
 
     private static boolean persistentReleaseMode = false;
     private static boolean persistentGenerateReport = false;
@@ -67,6 +81,7 @@ public class BundleGenericDialog extends TitleAreaDialog implements
         releaseMode = new Button(container, SWT.CHECK);
         releaseMode.setText("Release mode");
         releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        
         if (persistentReleaseMode == true) {
             releaseMode.setSelection(persistentReleaseMode);
             presenter.releaseModeSelected(persistentReleaseMode, false);
@@ -93,12 +108,36 @@ public class BundleGenericDialog extends TitleAreaDialog implements
                 presenter.generateReportSelected(persistentGenerateReport);
             }
         });
-
+        
+        publishLiveUpdate = new Button(container, SWT.CHECK);
+        publishLiveUpdate.setText("Publish LiveUpdate content");
+        publishLiveUpdate.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        
+        
+        
         return area;
     }
 
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
+    	((GridLayout) parent.getLayout()).numColumns++;
+    	liveUpdateSettings = new Button(parent, SWT.PUSH);
+    	liveUpdateSettings.setText("LiveUpdate");
+    	liveUpdateSettings.setFont(JFaceResources.getDialogFont());
+    	liveUpdateSettings.addSelectionListener(new SelectionAdapter() {
+    		
+    		@Override
+    		public void widgetSelected(SelectionEvent event) {
+    			Display display = Display.getDefault();
+    			Shell shell = new Shell(display);
+    			LiveUpdateDialog dialog = new LiveUpdateDialog(shell);
+    			LiveUpdatePresenter presenter = new LiveUpdatePresenter();
+    			dialog.setPresenter(presenter);
+    			dialog.open();
+    		}
+    	});
+
+    	
         packageApplication = createButton(parent, IDialogConstants.OK_ID, "Package", true); //$NON-NLS-1$
     }
 
