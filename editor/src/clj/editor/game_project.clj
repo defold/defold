@@ -93,7 +93,8 @@
     {:resource resource :content (.getBytes user-data-content)}))
 
 (defn- resource-content [resource]
-  (IOUtils/toByteArray (io/input-stream resource)))
+  (with-open [s (io/input-stream resource)]
+    (IOUtils/toByteArray s)))
 
 (defn- build-custom-resource [self basis resource dep-resources user-data]
   {:resource resource :content (resource-content (:resource resource))})
