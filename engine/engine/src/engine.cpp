@@ -27,6 +27,7 @@
 #include <particle/particle.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
+#include <liveupdate/liveupdate.h>
 
 #include "engine_service.h"
 #include "engine_version.h"
@@ -208,13 +209,16 @@ namespace dmEngine
         script_lib_context.m_Register = engine->m_Register;
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
+            dmLiveUpdate::Finalize(script_lib_context);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
         } else {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
+            dmLiveUpdate::Finalize(script_lib_context);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             if (engine->m_GuiContext.m_GuiContext != 0x0)
             {
                 script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+                dmLiveUpdate::Finalize(script_lib_context);
                 dmGameSystem::FinalizeScriptLibs(script_lib_context);
             }
         }
@@ -790,13 +794,16 @@ namespace dmEngine
         script_lib_context.m_Register = engine->m_Register;
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
+            dmLiveUpdate::Initialize(script_lib_context);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         } else {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
+            dmLiveUpdate::Initialize(script_lib_context);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
             script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+            dmLiveUpdate::Initialize(script_lib_context);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         }

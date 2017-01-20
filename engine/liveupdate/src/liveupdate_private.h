@@ -257,6 +257,11 @@ namespace dmLiveUpdate
      */
     int LiveUpdate_StoreManifest(lua_State* L);
 
+    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
+    uint32_t HexDigestLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
+    HResourceEntry FindResourceEntry(const HManifestFile manifest, const char* path);
+    uint32_t MissingResources(dmResource::Manifest* manifest, const char* path, uint8_t* entries[], uint32_t entries_size);
+
 };
 
 #endif // H_LIVEUPDATE_PRIVATE
