@@ -147,16 +147,25 @@
               (File. abs-path)))
           resources)))
 
+(defn- moved-files
+  [^File src-dir ^File dest-dir files]
+  (let [src-path (.toPath src-dir)]
+    (mapv (fn [^File f]
+            (let [dest-path (.relativize src-path (.toPath f))]
+              [f (io/file dest-dir (.toFile dest-path))]))
+          files)))
+
 (defn rename [resource ^String new-name]
   (when resource
-    (let [workspace        (resource/workspace resource)
-          srcf             (File. (resource/abs-path resource))
-          dstf             (and new-name (File. (.getParent srcf) new-name))]
-      (when dstf
-        (if (.isDirectory srcf)
-          (FileUtils/moveDirectory srcf dstf)
-          (FileUtils/moveFile srcf dstf))
-        (workspace/resource-sync! workspace true [[srcf dstf]])))))
+    (let [workspace (resource/workspace resource)
+          src-file  (File. (resource/abs-path resource))
+          src-files (vec (file-seq src-file))
+          dest-file (and new-name (File. (.getParent src-file) new-name))]
+      (when dest-file
+        (if (.isDirectory src-file)
+          (FileUtils/moveDirectory src-file dest-file)
+          (FileUtils/moveFile src-file dest-file))
+        (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files))))))
 
 (defn delete [resources]
   (when (not (empty? resources))
