@@ -722,5 +722,6 @@
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
 
 (handler/defhandler :sign-ios-app :global
+  (active? [] (util/is-mac-os?))
   (run [workspace project prefs]
     (bundle/make-sign-dialog workspace prefs project)))
