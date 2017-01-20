@@ -1,6 +1,12 @@
 #include "liveupdate.h"
 #include "liveupdate_private.h"
 
+#include <resource/resource.h>
+#include <resource/resource_archive.h>
+#include <dlib/log.h>
+#include <dlib/dstrings.h>
+#include <axtls/crypto/crypto.h>
+
 namespace dmLiveUpdate
 {
 
@@ -67,6 +73,53 @@ namespace dmLiveUpdate
         }
 
         return resources;
+    }
+
+    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen)
+    {
+        const uint32_t hlen = HashLength(algorithm);
+        if (buf != NULL && buflen > 0)
+        {
+            buf[0] = 0x0;
+            for (uint32_t i = 0; i < hlen; ++i)
+            {
+                char current[3];
+                DM_SNPRINTF(current, 3, "%02x\0", hash[i]);
+                dmStrlCat(buf, current, buflen);
+            }
+        }
+    }
+
+    void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, uint32_t buflen, uint8_t* digest)
+    {
+        if (algorithm == dmLiveUpdateDDF::HASH_MD5)
+        {
+            MD5_CTX context;
+
+            MD5_Init(&context);
+            MD5_Update(&context, (const uint8_t*) buf, buflen);
+            MD5_Final(digest, &context);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        {
+            SHA1_CTX context;
+
+            SHA1_Init(&context);
+            SHA1_Update(&context, (const uint8_t*) buf, buflen);
+            SHA1_Final(digest, &context);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
+        {
+            dmLogError("The algorithm SHA256 specified for resource hashing is currently not supported");
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
+        {
+            dmLogError("The algorithm SHA512 specified for resource hashing is currently not supported");
+        }
+        else
+        {
+            dmLogError("The algorithm specified for resource hashing is not supported");
+        }
     }
 
 };
