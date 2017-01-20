@@ -16,7 +16,7 @@ namespace dmLiveUpdate
     int Resource_CreateManifest(lua_State* L)
     {
         int top = lua_gettop(L);
-        unsigned long manifestLength = 0;
+        size_t manifestLength = 0;
         const char* manifestData = luaL_checklstring(L, 1, &manifestLength);
 
         dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -89,10 +89,10 @@ namespace dmLiveUpdate
 
         int manifestIndex = luaL_checkint(L, 1);
 
-        unsigned long hexDigestLength = 0;
+        size_t hexDigestLength = 0;
         const char* hexDigest = luaL_checklstring(L, 2, &hexDigestLength);
 
-        unsigned long buflen = 0;
+        size_t buflen = 0;
         const char* buf = luaL_checklstring(L, 3, &buflen);
 
         dmResource::Manifest* manifest = dmLiveUpdate::GetManifest(manifestIndex);
