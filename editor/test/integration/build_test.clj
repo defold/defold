@@ -94,6 +94,16 @@
                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+                {:label "Spine Scene with weighted mesh"
+                 :path "/ladder/ladder.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (let [mesh-set (-> pb :mesh-set (target targets))]
+                              (doseq [mesh-entry (:mesh-entries mesh-set)]
+                                (doseq [mesh (:meshes mesh-entry)]
+                                  (is (= (/ (count (:positions mesh)) 3)
+                                         (/ (count (:bone-indices mesh)) 4)))))))}
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc

@@ -6,6 +6,7 @@
             [editor.collision-groups :as collision-groups]
             [editor.console :as console]
             [editor.core :as core]
+            [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
@@ -542,8 +543,7 @@
 (defn build-and-save-project [project build-options]
   (when-not @ongoing-build-save-atom
     (reset! ongoing-build-save-atom true)
-    (let [workspace     (workspace project)
-          game-project  (get-resource-node project "/game.project")
+    (let [game-project  (get-resource-node project "/game.project")
           old-cache-val @(g/cache)
           cache         (atom old-cache-val)]
       (future
@@ -556,6 +556,8 @@
                                                       :basis (g/now)
                                                       :cache cache)))
               (update-system-cache! old-cache-val cache)))
+          (catch Throwable error
+            (error-reporting/report-exception! error))
           (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn settings [project]
