@@ -299,10 +299,9 @@
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))
           next (-> (handler/succeeding-selection selection-provider)
                  (handler/adapt-single resource/Resource))]
-      (and (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
-           (delete selection))
-      (when next
-        (select-resource! asset-browser next)))))
+      (when (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
+        (when (and (delete selection) next)
+          (select-resource! asset-browser next))))))
 
 (handler/defhandler :new-file :global
   (label [user-data] (if-not user-data

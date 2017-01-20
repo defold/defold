@@ -63,7 +63,8 @@
   (editable! [this val])
   (on-edit! [this fn]))
 
-(def application-icon-image (Image. (io/input-stream (io/resource "logo_blue.png"))))
+(def application-icon-image (with-open [in (io/input-stream (io/resource "logo_blue.png"))]
+                              (Image. in)))
 
 (defn make-stage
   ^Stage []
