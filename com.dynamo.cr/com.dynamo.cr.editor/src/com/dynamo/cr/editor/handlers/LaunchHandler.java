@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -29,7 +29,6 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
 import com.defold.extender.client.ExtenderClient;
-import com.defold.extender.client.ExtenderClientException;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.bundle.BundleHelper;
@@ -115,8 +114,9 @@ public class LaunchHandler extends AbstractHandler {
                     buildDir.mkdirs();
                     File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
 
+                    String defaultName = FilenameUtils.getName(Engine.getDefault().getEnginePath());
                     List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
-                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, exe);
+                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, defaultName, exe);
                     exeName = exe.getAbsolutePath();
                 } catch (IOException e) {
                     buildError = e.getMessage();
