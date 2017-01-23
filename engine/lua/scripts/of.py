@@ -240,7 +240,7 @@ for ns, ss in libentries.items():
     f.write(" *\n")
     f.write(" * Documentation for the Lua %s standard library.\n" %ns)
     f.write(" *\n")
-    f.write(" * From the [\"Lua 5.1 Reference Manual\"](https://www.lua.org/manual/5.1/)\n")
+    f.write(" * From [Lua 5.1 Reference Manual](https://www.lua.org/manual/5.1/)\n")
     f.write(" * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes.\n")
     f.write(" *\n")
     f.write(" * Copyright &copy; 2006-2012 Lua.org, PUC-Rio.\n")

@@ -2,7 +2,7 @@
  *
  * Documentation for the Lua base standard library.
  *
- * From the ["Lua 5.1 Reference Manual"](https://www.lua.org/manual/5.1/)
+ * From [Lua 5.1 Reference Manual](https://www.lua.org/manual/5.1/)
  * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes.
  *
  * Copyright &copy; 2006-2012 Lua.org, PUC-Rio.
