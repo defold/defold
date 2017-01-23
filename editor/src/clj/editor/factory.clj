@@ -41,7 +41,7 @@
                          :label "Prototype"
                          :type :resource
                          :filter (get-in factory-types [factory-type :ext])}]}]
-   :values {[:prototype] (resource/resource->proj-path prototype-resource)}})
+   :values {[:prototype] prototype-resource}})
 
 (g/defnk produce-pb-msg
   [prototype-resource]

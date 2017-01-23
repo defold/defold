@@ -88,11 +88,10 @@
         unknown-settings (remove known-settings (map :path settings))]
     (map (fn [setting-path] {:path setting-path :type :string :help "unknown setting"}) unknown-settings)))
 
-(defn complement-meta-info [meta-info settings]
-  (update meta-info :settings
-          #(concat % (make-meta-settings-for-unknown % settings))))
+(defn add-meta-info-for-unknown-settings [meta-info settings]
+  (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings))))
 
-(defn- make-meta-settings-map [meta-settings]
+(defn make-meta-settings-map [meta-settings]
   (zipmap (map :path meta-settings) meta-settings))
 
 (defn- trim-trailing-c [value]
@@ -116,7 +115,7 @@
   (vec (map (partial sanitize-setting (make-meta-settings-map meta-settings)) settings)))
 
 (defn make-default-settings [meta-settings]
-  (map (fn [meta-setting]
+  (mapv (fn [meta-setting]
          {:path (:path meta-setting) :value (:default meta-setting)})
        meta-settings))
 
@@ -167,15 +166,15 @@
 (defmethod render-raw-setting-value :default [_ value]
   (str value))
 
-(defn set-setting [settings meta-setting path value]
-  (let [raw-value (render-raw-setting-value meta-setting value)]
-    (if-let [index (setting-index settings path)]
-      (assoc-in settings [index :value] raw-value)
-      (conj settings {:path path :value raw-value}))))
+(defn set-setting [settings path value]
+  (if-let [index (setting-index settings path)]
+    (assoc-in settings [index :value] value)
+    (conj settings {:path path :value value})))
 
 (defn clear-setting [settings path]
-  (when-let [index (setting-index settings path)]
-    (update settings index dissoc :value)))
+  (if-let [index (setting-index settings path)]
+    (update settings index dissoc :value)
+    settings))
 
 (defn get-default-setting [meta-settings path]
   (when-let [index (setting-index meta-settings path)]

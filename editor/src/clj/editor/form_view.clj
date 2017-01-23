@@ -150,17 +150,16 @@
                (.setMinWidth tf Control/USE_PREF_SIZE)
                (GridPane/setFillWidth tf true)
                tf)
-        update-fn (fn [value] (ui/text! text value))]
+        update-fn (fn [value] (ui/text! text (resource/resource->proj-path value)))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext (when filter [filter])}))]
+    (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
                                            (set path resource))))
     (ui/on-action! open-button (fn [_] (when-let [resource (workspace/resolve-workspace-resource workspace (workspace/to-absolute-path (ui/text text)))]
                                          (ui/run-command open-button :open {:resources [resource]}))))
     (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
                                       resource (workspace/resolve-workspace-resource workspace rpath)]
-                                  (when-let [resource-path (and resource (resource/proj-path resource))]
-                                    (set path resource-path)
-                                    (update-fn resource-path)))))
+                                  (set path resource)
+                                  (update-fn resource))))
     (install-escape-handler! text cancel)
     (ui/children! box [text open-button browse-button])
     (GridPane/setConstraints text 0 0)
@@ -254,6 +253,9 @@
 
 (defmethod get-value-string-fn :default [_]
   str)
+
+(defmethod get-value-string-fn :resource [_]
+  resource/resource->proj-path)
 
 (defn- create-cell-field-control [^Cell cell column-info ctxt]
   (let [field-ops {:set (fn [_ value] (.commitEdit cell value))

@@ -2,54 +2,26 @@
   (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
-            [editor.atlas :as atlas]
             [editor.build-errors-view :as build-errors-view]
-            [editor.camera-editor :as camera]
             [editor.changes-view :as changes-view]
             [editor.code-view :as code-view]
-            [editor.collada-scene :as collada-scene]
-            [editor.collection :as collection]
-            [editor.collection-proxy :as collection-proxy]
-            [editor.collision-object :as collision-object]
             [editor.console :as console]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
-            [editor.display-profiles :as display-profiles]
-            [editor.factory :as factory]
-            [editor.font :as font]
             [editor.form-view :as form-view]
-            [editor.game-object :as game-object]
-            [editor.game-project :as game-project]
-            [editor.gl.shader :as shader]
             [editor.graph-view :as graph-view]
-            [editor.gui :as gui]
             [editor.hot-reload :as hot-reload]
-            [editor.image :as image]
-            [editor.json :as json]
-            [editor.label :as label]
             [editor.login :as login]
-            [editor.material :as material]
-            [editor.model :as model]
             [editor.outline-view :as outline-view]
-            [editor.particlefx :as particlefx]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
-            [editor.protobuf-types :as protobuf-types]
             [editor.resource :as resource]
-            [editor.rig :as rig]
+            [editor.resource-types :as resource-types]
             [editor.scene :as scene]
-            [editor.script :as script]
-            [editor.sound :as sound]
-            [editor.spine :as spine]
-            [editor.sprite :as sprite]
             [editor.targets :as targets]
             [editor.text :as text]
-            [editor.tile-map :as tile-map]
-            [editor.tile-source :as tile-source]
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
@@ -90,36 +62,7 @@
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)))
-    (g/transact
-      (concat
-        (atlas/register-resource-types workspace)
-        (camera/register-resource-types workspace)
-        (collada-scene/register-resource-types workspace)
-        (collection/register-resource-types workspace)
-        (collection-proxy/register-resource-types workspace)
-        (collision-object/register-resource-types workspace)
-        (cubemap/register-resource-types workspace)
-        (display-profiles/register-resource-types workspace)
-        (factory/register-resource-types workspace)
-        (font/register-resource-types workspace)
-        (game-object/register-resource-types workspace)
-        (game-project/register-resource-types workspace)
-        (gui/register-resource-types workspace)
-        (image/register-resource-types workspace)
-        (json/register-resource-types workspace)
-        (label/register-resource-types workspace)
-        (material/register-resource-types workspace)
-        (model/register-resource-types workspace)
-        (particlefx/register-resource-types workspace)
-        (protobuf-types/register-resource-types workspace)
-        (rig/register-resource-types workspace)
-        (script/register-resource-types workspace)
-        (shader/register-resource-types workspace)
-        (sound/register-resource-types workspace)
-        (spine/register-resource-types workspace)
-        (sprite/register-resource-types workspace)
-        (tile-map/register-resource-types workspace)
-        (tile-source/register-resource-types workspace)))
+    (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
     workspace))
 
