@@ -15,7 +15,7 @@
 
 /*# asserts that condition is not nil and not false
  * Issues an  error when
- * the value of its argument v is false (i.e., [type: nil] or [type: false]se);
+ * the value of its argument v is false (i.e., [type: nil] or [type: false]);
  * otherwise, returns all its arguments.
  * message is an error message;
  * when absent, it defaults to "assertion failed!"
@@ -302,7 +302,7 @@
  * which is true if the call succeeds without errors.
  * In such case, pcall also returns all results from the call,
  * after this first result.
- * In case of any error, pcall returns [type: false]se plus the error message.
+ * In case of any error, pcall returns [type: false] plus the error message.
  * 
  * 
  * @name pcall
@@ -513,7 +513,7 @@
  * In this case, xpcall also returns all results from the call,
  * after this first result.
  * In case of any error,
- * xpcall returns [type: false]se plus the result from err.
+ * xpcall returns [type: false] plus the result from err.
  * 
  * 
  * @name xpcall

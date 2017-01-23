@@ -38,11 +38,11 @@
  * as the results from the yield.
  * 
  * If the coroutine runs without any errors,
- * resume returns [type: true]e plus any values passed to yield
+ * resume returns [type: true] plus any values passed to yield
  * (if the coroutine yields) or any values returned by the body function
  * (if the coroutine terminates).
  * If there is any error,
- * resume returns [type: false]se plus the error message.
+ * resume returns [type: false] plus the error message.
  * 
  * 
  * @name coroutine.resume

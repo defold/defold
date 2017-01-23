@@ -62,7 +62,7 @@
  * A third, optional numerical argument init specifies
  * where to start the search;
  * its default value is 1 and can be negative.
- * A value of [type: true]e as a fourth, optional argument plain
+ * A value of [type: true] as a fourth, optional argument plain
  * turns off the pattern matching facilities,
  * so the function does a plain "find substring" operation,
  * with no characters in pattern being considered "magic".
