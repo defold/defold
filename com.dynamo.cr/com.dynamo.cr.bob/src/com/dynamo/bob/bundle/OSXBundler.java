@@ -57,8 +57,9 @@ public class OSXBundler implements IBundler {
             exe = File.createTempFile("engine_" + sdkVersion + "_" + platform64, "");
             exe.deleteOnExit();
 
+            File cacheDir = new File(project.getBuildCachePath());
             List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exe);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, cacheDir, "/dmengine", exe);
         } else {
             exe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
         }

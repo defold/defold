@@ -108,11 +108,13 @@ public class IOSBundler implements IBundler {
             exeArmv7 = File.createTempFile("engine_" + sdkVersion + "_" + platformv7, "");
             exeArmv7.deleteOnExit();
 
+            File cacheDir = new File(project.getBuildCachePath());
+
             List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exeArm64);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, cacheDir, "/dmengine", exeArm64);
 
             allSource = ExtenderClient.getExtensionSource(root, platformv7);
-            BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, root, allSource, logFile, "/dmengine", exeArmv7);
+            BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, root, allSource, logFile, cacheDir, "/dmengine", exeArmv7);
         }
         else
         {
