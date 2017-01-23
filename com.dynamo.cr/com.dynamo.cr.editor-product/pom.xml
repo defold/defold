@@ -62,8 +62,8 @@
                                 <phase>initialize</phase>
                                 <goals><goal>wget</goal></goals>
                                 <configuration>
-                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-linux-i586.zip</url>
-                                    <md5>7d5ec4aaa0377b34b6bf7005829d8369</md5>
+                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u121-linux-i586.zip</url>
+                                    <md5>b5a2488d4aef84326192fdb535f90fb2</md5>
                                     <unpack>false</unpack>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                 </configuration>
@@ -73,8 +73,8 @@
                                 <phase>initialize</phase>
                                 <goals><goal>wget</goal></goals>
                                 <configuration>
-                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-linux-x64.zip</url>
-                                    <md5>fde412fc244357be5a667ef167f97102</md5>
+                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u121-linux-x64.zip</url>
+                                    <md5>380e60f09459741a9bc62ebaba04f539</md5>
                                     <unpack>false</unpack>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                 </configuration>
@@ -84,8 +84,8 @@
                                 <phase>initialize</phase>
                                 <goals><goal>wget</goal></goals>
                                 <configuration>
-                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-macosx-x64.zip</url>
-                                    <md5>d085e19153e7a4451a65e289014fc84f</md5>
+                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u121-macosx-x64.zip</url>
+                                    <md5>635e11e82ad487aead92fcff7cd543e0</md5>
                                     <unpack>false</unpack>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                 </configuration>
@@ -95,8 +95,8 @@
                                 <phase>initialize</phase>
                                 <goals><goal>wget</goal></goals>
                                 <configuration>
-                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-windows-i586.zip</url>
-                                    <md5>a3b4c534fe0a5142ea1188c0d7246733</md5>
+                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u121-windows-i586.zip</url>
+                                    <md5>de0525f5ab959a56a63171961e33bdeb</md5>
                                     <unpack>false</unpack>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                 </configuration>
