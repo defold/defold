@@ -25,8 +25,6 @@ def configure(conf):
     waf_physics.configure(conf)
     waf_render.configure(conf)
 
-    conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
-
     platform = conf.env['PLATFORM']
 
     if platform == "darwin" or platform == "x86_64-darwin":
@@ -73,7 +71,6 @@ def build(bld):
     bld.add_subdirs('content')
     bld.add_group()
     bld.add_subdirs('src')
-    bld.add_subdirs('proto')
 
 import Build, Options
 import os, subprocess

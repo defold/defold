@@ -97,6 +97,13 @@ message CollisionObjectDesc
     optional bool                   locked_rotation = 11 [default=false];
 }
 
+/*# Collision object physics API documentation
+ *
+ * @document
+ * @name Collision object
+ * @namespace collision_object
+ */
+
 /*# applies a force on a collision object
  * Post this message to a collision-object-component to apply the specified force on the collision object.
  * The collision object must be dynamic.

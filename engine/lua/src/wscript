@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+from waf_dynamo import apidoc_extract_task
+
 def set_options(opt):
     pass
 
@@ -7,4 +9,7 @@ def configure(conf):
     pass
 
 def build(bld):
+    apidoc_extract_task(bld, ['lua_base.cpp', 'lua_string.cpp', 'lua_coroutine.cpp',
+                            'lua_debug.cpp', 'lua_io.cpp', 'lua_math.cpp', 'lua_os.cpp',
+                            'lua_package.cpp', 'lua_table.cpp'])
     bld.add_subdirs('lua')
