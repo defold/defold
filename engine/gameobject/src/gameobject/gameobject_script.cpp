@@ -763,7 +763,7 @@ namespace dmGameObject
      *
      * ```lua
      * local s = go.get_scale_vector("x")
-     * ``
+     * ```
      */
     int Script_GetScaleVector(lua_State* L)
     {
@@ -1115,7 +1115,7 @@ namespace dmGameObject
      * end
      * ```
      *
-     * Animate the y positin of a game object using a crazy custom easing curve:
+     * Animate the y position of a game object using a crazy custom easing curve:
      *
      * ```lua
      * local values = { 0, 0, 0, 0, 0, 0, 0, 0,
@@ -1481,7 +1481,7 @@ namespace dmGameObject
      *         print("Ouch! My health is now: " .. self.health)
      *     end
      * end
-     * ``
+     * ```
      */
     int Script_Property(lua_State* L)
     {
@@ -2044,7 +2044,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
     /*# called when a script component is finalized
      * This is a callback-function, which is called by the engine when a script component is finalized (destroyed). It can
      * be used to e.g. take some last action, report the finalization to other game object instances, delete spawned objects
-     * or release user input focus (see `release_input_focus`).
+     * or release user input focus (see [ref:release_input_focus]).
      *
      * @name final
      * @param self [type:object] reference to the script state to be used for storing data
@@ -2141,7 +2141,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * end of stack is reached, or a listener returns `true`
      * to signal that it wants input to be consumed.
      *
-     * See the documentation of `acquire_input_focus` for more
+     * See the documentation of [ref:acquire_input_focus] for more
      * information.
      *
      * The `action` parameter is a table containing data about the input mapped to the
@@ -2190,7 +2190,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * @param self [type:object] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
-     * @return consume [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
+     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
      * This example demonstrates how a game object instance can be moved as a response to user input.

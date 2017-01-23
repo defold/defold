@@ -124,7 +124,7 @@ message CollectionDesc
  *
  * A script belonging to an instance which has the user input focus will
  * receive the input actions in its <code>on_input</code> callback function. 
- * See <code>on_input</code> for more information on how user input can be
+ * See [ref:on_input] for more information on how user input can be
  * handled.
  *
  * @message
@@ -146,22 +146,23 @@ message CollectionDesc
  *         self.my_action_amount = action.value
  *     end
  * end
- * ``
+ * ```
  */
 message AcquireInputFocus {}
 
 /*# releases the user input focus
  * Post this message to an instance to make that instance release the user input focus.
- * See <code>acquire_input_focus</code> for more information on how the user input handling
+ * See [ref:acquire_input_focus] for more information on how the user input handling
  * works.
  *
  * @message
  * @name release_input_focus
  * @examples
  * How to make a game object stop receiving input:
- * <pre>
+ *
+ * ```lua
  * msg.post(".", "release_input_focus")
- * </pre>
+ * ```
  */
 message ReleaseInputFocus {}
 
