@@ -80,8 +80,10 @@ public class AndroidBundler implements IBundler {
             exe = File.createTempFile("engine_" + sdkVersion + "_" + platform, "");
             exe.deleteOnExit();
 
+            File cacheDir = new File(project.getBuildCachePath());
+
             List<File> allSource = ExtenderClient.getExtensionSource(root, platform);
-            BundleHelper.buildEngineRemote(extender, platform, sdkVersion, root, allSource, logFile, "/libdmengine.so", exe);
+            BundleHelper.buildEngineRemote(extender, platform, sdkVersion, root, allSource, logFile, cacheDir, "/libdmengine.so", exe);
         } else {
             exe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
         }

@@ -110,13 +110,14 @@ public class LaunchHandler extends AbstractHandler {
                     logFile.deleteOnExit();
 
                     // Store the engine one level above the content build since that folder gets removed during a distclean
+                    File cacheDir = new File(location + File.separator + ".internal" + File.separator + "cache");
                     File buildDir = new File(location + File.separator + "build" + File.separator + buildPlatform);
                     buildDir.mkdirs();
                     File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
 
                     String defaultName = FilenameUtils.getName(Engine.getDefault().getEnginePath());
                     List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
-                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, defaultName, exe);
+                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, cacheDir, defaultName, exe);
                     exeName = exe.getAbsolutePath();
                 } catch (IOException e) {
                     buildError = e.getMessage();
