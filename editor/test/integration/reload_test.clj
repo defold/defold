@@ -362,11 +362,14 @@
           p ["display" "display_profiles"]
           disp-profs (get (g/node-value node-id :settings-map) p)
           path "/render/default.display_profiles"
-          new-path "/render/default2.display_profiles"]
+          new-path "/render/default2.display_profiles"
+          resource-setting-node ((g/node-value node-id :resource-setting-nodes) p)]
       (write-file workspace path "")
-      (g/transact (g/set-property node-id :display-profiles (workspace/file-resource workspace path)))
+      (g/transact (g/set-property resource-setting-node :value (workspace/file-resource workspace path)))
+;;      (g/transact (g/set-property node-id :display-profiles (workspace/file-resource workspace path)))
       (move-file workspace path new-path)
-      (is (= new-path (get (g/node-value node-id :settings-map) p))))))
+      (is (= new-path
+             (resource/resource->proj-path (get (g/node-value node-id :settings-map) p)))))))
 
 (deftest all-project-files
   (with-clean-system

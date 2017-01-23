@@ -529,8 +529,8 @@
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
 
-(defn get-project [resource-node]
-  (g/graph-value (g/node-id->graph-id resource-node) :project-id))
+(defn get-project [node]
+  (g/graph-value (g/node-id->graph-id node) :project-id))
 
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)

@@ -31,7 +31,7 @@
                          :label "Collection"
                          :type :resource
                          :filter "collection"}]}]
-   :values {[:collection] (resource/resource->proj-path collection-resource)}})
+   :values {[:collection] collection-resource}})
 
 (g/defnk produce-pb-msg
   [collection-resource]
