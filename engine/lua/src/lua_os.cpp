@@ -1,12 +1,13 @@
 /*# Lua os standard library
  *
  * Documentation for the Lua os standard library.
- * from the "Lua 5.1 Reference Manual"
- * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
- * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
- * Freely available under the terms of the Lua license.
  *
- * See https://www.lua.org/manual/5.1/
+ * From the ["Lua 5.1 Reference Manual"](https://www.lua.org/manual/5.1/)
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes.
+ *
+ * Copyright &copy; 2006-2012 Lua.org, PUC-Rio.
+ *
+ * Freely available under the terms of the [Lua license](https://www.lua.org/license.html).
  *
  * @document
  * @name Os
