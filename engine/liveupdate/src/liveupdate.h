@@ -15,9 +15,9 @@ namespace dmLiveUpdate
 
     uint32_t GetMissingResources(const char* path, char*** buffer);
 
-    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
-
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen);
+
+    bool StoreResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen);
 
     int AddManifest(dmResource::Manifest* manifest);
 

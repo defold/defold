@@ -230,16 +230,63 @@ Manifest* GetManifest(HFactory factory)
     return factory->m_Manifest;
 }
 
+uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
+{
+    const uint32_t bitlen[5] = { 0U, 128U, 160U, 256U, 512U };
+    return bitlen[(int) algorithm] / 8U;
+}
+
+void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen)
+{
+    const uint32_t hlen = HashLength(algorithm);
+    if (buf != NULL && buflen > 0)
+    {
+        buf[0] = 0x0;
+        for (uint32_t i = 0; i < hlen; ++i)
+        {
+            char current[3];
+            DM_SNPRINTF(current, 3, "%02x\0", hash[i]);
+            dmStrlCat(buf, current, buflen);
+        }
+    }
+}
+
 Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
 {
-    const uint32_t extensionLength = strlen("dmanifest");
+    Result result = RESULT_OK;
+    const uint32_t manifestExtensionLength = strlen("dmanifest");
+    const uint32_t indexExtensionLength = strlen("arci");
     char archiveIndexPath[DMPATH_MAX_PATH];
+    char liveupdateResourcePath[DMPATH_MAX_PATH];
+    char appSupportPath[DMPATH_MAX_PATH];
+    char id_buf[41]; // String repr. of SHA1 hash, always 40 chars + NULL-terminator
+
     archiveIndexPath[0] = 0x0;
+    liveupdateResourcePath[0] = 0x0;
+    
+    HashToString(dmLiveUpdateDDF::HASH_SHA1, (const uint8_t*)&factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier, &id_buf[0], 40);
+    dmLogInfo("id_buf: %s", id_buf);
+    dmSys::GetApplicationSupportPath(id_buf, appSupportPath, DMPATH_MAX_PATH);
+    // check if liveupdate.arci (or liveupdate.arcd) exists on the filesystem (need platform spec. impl. like MountArchiveInternal).
+    dmPath::Concat(appSupportPath, "liveupdate.arci", archiveIndexPath, DMPATH_MAX_PATH);
+    dmLogInfo("app support path: %s", appSupportPath);
+    dmLogInfo("Looking for LU indexfile at: %s", archiveIndexPath);
+    bool luIndexExists = dmSys::ResourceExists(archiveIndexPath);
 
-    dmStrlCpy(archiveIndexPath, manifestPath, strlen(manifestPath) - extensionLength + 1);
-    dmStrlCat(archiveIndexPath, "arci", DMPATH_MAX_PATH);
+    if (!luIndexExists)
+    {
+        dmStrlCpy(archiveIndexPath, manifestPath, strlen(manifestPath) - manifestExtensionLength + 1);
+        dmStrlCat(archiveIndexPath, "arci", DMPATH_MAX_PATH);
+        result = MountArchiveInternal(archiveIndexPath, 0x0, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
+    }
+    else // If a liveupdate index exists, use that one instead
+    {
+        dmStrlCpy(liveupdateResourcePath, archiveIndexPath, strlen(archiveIndexPath) - indexExtensionLength + 1);
+        dmStrlCat(liveupdateResourcePath, "arcd", DMPATH_MAX_PATH);
+        result = MountArchiveInternal(archiveIndexPath, liveupdateResourcePath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
+        dmLogInfo("Constructed LU data file path: %s", liveupdateResourcePath);
+    }
 
-    Result result = MountArchiveInternal(archiveIndexPath, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
     return result;
 }
 
@@ -296,6 +343,16 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
     }
 
     return result;
+}
+
+Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const uint8_t* buf, uint32_t buf_len, const char* proj_id)
+{
+    // At this point the resource is assumed to be verified, so no need to do that here again
+
+    // TODO Implement:
+    dmResourceArchive::InsertResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, buf, buf_len, proj_id);
+
+    return RESULT_OK;
 }
 
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
@@ -384,7 +441,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     else if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") == 0)
     {
         factory->m_Manifest = new Manifest();
-
         Result r = LoadManifest(factory->m_UriParts.m_Path, factory);
         if (r != RESULT_OK)
         {
@@ -431,7 +487,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     if (params->m_ArchiveManifest.m_Size)
     {
         dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest);
-        dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, &factory->m_BuiltinsArchiveContainer);
+        dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, 0x0, &factory->m_BuiltinsArchiveContainer);
     }
 
 

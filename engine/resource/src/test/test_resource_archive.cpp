@@ -18,10 +18,7 @@ extern uint32_t RESOURCES_COMPRESSED_ARCD_SIZE;
 extern unsigned char RESOURCES_COMPRESSED_DMANIFEST[];
 extern uint32_t RESOURCES_COMPRESSED_DMANIFEST_SIZE;
 
-static const char* hashes[] = { "awesome hash here2", "awesome hash here5", "awesome hash here3", "awesome hash here4", "awesome hash here1" };
-static const char* hash_not_found = "awesome hash NOT here";
 static const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc", "/archive_data/file5.scriptc" };
-static const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data", "stuff to test encryption" };
 
 static const uint64_t path_hash[]       = { 0x1db7f0530911b1ce, 0x731d3cc48697dfe4, 0x8417331f14a42e4b, 0xb4870d43513879ba, 0xe1f97b41134ff4a6 };
 static const char* path_name[]          = { "/archive_data/file4.adc", "/archive_data/file5.scriptc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
@@ -116,7 +113,7 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 TEST(dmResourceArchive, Wrap)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
@@ -144,7 +141,7 @@ TEST(dmResourceArchive, Wrap)
 TEST(dmResourceArchive, Wrap_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, (void*) RESOURCES_COMPRESSED_ARCD, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, (void*) RESOURCES_COMPRESSED_ARCD, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
@@ -173,7 +170,7 @@ TEST(dmResourceArchive, LoadFromDisk)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/resources.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
@@ -202,7 +199,7 @@ TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/missing-archive.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, result);
 }
 
@@ -210,7 +207,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/resources_compressed.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 

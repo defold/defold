@@ -9,17 +9,10 @@
 
 namespace dmLiveUpdate
 {
-
-    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
-    {
-        const uint32_t bitlen[5] = { 0U, 128U, 160U, 256U, 512U };
-        return bitlen[(int) algorithm] / 8U;
-    }
-
     uint32_t HexDigestLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
     {
 
-        return HashLength(algorithm) * 2U;
+        return dmResource::HashLength(algorithm) * 2U;
     }
 
     HResourceEntry FindResourceEntry(const HManifestFile manifest, const char* path)
@@ -73,21 +66,6 @@ namespace dmLiveUpdate
         }
 
         return resources;
-    }
-
-    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen)
-    {
-        const uint32_t hlen = HashLength(algorithm);
-        if (buf != NULL && buflen > 0)
-        {
-            buf[0] = 0x0;
-            for (uint32_t i = 0; i < hlen; ++i)
-            {
-                char current[3];
-                DM_SNPRINTF(current, 3, "%02x\0", hash[i]);
-                dmStrlCat(buf, current, buflen);
-            }
-        }
     }
 
     void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, uint32_t buflen, uint8_t* digest)

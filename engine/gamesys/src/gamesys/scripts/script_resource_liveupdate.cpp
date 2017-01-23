@@ -110,11 +110,33 @@ namespace dmLiveUpdate
         return 1;
     }
 
+    // resource.store_resource(buffer) OLD
+    // resource.store_resource(manifest_reference, expected_hash, buffer) // include resource verification before storing
     int Resource_StoreResource(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
 
-        return 0;
+        int manifestIndex = luaL_checkint(L, 1);
+
+        size_t hexDigestLength = 0;
+        const char* hexDigest = luaL_checklstring(L, 2, &hexDigestLength);
+
+        size_t buflen = 0;
+        const char* buf = luaL_checklstring(L, 3, &buflen);
+
+        dmResource::Manifest* manifest = dmLiveUpdate::GetManifest(manifestIndex);
+
+        if (manifest == 0x0)
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "The manifest identifier does not exist");
+        }
+        
+        bool resourceStored = dmLiveUpdate::StoreResource(manifest, hexDigest, hexDigestLength, buf, buflen, proj_id);
+        lua_pushboolean(L, (int) resourceStored);
+
+        assert(lua_gettop(L) == top + 1);
+        return 1;
     }
 
     int Resource_VerifyManifest(lua_State* L)

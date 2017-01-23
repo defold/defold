@@ -1,6 +1,7 @@
 #ifndef RESOURCE_ARCHIVE_H
 #define RESOURCE_ARCHIVE_H
 
+#include <stdio.h>
 #include <dlib/align.h>
 
 namespace dmResourceArchive
@@ -45,10 +46,11 @@ namespace dmResourceArchive
      * @param index_buffer archive index memory to wrap
      * @param index_buffer_size archive index size
      * @param resource_data resource data
+     * @param lu_resource_data resource data acquired through liveupdate
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndexContainer* archive);
+    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, FILE* lu_resource_data, HArchiveIndexContainer* archive);
 
     /**
      * Load archive from filename. Only the index data is loaded into memory.
@@ -57,7 +59,7 @@ namespace dmResourceArchive
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result LoadArchive(const char* file_name, HArchiveIndexContainer* archive);
+    Result LoadArchive(const char* index_file_name, const char* lu_data_file_path, HArchiveIndexContainer* archive);
 
     /**
      * Find resource entry within archive
@@ -89,6 +91,8 @@ namespace dmResourceArchive
      * @return entry count
      */
     uint32_t GetEntryCount(HArchiveIndexContainer archive);
+
+    Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const uint8_t* buf, uint32_t buf_len, const char* proj_id);
 
 }  // namespace dmResourceArchive
 

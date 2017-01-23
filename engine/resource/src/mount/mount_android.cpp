@@ -21,6 +21,7 @@ namespace dmResource
     {
         AAsset *index_asset;
         AAsset *data_asset;
+        FILE *lu_data_file;
     };
 
     Result MapAsset(AAssetManager* am, const char* path,  void*& out_asset, uint32_t& out_size, void*& out_map)
@@ -41,7 +42,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    Result MountArchiveInternal(const char* index_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         // Derive path of arcd file from path to arci
         char data_path[DMPATH_MAX_PATH];
@@ -70,7 +71,21 @@ namespace dmResource
             dmLogInfo("Error when mapping data file, result: %i", r);
         }
 
-        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, data_map, archive);
+        FILE* lu_data_file = 0x0;
+        if (lu_data_path != 0x0)
+        {
+            lu_data_file = fopen(lu_data_path, "rb+");
+
+            if (!lu_data_file)
+            {
+                AAsset_close(index_asset);
+                AAsset_close(data_asset);
+                dmLogError("Error opening liveupdate data file");
+                return RESULT_IO_ERROR;
+            }
+        }
+
+        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, data_map, lu_data_file, archive);
         if (res != dmResourceArchive::RESULT_OK)
         {
             AAsset_close(index_asset);
@@ -81,6 +96,7 @@ namespace dmResource
         MountInfo* info = new MountInfo();
         info->index_asset = index_asset;
         info->data_asset = data_asset;
+        info->lu_data_file = lu_data_file;
         *mount_info = (void*)info;
         return RESULT_OK;
     }
@@ -102,6 +118,11 @@ namespace dmResource
         if (info->data_asset)
         {
             AAsset_close(info->data_asset);
+        }
+
+        if (info->lu_data_file)
+        {
+            fclose(info->lu_data_file);
         }
 
         delete info;

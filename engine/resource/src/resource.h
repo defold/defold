@@ -538,6 +538,8 @@ namespace dmResource
 
     Result LoadManifest(const char* manifestPath, HFactory factory);
 
+    Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const uint8_t* buf, uint32_t buf_len, const char* proj_id);
+
     /**
      * Determines if the resource could be unique
      * @param name Resource name
@@ -551,6 +553,10 @@ namespace dmResource
      * @param resource Resource
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
+
+    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
+
+    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
 }
 
 #endif // RESOURCE_H
