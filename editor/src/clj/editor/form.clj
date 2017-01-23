@@ -15,7 +15,7 @@
 (def ^:private type-defaults
   {:table []
    :string ""
-   :resource ""
+   :resource nil
    :boolean false
    :integer 0
    :number 0.0
@@ -25,8 +25,14 @@
 (defn field-default [field-info]
   (get field-info :default (type-defaults (:type field-info))))
 
+(defn optional-field? [field-info]
+  (:optional field-info))
+
+(defn- resource-field? [field-info]
+  (= (:type field-info) :resource))
+
 (defn field-defaults [fields]
-  (let [required-fields (remove :optional fields)]
+  (let [required-fields (remove (some-fn optional-field? resource-field?) fields)]
     (when (every? #(not (nil? (field-default %))) required-fields)
       (reduce (fn [val field]
                 (assoc-in val (:path field) (field-default field)))
