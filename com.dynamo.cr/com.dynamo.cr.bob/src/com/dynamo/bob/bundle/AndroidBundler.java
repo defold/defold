@@ -69,7 +69,7 @@ public class AndroidBundler implements IBundler {
         File exe = null;
 
         if (hasNativeExtensions) {
-            String platform32 = "armv7-android";
+            String platform = "armv7-android";
 
             String sdkVersion = project.option("defoldsdk", "");
             String buildServer = project.option("build-server", "");
@@ -77,11 +77,11 @@ public class AndroidBundler implements IBundler {
             File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
             logFile.deleteOnExit();
 
-            exe = File.createTempFile("engine_" + sdkVersion + "_" + platform32, "");
+            exe = File.createTempFile("engine_" + sdkVersion + "_" + platform, "");
             exe.deleteOnExit();
 
-            List<File> allSource = ExtenderClient.getExtensionSource(root, platform32);
-            BundleHelper.buildEngineRemote(extender, platform32, sdkVersion, root, allSource, logFile, "/libdmengine.so", exe);
+            List<File> allSource = ExtenderClient.getExtensionSource(root, platform);
+            BundleHelper.buildEngineRemote(extender, platform, sdkVersion, root, allSource, logFile, "/libdmengine.so", exe);
         } else {
             exe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
         }
