@@ -7,7 +7,6 @@ import java.util.List;
 import org.apache.commons.io.FileUtils;
 
 import com.defold.extender.client.ExtenderClient;
-import com.defold.extender.client.ExtenderClientException;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -59,7 +58,7 @@ public class OSXBundler implements IBundler {
             exe.deleteOnExit();
 
             List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, exe);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exe);
         } else {
             exe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
         }
