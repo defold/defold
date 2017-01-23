@@ -1,6 +1,12 @@
 /*# Lua os standard library
  *
  * Documentation for the Lua os standard library.
+ * from the "Lua 5.1 Reference Manual"
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
+ * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
+ * Freely available under the terms of the Lua license.
+ *
+ * See https://www.lua.org/manual/5.1/
  *
  * @document
  * @name Os
@@ -8,7 +14,6 @@
  */
 
 /*# amount of elapsed/CPU time used (depending on OS)
- * 
  * 
  * Returns an approximation of the amount in seconds of CPU time
  * used by the program.
@@ -18,7 +23,6 @@
  */
 
 /*# formats a date/time string
- * 
  * 
  * Returns a string or a table containing date and time,
  * formatted according to the given string format.
@@ -46,7 +50,7 @@
  * When called without arguments,
  * date returns a reasonable date and time representation that depends on
  * the host system and on the current locale
- * (that is, ```os.date()``` is equivalent to ```os.date("%c")```).
+ * (that is, `os.date()` is equivalent to `os.date("%c")`).
  * 
  * 
  * @name os.date
@@ -55,7 +59,6 @@
  */
 
 /*# calculates a time difference in seconds
- * 
  * 
  * Returns the number of seconds from time t1 to time t2.
  * In POSIX, Windows, and some other systems,
@@ -68,7 +71,6 @@
  */
 
 /*# executes an operating system command
- * 
  * 
  * This function is equivalent to the C function system.
  * It passes command to be executed by an operating system shell.
@@ -83,7 +85,6 @@
 
 /*# attempts to terminate the process
  * 
- * 
  * Calls the C function exit,
  * with an optional code,
  * to terminate the host program.
@@ -96,7 +97,6 @@
 
 /*# returns an operating system environment variable
  * 
- * 
  * Returns the value of the process environment variable varname,
  * or [type: nil] if the variable is not defined.
  * 
@@ -106,7 +106,6 @@
  */
 
 /*# deletes a file
- * 
  * 
  * Deletes the file or directory with the given name.
  * Directories must be empty to be removed.
@@ -120,7 +119,6 @@
 
 /*# renames a file
  * 
- * 
  * Renames file or directory named oldname to newname.
  * If this function fails, it returns [type: nil],
  * plus a string describing the error.
@@ -133,13 +131,12 @@
 
 /*# sets the current locale to the supplied locale
  * 
- * 
  * Sets the current locale of the program.
  * locale is a string specifying a locale;
  * category is an optional string describing which category to change:
- * ```"all"```, ```"collate"```, ```"ctype"```,
- * ```"monetary"```, ```"numeric"```, or ```"time"```;
- * the default category is ```"all"```.
+ * `"all"`, `"collate"`, `"ctype"`,
+ * `"monetary"`, `"numeric"`, or `"time"`;
+ * the default category is `"all"`.
  * The function returns the name of the new locale,
  * or [type: nil] if the request cannot be honored.
  * 
@@ -160,7 +157,6 @@
 
 /*# returns the current time or calculates the time in seconds from a table
  * 
- * 
  * Returns the current time when called without arguments,
  * or a time representing the date and time specified by the given table.
  * This table must have fields year, month, and day,
@@ -180,7 +176,6 @@
  */
 
 /*# returns a name for a temporary file
- * 
  * 
  * Returns a string with a file name that can
  * be used for a temporary file.

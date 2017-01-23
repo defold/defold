@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os, re
-from waf_dynamo import copy_file_task
+from waf_dynamo import copy_file_task, apidoc_extract_task
 
 def set_options(opt):
     pass
@@ -139,16 +139,7 @@ def build(bld):
     if 'win32' in bld.env.BUILD_PLATFORM:
         obj.source.append('engine.rc')
 
-    bld.new_task_gen(source = '../proto/engine_ddf.proto',
-                     target = 'engine_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-    bld.new_task_gen(source = '../proto/engine_ddf.proto',
-                     target = 'engine_doc.json',
-                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
-
-    bld.install_files('${PREFIX}/share/doc', 'engine_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'engine_doc.json')
+    apidoc_extract_task(bld, ['../proto/engine_ddf.proto'])
 
     if 'win32' in bld.env.PLATFORM:
         src_dir = "%s/ext/lib/%s" % (bld.env.PREFIX, bld.env.PLATFORM)

@@ -1,6 +1,12 @@
 /*# Lua math standard library
  *
  * Documentation for the Lua math standard library.
+ * from the "Lua 5.1 Reference Manual"
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
+ * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
+ * Freely available under the terms of the Lua license.
+ *
+ * See https://www.lua.org/manual/5.1/
  *
  * @document
  * @name Math
@@ -8,7 +14,6 @@
  */
 
 /*# absolute value
- * 
  * 
  * Returns the absolute value of x.
  * 
@@ -19,7 +24,6 @@
 
 /*# arc cosine
  * 
- * 
  * Returns the arc cosine of x (in radians).
  * 
  * 
@@ -28,7 +32,6 @@
  */
 
 /*# arc sine
- * 
  * 
  * Returns the arc sine of x (in radians).
  * 
@@ -39,7 +42,6 @@
 
 /*# arc tangent
  * 
- * 
  * Returns the arc tangent of x (in radians).
  * 
  * 
@@ -49,8 +51,7 @@
 
 /*# arc tangent of v1/v2
  * 
- * 
- * Returns the arc tangent of ```y/x``` (in radians),
+ * Returns the arc tangent of `y/x` (in radians),
  * but uses the signs of both parameters to find the
  * quadrant of the result.
  * (It also handles correctly the case of x being zero.)
@@ -63,7 +64,6 @@
 
 /*# next higher integer value
  * 
- * 
  * Returns the smallest integer larger than or equal to x.
  * 
  * 
@@ -72,7 +72,6 @@
  */
 
 /*# cosine
- * 
  * 
  * Returns the cosine of x (assumed to be in radians).
  * 
@@ -83,7 +82,6 @@
 
 /*# hyperbolic cosine
  * 
- * 
  * Returns the hyperbolic cosine of x.
  * 
  * 
@@ -92,7 +90,6 @@
  */
 
 /*# convert from radians to degrees
- * 
  * 
  * Returns the angle x (given in radians) in degrees.
  * 
@@ -103,7 +100,6 @@
 
 /*# raises e to a power
  * 
- * 
  * Returns the value e<sup>x</sup>.
  * 
  * 
@@ -113,7 +109,6 @@
 
 /*# next smaller integer value
  * 
- * 
  * Returns the largest integer smaller than or equal to x.
  * 
  * 
@@ -122,7 +117,6 @@
  */
 
 /*# the modulus (remainder) of doing: v1 / v2
- * 
  * 
  * Returns the remainder of the division of x by y
  * that rounds the quotient towards zero.
@@ -134,7 +128,6 @@
  */
 
 /*# break number into mantissa and exponent
- * 
  * 
  * Returns m and e such that x = m2<sup>e</sup>,
  * e is an integer and the absolute value of m is
@@ -148,7 +141,6 @@
 
 /*# a huge value
  * 
- * 
  * The value HUGE_VAL,
  * a value larger than or equal to any other numerical value.
  * 
@@ -157,7 +149,6 @@
  */
 
 /*# compute m* 2^n
- * 
  * 
  * Returns m2<sup>e</sup> (e should be an integer).
  * 
@@ -169,7 +160,6 @@
 
 /*# natural log
  * 
- * 
  * Returns the natural logarithm of x.
  * 
  * 
@@ -179,7 +169,6 @@
 
 /*# log to the base 10
  * 
- * 
  * Returns the base-10 logarithm of x.
  * 
  * 
@@ -188,7 +177,6 @@
  */
 
 /*# the highest of one or more numbers
- * 
  * 
  * Returns the maximum value among its arguments.
  * 
@@ -200,7 +188,6 @@
 
 /*# the lowest of one or more numbers
  * 
- * 
  * Returns the minimum value among its arguments.
  * 
  * 
@@ -210,7 +197,6 @@
  */
 
 /*# returns the integral and fractional part of its argument
- * 
  * 
  * Returns two numbers,
  * the integral part of x and the fractional part of x.
@@ -222,7 +208,6 @@
 
 /*# the value of pi
  * 
- * 
  * The value of PI.
  * 
  * 
@@ -231,9 +216,8 @@
 
 /*# raise a number to a power
  * 
- * 
  * Returns x<sup>y</sup>.
- * (You can also use the expression ```x^y``` to compute this value.)
+ * (You can also use the expression `x^y` to compute this value.)
  * 
  * 
  * @name math.pow
@@ -243,7 +227,6 @@
 
 /*# convert degrees to radians
  * 
- * 
  * Returns the angle x (given in degrees) in radians.
  * 
  * 
@@ -252,7 +235,6 @@
  */
 
 /*# generate a random number
- * 
  * 
  * This function is an interface to the simple
  * pseudo-random generator function rand provided by ANSI C.
@@ -276,7 +258,6 @@
 
 /*# seeds the random number generator
  * 
- * 
  * Sets x as the "seed"
  * for the pseudo-random generator:
  * equal seeds produce equal sequences of numbers.
@@ -288,7 +269,6 @@
 
 /*# sine
  * 
- * 
  * Returns the sine of x (assumed to be in radians).
  * 
  * 
@@ -297,7 +277,6 @@
  */
 
 /*# hyperbolic sine
- * 
  * 
  * Returns the hyperbolic sine of x.
  * 
@@ -308,9 +287,8 @@
 
 /*# square root
  * 
- * 
  * Returns the square root of x.
- * (You can also use the expression ```x^0.5``` to compute this value.)
+ * (You can also use the expression `x^0.5` to compute this value.)
  * 
  * 
  * @name math.sqrt
@@ -318,7 +296,6 @@
  */
 
 /*# tangent
- * 
  * 
  * Returns the tangent of x (assumed to be in radians).
  * 
@@ -328,7 +305,6 @@
  */
 
 /*# hyperbolic tangent
- * 
  * 
  * Returns the hyperbolic tangent of x.
  * 

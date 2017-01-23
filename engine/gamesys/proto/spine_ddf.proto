@@ -40,6 +40,13 @@ message SpinePlayAnimation
     optional float playback_rate = 5 [default = 1.0];
 }
 
+/*# Spine model API documentation
+ *
+ * @document
+ * @name Spine
+ * @namespace spine
+ */
+
 /*# reports the completion of a Spine animation
  * <p>
  * This message is sent when a Spine animation has finished playing back to the script

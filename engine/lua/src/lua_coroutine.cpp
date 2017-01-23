@@ -1,6 +1,12 @@
 /*# Lua coroutine standard library
  *
  * Documentation for the Lua coroutine standard library.
+ * from the "Lua 5.1 Reference Manual"
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
+ * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
+ * Freely available under the terms of the Lua license.
+ *
+ * See https://www.lua.org/manual/5.1/
  *
  * @document
  * @name Coroutine
@@ -9,11 +15,10 @@
 
 /*# creates a new coroutine thread
  * 
- * 
  * Creates a new coroutine, with body f.
  * f must be a Lua function.
  * Returns this new coroutine,
- * an object with type ```"thread"```.
+ * an object with type `"thread"`.
  * 
  * 
  * @name coroutine.create
@@ -21,7 +26,6 @@
  */
 
 /*# start or resume a thread
- * 
  * 
  * Starts or continues the execution of coroutine co.
  * The first time you resume a coroutine,
@@ -49,7 +53,6 @@
 
 /*# returns the running coroutine
  * 
- * 
  * Returns the running coroutine,
  * or [type: nil] when called by the main thread.
  * 
@@ -59,15 +62,14 @@
 
 /*# returns the status of a thread
  * 
- * 
  * Returns the status of coroutine co, as a string:
- * ```"running"```,
+ * `"running"`,
  * if the coroutine is running (that is, it called status);
- * ```"suspended"```, if the coroutine is suspended in a call to yield,
+ * `"suspended"`, if the coroutine is suspended in a call to yield,
  * or if it has not started running yet;
- * ```"normal"``` if the coroutine is active but not running
+ * `"normal"` if the coroutine is active but not running
  * (that is, it has resumed another coroutine);
- * and ```"dead"``` if the coroutine has finished its body function,
+ * and `"dead"` if the coroutine has finished its body function,
  * or if it has stopped with an error.
  * 
  * 
@@ -76,7 +78,6 @@
  */
 
 /*# creates a thread and returns a function to resume it
- * 
  * 
  * Creates a new coroutine, with body f.
  * f must be a Lua function.
@@ -93,7 +94,6 @@
  */
 
 /*# yields execution of thread back to the caller
- * 
  * 
  * Suspends the execution of the calling coroutine.
  * The coroutine cannot be running a C function,

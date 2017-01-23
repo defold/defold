@@ -8,23 +8,29 @@ blddir = 'build'
 
 import Utils
 import sys, os, re, fnmatch
+import Options
 import waf_dynamo
 
 def init():
     pass
 
 def configure(conf):
-    conf.find_program('find', var='FIND', mandatory = True)
     conf.sub_config('src')
     pass
+
+def clean(conf):
+    # Clean up src
+    files = os.listdir('src')
+    for filename in fnmatch.filter(files, '*.apidoc_'):
+        os.remove(os.path.join('src', filename))
 
 def build(bld):
     # Clean up src
     files = os.listdir('src')
     for filename in fnmatch.filter(files, '*.apidoc_'):
         os.remove(os.path.join('src', filename))
+
     # Find all the built .apidoc files in the engine tree
-    print("Scanning for .apidoc files...")
     apidoc_files = []
     for root, dirs, files in os.walk('..'):
         for filename in fnmatch.filter(files, '*.apidoc'):
@@ -42,10 +48,17 @@ def build(bld):
             out_f.write(comments)
     bld.add_subdirs('src')
 
-def install(bld):
-    pass
-
 def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
+
+def shutdown():
+    if not Options.commands['build']:
+        return
+    if not getattr(Options.options, 'skip_tests', False):
+        python_path = os.environ.get('PYTHONPATH', '')
+        os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/src' + os.pathsep + python_path
+        ret = os.system('python %s' % 'src/test/test_script_doc.py')
+        if ret != 0:
+            sys.exit(1)

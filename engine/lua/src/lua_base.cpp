@@ -1,6 +1,12 @@
 /*# Lua base standard library
  *
  * Documentation for the Lua base standard library.
+ * from the "Lua 5.1 Reference Manual"
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
+ * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
+ * Freely available under the terms of the Lua license.
+ *
+ * See https://www.lua.org/manual/5.1/
  *
  * @document
  * @name Base
@@ -8,7 +14,6 @@
  */
 
 /*# asserts that condition is not nil and not false
- * 
  * Issues an  error when
  * the value of its argument v is false (i.e., [type: nil] or [type: false]se);
  * otherwise, returns all its arguments.
@@ -23,48 +28,57 @@
 
 /*# collects garbage
  * 
- * 
  * This function is a generic interface to the garbage collector.
  * It performs different functions according to its first argument, opt:
  * 
  * 
- * <dt>"collect"</dt><dd>
- * performs a full garbage-collection cycle.
+ * 
+ * "collect"
+ * : performs a full garbage-collection cycle.
  * This is the default option.
- * </dd>
  * 
- * <dt>"stop"</dt><dd>
- * stops the garbage collector.
- * </dd>
  * 
- * <dt>"restart"</dt><dd>
- * restarts the garbage collector.
- * </dd>
  * 
- * <dt>"count"</dt><dd>
- * returns the total memory in use by Lua (in Kbytes).
- * </dd>
+ * "stop"
+ * : stops the garbage collector.
  * 
- * <dt>"step"</dt><dd>
- * performs a garbage-collection step.
+ * 
+ * 
+ * "restart"
+ * : restarts the garbage collector.
+ * 
+ * 
+ * 
+ * "count"
+ * : returns the total memory in use by Lua (in Kbytes).
+ * 
+ * 
+ * 
+ * "step"
+ * : performs a garbage-collection step.
  * The step "size" is controlled by arg
  * (larger values mean more steps) in a non-specified way.
  * If you want to control the step size
  * you must experimentally tune the value of arg.
  * Returns true if the step finished a collection cycle.
- * </dd>
  * 
- * <dt>"setpause"</dt><dd>
- * sets arg as the new value for the <em>pause</em> of
+ * 
+ * 
+ * "setpause"
+ * : sets arg as the new value for the <em>pause</em> of
  * the collector .
  * Returns the previous value for <em>pause</em>.
- * </dd>
  * 
- * <dt>"setstepmul"</dt><dd>
- * sets arg as the new value for the <em>step multiplier</em> of
+ * 
+ * 
+ * "setstepmul"
+ * : sets arg as the new value for the <em>step multiplier</em> of
  * the collector .
  * Returns the previous value for <em>step</em>.
- * </dd>
+ * 
+ * 
+ * 
+ * 
  * 
  * 
  * 
@@ -74,7 +88,6 @@
  */
 
 /*# executes a Lua file
- * 
  * Opens the named file and executes its contents as a Lua chunk.
  * When called without arguments,
  * dofile executes the contents of the standard input (stdin).
@@ -88,7 +101,6 @@
  */
 
 /*# raises an error message
- * 
  * Terminates the last protected function called
  * and returns message as the error message.
  * Function error never returns.
@@ -110,9 +122,8 @@
  */
 
 /*# global variable that holds the global environment
- * 
  * A global variable (not a function) that
- * holds the global environment (that is, ```_G._G = _G```).
+ * holds the global environment (that is, `_G._G = _G`).
  * Lua itself does not use this variable;
  * changing its value does not affect any environment,
  * nor vice-versa.
@@ -124,7 +135,6 @@
  */
 
 /*# returns the current environment table
- * 
  * Returns the current environment in use by the function.
  * f can be a Lua function or a number
  * that specifies the function at that stack level:
@@ -141,10 +151,9 @@
 
 /*# returns the metatable for the object
  * 
- * 
  * If object does not have a metatable, returns [type: nil].
  * Otherwise,
- * if the object's metatable has a ```"__metatable"``` field,
+ * if the object's metatable has a `"__metatable"` field,
  * returns the associated value.
  * Otherwise, returns the metatable of the given object.
  * 
@@ -155,15 +164,15 @@
 
 /*# iterates over a numerically keyed table
  * 
- * 
  * Returns three values: an iterator function, the table t, and 0,
  * so that the construction
+ * 
  * 
  * ```lua
  * for i,v in ipairs(t) do body end
  * ```
  * 
- * will iterate over the pairs (```1,t[1]```), (```2,t[2]```), ...,
+ * will iterate over the pairs (`1,t[1]`), (`2,t[2]`), ...,
  * up to the first integer key absent from the table.
  * 
  * 
@@ -172,7 +181,6 @@
  */
 
 /*# loads a chunk by calling a function repeatedly
- * 
  * 
  * Loads a chunk using function func to get its pieces.
  * Each call to func must return a string that concatenates
@@ -197,7 +205,6 @@
 
 /*# loads a Lua file and parses it
  * 
- * 
  * Similar to load,
  * but gets the chunk from file filename
  * or from the standard input,
@@ -210,11 +217,11 @@
 
 /*# compiles a string of Lua code
  * 
- * 
  * Similar to load,
  * but gets the chunk from the given string.
  * 
  * To load and run a given string, use the idiom
+ * 
  * 
  * ```lua
  * assert(loadstring(s))()
@@ -232,7 +239,6 @@
 
 /*# returns next key / value pair in a table
  * 
- * 
  * Allows a program to traverse all fields of a table.
  * Its first argument is a table and its second argument
  * is an index in this table.
@@ -246,7 +252,7 @@
  * next returns [type: nil].
  * If the second argument is absent, then it is interpreted as [type: nil].
  * In particular,
- * you can use ```next(t)``` to check whether a table is empty.
+ * you can use `next(t)` to check whether a table is empty.
  * 
  * The order in which the indices are enumerated is not specified,
  * <em>even for numeric indices</em>.
@@ -267,9 +273,9 @@
 
 /*# traverse all items in a table
  * 
- * 
  * Returns three values: the next function, the table t, and [type: nil],
  * so that the construction
+ * 
  * 
  * ```lua
  * for k,v in pairs(t) do body end
@@ -287,10 +293,9 @@
 
 /*# calls a function in protected mode
  * 
- * 
  * Calls function f with
  * the given arguments in <em>protected mode</em>.
- * This means that any error inside ```f``` is not propagated;
+ * This means that any error inside `f` is not propagated;
  * instead, pcall catches the error
  * and returns a status code.
  * Its first result is the status code (a boolean),
@@ -307,7 +312,6 @@
  */
 
 /*# prints its arguments
- * 
  * Receives any number of arguments,
  * and prints their values to stdout,
  * using the tostring function to convert them to strings.
@@ -322,7 +326,6 @@
  */
 
 /*# compares two values for equality without invoking metamethods
- * 
  * Checks whether v1 is equal to v2,
  * without invoking any metamethod.
  * Returns a boolean.
@@ -334,8 +337,7 @@
  */
 
 /*# gets the value of a table item without invoking metamethods
- * 
- * Gets the real value of ```table[index]```,
+ * Gets the real value of `table[index]`,
  * without invoking any metamethod.
  * table must be a table;
  * index may be any value.
@@ -347,8 +349,7 @@
  */
 
 /*# sets the value of a table item without invoking metamethods
- * 
- * Sets the real value of ```table[index]``` to value,
+ * Sets the real value of `table[index]` to value,
  * without invoking any metamethod.
  * table must be a table,
  * index any value different from [type: nil],
@@ -365,10 +366,9 @@
 
 /*# returns items in a list
  * 
- * 
  * If index is a number,
  * returns all arguments after argument number index.
- * Otherwise, index must be the string ```"#"```,
+ * Otherwise, index must be the string `"#"`,
  * and select returns the total number of extra arguments it received.
  * 
  * 
@@ -378,7 +378,6 @@
  */
 
 /*# sets a function's environment
- * 
  * 
  * Sets the environment to be used by the given function.
  * f can be a Lua function or a number
@@ -398,12 +397,11 @@
 
 /*# sets the metatable for a table
  * 
- * 
  * Sets the metatable for the given table.
  * (You cannot change the metatable of other types from Lua, only from C.)
  * If metatable is [type: nil],
  * removes the metatable of the given table.
- * If the original metatable has a ```"__metatable"``` field,
+ * If the original metatable has a `"__metatable"` field,
  * raises an error.
  * 
  * This function returns table.
@@ -415,7 +413,6 @@
  */
 
 /*# converts a string (of the given base) to a number
- * 
  * Tries to convert its argument to a number.
  * If the argument is already a number or a string convertible
  * to a number, then tonumber returns this number;
@@ -437,13 +434,12 @@
  */
 
 /*# converts its argument to a string
- * 
  * Receives an argument of any type and
  * converts it to a string in a reasonable format.
  * For complete control of how numbers are converted,
  * use string.format.
  * 
- * If the metatable of e has a ```"__tostring"``` field,
+ * If the metatable of e has a `"__tostring"` field,
  * then tostring calls the corresponding value
  * with e as argument,
  * and uses the result of the call as its result.
@@ -454,7 +450,6 @@
  */
 
 /*# returns the type of a variable
- * 
  * Returns the type of its only argument, coded as a string.
  * The possible results of this function are
  * "nil" (a string, not the value [type: nil]),
@@ -472,9 +467,9 @@
  */
 
 /*# unpacks a table into individual items
- * 
  * Returns the elements from the given table.
  * This function is equivalent to
+ * 
  * 
  * ```lua
  * return list[i], list[i+1], ..., list[j]
@@ -493,7 +488,6 @@
  */
 
 /*# global variable containing the running Lua version
- * 
  * A global variable (not a function) that
  * holds a string containing the current interpreter version.
  * The current contents of this variable is "Lua 5.1".
@@ -504,7 +498,6 @@
  */
 
 /*# calls a function with a custom error handler
- * 
  * 
  * This function is similar to pcall,
  * except that you can set a new error handler.
@@ -530,21 +523,20 @@
 
 /*# creates a Lua module
  * 
- * 
  * Creates a module.
- * If there is a table in ```package.loaded[name]```,
+ * If there is a table in `package.loaded[name]`,
  * this table is the module.
  * Otherwise, if there is a global table t with the given name,
  * this table is the module.
  * Otherwise creates a new table t and
  * sets it as the value of the global name and
- * the value of ```package.loaded[name]```.
+ * the value of `package.loaded[name]`.
  * This function also initializes t._NAME with the given name,
  * t._M with the module (t itself),
  * and t._PACKAGE with the package name
  * (the full module name minus last component; see below).
  * Finally, module sets t as the new environment
- * of the current function and the new value of ```package.loaded[name]```,
+ * of the current function and the new value of `package.loaded[name]`,
  * so that require returns t.
  * 
  * If name is a compound name
@@ -567,12 +559,11 @@
 
 /*# loads a module
  * 
- * 
  * Loads the given module.
  * The function starts by looking into the package.loaded table
  * to determine whether modname is already loaded.
  * If it is, then require returns the value stored
- * at ```package.loaded[modname]```.
+ * at `package.loaded[modname]`.
  * Otherwise, it tries to find a <em>loader</em> for the module.
  * 
  * To find a loader,
@@ -582,7 +573,7 @@
  * The following explanation is based on the default configuration
  * for package.loaders.
  * 
- * First require queries ```package.preload[modname]```.
+ * First require queries `package.preload[modname]`.
  * If it has a value,
  * this value (which should be a function) is the loader.
  * Otherwise require searches for a Lua loader using the
@@ -595,12 +586,12 @@
  * Once a loader is found,
  * require calls the loader with a single argument, modname.
  * If the loader returns any value,
- * require assigns the returned value to ```package.loaded[modname]```.
+ * require assigns the returned value to `package.loaded[modname]`.
  * If the loader returns no value and
- * has not assigned any value to ```package.loaded[modname]```,
+ * has not assigned any value to `package.loaded[modname]`,
  * then require assigns true to this entry.
  * In any case, require returns the
- * final value of ```package.loaded[modname]```.
+ * final value of `package.loaded[modname]`.
  * 
  * If there is any error loading or running the module,
  * or if it cannot find any loader for the module,

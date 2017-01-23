@@ -1,19 +1,10 @@
 #! /usr/bin/env python
 
-VERSION='0.1'
-APPNAME='docs'
-
-srcdir = '.'
-blddir = 'build'
-
 import sys, os, re
 import waf_dynamo
 
-def init():
-    pass
-
 def configure(conf):
-    conf.env['SCRIPT_DOC'] = os.path.abspath('script_doc.py')
+    conf.env['SCRIPT_DOC'] = os.path.abspath('src/script_doc.py')
     pass
 
 def build(bld):
@@ -27,8 +18,8 @@ def build(bld):
                      target = '%s_doc.json' % namespace,
                      rule = 'python ${SCRIPT_DOC} -t json ${SRC} ${TGT}')
 
-def install(bld):
-    pass
+        bld.install_files('${PREFIX}/share/doc', '%s_doc.sdoc' % namespace)
+        bld.install_files('${PREFIX}/share/doc', '%s_doc.json' % namespace)
 
 def set_options(opt):
     opt.tool_options('waf_dynamo')

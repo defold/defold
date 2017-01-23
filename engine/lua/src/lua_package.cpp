@@ -1,6 +1,12 @@
 /*# Lua package standard library
  *
  * Documentation for the Lua package standard library.
+ * from the "Lua 5.1 Reference Manual"
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
+ * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
+ * Freely available under the terms of the Lua license.
+ *
+ * See https://www.lua.org/manual/5.1/
  *
  * @document
  * @name Package
@@ -8,7 +14,6 @@
  */
 
 /*# search path used for loading DLLs using the ```require``` function
- * 
  * 
  * The path used by require to search for a C loader.
  * 
@@ -23,11 +28,10 @@
 
 /*# table of loaded packages
  * 
- * 
  * A table used by require to control which
  * modules are already loaded.
  * When you require a module modname and
- * ```package.loaded[modname]``` is not false,
+ * `package.loaded[modname]` is not false,
  * require simply returns the value stored there.
  * 
  * 
@@ -35,7 +39,6 @@
  */
 
 /*# table of package loaders
- * 
  * 
  * A table used by require to control how to load modules.
  * 
@@ -63,27 +66,29 @@
  * then it will try to open the resulting file name.
  * So, for instance, if the Lua path is the string
  * 
+ * 
  * ```lua
  * "./?.lua;./?.lc;/usr/local/?/init.lua"
  * ```
  * 
  * the search for a Lua file for module foo
  * will try to open the files
- * ```./foo.lua```, ```./foo.lc```, and
- * ```/usr/local/foo/init.lua```, in that order.
+ * `./foo.lua`, `./foo.lc`, and
+ * `/usr/local/foo/init.lua`, in that order.
  * 
  * The third searcher looks for a loader as a C library,
  * using the path given by the variable package.cpath.
  * For instance,
  * if the C path is the string
  * 
+ * 
  * ```lua
  * "./?.so;./?.dll;/usr/local/?/init.so"
  * ```
  * 
  * the searcher for module foo
- * will try to open the files ```./foo.so```, ```./foo.dll```,
- * and ```/usr/local/foo/init.so```, in that order.
+ * will try to open the files `./foo.so`, `./foo.dll`,
+ * and `/usr/local/foo/init.so`, in that order.
  * Once it finds a C library,
  * this searcher first uses a dynamic link facility to link the
  * application with the library.
@@ -115,7 +120,6 @@
 
 /*# loads a dynamic link library (DLL)
  * 
- * 
  * Dynamically links the host program with the C library libname.
  * Inside this library, looks for a function funcname
  * and returns this function as a C function.
@@ -144,7 +148,6 @@
 
 /*# search path used for loading Lua code using the ```require``` function
  * 
- * 
  * The path used by require to search for a Lua loader.
  * 
  * At start-up, Lua initializes this variable with
@@ -160,7 +163,6 @@
 
 /*# a table of special function loaders
  * 
- * 
  * A table to store loaders for specific modules
  * .
  * 
@@ -169,7 +171,6 @@
  */
 
 /*# sets a metatable for the module so it can see global variables
- * 
  * 
  * Sets a metatable for module with
  * its __index field referring to the global environment,

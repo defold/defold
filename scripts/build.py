@@ -647,6 +647,7 @@ class Configuration(object):
         self.build_bob_light()
         self._build_engine_libs(**build_flags)
         self._build_extender_libs(**build_flags)
+        self.build_docs()
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
@@ -730,7 +731,7 @@ class Configuration(object):
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
-        self._log('Building docs')
+        self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
         self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)

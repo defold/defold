@@ -1,6 +1,12 @@
 /*# Lua debug standard library
  *
  * Documentation for the Lua debug standard library.
+ * from the "Lua 5.1 Reference Manual"
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
+ * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
+ * Freely available under the terms of the Lua license.
+ *
+ * See https://www.lua.org/manual/5.1/
  *
  * @document
  * @name Debug
@@ -8,7 +14,6 @@
  */
 
 /*# enters interactive debugging
- * 
  * 
  * Enters an interactive mode with the user,
  * running each string that the user enters.
@@ -26,7 +31,6 @@
  */
 
 /*# returns the environment of an object
- * 
  * Returns the environment of object o.
  * 
  * 
@@ -35,7 +39,6 @@
  */
 
 /*# returns the current hook settings
- * 
  * 
  * Returns the current hook settings of the thread, as three values:
  * the current hook function, the current hook mask,
@@ -48,7 +51,6 @@
  */
 
 /*# returns a table with information about a function
- * 
  * 
  * Returns a table with information about a function.
  * You can give the function directly,
@@ -73,10 +75,10 @@
  * adds a field named activelines with the table of
  * valid lines.
  * 
- * For instance, the expression ```debug.getinfo(1,"n").name``` returns
+ * For instance, the expression `debug.getinfo(1,"n").name` returns
  * a table with a name for the current function,
  * if a reasonable name can be found,
- * and the expression ```debug.getinfo(print)```
+ * and the expression `debug.getinfo(print)`
  * returns a table with all available information
  * about the print function.
  * 
@@ -88,7 +90,6 @@
  */
 
 /*# returns name and value of a local variable
- * 
  * 
  * This function returns the name and the value of the local variable
  * with index local of the function at level level of the stack.
@@ -112,7 +113,6 @@
 
 /*# returns the metatable of the given object
  * 
- * 
  * Returns the metatable of the given object
  * or [type: nil] if it does not have a metatable.
  * 
@@ -123,7 +123,6 @@
 
 /*# returns the registry table
  * 
- * 
  * Returns the registry table .
  * 
  * 
@@ -131,7 +130,6 @@
  */
 
 /*# returns the name and value of an upvalue
- * 
  * 
  * This function returns the name and the value of the upvalue
  * with index up of the function func.
@@ -145,7 +143,6 @@
 
 /*# sets the environment of an object
  * 
- * 
  * Sets the environment of the given object to the given table.
  * Returns object.
  * 
@@ -157,16 +154,24 @@
 
 /*# sets a debug hook function
  * 
- * 
  * Sets the given function as a hook.
  * The string mask and the number count describe
  * when the hook will be called.
  * The string mask may have the following characters,
  * with the given meaning:
  * 
- * <dt>```"c"```</dt><dd> the hook is called every time Lua calls a function;</dd>
- * <dt>```"r"```</dt><dd> the hook is called every time Lua returns from a function;</dd>
- * <dt>```"l"```</dt><dd> the hook is called every time Lua enters a new line of code.</dd>
+ * 
+ * `"c"`
+ * :  the hook is called every time Lua calls a function;
+ * 
+ * `"r"`
+ * :  the hook is called every time Lua returns from a function;
+ * 
+ * `"l"`
+ * :  the hook is called every time Lua enters a new line of code.
+ * 
+ * 
+ * 
  * With a count different from zero,
  * the hook is called after every count instructions.
  * 
@@ -175,9 +180,9 @@
  * 
  * When the hook is called, its first parameter is a string
  * describing the event that has triggered its call:
- * ```"call"```, ```"return"``` (or ```"tail return"```,
+ * `"call"`, `"return"` (or `"tail return"`,
  * when simulating a return from a tail call),
- * ```"line"```, and ```"count"```.
+ * `"line"`, and `"count"`.
  * For line events,
  * the hook also gets the new line number as its second parameter.
  * Inside a hook,
@@ -185,7 +190,7 @@
  * the running function
  * (level 0 is the getinfo function,
  * and level 1 is the hook function),
- * unless the event is ```"tail return"```.
+ * unless the event is `"tail return"`.
  * In this case, Lua is only simulating the return,
  * and a call to getinfo will return invalid data.
  * 
@@ -198,7 +203,6 @@
  */
 
 /*# sets the value of the local variable
- * 
  * 
  * This function assigns the value value to the local variable
  * with index local of the function at level level of the stack.
@@ -218,7 +222,6 @@
 
 /*# sets the metatable for an object
  * 
- * 
  * Sets the metatable for the given object to the given table
  * (which can be [type: nil]).
  * 
@@ -229,7 +232,6 @@
  */
 
 /*# sets an upvalue for a function
- * 
  * 
  * This function assigns the value value to the upvalue
  * with index up of the function func.
@@ -245,7 +247,6 @@
  */
 
 /*# returns a string with a traceback of the stack call
- * 
  * 
  * Returns a string with a traceback of the call stack.
  * An optional message string is appended

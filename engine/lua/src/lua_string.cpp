@@ -1,6 +1,12 @@
 /*# Lua string standard library
  *
  * Documentation for the Lua string standard library.
+ * from the "Lua 5.1 Reference Manual"
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
+ * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
+ * Freely available under the terms of the Lua license.
+ *
+ * See https://www.lua.org/manual/5.1/
  *
  * @document
  * @name String
@@ -8,9 +14,8 @@
  */
 
 /*# converts a character into its ASCII (decimal) equivalent
- * 
- * Returns the internal numerical codes of the characters ```s[i]```,
- * ```s[i+1]```, ..., ```s[j]```.
+ * Returns the internal numerical codes of the characters `s[i]`,
+ * `s[i+1]`, ..., `s[j]`.
  * The default value for i is 1;
  * the default value for j is i.
  * 
@@ -24,7 +29,6 @@
  */
 
 /*# converts ASCII codes into their equivalent characters
- * 
  * Receives zero or more integers.
  * Returns a string with length equal to the number of arguments,
  * in which each character has the internal numerical code equal
@@ -39,7 +43,6 @@
 
 /*# converts a function into binary
  * 
- * 
  * Returns a string containing a binary representation of the given function,
  * so that a later loadstring on this string returns
  * a copy of the function.
@@ -51,10 +54,9 @@
  */
 
 /*# searches a string for a pattern
- * 
  * Looks for the first match of
  * pattern in the string s.
- * If it finds a match, then find returns the indices of ```s```
+ * If it finds a match, then find returns the indices of `s`
  * where this occurrence starts and ends;
  * otherwise, it returns [type: nil].
  * A third, optional numerical argument init specifies
@@ -80,13 +82,12 @@
  */
 
 /*# formats a string
- * 
  * Returns a formatted version of its variable number of arguments
  * following the description given in its first argument (which must be a string).
  * The format string follows the same rules as the printf family of
  * standard C functions.
  * The only differences are that the options/modifiers
- * ```*```, l, L, n, p,
+ * `*`, l, L, n, p,
  * and h are not supported
  * and that there is an extra option, q.
  * The q option formats a string in a form suitable to be safely read
@@ -97,11 +98,13 @@
  * are correctly escaped when written.
  * For instance, the call
  * 
+ * 
  * ```lua
  * string.format('%q', 'a string with "quotes" and \n new line')
  * ```
  * 
  * will produce the string:
+ * 
  * 
  * ```lua
  * "a string with \"quotes\" and \
@@ -125,7 +128,6 @@
  */
 
 /*# iterate over a string
- * 
  * Returns an iterator function that,
  * each time it is called,
  * returns the next captures from pattern over string s.
@@ -133,6 +135,7 @@
  * then the whole match is produced in each call.
  * 
  * As an example, the following loop
+ * 
  * 
  * ```lua
  * s = "hello world from Lua"
@@ -143,8 +146,9 @@
  * 
  * will iterate over all the words from string s,
  * printing one per line.
- * The next example collects all pairs ```key=value``` from the
+ * The next example collects all pairs `key=value` from the
  * given string into a table:
+ * 
  * 
  * ```lua
  * t = {}
@@ -165,7 +169,6 @@
  */
 
 /*# substitute strings inside another string
- * 
  * Returns a copy of s
  * in which all (or the first n, if given)
  * occurrences of the pattern have been
@@ -175,12 +178,12 @@
  * the total number of matches that occurred.
  * 
  * If repl is a string, then its value is used for replacement.
- * The character ```%``` works as an escape character:
- * any sequence in repl of the form ```%n```,
+ * The character `%` works as an escape character:
+ * any sequence in repl of the form `%n`,
  * with n between 1 and 9,
  * stands for the value of the n-th captured substring (see below).
- * The sequence ```%0``` stands for the whole match.
- * The sequence ```%%``` stands for a single ```%```.
+ * The sequence `%0` stands for the whole match.
+ * The sequence `%%` stands for a single `%`.
  * 
  * If repl is a table, then the table is queried for every match,
  * using the first capture as the key;
@@ -201,6 +204,7 @@
  * (that is, the original match is kept in the string).
  * 
  * Here are some examples:
+ * 
  * 
  * ```lua
  * x = string.gsub("hello world", "(%w+)", "%1 %1")
@@ -235,11 +239,10 @@
  */
 
 /*# return the length of a string
- * 
  * Receives a string and returns its length.
- * The empty string ```""``` has length 0.
+ * The empty string `""` has length 0.
  * Embedded zeros are counted,
- * so ```"a\000bc\000"``` has length 5.
+ * so `"a\000bc\000"` has length 5.
  * 
  * 
  * @name string.len
@@ -247,7 +250,6 @@
  */
 
 /*# converts a string to lower-case
- * 
  * Receives a string and returns a copy of this string with all
  * uppercase letters changed to lowercase.
  * All other characters are left unchanged.
@@ -259,7 +261,6 @@
  */
 
 /*# searches a string for a pattern
- * 
  * Looks for the first <em>match</em> of
  * pattern in the string s.
  * If it finds one, then match returns
@@ -279,7 +280,6 @@
  */
 
 /*# returns repeated copies of a string
- * 
  * Returns a string that is the concatenation of n copies of
  * the string s.
  * 
@@ -290,7 +290,6 @@
  */
 
 /*# reverses the order of characters in a string
- * 
  * Returns a string that is the string s reversed.
  * 
  * 
@@ -299,16 +298,15 @@
  */
 
 /*# returns a substring of a string
- * 
  * Returns the substring of s that
  * starts at i  and continues until j;
  * i and j can be negative.
  * If j is absent, then it is assumed to be equal to -1
  * (which is the same as the string length).
  * In particular,
- * the call ```string.sub(s,1,j)``` returns a prefix of s
+ * the call `string.sub(s,1,j)` returns a prefix of s
  * with length j,
- * and ```string.sub(s, -i)``` returns a suffix of s
+ * and `string.sub(s, -i)` returns a suffix of s
  * with length i.
  * 
  * 
@@ -319,7 +317,6 @@
  */
 
 /*# converts a string to upper-case
- * 
  * Receives a string and returns a copy of this string with all
  * lowercase letters changed to uppercase.
  * All other characters are left unchanged.
@@ -332,126 +329,151 @@
  * The following combinations are allowed in describing a character class:
  * 
  * 
- * <dt>x</dt><dd>
- * (where x is not one of the <em>magic characters</em>
- * ```^$()%.[]*+-?```)
+ * 
+ * x
+ * : (where x is not one of the <em>magic characters</em>
+ * `^$()%.[]*+-?`)
  * represents the character <em>x</em> itself.
- * </dd>
  * 
- * <dt>```.```</dt><dd> (a dot) represents all characters.</dd>
  * 
- * <dt>```%a```</dt><dd> represents all letters.</dd>
  * 
- * <dt>```%c```</dt><dd> represents all control characters.</dd>
+ * `.`
+ * :  (a dot) represents all characters.
  * 
- * <dt>```%d```</dt><dd> represents all digits.</dd>
  * 
- * <dt>```%l```</dt><dd> represents all lowercase letters.</dd>
+ * `%a`
+ * :  represents all letters.
  * 
- * <dt>```%p```</dt><dd> represents all punctuation characters.</dd>
  * 
- * <dt>```%s```</dt><dd> represents all space characters.</dd>
+ * `%c`
+ * :  represents all control characters.
  * 
- * <dt>```%u```</dt><dd> represents all uppercase letters.</dd>
  * 
- * <dt>```%w```</dt><dd> represents all alphanumeric characters.</dd>
+ * `%d`
+ * :  represents all digits.
  * 
- * <dt>```%x```</dt><dd> represents all hexadecimal digits.</dd>
  * 
- * <dt>```%z```</dt><dd> represents the character with representation 0.</dd>
+ * `%l`
+ * :  represents all lowercase letters.
  * 
- * <dt>```%x```</dt><dd> (where x is any non-alphanumeric character)
+ * 
+ * `%p`
+ * :  represents all punctuation characters.
+ * 
+ * 
+ * `%s`
+ * :  represents all space characters.
+ * 
+ * 
+ * `%u`
+ * :  represents all uppercase letters.
+ * 
+ * 
+ * `%w`
+ * :  represents all alphanumeric characters.
+ * 
+ * 
+ * `%x`
+ * :  represents all hexadecimal digits.
+ * 
+ * 
+ * `%z`
+ * :  represents the character with representation 0.
+ * 
+ * 
+ * `%x`
+ * :  (where x is any non-alphanumeric character)
  * represents the character x.
  * This is the standard way to escape the magic characters.
  * Any punctuation character (even the non magic)
  * can be preceded by a '%'
  * when used to represent itself in a pattern.
- * </dd>
  * 
- * <dt>```[set]```</dt><dd>
- * represents the class which is the union of all
+ * 
+ * 
+ * `[set]`
+ * : represents the class which is the union of all
  * characters in set.
  * A range of characters can be specified by
  * separating the end characters of the range with a '-'.
- * All classes ```%```<em>x</em> described above can also be used as
+ * All classes `%`<em>x</em> described above can also be used as
  * components in set.
  * All other characters in set represent themselves.
- * For example, ```[%w_]``` (or ```[_%w]```)
+ * For example, `[%w_]` (or `[_%w]`)
  * represents all alphanumeric characters plus the underscore,
- * ```[0-7]``` represents the octal digits,
- * and ```[0-7%l%-]``` represents the octal digits plus
+ * `[0-7]` represents the octal digits,
+ * and `[0-7%l%-]` represents the octal digits plus
  * the lowercase letters plus the '-' character.
  * 
  * The interaction between ranges and classes is not defined.
- * Therefore, patterns like ```[%a-z]``` or ```[a-%%]```
+ * Therefore, patterns like `[%a-z]` or `[a-%%]`
  * have no meaning.
- * </dd>
  * 
- * <dt>```[^set]```</dt><dd>
- * represents the complement of set,
+ * 
+ * 
+ * `[^set]`
+ * : represents the complement of set,
  * where set is interpreted as above.
- * </dd>
  * 
- * For all classes represented by single letters (```%a```, ```%c```, etc.),
+ * 
+ * 
+ * 
+ * 
+ * For all classes represented by single letters (`%a`, `%c`, etc.),
  * the corresponding uppercase letter represents the complement of the class.
- * For instance, ```%S``` represents all non-space characters.
+ * For instance, `%S` represents all non-space characters.
  * 
  * The definitions of letter, space, and other character groups
  * depend on the current locale.
- * In particular, the class ```[a-z]``` may not be equivalent to ```%l```.
+ * In particular, the class `[a-z]` may not be equivalent to `%l`.
  * 
  * 
  * Pattern Item:
  * A pattern item can be
- * <ul>
  * 
- * <li>
- * a single character class,
+ * 
+ * 
+ * - a single character class,
  * which matches any single character in the class;
- * </li>
  * 
- * <li>
- * a single character class followed by '*',
+ * 
+ * - a single character class followed by '*',
  * which matches 0 or more repetitions of characters in the class.
  * These repetition items will always match the longest possible sequence;
- * </li>
  * 
- * <li>
- * a single character class followed by '+',
+ * 
+ * - a single character class followed by '+',
  * which matches 1 or more repetitions of characters in the class.
  * These repetition items will always match the longest possible sequence;
- * </li>
  * 
- * <li>
- * a single character class followed by '-',
+ * 
+ * - a single character class followed by '-',
  * which also matches 0 or more repetitions of characters in the class.
  * Unlike '*',
  * these repetition items will always match the <em>shortest</em> possible sequence;
- * </li>
  * 
- * <li>
- * a single character class followed by '?',
+ * 
+ * - a single character class followed by '?',
  * which matches 0 or 1 occurrence of a character in the class;
- * </li>
  * 
- * <li>
- * ```%n```, for n between 1 and 9;
+ * 
+ * - `%n`, for n between 1 and 9;
  * such item matches a substring equal to the n-th captured string
  * (see below);
- * </li>
  * 
- * <li>
- * ```%bxy```, where x and y are two distinct characters;
+ * 
+ * - `%bxy`, where x and y are two distinct characters;
  * such item matches strings that start with x, end with y,
  * and where the x and y are <em>balanced</em>.
  * This means that, if one reads the string from left to right,
  * counting +1 for an x and -1 for a y,
  * the ending y is the first y where the count reaches 0.
- * For instance, the item ```%b()``` matches expressions with
+ * For instance, the item `%b()` matches expressions with
  * balanced parentheses.
- * </li>
  * 
- * </ul>
+ * 
+ * 
+ * 
  * 
  * 
  * Pattern:
@@ -470,18 +492,18 @@
  * When a match succeeds, the substrings of the subject string
  * that match captures are stored (<em>captured</em>) for future use.
  * Captures are numbered according to their left parentheses.
- * For instance, in the pattern ```"(a*(.)%w(%s*))"```,
- * the part of the string matching ```"a*(.)%w(%s*)"``` is
+ * For instance, in the pattern `"(a*(.)%w(%s*))"`,
+ * the part of the string matching `"a*(.)%w(%s*)"` is
  * stored as the first capture (and therefore has number 1);
  * the character matching "." is captured with number 2,
  * and the part matching "%s*" has number 3.
  * 
- * As a special case, the empty capture ```()``` captures
+ * As a special case, the empty capture `()` captures
  * the current string position (a number).
- * For instance, if we apply the pattern ```"()aa()"``` on the
- * string ```"flaaap"```, there will be two captures: 3 and 5.
+ * For instance, if we apply the pattern `"()aa()"` on the
+ * string `"flaaap"`, there will be two captures: 3 and 5.
  * 
- * A pattern cannot contain embedded zeros.  Use ```%z``` instead.
+ * A pattern cannot contain embedded zeros.  Use `%z` instead.
  * 
  * 
  * 

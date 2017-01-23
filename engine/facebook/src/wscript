@@ -2,6 +2,7 @@
 import os, re
 
 import waf_dynamo
+from waf_dynamo import apidoc_extract_task
 
 def init():
     pass
@@ -59,15 +60,6 @@ def build(bld):
                                 embed_source = embed_source,
                                 target = 'facebookext')
 
-    bld.new_task_gen(source = 'facebook_ios.mm',
-                     target = 'facebook_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-    bld.new_task_gen(source = 'facebook_ios.mm',
-                     target = 'facebook_doc.json',
-                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+    apidoc_extract_task(bld, ['facebook_ios.mm'])
 
     bld.add_subdirs('test')
-
-    bld.install_files('${PREFIX}/share/doc', 'facebook_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'facebook_doc.json')

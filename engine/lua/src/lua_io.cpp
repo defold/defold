@@ -1,6 +1,12 @@
 /*# Lua io standard library
  *
  * Documentation for the Lua io standard library.
+ * from the "Lua 5.1 Reference Manual"
+ * by Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes
+ * Copyright (c) 2006-2012 Lua.org, PUC-Rio.
+ * Freely available under the terms of the Lua license.
+ *
+ * See https://www.lua.org/manual/5.1/
  *
  * @document
  * @name Io
@@ -9,8 +15,7 @@
 
 /*# closes a file
  * 
- * 
- * Equivalent to ```file:close()```.
+ * Equivalent to `file:close()`.
  * Without a file, closes the default output file.
  * 
  * 
@@ -20,15 +25,13 @@
 
 /*# flushes outstanding data to disk for the default output file
  * 
- * 
- * Equivalent to ```file:flush``` over the default output file.
+ * Equivalent to `file:flush` over the default output file.
  * 
  * 
  * @name io.flush
  */
 
 /*# opens filename for input in text mode
- * 
  * 
  * When called with a file name, it opens the named file (in text mode),
  * and sets its handle as the default input file.
@@ -47,12 +50,12 @@
 
 /*# returns an iterator function for reading a named file line-by-line
  * 
- * 
  * Opens the given file name in read mode
  * and returns an iterator function that,
  * each time it is called,
  * returns a new line from the file.
  * Therefore, the construction
+ * 
  * 
  * ```lua
  * for line in io.lines(filename) do body end
@@ -62,8 +65,8 @@
  * When the iterator function detects the end of file,
  * it returns [type: nil] (to finish the loop) and automatically closes the file.
  * 
- * The call ```io.lines()``` (with no file name) is equivalent
- * to ```io.input():lines()```;
+ * The call `io.lines()` (with no file name) is equivalent
+ * to `io.input():lines()`;
  * that is, it iterates over the lines of the default input file.
  * In this case it does not close the file when the loop ends.
  * 
@@ -74,7 +77,6 @@
 
 /*# opens a file
  * 
- * 
  * This function opens a file,
  * in the mode specified in the string mode.
  * It returns a new file handle,
@@ -82,13 +84,28 @@
  * 
  * The mode string can be any of the following:
  * 
- * <dt>"r"</dt><dd> read mode (the default);</dd>
- * <dt>"w"</dt><dd> write mode;</dd>
- * <dt>"a"</dt><dd> append mode;</dd>
- * <dt>"r+"</dt><dd> update mode, all previous data is preserved;</dd>
- * <dt>"w+"</dt><dd> update mode, all previous data is erased;</dd>
- * <dt>"a+"</dt><dd> append update mode, previous data is preserved,
- *   writing is only allowed at the end of file.</dd>
+ * 
+ * "r"
+ * :  read mode (the default);
+ * 
+ * "w"
+ * :  write mode;
+ * 
+ * "a"
+ * :  append mode;
+ * 
+ * "r+"
+ * :  update mode, all previous data is preserved;
+ * 
+ * "w+"
+ * :  update mode, all previous data is erased;
+ * 
+ * "a+"
+ * :  append update mode, previous data is preserved,
+ *   writing is only allowed at the end of file.
+ * 
+ * 
+ * 
  * The mode string can also have a 'b' at the end,
  * which is needed in some systems to open the file in binary mode.
  * This string is exactly what is used in the
@@ -102,7 +119,6 @@
 
 /*# opens a file for output
  * 
- * 
  * Similar to io.input, but operates over the default output file.
  * 
  * 
@@ -112,12 +128,11 @@
 
 /*# creates a pipe and executes a command
  * 
- * 
  * Starts program prog in a separated process and returns
  * a file handle that you can use to read data from this program
- * (if mode is ```"r"```, the default)
+ * (if mode is `"r"`, the default)
  * or to write data to this program
- * (if mode is ```"w"```).
+ * (if mode is `"w"`).
  * 
  * This function is system dependent and is not available
  * on all platforms.
@@ -130,8 +145,7 @@
 
 /*# reads from the default input file
  * 
- * 
- * Equivalent to ```io.input():read```.
+ * Equivalent to `io.input():read`.
  * 
  * 
  * @name io.read
@@ -139,7 +153,6 @@
  */
 
 /*# returns a handle to a temporary file
- * 
  * 
  * Returns a handle for a temporary file.
  * This file is opened in update mode
@@ -151,10 +164,9 @@
 
 /*# returns type of file handle
  * 
- * 
  * Checks whether obj is a valid file handle.
- * Returns the string ```"file"``` if obj is an open file handle,
- * ```"closed file"``` if obj is a closed file handle,
+ * Returns the string `"file"` if obj is an open file handle,
+ * `"closed file"` if obj is a closed file handle,
  * or [type: nil] if obj is not a file handle.
  * 
  * 
@@ -164,8 +176,7 @@
 
 /*# writes to the default output file
  * 
- * 
- * Equivalent to ```io.output():write```.
+ * Equivalent to `io.output():write`.
  * 
  * 
  * 
@@ -174,7 +185,6 @@
  */
 
 /*# closes a file
- * 
  * 
  * Closes file.
  * Note that files are automatically closed when
@@ -187,7 +197,6 @@
 
 /*# flushes outstanding data to disk
  * 
- * 
  * Saves any written data to file.
  * 
  * 
@@ -196,11 +205,11 @@
 
 /*# returns an iterator function for reading the file line-by-line
  * 
- * 
  * Returns an iterator function that,
  * each time it is called,
  * returns a new line from the file.
  * Therefore, the construction
+ * 
  * 
  * ```lua
  * for line in file:lines() do body end
@@ -216,7 +225,6 @@
 
 /*# reads the file according to the specified formats
  * 
- * 
  * Reads the file file,
  * according to the given formats, which specify what to read.
  * For each format,
@@ -229,29 +237,36 @@
  * The available formats are
  * 
  * 
- * <dt>"*n"</dt><dd>
- * reads a number;
+ * 
+ * "*n"
+ * : reads a number;
  * this is the only format that returns a number instead of a string.
- * </dd>
  * 
- * <dt>"*a"</dt><dd>
- * reads the whole file, starting at the current position.
+ * 
+ * 
+ * "*a"
+ * : reads the whole file, starting at the current position.
  * On end of file, it returns the empty string.
- * </dd>
  * 
- * <dt>"*l"</dt><dd>
- * reads the next line (skipping the end of line),
+ * 
+ * 
+ * "*l"
+ * : reads the next line (skipping the end of line),
  * returning [type: nil] on end of file.
  * This is the default format.
- * </dd>
  * 
- * <dt><em>number</em></dt><dd>
- * reads a string with up to this number of characters,
+ * 
+ * 
+ * <em>number</em>
+ * : reads a string with up to this number of characters,
  * returning [type: nil] on end of file.
  * If number is zero,
  * it reads nothing and returns an empty string,
  * or [type: nil] on end of file.
- * </dd>
+ * 
+ * 
+ * 
+ * 
  * 
  * 
  * 
@@ -261,27 +276,35 @@
 
 /*# sets and gets the current file position
  * 
- * 
  * Sets and gets the file position,
  * measured from the beginning of the file,
  * to the position given by offset plus a base
  * specified by the string whence, as follows:
  * 
- * <dt>"set"</dt><dd> base is position 0 (beginning of the file);</dd>
- * <dt>"cur"</dt><dd> base is current position;</dd>
- * <dt>"end"</dt><dd> base is end of file;</dd>
+ * 
+ * "set"
+ * :  base is position 0 (beginning of the file);
+ * 
+ * "cur"
+ * :  base is current position;
+ * 
+ * "end"
+ * :  base is end of file;
+ * 
+ * 
+ * 
  * In case of success, function seek returns the final file position,
  * measured in bytes from the beginning of the file.
  * If this function fails, it returns [type: nil],
  * plus a string describing the error.
  * 
- * The default value for whence is ```"cur"```,
+ * The default value for whence is `"cur"`,
  * and for offset is 0.
- * Therefore, the call ```file:seek()``` returns the current
+ * Therefore, the call `file:seek()` returns the current
  * file position, without changing it;
- * the call ```file:seek("set")``` sets the position to the
+ * the call `file:seek("set")` sets the position to the
  * beginning of the file (and returns 0);
- * and the call ```file:seek("end")``` sets the position to the
+ * and the call `file:seek("end")` sets the position to the
  * end of the file, and returns its size.
  * 
  * 
@@ -292,26 +315,31 @@
 
 /*# sets the buffering mode for an output file
  * 
- * 
  * Sets the buffering mode for an output file.
  * There are three available modes:
  * 
  * 
- * <dt>"no"</dt><dd>
- * no buffering; the result of any output operation appears immediately.
- * </dd>
  * 
- * <dt>"full"</dt><dd>
- * full buffering; output operation is performed only
- * when the buffer is full (or when you explicitly ```flush``` the file
+ * "no"
+ * : no buffering; the result of any output operation appears immediately.
+ * 
+ * 
+ * 
+ * "full"
+ * : full buffering; output operation is performed only
+ * when the buffer is full (or when you explicitly `flush` the file
  * ).
- * </dd>
  * 
- * <dt>"line"</dt><dd>
- * line buffering; output is buffered until a newline is output
+ * 
+ * 
+ * "line"
+ * : line buffering; output is buffered until a newline is output
  * or there is any input from some special files
  * (such as a terminal device).
- * </dd>
+ * 
+ * 
+ * 
+ * 
  * 
  * For the last two cases, size
  * specifies the size of the buffer, in bytes.
@@ -324,7 +352,6 @@
  */
 
 /*# writes to a file
- * 
  * 
  * Writes the value of each of its arguments to
  * the file.
