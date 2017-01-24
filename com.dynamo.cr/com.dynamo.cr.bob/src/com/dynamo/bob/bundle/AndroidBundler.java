@@ -28,6 +28,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.BundleResourceUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -53,6 +55,9 @@ public class AndroidBundler implements IBundler {
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
+
+        // Collect bundle/package resources to be included in APK zip
+        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.Armv7Android);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         final boolean debug = project.hasOption("debug");
@@ -224,6 +229,9 @@ public class AndroidBundler implements IBundler {
                 zipOut.putNextEntry(ze);
                 FileUtils.copyFile(source, zipOut);
             }
+
+            // Copy bundle resources into .apk zip (actually .ap2 in this case)
+            BundleResourceUtil.writeResourcesToZip(bundleResources, zipOut);
 
             // Strip executable
             String strippedpath = exe.getAbsolutePath();
