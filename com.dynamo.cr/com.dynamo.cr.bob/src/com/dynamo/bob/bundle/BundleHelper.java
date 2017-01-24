@@ -138,7 +138,7 @@ public class BundleHelper {
         return this;
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, File root, List<File> allSource, File logFile, File cacheDir, String srcName, File outputEngine) throws CompileExceptionError {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, File root, List<File> allSource, File logFile, String srcName, File outputEngine) throws CompileExceptionError {
         File zipFile = null;
 
         try {
@@ -149,7 +149,7 @@ public class BundleHelper {
         }
 
         try {
-            extender.build(platform, sdkVersion, root, allSource, cacheDir, zipFile, logFile);
+            extender.build(platform, sdkVersion, root, allSource, zipFile, logFile);
         } catch (ExtenderClientException e) {
             String buildError = "<no log file>";
             if (logFile != null) {

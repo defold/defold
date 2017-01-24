@@ -105,7 +105,6 @@ public class LaunchHandler extends AbstractHandler {
                     }
                     String serverURL = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
 
-                    ExtenderClient extender = new ExtenderClient(serverURL);
                     logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
                     logFile.deleteOnExit();
 
@@ -115,9 +114,11 @@ public class LaunchHandler extends AbstractHandler {
                     buildDir.mkdirs();
                     File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
 
+                    ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+
                     String defaultName = FilenameUtils.getName(Engine.getDefault().getEnginePath());
                     List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
-                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, cacheDir, defaultName, exe);
+                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, defaultName, exe);
                     exeName = exe.getAbsolutePath();
                 } catch (IOException e) {
                     buildError = e.getMessage();
