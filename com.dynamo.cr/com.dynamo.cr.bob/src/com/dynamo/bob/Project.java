@@ -243,6 +243,10 @@ public class Project {
         System.err.println(String.format(fmt, args));
     }
 
+    public void clearProjectProperties() {
+        projectProperties = new BobProjectProperties();
+    }
+
     /**
      * Build the project
      * @param monitor
@@ -252,7 +256,7 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         try {
-            projectProperties = new BobProjectProperties();
+            clearProjectProperties();
             IResource gameProject = this.fileSystem.get("/game.project");
             if (gameProject.exists()) {
                 ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());

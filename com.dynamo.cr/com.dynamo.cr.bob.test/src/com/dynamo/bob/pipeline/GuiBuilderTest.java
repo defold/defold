@@ -41,17 +41,20 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
             while (entries.hasMoreElements()) {
                 final URL url = entries.nextElement();
                 IPath path = new Path(url.getPath()).removeFirstSegments(1);
-                InputStream is = null;
-                try {
-                    is = url.openStream();
-                    ByteArrayOutputStream os = new ByteArrayOutputStream();
-                    IOUtils.copy(is, os);
-                    String p = "/test/" + path.toString();
-                    addFile(p, os.toByteArray());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    IOUtils.closeQuietly(is);
+                // Make sure to only add files and not directory entries.
+                if (path.toString().lastIndexOf('/') != path.toString().length() - 1) {
+                    InputStream is = null;
+                    try {
+                        is = url.openStream();
+                        ByteArrayOutputStream os = new ByteArrayOutputStream();
+                        IOUtils.copy(is, os);
+                        String p = "/test/" + path.toString();
+                        addFile(p, os.toByteArray());
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        IOUtils.closeQuietly(is);
+                    }
                 }
             }
         }

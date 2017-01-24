@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+
 import org.apache.commons.io.FileUtils;
 
 import com.defold.extender.client.ExtenderClient;
@@ -11,6 +13,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.BundleResourceUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class OSXBundler implements IBundler {
@@ -28,6 +32,9 @@ public class OSXBundler implements IBundler {
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
+
+        // Collect bundle/package resources to be included in .App directory
+        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.X86Darwin);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -70,6 +77,9 @@ public class OSXBundler implements IBundler {
         macosDir.mkdirs();
 
         BundleHelper helper = new BundleHelper(project, Platform.X86Darwin, bundleDir, ".app");
+
+        // Copy bundle resources into .app folder
+        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy archive and game.projectc
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
