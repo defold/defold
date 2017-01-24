@@ -86,7 +86,7 @@ public class IOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.Arm64Darwin);
 
         boolean debug = project.hasOption("debug");
 

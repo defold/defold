@@ -22,7 +22,7 @@ public class LinuxBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.X86Linux);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String binaryX86 = Bob.getDmengineExe(Platform.X86Linux, project.hasOption("debug"));

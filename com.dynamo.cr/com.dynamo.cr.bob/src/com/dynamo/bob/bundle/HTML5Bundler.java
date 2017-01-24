@@ -12,7 +12,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -151,7 +150,7 @@ public class HTML5Bundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.JsWeb);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 

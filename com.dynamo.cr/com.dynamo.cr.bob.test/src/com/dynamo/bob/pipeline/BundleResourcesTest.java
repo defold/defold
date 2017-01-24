@@ -34,6 +34,7 @@ import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
@@ -249,29 +250,28 @@ public class BundleResourcesTest {
     public void testPlatform() throws Exception {
 
         // Test data
-        Map<String, String[]> expected = new HashMap<String, String[]>();
-        expected.put("x86-darwin", new String[] { "osx.txt", "x86-osx.txt" });
-        expected.put("x86_64-darwin", new String[] { "osx.txt", "x86_64-osx.txt" });
-        expected.put("x86-linux", new String[] { "linux.txt", "x86-linux.txt" });
-        expected.put("x86_64-linux", new String[] { "linux.txt", "x86_64-linux.txt" });
-        expected.put("x86-win32", new String[] { "windows.txt", "x86-windows.txt" });
-        expected.put("x86_64-win32", new String[] { "windows.txt", "x86_64-windows.txt" });
-        expected.put("armv7-android", new String[] { "android.txt" });
-        expected.put("armv7-darwin", new String[] { "ios.txt", "armv7-ios.txt" });
-        expected.put("arm64-darwin", new String[] { "ios.txt", "arm64-ios.txt" });
-        expected.put("js-web", new String[] { "web.txt" });
+        Map<Platform, String[]> expected = new HashMap<Platform, String[]>();
+        expected.put(Platform.X86Darwin, new String[] { "osx.txt", "x86-osx.txt" });
+        expected.put(Platform.X86_64Darwin, new String[] { "osx.txt", "x86_64-osx.txt" });
+        expected.put(Platform.X86Linux, new String[] { "linux.txt", "x86-linux.txt" });
+        expected.put(Platform.X86_64Linux, new String[] { "linux.txt", "x86_64-linux.txt" });
+        expected.put(Platform.X86Win32, new String[] { "windows.txt", "x86-windows.txt" });
+        expected.put(Platform.X86_64Win32, new String[] { "windows.txt", "x86_64-windows.txt" });
+        expected.put(Platform.Armv7Android, new String[] { "android.txt" });
+        expected.put(Platform.Armv7Darwin, new String[] { "ios.txt", "armv7-ios.txt" });
+        expected.put(Platform.Arm64Darwin, new String[] { "ios.txt", "arm64-ios.txt" });
+        expected.put(Platform.JsWeb, new String[] { "web.txt" });
 
         // Should find bundle resources inside the extension1 folder
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest2/");
 
-        Iterator<Map.Entry<String, String[]>> it = expected.entrySet().iterator();
+        Iterator<Map.Entry<Platform, String[]>> it = expected.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, String[]> entry = (Map.Entry<String, String[]>)it.next();
-            String expectedPlatform = entry.getKey();
+            Map.Entry<Platform, String[]> entry = (Map.Entry<Platform, String[]>)it.next();
+            Platform expectedPlatform = entry.getKey();
             String[] expectedFiles = entry.getValue();
 
-            project.setOption("platform", expectedPlatform);
-            Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project);
+            Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project, expectedPlatform);
 
             // +3 size since collision.txt, common.txt subdir/subdirtest.txt always included.
             assertEquals(expectedFiles.length + 3, resourceMap.size());

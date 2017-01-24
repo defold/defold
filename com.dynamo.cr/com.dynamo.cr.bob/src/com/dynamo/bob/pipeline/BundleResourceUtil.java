@@ -62,80 +62,6 @@ public class BundleResourceUtil {
         }
     }
 
-    private static String guessPlatformString(Project project) {
-        String targetPlatform = project.option("platform", null);
-
-        if (targetPlatform == null) {
-            Platform hostPlatform = Platform.getHostPlatform();
-            targetPlatform = hostPlatform.getPair();
-        }
-
-        return targetPlatform;
-    }
-
-    private static List<String> platformStringToFolderAlternatives(String platform) {
-        List<String> alternatives = new ArrayList<String>();
-        alternatives.add("common");
-
-        String[] platformParts = platform.split("-");
-        String arch = platformParts.length > 1 ? platformParts[0] : "";
-        String os = platformParts.length > 1 ? platformParts[1] : platformParts[0];
-
-        switch (os) {
-        case "darwin":
-            if (arch.equals("armv7")) {
-                alternatives.add("ios");
-                alternatives.add("armv7-ios");
-            } else if (arch.equals("arm64")) {
-                alternatives.add("ios");
-                alternatives.add("arm64-ios");
-            } else if (arch.equals("x86")) {
-                alternatives.add("osx");
-                alternatives.add("x86-osx");
-            } else if (arch.equals("x86_64")) {
-                alternatives.add("osx");
-                alternatives.add("x86_64-osx");
-            }
-            break;
-
-        case "android":
-            alternatives.add("android");
-            if (arch.equals("armv7")) {
-                alternatives.add("armv7-android");
-            } else if (arch.equals("arm64")) {
-                alternatives.add("arm64-android");
-            }
-            break;
-
-        case "linux":
-            alternatives.add("linux");
-            if (arch.equals("x86")) {
-                alternatives.add("x86-linux");
-            } else if (arch.equals("x86_64")) {
-                alternatives.add("x86_64-linux");
-            }
-            break;
-
-        case "win32":
-            alternatives.add("windows");
-            if (arch.equals("x86")) {
-                alternatives.add("x86-windows");
-            } else if (arch.equals("x86_64")) {
-                alternatives.add("x86_64-windows");
-            }
-            break;
-
-        case "web":
-            alternatives.add("web");
-            break;
-
-        default:
-            break;
-        }
-
-        return alternatives;
-    }
-
     private static List<String> trimExcludePaths(List<String> excludes) {
         List<String> trimmedExcludes = new ArrayList<String>();
         for (String path : excludes) {
@@ -156,13 +82,6 @@ public class BundleResourceUtil {
         if (excludes == null) {
             excludes = new ArrayList<>();
         }
-
-        // Remove prefix slash if present
-        /*
-        if (!path.substring(0,1).equals("/")) {
-            path = path.substring(1);
-        }
-        */
 
         HashMap<String, IResource> resources = new HashMap<String, IResource>();
         ArrayList<String> paths = new ArrayList<>();
@@ -186,11 +105,13 @@ public class BundleResourceUtil {
      * @return Returns a map with output paths as keys and the corresponding IResource that should be used as value.
      * @throws CompileExceptionError if a output conflict occurs.
      */
-    public static Map<String, IResource> collectResources(Project project, String platform) throws CompileExceptionError {
+    public static Map<String, IResource> collectResources(Project project, Platform platform) throws CompileExceptionError {
 
         Map<String, IResource> bundleResources = new HashMap<String, IResource>();
         List<String> bundleExcludeList = trimExcludePaths(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
-        List<String> platformFolderAlternatives = platformStringToFolderAlternatives(platform);
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
+        platformFolderAlternatives.add("common");
 
         // Project specific bundle resources
         String bundleResourcesPath = project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
@@ -220,7 +141,7 @@ public class BundleResourceUtil {
      * @throws CompileExceptionError if a output conflict occurs.
      */
     public static Map<String, IResource> collectResources(Project project) throws CompileExceptionError {
-        return collectResources(project, guessPlatformString(project));
+        return collectResources(project, Platform.getHostPlatform());
     }
 
     /**

@@ -28,7 +28,7 @@ public class Win32Bundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, platform);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String exe = Bob.getDmengineExe(platform, project.hasOption("debug"));
