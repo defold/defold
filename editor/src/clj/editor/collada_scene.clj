@@ -1,26 +1,21 @@
 (ns editor.collada-scene
   (:require [clojure.java.io :as io]
-            [clojure.xml :as xml]
-            [clojure.string :as str]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [clojure.data.json :as json]
+            [editor.collada :as collada]
+            [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
             [editor.gl.pass :as pass]
             [editor.geom :as geom]
             [editor.render :as render]
+            [editor.resource :as resource]
             [editor.rig :as rig]
-            [editor.collada :as collada]
+            [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
-  (:import [com.dynamo.rig.proto Rig$MeshSet]
-           [editor.types AABB]
-           [com.jogamp.opengl GL GL2]))
+  (:import [com.jogamp.opengl GL GL2]
+           [editor.types AABB]))
 
 (set! *warn-on-reflection* true)
 
@@ -97,20 +92,28 @@
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
             (gl/gl-disable gl GL/GL_CULL_FACE)))))))
 
-(defn- build-mesh [self basis resource dep-resources user-data]
-  (let [content (:content user-data)]
-    {:resource resource :content (protobuf/map->bytes Rig$MeshSet content)}))
+(g/defnk produce-animation-set [content]
+  (:animation-set content))
 
-(g/defnk produce-build-targets [_node-id resource content]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-mesh
-    :user-data {:content content}}])
+(g/defnk produce-animation-set-build-target [_node-id resource animation-set]
+  (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set))
+
+(g/defnk produce-mesh-set [content]
+  (:mesh-set content))
+
+(g/defnk produce-mesh-set-build-target [_node-id resource mesh-set]
+  (rig/make-mesh-set-build-target (resource/workspace resource) _node-id mesh-set))
+
+(g/defnk produce-skeleton [content]
+  (:skeleton content))
+
+(g/defnk produce-skeleton-build-target [_node-id resource skeleton]
+  (rig/make-skeleton-build-target (resource/workspace resource) _node-id skeleton))
 
 (g/defnk produce-content [resource]
   (try
     (with-open [stream (io/input-stream resource)]
-      (collada/->mesh-set stream))
+      (collada/load-scene stream))
     (catch NumberFormatException _
       (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter."))))
 
@@ -146,25 +149,29 @@
   (inherits project/ResourceNode)
 
   (output content g/Any :cached produce-content)
-  (output aabb AABB :cached (g/fnk [content]
+  (output aabb AABB :cached (g/fnk [mesh-set]
                                    (reduce (fn [aabb [x y z]]
                                              (geom/aabb-incorporate aabb x y z))
                                            (geom/null-aabb)
-                                           (partition 3 (get-in content [:components 0 :positions])))))
-  (output build-targets g/Any :cached produce-build-targets)
-  (output vbs g/Any :cached (g/fnk [content]
+                                           (partition 3 (get-in mesh-set [:components 0 :positions])))))
+  (output animation-set g/Any produce-animation-set)
+  (output animation-set-build-target g/Any :cached produce-animation-set-build-target)
+  (output mesh-set g/Any produce-mesh-set)
+  (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)
+  (output skeleton g/Any produce-skeleton)
+  (output skeleton-build-target g/Any :cached produce-skeleton-build-target)
+  (output vbs g/Any :cached (g/fnk [mesh-set]
                               (into []
                                     (comp (mapcat :meshes)
                                           (remove (comp :positions empty?))
                                           (map mesh->vb))
-                                    (:mesh-entries content))))
+                                    (:mesh-entries mesh-set))))
   (output scene g/Any :cached produce-scene))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "dae"
                                     :label "Collada Scene"
-                                    :build-ext "meshsetc"
                                     :node-type ColladaSceneNode
                                     :icon mesh-icon
                                     :view-types [:scene :text]))
