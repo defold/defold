@@ -65,6 +65,10 @@ public class BundleGenericHandler extends AbstractBundleHandler {
         if(presenter.shouldGenerateReport()) {
             options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));
         }
+        
+        if (presenter.shouldPublishLiveUpdate()) {
+        	options.put("liveupdate", "true");
+        }
 
         if (EditorUtil.isDev()) {
             options.put("native-ext", "true");

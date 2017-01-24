@@ -16,6 +16,7 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
     private String[] identities = new String[0];
     private boolean releaseMode;
     private boolean generateReport;
+    private boolean publishLiveUpdate = false;
 
     @Inject
     public BundleiOSPresenter(IBundleiOSView view, IIdentityLister lister) {
@@ -108,6 +109,15 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
     @Override
     public void generateReportSelected(boolean selection) {
         this.generateReportSelected(selection, true);
+    }
+    
+    @Override
+    public void publishLiveUpdateSelected(boolean selection) {
+    	this.publishLiveUpdate = selection;
+    }
+    
+    public boolean shouldPublishLiveUpdate() {
+    	return this.publishLiveUpdate;
     }
 
     public void generateReportSelected(boolean selection, boolean validate) {

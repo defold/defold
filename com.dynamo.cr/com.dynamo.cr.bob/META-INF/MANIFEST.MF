@@ -19,6 +19,7 @@ Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
 Export-Package: com.dynamo.bob,
  com.dynamo.bob.archive,
+ com.dynamo.bob.archive.publisher,
  com.dynamo.bob.bundle,
  com.dynamo.bob.font,
  com.dynamo.bob.fs,

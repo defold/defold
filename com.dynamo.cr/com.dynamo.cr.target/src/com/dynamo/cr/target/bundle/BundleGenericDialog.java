@@ -31,20 +31,16 @@ public class BundleGenericDialog extends TitleAreaDialog implements
         public void releaseModeSelected(boolean selection, boolean validate);
         public void generateReportSelected(boolean selection);
         public void generateReportSelected(boolean selection, boolean validate);
+        public void publishLiveUpdateSelected(boolean selection);
     }
 
     private Button packageApplication;
-    private Button liveUpdateSettings;
-    private Button advancedSettings;
     
     private IPresenter presenter;
     private Button releaseMode;
     private Button generateReport;
     private Button publishLiveUpdate;
     private String title = "";
-
-    private Text privateKeyText;
-    private Text publicKeyText;
 
     private static boolean persistentReleaseMode = false;
     private static boolean persistentGenerateReport = false;
@@ -112,32 +108,18 @@ public class BundleGenericDialog extends TitleAreaDialog implements
         publishLiveUpdate = new Button(container, SWT.CHECK);
         publishLiveUpdate.setText("Publish LiveUpdate content");
         publishLiveUpdate.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
-        
-        
+        publishLiveUpdate.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.publishLiveUpdateSelected(publishLiveUpdate.getSelection());
+            }
+        });
         
         return area;
     }
 
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
-    	((GridLayout) parent.getLayout()).numColumns++;
-    	liveUpdateSettings = new Button(parent, SWT.PUSH);
-    	liveUpdateSettings.setText("LiveUpdate");
-    	liveUpdateSettings.setFont(JFaceResources.getDialogFont());
-    	liveUpdateSettings.addSelectionListener(new SelectionAdapter() {
-    		
-    		@Override
-    		public void widgetSelected(SelectionEvent event) {
-    			Display display = Display.getDefault();
-    			Shell shell = new Shell(display);
-    			LiveUpdateDialog dialog = new LiveUpdateDialog(shell);
-    			LiveUpdatePresenter presenter = new LiveUpdatePresenter();
-    			dialog.setPresenter(presenter);
-    			dialog.open();
-    		}
-    	});
-
-    	
         packageApplication = createButton(parent, IDialogConstants.OK_ID, "Package", true); //$NON-NLS-1$
     }
 

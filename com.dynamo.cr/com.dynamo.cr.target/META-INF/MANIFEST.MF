@@ -20,9 +20,11 @@ Require-Bundle: org.eclipse.core.runtime,
  javax.inject;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: .,
- lib/jdom-2.0.1.jar
+ lib/jdom-2.0.1.jar,
+ lib/aws-java-sdk-1.11.80.jar
 Export-Package: com.dynamo.cr.target.bundle,
  com.dynamo.cr.target.core,
  com.dynamo.cr.target.sign
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
+Import-Package: com.dynamo.cr.client

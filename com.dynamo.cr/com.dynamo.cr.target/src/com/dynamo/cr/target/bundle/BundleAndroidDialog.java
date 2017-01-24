@@ -30,12 +30,14 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
         public void releaseModeSelected(boolean selection, boolean validate);
         public void generateReportSelected(boolean selection);
         public void generateReportSelected(boolean selection, boolean validate);
+        public void publishLiveUpdateSelected(boolean selection);
     }
 
     private Button packageApplication;
     private IPresenter presenter;
     private Button releaseMode;
     private Button generateReport;
+    private Button publishLiveUpdate;
 
     private static String persistentCertificate = null;
     private static String persistentKey = null;
@@ -158,7 +160,16 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
                 presenter.generateReportSelected(persistentGenerateReport);
             }
         });
-
+        
+        publishLiveUpdate = new Button(container, SWT.CHECK);
+        publishLiveUpdate.setText("Publish LiveUpdate content");
+        publishLiveUpdate.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        publishLiveUpdate.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.publishLiveUpdateSelected(publishLiveUpdate.getSelection());
+            }
+        });
 
         return area;
     }
