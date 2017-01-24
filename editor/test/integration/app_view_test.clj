@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.asset-browser :as asset-browser]
             [editor.git :as git]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
@@ -136,3 +137,20 @@
       (is (test-util/selected? app-view (g/node-value app-view :active-resource-node)))
       (revert-all! workspace git)
       (is (= atlas-res (g/node-value app-view :active-resource))))))
+
+(deftest rename-directory-handles-all-files-in-directory
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
+          project (test-util/setup-project! workspace)
+          game-project (test-util/resource-node project "/game.project")
+          main-dir (workspace/find-resource workspace "/main")]
+      (is main-dir)
+      (let [build-results (project/build project game-project {})]
+        (is (seq build-results))
+        (is (not (g/error? build-results))))
+      (asset-browser/rename main-dir "/blahonga")
+      (is (nil? (workspace/find-resource workspace "/main")))
+      (is (workspace/find-resource workspace "/blahonga"))
+      (let [build-results (project/build project game-project {})]
+        (is (seq build-results))
+        (is (not (g/error? build-results)))))))

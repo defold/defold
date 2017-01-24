@@ -7,16 +7,16 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 
 public enum Platform {
-    X86Darwin("x86", "darwin", "", "", "lib", ".dylib"),
-    X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib"),
-    X86Win32("x86", "win32", ".exe", "", "", ".dll"),
-    X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll"),
-    X86Linux("x86", "linux", "", "", "lib", ".so"),
-    X86_64Linux("x86_64", "linux", "", "", "lib", ".so"),
-    Armv7Darwin("armv7", "darwin", "", "", "lib", ".so"),
-    Arm64Darwin("arm64", "darwin", "", "", "lib", ".so"),
-    Armv7Android("armv7", "android", ".so", "lib", "lib", ".so"),
-    JsWeb("js", "web", ".js", "", "lib", "");
+    X86Darwin("x86", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86-osx"}),
+    X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}),
+    X86Win32("x86", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86-windows"}),
+    X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86_64-windows"}),
+    X86Linux("x86", "linux", "", "", "lib", ".so", new String[] {"linux", "x86-linux"}),
+    X86_64Linux("x86_64", "linux", "", "", "lib", ".so", new String[] {"linux", "x86_64-linux"}),
+    Armv7Darwin("armv7", "darwin", "", "", "lib", ".so", new String[] {"ios", "armv7-ios"}),
+    Arm64Darwin("arm64", "darwin", "", "", "lib", ".so", new String[] {"ios", "arm64-ios"}),
+    Armv7Android("armv7", "android", ".so", "lib", "lib", ".so", new String[] {"android", "armv7-android"}),
+    JsWeb("js", "web", ".js", "", "lib", "", new String[] {"web", "js-web"});
 
     private static HashMap<OS, String> platformPatterns = new HashMap<OS, String>();
     static {
@@ -48,13 +48,15 @@ public enum Platform {
     String exePrefix;
     String libSuffix;
     String libPrefix;
-    Platform(String arch, String os, String exeSuffix, String exePrefix, String libPrefix, String libSuffix) {
+    String[] extenderPaths = null;
+    Platform(String arch, String os, String exeSuffix, String exePrefix, String libPrefix, String libSuffix, String[] extenderPaths) {
         this.arch = arch;
         this.os = os;
         this.exeSuffix = exeSuffix;
         this.exePrefix = exePrefix;
         this.libSuffix = libSuffix;
         this.libPrefix = libPrefix;
+        this.extenderPaths = extenderPaths;
     }
 
     public String getExeSuffix() {
@@ -71,6 +73,10 @@ public enum Platform {
 
     public String getLibSuffix() {
         return libSuffix;
+    }
+
+    public String[] getExtenderPaths() {
+        return extenderPaths;
     }
 
     public String getPair() {

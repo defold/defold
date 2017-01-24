@@ -4561,7 +4561,7 @@ namespace dmGui
      * ----------- | ----------------------------------------------------------
      * `pressed`   | True if the finger was pressed this frame.
      * `released`  | True if the finger was released this frame.
-     * `tap_count` | Number of taps, one for singledouble-tap, etc.
+     * `tap_count` | Number of taps, one for single, two for double-tap, etc
      * `x`         | The x touch location.
      * `y`         | The y touch location.
      * `dx`        | The change in x value.

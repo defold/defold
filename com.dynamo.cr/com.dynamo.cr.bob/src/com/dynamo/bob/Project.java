@@ -265,7 +265,7 @@ public class Project {
 		            if (secretKey != null) {
 		            	settings.setValue("liveupdate", "aws-secret-key", secretKey);
 		            }
-		            
+
 		            if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
 		                this.publisher = new AWSPublisher();
 		            } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
@@ -275,7 +275,7 @@ public class Project {
 		            } else {
 		                this.publisher = new NullPublisher();
 		            }
-		
+
 		            this.publisher.Initialize(settings);
 		        } else {
 		            this.publisher = new NullPublisher();
@@ -290,6 +290,10 @@ public class Project {
     	}
     }
 
+    public void clearProjectProperties() {
+        projectProperties = new BobProjectProperties();
+    }
+
     /**
      * Build the project
      * @param monitor
@@ -299,7 +303,7 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         try {
-            projectProperties = new BobProjectProperties();
+            clearProjectProperties();
             IResource gameProject = this.fileSystem.get("/game.project");
             if (gameProject.exists()) {
                 ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
