@@ -30,7 +30,7 @@
   (with-open [stream (->> file-path
                           (workspace/file-resource workspace)
                           io/input-stream)]
-    (collada/->mesh-set stream)))
+    (:mesh-set (collada/load stream))))
 
 (deftest normals
   (with-clean-system

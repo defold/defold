@@ -1,31 +1,19 @@
 (ns editor.model
   (:require [dynamo.graph :as g]
-            [editor.geom :as geom]
-            [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.gl.texture :as texture]
             [editor.defold-project :as project]
-            [editor.rig :as rig]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [editor.math :as math]
-            [editor.gl.pass :as pass]
+            [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
-            [editor.protobuf :as protobuf]
-            [editor.validation :as validation]
             [editor.image :as image]
-            [editor.material :as material])
-  (:import [com.dynamo.model.proto ModelProto$ModelDesc ModelProto$Model]
-           [com.dynamo.rig.proto Rig$RigScene]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]
-           [editor.gl.shader ShaderLifecycle]))
+            [editor.material :as material]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.rig :as rig]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.model.proto ModelProto$Model ModelProto$ModelDesc]
+           [editor.gl.shader ShaderLifecycle]
+           [editor.types AABB]
+           [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
 
@@ -44,14 +32,6 @@
   {:resource resource
    :content (protobuf/map->str ModelProto$ModelDesc pb-msg)})
 
-(g/defnk produce-rig-scene-pb-msg [pb-msg]
-  {;; TODO - skeleton and animation-set not currently supported
-   ;; :skeleton (:skeleton pb-msg)
-   ;; :animation-set (:animations pb-msg)
-   :mesh-set (:mesh pb-msg)
-   ;; set in the ModelProto$Model message
-   :texture-set ""})
-
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [pb  (:pb user-data)
         pb  (reduce (fn [pb [label resource]]
@@ -63,34 +43,16 @@
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
 
-(defn- build-rig-scene [self basis resource dep-resources user-data]
-  (let [pb (:pb user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2))
-                   pb
-                   (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))])
-                        (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes Rig$RigScene pb)}))
-
-(defn- make-rig-scene-build-targets
-  [node-id resource pb dep-build-targets]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
-        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb (first field))))) [field])) [:mesh-set])
-        dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb label) (get pb label)))]) resource-fields)]
-    [{:node-id node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-rig-scene
-      :user-data {:pb pb
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
-
-(g/defnk produce-build-targets [_node-id resource pb-msg rig-scene-pb-msg dep-build-targets]
-  (let [;; TODO - this is not the right way to do things
-        ;; should be fixed as part of https://jira.int.midasplayer.com/browse/DEFEDIT-576
-        workspace (resource/workspace resource)
-        rig-scene-type     (workspace/get-resource-type workspace "rigscene")
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets animation-set-build-target mesh-set-build-target skeleton-build-target]
+  (let [workspace (resource/workspace resource)
+        rig-scene-type (workspace/get-resource-type workspace "rigscene")
         rig-scene-resource (resource/make-memory-resource workspace rig-scene-type (str (gensym)))
-        rig-scene-build-targets (make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets)
+        rig-scene-dep-build-targets {:animation-set animation-set-build-target
+                                     :mesh-set mesh-set-build-target
+                                     :skeleton skeleton-build-target}
+        rig-scene-pb-msg {:texture-set ""} ; Set in the ModelProto$Model message. Other field values taken from build targets.
+        rig-scene-additional-resource-keys []
+        rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-additional-resource-keys rig-scene-dep-build-targets)
         pb-msg (select-keys pb-msg [:material :textures :default-animation])
         dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
         deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
@@ -136,14 +98,13 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :mesh-resource]
-                                            [:content :mesh-pb]
                                             [:aabb :aabb]
-                                            [:build-targets :dep-build-targets]
+                                            [:mesh-set-build-target :mesh-set-build-target]
                                             [:scene :scene])))
             (dynamic error (g/fnk [_node-id mesh]
                                   (prop-resource-error :info _node-id :mesh mesh "Mesh")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                          :ext "dae"})))
+                                              :ext "dae"})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
@@ -155,7 +116,7 @@
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error :fatal _node-id :material material "Material")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                          :ext "material"})))
+                                              :ext "material"})))
   (property textures resource/ResourceVec
             (value (gu/passthrough texture-resources))
             (set (fn [basis self old-value new-value]
@@ -177,7 +138,8 @@
             (value (gu/passthrough skeleton-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                            [:resource :skeleton-resource])))
+                                            [:resource :skeleton-resource]
+                                            [:skeleton-build-target :skeleton-build-target])))
             (dynamic error (g/fnk [_node-id skeleton]
                                   (when skeleton
                                     (prop-resource-error :fatal _node-id :skeleton skeleton "Skeleton"))))
@@ -187,20 +149,23 @@
             (value (gu/passthrough animations-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                            [:resource :animations-resource])))
+                                            [:resource :animations-resource]
+                                            [:animation-set-build-target :animation-set-build-target])))
             (dynamic error (g/fnk [_node-id animations]
                                   (when animations
                                     (prop-resource-error :fatal _node-id :animations animations "Animations"))))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext ["dae" "animset"]})))
+                                              :ext ["dae" "animationset"]})))
   (property default-animation g/Str)
 
   (input mesh-resource resource/Resource)
-  (input mesh-pb g/Any)
+  (input mesh-set-build-target g/Any)
   (input material-resource resource/Resource)
   (input samplers g/Any)
   (input skeleton-resource resource/Resource)
+  (input skeleton-build-target g/Any)
   (input animations-resource resource/Resource)
+  (input animation-set-build-target g/Any)
   (input texture-resources resource/Resource :array)
   (input images BufferedImage :array)
   (input dep-build-targets g/Any :array)
@@ -208,7 +173,6 @@
   (input shader ShaderLifecycle)
 
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output rig-scene-pb-msg g/Any :cached produce-rig-scene-pb-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-textures g/Any :cached produce-gpu-textures)
