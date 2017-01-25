@@ -164,6 +164,25 @@ namespace dmSys
     Result Unlink(const char* path);
 
     /**
+     * Move a file by first writing to a temporary file, and only moving if the write was
+     * successful.
+     * @param dst_filename the destination filename. The file which contents is to be overwritten.
+     * @param src_filename the source filename. The contents will be written to the destination filename.
+     * @return RESULT_OK on success
+    */
+    Result WriteWithMove(const char* dst_filename, const char* src_filename);
+
+    /**
+     * Write a buffer to file by first writing the buffer to a temp file, and only moving if the write
+     * was successful.
+     * @param filename the destination filename to write to
+     * @param buf the buffer to be written to file
+     * @oaram buf_len the length in bytes of the buffer
+     * @return RESULT_OK on success
+    */
+    Result WriteWithMove(const char* filename, const uint8_t* buf, uint32_t buf_len);
+
+    /**
      * Get and create platform specific application support directory.
      * Example paths:
      * OSX: ~/Library/Application Support/APPLICATION_NAME

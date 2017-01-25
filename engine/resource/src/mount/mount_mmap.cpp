@@ -19,7 +19,6 @@ namespace dmResource
         uint64_t index_length;
         void *data_map;
         uint64_t data_length;
-        FILE* lu_data_file;
     };
 
     Result MapFile(const char* path, void*& out_map, uint32_t& out_size)
@@ -50,13 +49,8 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    Result MountArchiveInternal(const char* index_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
-        // Derive path of arcd file from path to arci
-        char data_path[DMPATH_MAX_PATH];
-        dmStrlCpy(data_path, index_path, DMPATH_MAX_PATH);
-        data_path[strlen(index_path) - 1] = 'd';
-
         void* index_map = 0x0;
         uint32_t index_size = 0;
         Result r = MapFile(index_path, index_map, index_size);
@@ -111,7 +105,6 @@ namespace dmResource
         info->index_length = index_size;
         info->data_map = data_map;
         info->data_length = data_size;
-        info->lu_data_file = lu_data_file;
         *mount_info = (void*)info;
 
         return RESULT_OK;
@@ -134,11 +127,6 @@ namespace dmResource
         if (info->data_map)
         {
             munmap(info->data_map, info->data_length);
-        }
-
-        if (info->lu_data_file)
-        {
-            fclose(info->lu_data_file);
         }
 
         delete info;

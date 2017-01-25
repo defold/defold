@@ -21,7 +21,6 @@ namespace dmResource
     {
         AAsset *index_asset;
         AAsset *data_asset;
-        FILE *lu_data_file;
     };
 
     Result MapAsset(AAssetManager* am, const char* path,  void*& out_asset, uint32_t& out_size, void*& out_map)
@@ -42,13 +41,8 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    Result MountArchiveInternal(const char* index_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
-        // Derive path of arcd file from path to arci
-        char data_path[DMPATH_MAX_PATH];
-        memcpy(&data_path, index_path, strlen(index_path)+1); // copy NULL terminator as well
-        data_path[strlen(index_path)-1] = 'd';
-
         AAssetManager* am = g_AndroidApp->activity->assetManager;
         AAsset* index_asset = 0x0;
         uint32_t index_length = 0;
@@ -96,7 +90,6 @@ namespace dmResource
         MountInfo* info = new MountInfo();
         info->index_asset = index_asset;
         info->data_asset = data_asset;
-        info->lu_data_file = lu_data_file;
         *mount_info = (void*)info;
         return RESULT_OK;
     }
@@ -118,11 +111,6 @@ namespace dmResource
         if (info->data_asset)
         {
             AAsset_close(info->data_asset);
-        }
-
-        if (info->lu_data_file)
-        {
-            fclose(info->lu_data_file);
         }
 
         delete info;

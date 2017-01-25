@@ -52,6 +52,11 @@ namespace dmLiveUpdate
 
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen)
     {
+        if (manifest == 0x0)
+        {
+            return false;
+        }
+
         bool result = true;
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
@@ -85,6 +90,11 @@ namespace dmLiveUpdate
 
     bool StoreResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen)
     {
+        if (manifest == 0x0)
+        {
+            return false;
+        }
+        
         bool verify = VerifyResource(manifest, expected, expectedLength, buf, buflen);
         if (!verify)
         {
@@ -99,9 +109,7 @@ namespace dmLiveUpdate
         CreateResourceHash(algorithm, buf, buflen, digest);
 
         char proj_id[41];
-        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, (uint8_t*)&manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier, proj_id, 40);
-        proj_id[40] = '\0';
-
+        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, proj_id, 41);
         dmResource::Result res = dmResource::StoreResource(manifest, (const uint8_t*)digest, digestLength,(const uint8_t*)buf, buflen, proj_id);
 
         if (res != dmResource::RESULT_OK)

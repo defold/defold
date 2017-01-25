@@ -46,6 +46,12 @@ namespace dmLiveUpdate
     uint32_t MissingResources(dmResource::Manifest* manifest, const char* path, uint8_t* entries[], uint32_t entries_size)
     {
         uint32_t resources = 0;
+
+        if (manifest == 0x0)
+        {
+            return 0;
+        }
+
         HResourceEntry entry = FindResourceEntry(manifest->m_DDF, path);
         if (entry != NULL)
         {

@@ -36,6 +36,16 @@ static const uint8_t content_hash[][20] = {
     {   3U,  86U, 172U, 159U, 110U, 187U, 139U, 211U, 219U,   5U, 203U, 115U, 150U,  43U, 182U, 252U, 136U, 228U, 122U, 181U },
     {  69U,  26U,  15U, 239U, 138U, 110U, 167U, 120U, 214U,  38U, 144U, 200U,  19U, 102U,  63U,  48U, 173U,  41U,  21U,  66U }
 };
+
+static const uint8_t sorted_first_hash[20] = 
+    { 0U,   1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
+
+static const uint8_t sorted_last_hash[20] = 
+    { 255U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
+
+static const uint8_t sorted_middle_hash[20] = 
+    { 99U,  1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
+
 static const uint8_t compressed_content_hash[][20] = {
     { 206U, 246U, 241U, 188U, 170U, 142U,  34U, 244U, 115U,  87U,  65U,  38U,  88U,  34U, 188U,  33U, 144U,  44U,  18U,  46U },
     {  95U, 158U,  27U, 108U, 112U,  93U, 159U, 220U, 188U,  65U, 128U,  98U, 243U, 234U,  63U, 106U,  51U, 100U,   9U,  20U },
@@ -44,6 +54,24 @@ static const uint8_t compressed_content_hash[][20] = {
     {  16U, 184U, 254U, 147U, 172U,  48U,  89U, 214U,  29U,  90U, 128U, 156U,  37U,  60U, 100U,  69U, 246U, 252U, 122U,  99U }
 };
 
+TEST(dmResourceArchive, CalcInsertionIndex)
+{
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
+
+    int index = -1;
+
+    dmResourceArchive::CalcInsertionIndex(archive, sorted_first_hash, index);
+    ASSERT_EQ(0, index);
+
+    dmResourceArchive::CalcInsertionIndex(archive, sorted_last_hash, index);
+    ASSERT_EQ(5, index);
+
+    dmResourceArchive::CalcInsertionIndex(archive, sorted_middle_hash, index);
+    ASSERT_EQ(3, index);
+}
 
 TEST(dmResourceArchive, ManifestHeader)
 {
@@ -170,7 +198,8 @@ TEST(dmResourceArchive, LoadFromDisk)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/resources.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, 0x0, &archive);
+    const char* resource_path = "build/default/src/test/resources.arcd";
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, resource_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
@@ -199,7 +228,8 @@ TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/missing-archive.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, 0x0, &archive);
+    const char* resource_path = "build/default/src/test/resources.arcd";
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, resource_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, result);
 }
 
@@ -207,7 +237,8 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     const char* archive_path = "build/default/src/test/resources_compressed.arci";
-    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, 0x0, &archive);
+    const char* resource_path = "build/default/src/test/resources_compressed.arcd";
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, resource_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 

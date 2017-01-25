@@ -7,7 +7,7 @@
 
 namespace dmResource
 {
-    Result MountArchiveInternal(const char* index_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         *mount_info = 0;
         dmResourceArchive::Result r = LoadArchive(index_path, lu_data_path, archive);

@@ -23,6 +23,7 @@ namespace dmResourceArchive
         RESULT_IO_ERROR = -2,
         RESULT_MEM_ERROR = -3,
         RESULT_OUTBUFFER_TOO_SMALL = -4,
+        RESULT_ALREADY_STORED = -5,
         RESULT_UNKNOWN = -1000,
     };
 
@@ -59,7 +60,7 @@ namespace dmResourceArchive
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result LoadArchive(const char* index_file_name, const char* lu_data_file_path, HArchiveIndexContainer* archive);
+    Result LoadArchive(const char* index_file_name, const char* data_file_name, const char* lu_data_file_path, HArchiveIndexContainer* archive);
 
     /**
      * Find resource entry within archive
@@ -91,6 +92,8 @@ namespace dmResourceArchive
      * @return entry count
      */
     uint32_t GetEntryCount(HArchiveIndexContainer archive);
+
+    Result CalcInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int& index);
 
     Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const uint8_t* buf, uint32_t buf_len, const char* proj_id);
 
