@@ -20,6 +20,12 @@ For Eclipse:
 ### Required Software
 
 * [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+
+NOTE: If a old update of the JDK/JRE is used, the SSL root certificates has
+expired and you need to replace the file `cacerts` in the JRE with a newer one
+without expired certificates, otherwise SSL communication will fail. This has
+been done in the JRE:s used when bundling the editor (located on S3).
+
 * [Eclipse SDK 3.8.2](https://drive.google.com/a/king.com/file/d/0B1fYSwXgmBKXMTJzMmlhUmhaWTA/view?usp=sharing)
 * Python (on OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
@@ -39,7 +45,7 @@ For Eclipse:
         Install the 32-bit 2.7.12 version. This is latest one known to work. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually
         During the build of the 32 bit version of Defold, a python script needs to load a shared defold library (texc). This will not work using a 64 bit python.
         Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
-  
+
     - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
         Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
@@ -640,4 +646,3 @@ $ rm -f private.pem # This is optional!
 ## Porting to another compiler
 
 You will likely need to recompile external libraries. Source code for most is available [here](https://drive.google.com/open?id=0BxFxQdv6jzseeXh2TzBnYnpwdUU).
-
