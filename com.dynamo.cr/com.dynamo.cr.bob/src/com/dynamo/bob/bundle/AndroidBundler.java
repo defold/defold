@@ -72,6 +72,7 @@ public class AndroidBundler implements IBundler {
             String platform = "armv7-android";
 
             File cacheDir = new File(project.getBuildCachePath());
+            cacheDir.mkdirs();
             String sdkVersion = project.option("defoldsdk", "");
             String buildServer = project.option("build-server", "");
             ExtenderClient extender = new ExtenderClient(buildServer, cacheDir);
