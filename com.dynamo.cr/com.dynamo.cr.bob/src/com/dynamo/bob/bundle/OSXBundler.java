@@ -56,6 +56,7 @@ public class OSXBundler implements IBundler {
             String platform64 = "x86_64-osx";
 
             File cacheDir = new File(project.getBuildCachePath());
+            cacheDir.mkdirs();
             String sdkVersion = project.option("defoldsdk", "");
             String buildServer = project.option("build-server", "");
             ExtenderClient extender = new ExtenderClient(buildServer, cacheDir);

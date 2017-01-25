@@ -110,6 +110,7 @@ public class LaunchHandler extends AbstractHandler {
 
                     // Store the engine one level above the content build since that folder gets removed during a distclean
                     File cacheDir = new File(location + File.separator + ".internal" + File.separator + "cache");
+                    cacheDir.mkdirs();
                     File buildDir = new File(location + File.separator + "build" + File.separator + buildPlatform);
                     buildDir.mkdirs();
                     File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
