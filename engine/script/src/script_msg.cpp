@@ -256,35 +256,66 @@ namespace dmScript
     };
 
     /*# creates a new URL
-     * This is equivalent to msg.url("").
+     * This is equivalent to msg.url(""), which creates an url to the current
+     * script component.
      *
      * @name msg.url
-     * @return a new URL (url)
+     * @return url [type:url] a new URL
+     * @examples
+     *
+     * Create a new URL which will address the current script:
+     *
+     * ```lua
+     * local my_url = msg.url("")
+     * print(my_url) --> url: [current_collection:/my_instance#my_component]
+     * ```
      */
 
     /*# creates a new URL from a string
-     * The format of the string must be <code>"[socket:][path][#fragment]"</code>, which is similar to a http URL.
-     * When addressing instances, <code>socket</code> is the name of the collection. <code>path</code> is the id of the instance,
-     * which can either be relative the instance of the calling script or global. <code>fragment</code> would be the id of the desired component.
+     * The format of the string must be `[socket:][path][#fragment]`, which is similar to a HTTP URL.
+     * When addressing instances:
+     *
+     * - `socket` is the name of a valid world (a collection)
+     * - `path` is the id of the instance, which can either be relative the instance of the calling script or global
+     * - `fragment` would be the id of the desired component
      *
      * @name msg.url
-     * @param urlstring string to create the url from (string)
-     * @return a new URL (url)
+     * @param urlstring [type:string] string to create the url from
+     * @return url [type:url] a new URL
      * @examples
-     * <pre>
+     *
+     * ```lua
      * local my_url = msg.url("#my_component")
+     * print(my_url) --> url: [current_collection:/my_instance#my_component]
+     *
      * local my_url = msg.url("my_collection:/my_sub_collection/my_instance#my_component")
+     * print(my_url) --> url: [my_collection:/my_sub_collection/my_instance#my_component]
+     *
      * local my_url = msg.url("my_socket:")
-     * </pre>
+     * print(my_url) --> url: [my_collection:]
+     * ```
      */
 
     /*# creates a new URL from separate arguments
      *
      * @name msg.url
-     * @param [socket] socket of the URL (string|socket)
-     * @param [path] path of the URL (string|hash)
-     * @param [fragment] fragment of the URL (string|hash)
-     * @return a new URL (url)
+     * @param [socket] [type:string|socket] socket of the URL
+     * @param [path] [type:string|hash] path of the URL
+     * @param [fragment] [type:string|hash] fragment of the URL
+     * @return url [type:url] a new URL
+     * @examples
+     *
+     * ```lua
+     * local my_socket = "main" -- specify by valid name
+     * local my_path = hash("/my_collection/my_gameobject") -- specify as string or hash
+     * local my_fragment = "component" -- specify as string or hash
+     * local my_url = msg.url(my_socket, my_path, my_fragment)
+     *
+     * print(my_url) --> url: [main:/my_collection/my_gameobject#component]
+     * print(my_url.socket) --> 786443 (internal numeric value)
+     * print(my_url.path) --> hash: [/my_collection/my_gameobject]
+     * print(my_url.fragment) --> hash: [component]
+     * ```
      */
     int URL_new(lua_State* L)
     {
