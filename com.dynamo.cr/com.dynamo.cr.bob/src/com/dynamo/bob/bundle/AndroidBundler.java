@@ -24,6 +24,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.IExtenderResource;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -68,9 +69,9 @@ public class AndroidBundler implements IBundler {
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
 
-        File root = new File(project.getRootDirectory());
         boolean nativeExtEnabled = project.hasOption("native-ext");
-        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
+        List<String> extensionPaths = BundleResourceUtil.getExtensionFolders(project);
+        boolean hasNativeExtensions = nativeExtEnabled && extensionPaths.size() > 0;
         File exe = null;
 
         if (hasNativeExtensions) {
@@ -85,8 +86,8 @@ public class AndroidBundler implements IBundler {
             exe = File.createTempFile("engine_" + sdkVersion + "_" + platform, "");
             exe.deleteOnExit();
 
-            List<File> allSource = ExtenderClient.getExtensionSource(root, platform);
-            BundleHelper.buildEngineRemote(extender, platform, sdkVersion, root, allSource, logFile, "/libdmengine.so", exe);
+            List<IExtenderResource> allSource = BundleResourceUtil.getExtensionSources(project, Platform.Armv7Android);
+            BundleHelper.buildEngineRemote(extender, platform, sdkVersion, allSource, logFile, "/libdmengine.so", exe);
         } else {
             exe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
         }

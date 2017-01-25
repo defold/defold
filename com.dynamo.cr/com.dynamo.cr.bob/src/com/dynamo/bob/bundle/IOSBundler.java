@@ -30,6 +30,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.IExtenderResource;
 
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
@@ -90,9 +91,9 @@ public class IOSBundler implements IBundler {
 
         boolean debug = project.hasOption("debug");
 
-        File root = new File(project.getRootDirectory());
         boolean nativeExtEnabled = project.hasOption("native-ext");
-        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
+        List<String> extensionPaths = BundleResourceUtil.getExtensionFolders(project);
+        boolean hasNativeExtensions = nativeExtEnabled && extensionPaths.size() > 0;
 
         File exeArmv7 = null;
         File exeArm64 = null;
@@ -113,11 +114,11 @@ public class IOSBundler implements IBundler {
             exeArmv7 = File.createTempFile("engine_" + sdkVersion + "_" + platformv7, "");
             exeArmv7.deleteOnExit();
 
-            List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exeArm64);
+            List<IExtenderResource> allSource = BundleResourceUtil.getExtensionSources(project, Platform.Arm64Darwin);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, allSource, logFile, "/dmengine", exeArm64);
 
-            allSource = ExtenderClient.getExtensionSource(root, platformv7);
-            BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, root, allSource, logFile, "/dmengine", exeArmv7);
+            allSource = BundleResourceUtil.getExtensionSources(project, Platform.Armv7Darwin);
+            BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, allSource, logFile, "/dmengine", exeArmv7);
         }
         else
         {

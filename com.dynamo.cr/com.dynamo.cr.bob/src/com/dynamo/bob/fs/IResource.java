@@ -89,4 +89,10 @@ public interface IResource {
      * @throws IOException
      */
     void setContent(InputStream stream) throws IOException;
+
+    /**
+     * Get the time when the resource was modified
+     * @return long representing Unix time when the resource was modified
+     */
+    long getLastModified();
 }

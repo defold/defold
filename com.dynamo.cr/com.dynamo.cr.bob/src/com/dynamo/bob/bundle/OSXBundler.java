@@ -9,6 +9,7 @@ import java.util.Map;
 import org.apache.commons.io.FileUtils;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.IExtenderResource;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -47,9 +48,10 @@ public class OSXBundler implements IBundler {
 
         boolean debug = project.hasOption("debug");
 
-        File root = new File(project.getRootDirectory());
         boolean nativeExtEnabled = project.hasOption("native-ext");
-        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
+        List<String> extensionPaths = BundleResourceUtil.getExtensionFolders(project);
+        boolean hasNativeExtensions = nativeExtEnabled && extensionPaths.size() > 0;
+
         File exe = null;
 
         if (hasNativeExtensions) {
@@ -64,8 +66,8 @@ public class OSXBundler implements IBundler {
             exe = File.createTempFile("engine_" + sdkVersion + "_" + platform64, "");
             exe.deleteOnExit();
 
-            List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exe);
+            List<IExtenderResource> allSource = BundleResourceUtil.getExtensionSources(project, Platform.X86Darwin);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, allSource, logFile, "/dmengine", exe);
         } else {
             exe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
         }

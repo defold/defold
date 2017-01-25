@@ -32,6 +32,7 @@ import org.junit.rules.TemporaryFolder;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
+import com.defold.extender.client.IExtenderResource;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -80,6 +81,10 @@ public class BundleResourcesTest {
         this.fileSystem.addFile(file, content);
     }
 
+    private void addFile(String file, byte[] content, long modifiedTime) {
+        this.fileSystem.addFile(file, content, modifiedTime);
+    }
+
     private void addResourceDirectory(String dir) {
         Bundle bundle = FrameworkUtil.getBundle(getClass());
         Enumeration<URL> entries = bundle.findEntries(dir, "*", true);
@@ -112,22 +117,22 @@ public class BundleResourcesTest {
 
         List<String> folders = BundleResourceUtil.getExtensionFolders(project);
         assertEquals(1, folders.size());
-        assertEquals("/extension1", folders.get(0));
+        assertEquals("extension1", folders.get(0));
 
         // Add one more extension folder at root
         addFile("extension2/ext.manifest", "name: \"extension2\"");
         folders = BundleResourceUtil.getExtensionFolders(project);
         assertEquals(2, folders.size());
-        assertEquals("/extension1", folders.get(0));
-        assertEquals("/extension2", folders.get(1));
+        assertEquals("extension1", folders.get(0));
+        assertEquals("extension2", folders.get(1));
 
         // Add one more extension folder in a nested subfolder
         addFile("subfolder/extension3/ext.manifest", "name: \"extension3\"");
         folders = BundleResourceUtil.getExtensionFolders(project);
         assertEquals(3, folders.size());
-        assertEquals("/extension1", folders.get(0));
-        assertEquals("/extension2", folders.get(1));
-        assertEquals("/subfolder/extension3", folders.get(2));
+        assertEquals("extension1", folders.get(0));
+        assertEquals("extension2", folders.get(1));
+        assertEquals("subfolder/extension3", folders.get(2));
 
     }
 
@@ -284,6 +289,18 @@ public class BundleResourcesTest {
             }
         }
 
+    }
+
+    // Extension source collecting
+    @Test
+    public void testExtensionSources() throws Exception {
+
+        // Should find: ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
+        List<IExtenderResource> resources = BundleResourceUtil.getExtensionSources(project, Platform.X86_64Darwin);
+        assertEquals(4, resources.size());
+
+        resources = BundleResourceUtil.getExtensionSources(project, Platform.Armv7Darwin);
+        assertEquals(3, resources.size());
     }
 
 }

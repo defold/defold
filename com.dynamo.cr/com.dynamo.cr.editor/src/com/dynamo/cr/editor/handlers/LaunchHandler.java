@@ -2,6 +2,7 @@ package com.dynamo.cr.editor.handlers;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,9 +30,14 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.IExtenderResource;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.pipeline.BundleResourceUtil;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.Activator;
@@ -74,6 +80,9 @@ public class LaunchHandler extends AbstractHandler {
         final boolean rebuild = msg != null && msg.equals("rebuild");
 
         final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        final IProject project = getActiveProject(event);
+
+//        Project tmpProject = new Project(new DefaultFileSystem(), branchLocation, buildDirectory);
 
         String buildError = null;
         boolean hasNativeExtensions = false;
@@ -84,9 +93,9 @@ public class LaunchHandler extends AbstractHandler {
         } else {
             IBranchClient branchClient = Activator.getDefault().getBranchClient();
             String location = branchClient.getNativeLocation();
-            File root = new File(location);
             boolean nativeExtEnabled = EditorUtil.isDev();
-            hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
+//            List<String> extensionPaths = BundleResourceUtil.getExtensionFolders(project);
+            hasNativeExtensions = nativeExtEnabled;// && extensionPaths.size() > 0;
 
             String platform = EditorCorePlugin.getPlatform();
             if (hasNativeExtensions) {
@@ -115,8 +124,9 @@ public class LaunchHandler extends AbstractHandler {
                     File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
 
                     String defaultName = FilenameUtils.getName(Engine.getDefault().getEnginePath());
-                    List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
-                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, defaultName, exe);
+
+                    List<IExtenderResource> allSource = new ArrayList<IExtenderResource>();//BundleResourceUtil.getExtensionSources(project, Platform.getHostPlatform());
+                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe);
                     exeName = exe.getAbsolutePath();
                 } catch (IOException e) {
                     buildError = e.getMessage();
@@ -139,7 +149,6 @@ public class LaunchHandler extends AbstractHandler {
         final File exe = new File(exeName);
         final String buildErrorLog = buildError;
 
-        final IProject project = getActiveProject(event);
         final boolean remoteBuiltEngine = hasNativeExtensions;
 
         // save all editors depending on user preferences (this is set to true by default in plugin_customization.ini)

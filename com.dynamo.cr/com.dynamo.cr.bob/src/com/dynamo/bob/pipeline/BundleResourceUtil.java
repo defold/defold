@@ -16,6 +16,7 @@ import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
+import com.defold.extender.client.IExtenderResource;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
@@ -25,23 +26,63 @@ public class BundleResourceUtil {
 
     private static final String extensionFilename = "ext.manifest";
 
-    /**
-     * Get a list of paths to extension directories in the project.
-     * @param project
-     * @return A list of paths to extension directories
-     */
-    static List<String> getExtensionFolders(Project project) {
-        ArrayList<String> paths = new ArrayList<>();
-        project.findResourcePaths("", paths);
+    private static class FSExtenderResource implements IExtenderResource {
 
-        List<String> folders = new ArrayList<>();
-        for (String p : paths) {
-            File f = new File(p);
-            if (f.getName().equals(extensionFilename)) {
-                folders.add( "/" + f.getParent() ); // Return project absolute path
-            }
+        private IResource resource;
+        FSExtenderResource(IResource resource) {
+            this.resource = resource;
         }
-        return folders;
+
+        @Override
+        public byte[] sha1() throws IOException {
+            return resource.sha1();
+        }
+
+        @Override
+        public String getAbsPath() {
+            return resource.getAbsPath();
+        }
+
+        @Override
+        public String getPath() {
+            return resource.getPath();
+        }
+
+        @Override
+        public byte[] getContent() throws IOException {
+            return resource.getContent();
+        }
+
+        @Override
+        public long getLastModified() {
+            return resource.getLastModified();
+        }
+
+        @Override
+        public String toString() {
+            return resource.getPath();
+        }
+
+    }
+
+    private static List<IExtenderResource> listFilesRecursive(Project project, String path) {
+        List<IExtenderResource> resources = new ArrayList<IExtenderResource>();
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths(path, paths);
+        for (String p : paths) {
+            IResource r = project.getResource(p);
+            resources.add(new FSExtenderResource(r));
+        }
+
+        return resources;
+    }
+
+    private static List<String> trimExcludePaths(List<String> excludes) {
+        List<String> trimmedExcludes = new ArrayList<String>();
+        for (String path : excludes) {
+            trimmedExcludes.add(path.trim());
+        }
+        return trimmedExcludes;
     }
 
     private static void mergeBundleMap(Map<String, IResource> into, Map<String, IResource> from) throws CompileExceptionError{
@@ -62,12 +103,52 @@ public class BundleResourceUtil {
         }
     }
 
-    private static List<String> trimExcludePaths(List<String> excludes) {
-        List<String> trimmedExcludes = new ArrayList<String>();
-        for (String path : excludes) {
-            trimmedExcludes.add(path.trim());
+    /**
+     * Get a list of paths to extension directories in the project.
+     * @param project
+     * @return A list of paths to extension directories
+     */
+    public static List<String> getExtensionFolders(Project project) {
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+
+        List<String> folders = new ArrayList<>();
+        for (String p : paths) {
+            File f = new File(p);
+            if (f.getName().equals(extensionFilename)) {
+                folders.add( f.getParent() );
+            }
         }
-        return trimmedExcludes;
+        return folders;
+    }
+
+    /**
+     * Get a list of all extension sources and libraries from a project for a specific platform.
+     * @param project
+     * @return A list of IExtenderResources that can be supplied to ExtenderClient
+     */
+    public static List<IExtenderResource> getExtensionSources(Project project, Platform platform) {
+        List<IExtenderResource> sources = new ArrayList<>();
+
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
+        platformFolderAlternatives.add("common");
+
+        // Find extension folders
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+
+            sources.add( new FSExtenderResource( project.getResource(extension + "/" + extensionFilename)) );
+            sources.addAll( listFilesRecursive( project, extension + "/include" ) );
+            sources.addAll( listFilesRecursive( project, extension + "/src") );
+
+            // Get "lib" folder; branches of into sub folders such as "common" and platform specifics
+            for (String platformAlt : platformFolderAlternatives) {
+                sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt) );
+            }
+        }
+
+        return sources;
     }
 
     /**
@@ -126,7 +207,7 @@ public class BundleResourceUtil {
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
             for (String platformAlt : platformFolderAlternatives) {
-                Map<String, IResource> extensionBundleResources = BundleResourceUtil.collectResources(project, FilenameUtils.concat(extension, "res/" + platformAlt + "/"), bundleExcludeList);
+                Map<String, IResource> extensionBundleResources = BundleResourceUtil.collectResources(project, FilenameUtils.concat("/" + extension, "res/" + platformAlt + "/"), bundleExcludeList);
                 mergeBundleMap(bundleResources, extensionBundleResources);
             }
         }
