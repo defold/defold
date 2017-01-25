@@ -37,6 +37,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.fs.DefaultFileSystem;
 
 @RunWith(Parameterized.class)
@@ -85,6 +86,7 @@ public class BundlerTest {
 
     void build() throws IOException, CompileExceptionError {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setPublisher(new NullPublisher());
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
         project.scan(scanner, "com.dynamo.bob");
@@ -151,6 +153,7 @@ public class BundlerTest {
         createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
 
         Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
+        project.setPublisher(new NullPublisher());
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
         project.scan(scanner, "com.dynamo.bob");

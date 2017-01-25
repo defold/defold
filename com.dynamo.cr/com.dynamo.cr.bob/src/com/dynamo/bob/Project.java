@@ -118,6 +118,10 @@ public class Project {
     public BobProjectProperties getProjectProperties() {
         return projectProperties;
     }
+    
+    public void setPublisher(IPublisher publisher) {
+    	this.publisher = publisher;
+    }
 
     public IPublisher getPublisher() {
     	return this.publisher;
