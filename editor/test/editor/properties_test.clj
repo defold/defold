@@ -240,3 +240,23 @@
                (properties/set-values! property [[0.0 0.0 180.0]])
                (let [property (-> (coalesce-nodes nodes) :rotation)]
                  (is (= [[0.0 0.0 180.0]] (properties/values property))))))))
+
+
+(g/defnode ErrorNode
+  (property error? g/Bool)
+  (property prop g/Any
+            (value (g/fnk [error?]
+                     (if error?
+                       (g/error-fatal "error")
+                       :ok)))))
+
+(deftest property-value-errors
+  (with-clean-system
+    (testing "treats property value errors as errors"
+      (let [[error-node :as nodes] (g/tx-nodes-added (g/transact
+                                   (g/make-node world ErrorNode :error? false)))]
+        (is (= [:ok] (properties/values (-> (coalesce-nodes nodes) :prop))))
+        (is (not (g/error? (-> (coalesce-nodes nodes) :prop :errors))))
+        (g/set-property! error-node :error? true)
+        (is (= [nil] (properties/values (-> (coalesce-nodes nodes) :prop))))
+        (is (g/error? (-> (coalesce-nodes nodes) :prop :errors)))))))
