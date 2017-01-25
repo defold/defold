@@ -13,6 +13,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.Bucket;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.archive.publisher.PublisherSettings.PublishMode;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.editor.Activator;
 
@@ -81,6 +82,10 @@ public class LiveUpdatePresenter {
             }
         } else {
             this.settings = new PublisherSettings();
+        }
+        
+        if (this.settings.getMode() == null) {
+        	this.setMode(PublishMode.Amazon);
         }
     }
 

@@ -1,5 +1,8 @@
 package com.dynamo.cr.editor.liveupdate;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IMessageProvider;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
@@ -28,10 +31,6 @@ import com.dynamo.bob.archive.publisher.PublisherSettings;
 
 public class LiveUpdateDialog extends TitleAreaDialog {
 
-	public enum Mode {
-		EXPORT_ZIP, UPLOAD_DEFOLD, UPLOAD_AWS
-	}
-	
 	private interface IInputAction {
 		public void setInput(String value);
 	}
@@ -45,6 +44,7 @@ public class LiveUpdateDialog extends TitleAreaDialog {
 	private Button saveButton = null;
 	private Button cancelButton = null;
 	private Combo bucketCombo = null;
+	private Map<Text, IInputAction> textComponents = new HashMap<Text, IInputAction>();
 	
     public LiveUpdateDialog(Shell parentShell) {
         super(parentShell);
@@ -125,6 +125,7 @@ public class LiveUpdateDialog extends TitleAreaDialog {
     	textControl.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
     	textControl.setEnabled(true);
     	textControl.setText(text != null ? text : "");
+    	this.textComponents.put(textControl, action);
     	textControl.addFocusListener(new FocusListener() {
 			
 			@Override
@@ -275,6 +276,12 @@ public class LiveUpdateDialog extends TitleAreaDialog {
 
     @Override
     protected void okPressed() {
+    	// This will ensure we save text fields even if the user has changed the text without changing focus of the component.
+    	for (Text text : this.textComponents.keySet()) {
+    		IInputAction action = this.textComponents.get(text);
+    		action.setInput(text.getText());
+    	}
+
         this.presenter.save();
         setReturnCode(OK);
         close();
