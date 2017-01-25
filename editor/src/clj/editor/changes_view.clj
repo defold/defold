@@ -8,6 +8,7 @@
             [editor.handler :as handler]
             [editor.sync :as sync]
             [editor.ui :as ui]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.vcs-status :as vcs-status]
@@ -93,6 +94,9 @@
   (inherits core/Scope)
   (property list-view g/Any)
   (property git g/Any)
+  (output git g/Any (g/fnk [git prefs]
+                      (doto git
+                        (git/ensure-user-configured! prefs))))
   (property prefs g/Any))
 
 (defn- status->resource [workspace status]
