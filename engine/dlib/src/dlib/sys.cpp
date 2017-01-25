@@ -20,6 +20,8 @@
 #else
 #include <unistd.h>
 #include <sys/utsname.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 #endif
 
 #include <sys/types.h>
