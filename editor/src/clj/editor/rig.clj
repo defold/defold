@@ -78,5 +78,4 @@
   (concat
    (workspace/register-resource-type workspace :ext "rigscene")
    (workspace/register-resource-type workspace :ext "skeleton")
-   (workspace/register-resource-type workspace :ext "meshset")
-   (workspace/register-resource-type workspace :ext "animationset")))
+   (workspace/register-resource-type workspace :ext "meshset")))
