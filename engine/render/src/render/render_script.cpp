@@ -1632,7 +1632,7 @@ namespace dmRender
     * `func` specifies the comparison function. The initial value is `render.COMPARE_FUNC_ALWAYS`.
     *
     * `ref` specifies the reference value for the stencil test. The value is clamped to
-    * the range [0, 2<sup>n</sup>−1], where n is the number of bitplanes in the stencil buffer.
+    * the range [0, 2<sup>n</sup>-1], where n is the number of bitplanes in the stencil buffer.
     * The initial value is `0`.
     *
     * `mask` is ANDed with both the reference value and the stored stencil value when the test
