@@ -1,6 +1,7 @@
 (ns editor.collada-scene
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.animation-set :as animation-set]
             [editor.collada :as collada]
             [editor.defold-project :as project]
             [editor.gl :as gl]
@@ -96,7 +97,8 @@
   (:animation-set content))
 
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
-  (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set))
+  (let [animation-set-with-hash-ids (animation-set/hash-animation-set-ids animation-set)]
+    (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set-with-hash-ids)))
 
 (g/defnk produce-mesh-set [content]
   (:mesh-set content))
