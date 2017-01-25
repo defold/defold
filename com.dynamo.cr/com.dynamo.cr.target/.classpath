@@ -1,21 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry exported="true" kind="lib" path="lib/jdom-2.0.1.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/aws-java-sdk-1.11.80.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/commons-codec-1.9.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/commons-logging-1.2.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/fluent-hc-4.5.2.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/httpclient-4.5.2.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/httpclient-cache-4.5.2.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/httpclient-win-4.5.2.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/httpcore-4.4.4.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/httpmime-4.5.2.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/jackson-annotations-2.8.0.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/jackson-core-2.8.1.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/jackson-databind-2.8.5.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/jna-4.1.0.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/jna-platform-4.1.0.jar"/>
-    <classpathentry exported="true" kind="lib" path="lib/aws/joda-time-2.9.7.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry kind="src" path="src"/>
