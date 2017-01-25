@@ -105,14 +105,16 @@ public class LaunchHandler extends AbstractHandler {
                     }
                     String serverURL = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
 
-                    ExtenderClient extender = new ExtenderClient(serverURL);
                     logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
                     logFile.deleteOnExit();
 
                     // Store the engine one level above the content build since that folder gets removed during a distclean
+                    File cacheDir = new File(location + File.separator + ".internal" + File.separator + "cache");
                     File buildDir = new File(location + File.separator + "build" + File.separator + buildPlatform);
                     buildDir.mkdirs();
                     File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
+
+                    ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
 
                     String defaultName = FilenameUtils.getName(Engine.getDefault().getEnginePath());
                     List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
