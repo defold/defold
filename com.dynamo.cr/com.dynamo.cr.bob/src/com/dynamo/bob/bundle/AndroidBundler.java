@@ -76,9 +76,10 @@ public class AndroidBundler implements IBundler {
         if (hasNativeExtensions) {
             String platform = "armv7-android";
 
+            File cacheDir = new File(project.getBuildCachePath());
             String sdkVersion = project.option("defoldsdk", "");
             String buildServer = project.option("build-server", "");
-            ExtenderClient extender = new ExtenderClient(buildServer);
+            ExtenderClient extender = new ExtenderClient(buildServer, cacheDir);
             File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
             logFile.deleteOnExit();
 

@@ -56,6 +56,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 public class Project {
 
     public final static String LIB_DIR = ".internal/lib";
+    public final static String CACHE_DIR = ".internal/cache";
 
     public enum OutputFlags {
         NONE,
@@ -105,6 +106,10 @@ public class Project {
 
     public String getLibPath() {
         return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
+    }
+
+    public String getBuildCachePath() {
+        return FilenameUtils.concat(this.rootDirectory, CACHE_DIR);
     }
 
     public BobProjectProperties getProjectProperties() {
