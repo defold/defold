@@ -2,6 +2,7 @@
   (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
+            [editor.animation-set :as animation-set]
             [editor.atlas :as atlas]
             [editor.build-errors-view :as build-errors-view]
             [editor.camera-editor :as camera]
@@ -92,6 +93,7 @@
         (form-view/register-view-types workspace)))
     (g/transact
       (concat
+        (animation-set/register-resource-types workspace)
         (atlas/register-resource-types workspace)
         (camera/register-resource-types workspace)
         (collada-scene/register-resource-types workspace)
