@@ -205,7 +205,7 @@
 
 (defn save-all!
   ([project on-complete-fn]
-   (save-all! project on-complete-fn #(ui/run-later %)))
+   (save-all! project on-complete-fn #(ui/run-later (%))))
   ([project on-complete-fn exec-fn]
    (when (compare-and-set! ongoing-build-save-atom false true)
      (let [workspace     (workspace project)
