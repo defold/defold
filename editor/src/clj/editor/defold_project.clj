@@ -220,7 +220,7 @@
                                                 :cache            cache})
              (workspace/update-version-on-disk! workspace)
              (update-system-cache! old-cache-val cache))
-           (exec-fn #(workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] progress/null-render-progress!))
+           (exec-fn #(workspace/resource-sync! workspace false [] progress/null-render-progress!))
            (when (some? on-complete-fn)
              (exec-fn #(on-complete-fn)))
            (catch Exception e
