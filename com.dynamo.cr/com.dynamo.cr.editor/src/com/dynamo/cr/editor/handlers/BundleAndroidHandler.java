@@ -66,7 +66,7 @@ public class BundleAndroidHandler extends AbstractBundleHandler {
         }
 
         if (presenter.shouldPublishLiveUpdate()) {
-        	options.put("liveupdate", "true");
+            options.put("liveupdate", "true");
         }
 
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));

@@ -6,13 +6,12 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.FileWriter;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,8 +32,8 @@ import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.archive.publisher.AWSPublisher;
 import com.dynamo.bob.archive.publisher.DefoldPublisher;
-import com.dynamo.bob.archive.publisher.IPublisher;
 import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.bundle.AndroidBundler;
@@ -81,7 +80,7 @@ public class Project {
     private List<URL> libUrls = new ArrayList<URL>();
 
     private BobProjectProperties projectProperties;
-    private IPublisher publisher;
+    private Publisher publisher;
 
     private TextureProfiles textureProfiles;
 
@@ -118,13 +117,13 @@ public class Project {
     public BobProjectProperties getProjectProperties() {
         return projectProperties;
     }
-    
-    public void setPublisher(IPublisher publisher) {
-    	this.publisher = publisher;
+
+    public void setPublisher(Publisher publisher) {
+        this.publisher = publisher;
     }
 
-    public IPublisher getPublisher() {
-    	return this.publisher;
+    public Publisher getPublisher() {
+        return this.publisher;
     }
 
     /**
@@ -260,38 +259,35 @@ public class Project {
     }
 
     public void createPublisher(String secretKey, boolean shouldPublish) throws CompileExceptionError {
-    	if (shouldPublish) {
-	    	try {
-		        IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
-		        if (publisherSettings.exists()) {
-		            ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
-		            PublisherSettings settings = PublisherSettings.load(is);
-		            if (secretKey != null) {
-		            	settings.setValue("liveupdate", "aws-secret-key", secretKey);
-		            }
+        if (shouldPublish) {
+            try {
+                IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
+                if (publisherSettings.exists()) {
+                    ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
+                    PublisherSettings settings = PublisherSettings.load(is);
+                    if (secretKey != null) {
+                        settings.setValue("liveupdate", "aws-secret-key", secretKey);
+                    }
 
-		            if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
-		                this.publisher = new AWSPublisher();
-		            } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
-		                this.publisher = new DefoldPublisher();
-		            } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-		                this.publisher = new ZipPublisher();
-		            } else {
-		                this.publisher = new NullPublisher();
-		            }
+                    if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
+                        this.publisher = new AWSPublisher(settings);
+                    } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
+                        this.publisher = new DefoldPublisher(settings);
+                    } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
+                        this.publisher = new ZipPublisher(settings);
+                    } else {
+                        throw new CompileExceptionError("The publisher specified is not supported", null);
+                    }
 
-		            this.publisher.Initialize(settings);
-		        } else {
-		            this.publisher = new NullPublisher();
-		            this.publisher.Initialize(new PublisherSettings());
-		        }
-	    	} catch (Throwable e) {
-	    		throw new CompileExceptionError(null, 0, e.getMessage(), e);
-	    	}
-    	} else {
-    		this.publisher = new NullPublisher();
-    		this.publisher.Initialize(new PublisherSettings());
-    	}
+                } else {
+                    throw new CompileExceptionError("There is no liveupdate.settings file", null);
+                }
+            } catch (Throwable e) {
+                throw new CompileExceptionError(null, 0, e.getMessage(), e);
+            }
+        } else {
+            this.publisher = new NullPublisher(new PublisherSettings());
+        }
     }
 
     public void clearProjectProperties() {

@@ -160,7 +160,7 @@ public class BundleAndroidDialog extends TitleAreaDialog implements
                 presenter.generateReportSelected(persistentGenerateReport);
             }
         });
-        
+
         publishLiveUpdate = new Button(container, SWT.CHECK);
         publishLiveUpdate.setText("Publish LiveUpdate content");
         publishLiveUpdate.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));

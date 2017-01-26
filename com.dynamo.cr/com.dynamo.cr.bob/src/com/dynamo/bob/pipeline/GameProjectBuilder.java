@@ -238,7 +238,7 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        project.getPublisher().Finalize();
+        project.getPublisher().Publish();
         File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
         if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
             FileUtils.deleteDirectory(resourcePackDirectoryHandle);

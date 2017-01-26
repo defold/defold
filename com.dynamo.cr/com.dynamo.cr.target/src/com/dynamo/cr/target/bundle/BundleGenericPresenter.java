@@ -32,7 +32,7 @@ public class BundleGenericPresenter implements BundleGenericDialog.IPresenter {
     }
 
     public boolean isReleaseMode() {
-    	return releaseMode;
+        return releaseMode;
     }
 
     @Override
@@ -55,14 +55,14 @@ public class BundleGenericPresenter implements BundleGenericDialog.IPresenter {
     public void generateReportSelected(boolean selection) {
         this.generateReportSelected(selection, true);
     }
-    
+
     @Override
     public void publishLiveUpdateSelected(boolean selection) {
-    	this.publishLiveUpdate = selection;
+        this.publishLiveUpdate = selection;
     }
-    
+
     public boolean shouldPublishLiveUpdate() {
-    	return this.publishLiveUpdate;
+        return this.publishLiveUpdate;
     }
 
     public void generateReportSelected(boolean selection, boolean validate) {

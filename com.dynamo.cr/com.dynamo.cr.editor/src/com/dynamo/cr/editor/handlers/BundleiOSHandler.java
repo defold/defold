@@ -63,11 +63,11 @@ public class BundleiOSHandler extends AbstractBundleHandler {
             options.put("native-ext", "true");
         }
         EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
-    	String sdkVersion = corePlugin.getSha1();
-    	if (sdkVersion == "NO SHA1") {
-    		sdkVersion = "";
-    	}
-    	options.put("defoldsdk", sdkVersion);
+        String sdkVersion = corePlugin.getSha1();
+        if (sdkVersion == "NO SHA1") {
+            sdkVersion = "";
+        }
+        options.put("defoldsdk", sdkVersion);
 
         if(!presenter.isReleaseMode()) {
             options.put("debug", "true");
@@ -75,9 +75,9 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         if(presenter.shouldGenerateReport()) {
             options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));
         }
-        
+
         if (presenter.shouldPublishLiveUpdate()) {
-        	options.put("liveupdate", "true");
+            options.put("liveupdate", "true");
         }
     }
 

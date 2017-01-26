@@ -26,7 +26,7 @@ public class LiveUpdatePresenter {
     private boolean persistSecretKey = false;
 
     private boolean hasCredentials() {
-    	return getAccessKey() != null && getAccessKey().length() > 0 && getSecretKey() != null && getSecretKey().length() > 0;
+        return getAccessKey() != null && getAccessKey().length() > 0 && getSecretKey() != null && getSecretKey().length() > 0;
     }
 
     private void fetchBuckets() {
@@ -60,11 +60,11 @@ public class LiveUpdatePresenter {
     }
 
     public void updateBuckets() {
-    	if (this.hasCredentials()) {
-	        this.fetchBuckets();
-	        this.populateBuckets();
-	        this.dialog.setBucketSelection(getBucket());
-    	}
+        if (this.hasCredentials()) {
+            this.fetchBuckets();
+            this.populateBuckets();
+            this.dialog.setBucketSelection(getBucket());
+        }
     }
 
     public void start(LiveUpdateDialog dialog) {
@@ -83,9 +83,9 @@ public class LiveUpdatePresenter {
         } else {
             this.settings = new PublisherSettings();
         }
-        
+
         if (this.settings.getMode() == null) {
-        	this.setMode(PublishMode.Amazon);
+            this.setMode(PublishMode.Amazon);
         }
     }
 
@@ -167,25 +167,25 @@ public class LiveUpdatePresenter {
         return settings.getZipFilepath();
     }
 
-	public void setPersistSecretKey(boolean state) {
-		this.persistSecretKey = state;
-	}
-    
+    public void setPersistSecretKey(boolean state) {
+        this.persistSecretKey = state;
+    }
+
     public void save() {
         IBranchClient branchClient = Activator.getDefault().getBranchClient();
         String location = branchClient.getNativeLocation();
         File root = new File(location);
         File settings = new File(root, "liveupdate.settings");
-        
+
         if (this.persistSecretKey) {
-        	PublisherSettings.save(this.settings, settings);
+            PublisherSettings.save(this.settings, settings);
         } else {
-        	String awsSecretKey = this.settings.getValue("liveupdate", "aws-secret-key");
-        	this.settings.removeValue("liveupdate", "aws-secret-key");
-        	PublisherSettings.save(this.settings, settings);
-        	this.settings.setValue("liveupdate", "aws-secret-key", awsSecretKey);
+            String awsSecretKey = this.settings.getValue("liveupdate", "aws-secret-key");
+            this.settings.removeValue("liveupdate", "aws-secret-key");
+            PublisherSettings.save(this.settings, settings);
+            this.settings.setValue("liveupdate", "aws-secret-key", awsSecretKey);
         }
-        
+
     }
 
 }

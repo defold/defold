@@ -11,15 +11,15 @@ import com.dynamo.cr.editor.liveupdate.LiveUpdatePresenter;
 
 public class LiveUpdateHandler extends AbstractHandler {
 
-	@Override
-	public Object execute(ExecutionEvent event) throws ExecutionException {
+    @Override
+    public Object execute(ExecutionEvent event) throws ExecutionException {
         Shell parentShell = HandlerUtil.getActiveShell(event);
-		LiveUpdateDialog dialog = new LiveUpdateDialog(parentShell);
-		LiveUpdatePresenter presenter = new LiveUpdatePresenter();
-		dialog.setPresenter(presenter);
-		dialog.open();
-		
-		return null;
-	}
+        LiveUpdateDialog dialog = new LiveUpdateDialog(parentShell);
+        LiveUpdatePresenter presenter = new LiveUpdatePresenter();
+        dialog.setPresenter(presenter);
+        dialog.open();
+
+        return null;
+    }
 
 }

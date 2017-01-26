@@ -35,7 +35,7 @@ public class BundleGenericDialog extends TitleAreaDialog implements
     }
 
     private Button packageApplication;
-    
+
     private IPresenter presenter;
     private Button releaseMode;
     private Button generateReport;
@@ -77,7 +77,7 @@ public class BundleGenericDialog extends TitleAreaDialog implements
         releaseMode = new Button(container, SWT.CHECK);
         releaseMode.setText("Release mode");
         releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
-        
+
         if (persistentReleaseMode == true) {
             releaseMode.setSelection(persistentReleaseMode);
             presenter.releaseModeSelected(persistentReleaseMode, false);
@@ -104,7 +104,7 @@ public class BundleGenericDialog extends TitleAreaDialog implements
                 presenter.generateReportSelected(persistentGenerateReport);
             }
         });
-        
+
         publishLiveUpdate = new Button(container, SWT.CHECK);
         publishLiveUpdate.setText("Publish LiveUpdate content");
         publishLiveUpdate.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
@@ -114,7 +114,7 @@ public class BundleGenericDialog extends TitleAreaDialog implements
                 presenter.publishLiveUpdateSelected(publishLiveUpdate.getSelection());
             }
         });
-        
+
         return area;
     }
 

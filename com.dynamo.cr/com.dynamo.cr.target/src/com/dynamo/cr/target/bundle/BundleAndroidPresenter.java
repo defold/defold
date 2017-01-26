@@ -41,7 +41,7 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
         }
         // enable view only if both key and cert are provided or neither of them
         if((!certProvided && keyProvided) || (certProvided && !keyProvided)) {
-        	return;
+            return;
         }
 
         // Only warnings after this point
@@ -83,7 +83,7 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
     }
 
     public boolean isReleaseMode() {
-    	return releaseMode;
+        return releaseMode;
     }
 
     @Override
@@ -106,14 +106,14 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
     public void generateReportSelected(boolean selection) {
         this.generateReportSelected(selection, true);
     }
-    
+
     @Override
     public void publishLiveUpdateSelected(boolean selection) {
-    	this.publishLiveUpdate = selection;
+        this.publishLiveUpdate = selection;
     }
-    
+
     public boolean shouldPublishLiveUpdate() {
-    	return this.publishLiveUpdate;
+        return this.publishLiveUpdate;
     }
 
     public void generateReportSelected(boolean selection, boolean validate) {
