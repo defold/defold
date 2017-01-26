@@ -49,9 +49,9 @@
 
 (defn- git-name
   [prefs]
-  (let [name (format "%s %s"
-                     (prefs/get-prefs prefs "first-name" nil)
-                     (prefs/get-prefs prefs "last-name" nil))]
+  (let [name (str (prefs/get-prefs prefs "first-name" nil)
+                  " "
+                  (prefs/get-prefs prefs "last-name" nil))]
     (when-not (str/blank? name)
       name)))
 
