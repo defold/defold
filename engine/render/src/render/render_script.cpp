@@ -764,6 +764,10 @@ namespace dmRender
 
     /*# disables a render target
      *
+     * Disables a previously enabled render target. Subsequent draw operations
+     * will be drawn to the frame buffer unless another render target is
+     * enabled.
+     *
      * @name render.disable_render_target
      * @param render_target [type:render_target] render target to disable
      * @examples
@@ -1603,20 +1607,21 @@ namespace dmRender
     * The comparison is performed only if depth testing is enabled and specifies
     * the conditions under which a pixel will be drawn.
     *
+    * Function constant              | Condition
+    * ------------------------------ | --------------------------------
+    * `render.COMPARE_FUNC_NEVER`    | never passes
+    * `render.COMPARE_FUNC_LESS`     | passes if the incoming depth value is less than the stored value
+    * `render.COMPARE_FUNC_LEQUAL`   | passes if the incoming depth value is less than or equal to the stored value
+    * `render.COMPARE_FUNC_GREATER`  | passes if the incoming depth value is greater than the stored value
+    * `render.COMPARE_FUNC_GEQUAL`   | passes if the incoming depth value is greater than or equal to the stored value
+    * `render.COMPARE_FUNC_EQUAL`    | passes if the incoming depth value is equal to the stored value
+    * `render.COMPARE_FUNC_NOTEQUAL` | passes if the incoming depth value is not equal to the stored value
+    * `render.COMPARE_FUNC_ALWAYS`   | always passes
+    *
     * The depth function is initially set to `render.COMPARE_FUNC_LESS`.
     *
     * @name render.set_depth_func
-    * @param func [type:constant] depth test function
-    *
-    * - `render.COMPARE_FUNC_NEVER`
-    * - `render.COMPARE_FUNC_LESS`
-    * - `render.COMPARE_FUNC_LEQUAL`
-    * - `render.COMPARE_FUNC_GREATER`
-    * - `render.COMPARE_FUNC_GEQUAL`
-    * - `render.COMPARE_FUNC_EQUAL`
-    * - `render.COMPARE_FUNC_NOTEQUAL`
-    * - `render.COMPARE_FUNC_ALWAYS`
-    *
+    * @param func [type:constant] depth test function, see the description for available values
     * @examples
     *
     * Enable depth test and set the depth test function to "not equal".
@@ -1689,7 +1694,7 @@ namespace dmRender
     * @param mask [type:number] mask that is ANDed with both the reference value and the stored stencil value when the test is done
     * @examples
     *
-    * ``lua
+    * ```lua
     * -- let only 0's pass the stencil test
     * render.set_stencil_func(render.COMPARE_FUNC_EQUAL, 0, 1)
     * ```

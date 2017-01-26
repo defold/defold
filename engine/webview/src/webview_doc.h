@@ -88,7 +88,7 @@
  * `hidden`
  * : [type:boolean] If true, the webview will stay hidden (default=false)
  *
- * @return id           [type:number] The id number of the request
+ * @return id [type:number] The id number of the request
  *
  * @examples
  *
@@ -105,11 +105,11 @@
  *
  * @name webview.open_raw
  *
- * @param webview_id    [type:number] The webview id
- * @param html          [type:string] The html data to display
- * @param options       [type:table] A table of options for the request. See webview.open()
+ * @param webview_id [type:number] The webview id
+ * @param html [type:string] The html data to display
+ * @param options [type:table] A table of options for the request. See webview.open()
  *
- * @return id           [type:number] The id number of the request
+ * @return id [type:number] The id number of the request
  *
  * @examples
  * <pre>
