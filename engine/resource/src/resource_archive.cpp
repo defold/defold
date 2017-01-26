@@ -22,6 +22,9 @@
 #error "Unsupported platform"
 #endif
 
+#define C_TO_JAVA ntohl
+#define JAVA_TO_C htonl
+
 namespace dmResourceArchive
 {
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
@@ -29,9 +32,9 @@ namespace dmResourceArchive
 
     enum EntryFlag
     {
-        ENTRY_FLAG_ENCRYPTED = 1 << 0,
-        ENTRY_FLAG_COMPRESSED = 1 << 1,
-        ENTRY_FLAG_LIVEUPDATE_DATA = 1 << 2, // resource added via liveupdate
+        ENTRY_FLAG_ENCRYPTED        = 0b00000001,
+        ENTRY_FLAG_COMPRESSED       = 0b00000010,
+        ENTRY_FLAG_LIVEUPDATE_DATA  = 0b00000100,
     };
 
     /* NOTE
@@ -465,11 +468,12 @@ namespace dmResourceArchive
         }
 
         // Create entrydata and copy it to temp index
+        bool is_compressed = (resource->m_Header->m_Flags & ENTRY_FLAG_COMPRESSED);
         EntryData entry;
-        entry.m_ResourceDataOffset = ntohl(offs);
-        entry.m_ResourceSize = (htonl(resource->m_Header->m_Flags) & ENTRY_FLAG_COMPRESSED) ? ntohl(resource->m_Header->m_Size) : ntohl(resource->m_Count);
-        entry.m_ResourceCompressedSize = (htonl(resource->m_Header->m_Flags) & ENTRY_FLAG_COMPRESSED) ? ntohl(resource->m_Count) : 0xFFFFFFFF; // TODO assume uncompressed?
-        entry.m_Flags = ntohl(ENTRY_FLAG_LIVEUPDATE_DATA | (htonl(resource->m_Header->m_Flags) & ENTRY_FLAG_ENCRYPTED)); // TODO always unencrypted?
+        entry.m_ResourceDataOffset = C_TO_JAVA(offs);
+        entry.m_ResourceSize = is_compressed ? resource->m_Header->m_Size : C_TO_JAVA(resource->m_Count);
+        entry.m_ResourceCompressedSize = is_compressed ? C_TO_JAVA(resource->m_Count) : C_TO_JAVA(0xffffffff);
+        entry.m_Flags = C_TO_JAVA(resource->m_Header->m_Flags | ENTRY_FLAG_LIVEUPDATE_DATA);
         memcpy((void*)entries_shift_src, (void*)&entry, sizeof(EntryData));
 
         if (!archive->m_IsMemMapped)
