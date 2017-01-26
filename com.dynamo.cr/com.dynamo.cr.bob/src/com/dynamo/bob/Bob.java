@@ -45,7 +45,7 @@ public class Bob {
 
         try {
             rootFolder = Files.createTempDirectory(null).toFile();
-            
+
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
             String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
@@ -53,7 +53,7 @@ public class Bob {
             if (libc_url != null) {
                 FileUtils.copyURLToFile(libc_url, new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename));
             }
-            
+
             extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
             extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
 
@@ -207,6 +207,9 @@ public class Bob {
         options.addOption("", "build-server", true, "The build server (when using native extensions)");
         options.addOption("", "defoldsdk", true, "What version of the defold sdk (sha1) to use");
 
+        options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
+        options.addOption("s", "aws-secret-key", true, "Amazon S3 secret key to use when uploading liveupdate content");
+
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
@@ -251,6 +254,10 @@ public class Bob {
         if (!cmd.hasOption("build-server")) {
             project.setOption("build-server", "https://build.defold.com");
         }
+
+        String secretKey = getOptionsValue(cmd, 's', null);
+        boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
+        project.createPublisher(secretKey, shouldPublish);
 
         Option[] options = cmd.getOptions();
         for (Option o : options) {

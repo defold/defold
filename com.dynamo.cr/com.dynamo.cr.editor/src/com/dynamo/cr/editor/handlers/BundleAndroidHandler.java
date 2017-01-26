@@ -65,6 +65,10 @@ public class BundleAndroidHandler extends AbstractBundleHandler {
             options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));
         }
 
+        if (presenter.shouldPublishLiveUpdate()) {
+            options.put("liveupdate", "true");
+        }
+
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
 
         if (EditorUtil.isDev()) {
