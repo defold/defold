@@ -333,13 +333,15 @@ namespace dmRender
 
     /*# enables a render state
      *
+     * Enables a particular render state. The state will be enabled until disabled.
+     *
      * @name render.enable_state
      * @param state [type:constant] state to enable
      *
      * - `render.STATE_DEPTH_TEST`
      * - `render.STATE_STENCIL_TEST`
      * - `render.STATE_BLEND`
-     * - `render.STATE_ALPHA_TEST` ([icon:iOS] [icon:android] not available on iOS and Android)
+     * - `render.STATE_ALPHA_TEST` ([icon:iOS][icon:android] not available on iOS and Android)
      * - `render.STATE_CULL_FACE`
      * - `render.STATE_POLYGON_OFFSET_FILL`
      *
@@ -385,16 +387,19 @@ namespace dmRender
 
     /*# disables a render state
      *
+     * Disables a render state.
+     *
      * @name render.disable_state
      * @param state [type:constant] state to disable
      *
      * - `render.STATE_DEPTH_TEST`
      * - `render.STATE_STENCIL_TEST`
      * - `render.STATE_BLEND`
-     * - `render.STATE_ALPHA_TEST` ([icon:iOS] [icon:android] not available on iOS and Android)
+     * - `render.STATE_ALPHA_TEST` ([icon:iOS][icon:android] not available on iOS and Android)
      * - `render.STATE_CULL_FACE`
      * - `render.STATE_POLYGON_OFFSET_FILL`
      *
+     * @examples
      * Disable face culling when drawing the tile predicate:
      *
      * ```lua
@@ -432,6 +437,8 @@ namespace dmRender
     }
 
     /*# sets the render viewport
+     *
+     * Set the render viewport to the specified rectangle.
      *
      * @name render.set_viewport
      * @param x [type:number] left corner
@@ -541,7 +548,7 @@ namespace dmRender
      * with what parameters. Each buffer key should have a table value consisting
      * of parameters. The following parameter keys are available:
      *
-     * Keys         | Values
+     * Key          | Values
      * ------------ | ----------------------------
      * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/> `render.FORMAT_RGB_DXT1`<br/>`render.FORMAT_RGBA_DXT1`<br/>`render.FORMAT_RGBA_DXT3`<br/> `render.FORMAT_RGBA_DXT5`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>
      * `width`      | number
@@ -687,8 +694,17 @@ namespace dmRender
 
     /*# deletes a render target
      *
+     * Deletes a previously created render target.
+     *
      * @name render.delete_render_target
      * @param render_target [type:render_target] render target to delete
+     * @examples
+     *
+     * How to delete a render target:
+     *
+     * ```lua
+     *  render.delete_render_target(self.my_render_target)
+     * ```
      */
     int RenderScript_DeleteRenderTarget(lua_State* L)
     {
@@ -708,6 +724,9 @@ namespace dmRender
     }
 
     /*# enables a render target
+     *
+     * Enables a render target. Subsequent draw operations will be to the
+     * enabled render target until it is disabled.
      *
      * @name render.enable_render_target
      * @param render_target [type:render_target] render target to enable
@@ -879,8 +898,10 @@ namespace dmRender
 
     /*# disables a texture for a render target
      *
+     * Disables a texture unit for a render target that has previourly been enabled.
+     *
      * @name render.disable_texture
-     * @param unit [type:number] texture unit to enable disable for
+     * @param unit [type:number] texture unit to disable
      * @param render_target [type:render_target] render target for which to disable the specified texture unit
      * @examples
      *
@@ -906,6 +927,8 @@ namespace dmRender
     }
 
     /*# retrieve the buffer width from a render target
+     *
+     * Returns the specified buffer width from a render target.
      *
      * @name render.get_render_target_width
      * @param render_target [type:render_target] render target from which to retrieve the buffer width
@@ -960,15 +983,17 @@ namespace dmRender
 
     /*# retrieve a buffer height from a render target
      *
+     * Returns the specified buffer height from a render target.
+     *
      * @name render.get_render_target_height
-     * @param render_target render target from which to retrieve the buffer height (render_target)
-     * @param buffer_type which type of buffer to retrieve the height from (constant)
+     * @param render_target [type:render_target] render target from which to retrieve the buffer height
+     * @param buffer_type [type:constant] which type of buffer to retrieve the height from (constant)
      *
      * - `render.BUFFER_COLOR_BIT`
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
-     * @return the height of the render target buffer texture (number)
+     * @return height [type:number] the height of the render target buffer texture
      * @examples
      *
      * ```lua
@@ -1037,6 +1062,8 @@ namespace dmRender
      * - `render.BUFFER_STENCIL_BIT`
      *
      * @examples
+     *
+     * Clear the color buffer and the depth buffer.
      *
      * ```lua
      * render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_DEPTH_BIT] = 1})
@@ -1179,10 +1206,15 @@ namespace dmRender
     }
 
     /*# sets the view matrix
+     *
      * Sets the view matrix to use when rendering.
+     *
      * @name render.set_view
      * @param matrix [type:matrix4] view matrix to set
      * @examples
+     *
+     * How to set the view and projection matrices according to
+     * the values supplied by a camera.
      *
      * ```lua
      * function init(self)
@@ -1225,9 +1257,10 @@ namespace dmRender
      * @param matrix [type:matrix4] projection matrix
      * @examples
      *
+     * How to set the projection to orthographic with world origo at lower left,
+     * width and height as set in project settings and depth (z) between -1 and 1:
+     *
      * ```lua
-     * -- set the projection to orthographic with world origo at lower left,
-     * -- width and height as set in project settings and depth (z) between -1 and 1
      * render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1, 1))
      * ```
      */
@@ -1330,20 +1363,17 @@ namespace dmRender
      * components.
      *
      * Source color components are referred to as (R<sub>s</sub>,G<sub>s</sub>,B<sub>s</sub>,A<sub>s</sub>).
-     *
      * Destination color components are referred to as (R<sub>d</sub>,G<sub>d</sub>,B<sub>d</sub>,A<sub>d</sub>).
-     *
      * The color specified by setting the blendcolor is referred to as (R<sub>c</sub>,G<sub>c</sub>,B<sub>c</sub>,A<sub>c</sub>).
      *
      * The source scale factor is referred to as (s<sub>R</sub>,s<sub>G</sub>,s<sub>B</sub>,s<sub>A</sub>).
-     *
      * The destination scale factor is referred to as (d<sub>R</sub>,d<sub>G</sub>,d<sub>B</sub>,d<sub>A</sub>).
      *
      * The color values have integer values between 0 and (k<sub>R</sub>,k<sub>G</sub>,k<sub>B</sub>,k<sub>A</sub>), where k<sub>c</sub> = 2<sup>m<sub>c</sub></sup> - 1 and m<sub>c</sub> is the number of bitplanes for that color. I.e for 8 bit color depth, color values are between `0` and `255`.
 
      * Available factor constants and corresponding scale factors:
      *
-     * factor constant                         | scale factor (f<sub>R</sub>,f<sub>G</sub>,f<sub>B</sub>,f<sub>A</sub>)
+     * Factor constant                         | Scale factor (f<sub>R</sub>,f<sub>G</sub>,f<sub>B</sub>,f<sub>A</sub>)
      * --------------------------------------- | -----------------------
      * `render.BLEND_ZERO`                     | (0,0,0,0)
      * `render.BLEND_ONE`                      | (1,1,1,1)
@@ -1376,6 +1406,8 @@ namespace dmRender
      * @param source_factor [type:constant] source factor
      * @param destination_factor [type:constant] destination factor
      * @examples
+     *
+     * Set the blend func to the most common one:
      *
      * ```lua
      * render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
@@ -1468,8 +1500,9 @@ namespace dmRender
      * @param depth [type:boolean] depth mask
      * @examples
      *
+     * How to turn off writing to the depth buffer:
+     *
      * ```lua
-     * -- turn off writing to the depth buffer
      * render.set_depth_mask(false)
      * ```
      */
@@ -1629,7 +1662,8 @@ namespace dmRender
     * The stencil test discards a pixel based on the outcome of a comparison between the
     * reference value `ref` and the corresponding value in the stencil buffer.
     *
-    * `func` specifies the comparison function. The initial value is `render.COMPARE_FUNC_ALWAYS`.
+    * `func` specifies the comparison function. See the table below for values.
+    * The initial value is `render.COMPARE_FUNC_ALWAYS`.
     *
     * `ref` specifies the reference value for the stencil test. The value is clamped to
     * the range [0, 2<sup>n</sup>-1], where n is the number of bitplanes in the stencil buffer.
@@ -1638,18 +1672,19 @@ namespace dmRender
     * `mask` is ANDed with both the reference value and the stored stencil value when the test
     * is done. The initial value is all `1`'s.
     *
+    * Function constant              | Condition
+    * ------------------------------ | --------------------------------
+    * `render.COMPARE_FUNC_NEVER`    | never passes
+    * `render.COMPARE_FUNC_LESS`     | passes if (ref & mask) < (stencil & mask)
+    * `render.COMPARE_FUNC_LEQUAL`   | passes if (ref & mask) <= (stencil & mask)
+    * `render.COMPARE_FUNC_GREATER`  | passes if (ref & mask) > (stencil & mask)
+    * `render.COMPARE_FUNC_GEQUAL`   | passes if (ref & mask) >= (stencil & mask)
+    * `render.COMPARE_FUNC_EQUAL`    | passes if (ref & mask) = (stencil & mask)
+    * `render.COMPARE_FUNC_NOTEQUAL` | passes if (ref & mask) != (stencil & mask)
+    * `render.COMPARE_FUNC_ALWAYS`   | always passes
+    *
     * @name render.set_stencil_func
-    * @param func [type:constant] stencil test function
-    *
-    * - `render.COMPARE_FUNC_NEVER` never passes
-    * - `render.COMPARE_FUNC_LESS` passes if (ref & mask) < (stencil & mask)
-    * - `render.COMPARE_FUNC_LEQUAL` passes if (ref & mask) <= (stencil & mask)
-    * - `render.COMPARE_FUNC_GREATER` passes if (ref & mask) > (stencil & mask)
-    * - `render.COMPARE_FUNC_GEQUAL` passes if (ref & mask) >= (stencil & mask)
-    * - `render.COMPARE_FUNC_EQUAL` passes if (ref & mask) = (stencil & mask)
-    * - `render.COMPARE_FUNC_NOTEQUAL` passes if (ref & mask) != (stencil & mask)
-    * - `render.COMPARE_FUNC_ALWAYS` always passes
-    *
+    * @param func [type:constant] stencil test function, see the description for available values
     * @param ref [type:number] reference value for the stencil test
     * @param mask [type:number] mask that is ANDed with both the reference value and the stored stencil value when the test is done
     * @examples
@@ -1738,16 +1773,16 @@ namespace dmRender
     * pixel's color or depth buffers, and `sfail` specifies what happens to the stencil buffer
     * contents.
     *
-    * Available operators:
-    *
-    * - `render.STENCIL_OP_KEEP` keeps the current value
-    * - `render.STENCIL_OP_ZERO` sets the stencil buffer value to 0
-    * - `render.STENCIL_OP_REPLACE` sets the stencil buffer value to `ref`, as specified by [ref:render.set_stencil_func]
-    * - `render.STENCIL_OP_INCR` increments the stencil buffer value and clamp to the maximum representable unsigned value
-    * - `render.STENCIL_OP_INCR_WRAP` increments the stencil buffer value and wrap to zero when incrementing the maximum representable unsigned value
-    * - `render.STENCIL_OP_DECR` decrements the current stencil buffer value and clamp to 0
-    * - `render.STENCIL_OP_DECR_WRAP` decrements the current stencil buffer value and wrap to the maximum representable unsigned value when decrementing zero
-    * - `render.STENCIL_OP_INVERT` bitwise inverts the current stencil buffer value
+    * Operator constant             | Action
+    * ----------------------------- | ------------------------
+    * `render.STENCIL_OP_KEEP`      | keeps the current value
+    * `render.STENCIL_OP_ZERO`      | sets the stencil buffer value to 0
+    * `render.STENCIL_OP_REPLACE`   | sets the stencil buffer value to `ref`, as specified by [ref:render.set_stencil_func]
+    * `render.STENCIL_OP_INCR`      | increments the stencil buffer value and clamp to the maximum representable unsigned value
+    * `render.STENCIL_OP_INCR_WRAP` | increments the stencil buffer value and wrap to zero when incrementing the maximum representable unsigned value
+    * `render.STENCIL_OP_DECR`      | decrements the current stencil buffer value and clamp to 0
+    * `render.STENCIL_OP_DECR_WRAP` | decrements the current stencil buffer value and wrap to the maximum representable unsigned value when decrementing zero
+    * `render.STENCIL_OP_INVERT`    | bitwise inverts the current stencil buffer value
     *
     * `dppass` and `dpfail` specify the stencil buffer actions depending on whether subsequent
     * depth buffer tests succeed (dppass) or fail (dpfail).
@@ -1760,7 +1795,10 @@ namespace dmRender
     * @param dppass  [type:constant] the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled
     * @examples
     *
-    * ``lua
+    * Set the stencil function to never pass and operator to always draw 1's
+    * on test fail.
+    *
+    * ```lua
     * render.set_stencil_func(render.COMPARE_FUNC_NEVER, 1, 0xFF)
     * -- always draw 1's on test fail
     * render.set_stencil_op(render.STENCIL_OP_REPLACE, render.STENCIL_OP_KEEP, render.STENCIL_OP_KEEP)
@@ -1832,8 +1870,9 @@ namespace dmRender
      *
      * @examples
      *
-     * ``lua
-     * -- enable polygon culling and set front face culling
+     * How to enable polygon culling and set front face culling:
+     *
+     * ```lua
      * render.enable_state(render.STATE_CULL_FACE)
      * render.set_cull_face(render.FACE_FRONT)
      * ```
@@ -1888,7 +1927,7 @@ namespace dmRender
      * @param units [type:number] polygon offset units
      * @examples
      *
-     * ``lua
+     * ```lua
      * render.enable_state(render.STATE_POLYGON_OFFSET_FILL)
      * render.set_polygon_offset(1.0, 1.0)
      * ```
@@ -1906,8 +1945,19 @@ namespace dmRender
 
     /*# gets the window width, as specified for the project
      *
+     * Returns the logical window width that is set in the "game.project" settings.
+     * Note that the actual window pixel size can change, either by device constraints
+     * or user input.
+     *
      * @name render.get_width
-     * @return specified window width (number)
+     * @return width [type:number] specified window width (number)
+     * @examples
+     *
+     * Get the width of the window.
+     *
+     * ```lua
+     * local w = render.get_width()
+     * ```
      */
     int RenderScript_GetWidth(lua_State* L)
     {
@@ -1919,8 +1969,19 @@ namespace dmRender
 
     /*# gets the window height, as specified for the project
      *
+     * Returns the logical window height that is set in the "game.project" settings.
+     * Note that the actual window pixel size can change, either by device constraints
+     * or user input.
+     *
      * @name render.get_height
-     * @return specified window height (number)
+     * @return height [type:number] specified window height
+     * @examples
+     *
+     * Get the height of the window
+     *
+     * ```lua
+     * local h = render.get_height()
+     * ```
      */
     int RenderScript_GetHeight(lua_State* L)
     {
@@ -1932,8 +1993,19 @@ namespace dmRender
 
     /*# gets the actual window width
      *
+     * Returns the actual physical window width.
+     * Note that this value might differ from the logical width that is set in the
+     * "game.project" settings.
+     *
      * @name render.get_window_width
-     * @return actual window width (number)
+     * @return width [type:number] actual window width
+     * @examples
+     *
+     * Get the actual width of the window
+     *
+     * ```lua
+     * local w = render.get_window_width()
+     * ```
      */
     int RenderScript_GetWindowWidth(lua_State* L)
     {
@@ -1943,10 +2015,21 @@ namespace dmRender
         return 1;
     }
 
-    /*# gets the window height
+    /*# gets the actual window height
+     *
+     * Returns the actual physical window height.
+     * Note that this value might differ from the logical height that is set in the
+     * "game.project" settings.
      *
      * @name render.get_window_height
-     * @return actual window height (number)
+     * @return height [type:number] actual window height
+     * @examples
+     *
+     * Get the actual height of the window
+     *
+     * ```lua
+     * local h = render.get_window_height()
+     * ```
      */
     int RenderScript_GetWindowHeight(lua_State* L)
     {
@@ -1966,7 +2049,7 @@ namespace dmRender
      * The current limit to the number of tags that can be defined is `32`.
      *
      * @name render.predicate
-     * @param predicates [type:table] table of tags that the predicate should match. The tags can be of either hash or string type
+     * @param tags [type:table] table of tags that the predicate should match. The tags can be of either hash or string type
      * @return predicate [type:predicate] new predicate
      * @examples
      *

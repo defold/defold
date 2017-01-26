@@ -81,9 +81,9 @@
  *
  * @name webview.open
  *
- * @param webview_id    [type:number] The webview id
- * @param url           [type:string] The url to open
- * @param options       [type:table] A table of options for the request. Currently it holds these options
+ * @param webview_id [type:number] The webview id
+ * @param url [type:string] The url to open
+ * @param options [type:table] A table of options for the request. Currently it holds these options
  *
  * `hidden`
  * : [type:boolean] If true, the webview will stay hidden (default=false)
@@ -127,9 +127,9 @@
  *
  * @name webview.eval
  *
- * @param webview_id    [type:number] The webview id
- * @param code          [type:string] The java script code to evaluate
- * @return id           [type:number] The id number of the request
+ * @param webview_id [type:number] The webview id
+ * @param code [type:string] The java script code to evaluate
+ * @return id [type:number] The id number of the request
  *
  * @examples
  *
@@ -144,8 +144,8 @@
  *
  * @name webview.set_visible
  *
- * @param webview_id    [type:number] The webview id (returned by the `webview.create()` call)
- * @param visible       [type:number] If 0, hides the webview. If non zero, shows the view
+ * @param webview_id [type:number] The webview id (returned by the `webview.create()` call)
+ * @param visible [type:number] If 0, hides the webview. If non zero, shows the view
  */
 
 
@@ -155,8 +155,8 @@
  *
  * @name webview.is_visible
  *
- * @param webview_id    [type:number] The webview id (returned by the webview.create() call)
- * @return visibility   [type:number] Returns 0 if not visible, 1 if it is visible
+ * @param webview_id [type:number] The webview id (returned by the webview.create() call)
+ * @return visibility [type:number] Returns 0 if not visible, 1 if it is visible
  */
 
 

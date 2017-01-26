@@ -1655,9 +1655,9 @@ namespace dmGui
      *   <li><code>"rgba"</code> - RGBA</li>
      *   <li><code>"l"</code> - LUMINANCE</li>
      * </ul>
-     * @param buffer texture data (string)
-     * @param flip flip texture vertically (boolean)
-     * @return setting the data was successful (boolean)
+     * @param buffer [type:string] texture data
+     * @param flip [type:boolean] flip texture vertically
+     * @return success [type:boolean] setting the data was successful
      * @examples
      *
      * ```lua
@@ -2810,6 +2810,7 @@ namespace dmGui
      * @name gui.get_size_mode
      * @param node [type:node] node from which to get the size mode (node)
      * @return size_mode [type:constant] the current size mode
+     *
      *   - `gui.SIZE_MODE_MANUAL`
      *   - `gui.SIZE_MODE_AUTO`
      */
@@ -2828,6 +2829,7 @@ namespace dmGui
      * @name gui.set_size_mode
      * @param node [type:node] node to set size mode for
      * @param size_mode [type:constant] size mode to set
+     *
      *   - `gui.SIZE_MODE_MANUAL`
      *   - `gui.SIZE_MODE_AUTO`
      */
@@ -3734,8 +3736,8 @@ namespace dmGui
      * Sets the spine skin on a spine node.
      *
      * @name gui.set_spine_skin
-     * @param node node to set the spine skin on (node)
-     * @param spine_skin spine skin id (string|hash)
+     * @param node [type:node] node to set the spine skin on
+     * @param spine_skin [type:string|hash] spine skin id
      */
     int LuaSetSpineSkin(lua_State* L)
     {
@@ -3790,8 +3792,8 @@ namespace dmGui
      * This is only useful for spine nodes. The cursor is normalized.
      *
      * @name gui.set_spine_cursor
-     * @param node spine node to set the cursor for (node)
-     * @param cursor cursor value (number)
+     * @param node [type:node] spine node to set the cursor for
+     * @param cursor [type:number] cursor value
      */
     int LuaSetSpineCursor(lua_State* L)
     {
@@ -3846,8 +3848,8 @@ namespace dmGui
      * This is only useful for spine nodes. Sets the playback rate of the animation on a spine node. Must be positive.
      *
      * @name gui.set_spine_playback_rate
-     * @param node spine node to set the cursor for (node)
-     * @param playback_rate playback rate (number)
+     * @param node [type:node] spine node to set the cursor for
+     * @param playback_rate [type:number] playback rate
      */
     int LuaSetSpinePlaybackRate(lua_State* L)
     {

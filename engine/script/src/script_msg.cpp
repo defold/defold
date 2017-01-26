@@ -256,7 +256,7 @@ namespace dmScript
     };
 
     /*# creates a new URL
-     * This is equivalent to msg.url(""), which creates an url to the current
+     * This is equivalent to `msg.url(nil)` or `msg.url("#")`, which creates an url to the current
      * script component.
      *
      * @name msg.url
@@ -266,7 +266,7 @@ namespace dmScript
      * Create a new URL which will address the current script:
      *
      * ```lua
-     * local my_url = msg.url("")
+     * local my_url = msg.url()
      * print(my_url) --> url: [current_collection:/my_instance#my_component]
      * ```
      */
@@ -278,6 +278,12 @@ namespace dmScript
      * - `socket` is the name of a valid world (a collection)
      * - `path` is the id of the instance, which can either be relative the instance of the calling script or global
      * - `fragment` would be the id of the desired component
+     *
+     * In addition, the following shorthands are available:
+     *
+     * - `.` the current game object
+     * - `"#"` the current component
+     * - `nil` the current component
      *
      * @name msg.url
      * @param urlstring [type:string] string to create the url from
@@ -437,14 +443,33 @@ namespace dmScript
 
     /*# posts a message to a receiving URL
      *
+     * Post a message to a receiving URL. The most common case is to send messages
+     * to a component. If the component part of the receiver is omitted, the message
+     * is broadcast to all components in the game object.
+     *
+     * The following receiver shorthands are available:
+     *
+     * - `.` the current game object
+     * - `"#"` the current component
+     * - `nil` the current component
+     *
      * @name msg.post
-     * @param receiver The receiver must be a string in URL-format, a URL object, a hashed string or nil. Nil is a short way of sending the message back to the calling script. (string|url|hash|nil)
-     * @param message_id The id must be a string or a hashed string. (string|hash)
-     * @param [message] lua table message to send (table)
+     * @param receiver [type:string|url|hash|nil] The receiver must be a string in URL-format, a URL object, a hashed string or `nil`.
+     * @param message_id [type:string|hash] The id must be a string or a hashed string.
+     * @param [message] [type:table] lua table message to send
      * @examples
-     * <pre>
+     *
+     * Send "enable" to the sprite "my_sprite" in "my_gameobject":
+     *
+     * ```lua
+     * msg.post("my_gameobject#my_sprite", "enable")
+     * ```
+     *
+     * Send a "my_message" to an url with some additional data:
+     *
+     * ```lua
      * msg.post(my_url, "my_message", {my_parameter = "my_value"})
-     * </pre>
+     * ```
      */
     int Msg_Post(lua_State* L)
     {
