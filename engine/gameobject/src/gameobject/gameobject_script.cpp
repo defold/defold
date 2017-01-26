@@ -1090,7 +1090,7 @@ namespace dmGameObject
      * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
-     * @param [complete_function] [type:function(self, url, property)] function to call when the animation has completed
+     * @param [complete_function] [type:function(self, url, property)] optional function to call when the animation has completed
      *
      * `self`
      * :        [type:object] The current object.
