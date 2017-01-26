@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -148,8 +149,10 @@ public class GameProjectBuilder extends Builder<Void> {
             builder.addOutput(input.changeExt(".arci"));
             builder.addOutput(input.changeExt(".arcd"));
             builder.addOutput(input.changeExt(".dmanifest"));
-            builder.addOutput(input.changeExt(".resourcepack.zip"));
             builder.addOutput(input.changeExt(".public.der"));
+            for (IResource output : project.getPublisher().getOutputs(input)) {
+                builder.addOutput(output);
+            }
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
@@ -211,7 +214,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, ZipOutputStream zipOutputStream, List<String> excludedResources) throws IOException {
+    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources) throws IOException, CompileExceptionError {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
@@ -229,24 +232,13 @@ public class GameProjectBuilder extends Builder<Void> {
         archiveData.close();
 
         // Populate the zip archive with the resource pack
-        for (File filepath : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
-            if (filepath.isFile()) {
-                ZipEntry currentEntry = new ZipEntry(filepath.getName());
-                zipOutputStream.putNextEntry(currentEntry);
-
-                FileInputStream currentInputStream = new FileInputStream(filepath);
-                int currentLength = 0;
-                byte[] currentBuffer = new byte[1024];
-                while ((currentLength = currentInputStream.read(currentBuffer)) > 0) {
-                    zipOutputStream.write(currentBuffer, 0, currentLength);
-                }
-
-                currentInputStream.close();
-                zipOutputStream.closeEntry();
+        for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
+            if (fhandle.isFile()) {
+                project.getPublisher().AddEntry(fhandle.getName(), fhandle);
             }
         }
-        zipOutputStream.close();
 
+        project.getPublisher().Publish();
         File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
         if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
             FileUtils.deleteDirectory(resourcePackDirectoryHandle);
@@ -263,7 +255,6 @@ public class GameProjectBuilder extends Builder<Void> {
             Object value = node.getField(fieldDescriptor);
             if (value instanceof Message) {
                 findResources(project, (Message) value, resources, parentNode);
-
             } else if (value instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) value;
@@ -446,18 +437,12 @@ public class GameProjectBuilder extends Builder<Void> {
                     resources.remove(resource.getAbsPath());
                 }
 
-                // Create zip archive to store resource pack
-                File resourcePackZip = File.createTempFile("defold.resourcepack_", ".zip");
-                resourcePackZip.deleteOnExit();
-                FileOutputStream resourcePackOutputStream = new FileOutputStream(resourcePackZip);
-                ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
-
                 // Create output for the data archive
                 File archiveIndexHandle = File.createTempFile("defold.index_", ".arci");
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
-                createArchive(resources, archiveIndex, archiveData, manifestBuilder, zipOutputStream, excludedResources);
+                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources);
 
                 // Create manifest
                 byte[] manifestFile = manifestBuilder.buildManifest();
@@ -471,11 +456,14 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 task.getOutputs().get(3).setContent(manifestFile);
 
-                resourcePackInputStream = new FileInputStream(resourcePackZip);
-                task.getOutputs().get(4).setContent(resourcePackInputStream);
-
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
-                task.getOutputs().get(5).setContent(publicKeyInputStream);
+                task.getOutputs().get(4).setContent(publicKeyInputStream);
+
+                List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
+                for (int i = 0; i < publisherOutputs.size(); ++i) {
+                    task.getOutputs().get(5 + i).setContent(publisherOutputs.get(i));
+                    IOUtils.closeQuietly(publisherOutputs.get(i));
+                }
             }
 
             task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
