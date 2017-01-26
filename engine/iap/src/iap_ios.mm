@@ -402,8 +402,7 @@ int IAP_List(lua_State* L)
  *
  * The options table has the following members:
  *
- * request_id [icon:facebook]
- * : custom unique request id - only available for Facebook IAP transactions
+ * - request_id [icon:facebook]: custom unique request id - only available for Facebook IAP transactions
  *
  * @examples
  *
