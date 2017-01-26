@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.animation-set :as animation-set]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
@@ -41,11 +42,11 @@
             [editor.display-profiles :as display-profiles]
             [editor.view :as view]
             [util.http-server :as http-server]
-            [util.thread-util :as thread-util])
+            [util.thread-util :as thread-util]
+            [editor.animation-set :as animation-set])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
-           [javafx.scene.control Tab]
            [org.apache.commons.io FileUtils FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
@@ -61,6 +62,7 @@
          (scene/register-view-types workspace)))
       (g/transact
        (concat
+        (animation-set/register-resource-types workspace)
         (atlas/register-resource-types workspace)
         (camera/register-resource-types workspace)
         (collada-scene/register-resource-types workspace)

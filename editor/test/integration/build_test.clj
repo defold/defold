@@ -1,5 +1,6 @@
 (ns integration.build-test
   (:require [clojure.test :refer :all]
+            [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
@@ -11,10 +12,8 @@
             [editor.resource :as resource]
             [util.murmur :as murmur]
             [integration.test-util :as test-util])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
-            GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
-           [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
@@ -22,18 +21,11 @@
            [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
            [com.dynamo.model.proto ModelProto$Model]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
-           [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
-           [editor.types Region]
-           [editor.workspace BuildResource]
-           [java.awt.image BufferedImage]
            [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -56,6 +48,10 @@
 (defn- target [path targets]
   (let [ext (FilenameUtils/getExtension path)
         pb-class (get target-pb-classes ext)]
+    (when (nil? pb-class)
+      (throw (ex-info (str "No target-pb-classes entry for extension \"" ext "\", path \"" path "\".")
+                      {:ext ext
+                       :path path})))
     (protobuf/bytes->map pb-class (get targets path))))
 
 (def pb-cases {"/game.project"
@@ -127,27 +123,46 @@
                                    :shadow [0.0 0.0 0.0 1.0],
                                    :text "Label"}
                                  pb)))}
-               {:label "Collada Scene"
-                :path "/model/book_of_defold.dae"
-                :pb-class Rig$MeshSet
-                :test-fn (fn [pb targets]
-                           ;; TODO - id must be 0 currently because of the runtime
-                           ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
-                           (is (= 0 (get-in pb [:mesh-entries 0 :id]))))}
                {:label "Model"
                 :path "/model/book_of_defold.model"
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           ;; TODO - id must be 0 currently because of the runtime
-                           ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
-                           (is (= 0 (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}
+                           (let [rig-scene (target (:rig-scene pb) targets)]
+                             (is (= "" (:animation-set rig-scene)))
+                             (is (= "" (:skeleton rig-scene)))
+                             (is (= "" (:texture-set rig-scene)))
+
+                             ;; TODO - id must be 0 currently because of the runtime
+                             ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
+                             (is (= 0 (-> rig-scene :mesh-set (target targets) :mesh-entries first :id)))))}
                {:label "Model with animations"
-                :path "/model/primary.model"
+                :path "/model/treasure_chest.model"
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           (is (< 0 (count (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :meshes first :indices)))))}]
+                           (let [rig-scene (target (:rig-scene pb) targets)
+                                 animation-set (target (:animation-set rig-scene) targets)
+                                 mesh-set (target (:mesh-set rig-scene) targets)
+                                 skeleton (target (:skeleton rig-scene) targets)]
+                             (is (= "" (:texture-set rig-scene)))
+
+                             (let [animations (-> animation-set :animations)]
+                               (is (= 2 (count animations)))
+                               (is (= #{(murmur/hash64 "treasure_chest")
+                                        (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
+                                      (set (map :id animations)))))
+
+                             (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                               (is (< 2 (-> mesh :indices count))))
+
+                             ;; TODO - id must be 0 currently because of the runtime
+                             ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
+                             (is (= 0 (-> mesh-set :mesh-entries first :id)))
+
+                             (is (= 3 (count (:bones skeleton))))
+                             (is (= (:bone-list mesh-set) (:bone-list animation-set)))
+                             (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
