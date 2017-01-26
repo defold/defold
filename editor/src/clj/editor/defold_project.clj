@@ -60,21 +60,28 @@
   (g/node-id->graph-id project))
 
 (defn- load-node [project node-id node-type resource]
-  (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
-    (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
-      (if (resource/exists? resource)
-        (try
-          (when *load-cache*
-            (swap! *load-cache* conj node-id))
-          (concat
-            (load-fn project node-id resource)
-            (when (instance? FileResource resource)
-              (g/connect node-id :save-data project :save-data)))
-          (catch Exception e
-            (log/warn :exception e)
-            (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
-        (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
-      [])))
+  (try
+    (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
+      (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
+        (if (resource/exists? resource)
+          (try
+            (when *load-cache*
+              (swap! *load-cache* conj node-id))
+            (concat
+              (load-fn project node-id resource)
+              (when (instance? FileResource resource)
+                (g/connect node-id :save-data project :save-data)))
+            (catch Exception e
+              (log/warn :exception e)
+              (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
+          (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
+        []))
+    (catch Throwable t
+      (throw (ex-info (format "Error when loading resource '%'" (resource/resource->proj-path))
+                      {:node-type node-type
+                       :resource resource
+                       :resource-path (resource/resource->proj-path resource)}
+                      t)))))
 
 (defn load-resource-nodes [basis project node-ids render-progress!]
   (let [progress (atom (progress/make "Loading resources" (count node-ids)))]
@@ -390,19 +397,18 @@
 (defn- handle-resource-changes [project changes render-progress!]
   (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
     (let [project-graph (g/node-id->graph-id project)]
-      (let [nodes-by-path (g/node-value project :nodes-by-resource-path)]
+      (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
+            resource->node #(nodes-by-path (resource/proj-path %))]
         (g/transact
-          (concat
-            ;; Moved resources
-            (for [[from to] (:moved changes)
-                  :let [resource-node (nodes-by-path (resource/proj-path from))]
-                  :when resource-node]
-              (g/set-property resource-node :resource to))
-            ;; Added resources
-            (for [resource (:added changes)
-                  :when (not (contains? nodes-by-path (resource/proj-path resource)))]
-              (make-resource-node project-graph project resource true {project [[:_node-id :nodes]
-                                                                                [:resource :node-resources]]})))))
+          ;; Moved resources
+          (for [[from to] (:moved changes)
+                :let [resource-node (resource->node from)]
+                :when resource-node]
+            (g/set-property resource-node :resource to)))
+        ;; Added resources
+        (let [added (remove resource->node (:added changes))
+              added-nodes (make-nodes! project added)]
+          (load-nodes! project added-nodes render-progress!)))
       (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
             res->node (comp nodes-by-path resource/proj-path)
             known? (fn [r] (contains? nodes-by-path (resource/proj-path r)))
