@@ -112,10 +112,11 @@
  * @return id [type:number] The id number of the request
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * local html = sys.load_resource("/main/data/test.html")
  * local request_id = webview.open_raw(webview_id, html, {hidden = true})
- * </pre>
+ * ```
  */
 
 
