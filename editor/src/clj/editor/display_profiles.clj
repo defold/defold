@@ -1,6 +1,5 @@
 (ns editor.display-profiles
   (:require [editor.protobuf :as protobuf]
-            [editor.protobuf-forms :as protobuf-forms]
             [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.gl :as gl]
