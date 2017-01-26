@@ -93,9 +93,9 @@
 (g/defnode ChangesView
   (inherits core/Scope)
   (property list-view g/Any)
-  (property git g/Any)
-  (output git g/Any (g/fnk [git prefs]
-                      (doto git
+  (property unconfigured-git g/Any)
+  (output git g/Any (g/fnk [unconfigured-git prefs]
+                      (doto unconfigured-git
                         (git/ensure-user-configured! prefs))))
   (property prefs g/Any))
 
@@ -109,7 +109,7 @@
         revert-button       (.lookup parent "#changes-revert")
         git                 (try (Git/open (io/file (g/node-value workspace :root)))
                                  (catch Exception _))
-        view-id             (g/make-node! view-graph ChangesView :list-view list-view :git git :prefs prefs)]
+        view-id             (g/make-node! view-graph ChangesView :list-view list-view :unconfigured-git git :prefs prefs)]
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
