@@ -170,30 +170,22 @@
                                               basis            (g/now)
                                               cache            (g/cache)}
                                          :as opts}]
-  (try
-    (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
-      (if-not (g/error? save-data)
-        (do
-          (progress/progress-mapv
-            (fn [{:keys [resource content]} _]
-              (when-not (resource/read-only? resource)
-                ; If the file is non-binary, convert line endings
-                ; to the type used by the existing file.
-                (if (and (:textual? (resource/resource-type resource))
-                         (resource/exists? resource)
-                         (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
-                  (spit resource (text-util/lf->crlf content))
-                  (spit resource content))))
-            save-data
-            render-progress!
-            (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-          (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
-        (do
-          (ui/run-later
-            (throw (Exception. ^String (properties/error-message save-data)))))))
-    (catch Exception e
-      (ui/run-later
-        (throw e)))))
+  (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
+    (if (g/error? save-data)
+      (throw (Exception. ^String (properties/error-message save-data)))
+      (progress/progress-mapv
+        (fn [{:keys [resource content]} _]
+          (when-not (resource/read-only? resource)
+            ;; If the file is non-binary, convert line endings to the
+            ;; type used by the existing file.
+            (if (and (:textual? (resource/resource-type resource))
+                     (resource/exists? resource)
+                     (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
+              (spit resource (text-util/lf->crlf content))
+              (spit resource content))))
+        save-data
+        render-progress!
+        (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource))))))))
 
 (defn workspace [project]
   (g/node-value project :workspace))
@@ -211,24 +203,29 @@
                        @new-cache
                        current-cache-val))))
 
-(defn save-all! [project on-complete-fn]
-  (when-not @ongoing-build-save-atom
-    (reset! ongoing-build-save-atom true)
-    (let [workspace     (workspace project)
-          old-cache-val @(g/cache)
-          cache         (atom old-cache-val)]
-      (future
-        (try
-          (ui/with-progress [render-fn ui/default-render-progress!]
-                            (write-save-data-to-disk! project {:render-progress! render-fn
-                                                               :basis            (g/now)
-                                                               :cache            cache})
-                            (workspace/update-version-on-disk! workspace)
-                            (update-system-cache! old-cache-val cache))
-          (when (some? on-complete-fn)
-            (ui/run-later
-              (on-complete-fn)))
-          (finally (reset! ongoing-build-save-atom false)))))))
+(defn save-all!
+  ([project on-complete-fn]
+   (save-all! project on-complete-fn #(ui/run-later %)))
+  ([project on-complete-fn exec-fn]
+   (when (compare-and-set! ongoing-build-save-atom false true)
+     (let [workspace     (workspace project)
+           old-cache-val @(g/cache)
+           cache         (atom old-cache-val)
+           basis         (g/now)]
+       (future
+         (try
+           (ui/with-progress [render-fn ui/default-render-progress!]
+             (write-save-data-to-disk! project {:render-progress! render-fn
+                                                :basis            basis
+                                                :cache            cache})
+             (workspace/update-version-on-disk! workspace)
+             (update-system-cache! old-cache-val cache))
+           (exec-fn #(workspace/resource-sync! workspace false [] progress/null-render-progress!))
+           (when (some? on-complete-fn)
+             (exec-fn #(on-complete-fn)))
+           (catch Exception e
+             (exec-fn #(throw e)))
+           (finally (reset! ongoing-build-save-atom false))))))))
 
 
 (defn build [project node {:keys [render-progress! render-error! basis cache]
