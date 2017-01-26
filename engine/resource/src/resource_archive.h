@@ -41,6 +41,24 @@ namespace dmResourceArchive
         uint32_t m_Flags;
     };
 
+    struct DM_ALIGNED(16) LiveUpdateResourceHeader {
+        uint32_t m_Size;
+        uint8_t m_Flags;
+        uint8_t m_Padding[11];
+    };
+
+    struct LiveUpdateResource {
+        LiveUpdateResource(const uint8_t* buf, size_t buflen) {
+            m_Count = buflen - sizeof(LiveUpdateResourceHeader);
+            m_Data = (uint8_t*)((uintptr_t)buf + sizeof(LiveUpdateResourceHeader));
+            m_Header = (LiveUpdateResourceHeader*)((uintptr_t)buf);
+        }
+
+        const uint8_t* m_Data;
+        uint32_t m_Count;
+        LiveUpdateResourceHeader* m_Header;
+    };
+
     /**
      * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
      * archive is not needed.
@@ -95,7 +113,7 @@ namespace dmResourceArchive
 
     Result CalcInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int& index);
 
-    Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const uint8_t* buf, uint32_t buf_len, const char* proj_id);
+    Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
 
 }  // namespace dmResourceArchive
 

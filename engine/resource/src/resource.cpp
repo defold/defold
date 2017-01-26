@@ -364,12 +364,12 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
     return result;
 }
 
-Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const uint8_t* buf, uint32_t buf_len, const char* proj_id)
+Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id)
 {
     // At this point the resource is assumed to be verified, so no need to do that here again
 
     // TODO Implement:
-    dmResourceArchive::InsertResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, buf, buf_len, proj_id);
+    dmResourceArchive::InsertResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, resource, proj_id);
 
     return RESULT_OK;
 }
@@ -660,7 +660,12 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
                 }
 
                 buffer->SetSize(0);
-                dmResourceArchive::Read(archiveIndex, &ed, buffer->Begin());
+                dmResourceArchive::Result read_result = dmResourceArchive::Read(archiveIndex, &ed, buffer->Begin());
+                if (read_result != dmResourceArchive::RESULT_OK)
+                {
+                    dmLogError("Failed to read resource, result = %i", read_result);
+                }
+
                 buffer->SetSize(file_size);
                 *resource_size = file_size;
 

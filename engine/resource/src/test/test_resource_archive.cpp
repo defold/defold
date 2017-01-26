@@ -71,6 +71,8 @@ TEST(dmResourceArchive, CalcInsertionIndex)
 
     dmResourceArchive::CalcInsertionIndex(archive, sorted_middle_hash, index);
     ASSERT_EQ(3, index);
+
+    dmResourceArchive::Delete(archive);
 }
 
 TEST(dmResourceArchive, ManifestHeader)

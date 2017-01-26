@@ -94,6 +94,7 @@ namespace dmLiveUpdate
 
         size_t buflen = 0;
         const char* buf = luaL_checklstring(L, 3, &buflen);
+        dmResourceArchive::LiveUpdateResource resource((const uint8_t*)buf, buflen);
 
         dmResource::Manifest* manifest = dmLiveUpdate::GetManifest(manifestIndex);
 
@@ -103,15 +104,13 @@ namespace dmLiveUpdate
             return luaL_error(L, "The manifest identifier does not exist");
         }
 
-        bool validResource = dmLiveUpdate::VerifyResource(manifest, hexDigest, hexDigestLength, buf, buflen);
+        bool validResource = dmLiveUpdate::VerifyResource(manifest, hexDigest, hexDigestLength, &resource);
         lua_pushboolean(L, (int) validResource);
 
         assert(lua_gettop(L) == (top + 1));
         return 1;
     }
 
-    // resource.store_resource(buffer) OLD
-    // resource.store_resource(manifest_reference, expected_hash, buffer) // include resource verification before storing
     int Resource_StoreResource(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -123,18 +122,21 @@ namespace dmLiveUpdate
 
         size_t buflen = 0;
         const char* buf = luaL_checklstring(L, 3, &buflen);
+        dmResourceArchive::LiveUpdateResource resource((const uint8_t*)buf, buflen);
 
         dmResource::Manifest* manifest = dmLiveUpdate::GetManifest(manifestIndex);
 
         if (manifest == 0x0)
         {
             assert(top == lua_gettop(L));
+            //delete resource;
             return luaL_error(L, "The manifest identifier does not exist");
         }
         
-        bool resourceStored = dmLiveUpdate::StoreResource(manifest, hexDigest, hexDigestLength, buf, buflen);
+        bool resourceStored = dmLiveUpdate::StoreResource(manifest, hexDigest, hexDigestLength, &resource);
         lua_pushboolean(L, (int) resourceStored);
 
+        //delete resource;
         assert(lua_gettop(L) == top + 1);
         return 1;
     }

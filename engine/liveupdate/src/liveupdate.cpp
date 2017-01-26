@@ -50,7 +50,7 @@ namespace dmLiveUpdate
         return resourceCount;
     }
 
-    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen)
+    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
     {
         if (manifest == 0x0)
         {
@@ -61,7 +61,7 @@ namespace dmLiveUpdate
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
         uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
-        CreateResourceHash(algorithm, buf, buflen, digest);
+        CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
 
         uint32_t hexDigestLength = digestLength * 2 + 1;
         char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
@@ -88,14 +88,14 @@ namespace dmLiveUpdate
         return result;
     }
 
-    bool StoreResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen)
+    bool StoreResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
     {
         if (manifest == 0x0)
         {
             return false;
         }
         
-        bool verify = VerifyResource(manifest, expected, expectedLength, buf, buflen);
+        bool verify = VerifyResource(manifest, expected, expectedLength, resource);
         if (!verify)
         {
             dmLogError("Invalid resource");
@@ -106,11 +106,32 @@ namespace dmLiveUpdate
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
         uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
-        CreateResourceHash(algorithm, buf, buflen, digest);
+        CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
+
+        // DEBUG 
+        uint32_t hexDigestLength = digestLength * 2 + 1;
+        char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
+        dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
+        char* slask = new char[hexDigestLength+1];
+        memcpy(slask, hexDigest, hexDigestLength);
+        slask[hexDigestLength] = '\0';
+        dmLogInfo("hash: %s", slask);
+
+        for (int i = 0; i < manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
+        {
+            uint8_t* hash = manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
+            int cmp = memcmp(hash, digest, digestLength);
+
+            if (cmp == 0)
+            {
+                dmLogInfo("URL: %s", manifest->m_DDF->m_Data.m_Resources[i].m_Url);
+            }
+        }
+        // END DEBUG
 
         char proj_id[41];
         dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, proj_id, 41);
-        dmResource::Result res = dmResource::StoreResource(manifest, (const uint8_t*)digest, digestLength,(const uint8_t*)buf, buflen, proj_id);
+        dmResource::Result res = dmResource::StoreResource(manifest, (const uint8_t*)digest, digestLength, resource, proj_id);
 
         if (res != dmResource::RESULT_OK)
         {

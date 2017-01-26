@@ -3,6 +3,7 @@
 
 #include <resource/resource.h>
 #include <resource/manifest_ddf.h>
+#include <resource/resource_archive.h>
 
 namespace dmLiveUpdate
 {
@@ -15,9 +16,9 @@ namespace dmLiveUpdate
 
     uint32_t GetMissingResources(const char* path, char*** buffer);
 
-    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen);
+    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource);
 
-    bool StoreResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen);
+    bool StoreResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource);
 
     int AddManifest(dmResource::Manifest* manifest);
 

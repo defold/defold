@@ -538,7 +538,7 @@ namespace dmResource
 
     Result LoadManifest(const char* manifestPath, HFactory factory);
 
-    Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const uint8_t* buf, uint32_t buf_len, const char* proj_id);
+    Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
 
     /**
      * Determines if the resource could be unique

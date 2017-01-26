@@ -30,7 +30,8 @@ namespace dmResourceArchive
     enum EntryFlag
     {
         ENTRY_FLAG_ENCRYPTED = 1 << 0,
-        ENTRY_FLAG_LIVEUPDATE_DATA = 1 << 1, // resource added via liveupdate
+        ENTRY_FLAG_COMPRESSED = 1 << 1,
+        ENTRY_FLAG_LIVEUPDATE_DATA = 1 << 2, // resource added via liveupdate
     };
 
     /* NOTE
@@ -342,16 +343,39 @@ namespace dmResourceArchive
         }
     }
 
-    Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const uint8_t* buf, uint32_t buf_len, const char* proj_id)
+    Result WriteResourceToArchive(HArchiveIndexContainer archive, const uint8_t* buf, uint32_t buf_len, uint32_t& bytes_written, uint32_t& offset)
+    {
+        // TODO LU resource file is NEVER mem-mapped atm, always access as file
+        //if (!archive->m_IsMemMapped)
+        {
+            fseek(archive->m_LiveUpdateFileResourceData, 0, SEEK_END);
+            uint32_t offs = (uint32_t)ftell(archive->m_LiveUpdateFileResourceData);
+            size_t bytes = fwrite(buf, 1, buf_len, archive->m_LiveUpdateFileResourceData);
+            if(bytes != buf_len)
+            {
+                return RESULT_IO_ERROR;
+            }
+            bytes_written = bytes;
+            offset = offs;
+        }
+        return RESULT_OK;
+    }
+
+    Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id)
     {
         Result result = RESULT_OK;
 
         char app_support_path[DMPATH_MAX_PATH];
         char lu_index_path[DMPATH_MAX_PATH];
-        
+
+        // DEBUG check for flags (compression/encryption)
+        uint8_t flags = resource->m_Header->m_Flags;
+        dmLogInfo("flags: %u, compressed?: %u, encrypted?: %u, size?: %u", flags, flags & ENTRY_FLAG_COMPRESSED, flags & ENTRY_FLAG_ENCRYPTED, resource->m_Header->m_Size);
+        // END DEBUG
+
         dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
         dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);
-        dmLogInfo("InsertResource, index path: %s", lu_index_path);
+        dmLogInfo("InsertResource, buf_len: %u", resource->m_Count);
         bool resource_exists = dmSys::ResourceExists(lu_index_path);
 
         uint8_t* hashes = (uint8_t*)(uintptr_t(archive->m_ArchiveIndex) + htonl(archive->m_ArchiveIndex->m_HashOffset));
@@ -386,7 +410,7 @@ namespace dmResourceArchive
             }
             
             dmLogInfo("LU data path: %s", lu_data_path);
-            archive->m_FileResourceData = f_lu_data;
+            archive->m_LiveUpdateFileResourceData = f_lu_data;
         }
 
         // Make deep-copy. Operate on this and only overwrite when done inserting
@@ -398,8 +422,7 @@ namespace dmResourceArchive
         entries = (EntryData*)(uintptr_t(ai_temp) + htonl(ai_temp->m_EntryDataOffset));
 
         // DEBUG
-        dmLogInfo("EntryOffset before: %u, after: %u", htonl(archive->m_ArchiveIndex->m_EntryDataOffset), htonl(ai_temp->m_EntryDataOffset))
-        dmLogInfo("OUTSIDE COPY");
+        dmLogInfo("COPY");
         uint32_t hashes_offset = htonl(ai_temp->m_HashOffset);
         entries = (EntryData*)(uintptr_t(ai_temp) + htonl(ai_temp->m_EntryDataOffset));
         hashes = (uint8_t*)(uintptr_t(ai_temp) + hashes_offset);
@@ -411,33 +434,32 @@ namespace dmResourceArchive
         // END DEBUG
 
         uint32_t entry_count = htonl(ai_temp->m_EntryDataCount);
-        // 'idx' is pos where new hash should be placed
         // Shift hashes after index idx down
         uint8_t* hash_shift_src = (uint8_t*)(uintptr_t(hashes) + DMRESOURCE_MAX_HASH * idx);
         uint8_t* hash_shift_dst = (uint8_t*)(uintptr_t(hash_shift_src) + DMRESOURCE_MAX_HASH);
-        if (idx < entry_count-1) // no need to memmove if inserting at tail
+        if (idx < entry_count) // no need to memmove if inserting at tail
         {
             uint32_t size_to_shift = (entry_count - idx) * DMRESOURCE_MAX_HASH;
-            memmove((void*)hash_shift_dst, (void*)hash_shift_src, size_to_shift/*WRONg needs to be remainder of hash array ofc!*/);
+            memmove((void*)hash_shift_dst, (void*)hash_shift_src, size_to_shift);
         }
         memcpy(hash_shift_src, hash_digest, hash_digest_len);
 
         // Shift entry datas
         uint8_t* entries_shift_src = (uint8_t*)(uintptr_t(entries) + sizeof(EntryData) * idx);
         uint8_t* entries_shift_dst = (uint8_t*)(uintptr_t(entries_shift_src) + sizeof(EntryData));
-        if (idx < entry_count-1)
+        if (idx < entry_count)
         {
             uint32_t size_to_shift = (entry_count - idx) * sizeof(EntryData);
             memmove(entries_shift_dst, entries_shift_src, size_to_shift);
         }
 
         // Write buf to resource file before creating EntryData instance
-        fseek(archive->m_FileResourceData, 0, SEEK_END);
-        uint32_t offs = (uint32_t)ftell(archive->m_FileResourceData);
-        size_t bytes_written = fwrite(buf, 1, buf_len, archive->m_FileResourceData);
-        if (bytes_written != buf_len)
+        uint32_t bytes_written;
+        uint32_t offs;
+        Result write_res = WriteResourceToArchive(archive, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
+        if (write_res != RESULT_OK)
         {
-            dmLogError("All bytes not written for resource, bytes written: %zu, resource size: %u", bytes_written, buf_len);
+            dmLogError("All bytes not written for resource, bytes written: %u, resource size: %u", bytes_written, resource->m_Count);
             delete ai_temp;
             return RESULT_IO_ERROR;
         }
@@ -445,9 +467,9 @@ namespace dmResourceArchive
         // Create entrydata and copy it to temp index
         EntryData entry;
         entry.m_ResourceDataOffset = ntohl(offs);
-        entry.m_ResourceSize = ntohl(buf_len);
-        entry.m_ResourceCompressedSize = ntohl(0xFFFFFFFF); // TODO assume uncompressed?
-        entry.m_Flags = ntohl(ENTRY_FLAG_LIVEUPDATE_DATA); // TODO always unencrypted?
+        entry.m_ResourceSize = (htonl(resource->m_Header->m_Flags) & ENTRY_FLAG_COMPRESSED) ? ntohl(resource->m_Header->m_Size) : ntohl(resource->m_Count);
+        entry.m_ResourceCompressedSize = (htonl(resource->m_Header->m_Flags) & ENTRY_FLAG_COMPRESSED) ? ntohl(resource->m_Count) : 0xFFFFFFFF; // TODO assume uncompressed?
+        entry.m_Flags = ntohl(ENTRY_FLAG_LIVEUPDATE_DATA | (htonl(resource->m_Header->m_Flags) & ENTRY_FLAG_ENCRYPTED)); // TODO always unencrypted?
         memcpy((void*)entries_shift_src, (void*)&entry, sizeof(EntryData));
 
         if (!archive->m_IsMemMapped)
@@ -464,6 +486,7 @@ namespace dmResourceArchive
             EntryData& e = entries[i];
             dmLogInfo("offs: %u, size: %u, comp_size: %u, flags: %u", htonl(e.m_ResourceDataOffset), htonl(e.m_ResourceSize), htonl(e.m_ResourceCompressedSize), htonl(e.m_Flags));
         }
+        // END DEBUG
 
         // Use this runtime archive index for the remainder of this engine instance
         archive->m_ArchiveIndex = ai_temp;
@@ -473,7 +496,6 @@ namespace dmResourceArchive
 
         // Write to temporary index file, should have filename liveupdate.arci-temp
         dmStrlCat(lu_index_path, "-temp", DMPATH_MAX_PATH);
-        dmLogInfo("TEMP lu index path: %s", lu_index_path);
         FILE* f_lu_index = fopen(lu_index_path, "wb");
         if (!f_lu_index)
         {
@@ -553,21 +575,12 @@ namespace dmResourceArchive
         uint32_t size = entry_data->m_ResourceSize;
         uint32_t compressed_size = entry_data->m_ResourceCompressedSize;
 
-        if (entry_data->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA)
-        {
-            // LiveUpdate resources are never mem-mapped
-            fseek(archive->m_LiveUpdateFileResourceData, entry_data->m_ResourceDataOffset, SEEK_SET);
-            if (fread(buffer, 1, size, archive->m_LiveUpdateFileResourceData) == size)
-            {
-                return RESULT_OK;
-            }
-            else
-            {
-                return RESULT_OUTBUFFER_TOO_SMALL;
-            }
-        }
+        dmLogInfo("Reading resource, index memmapped?: %i, LU?: %i, comp: %i, encr: %i", archive->m_IsMemMapped, 
+            (entry_data->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA) == ENTRY_FLAG_LIVEUPDATE_DATA,
+            (entry_data->m_Flags & ENTRY_FLAG_COMPRESSED) == ENTRY_FLAG_COMPRESSED,
+            (entry_data->m_Flags & ENTRY_FLAG_ENCRYPTED) == ENTRY_FLAG_ENCRYPTED);
 
-        if (!archive->m_IsMemMapped)
+        if (!archive->m_IsMemMapped)// || entry_data->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA)
         {
             fseek(archive->m_FileResourceData, entry_data->m_ResourceDataOffset, SEEK_SET);
             if (compressed_size != 0xFFFFFFFF) // resource is compressed
@@ -626,9 +639,23 @@ namespace dmResourceArchive
         }
         else
         {
+            void* r = 0x0;
+            if (entry_data->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA)
+            {
+                dmLogInfo("Reading LU resource data! compressed_size = %u", compressed_size);
+                uint32_t bufsize = (compressed_size != 0xFFFFFFFF) ? compressed_size : size;
+                // QUICK HACK FOR DEBUGGING, EXTRA COPY NOT NICE! WILL LEAK ALSO
+                r = malloc(bufsize);
+                fseek(archive->m_LiveUpdateFileResourceData, entry_data->m_ResourceDataOffset, SEEK_SET);
+                fread(r, 1, bufsize, archive->m_LiveUpdateFileResourceData);
+            }
+            else
+            {
+                r = (void*) ((uintptr_t(archive->m_ResourceData) + entry_data->m_ResourceDataOffset));
+            }
+
             Result ret;
 
-            void* r = (void*) ((uintptr_t(archive->m_ResourceData) + entry_data->m_ResourceDataOffset));
             void* decrypted = r;
 
             if (entry_data->m_Flags & ENTRY_FLAG_ENCRYPTED)

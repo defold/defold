@@ -254,7 +254,6 @@ namespace dmSys
 
     Result WriteWithMove(const char* filename, const uint8_t* buf, uint32_t buf_len)
     {
-        const char* filename = luaL_checkstring(L, 1);
         uint32_t n_used = buf_len;
         FILE* file = fopen(filename, "wb");
         if (file != 0x0)
