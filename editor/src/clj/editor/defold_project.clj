@@ -77,9 +77,8 @@
           (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
         []))
     (catch Throwable t
-      (throw (ex-info (format "Error when loading resource '%'" (resource/resource->proj-path))
+      (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
                       {:node-type node-type
-                       :resource resource
                        :resource-path (resource/resource->proj-path resource)}
                       t)))))
 
