@@ -21,6 +21,7 @@
            [javafx.scene.control TextField TreeView TreeItem ListView ProgressBar]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
+           [javafx.scene.layout Region]
            [javafx.stage Stage StageStyle Modality DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
@@ -103,25 +104,31 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
-(defn make-confirm-dialog [message]
-  (let [root     ^Parent (ui/load-fxml "confirm.fxml")
-        stage    (ui/make-stage)
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["message" "ok" "cancel"])
-        result   (atom false)]
-    (observe-focus stage)
-    (ui/title! stage "Please confirm")
-    (ui/text! (:message controls) message)
-    (ui/on-action! (:ok controls) (fn [_]
-                                    (reset! result true)
-                                    (.close stage)))
-    (ui/on-action! (:cancel controls) (fn [_]
-                                        (.close stage)))
+(defn make-confirm-dialog
+  ([message]
+   (make-confirm-dialog message {}))
+  ([message options]
+   (let [root     ^Region (ui/load-fxml "confirm.fxml")
+         stage    (ui/make-stage)
+         scene    (Scene. root)
+         controls (ui/collect-controls root ["message" "ok" "cancel"])
+         result   (atom false)]
+     (observe-focus stage)
+     (some->> options :pref-width (.setPrefWidth root))
+     (ui/title! stage (get options :title "Please Confirm"))
+     (ui/text! (:message controls) message)
+     (ui/text! (:ok controls) (get options :ok-label "OK"))
+     (ui/text! (:cancel controls) (get options :cancel-label "Cancel"))
+     (ui/on-action! (:ok controls) (fn [_]
+                                     (reset! result true)
+                                     (.close stage)))
+     (ui/on-action! (:cancel controls) (fn [_]
+                                         (.close stage)))
 
-    (.initModality stage Modality/APPLICATION_MODAL)
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-    @result))
+     (.initModality stage Modality/APPLICATION_MODAL)
+     (.setScene stage scene)
+     (ui/show-and-wait! stage)
+     @result)))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
@@ -175,7 +182,7 @@
                         (ui/visible! (:error-group controls) visible)
                         (.sizeToScene stage))))]
     (observe-focus stage)
-    (ui/text! (:ok controls) (or (:ok-label options) "Ok"))
+    (ui/text! (:ok controls) (get options :ok-label "OK"))
     (ui/title! stage (or (:title options) ""))
     (ui/children! (:dialog-area controls) [dialog-root])
     (ui/fill-control dialog-root)
