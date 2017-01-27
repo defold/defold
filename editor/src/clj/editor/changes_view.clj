@@ -99,8 +99,9 @@
   (property list-view g/Any)
   (property unconfigured-git g/Any)
   (output git g/Any (g/fnk [unconfigured-git prefs]
-                      (doto unconfigured-git
-                        (git/ensure-user-configured! prefs))))
+                      (when unconfigured-git
+                        (doto unconfigured-git
+                          (git/ensure-user-configured! prefs)))))
   (property prefs g/Any))
 
 (defn- status->resource [workspace status]
