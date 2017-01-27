@@ -29,7 +29,7 @@ public class LiveUpdatePresenter {
         return getAccessKey() != null && getAccessKey().length() > 0 && getSecretKey() != null && getSecretKey().length() > 0;
     }
 
-    private void fetchBuckets() {
+    private void fetchBuckets() { 
         try {
             this.buckets.clear();
             AWSCredentials credentials = new BasicAWSCredentials(getAccessKey(), getSecretKey());
@@ -81,6 +81,7 @@ public class LiveUpdatePresenter {
                 this.settings = new PublisherSettings();
             }
         } else {
+            System.out.println("No settins file found");
             this.settings = new PublisherSettings();
         }
 
