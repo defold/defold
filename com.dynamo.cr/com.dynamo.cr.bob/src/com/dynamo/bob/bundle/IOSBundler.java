@@ -102,9 +102,11 @@ public class IOSBundler implements IBundler {
             String platform64 = "arm64-ios";
             String platformv7 = "armv7-ios";
 
+            File cacheDir = new File(project.getBuildCachePath());
+            cacheDir.mkdirs();
             String sdkVersion = project.option("defoldsdk", "");
             String buildServer = project.option("build-server", "");
-            ExtenderClient extender = new ExtenderClient(buildServer);
+            ExtenderClient extender = new ExtenderClient(buildServer, cacheDir);
             File logFile = File.createTempFile("build_" + sdkVersion, ".txt");
             logFile.deleteOnExit();
 
