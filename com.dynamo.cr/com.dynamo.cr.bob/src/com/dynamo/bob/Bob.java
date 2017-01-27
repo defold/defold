@@ -206,6 +206,7 @@ public class Bob {
         options.addOption("", "native-ext", false, "If set, the native ext support is turned on");
         options.addOption("", "build-server", true, "The build server (when using native extensions)");
         options.addOption("", "defoldsdk", true, "What version of the defold sdk (sha1) to use");
+        options.addOption("", "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;

@@ -30,7 +30,11 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.IExtenderResource;
+import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.bundle.AndroidBundler;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.HTML5Bundler;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.IOSBundler;
@@ -43,6 +47,7 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.pipeline.BundleResourceUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
@@ -429,6 +434,59 @@ public class Project {
         return false;
     }
 
+    public void buildEngine(IProgress monitor) throws IOException, CompileExceptionError {
+
+        String pair = option("platform", null);
+        Platform p = Platform.getHostPlatform();
+        if (pair != null) {
+            p = Platform.get(pair);
+        }
+
+        if (p == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+        PlatformPairs platformPair = p.getPlatformPair();
+
+        // Store the engine one level above the content build since that folder gets removed during a distclean
+        String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
+        File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
+        cacheDir.mkdirs();
+
+        String serverURL = this.option("build-server", null);
+        if (serverURL == null) {
+            throw new CompileExceptionError(null, -1, "No native extension build server set.");
+        }
+
+        // Get SHA1 and create log file
+        String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
+        File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
+        logFile.deleteOnExit();
+
+        String[] platformStrings = platformPair.getPlatforms();
+        IProgress m = monitor.subProgress(platformStrings.length);
+        m.beginTask("Building engine...", 0);
+
+        // Build all skews of platform
+        String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
+        for (int i = 0; i < platformStrings.length; ++i) {
+            Platform platform = Platform.get(platformStrings[i]);
+
+            String buildPlatform = platform.getExtenderPair();
+            File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
+            buildDir.mkdirs();
+
+            String defaultName = platform.formatBinaryName("dmengine");
+            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
+
+            List<IExtenderResource> allSource = BundleResourceUtil.getExtensionSources(this, platform);
+            ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe);
+            m.worked(1);
+        }
+
+        m.done();
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
@@ -464,6 +522,14 @@ public class Project {
                 m.done();
                 if (anyFailing(result)) {
                     break;
+                }
+
+                // Get or build engine binary
+                boolean nativeExtEnabled = this.hasOption("native-ext");
+                List<String> extensionPaths = BundleResourceUtil.getExtensionFolders(this);
+                boolean hasNativeExtensions = nativeExtEnabled && extensionPaths.size() > 0;
+                if (hasNativeExtensions) {
+                    buildEngine(monitor);
                 }
 
                 // Generate and save build report

@@ -69,29 +69,13 @@ public class AndroidBundler implements IBundler {
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
 
-        boolean nativeExtEnabled = project.hasOption("native-ext");
-        List<String> extensionPaths = BundleResourceUtil.getExtensionFolders(project);
-        boolean hasNativeExtensions = nativeExtEnabled && extensionPaths.size() > 0;
-        File exe = null;
-
-        if (hasNativeExtensions) {
-            String platform = "armv7-android";
-
-            File cacheDir = new File(project.getBuildCachePath());
-            cacheDir.mkdirs();
-            String sdkVersion = project.option("defoldsdk", "");
-            String buildServer = project.option("build-server", "");
-            ExtenderClient extender = new ExtenderClient(buildServer, cacheDir);
-            File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
-            logFile.deleteOnExit();
-
-            exe = File.createTempFile("engine_" + sdkVersion + "_" + platform, "");
-            exe.deleteOnExit();
-
-            List<IExtenderResource> allSource = BundleResourceUtil.getExtensionSources(project, Platform.Armv7Android);
-            BundleHelper.buildEngineRemote(extender, platform, sdkVersion, allSource, logFile, "/libdmengine.so", exe);
-        } else {
-            exe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
+        // If a custom engine was built we need to copy it
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(Platform.Armv7Android.getExtenderPair(), Platform.X86Darwin.formatBinaryName("dmengine"))));
+        File defaultExe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
+        File bundleExe = defaultExe;
+        if (extenderExe.exists()) {
+            bundleExe = extenderExe;
         }
 
         File appDir = new File(bundleDir, title);
@@ -237,13 +221,13 @@ public class AndroidBundler implements IBundler {
             BundleResourceUtil.writeResourcesToZip(bundleResources, zipOut);
 
             // Strip executable
-            String strippedpath = exe.getAbsolutePath();
+            String strippedpath = bundleExe.getAbsolutePath();
             if( !debug )
             {
-                File tmp = File.createTempFile(title, "." + exe.getName() + ".stripped");
+                File tmp = File.createTempFile(title, "." + bundleExe.getName() + ".stripped");
                 tmp.deleteOnExit();
                 strippedpath = tmp.getAbsolutePath();
-                FileUtils.copyFile(exe, tmp);
+                FileUtils.copyFile(bundleExe, tmp);
 
                 res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpath);
                 if (res.ret != 0) {
