@@ -1,6 +1,7 @@
 (ns editor.git
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor
              [prefs :as prefs]
              [ui :as ui]]
@@ -40,10 +41,31 @@
 
 ;; =================================================================================
 
+
 (defn credentials [prefs]
   (let [email (prefs/get-prefs prefs "email" nil)
         token (prefs/get-prefs prefs "token" nil)]
     (UsernamePasswordCredentialsProvider. ^String email ^String token)))
+
+(defn- git-name
+  [prefs]
+  (let [name (str (prefs/get-prefs prefs "first-name" nil)
+                  " "
+                  (prefs/get-prefs prefs "last-name" nil))]
+    (when-not (str/blank? name)
+      name)))
+
+(defn ensure-user-configured!
+  [^Git git prefs]
+  (let [email            (prefs/get-prefs prefs "email" nil)
+        name             (or (git-name prefs) email "Unknown")
+        config           (.. git getRepository getConfig)
+        configured-name  (.getString config "user" nil "name")
+        configured-email (.getString config "user" nil "email")]
+    (when (str/blank? configured-name)
+      (.setString config "user" nil "name" name))
+    (when (str/blank? configured-email)
+      (.setString config "user" nil "email" email))))
 
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))

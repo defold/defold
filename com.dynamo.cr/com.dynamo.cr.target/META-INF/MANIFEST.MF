@@ -26,3 +26,4 @@ Export-Package: com.dynamo.cr.target.bundle,
  com.dynamo.cr.target.sign
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
+Import-Package: com.dynamo.cr.client

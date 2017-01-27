@@ -8,6 +8,7 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext/aws" includes="*.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
 
@@ -221,6 +222,9 @@
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
             </zipgroupfileset>
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
+                <include name="*.jar" />
+            </zipgroupfileset>
             <zipgroupfileset dir="lib">
               <include name="*.jar"/>
             </zipgroupfileset>
@@ -257,6 +261,9 @@
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
+            </zipgroupfileset>
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
+                <include name="*.jar" />
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
                 <include name="*.jar"/>

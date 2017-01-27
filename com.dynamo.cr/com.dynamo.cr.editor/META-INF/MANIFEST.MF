@@ -47,3 +47,4 @@ Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: lib/jetty-all-7.0.2.v20100331.jar,
  .
+Export-Package: com.dynamo.cr.editor
