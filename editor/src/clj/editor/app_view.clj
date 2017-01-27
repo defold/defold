@@ -582,7 +582,9 @@
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
      (if-let [make-view-fn (:make-view-fn view-type)]
-       (let [resource-node     (project/get-resource-node project resource)
+       (let [resource-node     (or (project/get-resource-node project resource)
+                                   (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                                   {})))
              ^TabPane tab-pane (g/node-value app-view :tab-pane)
              tabs              (.getTabs tab-pane)
              tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
