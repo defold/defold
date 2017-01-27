@@ -557,6 +557,13 @@ namespace dmResource
     uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
 
     void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
+
+    // Platform specific implementation of archive loading. Data written into mount_info must
+    // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
+    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info);
+    Result MapFile(const char* filename, void*& map, uint32_t& size);
+    Result UnmapFile(void*& map, uint32_t size);
 }
 
 #endif // RESOURCE_H

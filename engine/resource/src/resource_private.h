@@ -53,11 +53,6 @@ namespace dmResource
         HPreloader m_Preloader;
         int32_t m_Parent;
     };
-
-    // Platform specific implementation of archive loading. Data written into mount_info must
-    // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
-    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info);
 }
 
 #endif

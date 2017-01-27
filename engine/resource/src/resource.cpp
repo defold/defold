@@ -301,8 +301,9 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
                 return RESULT_IO_ERROR;
             }
             dmSys::Unlink(temp_archive_index_path);
+            dmLogInfo("Found temp LU index file, overwrote the old one!");
         }
-
+        dmLogInfo("Found LU index file, using that one: %s", liveupdate_index_path);
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
     }
 
@@ -506,7 +507,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     if (params->m_ArchiveManifest.m_Size)
     {
         dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest);
-        dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, 0x0, &factory->m_BuiltinsArchiveContainer);
+        dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, 0x0, 0x0, 0x0, &factory->m_BuiltinsArchiveContainer);
     }
 
     factory->m_LoadMutex = dmMutex::New();

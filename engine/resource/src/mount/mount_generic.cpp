@@ -7,6 +7,18 @@
 
 namespace dmResource
 {
+    Result MapFile(const char* filename, void*& map, uint32_t& size)
+    {
+        // Should never called
+        return RESULT_OK;
+    }
+
+    Result UnmapFile(void*& map, uint32_t size)
+    {
+        // Should never be called
+        return RESULT_OK;
+    }
+
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         *mount_info = 0;

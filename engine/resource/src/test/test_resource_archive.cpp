@@ -29,6 +29,12 @@ static const char* content[]            = {
     "file3_data",
     "file2_datafile2_datafile2_data"
 };
+static const uint8_t sorted_first_hash[20] = 
+    {  0U,   1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
+static const uint8_t sorted_middle_hash[20] = 
+    {  70U,  250U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
+static const uint8_t sorted_last_hash[20] = 
+    { 226U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
 static const uint8_t content_hash[][20] = {
     { 127U, 144U,   0U,  37U, 122U,  73U,  24U, 215U,   7U,  38U,  85U, 234U,  70U, 133U,  64U, 205U, 203U, 212U,  46U,  12U },
     {  95U, 158U,  27U, 108U, 112U,  93U, 159U, 220U, 188U,  65U, 128U,  98U, 243U, 234U,  63U, 106U,  51U, 100U,   9U,  20U },
@@ -36,16 +42,6 @@ static const uint8_t content_hash[][20] = {
     {   3U,  86U, 172U, 159U, 110U, 187U, 139U, 211U, 219U,   5U, 203U, 115U, 150U,  43U, 182U, 252U, 136U, 228U, 122U, 181U },
     {  69U,  26U,  15U, 239U, 138U, 110U, 167U, 120U, 214U,  38U, 144U, 200U,  19U, 102U,  63U,  48U, 173U,  41U,  21U,  66U }
 };
-
-static const uint8_t sorted_first_hash[20] = 
-    { 0U,   1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-
-static const uint8_t sorted_last_hash[20] = 
-    { 255U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-
-static const uint8_t sorted_middle_hash[20] = 
-    { 99U,  1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-
 static const uint8_t compressed_content_hash[][20] = {
     { 206U, 246U, 241U, 188U, 170U, 142U,  34U, 244U, 115U,  87U,  65U,  38U,  88U,  34U, 188U,  33U, 144U,  44U,  18U,  46U },
     {  95U, 158U,  27U, 108U, 112U,  93U, 159U, 220U, 188U,  65U, 128U,  98U, 243U, 234U,  63U, 106U,  51U, 100U,   9U,  20U },
@@ -66,11 +62,11 @@ TEST(dmResourceArchive, CalcInsertionIndex)
     dmResourceArchive::CalcInsertionIndex(archive, sorted_first_hash, index);
     ASSERT_EQ(0, index);
 
+    dmResourceArchive::CalcInsertionIndex(archive, sorted_middle_hash, index);
+    ASSERT_EQ(2, index);
+
     dmResourceArchive::CalcInsertionIndex(archive, sorted_last_hash, index);
     ASSERT_EQ(5, index);
-
-    dmResourceArchive::CalcInsertionIndex(archive, sorted_middle_hash, index);
-    ASSERT_EQ(3, index);
 
     dmResourceArchive::Delete(archive);
 }
