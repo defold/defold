@@ -173,6 +173,7 @@ def default_flags(self):
     self.env.append_value('LIBPATH', libpath)
 
     self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))

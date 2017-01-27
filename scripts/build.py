@@ -447,7 +447,7 @@ class Configuration(object):
         includes = []
         cwd = os.getcwd()
         os.chdir(self.dynamo_home)
-        for root, dirs, files in os.walk("."):
+        for root, dirs, files in os.walk("sdk/include"):
             for file in files:
                 if file.endswith('.h'):
                     includes.append(os.path.join(root, file))
@@ -455,7 +455,7 @@ class Configuration(object):
 
         os.chdir(cwd)
         includes = [os.path.join(self.dynamo_home, x) for x in includes]
-        self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
+        self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
 
         # Configs
         configs = ['extender/build.yml']

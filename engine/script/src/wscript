@@ -37,6 +37,8 @@ def build(bld):
     if bld.env.LUA_BYTECODE_ENABLE == 'yes':
         script.cxxflags = ['-DLUA_BYTECODE_ENABLE']
 
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/script', 'dmsdk/script/script.h')
+
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above
     # in order to avoid installation of dummylib
     bld.install_files('${PREFIX}/lib/python', 'script/script_doc_ddf_pb2.py')
