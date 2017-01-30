@@ -35,7 +35,7 @@ Links:
   -fx-hover-base: $mid-grey;
   -fx-pressed-base: $bright-grey;
   -fx-accent_: $defold-red;
-  //-fx-font-family: $default-font;
+  -fx-font-family: $default-font;
   -fx-font-size: $default-font-size;
   -fx-font-weight: normal;
   }
@@ -72,10 +72,6 @@ Links:
   -fx-background: $bright-black-light;
   -fx-control-inner-background: $bright-black-light;
   -fx-hover-base: $defold-red; }
-
-/* Modules - Major panes in the editor */
-#properties HBox {
-  -fx-spacing: 0; }
 
 /* Drag and drop targets */
 .drop-target {
