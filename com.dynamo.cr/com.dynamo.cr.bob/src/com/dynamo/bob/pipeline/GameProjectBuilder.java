@@ -3,7 +3,6 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -20,8 +19,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -364,7 +361,6 @@ public class GameProjectBuilder extends Builder<Void> {
         String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
         String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
         String publicKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "publickey", null);
-        String excludedResourcesString = project.getProjectProperties().getStringValue("liveupdate", "exclude", null);
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setDependencies(rootNode);
@@ -400,11 +396,8 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        if (excludedResourcesString != null) {
-            String[] excludedResources = excludedResourcesString.split("\\s*,\\s*");
-            for (String excludedResource : excludedResources) {
-                excludedResourcesList.add(excludedResource);
-            }
+        for (String excludedResource : project.getExcludedCollectionProxies()) {
+            excludedResourcesList.add(excludedResource);
         }
 
         return manifestBuilder;

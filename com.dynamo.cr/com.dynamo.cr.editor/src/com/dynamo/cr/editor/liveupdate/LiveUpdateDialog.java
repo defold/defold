@@ -21,6 +21,7 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
@@ -160,8 +161,8 @@ public class LiveUpdateDialog extends TitleAreaDialog {
         buttonControl.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                FileDialog fileDialog = new FileDialog(getShell());
-                String filepath = fileDialog.open();
+                DirectoryDialog directoryDialog = new DirectoryDialog(getShell());
+                String filepath = directoryDialog.open();
                 if (filepath != null) {
                     textControl.setText(filepath);
                     action.setInput(filepath);
