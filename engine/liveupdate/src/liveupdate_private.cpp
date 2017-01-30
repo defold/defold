@@ -64,6 +64,17 @@ namespace dmLiveUpdate
                     if (entries != NULL && resources < entries_size)
                     {
                         entries[resources] = resourceHash;
+
+                        for (int i = 0; i < manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
+                        {
+                            uint8_t* hash = manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
+                            int cmp = memcmp(hash, resourceHash, entry->m_Dependants.m_Data[i].m_Data.m_Count);
+
+                            if (cmp == 0)
+                            {
+                                dmLogInfo("URL: %s", manifest->m_DDF->m_Data.m_Resources[i].m_Url);
+                            }
+                        }
                     }
 
                     resources += 1;

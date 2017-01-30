@@ -53,7 +53,10 @@ namespace dmResource
 
     Result UnmapFile(void*& map, uint32_t size)
     {
-        munmap(map, size);
+        if (map)
+        {
+            munmap(map, size);
+        }
         return RESULT_OK;
     }
 

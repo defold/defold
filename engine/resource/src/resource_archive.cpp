@@ -412,7 +412,9 @@ namespace dmResourceArchive
                 return RESULT_IO_ERROR;
             }
             archive->m_LiveUpdateResourceData = (uint8_t*)temp_map;
-            archive->m_LiveUpdateResourceSize = offset + bytes_written;
+            archive->m_LiveUpdateResourceSize += bytes_written;
+
+            dmLogInfo("New map with size: %u", archive->m_LiveUpdateResourceSize);
         }
         
         return RESULT_OK;
@@ -463,6 +465,8 @@ namespace dmResourceArchive
             
             dmLogInfo("LU data path: %s", lu_data_path);
             dmStrlCpy(archive->m_LiveUpdateResourcePath, lu_data_path, DMPATH_MAX_PATH);
+            archive->m_LiveUpdateResourceData = 0x0;
+            archive->m_LiveUpdateResourceSize = 0;
             archive->m_LiveUpdateFileResourceData = f_lu_data;
         }
 
@@ -529,7 +533,7 @@ namespace dmResourceArchive
         {
             PrintHash((uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i), JAVA_TO_C(ai_temp->m_HashLength));
             EntryData& e = entries[i];
-            //dmLogInfo("offs: %u, size: %u, comp_size: %u, flags: %u", JAVA_TO_C(e.m_ResourceDataOffset), JAVA_TO_C(e.m_ResourceSize), JAVA_TO_C(e.m_ResourceCompressedSize), JAVA_TO_C(e.m_Flags));
+            dmLogInfo("offs: %u, size: %u, comp_size: %u, flags: %u", JAVA_TO_C(e.m_ResourceDataOffset), JAVA_TO_C(e.m_ResourceSize), JAVA_TO_C(e.m_ResourceCompressedSize), JAVA_TO_C(e.m_Flags));
         }
         // END DEBUG
 
@@ -732,6 +736,7 @@ namespace dmResourceArchive
             if (compressed_size != 0xFFFFFFFF)
             {
                 // Entry is compressed
+                dmLogInfo("Entry is compressed, size: %u, compressed_size: %u", size, compressed_size);
                 dmLZ4::Result result = dmLZ4::DecompressBufferFast(decrypted, compressed_size, buffer, size);
                 if (result == dmLZ4::RESULT_OK)
                 {
@@ -739,6 +744,7 @@ namespace dmResourceArchive
                 }
                 else
                 {
+                    dmLogInfo("Decompression failed with result = %i", result);
                     ret = RESULT_OUTBUFFER_TOO_SMALL;
                 }
             }

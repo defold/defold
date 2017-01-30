@@ -29,6 +29,7 @@ namespace dmResource
         out_asset = (void*)AAssetManager_open(am, path, AASSET_MODE_RANDOM);
         if (!out_asset)
         {
+            dmLogInfo("ANDROID res not fpound at path: %s", path);
             return RESULT_RESOURCE_NOT_FOUND;
         }
         out_map = (void*)AAsset_getBuffer((AAsset*)out_asset);
@@ -44,14 +45,41 @@ namespace dmResource
 
     Result MapFile(const char* path, void*& out_map, uint32_t& out_size)
     {
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        AAsset* asset = 0x0;
-        return MapAsset(am, path, (void*&)asset, out_size, out_map);
+        dmLogInfo("ANDROID mapping file (mmap)... path: %s", path)
+        int fd = open(path, O_RDONLY);
+        if (fd < 0)
+        {
+            dmLogInfo("ANDROID resource not found at path: %s", path);
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        struct stat fs;
+        if (fstat(fd, &fs))
+        {
+            close(fd);
+            return RESULT_IO_ERROR;
+        }
+
+        out_map = mmap(0, fs.st_size, PROT_READ, MAP_SHARED, fd, 0);
+        close(fd);
+
+        if (!out_map || out_map == (void*)-1)
+        {
+            return RESULT_IO_ERROR;
+        }
+
+        out_size = fs.st_size;
+
+        return RESULT_OK;
     }
 
     Result UnmapFile(void*& map, uint32_t size)
     {
-        AAsset_close((AAsset*)map);
+        if (map != 0x0)
+        {
+            dmLogInfo("ANDROID Unmapping file (munmap)")
+            munmap(map, size);
+        }
         return RESULT_OK;
     }
 
