@@ -32,7 +32,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.defold.extender.client.ExtenderClient;
-import com.defold.extender.client.IExtenderResource;
+import com.defold.extender.client.ExtenderResource;
 
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.publisher.AWSPublisher;
@@ -532,7 +532,7 @@ public class Project {
             String defaultName = platform.formatBinaryName("dmengine");
             File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
 
-            List<IExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform);
+            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform);
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
             BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe);
             m.worked(1);

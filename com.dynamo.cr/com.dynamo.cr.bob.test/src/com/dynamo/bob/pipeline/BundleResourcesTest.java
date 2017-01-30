@@ -32,7 +32,7 @@ import org.junit.rules.TemporaryFolder;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
-import com.defold.extender.client.IExtenderResource;
+import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -291,16 +291,36 @@ public class BundleResourcesTest {
 
     }
 
+    private boolean findInResourceList(List<ExtenderResource> list, String path) {
+
+        for (ExtenderResource resource : list) {
+            if (resource.getPath().equals(path)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Extension source collecting
     @Test
     public void testExtensionSources() throws Exception {
 
         // Should find: ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
-        List<IExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin);
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin);
         assertEquals(4, resources.size());
+
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
+        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a"));
 
         resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin);
         assertEquals(3, resources.size());
+
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
     }
 
 }

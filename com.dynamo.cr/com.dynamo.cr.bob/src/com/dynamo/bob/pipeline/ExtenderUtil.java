@@ -16,7 +16,9 @@ import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
-import com.defold.extender.client.IExtenderResource;
+import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderResource;
+
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
@@ -24,9 +26,7 @@ import com.dynamo.bob.fs.IResource;
 
 public class ExtenderUtil {
 
-    private static final String extensionFilename = "ext.manifest";
-
-    private static class FSExtenderResource implements IExtenderResource {
+    private static class FSExtenderResource implements ExtenderResource {
 
         private IResource resource;
         FSExtenderResource(IResource resource) {
@@ -65,8 +65,8 @@ public class ExtenderUtil {
 
     }
 
-    private static List<IExtenderResource> listFilesRecursive(Project project, String path) {
-        List<IExtenderResource> resources = new ArrayList<IExtenderResource>();
+    private static List<ExtenderResource> listFilesRecursive(Project project, String path) {
+        List<ExtenderResource> resources = new ArrayList<ExtenderResource>();
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths(path, paths);
         for (String p : paths) {
@@ -115,7 +115,7 @@ public class ExtenderUtil {
         List<String> folders = new ArrayList<>();
         for (String p : paths) {
             File f = new File(p);
-            if (f.getName().equals(extensionFilename)) {
+            if (f.getName().equals(ExtenderClient.extensionFilename)) {
                 folders.add( f.getParent() );
             }
         }
@@ -127,8 +127,8 @@ public class ExtenderUtil {
      * @param project
      * @return A list of IExtenderResources that can be supplied to ExtenderClient
      */
-    public static List<IExtenderResource> getExtensionSources(Project project, Platform platform) {
-        List<IExtenderResource> sources = new ArrayList<>();
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform) {
+        List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
         platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
@@ -138,7 +138,7 @@ public class ExtenderUtil {
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
 
-            sources.add( new FSExtenderResource( project.getResource(extension + "/" + extensionFilename)) );
+            sources.add( new FSExtenderResource( project.getResource(extension + "/" + ExtenderClient.extensionFilename)) );
             sources.addAll( listFilesRecursive( project, extension + "/include" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src") );
 
