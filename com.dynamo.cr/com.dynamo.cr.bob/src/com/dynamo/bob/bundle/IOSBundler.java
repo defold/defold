@@ -26,7 +26,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 
@@ -85,7 +85,7 @@ public class IOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.Arm64Darwin);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
 
         boolean debug = project.hasOption("debug");
 
@@ -241,7 +241,7 @@ public class IOSBundler implements IBundler {
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
 
         // Copy bundle resources into .app folder
-        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));

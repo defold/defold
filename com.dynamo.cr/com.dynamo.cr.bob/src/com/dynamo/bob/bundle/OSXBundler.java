@@ -13,7 +13,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class OSXBundler implements IBundler {
@@ -33,7 +33,7 @@ public class OSXBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.X86Darwin);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.X86Darwin);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -63,7 +63,7 @@ public class OSXBundler implements IBundler {
         BundleHelper helper = new BundleHelper(project, Platform.X86Darwin, bundleDir, ".app");
 
         // Copy bundle resources into .app folder
-        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy archive and game.projectc
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {

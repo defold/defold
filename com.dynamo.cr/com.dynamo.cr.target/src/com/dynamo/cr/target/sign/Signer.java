@@ -21,7 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.target.core.TargetPlugin;
 import com.google.common.io.Files;
@@ -57,7 +57,7 @@ public class Signer {
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
         // Copy bundle resources into .app folder
-        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, FilenameUtils.getBaseName(exe)));

@@ -22,7 +22,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 
-public class BundleResourceUtil {
+public class ExtenderUtil {
 
     private static final String extensionFilename = "ext.manifest";
 
@@ -198,7 +198,7 @@ public class BundleResourceUtil {
         String bundleResourcesPath = project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
         if (bundleResourcesPath.length() > 0) {
             for (String platformAlt : platformFolderAlternatives) {
-                Map<String, IResource> projectBundleResources = BundleResourceUtil.collectResources(project, FilenameUtils.concat(bundleResourcesPath, platformAlt + "/"), bundleExcludeList);
+                Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, FilenameUtils.concat(bundleResourcesPath, platformAlt + "/"), bundleExcludeList);
                 mergeBundleMap(bundleResources, projectBundleResources);
             }
         }
@@ -207,7 +207,7 @@ public class BundleResourceUtil {
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
             for (String platformAlt : platformFolderAlternatives) {
-                Map<String, IResource> extensionBundleResources = BundleResourceUtil.collectResources(project, FilenameUtils.concat("/" + extension, "res/" + platformAlt + "/"), bundleExcludeList);
+                Map<String, IResource> extensionBundleResources = ExtenderUtil.collectResources(project, FilenameUtils.concat("/" + extension, "res/" + platformAlt + "/"), bundleExcludeList);
                 mergeBundleMap(bundleResources, extensionBundleResources);
             }
         }

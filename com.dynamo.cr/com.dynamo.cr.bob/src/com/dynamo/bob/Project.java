@@ -56,7 +56,7 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
@@ -532,7 +532,7 @@ public class Project {
             String defaultName = platform.formatBinaryName("dmengine");
             File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
 
-            List<IExtenderResource> allSource = BundleResourceUtil.getExtensionSources(this, platform);
+            List<IExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform);
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
             BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe);
             m.worked(1);
@@ -580,7 +580,7 @@ public class Project {
 
                 // Get or build engine binary
                 boolean nativeExtEnabled = this.hasOption("native-ext");
-                List<String> extensionPaths = BundleResourceUtil.getExtensionFolders(this);
+                List<String> extensionPaths = ExtenderUtil.getExtensionFolders(this);
                 boolean hasNativeExtensions = nativeExtEnabled && extensionPaths.size() > 0;
                 if (hasNativeExtensions) {
                     buildEngine(monitor);

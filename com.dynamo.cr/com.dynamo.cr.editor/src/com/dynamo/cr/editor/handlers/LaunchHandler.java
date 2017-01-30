@@ -40,7 +40,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.Activator;

@@ -115,20 +115,20 @@ public class BundleResourcesTest {
     @Test
     public void testFindExtensionFolders() throws Exception {
 
-        List<String> folders = BundleResourceUtil.getExtensionFolders(project);
+        List<String> folders = ExtenderUtil.getExtensionFolders(project);
         assertEquals(1, folders.size());
         assertEquals("extension1", folders.get(0));
 
         // Add one more extension folder at root
         addFile("extension2/ext.manifest", "name: \"extension2\"");
-        folders = BundleResourceUtil.getExtensionFolders(project);
+        folders = ExtenderUtil.getExtensionFolders(project);
         assertEquals(2, folders.size());
         assertEquals("extension1", folders.get(0));
         assertEquals("extension2", folders.get(1));
 
         // Add one more extension folder in a nested subfolder
         addFile("subfolder/extension3/ext.manifest", "name: \"extension3\"");
-        folders = BundleResourceUtil.getExtensionFolders(project);
+        folders = ExtenderUtil.getExtensionFolders(project);
         assertEquals(3, folders.size());
         assertEquals("extension1", folders.get(0));
         assertEquals("extension2", folders.get(1));
@@ -139,19 +139,19 @@ public class BundleResourcesTest {
     @Test
     public void testCollectResources() throws Exception {
 
-        Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project, "/restest1/common/", null);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project, "/restest1/common/", null);
         assertEquals(2, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
         assertTrue(resourceMap.containsKey("test.txt"));
 
-        resourceMap = BundleResourceUtil.collectResources(project, "/restest2/common/", null);
+        resourceMap = ExtenderUtil.collectResources(project, "/restest2/common/", null);
         assertEquals(1, resourceMap.size());
     }
 
     @Test
     public void testExclude() throws Exception {
 
-        Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project, "/restest1/common/", Arrays.asList(new String[] { "/restest1/common/collision.txt" }));
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project, "/restest1/common/", Arrays.asList(new String[] { "/restest1/common/collision.txt" }));
         assertTrue(!resourceMap.containsKey("collision.txt"));
         assertTrue(resourceMap.containsKey("test.txt"));
 
@@ -161,7 +161,7 @@ public class BundleResourcesTest {
     public void testExtensionResources() throws Exception {
 
         // Should find bundle resources inside the extension1 folder
-        Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
         assertEquals(2, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
     }
@@ -171,7 +171,7 @@ public class BundleResourcesTest {
 
         // Add project property for bundle resources
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest1/");
-        Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt")); // Will throw a CompileExceptionError due to a conflict in output resources
     }
@@ -184,13 +184,13 @@ public class BundleResourcesTest {
 
         // Exclude the conflicting file from bundle_resources
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/restest1/common/collision.txt");
-        Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
 
         // Exclude the conflicting file from extension
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/extension1/res/common/collision.txt");
-        resourceMap = BundleResourceUtil.collectResources(project);
+        resourceMap = ExtenderUtil.collectResources(project);
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
     }
@@ -203,22 +203,22 @@ public class BundleResourcesTest {
 
         // Test "old" way of specifying custom resources without leading slash (ie non absolute)
         project.getProjectProperties().putStringValue("project", "bundle_resources", "restest1/");
-        Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
         assertEquals(0, resourceMap.size());
 
         // Test non existing project path
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/not_valid/");
-        resourceMap = BundleResourceUtil.collectResources(project);
+        resourceMap = ExtenderUtil.collectResources(project);
         assertEquals(0, resourceMap.size());
     }
 
     @Test
     public void testWriteToDisk() throws Exception {
 
-        Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
         File folder = tmpFolder.newFolder();
 
-        BundleResourceUtil.writeResourcesToDirectory(resourceMap, folder);
+        ExtenderUtil.writeResourcesToDirectory(resourceMap, folder);
 
         // Output folder should contain: collision.txt and subdir/subdirtest.txt
         Collection<File> outputFiles = FileUtils.listFiles(folder, null, true);
@@ -230,14 +230,14 @@ public class BundleResourcesTest {
     @Test
     public void testWriteToZip() throws Exception {
 
-        Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
 
         // Write entries to temp zip file
         File tmpZipFile = tmpFolder.newFile();
         ZipOutputStream zipOut = null;
         try {
             zipOut = new ZipOutputStream(new FileOutputStream(tmpZipFile));
-            BundleResourceUtil.writeResourcesToZip(resourceMap, zipOut);
+            ExtenderUtil.writeResourcesToZip(resourceMap, zipOut);
         } finally {
             IOUtils.closeQuietly(zipOut);
         }
@@ -276,7 +276,7 @@ public class BundleResourcesTest {
             Platform expectedPlatform = entry.getKey();
             String[] expectedFiles = entry.getValue();
 
-            Map<String, IResource> resourceMap = BundleResourceUtil.collectResources(project, expectedPlatform);
+            Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project, expectedPlatform);
 
             // +3 size since collision.txt, common.txt subdir/subdirtest.txt always included.
             assertEquals(expectedFiles.length + 3, resourceMap.size());
@@ -296,10 +296,10 @@ public class BundleResourcesTest {
     public void testExtensionSources() throws Exception {
 
         // Should find: ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
-        List<IExtenderResource> resources = BundleResourceUtil.getExtensionSources(project, Platform.X86_64Darwin);
+        List<IExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin);
         assertEquals(4, resources.size());
 
-        resources = BundleResourceUtil.getExtensionSources(project, Platform.Armv7Darwin);
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin);
         assertEquals(3, resources.size());
     }
 

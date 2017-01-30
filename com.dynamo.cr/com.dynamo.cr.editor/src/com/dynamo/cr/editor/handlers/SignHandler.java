@@ -36,7 +36,7 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IProjectClient;
@@ -146,7 +146,7 @@ public class SignHandler extends AbstractHandler {
                 tmpProject.loadProjectFile();
 
                 // Collect bundle/package resources to be included in .App directory
-                bundleResources = BundleResourceUtil.collectResources(tmpProject, Platform.Arm64Darwin);
+                bundleResources = ExtenderUtil.collectResources(tmpProject, Platform.Arm64Darwin);
             } catch (Exception e) {
                 showErrorDialog(e, "Unable to build engine", e.getMessage());
             }
