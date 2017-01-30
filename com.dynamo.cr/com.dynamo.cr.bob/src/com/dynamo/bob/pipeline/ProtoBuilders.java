@@ -58,6 +58,17 @@ public class ProtoBuilders {
         @Override
         protected CollectionProxyDesc.Builder transform(Task<Void> task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
+            
+            if (messageBuilder.getExclude()) {
+            	if (project.getBuildDirectory() != null && resource.output() != null && resource.output().getPath() != null) {
+            		if (resource.output().getPath().startsWith(project.getBuildDirectory())) {
+            			String excludePath = resource.output().getPath().substring(project.getBuildDirectory().length());
+            			excludePath = BuilderUtil.replaceExt(excludePath, ".collectionproxy", ".collectionproxyc");
+            			this.project.excludeCollectionProxy(excludePath);
+            		}
+            	}
+            }
+            
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }

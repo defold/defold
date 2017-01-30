@@ -25,12 +25,16 @@ public class PublisherSettings {
     }
 
     public void setValue(String group, String key, String value) {
-        if (validInput(group) && validInput(key) && validInput(value)) {
-            if (!this.properties.containsKey(group)) {
-                this.properties.put(group, new LinkedHashMap<String, String>());
-            }
+        if (validInput(group) && validInput(key)) {
+            if (validInput(value)) {
+                if (!this.properties.containsKey(group)) {
+                    this.properties.put(group, new LinkedHashMap<String, String>());
+                }
 
-            this.properties.get(group).put(key.toLowerCase().trim(), value.trim());
+                this.properties.get(group).put(key.toLowerCase().trim(), value.trim());
+            } else {
+                this.removeValue(group, key);
+            }
         }
     }
 

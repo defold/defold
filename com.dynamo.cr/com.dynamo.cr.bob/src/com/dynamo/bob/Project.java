@@ -87,6 +87,7 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
+    private final List<String> excludedCollectionProxies = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -1052,6 +1053,14 @@ run:
 
     public void setTextureProfiles(TextureProfiles textureProfiles) {
         this.textureProfiles = textureProfiles;
+    }
+    
+    public void excludeCollectionProxy(String path) {
+    	this.excludedCollectionProxies.add(path);
+    }
+    
+    public final List<String> getExcludedCollectionProxies() {
+    	return this.excludedCollectionProxies;
     }
 
 }
