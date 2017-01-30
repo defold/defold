@@ -1,4 +1,8 @@
 #properties {
+    HBox {
+        -fx-spacing: 0;
+    }
+
     .composite-property-control-container {
         .button {
             &:focused {
