@@ -1,11 +1,38 @@
 #include <dlib/log.h>
+#include <dlib/static_assert.h>
 #include "extension.h"
 
 namespace dmExtension
 {
     Desc* g_FirstExtension = 0;
 
-    void Register(Desc* desc) {
+    AppParams::AppParams()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
+    Params::Params()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
+    void Register(struct Desc* desc,
+        uint32_t desc_size,
+        const char *name,
+        Result (*app_init)(AppParams*),
+        Result (*app_finalize)(AppParams*),
+        Result (*initialize)(Params*),
+        Result (*finalize)(Params*),
+        Result (*update)(Params*),
+        void   (*on_event)(Params*, const Event*))
+    {
+        desc->m_Name = name;
+        desc->AppInitialize = app_init;
+        desc->AppFinalize = app_finalize ;
+        desc->Initialize = initialize;
+        desc->Finalize = finalize;
+        desc->Update = update;
+        desc->OnEvent = on_event;
         desc->m_Next = g_FirstExtension;
         g_FirstExtension = desc;
     }

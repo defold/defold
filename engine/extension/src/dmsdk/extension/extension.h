@@ -26,10 +26,7 @@ namespace dmExtension
      */
     struct AppParams
     {
-        AppParams()
-        {
-            memset(this, 0, sizeof(*this));
-        }
+        AppParams();
         /// Config file
         dmConfigFile::HConfig m_ConfigFile;
     };
@@ -39,131 +36,101 @@ namespace dmExtension
      */
     struct Params
     {
-        Params()
-        {
-            memset(this, 0, sizeof(*this));
-        }
+        Params();
         /// Config file
         dmConfigFile::HConfig m_ConfigFile;
         /// Lua state
         lua_State*            m_L;
     };
 
+    /**
+     * Event id enum
+     */
     enum EventID
     {
         EVENT_ID_ACTIVATEAPP,
         EVENT_ID_DEACTIVATEAPP,
     };
 
+    /**
+     * Event callback data
+     */
     struct Event
     {
         EventID m_Event;
     };
 
     /**
-     * Internal data-structure.
-     */
-    struct Desc
-    {
-        const char* m_Name;
-        Result (*AppInitialize)(AppParams* params);
-        Result (*AppFinalize)(AppParams* params);
-        Result (*Initialize)(Params* params);
-        Result (*Update)(Params* params);
-        void   (*OnEvent)(Params* params, const Event* event);
-        Result (*Finalize)(Params* params);
-        const Desc* m_Next;
-        bool        m_AppInitialized;
-    };
-
-    /**
-     * Get first extension
-     * @return
-     */
-    const Desc* GetFirstExtension();
-
-    /**
-     * Initialize all extends at application level
-     * @param params parameters
-     * @return RESULT_OK on success
-     */
-    Result AppInitialize(AppParams* params);
-
-    /**
-     * Initialize all extends at application level
-     * @param params parameters
-     * @return RESULT_OK on success
-     */
-    Result AppFinalize(AppParams* params);
-
-    /**
-     * Dispatches an event to each extension's OnEvent callback
-     * @param params parameters
-     * @param event the app event
-     */
-    void DispatchEvent(Params* params, const Event* event);
-
-    /**
-     * Register iOS application delegate. Multiple delegates are supported.
-     * @note Only available on iOS
-     * @param delegate an id<UIApplicationDelegate>
-     */
-    void RegisterUIApplicationDelegate(void* delegate);
-
-    /**
-     * Deregister iOS application delegate
-     * @note Only available on iOS
-     * @param delegate an id<UIApplicationDelegate>
-     */
-    void UnregisterUIApplicationDelegate(void* delegate);
-
-    /**
-     * Internal function
+     * Extension declaration helper. Internal function. Use DM_DECLARE_EXTENSION
      * @param desc
+     * @param desc_size size of desc in bytes
+     * @param name extension name. human readble
+     * @param app_init app-init function. May be null
+     * @param app_finalize app-final function. May be null
+     * @param initialize init function. May not be 0
+     * @param finalize function. May not be 0
+     * @param update update function. May be null
+     * @param on_event event callback function. May be null
      */
-    void Register(Desc* desc);
+    void Register(struct Desc* desc,
+        uint32_t desc_size,
+        const char *name,
+        Result (*app_init)(AppParams*),
+        Result (*app_finalize)(AppParams*),
+        Result (*initialize)(Params*),
+        Result (*finalize)(Params*),
+        Result (*update)(Params*),
+        void   (*on_event)(Params*, const Event*)
+    );
 
+/**
+ * Extension declaration helper. Internal
+ */
 #ifdef __GNUC__
     // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
     // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
     // The bug only happens when the symbol is in a static library though
-    #define DM_REGISTER_EXTENSION(name, desc) extern "C" void __attribute__((constructor)) name () { \
-        dmExtension::Register(&desc); \
+    #define DM_REGISTER_EXTENSION(symbol, desc, name, app_init, app_final, init, update, on_event, final) extern "C" void __attribute__((constructor)) symbol () { \
+        dmExtension::Register((struct dmExtension::Desc*) &desc, 0, name, app_init, app_final, init, final, update, on_event); \
     }
 #else
-    #define DM_REGISTER_EXTENSION(name, desc) extern "C" void name () { \
-        dmExtension::Register(&desc); \
+    #define DM_REGISTER_EXTENSION(symbol, desc, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
+        dmExtension::Register((struct dmExtension::Desc*) &desc, 0, name, app_init, app_final, init, final, update, on_event); \
         }\
-        int name ## Wrapper(void) { name(); return 0; } \
+        int symbol ## Wrapper(void) { symbol(); return 0; } \
         __pragma(section(".CRT$XCU",read)) \
-        __declspec(allocate(".CRT$XCU")) int (* _Fp ## name)(void) = name ## Wrapper;
+        __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
 #endif
 
-#define DM_EXTENSION_PASTE(x, y) x ## y
-#define DM_EXTENSION_PASTE2(x, y) DM_EXTENSION_PASTE(x, y)
+/**
+* Extension declaration helper. Internal
+*/
+#define DM_EXTENSION_PASTE_SYMREG(x, y) x ## y
 
 /**
  * Declare a new extension
  * @param symbol external symbol extension description
  * @param name extension name. human readble
- * @param appinit app-init function. May be null
+ * @param appinit app-init function. May be null.
  * @param appfinal app-final function. May be null
  * @param init init function. May not be 0
+ * @param update update function. May be null
+ * @param on_event event callback function. May be null
  * @param final final function. May not be 0
+ *
+ * Function signatures
+ * Result (*app_init)(AppParams*)
+ * Result (*app_finalize)(AppParams*)
+ * Result (*initialize)(Params*)
+ * Result (*finalize)(Params*)
+ * Result (*update)(Params*)
+ * void   (*on_event)(Params*, const Event*)
  */
-#define DM_DECLARE_EXTENSION(symbol, name, appinit, appfinal, init, update, onevent, final) \
-        dmExtension::Desc DM_EXTENSION_PASTE2(symbol, __LINE__) = { \
-                name, \
-                appinit, \
-                appfinal, \
-                init, \
-                update, \
-                onevent, \
-                final, \
-                0, \
-                false, \
-        };\
-        DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE2(symbol, __LINE__))
+#define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
+    uint8_t DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[128]; \
+    DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), name, app_init, app_final, init, update, on_event, final);
+
+
 }
 
 #endif // #ifndef DMSDK_EXTENSION
