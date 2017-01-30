@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -306,6 +307,17 @@ public class Project {
         projectProperties = new BobProjectProperties();
     }
 
+    public void loadProjectFile() throws IOException, ParseException {
+        clearProjectProperties();
+        IResource gameProject = this.fileSystem.get("/game.project");
+        if (gameProject.exists()) {
+            ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
+            projectProperties.load(is);
+        } else {
+            logWarning("No game.project found");
+        }
+    }
+
     /**
      * Build the project
      * @param monitor
@@ -315,14 +327,7 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         try {
-            clearProjectProperties();
-            IResource gameProject = this.fileSystem.get("/game.project");
-            if (gameProject.exists()) {
-                ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
-                projectProperties.load(is);
-            } else {
-                logWarning("No game.project found");
-            }
+            loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
             // Pass on unmodified

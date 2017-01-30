@@ -227,6 +227,26 @@ public class Bob {
         return cmd;
     }
 
+    public static Project createProject(String sourceDirectory, String rootDirectory, String buildDirectory, boolean resolveLibraries) throws IOException, LibraryException, CompileExceptionError {
+        Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
+
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        String cwd = new File(".").getAbsolutePath();
+        project.setLibUrls(LibraryUtil.getLibraryUrlsFromProject(FilenameUtils.concat(cwd, rootDirectory)));
+        if (resolveLibraries) {
+            project.resolveLibUrls(new ConsoleProgress());
+        }
+        project.mount(new ClassLoaderResourceScanner());
+
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
+        project.findSources(sourceDirectory, skipDirs);
+
+        return project;
+    }
+
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         String cwd = new File(".").getAbsolutePath();
@@ -242,7 +262,15 @@ public class Bob {
             commands = new String[] { "build" };
         }
 
-        Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
+        boolean shouldResolveLibs = false;
+        for (String command : commands) {
+            if (command.equals("resolve")) {
+                shouldResolveLibs = true;
+                break;
+            }
+        }
+
+        Project project = createProject(sourceDirectory, rootDirectory, buildDirectory, shouldResolveLibs);
         if (cmd.hasOption('e')) {
             project.setOption("email", getOptionsValue(cmd, 'e', null));
         }
@@ -271,21 +299,6 @@ public class Bob {
             }
         }
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
-
-        project.setLibUrls(LibraryUtil.getLibraryUrlsFromProject(FilenameUtils.concat(cwd, rootDirectory)));
-        for (String command : commands) {
-            if (command.equals("resolve")) {
-                project.resolveLibUrls(new ConsoleProgress());
-                break;
-            }
-        }
-        project.mount(new ClassLoaderResourceScanner());
-
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
-        project.findSources(sourceDirectory, skipDirs);
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
         boolean ret = true;
         StringBuilder errors = new StringBuilder();
