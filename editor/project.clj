@@ -40,6 +40,8 @@
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
+                     [com.defold.lib/openmali                     "1.0"]
+
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-i586"]
@@ -87,7 +89,7 @@
 
   :aliases           {"ci"        ["do" "test," "uberjar"]
                       "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "init"      ["do" "clean," "builtins," "protobuf," "sass" "once," "pack"]}
+                      "init"      ["do" "local-jars," "clean," "builtins," "protobuf," "sass" "once," "pack"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}

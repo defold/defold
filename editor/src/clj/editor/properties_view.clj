@@ -14,7 +14,8 @@
             [editor.resource :as resource]
             [editor.math :as math]
             [editor.field-expression :as field-expression]
-            [util.id-vec :as iv])
+            [util.id-vec :as iv]
+            [util.profiler :as profiler])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
@@ -61,9 +62,12 @@
                                          (update-fn nil)))))
   (ui/on-edit! node (fn [old new] (ui/user-data! node ::auto-commit? true))))
 
+(defn edit-type->type [edit-type]
+  (or (some-> edit-type :type g/value-type-dispatch-value)
+      (:type edit-type)))
+
 (defmulti create-property-control! (fn [edit-type _ property-fn]
-                                     (or (some-> edit-type :type g/value-type-dispatch-value)
-                                         (:type edit-type))))
+                                     (edit-type->type edit-type)))
 
 (defmethod create-property-control! g/Str [_ _ property-fn]
   (let [text         (TextField.)
@@ -567,7 +571,6 @@
                (AnchorPane/setLeftAnchor 0.0)
                (AnchorPane/setRightAnchor 0.0)
                (AnchorPane/setTopAnchor 0.0))]
-      (ui/user-data! vbox ::properties properties)
       (let [property-fn   (fn [key]
                             (let [properties (:properties (ui/user-data vbox ::properties))]
                               (get properties key)))
@@ -595,27 +598,37 @@
       vbox))
 
 (defn- refresh-pane [parent ^Pane pane properties]
-  (ui/user-data! pane ::properties properties)
-  (let [update-fns (ui/user-data parent ::update-fns)]
-    (doseq [[key property] (:properties properties)]
+  (let [update-fns (ui/user-data parent ::update-fns)
+        prev-properties (:properties (ui/user-data pane ::properties))]
+    (ui/user-data! pane ::properties properties)
+    (doseq [[key property] (:properties properties)
+            ;; Only update the UI when the props actually differ
+            ;; Differing :edit-type's would have recreated the UI so no need to compare them here
+            :when (not= (dissoc property :edit-type) (dissoc (get prev-properties key) :edit-type))]
       (when-let [update-ui-fn (get update-fns key)]
         (update-ui-fn property)))))
 
+(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn])
+
+(defn- edit-type->template [edit-type]
+  (apply dissoc edit-type ephemeral-edit-type-fields))
+
 (defn- properties->template [properties]
-  (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) (:properties properties)))
+  (mapv (fn [[k v]] [k (edit-type->template (:edit-type v))]) (:properties properties)))
 
 (defn- update-pane [parent id context properties]
-  ; NOTE: We cache the ui based on the ::template user-data
-  (let [properties (properties/coalesce properties)
-        template (properties->template properties)
-        prev-template (ui/user-data parent ::template)]
-    (when (not= template prev-template)
-      (let [pane (make-pane parent context properties)]
-        (ui/user-data! parent ::template template)
-        (g/set-property! id :prev-pane pane)))
-    (let [pane (g/node-value id :prev-pane)]
-      (refresh-pane parent pane properties)
-      pane)))
+  ; NOTE: We cache the ui based on the ::template and ::properties user-data
+  (profiler/profile "properties" "update-pane"
+    (let [properties (properties/coalesce properties)
+          template (properties->template properties)
+          prev-template (ui/user-data parent ::template)]
+      (when (not= template prev-template)
+        (let [pane (make-pane parent context properties)]
+          (ui/user-data! parent ::template template)
+          (g/set-property! id :prev-pane pane)))
+      (let [pane (g/node-value id :prev-pane)]
+        (refresh-pane parent pane properties)
+        pane))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
@@ -627,7 +640,10 @@
 
   (output pane Pane :cached (g/fnk [parent-view _node-id workspace project selected-node-properties]
                                    (let [context {:workspace workspace :project project}]
-                                     (update-pane parent-view _node-id context selected-node-properties)))))
+                                     ;; Collecting the properties and then updating the view takes some time, but has no immediacy
+                                     ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
+                                     (ui/run-later
+                                       (update-pane parent-view _node-id context selected-node-properties))))))
 
 (defn make-properties-view [workspace project app-view view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace :project project)

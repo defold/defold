@@ -6,6 +6,7 @@
 #include <graphics/graphics_ddf.h>
 #include <script/script.h>
 #include "../gamesys.h"
+#include "script_resource_liveupdate.h"
 
 
 namespace dmGameSystem
@@ -15,6 +16,7 @@ namespace dmGameSystem
  *
  * Functions and constants to access the resources
  *
+ * @document
  * @name Resource
  * @namespace resource
  */
@@ -46,17 +48,18 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
  *
  * @name resource.set
  *
- * @param path (hash|string) The path to the resource
- * @param buffer (buffer) The buffer of precreated data, suitable for the intended resource type
+ * @param path [type:hash|string] The path to the resource
+ * @param buffer [type:buffer] The buffer of precreated data, suitable for the intended resource type
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * function update(self)
  *     -- copy the data from the texture of sprite1 to sprite2
  *     local buffer = resource.load(go.get("#sprite1", "texture0"))
  *     resource.set( go.get("#sprite2", "texture0"), buffer )
  * end
- * </pre>
+ * ```
  */
 static int Set(lua_State* L)
 {
@@ -80,26 +83,28 @@ static int Set(lua_State* L)
  *
  * @name resource.load
  *
- * @param path (hash|string) The path to the resource
- * @return (buffer) Returns the buffer stored on disc
+ * @param path [type:hash|string] The path to the resource
+ * @return buffer [type:buffer] Returns the buffer stored on disc
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * function update(self)
  *     -- copy the data from the texture of sprite1 to sprite2
  *     local buffer = resource.load(go.get("#sprite1", "texture0"))
  *     resource.set( go.get("#sprite2", "texture0"), buffer )
  * end
- * </pre>
+ * ```
  *
  * In order for the engine to include custom resources in the build process, you need
  * to specify them in the "game.project" settings file:
- * <pre>
+ *
+ * ```
  * [project]
  * title = My project
  * version = 0.1
  * custom_resources = main/data/,assets/level_data.json
- * </pre>
+ * ```
  */
 static int Load(lua_State* L)
 {
@@ -202,7 +207,7 @@ static int SetTexture(lua_State* L)
     texture_image->m_Alternatives.m_Data = new dmGraphics::TextureImage::Image[1];
     texture_image->m_Alternatives.m_Count = 1;
     texture_image->m_Type = (dmGraphics::TextureImage::Type)GraphicsTextureTypeToImageType(type);
-    
+
     for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
     {
         dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
@@ -257,6 +262,16 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
+
+    // LiveUpdate functionality in resource namespace
+    {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
+    {"create_manifest", dmLiveUpdate::Resource_CreateManifest},
+    {"destroy_manifest", dmLiveUpdate::Resource_DestroyManifest},
+    {"verify_resource", dmLiveUpdate::Resource_VerifyResource},
+    {"store_resource", dmLiveUpdate::Resource_StoreResource},
+    {"verify_manifest", dmLiveUpdate::Resource_VerifyManifest},
+    {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
+
     {0, 0}
 };
 

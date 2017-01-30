@@ -18,7 +18,7 @@
 (defn- resource-reader [resource-name]
   (io/reader (io/resource resource-name)))
 
-(defn- pushback-reader [reader]
+(defn- pushback-reader ^PushbackReader [reader]
   (PushbackReader. reader))
 
 (defn string-reader [content]
@@ -80,7 +80,8 @@
   (update-in meta-info [:settings]
              (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
 
-(def basic-meta-info (add-type-defaults (edn/read (pushback-reader (resource-reader "meta.edn")))))
+(def basic-meta-info (with-open [r (pushback-reader (resource-reader "meta.edn"))]
+                       (add-type-defaults (edn/read r))))
 
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))
@@ -183,6 +184,10 @@
 (defn get-setting-or-default [meta-settings settings path]
   (or (get-setting settings path)
       (get-default-setting meta-settings path)))
+
+(defn get-meta-setting
+  [meta-settings path]
+  (nth meta-settings (setting-index meta-settings path)))
 
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))

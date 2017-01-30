@@ -24,7 +24,12 @@
                    :platforms [{:os :os-id-generic
                                 :formats [{:format :texture-format-rgba
                                            :compression-level :fast}]
-                                :mipmaps false}]})
+                                :mipmaps true}]})
+
+(defn- read-image
+  [source]
+  (with-open [s (io/input-stream source)]
+    (ImageIO/read s)))
 
 (defn- build-texture [self basis resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
@@ -39,7 +44,7 @@
   (inherits project/ResourceNode)
 
   (output content BufferedImage :cached (g/fnk [resource] (try
-                                                            (if-let [img (ImageIO/read (io/input-stream resource))]
+                                                            (if-let [img (read-image resource)]
                                                               img
                                                               (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
                                                             (catch java.io.FileNotFoundException e
@@ -83,7 +88,7 @@
     img))
 
 (defn load-image [src reference]
-  (make-image reference (ImageIO/read (io/input-stream src))))
+  (make-image reference (read-image src)))
 
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))

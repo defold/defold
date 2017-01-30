@@ -9,6 +9,7 @@
 #include <dlib/math.h>
 
 #include "../graphics.h"
+#include "../graphics_native.h"
 #include "graphics_null.h"
 #include "glsl_uniform_parser.h"
 
@@ -236,6 +237,25 @@ namespace dmGraphics
     {
         // NOP
     }
+
+    #define NATIVE_HANDLE_IMPL(return_type, func_name) return_type GetNative##func_name() { return NULL; }
+
+    NATIVE_HANDLE_IMPL(id, iOSUVWindow);
+    NATIVE_HANDLE_IMPL(id, iOSUIView);
+    NATIVE_HANDLE_IMPL(id, iOSEAGLContext);
+    NATIVE_HANDLE_IMPL(id, OSXNSWindow);
+    NATIVE_HANDLE_IMPL(id, OSXNSView);
+    NATIVE_HANDLE_IMPL(id, OSXNSOpenGLContext);
+    NATIVE_HANDLE_IMPL(HWND, WindowsHWND);
+    NATIVE_HANDLE_IMPL(HGLRC, WindowsHGLRC);
+    NATIVE_HANDLE_IMPL(EGLContext, AndroidEGLContext);
+    NATIVE_HANDLE_IMPL(EGLSurface, AndroidEGLSurface);
+    NATIVE_HANDLE_IMPL(JavaVM*, AndroidJavaVM);
+    NATIVE_HANDLE_IMPL(jobject, AndroidActivity);
+    NATIVE_HANDLE_IMPL(Window, X11Window);
+    NATIVE_HANDLE_IMPL(GLXContext, X11GLXContext);
+
+    #undef NATIVE_HANDLE_IMPL
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {

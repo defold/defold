@@ -563,6 +563,7 @@
     (g/transact
       (select app-view resource-node [resource-node]))
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
+    (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-context-menu tab ::tab-menu)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
@@ -581,7 +582,9 @@
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
      (if-let [make-view-fn (:make-view-fn view-type)]
-       (let [resource-node     (project/get-resource-node project resource)
+       (let [resource-node     (or (project/get-resource-node project resource)
+                                   (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                                   {})))
              ^TabPane tab-pane (g/node-value app-view :tab-pane)
              tabs              (.getTabs tab-pane)
              tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
@@ -721,5 +724,6 @@
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
 
 (handler/defhandler :sign-ios-app :global
+  (active? [] (util/is-mac-os?))
   (run [workspace project prefs]
     (bundle/make-sign-dialog workspace prefs project)))

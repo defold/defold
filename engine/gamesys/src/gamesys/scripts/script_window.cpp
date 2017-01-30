@@ -12,6 +12,7 @@ namespace dmGameSystem
      * Functions and constants to access the window, window event listeners 
      * and screen dimming.
      *
+     * @document
      * @name Window
      * @namespace window
      */
@@ -118,7 +119,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback (function) A callback which receives info about window events. Can be nil.
+ * @param callback (function) A callback which receives info about window events. Pass an empty function if you no longer wish to receive callbacks.
  *
  * <ul>
  *     <li>self (object) The calling script</li>

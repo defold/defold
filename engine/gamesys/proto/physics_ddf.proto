@@ -103,16 +103,16 @@ message CollisionObjectDesc
  *
  * @message
  * @name apply_force
- * @param force the force to be applied on the collision object, measured in Newton (vector3)
- * @param position the position where the force should be applied (vector3)
+ * @param force [type:vector3] the force to be applied on the collision object, measured in Newton
+ * @param position [type:vector3] the position where the force should be applied
  * @examples
- * <p>
+ *
  * Assuming the instance of the script has a collision-object-component with id "co":
- * </p>
- * <pre>
+ *
+ * ```lua
  * -- apply a force of 1 Newton towards world-x at the center of the game object instance
  * msg.post("#co", "apply_force", {force = vmath.vector3(1, 0, 0), position = go.get_world_position()})
- * </pre>
+ * ```
  */
 message ApplyForce
 {
@@ -121,33 +121,34 @@ message ApplyForce
 }
 
 /*# reports a collision between two collision objects
- * <p>
- * This message is broadcasted to every component of an instance that has a collision object, when the collision
- * object collides with another collision object. For a script to take action when such a collision happens, it
- * should check for this message in its <code>on_message</code> callback function.
- * </p>
- * <p>
- * This message only reports that a collision actually happened and will only be sent once per colliding pair and frame.
- * To retrieve more detailed information, check for the <code>contact_point_response</code> instead.
- * </p>
+ *
+ * This message is broadcasted to every component of an instance that has a collision object,
+ * when the collision object collides with another collision object. For a script to take action
+ * when such a collision happens, it should check for this message in its `on_message` callback
+ * function.
+ *
+ *
+ * This message only reports that a collision actually happened and will only be sent once per
+ * colliding pair and frame.
+ * To retrieve more detailed information, check for the `contact_point_response` instead.
  *
  * @message
  * @name collision_response
- * @param other_id the id of the instance the collision object collided with (hash)
- * @param other_position the world position of the instance the collision object collided with (vec3)
- * @param group the collision group of the other collision object (hash)
+ * @param other_id [type:hash] the id of the instance the collision object collided with
+ * @param other_position [type:vector3] the world position of the instance the collision object collided with
+ * @param group [type:hash] the collision group of the other collision object (hash)
  * @examples
- * <p>
+ *
  * How to take action when a collision occurs:
- * </p>
- * <pre>
+ *
+ * ```lua
  * function on_message(self, message_id, message, sender)
  *     -- check for the message
  *     if message_id == hash("collision_response") then
  *         -- take action
  *     end
  * end
- * </pre>
+ * ```
  */
 message CollisionResponse
 {
@@ -157,42 +158,41 @@ message CollisionResponse
 }
 
 /*# reports a contact point between two collision objects
- * <p>
- * This message is broadcasted to every component of an instance that has a collision object, when the collision
- * object has contact points with respect to another collision object. For a script to take action when
- * such contact points occur, it should check for this message in its <code>on_message</code> callback function.
- * </p>
- * <p>
- * Since multiple contact points can occur for two colliding objects, this message can be sent multiple times in
- * the same frame for the same two colliding objects. To only be notified once when the collision occurs, check
- * for the <code>collision_response</code> message instead.
- * </p>
+ *
+ * This message is broadcasted to every component of an instance that has a collision object,
+ * when the collision object has contact points with respect to another collision object.
+ * For a script to take action when such contact points occur, it should check for this message
+ * in its `on_message` callback function.
+ *
+ * Since multiple contact points can occur for two colliding objects, this message can be sent
+ * multiple times in the same frame for the same two colliding objects. To only be notified once
+ * when the collision occurs, check for the `collision_response` message instead.
  *
  * @message
  * @name contact_point_response
- * @param position world position of the contact point (vector3)
- * @param normal normal in world space of the contact point, which points from the other object towards the current object (vector3)
- * @param relative_velocity the relative velocity of the collision object as observed from the other object (vector3)
- * @param distance the penetration distance between the objects, which is always positive (number)
- * @param applied_impulse the impulse the contact resulted in (number)
- * @param life_time life time of the contact, <b>not currently used</b> (number)
- * @param mass the mass of the current collision object in kg (number)
- * @param other_mass the mass of the other collision object in kg (number)
- * @param other_id the id of the instance the collision object is in contact with (hash)
- * @param other_position the world position of the other collision object (vector3)
- * @param group the collision group of the other collision object (hash)
+ * @param position [type:vector3] world position of the contact point
+ * @param normal [type:vector3] normal in world space of the contact point, which points from the other object towards the current object
+ * @param relative_velocity [type:vector3] the relative velocity of the collision object as observed from the other object
+ * @param distance [type:number] the penetration distance between the objects, which is always positive
+ * @param applied_impulse [type:number] the impulse the contact resulted in
+ * @param life_time [type:number] life time of the contact, **not currently used**
+ * @param mass [type:number] the mass of the current collision object in kg
+ * @param other_mass [type:number] the mass of the other collision object in kg
+ * @param other_id [type:hash] the id of the instance the collision object is in contact with
+ * @param other_position [type:vector3] the world position of the other collision object
+ * @param group [type:hash] the collision group of the other collision object
  * @examples
- * <p>
+ *
  * How to take action when a contact point occurs:
- * </p>
- * <pre>
+ *
+ * ```lua
  * function on_message(self, message_id, message, sender)
  *     -- check for the message
  *     if message_id == hash("contact_point_response") then
  *         -- take action
  *     end
  * end
- * </pre>
+ * ```
  */
 message ContactPointResponse
 {
@@ -210,27 +210,26 @@ message ContactPointResponse
 }
 
 /*# reports interaction (enter/exit) between a trigger collision object and another collision object
- * <p>
- * This message is broadcasted to every component of an instance that has a collision object, when the collision
- * object interacts with another collision object and one of them is a trigger.
- * For a script to take action when such an interaction happens, it
- * should check for this message in its <code>on_message</code> callback function.
- * </p>
- * <p>
- * This message only reports that an interaction actually happened and will only be sent once per colliding pair and frame.
- * To retrieve more detailed information, check for the <code>contact_point_response</code> instead.
- * </p>
+ *
+ * This message is broadcasted to every component of an instance that has a collision object,
+ * when the collision object interacts with another collision object and one of them is a trigger.
+ * For a script to take action when such an interaction happens, it should check for this message
+ * in its `on_message` callback function.
+ *
+ * This message only reports that an interaction actually happened and will only be sent once per
+ * colliding pair and frame. To retrieve more detailed information, check for the
+ * `contact_point_response` instead.
  *
  * @message
  * @name trigger_response
- * @param other_id the id of the instance the collision object collided with (hash)
- * @param enter if the interaction was an entry or not (exit)
- * @param group the collision group of the triggering object as a hashed name
+ * @param other_id [type:hash] the id of the instance the collision object collided with (hash)
+ * @param enter [type:boolean] if the interaction was an entry or not
+ * @param group [type:hash] the collision group of the triggering object as a hashed name
  * @examples
- * <p>
+ *
  * How to take action when a trigger interaction occurs:
- * </p>
- * <pre>
+ *
+ * ```lua
  * function on_message(self, message_id, message, sender)
  *     -- check for the message
  *     if message_id == hash("trigger_response") then
@@ -241,7 +240,7 @@ message ContactPointResponse
  *         end
  *     end
  * end
- * </pre>
+ * ```
  */
 message TriggerResponse
 {
@@ -259,17 +258,18 @@ message RequestRayCast
 }
 
 /*# reports a ray cast hit
- * This message is sent back to the sender of a <code>ray_cast_request</code>, if the ray hit a collision object.
- * See <code>request_ray_cast</code> for examples of how to use it.
+ *
+ * This message is sent back to the sender of a `ray_cast_request`, if the ray hit a
+ * collision object. See `request_ray_cast` for examples of how to use it.
  *
  * @message
  * @name ray_cast_response
- * @param fraction the fraction of the hit measured along the ray, where 0 is the start of the ray and 1 is the end (number)
- * @param position the world position of the hit
- * @param normal the normal of the surface of the collision object where it was hit
- * @param id the instance id of the hit collision object
- * @param group the collision group of the hit collision object as a hashed name
- * @param request_id id supplied when the ray cast was requested
+ * @param fraction [type:number] the fraction of the hit measured along the ray, where 0 is the start of the ray and 1 is the end
+ * @param position [type:vector3] the world position of the hit
+ * @param normal [type:vector3] the normal of the surface of the collision object where it was hit
+ * @param id [type:hash] the instance id of the hit collision object
+ * @param group [type:hash] the collision group of the hit collision object as a hashed name
+ * @param request_id [type:number] id supplied when the ray cast was requested
  */
 message RayCastResponse
 {
@@ -281,48 +281,8 @@ message RayCastResponse
     required uint32         request_id      = 6;
 }
 
-/*# (DEPRECATED) requests the velocity of a collision object
- *
- * Post this message to a collision-object-component to retrieve its velocity.
- *
- * @deprecated Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
- * with <code>go.get()</code> instead.
- * @message
- * @name request_velocity
- * @examples
- * <p>
- * How to retrieve the velocity of a collision object, assuming the collision-object-component has id "co" and belongs to the same instance as the script:
- * </p>
- * <pre>
- * function update(self, dt)
- *     -- request velocity
- *     msg.post("#co", "request_velocity")
- * end
- *
- * function on_message(self, message_id, message, sender)
- *     -- check for the response
- *     if message_id == hash("velocity_response") then
- *         -- do something with the velocity, e.g:
- *         self.velocity = message.linear_velocity
- *     end
- * end
- * </pre>
- */
 message RequestVelocity {}
 
-/*# (DEPRECATED) reports the velocity of a collision object
- * See <code>request_velocity</code> for examples on how to use it.
- *
- *  This message is sent back to the sender of a <code>request_velocity</code> message.
- *
- * @deprecated Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
- * with <code>go.get()</code> instead.
- * @message
- * @name velocity_response
- * @param linear_velocity the linear velocity, i.e. translation, of the collision object in units/s (pixels/s (vector3)
- * @param angular_velocity the angular velocity, i.e. rotation, of the collision object in radians/s.
- * The velocity is measured as a rotation around the vector with a speed equivalent to the vector length (vector3)
- */
 message VelocityResponse
 {
     required dmMath.Vector3 linear_velocity     = 1;

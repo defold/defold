@@ -27,5 +27,6 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer {
         store.setDefault(PreferenceConstants.P_ANONYMOUS_LOGGING, true);
         store.setDefault(PreferenceConstants.P_TEXTURE_PROFILES, true);
         store.setDefault(PreferenceConstants.P_QUIT_ON_ESC, false);
+	    store.setDefault(PreferenceConstants.P_NATIVE_EXT_SERVER_URI, "https://build.defold.com");
 	}
 }

@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
@@ -22,10 +23,13 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.defold.extender.client.ExtenderClient;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.BundleResourceUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -52,14 +56,42 @@ public class AndroidBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
 
+        // Collect bundle/package resources to be included in APK zip
+        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.Armv7Android);
+
         BobProjectProperties projectProperties = project.getProjectProperties();
         final boolean debug = project.hasOption("debug");
-        String exe = Bob.getDmengineExe(Platform.Armv7Android, debug);
+
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = title.replace(' ', '_');
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
+
+        File root = new File(project.getRootDirectory());
+        boolean nativeExtEnabled = project.hasOption("native-ext");
+        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
+        File exe = null;
+
+        if (hasNativeExtensions) {
+            String platform = "armv7-android";
+
+            File cacheDir = new File(project.getBuildCachePath());
+            cacheDir.mkdirs();
+            String sdkVersion = project.option("defoldsdk", "");
+            String buildServer = project.option("build-server", "");
+            ExtenderClient extender = new ExtenderClient(buildServer, cacheDir);
+            File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
+            logFile.deleteOnExit();
+
+            exe = File.createTempFile("engine_" + sdkVersion + "_" + platform, "");
+            exe.deleteOnExit();
+
+            List<File> allSource = ExtenderClient.getExtensionSource(root, platform);
+            BundleHelper.buildEngineRemote(extender, platform, sdkVersion, root, allSource, logFile, "/libdmengine.so", exe);
+        } else {
+            exe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
+        }
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
@@ -193,21 +225,24 @@ public class AndroidBundler implements IBundler {
                 inE = zipIn.getNextEntry();
             }
 
-            for (String name : Arrays.asList("game.projectc", "game.darc")) {
+            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 File source = new File(new File(projectRoot, contentRoot), name);
                 ZipEntry ze = new ZipEntry(normalize("assets/" + name, true));
                 zipOut.putNextEntry(ze);
                 FileUtils.copyFile(source, zipOut);
             }
 
+            // Copy bundle resources into .apk zip (actually .ap2 in this case)
+            BundleResourceUtil.writeResourcesToZip(bundleResources, zipOut);
+
             // Strip executable
-            String strippedpath = exe;
+            String strippedpath = exe.getAbsolutePath();
             if( !debug )
             {
-                File tmp = File.createTempFile(title, "." + FilenameUtils.getName(exe) + ".stripped");
+                File tmp = File.createTempFile(title, "." + exe.getName() + ".stripped");
                 tmp.deleteOnExit();
                 strippedpath = tmp.getAbsolutePath();
-                FileUtils.copyFile(new File(exe), tmp);
+                FileUtils.copyFile(exe, tmp);
 
                 res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpath);
                 if (res.ret != 0) {
@@ -216,7 +251,7 @@ public class AndroidBundler implements IBundler {
             }
 
             // Copy executable
-            String filename = FilenameUtils.concat("lib/armeabi-v7a", "lib" + exeName + "." + FilenameUtils.getExtension(exe));
+            String filename = FilenameUtils.concat("lib/armeabi-v7a", "lib" + exeName + ".so");
             filename = FilenameUtils.normalize(filename, true);
             zipOut.putNextEntry(new ZipEntry(filename));
             FileUtils.copyFile(new File(strippedpath), zipOut);
@@ -269,7 +304,7 @@ public class AndroidBundler implements IBundler {
                 // Some files need to be STORED instead of DEFLATED to
                 // get "correct" memory mapping at runtime.
                 int zipMethod = ZipEntry.DEFLATED;
-                if (Arrays.asList("assets/game.projectc", "assets/game.darc").contains(inE.getName())) {
+                if (Arrays.asList("assets/game.projectc", "assets/game.arci", "assets/game.arcd", "assets/game.dmanifest", "assets/game.public.der").contains(inE.getName())) {
                     // Set up uncompresed file, unfortunately need to calculate crc32 and other data for this to work.
                     // https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
                     crc = new CRC32();
@@ -279,16 +314,17 @@ public class AndroidBundler implements IBundler {
 
                 ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
                 try {
-                    int count;
-                    entryData = new byte[(int) inE.getSize()];
-                    InputStream stream = zipFileIn.getInputStream(inE);
-                    while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
-                        byteOut.write(entryData, 0, count);
-                        if (zipMethod == ZipEntry.STORED) {
-                            crc.update(entryData, 0, count);
-                        }
-                    }
-
+                	if (inE.getSize() > 0) {
+	                    int count;
+	                    entryData = new byte[(int) inE.getSize()];
+	                    InputStream stream = zipFileIn.getInputStream(inE);
+	                    while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
+	                        byteOut.write(entryData, 0, count);
+	                        if (zipMethod == ZipEntry.STORED) {
+	                            crc.update(entryData, 0, count);
+	                        }
+	                    }
+                	}
                 } finally {
                     if(null != byteOut) {
                         byteOut.close();
