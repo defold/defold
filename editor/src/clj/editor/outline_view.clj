@@ -334,12 +334,14 @@
         (.consume e)))))
 
 (defn- drag-entered [proj-graph outline-view ^DragEvent e]
-  (let [^TreeCell cell (target (.getTarget e))]
-    (when (and cell (not (.isEmpty cell)))
+  (let [^TreeCell cell (target (.getTarget e))
+        db (.getDragboard e)]
+    (when (and cell
+               (not (.isEmpty cell))
+               (.hasContent db (data-format-fn)))
       (let [item-iterators (if (ui/drag-internal? e)
                              (root-iterators outline-view)
-                             [])
-            db             (.getDragboard e)]
+                             [])]
         (when (outline/drop? proj-graph item-iterators (->iterator (.getTreeItem cell))
                              (.getContent db (data-format-fn)))
           (ui/add-style! cell "drop-target")))

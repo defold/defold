@@ -765,7 +765,7 @@ namespace dmGui
      * can be animated simultaneously. Use `gui.cancel_animation` to stop the animation
      * before it has completed.
      *
-     * Composite properties of type [type:vector3], [type:vector4] or [type:quaternion]
+     * Composite properties of type vector3, vector4 or quaternion
      * also expose their sub-components (x, y, z and w).
      * You can address the components individually by suffixing the name with a dot '.'
      * and the name of the component.
@@ -1392,7 +1392,14 @@ namespace dmGui
      * @name gui.play_flipbook
      * @param node [type:node] node to set animation for
      * @param animation [type:string|hash] animation id
-     * @param [complete_function] [type:function(self, node)] function to call when the animation has completed
+     * @param [complete_function] [type:function(self, node)] optional function to call when the animation has completed
+     *
+     * `self`
+     * :        [type:object] The current object.
+     *
+     * `node`
+     * :        [type:node] The node that is animated.
+     *
      * @examples
      *
      * Set the texture of a node to a flipbook animation from an atlas:
@@ -1527,15 +1534,17 @@ namespace dmGui
      * @param width [type:number] texture width
      * @param height [type:number] texture height
      * @param type [type:string|constant] texture type
-     * <ul>
-     *   <li><code>"rgb"</code> - RGB</li>
-     *   <li><code>"rgba"</code> - RGBA</li>
-     *   <li><code>"l"</code> - LUMINANCE</li>
-     * </ul>
+     *
+     * - `"rgb"` - RGB</li>
+     * - `"rgba"` - RGBA</li>
+     * - `"l"` - LUMINANCE</li>
+     *
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
      * @return success [type:boolean] texture creation was successful
      * @examples
+     *
+     * How to create a texture and apply it to a new box node:
      *
      * ```lua
      * function init(self)
@@ -1646,9 +1655,9 @@ namespace dmGui
      *   <li><code>"rgba"</code> - RGBA</li>
      *   <li><code>"l"</code> - LUMINANCE</li>
      * </ul>
-     * @param buffer texture data (string)
-     * @param flip flip texture vertically (boolean)
-     * @return setting the data was successful (boolean)
+     * @param buffer [type:string] texture data
+     * @param flip [type:boolean] flip texture vertically
+     * @return success [type:boolean] setting the data was successful
      * @examples
      *
      * ```lua
@@ -2474,7 +2483,7 @@ namespace dmGui
 
     /*# sets the pie inner radius
      * Sets the inner radius of a pie node.
-     * The radius is defined along the x axis.
+     * The radius is defined along the x-axis.
      *
      * @name gui.set_inner_radius
      * @param node [type:node] node to set the inner radius for
@@ -2503,7 +2512,7 @@ namespace dmGui
 
     /*# gets the pie inner radius
      * Returns the inner radius of a pie node.
-     * The radius is defined along the x axis.
+     * The radius is defined along the x-axis.
      *
      * @name gui.get_inner_radius
      * @param node [type:node] node from where to get the inner radius
@@ -2801,6 +2810,7 @@ namespace dmGui
      * @name gui.get_size_mode
      * @param node [type:node] node from which to get the size mode (node)
      * @return size_mode [type:constant] the current size mode
+     *
      *   - `gui.SIZE_MODE_MANUAL`
      *   - `gui.SIZE_MODE_AUTO`
      */
@@ -2819,6 +2829,7 @@ namespace dmGui
      * @name gui.set_size_mode
      * @param node [type:node] node to set size mode for
      * @param size_mode [type:constant] size mode to set
+     *
      *   - `gui.SIZE_MODE_MANUAL`
      *   - `gui.SIZE_MODE_AUTO`
      */
@@ -3251,7 +3262,7 @@ namespace dmGui
 
     /*# gets the node color
      * Returns the color of the supplied node. The components
-     * of the [type:vector4] contains the color channel values:
+     * of the returned vector4 contains the color channel values:
      *
      * Component | Color value
      * --------- | -------------
@@ -3725,8 +3736,8 @@ namespace dmGui
      * Sets the spine skin on a spine node.
      *
      * @name gui.set_spine_skin
-     * @param node node to set the spine skin on (node)
-     * @param spine_skin spine skin id (string|hash)
+     * @param node [type:node] node to set the spine skin on
+     * @param spine_skin [type:string|hash] spine skin id
      */
     int LuaSetSpineSkin(lua_State* L)
     {
@@ -3781,8 +3792,8 @@ namespace dmGui
      * This is only useful for spine nodes. The cursor is normalized.
      *
      * @name gui.set_spine_cursor
-     * @param node spine node to set the cursor for (node)
-     * @param cursor cursor value (number)
+     * @param node [type:node] spine node to set the cursor for
+     * @param cursor [type:number] cursor value
      */
     int LuaSetSpineCursor(lua_State* L)
     {
@@ -3837,8 +3848,8 @@ namespace dmGui
      * This is only useful for spine nodes. Sets the playback rate of the animation on a spine node. Must be positive.
      *
      * @name gui.set_spine_playback_rate
-     * @param node spine node to set the cursor for (node)
-     * @param playback_rate playback rate (number)
+     * @param node [type:node] spine node to set the cursor for
+     * @param playback_rate [type:number] playback rate
      */
     int LuaSetSpinePlaybackRate(lua_State* L)
     {
@@ -4497,15 +4508,14 @@ namespace dmGui
      */
 
     /*# called when a message has been sent to the gui component
-     * <p>
+     *
      * This is a callback-function, which is called by the engine whenever a message has been sent to the gui component.
      * It can be used to take action on the message, e.g. update the gui or send a response back to the sender of the message.
-     * </p>
-     * <p>
+     *
      * The <code>message</code> parameter is a table containing the message data. If the message is sent from the engine, the
      * documentation of the message specifies which data is supplied.
-     * </p>
-     * <p>See the <code>update</code> function for examples on how to use this callback-function.</p>
+     *
+     * See the [ref:update] function for examples on how to use this callback-function.
      *
      * @name on_message
      * @param self [type:object] reference to the script state to be used for storing data
@@ -4525,7 +4535,7 @@ namespace dmGui
      * end of stack is reached, or a listener returns `true`
      * to signal that it wants input to be consumed.
      *
-     * See the documentation of [ref:go.acquire_input_focus] for more
+     * See the documentation of <a href="/ref/go/#acquire_input_focus">acquire_input_focus</a> for more
      * information.
      *
      * The `action` parameter is a table containing data about the input mapped to the
@@ -4561,7 +4571,7 @@ namespace dmGui
      * ----------- | ----------------------------------------------------------
      * `pressed`   | True if the finger was pressed this frame.
      * `released`  | True if the finger was released this frame.
-     * `tap_count` | Number of taps, one for singledouble-tap, etc.
+     * `tap_count` | Number of taps, one for single, two for double-tap, etc
      * `x`         | The x touch location.
      * `y`         | The y touch location.
      * `dx`        | The change in x value.

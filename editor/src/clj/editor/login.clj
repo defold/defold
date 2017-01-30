@@ -48,6 +48,8 @@
                    (try
                      (let [exchange-info (handle-request prefs client session)]
                        (prefs/set-prefs prefs "email" (:email exchange-info))
+                       (prefs/set-prefs prefs "first-name" (:first-name exchange-info))
+                       (prefs/set-prefs prefs "last-name" (:last-name exchange-info))
                        (prefs/set-prefs prefs "token" (:auth-token exchange-info)))
                      (reset! return true)
                      (catch Exception e
@@ -74,4 +76,6 @@
 
 (defn logout [prefs]
   (prefs/set-prefs prefs "email" nil)
+  (prefs/set-prefs prefs "first-name" nil)
+  (prefs/set-prefs prefs "last-name" nil)
   (prefs/set-prefs prefs "token" nil))

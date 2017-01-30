@@ -151,6 +151,11 @@
                   label="Fetch Libraries"
                   style="push">
             </command>
+            <command
+                  commandId="com.dynamo.cr.editor.liveupdate.liveUpdateSettings"
+                  label="LiveUpdate Settings..."
+                  style="push">
+            </command>
          </menu>
       </menuContribution>
       <menuContribution
@@ -400,6 +405,11 @@
             description="Fetch Libraries"
             id="com.dynamo.crepo.commands.resolveLibs"
             name="Fetch Libraries">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.LiveUpdateHandler"
+            id="com.dynamo.cr.editor.liveupdate.liveUpdateSettings"
+            name="LiveUpdate Settings...">
       </command>
    </extension>
 
