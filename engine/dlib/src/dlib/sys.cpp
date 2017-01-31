@@ -175,99 +175,60 @@ namespace dmSys
 
 #endif
 
-#if defined(_WIN32) || defined(__EMSCRIPTEN__)
-    Result WriteWithMove(const char* dst_filename, const char* src_filename)
-    {
-            FILE* tmp_file = fopen(src_filename, "rb");
-            fseek(tmp_file, 0, SEEK_END);
-            size_t file_size = ftell(tmp_file);
-            uint8_t* tmp_buf = (uint8_t*)malloc(file_size);
-            fread(tmp_buf, 1, file_size, tmp_file);
-            dmSys::Result moveResult = WriteWithMove(dst_filename, tmp_buf, file_size);
-            free(tmp_buf);
-            return moveResult;
-    }
-#else
-    Result WriteWithMove(const char* dst_filename, const char* src_filename)
-    {
-            int fd = open(src_filename, O_RDONLY);
-            if (fd < 0)
-            {
-                return RESULT_IO;
-            }
-
-            struct stat fs;
-            if (fstat(fd, &fs))
-            {
-                close(fd);
-                return RESULT_IO;
-            }
-            void* tmp_map = 0x0;
-            tmp_map = mmap(0, fs.st_size, PROT_READ, MAP_SHARED, fd, 0);
-            close(fd);
-            dmSys::Result moveResult = WriteWithMove(dst_filename, (uint8_t*)tmp_map, fs.st_size);
-            munmap(tmp_map, fs.st_size);
-            return moveResult;
-    }
-#endif
 
 #if !defined(__EMSCRIPTEN__)
-    Result WriteWithMove(const char* filename, const uint8_t* buf, uint32_t buf_len)
+    Result WriteWithMove(const char* dst_filename, const char* src_filename)
     {
-        uint32_t n_used = buf_len;
-
-        char tmp_filename[DMPATH_MAX_PATH];
-        // The counter and hash are there to make the files unique enough to avoid that the user
-        // accidentally writes to it.
-        static int save_counter = 0;
-        uint32_t hash = dmHashString32(filename);
-        int res = DM_SNPRINTF(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
-        if (res == -1)
-        {
-            return RESULT_IO;
-        }
-
-        FILE* file = fopen(tmp_filename, "wb");
-        if (file != 0x0)
-        {
-            bool result = fwrite(buf, 1, n_used, file) == n_used;
-            result = (fclose(file) == 0) && result;
-            if (result)
-            {
 #if defined(_WIN32)
-                bool rename_result = MoveFileEx(tmp_filename, filename, MOVEFILE_REPLACE_EXISTING) != 0;
+		bool rename_result = MoveFileEx(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
 #else
-                bool rename_result = rename(tmp_filename, filename) != -1;
+		bool rename_result = rename(src_filename, dst_filename) != -1;
 #endif
-                if (rename_result)
-                {
-                    return RESULT_OK;
-                }
-            }
-
-            dmSys::Unlink(tmp_filename);
-        }
-        return RESULT_UNKNOWN;
+		if (rename_result)
+		{
+			return RESULT_OK;
+		}
+		return RESULT_UNKNOWN;
     }
-
-#else // __EMSCRIPTEN__
-
-    Result WriteWithMove(const char* filename, const uint8_t* buf, uint32_t buf_len)
+#else // EMSCRIPTEN
+    Result WriteWithMove(const char* dst_filename, const char* src_filename)
     {
-        uint32_t n_used = buf_len;
-        FILE* file = fopen(filename, "wb");
-        if (file != 0x0)
-        {
-            bool result = fwrite(buf, 1, n_used, file) == n_used;
-            result = (fclose(file) == 0) && result;
-            if (result)
-            {
-                return RESULT_OK;
-            }
+        FILE* src_file = fopen(src_filename, "rb");
+		if (!src_file)
+		{
+			return RESULT_IO;
+		}
 
-            dmSys::Unlink(filename);
-        }
-        return RESULT_UNKNOWN;
+		fseek(src_file, 0, SEEK_END);
+		size_t buf_len = ftell(src_file);
+		fseek(src_file, 0, SEEK_SET);
+		char* buf = (char*)malloc(buf_len);
+		if (fread(buf, 1, buf_len, src_filename) != buf_len)
+		{
+			fclose(src_file);
+			return RESULT_IO;
+		}
+
+		FILE* dst_file = fopen(dst_filename, "wb");
+		if (!dst_file)
+		{
+			fclose(src_file);
+			return RESULT_IO;
+		}
+		
+		if(fwrite(buf, 1, buf_len, dst_file) != buf_len)
+		{
+			fclose(src_file);
+			fclose(dst_file);
+			return RESULT_IO;
+		}
+
+		fclose(src_file);
+		fclose(dst_file);
+
+		dmSys::Unlink(src_filename);
+
+		return RESULT_OK;
     }
 
 #endif

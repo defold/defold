@@ -300,12 +300,14 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
                 dmLogError("Fail to load liveupdate index data.")
                 return RESULT_IO_ERROR;
             }
+			dmLogInfo("Unlinking temp file at: %s", temp_archive_index_path);
             dmSys::Unlink(temp_archive_index_path);
-            dmLogInfo("Found temp LU index file, overwrote the old one!");
+            dmLogInfo("Found temp LU index file, overwrote the old one! path: %s", temp_archive_index_path);
         }
         dmLogInfo("Found LU index file, using that one: %s", liveupdate_index_path);
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
-    }
+		dmLogInfo("Mounted archive with result: %i", result);
+	}
 
     return result;
 }
@@ -464,7 +466,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         Result r = LoadManifest(factory->m_UriParts.m_Path, factory);
         if (r != RESULT_OK)
         {
-            dmLogError("Unable to load manifest: %s", factory->m_UriParts.m_Path);
+            dmLogError("Unable to load manifest: %s with result = %i", factory->m_UriParts.m_Path, r);
             dmMessage::DeleteSocket(socket);
             dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
             delete factory->m_Manifest;

@@ -25,6 +25,7 @@ namespace dmResource
         dmResourceArchive::Result r = LoadArchive(index_path, data_path, lu_data_path, archive);
         if (r != dmResourceArchive::RESULT_OK)
         {
+			dmLogInfo("Generic mount fail! Result = %i", r);
             return RESULT_RESOURCE_NOT_FOUND;
         }
         return RESULT_OK;
