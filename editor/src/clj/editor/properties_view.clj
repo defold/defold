@@ -55,13 +55,6 @@
   (update-field-message [text] message)
   (ui/editable! text (not read-only?)))
 
-(defn- auto-commit! [^Node node update-fn]
-  (ui/on-focus! node (fn [got-focus] (if got-focus
-                                       (ui/user-data! node ::auto-commit? false)
-                                       (when (ui/user-data node ::auto-commit?)
-                                         (update-fn nil)))))
-  (ui/on-edit! node (fn [old new] (ui/user-data! node ::auto-commit? true))))
-
 (defn edit-type->type [edit-type]
   (or (some-> edit-type :type g/value-type-dispatch-value)
       (:type edit-type)))
@@ -77,7 +70,7 @@
     (doto text
       (.setPrefWidth Double/MAX_VALUE)
       (ui/on-action! update-fn)
-      (auto-commit! update-fn))
+      (ui/auto-commit! update-fn))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Int [_ _ property-fn]
@@ -93,7 +86,7 @@
     (doto text
       (.setPrefWidth Double/MAX_VALUE)
       (ui/on-action! update-fn)
-      (auto-commit! update-fn))
+      (ui/auto-commit! update-fn))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
@@ -107,7 +100,7 @@
     (doto text
       (.setPrefWidth Double/MAX_VALUE)
       (ui/on-action! update-fn)
-      (auto-commit! update-fn))
+      (ui/auto-commit! update-fn))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
@@ -160,7 +153,7 @@
                                                         (properties/read-only? (property-fn))))))])
                                text-fields)]
       (ui/on-action! ^TextField t f)
-      (auto-commit! t f))
+      (ui/auto-commit! t f))
     (doall (map-indexed (fn [idx [t label]]
                           (let [comp (create-property-component [(doto (Label. label)
                                                                    (.setMinWidth 25))
@@ -212,7 +205,7 @@
                                                   (properties/read-only? (property-fn))))))]))
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
-      (auto-commit! t (fn [got-focus] (and (not got-focus) (f nil)))))
+      (ui/auto-commit! t (fn [got-focus] (and (not got-focus) (f nil)))))
     (doall (map-indexed (fn [idx [t f]]
                           (let [children (cond-> []
                                            (:label f)   (conj (doto (Label. (:label f))
