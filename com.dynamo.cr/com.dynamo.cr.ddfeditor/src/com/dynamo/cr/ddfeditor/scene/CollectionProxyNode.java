@@ -14,12 +14,23 @@ public class CollectionProxyNode extends ComponentTypeNode {
     @NotEmpty
     private String collection = "";
 
+    @Property
+    private boolean exclude = false;
+
     public String getCollection() {
         return this.collection;
     }
 
     public void setCollection(String collection) {
         this.collection = collection;
+    }
+    
+    public boolean getExclude() {
+    	return this.exclude;
+    }
+    
+    public void setExclude(boolean exclude) {
+    	this.exclude = exclude;
     }
 
     @Override
