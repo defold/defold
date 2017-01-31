@@ -22,6 +22,8 @@ import com.dynamo.bob.ConsoleProgress;
 import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IFileSystem;
 
@@ -68,6 +70,7 @@ public class JarTest {
         IFileSystem fs = new DefaultFileSystem();
         String cwd = new File(".").getAbsolutePath();
         Project p = new Project(fs, cwd, "build/default");
+        p.setPublisher(new NullPublisher(new PublisherSettings()));
 
         IClassScanner scanner = new TestClassLoaderScanner();
         p.scan(scanner, "com.dynamo.bob");

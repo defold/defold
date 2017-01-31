@@ -590,8 +590,8 @@ bool PlatformFacebookInitialized()
  *
  * [icon:attention] Note that this function cannot be used to request publish permissions.
  * If the application requires both read and publish permissions, individual
- * calls to both login_with_read_permissions and login_with_publish_permissions
- * has to be made.
+ * calls to both [ref:login_with_publish_permissions]
+ * and [ref:login_with_read_permissions] has to be made.
  *
  * A comprehensive list of permissions can be found in the <a href="https://developers.facebook.com/docs/facebook-login/permissions">Facebook documentation</a>,
  * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
@@ -608,6 +608,8 @@ bool PlatformFacebookInitialized()
  * : [type:table] A table that contains the response
  *
  * @examples
+ *
+ * Log in to Facebook with a set of read permissions:
  *
  * ```lua
  * local permissions = {"public_profile", "email", "user_friends"}
@@ -658,8 +660,8 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
  *
  * [icon:attention] Note that this function cannot be used to request read permissions.
  * If the application requires both publish and read permissions, individual
- * calls to both <code>login_with_publish_permissions</code>
- * and <code>login_with_read_permissions</code> has to be made.
+ * calls to both [ref:login_with_publish_permissions]
+ * and [ref:login_with_read_permissions] has to be made.
  *
  * A comprehensive list of permissions can be found in the <a href="https://developers.facebook.com/docs/facebook-login/permissions">Facebook documentation</a>,
  * as well as a <a href="https://developers.facebook.com/docs/facebook-login/best-practices">guide to best practises for login management</a>.
@@ -683,6 +685,8 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
  * : [type:table] A table that contains the response
  *
  * @examples
+ *
+ * Log in to Facebook with a set of publish permissions:
  *
  * ```lua
  * local permissions = {"publish_actions"}
@@ -859,10 +863,28 @@ int Facebook_RequestPublishPermissions(lua_State* L)
  *
  * This function returns the currently stored access token after a previous
  * sucessful login. If it returns nil no access token exists and you need
- * to perform a login to get the wanted permissions. Note that a user can
+ * to perform a login to get the wanted permissions.
  *
  * @name facebook.access_token
- * @return the access token or nil if the user is not logged in (string|nil)
+ * @return token [type:string] the access token or nil if the user is not logged in
+ * @examples
+ *
+ * Get the current access token, then use it to perform a graph API request.
+ *
+ * ```lua
+ * local function get_name_callback(self, id, response)
+ *     -- do something with the response
+ * end
+ *
+ * function init(self)
+ *     -- assuming we are already logged in.
+ *     local token = facebook.access_token()
+ *     if token then
+ *         local url = "https://graph.facebook.com/me/?access_token=".. token
+ *         http.request(url, "GET", get_name_callback)
+ *     end
+ * end
+ * ```
  */
 
 int Facebook_AccessToken(lua_State* L)
@@ -883,14 +905,17 @@ int Facebook_AccessToken(lua_State* L)
  * @name facebook.permissions
  * @return permissions [type:table] the permissions
  * @examples
- * <pre>
+ *
+ * Check the currently granted permissions for a particular permission:
+ *
+ * ```lua
  * for _,permission in ipairs(facebook.permissions()) do
  *     if permission == "user_likes" then
  *         -- "user_likes" granted...
  *         break
  *     end
  * end
- * </pre>
+ * ```
  */
 int Facebook_Permissions(lua_State* L)
 {
@@ -948,8 +973,8 @@ int Facebook_Me(lua_State* L)
  *
  * @name facebook.post_event
  *
- * @param event [type:constant|text] An event can either be one of the predefined
- * constants below or a text which can be used to define a custom event that is
+ * @param event [type:constant|string] An event can either be one of the predefined
+ * constants below or a text string which can be used to define a custom event that is
  * registered with Facebook Analytics.
  *
  * - `facebook.EVENT_ACHIEVED_LEVEL`
@@ -974,9 +999,9 @@ int Facebook_Me(lua_State* L)
  * represent the value of the event, such as the level achieved, price for an
  * item or number of orcs killed.
  *
- * @param [params] [type:table] a table with parameters and their values. A key in the
+ * @param [params] [type:table] optional table with parameters and their values. A key in the
  * table can either be one of the predefined constants below or a text which
- * can be used to define a custom parameter. Optional argument.
+ * can be used to define a custom parameter.
  *
  * - `facebook.PARAM_CONTENT_ID`
  * - `facebook.PARAM_CONTENT_TYPE`
@@ -992,6 +1017,8 @@ int Facebook_Me(lua_State* L)
  * - `facebook.PARAM_SUCCESS`
  *
  * @examples
+ *
+ * Post a spent credits event to Facebook Analytics:
  *
  * ```lua
  * params = {[facebook.PARAM_LEVEL] = 30, [facebook.PARAM_NUM_ITEMS] = 2}
@@ -1082,20 +1109,20 @@ int Facebook_DisableEventUsage(lua_State* L)
  * Shows a Game Request dialog. Game Requests allows players to invite their friends to play a
  * game. Available parameters:
  *
- * - `title` [type:string]
- * - `message` [type:string]
- * - `action_type` [type:number]
- * - `filters` [type:number]
- * - `data` [type:string]
- * - `object_id` [type:string]
- * - `suggestions` [type:table]
- * - `recipients` [type:table]
- * - `to` [type:string]
+ * - [type:string] `title`
+ * - [type:string] `message`
+ * - [type:number] `action_type`
+ * - [type:number] `filters`
+ * - [type:string] `data`
+ * - [type:string] `object_id`
+ * - [type:table] `suggestions`
+ * - [type:table] `recipients`
+ * - [type:string] `to`
  *
  * On success, the "result" table parameter passed to the callback function will include the following fields:
  *
- * - `request_id` [type:string]
- * - `to` [type:table]
+ * - [type:string] `request_id`
+ * - [type:table] `to`
  *
  * Details for each parameter: <a href='https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters'>https://developers.facebook.com/docs/games/services/gamerequests/v2.6#dialogparameters</a>
  *
@@ -1103,17 +1130,17 @@ int Facebook_DisableEventUsage(lua_State* L)
  *
  * The Feed Dialog allows people to publish individual stories to their timeline.
  *
- * - `caption` [type:string]
- * - `description` [type:string]
- * - `picture` [type:string]
- * - `link` [type:string]
- * - `people_ids` [type:table]
- * - `place_id` [type:string]
- * - `ref` [type:string]
+ * - [type:string] `caption`
+ * - [type:string] `description`
+ * - [type:string] `picture`
+ * - [type:string] `link`
+ * - [type:table] `people_ids`
+ * - [type:string] `place_id`
+ * - [type:string] `ref`
  *
  * On success, the "result" table parameter passed to the callback function will include the following fields:
  *
- * - `post_id` [type:string]
+ * - [type:string] `post_id`
  *
  * Details for each parameter: <a href='https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params'>https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.6#params</a>
  *
@@ -1123,16 +1150,16 @@ int Facebook_DisableEventUsage(lua_State* L)
  * Note that the <code>url</code> parameter
  * corresponds to the appLinkURL (iOS) and setAppLinkUrl (Android) properties.
  *
- * - `url` [type.string]
- * - `preview_image` [type.string]
+ * - [type:string] `url`
+ * - [type:string] `preview_image`
  *
  * Details for each parameter: <a href='https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/'>https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/</a>
  *
  * @name facebook.show_dialog
  * @param dialog [type:string] dialog to show.
- * - "apprequests"
- * - "feed"
- * - "appinvite"
+ * - `"apprequests"`
+ * - `"feed"`
+ * - `"appinvite"`
  * @param param [type:table] table with dialog parameters
  * @param callback [type:function(self, result, error)] callback function that is called when the dialog is closed.
  *
@@ -1144,6 +1171,27 @@ int Facebook_DisableEventUsage(lua_State* L)
  *
  * `error`
  * : [type:table] Error message. If there is no error, `error` is `nil`.
+ *
+ * @examples
+ *
+ * Show a dialog allowing the user to share a post to their timeline:
+ *
+ * ```lua
+ * local function fb_share(self, result, error)
+ *     if error then
+ *         -- something did not go right...
+ *     else
+ *         -- do something sensible
+ *     end
+ * end
+ *
+ * function init(self)
+ *     -- assuming we have logged in with publish permissions
+ *     local param = { link = "http://www.mygame.com",picture="http://www.mygame.com/image.jpg" }
+ *     facebook.show_dialog("feed", param, fb_share)
+ * end
+ * ```
+ *
  */
 int Facebook_ShowDialog(lua_State* L)
 {
