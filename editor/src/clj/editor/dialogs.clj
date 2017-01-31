@@ -18,9 +18,10 @@
            [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control TextField TreeView TreeItem ListView ProgressBar]
+           [javafx.scene.control Button Label ListView ProgressBar TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
+           [javafx.scene.layout Region]
            [javafx.stage Stage StageStyle Modality DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
@@ -103,25 +104,31 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
-(defn make-confirm-dialog [message]
-  (let [root     ^Parent (ui/load-fxml "confirm.fxml")
-        stage    (ui/make-stage)
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["message" "ok" "cancel"])
-        result   (atom false)]
-    (observe-focus stage)
-    (ui/title! stage "Please confirm")
-    (ui/text! (:message controls) message)
-    (ui/on-action! (:ok controls) (fn [_]
-                                    (reset! result true)
-                                    (.close stage)))
-    (ui/on-action! (:cancel controls) (fn [_]
-                                        (.close stage)))
-
-    (.initModality stage Modality/APPLICATION_MODAL)
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-    @result))
+(defn make-confirm-dialog
+  ([text]
+   (make-confirm-dialog text {}))
+  ([text options]
+   (let [root     ^Region (ui/load-fxml "confirm.fxml")
+         stage    (ui/make-stage)
+         scene    (Scene. root)
+         result   (atom false)]
+     (observe-focus stage)
+     (ui/with-controls root [^Label message ^Button ok ^Button cancel]
+       (ui/text! message text)
+       (ui/text! ok (get options :ok-label "OK"))
+       (ui/text! cancel (get options :cancel-label "Cancel"))
+       (ui/on-action! ok (fn [_]
+                           (reset! result true)
+                           (.close stage)))
+       (ui/on-action! cancel (fn [_]
+                               (.close stage))))
+     (when-let [pref-width (:pref-width options)]
+       (.setPrefWidth root pref-width))
+     (ui/title! stage (get options :title "Please Confirm"))
+     (.initModality stage Modality/APPLICATION_MODAL)
+     (.setScene stage scene)
+     (ui/show-and-wait! stage)
+     @result)))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
@@ -175,7 +182,7 @@
                         (ui/visible! (:error-group controls) visible)
                         (.sizeToScene stage))))]
     (observe-focus stage)
-    (ui/text! (:ok controls) (or (:ok-label options) "Ok"))
+    (ui/text! (:ok controls) (get options :ok-label "OK"))
     (ui/title! stage (or (:title options) ""))
     (ui/children! (:dialog-area controls) [dialog-root])
     (ui/fill-control dialog-root)

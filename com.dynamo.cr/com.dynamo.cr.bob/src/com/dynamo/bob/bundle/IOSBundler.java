@@ -15,6 +15,7 @@ import java.util.logging.Logger;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -25,11 +26,9 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
-
-import com.defold.extender.client.ExtenderClient;
 
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
@@ -86,45 +85,36 @@ public class IOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.Arm64Darwin);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
 
         boolean debug = project.hasOption("debug");
-
-        File root = new File(project.getRootDirectory());
-        boolean nativeExtEnabled = project.hasOption("native-ext");
-        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
 
         File exeArmv7 = null;
         File exeArm64 = null;
 
-        if (hasNativeExtensions) {
-            String platform64 = "arm64-ios";
-            String platformv7 = "armv7-ios";
+        // If a custom engine was built we need to copy it
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
-            File cacheDir = new File(project.getBuildCachePath());
-            cacheDir.mkdirs();
-            String sdkVersion = project.option("defoldsdk", "");
-            String buildServer = project.option("build-server", "");
-            ExtenderClient extender = new ExtenderClient(buildServer, cacheDir);
-            File logFile = File.createTempFile("build_" + sdkVersion, ".txt");
-            logFile.deleteOnExit();
-
-            exeArm64 = File.createTempFile("engine_" + sdkVersion + "_" + platform64, "");
-            exeArm64.deleteOnExit();
-
-            exeArmv7 = File.createTempFile("engine_" + sdkVersion + "_" + platformv7, "");
-            exeArmv7.deleteOnExit();
-
-            List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exeArm64);
-
-            allSource = ExtenderClient.getExtensionSource(root, platformv7);
-            BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, root, allSource, logFile, "/dmengine", exeArmv7);
-        }
-        else
+        // armv7 exe
         {
-            exeArmv7 = new File( Bob.getDmengineExe(Platform.Armv7Darwin, debug) );
-            exeArm64 = new File( Bob.getDmengineExe(Platform.Arm64Darwin, debug) );
+            Platform targetPlatform = Platform.Armv7Darwin;
+            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            exeArmv7 = defaultExe;
+            if (extenderExe.exists()) {
+                exeArmv7 = extenderExe;
+            }
+        }
+
+        // arm64 exe
+        {
+            Platform targetPlatform = Platform.Arm64Darwin;
+            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            exeArm64 = defaultExe;
+            if (extenderExe.exists()) {
+                exeArm64 = extenderExe;
+            }
         }
 
         BobProjectProperties projectProperties = project.getProjectProperties();
@@ -251,7 +241,7 @@ public class IOSBundler implements IBundler {
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
 
         // Copy bundle resources into .app folder
-        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));

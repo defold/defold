@@ -12,7 +12,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class LinuxBundler implements IBundler {
@@ -22,7 +22,7 @@ public class LinuxBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.X86Linux);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.X86Linux);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String binaryX86 = Bob.getDmengineExe(Platform.X86Linux, project.hasOption("debug"));
@@ -41,7 +41,7 @@ public class LinuxBundler implements IBundler {
         }
 
         // Copy bundle resources into bundle directory
-        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy Executable
         File x86Out = new File(appDir, title + ".x86");
