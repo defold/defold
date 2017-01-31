@@ -22,18 +22,22 @@
    :vec4 [0.0 0.0 0.0 0.0]
    :2panel []})
 
+(defn has-default? [field-info]
+  (or (contains? field-info :default)
+      (contains? type-defaults (:type field-info))))
+
 (defn field-default [field-info]
-  (get field-info :default (type-defaults (:type field-info))))
+  (if (contains? field-info :default)
+    (:default field-info)
+    (type-defaults (:type field-info))))
 
 (defn optional-field? [field-info]
+  "Whether this field can be cleared"
   (:optional field-info))
 
-(defn- resource-field? [field-info]
-  (= (:type field-info) :resource))
-
 (defn field-defaults [fields]
-  (let [required-fields (remove (some-fn optional-field? resource-field?) fields)]
-    (when (every? #(not (nil? (field-default %))) required-fields)
+  (let [required-fields (remove optional-field? fields)]
+    (when (every? has-default? required-fields)
       (reduce (fn [val field]
                 (assoc-in val (:path field) (field-default field)))
               {}

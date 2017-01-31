@@ -74,7 +74,7 @@
    :boolean false
    :integer 0
    :number 0.0
-   :resource ""})
+   :resource nil})
 
 (defn- add-type-defaults [meta-info]
   (update-in meta-info [:settings]
