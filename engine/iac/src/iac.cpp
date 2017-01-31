@@ -22,7 +22,7 @@ extern int IAC_PlatformSetListener(lua_State* L);
  * with the iac payload and type is an iac.TYPE_<TYPE> enumeration.
  *
  * @name iac.set_listener
- * @param listener listener callback function (function)
+ * @param listener listener callback function. Pass an empty function if you no longer wish to receive callbacks. (function)
  *
  * @examples
  * <p>

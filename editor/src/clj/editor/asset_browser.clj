@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
@@ -418,8 +419,6 @@
       node
       (target (.getParent node)))))
 
-(defn- drag-done [^DragEvent e selection])
-
 (defn- drag-entered [^DragEvent e]
   (let [^TreeCell cell (target (.getTarget e))]
     (when (and cell (not (.isEmpty cell)))
@@ -528,15 +527,13 @@
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
         over-handler (ui/event-handler e (drag-over e))
-        done-handler (ui/event-handler e (drag-done e (handler/selection selection-provider)))
-        dropped-handler (ui/event-handler e (drag-dropped e))
+        dropped-handler (ui/event-handler e (error-reporting/catch-all! (drag-dropped e)))
         detected-handler (ui/event-handler e (drag-detected e (handler/selection selection-provider)))
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
       (ui/bind-double-click! :open)
       (.setOnDragDetected detected-handler)
-      (.setOnDragDone done-handler)
       (.setCellFactory (reify Callback (call ^TreeCell [this view]
                                          (let [cell (proxy [TreeCell] []
                                                     (updateItem [resource empty]

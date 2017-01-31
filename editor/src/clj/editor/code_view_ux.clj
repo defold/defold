@@ -3,7 +3,8 @@
             [editor.code :as code]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.text-util :as text-util])
   (:import  [com.sun.javafx.tk Toolkit]
             [javafx.stage Stage]
             [javafx.scene.input Clipboard KeyEvent KeyCode MouseEvent]))
@@ -362,7 +363,7 @@
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer clipboard]
     (when-let [clipboard-text (text clipboard)]
-      (let [clipboard-text (code/lf-normalize-line-endings clipboard-text)
+      (let [clipboard-text (text-util/crlf->lf clipboard-text)
             caret (caret source-viewer)]
         (if (pos? (selection-length source-viewer))
           (replace-text-selection source-viewer clipboard-text)
@@ -726,19 +727,16 @@
       (remember-caret-col source-viewer (caret source-viewer))
       (state-changes! source-viewer))))
 
-(defn go-to-line [source-viewer line-number]
-  (when line-number
-    (try
-     (let [line (Integer/parseInt line-number)
-           line-count (line-count source-viewer)
-           line-num (if (> 1 line) 0 (dec line))
-           np (if (>= line-count line-num)
-                (line-offset-at-num source-viewer line-num)
-                (count (text source-viewer)))]
-       (caret! source-viewer np false)
-       (remember-caret-col source-viewer np)
-       (show-line source-viewer))
-     (catch Throwable  e (println "Not a valid line number" line-number (.getMessage e))))))
+(defn go-to-line [source-viewer line]
+  (when line
+    (let [line-count (line-count source-viewer)
+          line-num (if (> 1 line) 0 (dec line))
+          np (if (>= line-count line-num)
+               (line-offset-at-num source-viewer line-num)
+               (count (text source-viewer)))]
+      (caret! source-viewer np false)
+      (remember-caret-col source-viewer np)
+      (show-line source-viewer))))
 
 (handler/defhandler :goto-line :code-view
   (enabled? [source-viewer] source-viewer)

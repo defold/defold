@@ -56,7 +56,8 @@
             [editor.sync :as sync]
             [editor.system :as system]
             [util.http-server :as http-server])
-  (:import  [java.io File]
+  (:import  [com.defold.editor EditorApplication]
+            [java.io File]
             [javafx.scene.layout VBox]
             [javafx.scene Scene]
             [javafx.stage Stage]
@@ -138,19 +139,20 @@
                           (:focused? new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
-                     (future
-                       (ui/with-disabled-ui
-                         (ui/with-progress [render-fn ui/default-render-progress!]
-                           (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
+                     (let [{:keys [^Stage stage render-progress-fn]} (dialogs/make-progress-dialog "Reloading modified resources" "")]
+                       (ui/run-later
+                         (try
+                           (ui/with-progress [render-fn render-progress-fn]
+                             (editor.workspace/resource-sync! workspace true [] render-fn))
+                           (finally
+                             (.close stage)))))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
 (defn- handle-resource-changes! [changes changes-view editor-tabs]
   (ui/run-later
-    (changes-view/refresh! changes-view)
-    (doseq [resource (:removed changes)]
-      (app-view/remove-resource-tab editor-tabs resource))))
+    (changes-view/refresh! changes-view)))
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
@@ -181,7 +183,7 @@
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
+          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
@@ -189,11 +191,12 @@
                                                             hot-reload/url-prefix (partial hot-reload/build-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
-                                                                         (fn [resource node-id]
+                                                                         (fn [resource node-id opts]
                                                                            (app-view/open-resource app-view
                                                                                                    (g/node-value project :workspace)
                                                                                                    project
-                                                                                                   resource)
+                                                                                                   resource
+                                                                                                   opts)
                                                                            (app-view/select! app-view node-id)))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
@@ -211,7 +214,7 @@
       (ui/on-closing! stage (fn [_]
                               (or (not (workspace/version-on-disk-outdated? workspace))
                                   (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))))
-    
+
       (ui/on-closed! stage (fn [_]
                              (app-view/store-window-dimensions stage prefs)
                              (app-view/store-split-positions! stage prefs)
@@ -240,15 +243,17 @@
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
-          (for [label [:selected-node-ids-by-resource :selected-node-properties-by-resource :sub-selections-by-resource]]
+          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
           (g/connect app-view :selected-node-ids outline-view :selection)
-          (for [label [:active-resource :active-outline :open-resources]]
+          (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
-          (for [view [outline-view asset-browser]]
-            (g/update-property app-view :auto-pulls conj [view :tree-view]))
-          (g/update-property app-view :auto-pulls conj [properties-view :pane])))
+          (let [auto-pulls [[properties-view :pane]
+                            [app-view :refresh-tab-pane]
+                            [outline-view :tree-view]
+                            [asset-browser :tree-view]]]
+            (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
@@ -264,6 +269,21 @@
     (reset! the-root root)
     root))
 
+(defn- make-blocking-save-action
+  "Returns a function that when called will save the specified project and block
+  until the operation completes. Used as a pre-update action to ensure the
+  project is saved before installing updates and restarting the editor."
+  [project]
+  (fn []
+    ; If a build or save was in progress, wait for it to complete.
+    (while (project/ongoing-build-save?)
+      (Thread/sleep 300))
+
+    ; Save the project and block until complete.
+    (let [save-future (project/save-all! project nil)]
+      (when (future? save-future)
+        (deref save-future)))))
+
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [project-path (.getPath (.getParentFile game-project-file))
@@ -272,4 +292,5 @@
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
         ^VBox root   (ui/run-now (load-stage workspace project prefs))]
     (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)))
+    (g/reset-undo! *project-graph*)
+    (EditorApplication/registerPreUpdateAction (make-blocking-save-action project))))

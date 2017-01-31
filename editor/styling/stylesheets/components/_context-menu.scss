@@ -1,29 +1,57 @@
 .context-menu {
-    -fx-background-radius: 4px;
-    -fx-border-radius: 4px;
-    -fx-border-width: 1;
-    -fx-border-color: $mid-grey;
-    -fx-padding: 0;
-    -fx-text-fill: $mid-grey;
+    -fx-background-radius: 0px;
+    -fx-border-radius: 0px;
+    -fx-background-color: $mid-grey;
+    -fx-border-width: 0;
+    -fx-padding: 5px;
+    -fx-text-fill: $defold-white;
     .scroll-arrow {
         .menu-down-arrow, .menu-up-arrow {
-            -fx-fill: $defold-white;
-            -fx-background-color: $defold-white; }
+            -fx-fill: $mid-grey;
+            -fx-background-color: $defold-white; 
+        }
+    }
+    .menu-item {
+        -fx-background-color: $mid-grey;//$grey;
+        -fx-border-width: 0 0 0 2;
+        -fx-border-color: transparent;
+        .label {
+            -fx-text-fill: $bright-grey-light;
+        }
+        .image-view {
+            @include colorize-image-view($bright-grey-light);
+        }
+        &:hover {
+            -fx-background-color: $dark-grey-selected;
+            .label {
+                -fx-text-fill: $defold-white;
+            }
+        }
+        &:focused {
+            -fx-background-color: $dark-grey-selected;
+            .image-view {
+                @include effect-lighten-blue();
+            }
+            .label {
+                -fx-text-fill: $defold-white;
+            }
+        }
     }
     .first-menu-item {
-        -fx-background-radius: 3 3 0 0;
-        -fx-border-radius: 3 3 0 0;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
     }
     .last-menu-item {
-        -fx-background-radius: 0 0 3 3;
-        -fx-border-radius: 0 0 3 3;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
     }
     .separator {
         &:horizontal {
-            -fx-padding: 0;
-            -fx-min-height: 0; 
+            -fx-padding: 3 0 3 0;
+            -fx-min-height: 0;
+            -fx-background-color: transparent;
             .line {
-                -fx-border-color: $mid-grey;
+                -fx-border-color: $dark-grey-light;//$mid-grey;
                 -fx-border-insets: 0;
                 -fx-border-width: 1 0 0; 
             }

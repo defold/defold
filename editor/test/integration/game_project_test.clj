@@ -1,7 +1,7 @@
 (ns integration.game-project-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system spit-until-new-mtime]]
             [integration.test-util :as test-util]
             [editor.game-project :as gp]
             [editor.workspace :as workspace]
@@ -41,9 +41,8 @@
   (let [f (file-in-project name)]
     (mkdirs f)
     (if (not (.exists f))
-      (.createNewFile f)
-      (Thread/sleep 1100))
-    (spit f content)))
+      (.createNewFile f))
+    (spit-until-new-mtime f content)))
 
 (defn- copy-file [name new-name]
   (FileUtils/copyFile

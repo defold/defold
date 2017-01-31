@@ -477,6 +477,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "atlas"
                                     :label "Atlas"
                                     :build-ext "texturesetc"
@@ -523,9 +524,9 @@
                                (add-images-handler workspace project
                                                    [[:animation :animations]
                                                     [:id :animation-ids]]
-                                                   atlas-node atlas-node))
-                             (when-let [animation-node (selection->animation selection)]
-                               (add-images-handler workspace [[:image :frames]] animation-node (core/scope animation-node))))))
+                                                   atlas-node atlas-node)
+                               (when-let [animation-node (selection->animation selection)]
+                                 (add-images-handler workspace project [[:image :frames]] animation-node (core/scope animation-node)))))))
 
 (defn- targets-of [node label]
   (keep
