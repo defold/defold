@@ -159,7 +159,7 @@
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
                                            (set path resource))))
-    (ui/on-action! open-button (fn [_] (when @content (ui/run-command open-button :open {:resources [@content]}))))
+    (ui/on-action! open-button (fn [_] (ui/run-command open-button :open {:resources [@content]})))
     (ui/on-action! text (fn [_] (let [resource-path (ui/text text)
                                       resource (some->> (when-not (string/blank? resource-path) resource-path)
                                                         (workspace/to-absolute-path)
