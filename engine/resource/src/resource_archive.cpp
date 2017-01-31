@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #endif
 
+#include <sys/stat.h>
+
 #include "resource_archive.h"
 #include "resource.h"
 #include <dlib/dstrings.h>
