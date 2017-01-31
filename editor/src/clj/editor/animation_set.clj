@@ -45,7 +45,7 @@
     bone-list
     merged-bone-list))
 
-(g/defnk produce-animation-set [animation-resources animation-sets]
+(g/defnk produce-animation-set [_node-id animation-resources animation-sets]
   (assert (= (count animation-resources) (count animation-sets)))
   (try
     (reduce (fn [merged-animation-set [resource animation-set]]
@@ -57,7 +57,7 @@
             (map vector animation-resources animation-sets))
     (catch ExceptionInfo e
       (if (= :incompatible-bone-list (:cause e))
-        (g/error-fatal "The bone hierarchies of the animations are incompatible.")
+        (g/->error _node-id :animations :fatal animation-resources "The bone hierarchies of the animations are incompatible.")
         (throw e)))))
 
 (defn hash-animation-set-ids [animation-set]

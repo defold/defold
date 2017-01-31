@@ -43,27 +43,40 @@
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets animation-set-build-target mesh-set-build-target skeleton-build-target]
-  (let [workspace (resource/workspace resource)
-        rig-scene-type (workspace/get-resource-type workspace "rigscene")
-        rig-scene-resource (resource/make-memory-resource workspace rig-scene-type (str (gensym)))
-        rig-scene-dep-build-targets {:animation-set animation-set-build-target
-                                     :mesh-set mesh-set-build-target
-                                     :skeleton skeleton-build-target}
-        rig-scene-pb-msg {:texture-set ""} ; Set in the ModelProto$Model message. Other field values taken from build targets.
-        rig-scene-additional-resource-keys []
-        rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-additional-resource-keys rig-scene-dep-build-targets)
-        pb-msg (select-keys pb-msg [:material :textures :default-animation])
-        dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
-        deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
-        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) [:rig-scene :material [:textures]])
-        dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]) resource-fields)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-pb
-      :user-data {:pb pb-msg
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+(defn- validate-skeleton [_node-id skeleton animations]
+  (or (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
+      (when animations
+        (validation/prop-error :fatal _node-id :skeleton validation/prop-nil? skeleton "Skeleton"))))
+
+(defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets animation-set-build-target mesh-set-build-target skeleton-build-target animations material mesh skeleton]
+  (or (not-empty (filterv some? [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
+                                 (prop-resource-error :fatal _node-id :material material "Material")
+                                 (validate-skeleton _node-id skeleton animations)
+                                 (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")]))
+      (let [workspace (resource/workspace resource)
+            rig-scene-type (workspace/get-resource-type workspace "rigscene")
+            rig-scene-resource (resource/make-memory-resource workspace rig-scene-type (str (gensym)))
+            rig-scene-dep-build-targets {:animation-set animation-set-build-target
+                                         :mesh-set mesh-set-build-target
+                                         :skeleton skeleton-build-target}
+            rig-scene-pb-msg {:texture-set ""} ; Set in the ModelProto$Model message. Other field values taken from build targets.
+            rig-scene-additional-resource-keys []
+            rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-additional-resource-keys rig-scene-dep-build-targets)
+            pb-msg (select-keys pb-msg [:material :textures :default-animation])
+            dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
+            deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
+            resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) [:rig-scene :material [:textures]])
+            dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]) resource-fields)]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-pb
+          :user-data {:pb pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
 
 (g/defnk produce-gpu-textures [_node-id samplers images]
   (->> (map (fn [s [i img]]
@@ -85,10 +98,6 @@
         v (if (<= c i) (into v (repeat (- i c) nil)) v)]
     (assoc v i value)))
 
-(defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
-  (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
-      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
-
 (g/defnode ModelNode
   (inherits project/ResourceNode)
 
@@ -102,7 +111,7 @@
                                             [:mesh-set-build-target :mesh-set-build-target]
                                             [:scene :scene])))
             (dynamic error (g/fnk [_node-id mesh]
-                                  (prop-resource-error :info _node-id :mesh mesh "Mesh")))
+                                  (prop-resource-error :fatal _node-id :mesh mesh "Mesh")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "dae"})))
   (property material resource/Resource
@@ -140,9 +149,8 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :skeleton-resource]
                                             [:skeleton-build-target :skeleton-build-target])))
-            (dynamic error (g/fnk [_node-id skeleton]
-                                  (when skeleton
-                                    (prop-resource-error :fatal _node-id :skeleton skeleton "Skeleton"))))
+            (dynamic error (g/fnk [_node-id animations skeleton]
+                                  (validate-skeleton _node-id skeleton animations)))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "dae"})))
   (property animations resource/Resource
@@ -152,8 +160,7 @@
                                             [:resource :animations-resource]
                                             [:animation-set-build-target :animation-set-build-target])))
             (dynamic error (g/fnk [_node-id animations]
-                                  (when animations
-                                    (prop-resource-error :fatal _node-id :animations animations "Animations"))))
+                                  (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext ["dae" "animationset"]})))
   (property default-animation g/Str)
