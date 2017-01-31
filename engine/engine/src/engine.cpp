@@ -45,6 +45,7 @@ extern uint32_t CONNECT_PROJECT_SIZE;
 // the GLFW Android implementation.
 extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
+    extern void _glfwAndroidSetImmersiveMode(int);
 }
 #endif
 
@@ -851,6 +852,10 @@ namespace dmEngine
                 dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
 
             _glfwAndroidSetInputMethod(use_hidden_inputfield);
+        }
+        {
+        	int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
+        	_glfwAndroidSetImmersiveMode(immersive_mode);
         }
 #endif
 
