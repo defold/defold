@@ -31,8 +31,9 @@
     (:default field-info)
     (type-defaults (:type field-info))))
 
-(defn optional-field? [field-info]
+(defn optional-field?
   "Whether this field can be cleared"
+  [field-info]
   (:optional field-info))
 
 (defn field-defaults [fields]
