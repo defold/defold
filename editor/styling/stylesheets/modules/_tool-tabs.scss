@@ -1,9 +1,12 @@
 #tool-tabs {
+    -fx-tab-min-height: 25px;
     -fx-tab-min-width: 40px;
     -fx-padding: 0 0 17px 0;
 
     .tab {
-        -fx-padding: 0 10 0 10;
+        -fx-padding: 0 10 5 10;
+        -fx-background-insets: 0;
+
         &:selected {
             .tab-label {
                 -fx-padding: 0;
@@ -12,15 +15,18 @@
     }
 
     .console-buttons-base {
-        -fx-background-color: $mid-grey-light;
+        -fx-background-color: $mid-grey;
         -fx-background-position: center;
         -fx-background-repeat: no-repeat;
         -fx-background-size: 9 14;
         -fx-border-width: 0;
         -fx-border-color: transparent;
         -fx-width: 50px;
+        &:hover {
+            -fx-background-color: $mid-grey-light;
+        }
         &:armed {
-            -fx-background-color: $bright-grey;
+            -fx-background-color: $input-background;
         }
     }
     #prev-console {
@@ -30,8 +36,7 @@
         -fx-border-color: $dark-grey-light;
         &:hover {
             -fx-background-image: url('icons/left-arrow-on.png');
-        }
-        
+        }        
     }
     #next-console {
         @extend .console-buttons-base;
@@ -50,7 +55,6 @@
         -fx-padding: 5px;
 
         .label {
-            -fx-font-size: 14px;
             -fx-text-fill: $defold-white;
         }
 
@@ -65,8 +69,12 @@
         }
 
         .text-area, .scroll-pane, .viewport {
+            -fx-background-color: $dark-grey-light;
             -fx-background-insets: 0;
             -fx-padding: 0;
+        }
+        .text-area {
+            -fx-padding: 15px 0 0 0;
         }
     }
 
@@ -75,10 +83,10 @@
     }
 
     .console-tab-base {
-        -fx-background-position: 10 8;
+        -fx-background-position: 10 3;
         -fx-background-repeat: no-repeat;
         -fx-background-size: 17 17;
-        -fx-padding: 0 10 0 32;
+        -fx-padding: 0 10 5 32;
         -fx-spacing: 0;
         &:selected {
             .tab-label {
@@ -102,7 +110,7 @@
 #curve-editor-tab {
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_curve-editor-grey.png");
-    -fx-background-position: 10 7 !important;
+    -fx-background-position: 10 1 !important;
     &:selected {
         -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
     }

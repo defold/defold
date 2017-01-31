@@ -100,6 +100,7 @@
 (defn register-resource-types
   [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "collectionproxy"
                                     :node-type CollectionProxyNode
                                     :load-fn load-collection-proxy

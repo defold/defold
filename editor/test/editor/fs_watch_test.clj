@@ -1,7 +1,8 @@
 (ns editor.fs-watch-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
-            [editor.fs-watch :as fs-watch])
+            [editor.fs-watch :as fs-watch]
+            [support.test-support :refer [spit-until-new-mtime]])
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FileUtils]))
@@ -20,13 +21,11 @@
         parent (.getParentFile f)]
     (when (not (.exists parent))
       (.mkdirs parent))
-    (spit (File. root file) content)))
+    (spit-until-new-mtime (File. root file) content)))
 
 (defn- append-file [root file content]
-  ; Sleep since Java mtime is in second-resolution
-  (Thread/sleep 1100)
   (let [f (File. root file)]
-    (spit f content :append true)))
+    (spit-until-new-mtime f content :append true)))
 
 (defn- remove-file [root file]
   (.delete (File. root file)))

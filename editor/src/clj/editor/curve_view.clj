@@ -105,27 +105,6 @@
           (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
-(defn- render! [^Region viewport ^GLAutoDrawable drawable camera renderables ^GLContext context ^GL2 gl]
-  (let [render-args (scene/generic-render-args viewport camera)]
-    (gl/gl-clear gl 0.0 0.0 0.0 1)
-    (.glColor4f gl 1.0 1.0 1.0 1.0)
-    (gl-viewport gl viewport)
-    (doseq [pass pass/render-passes
-            :let [render-args (assoc render-args :pass pass)]]
-      (scene/setup-pass context gl pass camera viewport)
-      (scene/batch-render gl render-args (get renderables pass) false :batch-key))))
-
-(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables cp-renderables tool-renderables]
-  (when async-copier
-    (profiler/profile "render-curves" -1
-                      (when-let [^GLContext context (.getContext drawable)]
-                        (let [gl ^GL2 (.getGL context)]
-                          (.beginFrame async-copier gl)
-                          (render! viewport drawable camera (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables)) context gl)
-                          (scene-cache/prune-object-caches! gl)
-                          (.endFrame async-copier gl)
-                          :ok)))))
-
 (defn- curve? [[_ p]]
   (let [t (g/value-type-dispatch-value (:type p))
         v (:value p)]
@@ -465,12 +444,15 @@
 
   (property image-view ImageView)
   (property viewport Region (default (types/->Region 0 0 0 0)))
+  (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
   (property list ListView)
   (property hidden-curves g/Any)
+  (property tool-user-data g/Any (default (atom [])))
+  (property input-action-queue g/Any (default []))
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
@@ -481,7 +463,8 @@
   (input picking-rect Rect)
   (input sub-selection g/Any)
 
-  (output async-frame g/Keyword :cached produce-async-frame)
+  (output all-renderables g/Any :cached (g/fnk [renderables curve-renderables cp-renderables tool-renderables]
+                                          (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables))))
   (output curves g/Any :cached produce-curves)
   (output visible-curves g/Any :cached (g/fnk [curves hidden-curves] (remove #(contains? hidden-curves (:property %)) curves)))
   (output curve-renderables g/Any :cached produce-curve-renderables)
@@ -527,18 +510,10 @@
                                                                 rest-indices (next selected-indices)
                                                                 indices ^ints (int-array (or rest-indices 0))]
                                                             (doto (.getSelectionModel list)
-                                                              (.selectIndices index indices)))))))))))
+                                                              (.selectIndices index indices))))))))))
+  (output active-updatables g/Any (g/constantly [])))
 
 (defonce view-state (atom nil))
-
-(defn- update-image-view! [^ImageView image-view dt]
-  (let [view-id (ui/user-data image-view ::view-id)
-        view-graph (g/node-id->graph-id view-id)]
-    (try
-      (g/node-value view-id :async-frame)
-      (catch Exception e
-        (.setImage image-view nil)
-        (throw e)))))
 
 (defn frame-selection [view animate?]
   (let [graph (g/node-id->graph-id view)
@@ -559,55 +534,6 @@
                               (g/set-property camera :local-camera cam))))
                   (fn [])))
       (g/transact (g/set-property camera :local-camera end-camera)))))
-
-(defn make-gl-pane [view-id ^AnchorPane view opts]
-  (let [image-view (doto (ImageView.)
-                     (.setScaleY -1.0)
-                     (.setFocusTraversable true))
-        pane (proxy [com.defold.control.Region] []
-               (layoutChildren []
-                 (let [this ^com.defold.control.Region this
-                       w (.getWidth this)
-                       h (.getHeight this)]
-                   (.setFitWidth image-view w)
-                   (.setFitHeight image-view h)
-                   (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
-                   (when (and (> w 0) (> h 0))
-                     (let [viewport (types/->Region 0 w 0 h)]
-                       (g/transact (g/set-property view-id :viewport viewport))
-                       (if-let [view-id (ui/user-data image-view ::view-id)]
-                         (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                           (doto drawable
-                             (.setSurfaceSize w h))
-                           (let [context (scene/make-current drawable)]
-                             (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                               (.setSize ^GL2 (.getGL context) w h))
-                             (.release context)))
-                         (do
-                           (scene/register-event-handler! view view-id)
-                           (ui/user-data! image-view ::view-id view-id)
-                           (let [^Tab tab      (:tab opts)
-                                 repainter     (ui/->timer "refresh-curve-view"
-                                                (fn [_ dt]
-                                                  (when (.isSelected tab)
-                                                    (update-image-view! image-view dt)
-                                                    (g/node-value view-id :update-list-view))))]
-                             (ui/user-data! view ::repainter repainter)
-                             (ui/on-closed! tab
-                                            (fn [e]
-                                              (ui/timer-stop! repainter)))
-                             (ui/timer-start! repainter))
-                           (let [drawable (scene/make-drawable w h)]
-                             (g/transact
-                              (concat
-                               (g/set-property view-id :drawable drawable)
-                               (g/set-property view-id :async-copier (scene/make-copier image-view drawable viewport)))))
-                           (frame-selection view-id false)))))
-                   (proxy-super layoutChildren))))]
-    (.setFocusTraversable pane true)
-    (.add (.getChildren pane) image-view)
-    (g/set-property! view-id :image-view image-view)
-    pane))
 
 (defn destroy-view! [parent ^AnchorPane view view-id ^ListView list]
   (when-let [repainter (ui/user-data view ::repainter)]
@@ -666,7 +592,7 @@
       view-id))
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
-                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{}]
+                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{} :frame-version (atom 0)]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        background background/Gradient
@@ -704,7 +630,7 @@
                                                 (g/connect view-id :viewport rulers :viewport)
                                                 (g/connect view-id :cursor-pos rulers :cursor-pos))))]
       (when parent
-        (let [^Node pane (make-gl-pane node-id view opts)]
+        (let [^Node pane (scene/make-gl-pane! node-id view opts "update-curve-view" false)]
           (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
           (ui/fill-control pane)
           (ui/children! view [pane])
