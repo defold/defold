@@ -178,23 +178,16 @@
             (value (gu/passthrough resource))
             (set (fn [basis self old-value new-value]
                    (concat
-                    ;; connect resource node to this
-                    (project/resource-setter basis self old-value new-value
-                                             [:resource :resource])
-                    (let [game-project-id (ffirst (g/targets-of basis self :_node-id))
-                          path (g/node-value self :path {:basis basis})]
-                      ;; connect extra resource node outputs directly to GameProjectNode
-                      (apply project/resource-setter basis game-project-id old-value new-value
-                             (resource-setting-connections path)))))))
+                     ;; connect resource node to this
+                     (project/resource-setter basis self old-value new-value
+                                              [:resource :resource])
+                     (let [game-project-id (ffirst (g/targets-of basis self :_node-id))
+                           path (g/node-value self :path {:basis basis})]
+                       ;; connect extra resource node outputs directly to GameProjectNode
+                       (apply project/resource-setter basis game-project-id old-value new-value
+                              (resource-setting-connections path)))))))
   (input resource resource/Resource)
   (output resource-setting-reference g/Any :cached (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
-
-
-
-
-
-
-
 
 (g/defnode GameProjectNode
   (inherits project/ResourceNode)
@@ -210,7 +203,7 @@
 
   (input resource-setting-references g/Any :array)
   (output resource-setting-nodes g/Any :cached (g/fnk [resource-setting-references] (into {} (map (juxt :path :node-id) resource-setting-references))))
-  (output resource-settings g/Any :cached (g/fnk [resource-setting-references] (filter :value (map #(select-keys % [:path :value]) resource-setting-references))))
+  (output resource-settings g/Any :cached (g/fnk [resource-setting-references] (map #(select-keys % [:path :value]) resource-setting-references)))
 
   (output merged-raw-settings g/Any :cached (g/fnk [raw-settings meta-info resource-settings]
                                                    (let [meta-settings-map (gpcore/make-meta-settings-map (:settings meta-info))
@@ -241,15 +234,15 @@
   (output build-targets g/Any :cached (g/fnk [_node-id resource raw-settings custom-build-targets resource-settings dep-build-targets]
                                              (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
                                                    deps-by-source (into {} (map
-                                                                            (fn [build-target]
-                                                                              (let [build-resource (:resource build-target)
-                                                                                    source-resource (:resource build-resource)]
-                                                                                [source-resource build-resource]))
-                                                                            dep-build-targets))
+                                                                             (fn [build-target]
+                                                                               (let [build-resource (:resource build-target)
+                                                                                     source-resource (:resource build-resource)]
+                                                                                 [source-resource build-resource]))
+                                                                             dep-build-targets))
                                                    path->built-resource-settings (into {} (keep (fn [resource-setting]
-                                                                                            (when (resource-setting-connections (:path resource-setting))
-                                                                                              [(:path resource-setting) (deps-by-source (:value resource-setting))]))
-                                                                                          resource-settings))]
+                                                                                                  (when (resource-setting-connections (:path resource-setting))
+                                                                                                    [(:path resource-setting) (deps-by-source (:value resource-setting))]))
+                                                                                                resource-settings))]
                                                [{:node-id _node-id
                                                  :resource (workspace/make-build-resource resource)
                                                  :build-fn build-game-project
@@ -283,22 +276,22 @@
         graph-id (g/node-id->graph-id self)]
 
     (concat
-     ;; We retain the actual raw string settings and update these when/if the user changes a setting,
-     ;; rather than parse to proper typed/sanitized values and rendering these on save - again only to
-     ;; reduce diffs.
-     ;; Resource settings are also stored in separate ResourceSettingNodes, and this is the canonical place to look
-     ;; for the settings current value. The corresponding setting in raw-settings may be stale and is only used to track
-     ;; whether the value is/was set or cleared.
-     (g/set-property self :raw-settings raw-settings :meta-info meta-info)
-     (g/connect project :resource-map self :resource-map)
-     (for [resource-setting-path resource-setting-paths]
-       (let [resource (gpcore/get-setting-or-default meta-settings settings resource-setting-path)]
-         (g/make-nodes graph-id [resource-setting-node ResourceSettingNode]
-                       (g/connect resource-setting-node :_node-id self :nodes)
-                       (g/set-property resource-setting-node :path resource-setting-path)
-                       (when resource
-                         (g/set-property resource-setting-node :value resource))
-                       (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
+      ;; We retain the actual raw string settings and update these when/if the user changes a setting,
+      ;; rather than parse to proper typed/sanitized values and rendering these on save - again only to
+      ;; reduce diffs.
+      ;; Resource settings are also stored in separate ResourceSettingNodes, and this is the canonical place to look
+      ;; for the settings current value. The corresponding setting in raw-settings may be stale and is only used to track
+      ;; whether the value is/was set or cleared.
+      (g/set-property self :raw-settings raw-settings :meta-info meta-info)
+      (g/connect project :resource-map self :resource-map)
+      (for [resource-setting-path resource-setting-paths]
+        (let [resource (gpcore/get-setting-or-default meta-settings settings resource-setting-path)]
+          (g/make-nodes graph-id [resource-setting-node ResourceSettingNode]
+                        (g/connect resource-setting-node :_node-id self :nodes)
+                        (g/set-property resource-setting-node :path resource-setting-path)
+                        (when resource
+                          (g/set-property resource-setting-node :value resource))
+                        (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

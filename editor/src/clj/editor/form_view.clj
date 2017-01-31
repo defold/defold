@@ -1,5 +1,6 @@
 (ns editor.form-view
   (:require [dynamo.graph :as g]
+            [clojure.string :as string]
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
@@ -150,14 +151,19 @@
                (.setMinWidth tf Control/USE_PREF_SIZE)
                (GridPane/setFillWidth tf true)
                tf)
-        update-fn (fn [value] (ui/text! text (resource/resource->proj-path value)))]
+        content (atom nil)
+        update-fn (fn [value]
+                    (reset! content value)
+                    (ui/editable! open-button (some? @content))
+                    (ui/text! text (resource/resource->proj-path value)))]
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
                                            (set path resource))))
-    (ui/on-action! open-button (fn [_] (when-let [resource (workspace/resolve-workspace-resource workspace (workspace/to-absolute-path (ui/text text)))]
-                                         (ui/run-command open-button :open {:resources [resource]}))))
-    (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
-                                      resource (workspace/resolve-workspace-resource workspace rpath)]
+    (ui/on-action! open-button (fn [_] (when @content (ui/run-command open-button :open {:resources [@content]}))))
+    (ui/on-action! text (fn [_] (let [resource-path (ui/text text)
+                                      resource (some->> (when-not (string/blank? resource-path) resource-path)
+                                                        (workspace/to-absolute-path)
+                                                        (workspace/resolve-workspace-resource workspace))]
                                   (set path resource)
                                   (update-fn resource))))
     (install-escape-handler! text cancel)
@@ -655,7 +661,7 @@
                                          :explicit value
                                          :default (form/field-default field-info)
                                          nil)
-                             overridden? (and (boolean (:optional field-info)) (= source :explicit))]
+                             overridden? (and (form/optional-field? field-info) (= source :explicit))]
                          ((:update api) value)
                          (update-label-box overridden?)))]
 

@@ -73,9 +73,8 @@
                                         [source-resource build-resource])
                                      dep-build-targets))
         built-resources (into [[[:script] (when script (deps-by-source script))]]
-                              (map (fn [i material] [[:materials i :material] (when-let [material (nth materials-material i)] (deps-by-source material))])
-                                   (range (count materials-material))
-                                   materials-material))]
+                              (map-indexed (fn [i material] [[:materials i :material] (when material (deps-by-source material))])
+                                           materials-material))]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-render
@@ -106,14 +105,14 @@
                          connections [[:resource :material-resources]
                                       [:build-targets :dep-build-targets]]]
                      (concat
-                      (for [r old-value]
-                        (if r
-                          (project/disconnect-resource-node project r self connections)
-                          (g/disconnect project :nil-resource self :material-resources)))
-                      (for [r new-value]
-                        (if r
-                          (project/connect-resource-node project r self connections)
-                          (g/connect project :nil-resource self :material-resources))))))))
+                       (for [r old-value]
+                         (if r
+                           (project/disconnect-resource-node project r self connections)
+                           (g/disconnect project :nil-resource self :material-resources)))
+                       (for [r new-value]
+                         (if r
+                           (project/connect-resource-node project r self connections)
+                           (g/connect project :nil-resource self :material-resources))))))))
 
   (input material-resources resource/Resource :array)
   (input dep-build-targets g/Any :array)
@@ -127,9 +126,9 @@
   (let [{script-path :script
          materials :materials} (protobuf/read-text Render$RenderPrototypeDesc resource)]
     (concat
-     (g/set-property self :script (workspace/resolve-resource resource script-path))
-     (g/set-property self :materials-name (mapv :name materials))
-     (g/set-property self :materials-material (mapv #(workspace/resolve-resource resource %) (map :material materials))))))
+      (g/set-property self :script (workspace/resolve-resource resource script-path))
+      (g/set-property self :materials-name (mapv :name materials))
+      (g/set-property self :materials-material (mapv #(workspace/resolve-resource resource %) (map :material materials))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

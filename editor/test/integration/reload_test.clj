@@ -366,7 +366,6 @@
           resource-setting-node ((g/node-value node-id :resource-setting-nodes) p)]
       (write-file workspace path "")
       (g/transact (g/set-property resource-setting-node :value (workspace/file-resource workspace path)))
-;;      (g/transact (g/set-property node-id :display-profiles (workspace/file-resource workspace path)))
       (move-file workspace path new-path)
       (is (= new-path
              (resource/resource->proj-path (get (g/node-value node-id :settings-map) p)))))))
