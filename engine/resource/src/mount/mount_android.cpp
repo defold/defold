@@ -21,7 +21,10 @@ namespace dmResource
     {
         AAsset *index_asset;
         AAsset *data_asset;
-        AAsset *lu_data_asset;
+        void *lu_index_map;
+        uint32_t lu_index_length;
+        void *lu_data_map;
+        uint32_t lu_data_map_lenght;
     };
 
     Result MapAsset(AAssetManager* am, const char* path,  void*& out_asset, uint32_t& out_size, void*& out_map)
@@ -89,36 +92,45 @@ namespace dmResource
         AAsset* index_asset = 0x0;
         uint32_t index_length = 0;
         void* index_map = 0x0;
-        Result r = MapAsset(am, index_path, (void*&)index_asset, index_length, index_map);
-        if (r != RESULT_OK)
-        {
-            dmLogInfo("Error when mapping index file, result: %i", r);
-            return RESULT_IO_ERROR;
-        }
-
         AAsset* data_asset = 0x0;
         uint32_t data_length = 0;
         void* data_map = 0x0;
 
-        r = MapAsset(am, data_path, (void*&)data_asset, data_length, data_map);
+        Result r = MapAsset(am, data_path, (void*&)data_asset, data_length, data_map);
         if (r != RESULT_OK)
         {
-            AAsset_close(index_asset);
-            dmLogInfo("Error when mapping data file, result: %i", r);
+            dmLogInfo("Error when mapping data file, result = %i", r);
+            return RESULT_IO_ERROR;
         }
 
-        AAsset* lu_data_asset = 0x0;
         void* lu_data_map = 0x0;
-        uint32_t lu_data_size = 0;
+        uint32_t lu_data_length = 0;
         FILE* lu_data_file = 0x0;
-        if (lu_data_path != 0x0)
+        if (lu_data_path == 0x0)
         {
-            r = MapAsset(am, lu_data_path, (void*&)lu_data_asset, lu_data_size, lu_data_map);
+            r = MapAsset(am, index_path, (void*&)index_asset, index_length, index_map);
+            if (r != RESULT_OK)
+            {
+                AAsset_close(data_asset);
+                dmLogInfo("Error when mapping index file, result: %i", r);
+                return RESULT_IO_ERROR;
+            }
+        }
+        else // if liveupdate data path is specified, the index file specified is also with liveupdate entries
+        {   
+            r = MapFile(index_path, index_map, index_length);
+            if (r != RESULT_OK)
+            {
+                AAsset_close(data_asset);
+                dmLogError("Error mapping liveupdate index file, result = %i", r);
+            }
+            r = MapFile(lu_data_path, lu_data_map, lu_data_length);
             if (r != RESULT_OK)
             {
                 AAsset_close(index_asset);
                 AAsset_close(data_asset);
-                dmLogError("Error mapping liveupdate data file");
+                UnmapFile(index_map, index_length);
+                dmLogError("Error mapping liveupdate data file, result = %i", r);
                 return RESULT_IO_ERROR;
             }
 
@@ -127,8 +139,9 @@ namespace dmResource
             {
                 AAsset_close(index_asset);
                 AAsset_close(data_asset);
-                AAsset_close(lu_data_asset);
-                dmLogError("Error opening liveupdate data file");
+                UnmapFile(index_map, index_length);
+                UnmapFile(lu_data_map, lu_data_length);
+                dmLogError("Error opening liveupdate data file, result = %i", r);
                 return RESULT_IO_ERROR;
             }
         }
@@ -138,13 +151,22 @@ namespace dmResource
         {
             AAsset_close(index_asset);
             AAsset_close(data_asset);
+            if (lu_data_path)
+            {
+                UnmapFile(index_map, index_length);
+                UnmapFile(lu_data_map, lu_data_length);
+                fclose(lu_data_file);
+            }
             return RESULT_IO_ERROR;
         }
 
         MountInfo* info = new MountInfo();
         info->index_asset = index_asset;
         info->data_asset = data_asset;
-        info->lu_data_asset = lu_data_asset;
+        info->lu_index_map = index_map;
+        info->lu_index_length = index_length;
+        info->lu_data_map = lu_data_map;
+        info->lu_data_map_lenght = lu_data_length;
         *mount_info = (void*)info;
         return RESULT_OK;
     }
@@ -162,15 +184,19 @@ namespace dmResource
         {
             AAsset_close(info->index_asset);
         }
+        else if (info->lu_index_map)
+        {
+            UnmapFile(info->lu_index_map, info->lu_index_length);
+        }
 
         if (info->data_asset)
         {
             AAsset_close(info->data_asset);
         }
 
-        if (info->lu_data_asset)
+        if (info->lu_data_map)
         {
-            AAsset_close(info->lu_data_asset);
+            UnmapFile(info->lu_data_map, info->lu_data_map_lenght);
         }
 
         delete info;

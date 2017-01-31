@@ -70,7 +70,7 @@ namespace dmResourceArchive
 
         ArchiveIndex* m_ArchiveIndex; // this could be mem-mapped or loaded into memory from file
         bool m_IsMemMapped;
-		bool m_LiveUpdateResourcesMemMapped;
+        bool m_LiveUpdateResourcesMemMapped;
 
         /// Used if the archive is loaded from file
         uint8_t* m_Hashes;
@@ -113,16 +113,21 @@ namespace dmResourceArchive
         (*archive)->m_LiveUpdateResourceData = (uint8_t*)lu_resource_data;
         (*archive)->m_LiveUpdateFileResourceData = f_lu_resource_data;
 
-		if (lu_resource_data)
-			(*archive)->m_LiveUpdateResourcesMemMapped = true;
-        
+        if (lu_resource_data)
+        {
+            (*archive)->m_LiveUpdateResourcesMemMapped = true;
+        }
         if (lu_resource_filename != 0x0)
+        {
             dmStrlCpy((*archive)->m_LiveUpdateResourcePath, lu_resource_filename, DMPATH_MAX_PATH);
+        }
 
         (*archive)->m_ArchiveIndex = a;
 
         if (lu_resource_filename != 0x0)
+        {
             dmLogInfo("LU resource path: %s", (*archive)->m_LiveUpdateResourcePath);
+        }
 
         // DEBUG
         // dmLogInfo("-----------WRAPPING! entry_count: %u, hash_len: %u", JAVA_TO_C(a->m_EntryDataCount), JAVA_TO_C(a->m_HashLength));
@@ -173,9 +178,9 @@ namespace dmResourceArchive
             if (index_file_path[filename_count] == '\0')
                 break;
             if (filename_count >= DMPATH_MAX_PATH)
-			{
-				return RESULT_IO_ERROR;
-			}
+            {
+                return RESULT_IO_ERROR;
+            }
 
             ++filename_count;
         }
@@ -251,7 +256,7 @@ namespace dmResourceArchive
                 return RESULT_IO_ERROR;
             }
             dmStrlCpy(aic->m_LiveUpdateResourcePath, lu_data_file_path, DMPATH_MAX_PATH);
-			aic->m_LiveUpdateResourcesMemMapped = false;
+            aic->m_LiveUpdateResourcesMemMapped = false;
         }
 
         f_data = fopen(data_file_path, "rb");
@@ -263,9 +268,9 @@ namespace dmResourceArchive
         }
 
         aic->m_FileResourceData = f_data;
-		aic->m_LiveUpdateFileResourceData = f_lu_data;
+        aic->m_LiveUpdateFileResourceData = f_lu_data;
         aic->m_LiveUpdateResourceData = 0x0;
-		aic->m_LiveUpdateResourcesMemMapped = false;
+        aic->m_LiveUpdateResourcesMemMapped = false;
         aic->m_ArchiveIndex = ai;
         *archive = aic;
 
@@ -408,7 +413,7 @@ namespace dmResourceArchive
 
         // We have written to the resource file, need to update mapping
         if (archive->m_LiveUpdateResourcesMemMapped)
-		{
+        {
             dmLogInfo("Attempt to map to file at: %s", archive->m_LiveUpdateResourcePath);
             void* temp_map = (void*)archive->m_LiveUpdateResourceData;
             dmResource::UnmapFile(temp_map, offset);
@@ -439,7 +444,8 @@ namespace dmResourceArchive
         dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
         dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);
         dmLogInfo("InsertResource, buf_len: %u", resource->m_Count);
-        bool resource_exists = dmSys::ResourceExists(lu_index_path);
+        struct stat file_stat;
+        bool resource_exists = stat(lu_index_path, &file_stat) == 0;
 
         uint8_t* hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset));
         EntryData* entries = (EntryData*)((uintptr_t)archive->m_ArchiveIndex + JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataOffset));
@@ -464,9 +470,9 @@ namespace dmResourceArchive
 
             //char lu_data_path[DMPATH_MAX_PATH];
             // Data file has same path and filename as index file, but extension .arcd instead of .arci.
-			char lu_data_path[DMPATH_MAX_PATH];
-			dmStrlCpy(lu_data_path, lu_index_path, DMPATH_MAX_PATH);
-			lu_data_path[strlen(lu_index_path)-1] = 'd';
+            char lu_data_path[DMPATH_MAX_PATH];
+            dmStrlCpy(lu_data_path, lu_index_path, DMPATH_MAX_PATH);
+            lu_data_path[strlen(lu_index_path)-1] = 'd';
 
             FILE* f_lu_data = fopen(lu_data_path, "wb+");
             if (!f_lu_data)
@@ -479,14 +485,12 @@ namespace dmResourceArchive
             archive->m_LiveUpdateResourceData = 0x0;
             archive->m_LiveUpdateResourceSize = 0;
             archive->m_LiveUpdateFileResourceData = f_lu_data;
-			archive->m_LiveUpdateResourcesMemMapped = false;
+            archive->m_LiveUpdateResourcesMemMapped = false;
         }
 
         // Make deep-copy. Operate on this and only overwrite when done inserting
-		dmLogInfo("Version before copy: %u, flipped: %u", archive->m_ArchiveIndex->m_Version, JAVA_TO_C(archive->m_ArchiveIndex->m_Version));
         ArchiveIndex* ai_temp = 0x0;
         DeepCopyArchiveIndex(ai_temp, archive, true);
-		dmLogInfo("Version AFTER copy: %u, flipped: %u", ai_temp->m_Version, JAVA_TO_C(ai_temp->m_Version));
 
         // From now on we only work on ai_temp until done
         hashes = (uint8_t*)((uintptr_t)ai_temp + JAVA_TO_C(ai_temp->m_HashOffset));
@@ -555,7 +559,7 @@ namespace dmResourceArchive
         archive->m_ArchiveIndex = ai_temp;
 
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
-		archive->m_IsMemMapped = true;
+        archive->m_IsMemMapped = true;
 
         // Write to temporary index file, should have filename liveupdate.arci-temp
         dmStrlCat(lu_index_path, "-temp", DMPATH_MAX_PATH);
@@ -646,15 +650,15 @@ namespace dmResourceArchive
             (entry_data->m_Flags & ENTRY_FLAG_ENCRYPTED) == ENTRY_FLAG_ENCRYPTED);
 
         bool loaded_with_liveupdate = (entry_data->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA);
-		bool resource_memmapped = false;
+        bool resource_memmapped = false;
 
-		if (loaded_with_liveupdate)
-			resource_memmapped = archive->m_LiveUpdateResourcesMemMapped;
-		else
-			resource_memmapped = archive->m_IsMemMapped;
+        if (loaded_with_liveupdate)
+          resource_memmapped = archive->m_LiveUpdateResourcesMemMapped;
+        else
+           resource_memmapped = archive->m_IsMemMapped;
 
         if (!resource_memmapped)
-		{
+        {
             FILE* resource_file;
 
             if (loaded_with_liveupdate)

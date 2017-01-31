@@ -268,7 +268,8 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, 41);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
-    bool luIndexExists = dmSys::ResourceExists(liveupdate_index_path);
+    struct stat file_stat;
+    bool luIndexExists = stat(liveupdate_index_path, &file_stat) == 0;
 
     if (!luIndexExists)
     {
@@ -289,7 +290,8 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
         dmStrlCpy(temp_archive_index_path, liveupdate_index_path, strlen(liveupdate_index_path)+1);
         dmStrlCat(temp_archive_index_path, "-temp", DMPATH_MAX_PATH); // check for liveupdate.arci-temp
 
-        if (dmSys::ResourceExists(temp_archive_index_path))
+        bool luTempIndexExists = stat(temp_archive_index_path, &file_stat) == 0;
+        if (luTempIndexExists)
         {
             // Do MOVE (overwrite) from liveupdate.arci-temp to liveupdate.arci
             dmSys::Result moveResult = dmSys::WriteWithMove(liveupdate_index_path, temp_archive_index_path);
@@ -300,7 +302,6 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
                 dmLogError("Fail to load liveupdate index data.")
                 return RESULT_IO_ERROR;
             }
-			dmLogInfo("Unlinking temp file at: %s", temp_archive_index_path);
             dmSys::Unlink(temp_archive_index_path);
             dmLogInfo("Found temp LU index file, overwrote the old one! path: %s", temp_archive_index_path);
         }
