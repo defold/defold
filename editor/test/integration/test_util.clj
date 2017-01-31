@@ -28,15 +28,15 @@
 
 (defn setup-workspace!
   ([graph]
-    (setup-workspace! graph project-path))
+   (setup-workspace! graph project-path))
   ([graph project-path]
-    (let [workspace (workspace/make-workspace graph project-path)]
-      (g/transact
+   (let [workspace (workspace/make-workspace graph project-path)]
+     (g/transact
        (concat
-        (scene/register-view-types workspace)))
-      (resource-types/register-resource-types! workspace)
-      (workspace/resource-sync! workspace)
-      workspace)))
+         (scene/register-view-types workspace)))
+     (resource-types/register-resource-types! workspace)
+     (workspace/resource-sync! workspace)
+     workspace)))
 
 (defn make-temp-project-copy! [project-path]
   (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
