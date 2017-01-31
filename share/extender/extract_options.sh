@@ -1,4 +1,5 @@
 # Use this to extract compiler flags from a text file
+# Usage: ./extract_options.sh options_clang.txt
 
 FLAGS=$(grep '^-' $1 | grep -v '#')
 
