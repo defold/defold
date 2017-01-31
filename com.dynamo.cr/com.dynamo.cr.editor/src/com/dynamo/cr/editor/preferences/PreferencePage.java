@@ -4,6 +4,7 @@ import org.eclipse.jface.preference.BooleanFieldEditor;
 import org.eclipse.jface.preference.FieldEditorPreferencePage;
 import org.eclipse.jface.preference.FileFieldEditor;
 import org.eclipse.jface.preference.IPreferenceStore;
+import org.eclipse.jface.preference.StringFieldEditor;
 import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
@@ -39,6 +40,8 @@ public class PreferencePage
 
         enableTextureProfiles = new BooleanFieldEditor(PreferenceConstants.P_TEXTURE_PROFILES, "Enable texture profiles", getFieldEditorParent());
         addField(enableTextureProfiles);
+
+        addField(new StringFieldEditor(PreferenceConstants.P_NATIVE_EXT_SERVER_URI, "Native Extension Server URI:", getFieldEditorParent()));
 
         addField(new BooleanFieldEditor(PreferenceConstants.P_QUIT_ON_ESC, "Quit application on Esc key press", getFieldEditorParent()));
 	}

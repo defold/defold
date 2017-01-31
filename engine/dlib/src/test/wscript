@@ -42,6 +42,7 @@ def build(bld):
 
     create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
+    create_test(bld, 'test_buffer')
     create_test(bld, 'test_math', extra_libs = ['THREAD'])
     create_test(bld, 'test_transform', extra_libs = ['THREAD'])
     create_test(bld, 'test_hashtable')
@@ -77,6 +78,7 @@ def build(bld):
     create_test(bld, 'test_sys', extra_libs = ['THREAD'])
     create_test(bld, 'test_uuid', extra_libs = ['THREAD'])
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
+    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'])
     create_test(bld, 'test_log', extra_libs = ['THREAD'])
     create_test(bld, 'test_path', extra_libs = ['THREAD'])

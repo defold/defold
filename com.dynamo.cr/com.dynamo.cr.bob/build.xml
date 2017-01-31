@@ -7,6 +7,7 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="protobuf-java*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
 
@@ -213,6 +214,7 @@
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
+              <include name="extender-client-*.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
               <include name="*.jar"/>
@@ -249,6 +251,7 @@
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
+              <include name="extender-client-*.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
                 <include name="*.jar"/>

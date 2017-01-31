@@ -305,6 +305,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "sprite"
                                     :node-type SpriteNode
                                     :load-fn load-sprite

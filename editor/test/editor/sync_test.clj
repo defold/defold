@@ -30,7 +30,7 @@
   (let [base-status {:added #{}
                      :changed #{}
                      :conflicting #{}
-                     :conflicting-stage-state #{}
+                     :conflicting-stage-state {}
                      :ignored-not-in-index #{".DS_Store"
                                              ".internal"
                                              "build"
@@ -182,7 +182,7 @@
     (is (= git (:git flow)))
     (is (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider (:creds flow)))
     (is (instance? org.eclipse.jgit.revwalk.RevCommit (:start-ref flow)))
-    (is (nil? (:stash-ref flow)))
+    (is (nil? (:stash-info flow)))
     (is (true? (sync/flow-in-progress? git)))
     (is (flow-equal? flow @(sync/resume-flow git prefs)))))
 
@@ -318,40 +318,49 @@
 
   (testing ":pull/conflicts"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/conflicting_file.cpp" "void conflicting_file() {}")
       (commit-src git)
       (with-git [local-git (clone git)]
-        (create-file git "/src/main.cpp" "void main() {FOO}")
+        (create-file git "/src/conflicting_file.cpp" "void conflicting_file() {FOO}")
         (commit-src git)
-        (create-file local-git "/src/main.cpp" "void main() {BAR}")
+        (create-file local-git "/src/conflicting_file.cpp" "void conflicting_file() {BAR}")
+        (create-file local-git "/src/untracked_file.cpp" "void untracked_file() {}")
+        (create-file local-git "/src/untracked_folder/file.cpp" "void untracked_folder_file() {}")
+        (is (.exists (git/file local-git "/src/untracked_folder/file.cpp")))
         (let [prefs (make-prefs)
               !flow (sync/begin-flow! local-git prefs)
               res   (swap! !flow sync/advance-flow progress/null-render-progress!)]
-          (is (= #{"src/main.cpp"} (:conflicting (git/status local-git))))
+          (is (.exists (git/file local-git "/src/conflicting_file.cpp")))
+          (is (.exists (git/file local-git "/src/untracked_file.cpp")))
+          (is (.exists (git/file local-git "/src/untracked_folder/file.cpp")))
+          (is (= #{"src/conflicting_file.cpp"} (:conflicting (git/status local-git))))
           (is (= :pull/conflicts (:state res)))
           (is (flow-equal? res @(sync/resume-flow local-git prefs)))
           (let [flow2 @!flow]
             (testing "theirs"
-              (create-file local-git "/src/main.cpp" (sync/get-theirs @!flow "src/main.cpp"))
-              (sync/resolve-file! !flow "src/main.cpp")
-              (is (= {"src/main.cpp" :both-modified} (:resolved @!flow)))
+              (create-file local-git "/src/conflicting_file.cpp" (sync/get-theirs @!flow "src/conflicting_file.cpp"))
+              (sync/resolve-file! !flow "src/conflicting_file.cpp")
+              (is (= {"src/conflicting_file.cpp" :both-modified} (:resolved @!flow)))
               (is (= #{} (:staged @!flow)))
               (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))
               (swap! !flow sync/advance-flow progress/null-render-progress!)
               (is (= :pull/done (:state @!flow)))
-              (is (= "void main() {FOO}" (slurp-file local-git "/src/main.cpp")))
+              (is (= "void conflicting_file() {FOO}" (slurp-file local-git "/src/conflicting_file.cpp")))
               (is (flow-equal? @!flow @(sync/resume-flow local-git prefs))))
             (testing "ours"
               (reset! !flow flow2)
-              (create-file local-git "/src/main.cpp" (sync/get-ours @!flow "src/main.cpp"))
-              (sync/resolve-file! !flow "src/main.cpp")
-              (is (= {"src/main.cpp" :both-modified} (:resolved @!flow)))
+              (create-file local-git "/src/conflicting_file.cpp" (sync/get-ours @!flow "src/conflicting_file.cpp"))
+              (sync/resolve-file! !flow "src/conflicting_file.cpp")
+              (is (= {"src/conflicting_file.cpp" :both-modified} (:resolved @!flow)))
               (is (= #{} (:staged @!flow)))
               (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))
               (swap! !flow sync/advance-flow progress/null-render-progress!)
               (is (= :pull/done (:state @!flow)))
-              (is (= "void main() {BAR}" (slurp-file local-git "/src/main.cpp")))
-              (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))))))))
+              (is (= "void conflicting_file() {BAR}" (slurp-file local-git "/src/conflicting_file.cpp")))
+              (is (flow-equal? @!flow @(sync/resume-flow local-git prefs)))))
+          (testing "untracked files remain"
+            (is (= "void untracked_file() {}" (slurp-file local-git "/src/untracked_file.cpp")))
+            (is (= "void untracked_folder_file() {}" (slurp-file local-git "/src/untracked_folder/file.cpp"))))))))
 
   (testing ":push-staging -> :push/done"
     (with-git [git (new-git)]
