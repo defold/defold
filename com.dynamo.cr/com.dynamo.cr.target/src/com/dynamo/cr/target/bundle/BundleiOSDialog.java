@@ -38,6 +38,7 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         public void releaseModeSelected(boolean selection, boolean validate);
         public void generateReportSelected(boolean selection);
         public void generateReportSelected(boolean selection, boolean validate);
+        public void publishLiveUpdateSelected(boolean selection);
     }
 
     private Text profileText;
@@ -46,6 +47,7 @@ public class BundleiOSDialog extends TitleAreaDialog implements
     private IPresenter presenter;
     private Button releaseMode;
     private Button generateReport;
+    private Button publishLiveUpdate;
 
     private static String persistentProfileText = null;
     private static boolean persistentReleaseMode = false;
@@ -155,6 +157,16 @@ public class BundleiOSDialog extends TitleAreaDialog implements
             public void widgetSelected(SelectionEvent e) {
                 persistentGenerateReport = generateReport.getSelection();
                 presenter.generateReportSelected(persistentGenerateReport);
+            }
+        });
+
+        publishLiveUpdate = new Button(container, SWT.CHECK);
+        publishLiveUpdate.setText("Publish LiveUpdate content");
+        publishLiveUpdate.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        publishLiveUpdate.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                presenter.publishLiveUpdateSelected(publishLiveUpdate.getSelection());
             }
         });
 

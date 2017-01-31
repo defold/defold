@@ -161,11 +161,9 @@ public class ArchiveBuilder {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
 
-            // Write resource to resourcepack
-            this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer);
-
             // Write resource to data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
+                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer);
                 entries.remove(i);
             } else {
                 alignBuffer(archiveData, 4);
@@ -296,24 +294,24 @@ public class ArchiveBuilder {
         Path resourcePackDirectory = Files.createTempDirectory("tmp.defold.resourcepack_");
         FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
         try {
-        	System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
-        	System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
+            System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
+            System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-        	List<String> excludedResources = new ArrayList<String>();
-        	archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+            List<String> excludedResources = new ArrayList<String>();
+            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();
             outputStreamManifest.write(manifestFile);
         } finally {
-        	FileUtils.deleteDirectory(resourcePackDirectory.toFile());
-        	try {
-	        	archiveIndex.close();
-	        	archiveData.close();
-	        	outputStreamManifest.close();
-        	} catch (IOException exception) {
-        		// Nothing to do, moving on ...
-        	}
+            FileUtils.deleteDirectory(resourcePackDirectory.toFile());
+            try {
+                archiveIndex.close();
+                archiveData.close();
+                outputStreamManifest.close();
+            } catch (IOException exception) {
+                // Nothing to do, moving on ...
+            }
         }
 
         System.out.println("Done.");

@@ -13,7 +13,6 @@
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
             [editor.console :as console]
-            [editor.core :as core]
             [editor.cubemap :as cubemap]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
@@ -24,6 +23,7 @@
             [editor.form-view :as form-view]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
+            [editor.git :as git]
             [editor.gl.shader :as shader]
             [editor.graph-view :as graph-view]
             [editor.gui :as gui]
@@ -36,7 +36,6 @@
             [editor.model :as model]
             [editor.outline-view :as outline-view]
             [editor.particlefx :as particlefx]
-            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.protobuf-types :as protobuf-types]
@@ -59,10 +58,9 @@
             [util.http-server :as http-server])
   (:import  [com.defold.editor EditorApplication]
             [java.io File]
-            [javafx.scene.layout VBox]
+            [javafx.scene.layout Region VBox]
             [javafx.scene Scene]
-            [javafx.stage Stage]
-            [javafx.scene.control Button TextArea SplitPane TabPane Tab]))
+            [javafx.scene.control TabPane Tab]))
 
 (set! *warn-on-reflection* true)
 
@@ -260,13 +258,25 @@
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
-      ; If project sync was in progress when we shut down the editor, re-open the sync dialog at startup.
+      ; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git   (g/node-value changes-view :git)
             prefs (g/node-value changes-view :prefs)]
         (when (sync/flow-in-progress? git)
           (ui/run-later
-            (sync/open-sync-dialog (sync/resume-flow git prefs))
-            (workspace/resource-sync! workspace)))))
+            (loop []
+              (if-not (dialogs/make-confirm-dialog (str "The editor was shut down while synchronizing with the server.\n"
+                                                        "Resume syncing or cancel and revert to the pre-sync state?")
+                                                   {:title "Resume Sync?"
+                                                    :ok-label "Resume Sync"
+                                                    :cancel-label "Cancel Sync"
+                                                    :pref-width Region/USE_COMPUTED_SIZE})
+                (sync/cancel-flow-in-progress! git)
+                (if-not (login/login prefs)
+                  (recur) ; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
+                  (let [creds (git/credentials prefs)
+                        flow (sync/resume-flow git creds)]
+                    (sync/open-sync-dialog flow)
+                    (workspace/resource-sync! workspace)))))))))
 
     (reset! the-root root)
     root))

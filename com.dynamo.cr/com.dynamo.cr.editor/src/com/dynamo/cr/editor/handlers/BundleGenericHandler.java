@@ -66,6 +66,10 @@ public class BundleGenericHandler extends AbstractBundleHandler {
             options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));
         }
 
+        if (presenter.shouldPublishLiveUpdate()) {
+            options.put("liveupdate", "true");
+        }
+
         if (EditorUtil.isDev()) {
             options.put("native-ext", "true");
         }
@@ -74,11 +78,11 @@ public class BundleGenericHandler extends AbstractBundleHandler {
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
 
         EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
-    	String sdkVersion = corePlugin.getSha1();
-    	if (sdkVersion == "NO SHA1") {
-    		sdkVersion = "";
-    	}
-    	options.put("defoldsdk", sdkVersion);
+        String sdkVersion = corePlugin.getSha1();
+        if (sdkVersion == "NO SHA1") {
+            sdkVersion = "";
+        }
+        options.put("defoldsdk", sdkVersion);
     }
 
 }
