@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -29,7 +29,6 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
 import com.defold.extender.client.ExtenderClient;
-import com.defold.extender.client.ExtenderClientException;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.bundle.BundleHelper;
@@ -106,17 +105,21 @@ public class LaunchHandler extends AbstractHandler {
                     }
                     String serverURL = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
 
-                    ExtenderClient extender = new ExtenderClient(serverURL);
                     logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
                     logFile.deleteOnExit();
 
                     // Store the engine one level above the content build since that folder gets removed during a distclean
+                    File cacheDir = new File(location + File.separator + ".internal" + File.separator + "cache");
+                    cacheDir.mkdirs();
                     File buildDir = new File(location + File.separator + "build" + File.separator + buildPlatform);
                     buildDir.mkdirs();
                     File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
 
+                    ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+
+                    String defaultName = FilenameUtils.getName(Engine.getDefault().getEnginePath());
                     List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
-                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, exe);
+                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, defaultName, exe);
                     exeName = exe.getAbsolutePath();
                 } catch (IOException e) {
                     buildError = e.getMessage();

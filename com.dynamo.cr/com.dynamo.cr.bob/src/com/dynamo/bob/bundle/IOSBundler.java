@@ -24,6 +24,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.BundleResourceUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 
@@ -83,6 +85,9 @@ public class IOSBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
 
+        // Collect bundle/package resources to be included in .App directory
+        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.Arm64Darwin);
+
         boolean debug = project.hasOption("debug");
 
         File root = new File(project.getRootDirectory());
@@ -96,9 +101,11 @@ public class IOSBundler implements IBundler {
             String platform64 = "arm64-ios";
             String platformv7 = "armv7-ios";
 
+            File cacheDir = new File(project.getBuildCachePath());
+            cacheDir.mkdirs();
             String sdkVersion = project.option("defoldsdk", "");
             String buildServer = project.option("build-server", "");
-            ExtenderClient extender = new ExtenderClient(buildServer);
+            ExtenderClient extender = new ExtenderClient(buildServer, cacheDir);
             File logFile = File.createTempFile("build_" + sdkVersion, ".txt");
             logFile.deleteOnExit();
 
@@ -109,10 +116,10 @@ public class IOSBundler implements IBundler {
             exeArmv7.deleteOnExit();
 
             List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, exeArm64);
+            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exeArm64);
 
             allSource = ExtenderClient.getExtensionSource(root, platformv7);
-            BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, root, allSource, logFile, exeArmv7);
+            BundleHelper.buildEngineRemote(extender, platformv7, sdkVersion, root, allSource, logFile, "/dmengine", exeArmv7);
         }
         else
         {
@@ -242,6 +249,9 @@ public class IOSBundler implements IBundler {
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
+
+        // Copy bundle resources into .app folder
+        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));

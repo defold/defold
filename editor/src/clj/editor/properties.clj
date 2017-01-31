@@ -341,8 +341,12 @@
         coalesced (into {} (map (fn [[k v]]
                                   (let [prop {:key k
                                               :node-ids (mapv :node-id v)
-                                              :values (mapv :value v)
-                                              :errors (mapv :error v)
+                                              :values (mapv (fn [{:keys [value]}]
+                                                             (when-not (g/error? value)
+                                                               value)) v)
+                                              :errors  (mapv (fn [{:keys [value error]}]
+                                                               (or error
+                                                                   (when (g/error? value) value))) v)
                                               :edit-type (property-edit-type (first v))
                                               :label (:label (first v))
                                               :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}

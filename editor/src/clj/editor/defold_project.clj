@@ -6,6 +6,7 @@
             [editor.collision-groups :as collision-groups]
             [editor.console :as console]
             [editor.core :as core]
+            [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
@@ -59,21 +60,27 @@
   (g/node-id->graph-id project))
 
 (defn- load-node [project node-id node-type resource]
-  (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
-    (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
-      (if (resource/exists? resource)
-        (try
-          (when *load-cache*
-            (swap! *load-cache* conj node-id))
-          (concat
-            (load-fn project node-id resource)
-            (when (instance? FileResource resource)
-              (g/connect node-id :save-data project :save-data)))
-          (catch Exception e
-            (log/warn :exception e)
-            (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
-        (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
-      [])))
+  (try
+    (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
+      (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
+        (if (resource/exists? resource)
+          (try
+            (when *load-cache*
+              (swap! *load-cache* conj node-id))
+            (concat
+              (load-fn project node-id resource)
+              (when (instance? FileResource resource)
+                (g/connect node-id :save-data project :save-data)))
+            (catch Exception e
+              (log/warn :exception e)
+              (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
+          (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
+        []))
+    (catch Throwable t
+      (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
+                      {:node-type node-type
+                       :resource-path (resource/resource->proj-path resource)}
+                      t)))))
 
 (defn load-resource-nodes [basis project node-ids render-progress!]
   (let [progress (atom (progress/make "Loading resources" (count node-ids)))]
@@ -169,30 +176,22 @@
                                               basis            (g/now)
                                               cache            (g/cache)}
                                          :as opts}]
-  (try
-    (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
-      (if-not (g/error? save-data)
-        (do
-          (progress/progress-mapv
-            (fn [{:keys [resource content]} _]
-              (when-not (resource/read-only? resource)
-                ; If the file is non-binary, convert line endings
-                ; to the type used by the existing file.
-                (if (and (:textual? (resource/resource-type resource))
-                         (resource/exists? resource)
-                         (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
-                  (spit resource (text-util/lf->crlf content))
-                  (spit resource content))))
-            save-data
-            render-progress!
-            (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-          (workspace/resource-sync! (g/node-value project :workspace {:basis basis :cache cache}) false [] render-progress!))
-        (do
-          (ui/run-later
-            (throw (Exception. ^String (properties/error-message save-data)))))))
-    (catch Exception e
-      (ui/run-later
-        (throw e)))))
+  (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
+    (if (g/error? save-data)
+      (throw (Exception. ^String (properties/error-message save-data)))
+      (progress/progress-mapv
+        (fn [{:keys [resource content]} _]
+          (when-not (resource/read-only? resource)
+            ;; If the file is non-binary, convert line endings to the
+            ;; type used by the existing file.
+            (if (and (:textual? (resource/resource-type resource))
+                     (resource/exists? resource)
+                     (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
+              (spit resource (text-util/lf->crlf content))
+              (spit resource content))))
+        save-data
+        render-progress!
+        (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource))))))))
 
 (defn workspace [project]
   (g/node-value project :workspace))
@@ -210,24 +209,29 @@
                        @new-cache
                        current-cache-val))))
 
-(defn save-all! [project on-complete-fn]
-  (when-not @ongoing-build-save-atom
-    (reset! ongoing-build-save-atom true)
-    (let [workspace     (workspace project)
-          old-cache-val @(g/cache)
-          cache         (atom old-cache-val)]
-      (future
-        (try
-          (ui/with-progress [render-fn ui/default-render-progress!]
-                            (write-save-data-to-disk! project {:render-progress! render-fn
-                                                               :basis            (g/now)
-                                                               :cache            cache})
-                            (workspace/update-version-on-disk! workspace)
-                            (update-system-cache! old-cache-val cache))
-          (when (some? on-complete-fn)
-            (ui/run-later
-              (on-complete-fn)))
-          (finally (reset! ongoing-build-save-atom false)))))))
+(defn save-all!
+  ([project on-complete-fn]
+   (save-all! project on-complete-fn #(ui/run-later (%))))
+  ([project on-complete-fn exec-fn]
+   (when (compare-and-set! ongoing-build-save-atom false true)
+     (let [workspace     (workspace project)
+           old-cache-val @(g/cache)
+           cache         (atom old-cache-val)
+           basis         (g/now)]
+       (future
+         (try
+           (ui/with-progress [render-fn ui/default-render-progress!]
+             (write-save-data-to-disk! project {:render-progress! render-fn
+                                                :basis            basis
+                                                :cache            cache})
+             (workspace/update-version-on-disk! workspace)
+             (update-system-cache! old-cache-val cache))
+           (exec-fn #(workspace/resource-sync! workspace false [] progress/null-render-progress!))
+           (when (some? on-complete-fn)
+             (exec-fn #(on-complete-fn)))
+           (catch Exception e
+             (exec-fn #(throw e)))
+           (finally (reset! ongoing-build-save-atom false))))))))
 
 
 (defn build [project node {:keys [render-progress! render-error! basis cache]
@@ -389,19 +393,18 @@
 (defn- handle-resource-changes [project changes render-progress!]
   (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
     (let [project-graph (g/node-id->graph-id project)]
-      (let [nodes-by-path (g/node-value project :nodes-by-resource-path)]
+      (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
+            resource->node #(nodes-by-path (resource/proj-path %))]
         (g/transact
-          (concat
-            ;; Moved resources
-            (for [[from to] (:moved changes)
-                  :let [resource-node (nodes-by-path (resource/proj-path from))]
-                  :when resource-node]
-              (g/set-property resource-node :resource to))
-            ;; Added resources
-            (for [resource (:added changes)
-                  :when (not (contains? nodes-by-path (resource/proj-path resource)))]
-              (make-resource-node project-graph project resource true {project [[:_node-id :nodes]
-                                                                                [:resource :node-resources]]})))))
+          ;; Moved resources
+          (for [[from to] (:moved changes)
+                :let [resource-node (resource->node from)]
+                :when resource-node]
+            (g/set-property resource-node :resource to)))
+        ;; Added resources
+        (let [added (remove resource->node (:added changes))
+              added-nodes (make-nodes! project added)]
+          (load-nodes! project added-nodes render-progress!)))
       (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
             res->node (comp nodes-by-path resource/proj-path)
             known? (fn [r] (contains? nodes-by-path (resource/proj-path r)))
@@ -542,8 +545,7 @@
 (defn build-and-save-project [project build-options]
   (when-not @ongoing-build-save-atom
     (reset! ongoing-build-save-atom true)
-    (let [workspace     (workspace project)
-          game-project  (get-resource-node project "/game.project")
+    (let [game-project  (get-resource-node project "/game.project")
           old-cache-val @(g/cache)
           cache         (atom old-cache-val)]
       (future
@@ -556,6 +558,8 @@
                                                       :basis (g/now)
                                                       :cache cache)))
               (update-system-cache! old-cache-val cache)))
+          (catch Throwable error
+            (error-reporting/report-exception! error))
           (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn settings [project]
