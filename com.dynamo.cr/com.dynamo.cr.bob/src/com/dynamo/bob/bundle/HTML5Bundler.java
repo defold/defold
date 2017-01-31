@@ -28,7 +28,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
@@ -150,7 +150,7 @@ public class HTML5Bundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.JsWeb);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.JsWeb);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
@@ -220,7 +220,7 @@ public class HTML5Bundler implements IBundler {
         createSplitFiles(buildDir, splitDir);
 
         // Copy bundle resources into bundle directory
-        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy engine
         FileUtils.copyFile(new File(js), new File(appDir, engine));

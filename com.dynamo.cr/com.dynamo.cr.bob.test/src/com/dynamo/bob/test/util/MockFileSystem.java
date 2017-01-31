@@ -19,12 +19,16 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
     // To easier handle walking we want the resources to be sorted by their key.
     protected Map<String, MockResource> resources = new TreeMap<String, MockResource>();
 
-    public void addFile(String path, byte[] content) {
+    public void addFile(String path, byte[] content, long lastModified) {
         path = FilenameUtils.normalize(path, true);
         // Paths are always root relative.
         if (path.startsWith("/"))
             path = path.substring(1);
-        resources.put(path, new MockResource(this, path, content));
+        resources.put(path, new MockResource(this, path, content, lastModified));
+    }
+
+    public void addFile(String path, byte[] content) {
+        addFile(path, content, System.currentTimeMillis());
     }
 
     @Override
@@ -39,7 +43,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
         }
         r = resources.get(path);
         if (r == null) {
-            r = new MockResource(fileSystem, path, null);
+            r = new MockResource(fileSystem, path, null, System.currentTimeMillis());
             resources.put(path, (MockResource) r);
         }
         return r;
