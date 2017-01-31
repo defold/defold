@@ -21,7 +21,7 @@ namespace dmGameSystem
 {
     /*# Collection proxy API documentation
      *
-     * Messages for controlling and interacting with collection proxies 
+     * Messages for controlling and interacting with collection proxies
      * which are used to dynamically load collections into the runtime.
      *
      * @document
@@ -278,45 +278,43 @@ namespace dmGameSystem
     }
 
     /*# sets the time-step for update
-     * <p>
+     *
      * Post this message to a collection-proxy-component to modify the time-step used when updating the collection controlled by the proxy.
-     * The time-step is modified by a scaling <code>factor</code> and can be incremented either continuously or in discrete steps.
-     * </p>
-     * <p>
+     * The time-step is modified by a scaling `factor` and can be incremented either continuously or in discrete steps.
+     *
      * The continuous mode can be used for slow-motion or fast-forward effects.
-     * </p>
-     * <p>
-     * The discrete mode is only useful when scaling the time-step to pass slower than real time (<code>factor</code> is below 1).
+     *
+     * The discrete mode is only useful when scaling the time-step to pass slower than real time (`factor` is below 1).
      * The time-step will then be set to 0 for as many frames as the scaling demands and then take on the full real-time-step for one frame,
-     * to simulate pulses. E.g. if <code>factor</code> is set to <code>0.1</code> the time-step would be 0 for 9 frames, then be 1/60 for one
+     * to simulate pulses. E.g. if `factor` is set to `0.1` the time-step would be 0 for 9 frames, then be 1/60 for one
      * frame, 0 for 9 frames, and so on. The result in practice is that the game looks like it's updated at a much lower frequency than 60 Hz,
      * which can be useful for debugging when each frame needs to be inspected.
-     * </p>
      *
      * @message
      * @name set_time_step
-     * @param factor time-step scaling factor (number)
-     * @param mode time-step mode: 0 for continuous and 1 for discrete (number)
+     * @param factor [type:number] time-step scaling factor
+     * @param mode [type:number] time-step mode: 0 for continuous and 1 for discrete
      * @examples
-     * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
-     * <p>
+     *
+     * The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".
+     *
      * Update the collection twice as fast:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * msg.post("#proxy", "set_time_step", {factor = 2, mode = 0})
-     * </pre>
-     * <p>
+     * ```
+     *
      * Update the collection twice as slow:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * msg.post("#proxy", "set_time_step", {factor = 0.5, mode = 0})
-     * </pre>
-     * <p>
+     * ```
+     *
      * Simulate 1 FPS for the collection:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * msg.post("#proxy", "set_time_step", {factor = 1/60, mode = 1})
-     * </pre>
+     * ```
      */
 
     dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -462,19 +460,21 @@ namespace dmGameSystem
     }
 
     /*# tells a collection proxy to start loading the referenced collection
-     * <p>
+     *
      * Post this message to a collection-proxy-component to start the loading of the referenced collection.
-     * When the loading has completed, the message <code>proxy_loaded</code> will be sent back to the script.
-     * </p>
-     * <p>
-     * A loaded collection must be initialized (message <code>init</code>) and enabled (message <code>enable</code>) in order to be simulated and drawn.
-     * </p>
+     * When the loading has completed, the message [ref:proxy_loaded] will be sent back to the script.
+     *
+     * A loaded collection must be initialized (message [ref:init]) and enabled (message [ref:enable]) in order to be simulated and drawn.
+     *
      * @message
      * @name load
      * @examples
-     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
-     * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
-     * <pre>
+     *
+     * In this example we use a collection proxy to load/unload a level (collection).
+     *
+     * The example assume the script belongs to an instance with collection-proxy-component with id "proxy".
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("start_level") then
      *         -- some script tells us to start loading the level
@@ -487,23 +487,25 @@ namespace dmGameSystem
      *         msg.post(self.loader, message_id)
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# tells a collection proxy to start asynchronous loading of the referenced collection
-     * <p>
+     *
      * Post this message to a collection-proxy-component to start background loading of the referenced collection.
-     * When the loading has completed, the message <code>proxy_loaded</code> will be sent back to the script.
-     * </p>
-     * <p>
-     * A loaded collection must be initialized (message <code>init</code>) and enabled (message <code>enable</code>) in order to be simulated and drawn.
-     * </p>
+     * When the loading has completed, the message [ref:proxy_loaded] will be sent back to the script.
+     *
+     * A loaded collection must be initialized (message [ref:init]) and enabled (message [ref:enable]) in order to be simulated and drawn.
+     *
      * @message
      * @name async_load
      * @examples
-     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
-     * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
-     * <pre>
+     *
+     * In this example we use a collection proxy to load/unload a level (collection).
+     *
+     * The example assume the script belongs to an instance with collection-proxy-component with id "proxy".
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("start_level") then
      *         -- some script tells us to start loading the level
@@ -516,29 +518,32 @@ namespace dmGameSystem
      *         msg.post(self.loader, message_id)
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# reports that a collection proxy has loaded its referenced collection
-     * <p>
+     *
      * This message is sent back to the script that initiated a collection proxy load when the referenced
-     * collection is loaded. See documentation for "load" for examples how to use.
-     * </p>
+     * collection is loaded. See documentation for [ref:load] for examples how to use.
+     *
      * @message
      * @name proxy_loaded
      */
 
     /*# tells a collection proxy to initialize the loaded collection
      * Post this message to a collection-proxy-component to initialize the game objects and components in the referenced collection.
-     * Sending <code>enable</code> to an uninitialized collection proxy automatically initializes it.
-     * The <code>init</code> message simply provides a higher level of control.
+     * Sending [ref:enable] to an uninitialized collection proxy automatically initializes it.
+     * The [ref:init] message simply provides a higher level of control.
      *
      * @message
      * @name init
      * @examples
-     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
-     * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
-     * <pre>
+     *
+     * In this example we use a collection proxy to load/unload a level (collection).
+     *
+     * The example assume the script belongs to an instance with collection-proxy-component with id "proxy".
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("load_level") then
      *         -- some script tells us to start loading the level
@@ -552,7 +557,7 @@ namespace dmGameSystem
      *         msg.post(self.loader, message_id)
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# tells a collection proxy to enable the referenced collection
@@ -562,9 +567,12 @@ namespace dmGameSystem
      * @message
      * @name enable
      * @examples
-     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
-     * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
-     * <pre>
+     *
+     * In this example we use a collection proxy to load/unload a level (collection).
+     *
+     * The example assume the script belongs to an instance with collection-proxy-component with id "proxy".
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("start_level") then
      *         -- some script tells us to start loading the level
@@ -577,7 +585,7 @@ namespace dmGameSystem
      *         msg.post(self.loader, "level_started")
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# tells a collection proxy to disable the referenced collection
@@ -586,9 +594,12 @@ namespace dmGameSystem
      * @message
      * @name disable
      * @examples
-     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
-     * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
-     * <pre>
+     *
+     * In this example we use a collection proxy to load/unload a level (collection).
+     *
+     * The example assumes the script belongs to an instance with a collection-proxy-component with id "proxy".
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("end_level") then
      *         local proxy = msg.url("#proxy")
@@ -602,7 +613,7 @@ namespace dmGameSystem
      *         msg.post(self.unloader, "level_ended")
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# tells a collection proxy to finalize the referenced collection
@@ -611,9 +622,12 @@ namespace dmGameSystem
      * @message
      * @name final
      * @examples
-     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
-     * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
-     * <pre>
+     *
+     * In this example we use a collection proxy to load/unload a level (collection).
+     *
+     * The example assumes the script belongs to an instance with a collection-proxy-component with id "proxy".
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("end_level") then
      *         local proxy = msg.url("#proxy")
@@ -627,21 +641,23 @@ namespace dmGameSystem
      *         msg.post(self.unloader, "level_ended")
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# tells a collection proxy to start unloading the referenced collection
-     * <p>
+     *
      * Post this message to a collection-proxy-component to start the unloading of the referenced collection.
-     * When the unloading has completed, the message <code>proxy_unloaded</code> will be sent back to the script.
-     * </p>
+     * When the unloading has completed, the message [ref:proxy_unloaded] will be sent back to the script.
      *
      * @message
      * @name unload
      * @examples
-     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
-     * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
-     * <pre>
+     *
+     * In this example we use a collection proxy to load/unload a level (collection).
+     *
+     * The example assumes the script belongs to an instance with a collection-proxy-component with id "proxy".
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("end_level") then
      *         local proxy = msg.url("#proxy")
@@ -655,14 +671,14 @@ namespace dmGameSystem
      *         msg.post(self.unloader, "level_ended")
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# reports that a collection proxy has unloaded its referenced collection
-     * <p>
+     *
      * This message is sent back to the script that initiated an unload with a collection proxy when
-     * the referenced collection is unloaded. See documentation for "unload" for examples how to use.
-     * </p>
+     * the referenced collection is unloaded. See documentation for [ref:unload] for examples how to use.
+     *
      * @message
      * @name proxy_unloaded
      */

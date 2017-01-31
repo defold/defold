@@ -22,6 +22,8 @@ import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.OSXBundler;
 import com.dynamo.bob.fs.DefaultFileSystem;
 
@@ -52,6 +54,7 @@ public class OSXBundlerTest {
 
     void build() throws IOException, CompileExceptionError {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
         project.scan(scanner, "com.dynamo.bob");
