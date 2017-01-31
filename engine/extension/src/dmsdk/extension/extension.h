@@ -10,6 +10,8 @@ extern "C"
 #include <dmsdk/lua/lauxlib.h>
 }
 
+#define DM_EXTENSION_DESC_BUFFER_SIZE 128
+
 namespace dmExtension
 {
     /**
@@ -127,7 +129,7 @@ namespace dmExtension
  * void   (*on_event)(Params*, const Event*)
  */
 #define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
-    uint8_t DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[128]; \
+    uint8_t DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[DM_EXTENSION_DESC_BUFFER_SIZE]; \
     DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
 
 }

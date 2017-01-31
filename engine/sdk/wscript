@@ -1,0 +1,56 @@
+#! /usr/bin/env python
+
+VERSION='0.1'
+APPNAME='sdk'
+
+srcdir = '.'
+blddir = 'build'
+
+import sys, os
+import waf_dynamo, waf_ddf
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+
+    conf.env.append_value('CPPPATH', "default/src")
+    conf.env.append_value('CPPPATH', "../src")
+    conf.env['LIB_GTEST'] = 'gtest'
+    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_EXTENSION'] = 'extension'
+
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SDK"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SDK"')
+
+def build(bld):
+    generate_sdk_includes(bld)
+    bld.add_subdirs('src')
+
+def shutdown():
+    waf_dynamo.run_gtests(valgrind = True)
+
+def generate_sdk_includes(bld):
+    includes = []
+    cwd = os.getcwd()
+    os.chdir(os.path.join(bld.env.DYNAMO_HOME, 'sdk', 'include'))
+
+    for root, dirs, files in os.walk('dmsdk'):
+        for file in files:
+            if file.endswith('.h'):
+                if(file == 'sdk.h'):
+                    continue
+                includes.append(os.path.join(root, file))
+
+    with open("dmsdk/sdk.h", "w") as f:
+        f.write("#ifndef DMSDK_SDK_H\n")
+        f.write("#define DMSDK_SDK_H\n")
+        f.write("\n")
+        for i in includes:
+            f.write("#include <%s>\n" % i)
+        f.write("\n")
+        f.write("#endif // DMSDK_SDK_H\n")
+
+    os.chdir(cwd)
+

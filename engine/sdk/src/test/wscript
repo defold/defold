@@ -1,0 +1,23 @@
+#! /usr/bin/env python
+import os
+import Task, TaskGen
+from TaskGen import extension, declare_extension, feature, before
+
+@feature('sdk_include_exclusive')
+@before('cc')
+def sdk_include_exclusive(self):
+    self.env['CPPPATH'] = [os.path.join(self.env['DYNAMO_HOME'], 'sdk', 'include')]
+
+def build(bld):
+    test_sdk = bld.new_task_gen(features = 'cc cxx cprogram test',
+                                      includes = '.',
+                                      uselib = 'GTEST DLIB LUA EXTENSION',
+                                      uselib_local = 'test_sdk_lib',
+                                      exported_symbols = ["TestSdk"],
+                                      target = 'test_sdk',
+                                      source = 'test_sdk.cpp')
+
+    test_sdk_lib = bld.new_task_gen(features = 'cxx cstaticlib ddf test sdk_include_exclusive',
+                                 includes = '.',
+                                 source = 'test_sdk_lib.cpp',
+                                 target = 'test_sdk_lib')
