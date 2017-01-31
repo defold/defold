@@ -163,7 +163,6 @@ public class LaunchHandler extends AbstractHandler {
                         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
                             customApplication = store.getString(PreferenceConstants.P_APPLICATION);
                         } else {
-                            //customApplication = exe.getAbsolutePath();
                             customApplication = outputExe.getAbsolutePath();
                         }
 

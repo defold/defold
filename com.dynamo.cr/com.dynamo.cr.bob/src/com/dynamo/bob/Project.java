@@ -500,7 +500,7 @@ public class Project {
         if (p == null) {
             throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
         }
-        PlatformPairs platformPair = p.getPlatformPair();
+        PlatformArchitectures platformArchs = p.getArchitectures();
 
         // Store the engine one level above the content build since that folder gets removed during a distclean
         String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
@@ -517,7 +517,7 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        String[] platformStrings = platformPair.getPlatforms();
+        String[] platformStrings = platformArchs.getPlatforms();
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Building engine...", 0);
 
@@ -1054,11 +1054,11 @@ run:
     public void setTextureProfiles(TextureProfiles textureProfiles) {
         this.textureProfiles = textureProfiles;
     }
-    
+
     public void excludeCollectionProxy(String path) {
     	this.excludedCollectionProxies.add(path);
     }
-    
+
     public final List<String> getExcludedCollectionProxies() {
     	return this.excludedCollectionProxies;
     }

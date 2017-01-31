@@ -7,16 +7,16 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 
 public enum Platform {
-    X86Darwin("x86", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformPairs.OSX, "x86_64-osx"),
-    X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformPairs.OSX, "x86_64-osx"),
-    X86Win32("x86", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86-windows"}, PlatformPairs.Windows, "x86-windows"),
-    X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86_64-windows"}, PlatformPairs.Windows, "x86_64-windows"),
-    X86Linux("x86", "linux", "", "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformPairs.Linux, "x86-linux"),
-    X86_64Linux("x86_64", "linux", "", "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformPairs.Linux, "x86_64-linux"),
-    Armv7Darwin("armv7", "darwin", "", "", "lib", ".so", new String[] {"ios", "armv7-ios"}, PlatformPairs.iOS, "armv7-ios"),
-    Arm64Darwin("arm64", "darwin", "", "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformPairs.iOS, "arm64-ios"),
-    Armv7Android("armv7", "android", ".so", "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformPairs.Android, "armv7-android"),
-    JsWeb("js", "web", ".js", "", "lib", "", new String[] {"web", "js-web"}, PlatformPairs.Web, "js-web");
+    X86Darwin("x86", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
+    X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
+    X86Win32("x86", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86-windows"}, PlatformArchitectures.Windows, "x86-windows"),
+    X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86_64-windows"}, PlatformArchitectures.Windows, "x86_64-windows"),
+    X86Linux("x86", "linux", "", "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
+    X86_64Linux("x86_64", "linux", "", "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
+    Armv7Darwin("armv7", "darwin", "", "", "lib", ".so", new String[] {"ios", "armv7-ios"}, PlatformArchitectures.iOS, "armv7-ios"),
+    Arm64Darwin("arm64", "darwin", "", "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
+    Armv7Android("armv7", "android", ".so", "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
+    JsWeb("js", "web", ".js", "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web");
 
     private static HashMap<OS, String> platformPatterns = new HashMap<OS, String>();
     static {
@@ -49,9 +49,9 @@ public enum Platform {
     String libSuffix;
     String libPrefix;
     String[] extenderPaths = null;
-    PlatformPairs platformPairs;
+    PlatformArchitectures architectures;
     String extenderPair;
-    Platform(String arch, String os, String exeSuffix, String exePrefix, String libPrefix, String libSuffix, String[] extenderPaths, PlatformPairs platformPairs, String extenderPair) {
+    Platform(String arch, String os, String exeSuffix, String exePrefix, String libPrefix, String libSuffix, String[] extenderPaths, PlatformArchitectures architectures, String extenderPair) {
         this.arch = arch;
         this.os = os;
         this.exeSuffix = exeSuffix;
@@ -59,7 +59,7 @@ public enum Platform {
         this.libSuffix = libSuffix;
         this.libPrefix = libPrefix;
         this.extenderPaths = extenderPaths;
-        this.platformPairs = platformPairs;
+        this.architectures = architectures;
         this.extenderPair = extenderPair;
     }
 
@@ -91,8 +91,8 @@ public enum Platform {
         return extenderPair;
     }
 
-    public PlatformPairs getPlatformPair() {
-        return platformPairs;
+    public PlatformArchitectures getArchitectures() {
+        return architectures;
     }
 
     public String formatBinaryName(String basename) {
