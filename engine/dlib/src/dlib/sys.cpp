@@ -203,9 +203,10 @@ namespace dmSys
 		size_t buf_len = ftell(src_file);
 		fseek(src_file, 0, SEEK_SET);
 		char* buf = (char*)malloc(buf_len);
-		if (fread(buf, 1, buf_len, src_filename) != buf_len)
+		if (fread(buf, 1, buf_len, src_file) != buf_len)
 		{
 			fclose(src_file);
+            free(buf);
 			return RESULT_IO;
 		}
 
@@ -213,6 +214,7 @@ namespace dmSys
 		if (!dst_file)
 		{
 			fclose(src_file);
+            free(buf);
 			return RESULT_IO;
 		}
 		
@@ -220,11 +222,13 @@ namespace dmSys
 		{
 			fclose(src_file);
 			fclose(dst_file);
+            free(buf);
 			return RESULT_IO;
 		}
 
 		fclose(src_file);
 		fclose(dst_file);
+        free(buf);
 
 		dmSys::Unlink(src_filename);
 
