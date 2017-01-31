@@ -113,21 +113,15 @@
           found? (some? resource-type)
           node-type (or (:node-type resource-type) PlaceholderResourceNode)]
       (g/make-nodes graph [node [node-type :resource resource]]
-                    (if (some? resource-type)
                       (concat
                         (for [[consumer connection-labels] connections]
                           (connect-if-output node-type node consumer connection-labels))
-                        (if load?
+                        (if (and (some? resource-type) load?)
                           (load-node project node node-type resource)
                           [])
                         (if attach-fn
                           (attach-fn node)
-                          []))
-                      (concat
-                        (g/connect node :_node-id project :nodes)
-                        (if attach-fn
-                          (attach-fn node)
-                          [])))))))
+                          []))))))
 
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)]
@@ -529,8 +523,8 @@
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
 
-(defn get-project [resource-node]
-  (g/graph-value (g/node-id->graph-id resource-node) :project-id))
+(defn get-project [node]
+  (g/graph-value (g/node-id->graph-id node) :project-id))
 
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
