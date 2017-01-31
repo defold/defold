@@ -15,7 +15,6 @@ def build(bld):
     bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/buffer.h')
     bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/configfile.h')
     bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/hash.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/math.h')
     bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/shared_library.h')
     bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/log.h')
 

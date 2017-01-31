@@ -63,7 +63,7 @@ namespace dmExtension
     /**
      * Extension declaration helper. Internal function. Use DM_DECLARE_EXTENSION
      * @param desc
-     * @param desc_size size of desc in bytes
+     * @param desc_size bytesize of buffer holding desc
      * @param name extension name. human readble
      * @param app_init app-init function. May be null
      * @param app_finalize app-final function. May be null
@@ -90,12 +90,12 @@ namespace dmExtension
     // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
     // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
     // The bug only happens when the symbol is in a static library though
-    #define DM_REGISTER_EXTENSION(symbol, desc, name, app_init, app_final, init, update, on_event, final) extern "C" void __attribute__((constructor)) symbol () { \
-        dmExtension::Register((struct dmExtension::Desc*) &desc, 0, name, app_init, app_final, init, final, update, on_event); \
+    #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void __attribute__((constructor)) symbol () { \
+        dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event); \
     }
 #else
-    #define DM_REGISTER_EXTENSION(symbol, desc, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
-        dmExtension::Register((struct dmExtension::Desc*) &desc, 0, name, app_init, app_final, init, final, update, on_event); \
+    #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
+        dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event); \
         }\
         int symbol ## Wrapper(void) { symbol(); return 0; } \
         __pragma(section(".CRT$XCU",read)) \
@@ -128,8 +128,7 @@ namespace dmExtension
  */
 #define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
     uint8_t DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[128]; \
-    DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), name, app_init, app_final, init, update, on_event, final);
-
+    DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
 
 }
 
