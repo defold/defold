@@ -63,6 +63,7 @@
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (io/make-output-stream file opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+
   io/Coercions
   (io/as-file [this] file)
   (io/as-url [this] (.toURL (.toURI file))))
@@ -115,7 +116,7 @@
 (defn make-memory-resource [workspace resource-type data]
   (MemoryResource. workspace (:ext resource-type) data))
 
-(defrecord ZipResource [workspace name path data children]
+(defrecord ZipResource [workspace ^File zip-file name path data children]
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
@@ -136,7 +137,11 @@
   (io/make-input-stream  [this opts] (io/make-input-stream (:data this) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (throw (Exception. "Zip resources are read-only")))
-  (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only"))))
+  (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
+
+  io/Coercions
+  (io/as-file [this] zip-file)
+  (io/as-url [this] (.toURL (.toURI zip-file))))
 
 (core/register-record-type! ZipResource)
 
@@ -174,11 +179,11 @@
                                     :path (path-relative-base base-path e)
                                     :buffer (read-zip-entry zip e)})))))))))
 
-(defn- ->zip-resources [workspace path [key val]]
+(defn- ->zip-resources [workspace zip-file path [key val]]
   (let [path' (if (string/blank? path) key (str path "/" key))]
     (if (:path val) ; i.e. we've reached an actual entry with name, path, buffer
-      (ZipResource. workspace (:name val) (:path val) (:buffer val) nil)
-      (ZipResource. workspace key path' nil (mapv (fn [x] (->zip-resources workspace path' x)) val)))))
+      (ZipResource. workspace zip-file (:name val) (:path val) (:buffer val) nil)
+      (ZipResource. workspace zip-file key path' nil (mapv (fn [x] (->zip-resources workspace zip-file path' x)) val)))))
 
 (defn make-zip-tree
   ([workspace file-name]
@@ -186,7 +191,7 @@
   ([workspace file-name base-path]
    (let [entries (load-zip file-name base-path)]
      (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
-          (mapv (fn [x] (->zip-resources workspace "" x)))))))
+          (mapv (fn [x] (->zip-resources workspace (io/file file-name) "" x)))))))
 
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))
