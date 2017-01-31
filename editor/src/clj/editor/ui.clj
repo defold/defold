@@ -325,6 +325,13 @@
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
 
+(defn auto-commit! [^Node node commit-fn]
+  (on-focus! node (fn [got-focus] (if got-focus
+                                    (user-data! node ::auto-commit? false)
+                                    (when (user-data node ::auto-commit?)
+                                      (commit-fn nil)))))
+  (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
+
 (defn ^Parent load-fxml [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))
         css (io/file "editor.css")]
