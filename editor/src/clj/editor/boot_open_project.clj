@@ -10,6 +10,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.form-view :as form-view]
+            [editor.git :as git]
             [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.login :as login]
@@ -30,10 +31,9 @@
             [util.http-server :as http-server])
   (:import  [com.defold.editor EditorApplication]
             [java.io File]
-            [javafx.scene.layout VBox]
+            [javafx.scene.layout Region VBox]
             [javafx.scene Scene]
-            [javafx.stage Stage]
-            [javafx.scene.control Button TextArea SplitPane TabPane Tab]))
+            [javafx.scene.control TabPane Tab]))
 
 (set! *warn-on-reflection* true)
 
@@ -201,13 +201,25 @@
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
-      ; If project sync was in progress when we shut down the editor, re-open the sync dialog at startup.
+      ; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git   (g/node-value changes-view :git)
             prefs (g/node-value changes-view :prefs)]
         (when (sync/flow-in-progress? git)
           (ui/run-later
-            (sync/open-sync-dialog (sync/resume-flow git prefs))
-            (workspace/resource-sync! workspace)))))
+            (loop []
+              (if-not (dialogs/make-confirm-dialog (str "The editor was shut down while synchronizing with the server.\n"
+                                                        "Resume syncing or cancel and revert to the pre-sync state?")
+                                                   {:title "Resume Sync?"
+                                                    :ok-label "Resume Sync"
+                                                    :cancel-label "Cancel Sync"
+                                                    :pref-width Region/USE_COMPUTED_SIZE})
+                (sync/cancel-flow-in-progress! git)
+                (if-not (login/login prefs)
+                  (recur) ; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
+                  (let [creds (git/credentials prefs)
+                        flow (sync/resume-flow git creds)]
+                    (sync/open-sync-dialog flow)
+                    (workspace/resource-sync! workspace)))))))))
 
     (reset! the-root root)
     root))
