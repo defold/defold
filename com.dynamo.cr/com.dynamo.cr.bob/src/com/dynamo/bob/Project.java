@@ -517,7 +517,7 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        String[] platformStrings = platformArchs.getPlatforms();
+        String[] platformStrings = platformArchs.getArchitectures();
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Building engine...", 0);
 
