@@ -174,7 +174,7 @@
              flow  @(sync/begin-flow! git creds)]
     (is (= :pull/start (:state flow)))
     (is (= git (:git flow)))
-    (is (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider (:creds flow)))
+    (is (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider creds))
     (is (instance? org.eclipse.jgit.revwalk.RevCommit (:start-ref flow)))
     (is (nil? (:stash-info flow)))
     (is (true? (sync/flow-in-progress? git)))
