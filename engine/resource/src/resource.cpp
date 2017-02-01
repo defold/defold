@@ -289,11 +289,9 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
         char temp_archive_index_path[DMPATH_MAX_PATH];
         dmStrlCpy(temp_archive_index_path, liveupdate_index_path, strlen(liveupdate_index_path)+1);
         dmStrlCat(temp_archive_index_path, "-temp", DMPATH_MAX_PATH); // check for liveupdate.arci-temp
-
         bool luTempIndexExists = stat(temp_archive_index_path, &file_stat) == 0;
         if (luTempIndexExists)
         {
-            // Do MOVE (overwrite) from liveupdate.arci-temp to liveupdate.arci
             dmSys::Result moveResult = dmSys::WriteWithMove(liveupdate_index_path, temp_archive_index_path);
 
             if (moveResult != dmSys::RESULT_OK)
@@ -303,11 +301,8 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
                 return RESULT_IO_ERROR;
             }
             dmSys::Unlink(temp_archive_index_path);
-            dmLogInfo("Found temp LU index file, overwrote the old one! path: %s", temp_archive_index_path);
         }
-        dmLogInfo("Found LU index file, using that one: %s", liveupdate_index_path);
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
-		dmLogInfo("Mounted archive with result: %i", result);
 	}
 
     return result;
@@ -370,12 +365,9 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
 
 Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id)
 {
-    // At this point the resource is assumed to be verified, so no need to do that here again
+    dmResourceArchive::Result result = dmResourceArchive::InsertResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, resource, proj_id);
 
-    // TODO Implement:
-    dmResourceArchive::InsertResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, resource, proj_id);
-
-    return RESULT_OK;
+    return (result == dmResourceArchive::RESULT_OK) ? RESULT_OK : RESULT_INVAL;
 }
 
 HFactory NewFactory(NewFactoryParams* params, const char* uri)

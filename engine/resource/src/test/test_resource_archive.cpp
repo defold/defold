@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include "../resource.h"
 #include "../resource_archive.h"
+#include "../resource_archive_private.h"
 
 // new file format, generated test data
 extern unsigned char RESOURCES_ARCI[];
@@ -49,6 +50,76 @@ static const uint8_t compressed_content_hash[][20] = {
     {   3U,  86U, 172U, 159U, 110U, 187U, 139U, 211U, 219U,   5U, 203U, 115U, 150U,  43U, 182U, 252U, 136U, 228U, 122U, 181U },
     {  16U, 184U, 254U, 147U, 172U,  48U,  89U, 214U,  29U,  90U, 128U, 156U,  37U,  60U, 100U,  69U, 246U, 252U, 122U,  99U }
 };
+
+static const uint32_t entry_size = sizeof(dmResourceArchive::EntryData) + DMRESOURCE_MAX_HASH;
+
+void PopulateLiveUpdateResource(dmResourceArchive::LiveUpdateResource*& resource)
+{
+    uint32_t count = strlen(content[0]);
+    resource->m_Data = (uint8_t*)content[0];
+    resource->m_Count = count;
+    resource->m_Header->m_Flags = 0;
+    resource->m_Header->m_Size = 0;
+}
+
+void GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
+{
+    uint32_t index_alloc_size = RESOURCES_ARCI_SIZE + entry_size * num_entries_to_be_added;
+    arci_data = malloc(index_alloc_size);
+    memcpy(arci_data, RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
+}
+
+void FreeMutableIndexData(void*& arci_data)
+{
+    free(arci_data);
+}
+
+TEST(dmResourceArchive, ShiftInsertResource)
+{
+    
+    const char* resource_filename = "test_resource_liveupdate.arcd";
+    FILE* resource_file = fopen(resource_filename, "wb");
+    bool success = resource_file != 0x0;
+    ASSERT_EQ(success, true);
+
+    // Resource data to insert
+    dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
+    resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
+    PopulateLiveUpdateResource(resource);
+
+    // Use copy since we will shift/insert data
+    uint8_t* arci_copy;
+    GetMutableIndexData((void*&)arci_copy, 1);
+
+    // Init archive container
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, resource_filename, 0x0, resource_file, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
+    ASSERT_EQ(5U, entry_count_before);
+
+    // Insertion
+    int index = -1;
+    dmResourceArchive::CalcInsertionIndex(archive, sorted_middle_hash, index);
+    ASSERT_TRUE(index >= 0);
+    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, 0x0, sorted_middle_hash, 20, index, resource);
+    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
+    uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
+    ASSERT_EQ(6U, entry_count_after);
+
+    // Find inserted entry in archive after insertion
+    dmResourceArchive::EntryData entry;
+    char buffer[1024] = { 0 };
+    result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(entry.m_ResourceSize, resource->m_Count);
+    
+    free(resource->m_Header);
+    free(resource);
+    dmResourceArchive::Delete(archive);
+    FreeMutableIndexData((void*&)arci_copy);
+    fclose(resource_file);
+}
 
 TEST(dmResourceArchive, CalcInsertionIndex)
 {

@@ -32,7 +32,6 @@ namespace dmResource
         out_asset = (void*)AAssetManager_open(am, path, AASSET_MODE_RANDOM);
         if (!out_asset)
         {
-            dmLogInfo("ANDROID res not fpound at path: %s", path);
             return RESULT_RESOURCE_NOT_FOUND;
         }
         out_map = (void*)AAsset_getBuffer((AAsset*)out_asset);
@@ -48,11 +47,9 @@ namespace dmResource
 
     Result MapFile(const char* path, void*& out_map, uint32_t& out_size)
     {
-        dmLogInfo("ANDROID mapping file (mmap)... path: %s", path)
         int fd = open(path, O_RDONLY);
         if (fd < 0)
         {
-            dmLogInfo("ANDROID resource not found at path: %s", path);
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
@@ -99,7 +96,7 @@ namespace dmResource
         Result r = MapAsset(am, data_path, (void*&)data_asset, data_length, data_map);
         if (r != RESULT_OK)
         {
-            dmLogInfo("Error when mapping data file, result = %i", r);
+            dmLogError("Error when mapping data file, result = %i", r);
             return RESULT_IO_ERROR;
         }
 
@@ -112,7 +109,7 @@ namespace dmResource
             if (r != RESULT_OK)
             {
                 AAsset_close(data_asset);
-                dmLogInfo("Error when mapping index file, result: %i", r);
+                dmLogError("Error when mapping index file, result: %i", r);
                 return RESULT_IO_ERROR;
             }
         }

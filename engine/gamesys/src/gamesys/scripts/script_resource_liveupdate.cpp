@@ -129,14 +129,12 @@ namespace dmLiveUpdate
         if (manifest == 0x0)
         {
             assert(top == lua_gettop(L));
-            //delete resource;
             return luaL_error(L, "The manifest identifier does not exist");
         }
         
         bool resourceStored = dmLiveUpdate::StoreResource(manifest, hexDigest, hexDigestLength, &resource);
         lua_pushboolean(L, (int) resourceStored);
 
-        //delete resource;
         assert(lua_gettop(L) == top + 1);
         return 1;
     }

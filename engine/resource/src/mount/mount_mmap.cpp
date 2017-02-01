@@ -70,10 +70,6 @@ namespace dmResource
             dmLogError("Error when mapping index file, result: %i", r);
             return r;
         }
-        else
-        {
-            dmLogInfo("Mapped index file with size: %u", index_size);
-        }
 
         void* data_map = 0x0;
         uint32_t data_size = 0;
@@ -83,11 +79,6 @@ namespace dmResource
             munmap(index_map, index_size);
             dmLogError("Error when mapping data file, result: %i", r);
             return r;
-        }
-
-        else
-        {
-            dmLogInfo("Mapped data file with size: %u", data_size);
         }
 
         void* lu_data_map = 0x0;

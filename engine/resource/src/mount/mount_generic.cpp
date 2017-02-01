@@ -9,13 +9,13 @@ namespace dmResource
 {
     Result MapFile(const char* filename, void*& map, uint32_t& size)
     {
-        // Should never called
+        // Not used
         return RESULT_OK;
     }
 
     Result UnmapFile(void*& map, uint32_t size)
     {
-        // Should never be called
+        // Not used
         return RESULT_OK;
     }
 
