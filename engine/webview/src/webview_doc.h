@@ -29,19 +29,18 @@
  * : [type:number] The request id
  *
  * `type`
- * [type:number] The type of the callback. Can be one of these:
- *      <ul>
- *          <li>webview.CALLBACK_RESULT_URL_OK</li>
- *          <li>webview.CALLBACK_RESULT_URL_ERROR</li>
- *          <li>webview.CALLBACK_RESULT_EVAL_OK</li>
- *          <li>webview.CALLBACK_RESULT_EVAL_ERROR</li>
- *      </ul>
- *      </dd>
+ * : [type:number] The type of the callback. Can be one of these:
+ *
+ * - `webview.CALLBACK_RESULT_URL_OK`
+ * - `webview.CALLBACK_RESULT_URL_ERROR`
+ * - `webview.CALLBACK_RESULT_EVAL_OK`
+ * - `webview.CALLBACK_RESULT_EVAL_ERROR`
  *
  * `data`
- * [type:table] A table holding the data. The table has these fields:
- * - url [type:string] The url used in the webview.open() call. nil otherwise.
- * - result [type:string] Holds the result of either: a failed url open, a successful eval request or a failed eval. `nil` otherwise
+ * : [type:table] A table holding the data. The table has these fields:
+ *
+ * - [type:string] `url`: The url used in the webview.open() call. `nil` otherwise.
+ * - [type:string] `result`: Holds the result of either: a failed url open, a successful eval request or a failed eval. `nil` otherwise
  *
  * @return id [type:number] The id number of the webview
  *
@@ -82,14 +81,14 @@
  *
  * @name webview.open
  *
- * @param webview_id    [type:number] The webview id
- * @param url           [type:string] The url to open
- * @param options       [type:table] A table of options for the request. Currently it holds these options
+ * @param webview_id [type:number] The webview id
+ * @param url [type:string] The url to open
+ * @param options [type:table] A table of options for the request. Currently it holds these options
  *
  * `hidden`
  * : [type:boolean] If true, the webview will stay hidden (default=false)
  *
- * @return id           [type:number] The id number of the request
+ * @return id [type:number] The id number of the request
  *
  * @examples
  *
@@ -106,17 +105,18 @@
  *
  * @name webview.open_raw
  *
- * @param webview_id    [type:number] The webview id
- * @param html          [type:string] The html data to display
- * @param options       [type:table] A table of options for the request. See webview.open()
+ * @param webview_id [type:number] The webview id
+ * @param html [type:string] The html data to display
+ * @param options [type:table] A table of options for the request. See webview.open()
  *
- * @return id           [type:number] The id number of the request
+ * @return id [type:number] The id number of the request
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * local html = sys.load_resource("/main/data/test.html")
  * local request_id = webview.open_raw(webview_id, html, {hidden = true})
- * </pre>
+ * ```
  */
 
 
@@ -128,9 +128,9 @@
  *
  * @name webview.eval
  *
- * @param webview_id    [type:number] The webview id
- * @param code          [type:string] The java script code to evaluate
- * @return id           [type:number] The id number of the request
+ * @param webview_id [type:number] The webview id
+ * @param code [type:string] The java script code to evaluate
+ * @return id [type:number] The id number of the request
  *
  * @examples
  *
@@ -145,8 +145,8 @@
  *
  * @name webview.set_visible
  *
- * @param webview_id    [type:number] The webview id (returned by the `webview.create()` call)
- * @param visible       [type:number] If 0, hides the webview. If non zero, shows the view
+ * @param webview_id [type:number] The webview id (returned by the `webview.create()` call)
+ * @param visible [type:number] If 0, hides the webview. If non zero, shows the view
  */
 
 
@@ -156,8 +156,8 @@
  *
  * @name webview.is_visible
  *
- * @param webview_id    [type:number] The webview id (returned by the webview.create() call)
- * @return visibility   [type:number] Returns 0 if not visible, 1 if it is visible
+ * @param webview_id [type:number] The webview id (returned by the webview.create() call)
+ * @return visibility [type:number] Returns 0 if not visible, 1 if it is visible
  */
 
 

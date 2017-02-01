@@ -2,8 +2,9 @@ package com.dynamo.cr.editor.handlers;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.io.FilenameUtils;
@@ -28,10 +29,7 @@ import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
-import com.defold.extender.client.ExtenderClient;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.Platform;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.Activator;
@@ -74,59 +72,15 @@ public class LaunchHandler extends AbstractHandler {
         final boolean rebuild = msg != null && msg.equals("rebuild");
 
         final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        final IProject project = getActiveProject(event);
 
-        String buildError = null;
-        boolean hasNativeExtensions = false;
         String exeName = "";
 
         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
             exeName = store.getString(PreferenceConstants.P_APPLICATION);
         } else {
-            IBranchClient branchClient = Activator.getDefault().getBranchClient();
-            String location = branchClient.getNativeLocation();
-            File root = new File(location);
-            boolean nativeExtEnabled = EditorUtil.isDev();
-            hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
-
             String platform = EditorCorePlugin.getPlatform();
-            if (hasNativeExtensions) {
-                File logFile = null;
-
-                String buildPlatform = null;
-                String sdkVersion = "";
-                if (platform == "darwin" )
-                    buildPlatform = "x86_64-osx";
-
-                try {
-                    EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
-                    sdkVersion = corePlugin.getSha1();
-                    if (sdkVersion == "NO SHA1") {
-                        sdkVersion = "";
-                    }
-                    String serverURL = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
-
-                    ExtenderClient extender = new ExtenderClient(serverURL);
-                    logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
-                    logFile.deleteOnExit();
-
-                    // Store the engine one level above the content build since that folder gets removed during a distclean
-                    File buildDir = new File(location + File.separator + "build" + File.separator + buildPlatform);
-                    buildDir.mkdirs();
-                    File exe = new File(buildDir.getAbsolutePath() + File.separator + "dmengine");
-
-                    String defaultName = FilenameUtils.getName(Engine.getDefault().getEnginePath());
-                    List<File> allSource = ExtenderClient.getExtensionSource(root, buildPlatform);
-                    BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, root, allSource, logFile, defaultName, exe);
-                    exeName = exe.getAbsolutePath();
-                } catch (IOException e) {
-                    buildError = e.getMessage();
-                } catch (CompileExceptionError e) {
-                    buildError = e.getMessage();
-                }
-            }
-            else {
-                exeName = Engine.getDefault().getEnginePath();
-            }
+            exeName = Engine.getDefault().getEnginePath();
 
             if (!platform.contains("win32")) {
                 try {
@@ -136,11 +90,20 @@ public class LaunchHandler extends AbstractHandler {
                 }
             }
         }
-        final File exe = new File(exeName);
-        final String buildErrorLog = buildError;
 
-        final IProject project = getActiveProject(event);
-        final boolean remoteBuiltEngine = hasNativeExtensions;
+        Platform hostPlatform = Platform.getHostPlatform();
+        IBranchClient branchClient = Activator.getDefault().getBranchClient();
+        final String location = FilenameUtils.concat(branchClient.getNativeLocation(), "build");
+
+        final String binaryOutputPath = FilenameUtils.concat(location, FilenameUtils.concat(hostPlatform.getExtenderPair(), hostPlatform.formatBinaryName("dmengine")));
+        final File inputExe = new File(exeName);
+        final File outputExe = new File(binaryOutputPath);
+        outputExe.mkdirs();
+        try {
+            Files.copy(inputExe.toPath(), outputExe.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("'%s' could not copy engine binary.", exeName));
+        }
 
         // save all editors depending on user preferences (this is set to true by default in plugin_customization.ini)
         BuildUtilities.saveEditors(null);
@@ -149,12 +112,8 @@ public class LaunchHandler extends AbstractHandler {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
 
-                if (buildErrorLog != null) {
-                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, buildErrorLog);
-                }
-
-                if (!exe.exists()) {
-                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", exe.getAbsolutePath()));
+                if (!outputExe.exists()) {
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", outputExe.getAbsolutePath()));
                 }
 
                 Map<String, String> args = new HashMap<String, String>();
@@ -169,6 +128,21 @@ public class LaunchHandler extends AbstractHandler {
                 if (enableTextureProfiles) {
                     bobArgs.put("texture-profiles", "true");
                 }
+                if (EditorUtil.isDev()) {
+                    String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
+                    bobArgs.put("build-server", nativeExtServerURI);
+                    bobArgs.put("native-ext", "true");
+
+                    // "binary-output"
+                    bobArgs.put("binary-output", location);
+                }
+
+                EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+                String sdkVersion = corePlugin.getSha1();
+                if (sdkVersion == "NO SHA1") {
+                    sdkVersion = "";
+                }
+                bobArgs.put("defoldsdk", sdkVersion);
 
                 BobUtil.putBobArgs(bobArgs, args);
 
@@ -188,8 +162,8 @@ public class LaunchHandler extends AbstractHandler {
                         String customApplication = null;
                         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
                             customApplication = store.getString(PreferenceConstants.P_APPLICATION);
-                        } else if (remoteBuiltEngine) {
-                            customApplication = exe.getAbsolutePath();
+                        } else {
+                            customApplication = outputExe.getAbsolutePath();
                         }
 
                         targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy,

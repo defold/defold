@@ -3,18 +3,17 @@ package com.dynamo.bob.bundle;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 
-import com.defold.extender.client.ExtenderClient;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class OSXBundler implements IBundler {
@@ -34,7 +33,7 @@ public class OSXBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.X86Darwin);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.X86Darwin);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -47,27 +46,12 @@ public class OSXBundler implements IBundler {
 
         boolean debug = project.hasOption("debug");
 
-        File root = new File(project.getRootDirectory());
-        boolean nativeExtEnabled = project.hasOption("native-ext");
-        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
-        File exe = null;
-
-        if (hasNativeExtensions) {
-            String platform64 = "x86_64-osx";
-
-            String sdkVersion = project.option("defoldsdk", "");
-            String buildServer = project.option("build-server", "");
-            ExtenderClient extender = new ExtenderClient(buildServer);
-            File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
-            logFile.deleteOnExit();
-
-            exe = File.createTempFile("engine_" + sdkVersion + "_" + platform64, "");
-            exe.deleteOnExit();
-
-            List<File> allSource = ExtenderClient.getExtensionSource(root, platform64);
-            BundleHelper.buildEngineRemote(extender, platform64, sdkVersion, root, allSource, logFile, "/dmengine", exe);
-        } else {
-            exe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(Platform.X86Darwin.getExtenderPair(), Platform.X86Darwin.formatBinaryName("dmengine"))));
+        File defaultExe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
+        File bundleExe = defaultExe;
+        if (extenderExe.exists()) {
+            bundleExe = extenderExe;
         }
 
         FileUtils.deleteDirectory(appDir);
@@ -79,7 +63,7 @@ public class OSXBundler implements IBundler {
         BundleHelper helper = new BundleHelper(project, Platform.X86Darwin, bundleDir, ".app");
 
         // Copy bundle resources into .app folder
-        BundleResourceUtil.writeResourcesToDirectory(bundleResources, appDir);
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy archive and game.projectc
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
@@ -93,7 +77,7 @@ public class OSXBundler implements IBundler {
 
         // Copy Executable
         File exeOut = new File(macosDir, title);
-        FileUtils.copyFile(exe, exeOut);
+        FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
     }
 

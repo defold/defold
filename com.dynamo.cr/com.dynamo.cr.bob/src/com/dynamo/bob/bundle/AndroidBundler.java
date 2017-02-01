@@ -11,7 +11,6 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
@@ -23,13 +22,12 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
-import com.defold.extender.client.ExtenderClient;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.BundleResourceUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -57,7 +55,7 @@ public class AndroidBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> bundleResources = BundleResourceUtil.collectResources(project, Platform.Armv7Android);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Armv7Android);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         final boolean debug = project.hasOption("debug");
@@ -68,27 +66,13 @@ public class AndroidBundler implements IBundler {
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
 
-        File root = new File(project.getRootDirectory());
-        boolean nativeExtEnabled = project.hasOption("native-ext");
-        boolean hasNativeExtensions = nativeExtEnabled && ExtenderClient.hasExtensions(root);
-        File exe = null;
-
-        if (hasNativeExtensions) {
-            String platform = "armv7-android";
-
-            String sdkVersion = project.option("defoldsdk", "");
-            String buildServer = project.option("build-server", "");
-            ExtenderClient extender = new ExtenderClient(buildServer);
-            File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
-            logFile.deleteOnExit();
-
-            exe = File.createTempFile("engine_" + sdkVersion + "_" + platform, "");
-            exe.deleteOnExit();
-
-            List<File> allSource = ExtenderClient.getExtensionSource(root, platform);
-            BundleHelper.buildEngineRemote(extender, platform, sdkVersion, root, allSource, logFile, "/libdmengine.so", exe);
-        } else {
-            exe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
+        // If a custom engine was built we need to copy it
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(Platform.Armv7Android.getExtenderPair(), Platform.X86Darwin.formatBinaryName("dmengine"))));
+        File defaultExe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
+        File bundleExe = defaultExe;
+        if (extenderExe.exists()) {
+            bundleExe = extenderExe;
         }
 
         File appDir = new File(bundleDir, title);
@@ -231,16 +215,16 @@ public class AndroidBundler implements IBundler {
             }
 
             // Copy bundle resources into .apk zip (actually .ap2 in this case)
-            BundleResourceUtil.writeResourcesToZip(bundleResources, zipOut);
+            ExtenderUtil.writeResourcesToZip(bundleResources, zipOut);
 
             // Strip executable
-            String strippedpath = exe.getAbsolutePath();
+            String strippedpath = bundleExe.getAbsolutePath();
             if( !debug )
             {
-                File tmp = File.createTempFile(title, "." + exe.getName() + ".stripped");
+                File tmp = File.createTempFile(title, "." + bundleExe.getName() + ".stripped");
                 tmp.deleteOnExit();
                 strippedpath = tmp.getAbsolutePath();
-                FileUtils.copyFile(exe, tmp);
+                FileUtils.copyFile(bundleExe, tmp);
 
                 res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpath);
                 if (res.ret != 0) {

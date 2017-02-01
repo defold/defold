@@ -86,4 +86,9 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
         new File(getAbsPath()).delete();
     }
 
+    @Override
+    public long getLastModified() {
+        return new File(getAbsPath()).lastModified();
+    }
+
 }
