@@ -15,19 +15,30 @@
 (def ^:private type-defaults
   {:table []
    :string ""
-   :resource ""
+   :resource nil
    :boolean false
    :integer 0
    :number 0.0
    :vec4 [0.0 0.0 0.0 0.0]
    :2panel []})
 
+(defn has-default? [field-info]
+  (or (contains? field-info :default)
+      (contains? type-defaults (:type field-info))))
+
 (defn field-default [field-info]
-  (get field-info :default (type-defaults (:type field-info))))
+  (if (contains? field-info :default)
+    (:default field-info)
+    (type-defaults (:type field-info))))
+
+(defn optional-field?
+  "Whether this field can be cleared"
+  [field-info]
+  (:optional field-info))
 
 (defn field-defaults [fields]
-  (let [required-fields (remove :optional fields)]
-    (when (every? #(not (nil? (field-default %))) required-fields)
+  (let [required-fields (remove optional-field? fields)]
+    (when (every? has-default? required-fields)
       (reduce (fn [val field]
                 (assoc-in val (:path field) (field-default field)))
               {}

@@ -1830,7 +1830,6 @@
     (rest (tree-seq parent->children parent->children root))))
 
 (defn load-gui-scene [project self input]
-  (def gs self)
   (let [def                pb-def
         scene              (protobuf/read-text (:pb-class def) input)
         resource           (g/node-value self :resource)

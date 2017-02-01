@@ -24,6 +24,7 @@ public class CollectionProxyLoader implements INodeLoader<CollectionProxyNode> {
         CollectionProxyDesc desc = builder.build();
         CollectionProxyNode collectionProxy = new CollectionProxyNode();
         collectionProxy.setCollection(desc.getCollection());
+        collectionProxy.setExclude(desc.getExclude());
         return collectionProxy;
     }
 
@@ -33,6 +34,7 @@ public class CollectionProxyLoader implements INodeLoader<CollectionProxyNode> {
         CollectionProxyDesc.Builder builder = CollectionProxyDesc.newBuilder();
         CollectionProxyNode collectionProxy = node;
         builder.setCollection(collectionProxy.getCollection());
+        builder.setExclude(collectionProxy.getExclude());
         return builder.build();
     }
 
