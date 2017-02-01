@@ -9,6 +9,9 @@ blddir = 'build'
 import sys, os
 import waf_dynamo, waf_ddf
 
+def init():
+    pass
+
 def set_options(opt):
     opt.tool_options('waf_dynamo')
 

@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import os, re
+import os
 
 def build(bld):
     bld.add_subdirs('test')

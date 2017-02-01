@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <dlib/log.h>
 #include <dlib/static_assert.h>
 #include "extension.h"
@@ -27,7 +26,7 @@ namespace dmExtension
         Result (*update)(Params*),
         void   (*on_event)(Params*, const Event*))
     {
-        assert(desc_size >= sizeof(Desc));
+        DM_STATIC_ASSERT(DM_EXTENSION_DESC_BUFFER_SIZE >= sizeof(struct Desc), Invalid_Struct_Size);
         desc->m_Name = name;
         desc->AppInitialize = app_init;
         desc->AppFinalize = app_finalize ;
