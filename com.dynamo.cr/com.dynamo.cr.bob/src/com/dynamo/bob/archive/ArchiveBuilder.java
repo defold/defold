@@ -161,11 +161,9 @@ public class ArchiveBuilder {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
 
-            // Write resource to resourcepack
-            this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer);
-
             // Write resource to data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
+                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer);
                 entries.remove(i);
             } else {
                 alignBuffer(archiveData, 4);

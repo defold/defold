@@ -70,7 +70,7 @@
                         {:path [:gain]
                          :label "Gain"
                          :type :number}]}]
-   :values {[:sound] (resource/resource->proj-path sound)
+   :values {[:sound] sound
             [:looping] looping
             [:group] group
             [:gain] gain}})
