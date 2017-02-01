@@ -11,7 +11,7 @@ def sdk_include_exclusive(self):
 def build(bld):
     test_sdk = bld.new_task_gen(features = 'cc cxx cprogram test',
                                       includes = '.',
-                                      uselib = 'GTEST DLIB LUA EXTENSION',
+                                      uselib = 'GTEST EXTENSION DLIB LUA',
                                       uselib_local = 'test_sdk_lib',
                                       exported_symbols = ["TestSdk"],
                                       target = 'test_sdk',
