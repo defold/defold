@@ -48,10 +48,13 @@
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets animation-set-build-target mesh-set-build-target skeleton-build-target animations material mesh skeleton]
-  (or (not-empty (filterv some? [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
-                                 (prop-resource-error :fatal _node-id :material material "Material")
-                                 (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
-                                 (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")]))
+  (or (some->> [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
+                (prop-resource-error :fatal _node-id :material material "Material")
+                (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
+                (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")]
+               (filterv some?)
+               not-empty
+               g/error-aggregate)
       (let [workspace (resource/workspace resource)
             rig-scene-type (workspace/get-resource-type workspace "rigscene")
             rig-scene-resource (resource/make-memory-resource workspace rig-scene-type (str (gensym)))
