@@ -26,23 +26,23 @@
            [com.defold.control ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
            [com.sun.javafx.scene.control.behavior ListCellBehavior]))
 
-; A note about the cell-factory controls (:list, :table, :2panel):
-; When clicking on another cell in the edited table, the edit is cancelled and
-; the value is never committed due to a JavaFX bug:
-; https://bugs.openjdk.java.net/browse/JDK-8089514
-;
-; As a workaround we ensure focus leaves our editing control before letting the
-; ListView or TableView handle the click. In order to do this we have to
-; implement createDefaultSkin in our Cell proxies and use custom implementations
-; of the CellSkin and CellBehavior classes. If they decide to fix the bug, the
-; following Java classes can also be removed from com.defold.control:
-;
-;   ListCellSkinWithBehavior
-;   TableCellBehavior
-;   TableCellSkinWithBehavior
-;
-; Details about this workaround can be found here:
-; http://stackoverflow.com/questions/24694616/how-to-enable-commit-on-focuslost-for-tableview-treetableview
+;; A note about the cell-factory controls (:list, :table, :2panel):
+;; When clicking on another cell in the edited table, the edit is cancelled and
+;; the value is never committed due to a JavaFX bug:
+;; https://bugs.openjdk.java.net/browse/JDK-8089514
+;;
+;; As a workaround we ensure focus leaves our editing control before letting the
+;; ListView or TableView handle the click. In order to do this we have to
+;; implement createDefaultSkin in our Cell proxies and use custom implementations
+;; of the CellSkin and CellBehavior classes. If they decide to fix the bug, the
+;; following Java classes can also be removed from com.defold.control:
+;;
+;;   ListCellSkinWithBehavior
+;;   TableCellBehavior
+;;   TableCellSkinWithBehavior
+;;
+;; Details about this workaround can be found here:
+;; http://stackoverflow.com/questions/24694616/how-to-enable-commit-on-focuslost-for-tableview-treetableview
 
 (set! *warn-on-reflection* true)
 
@@ -180,7 +180,7 @@
     (GridPane/setConstraints open-button 1 0)
     (GridPane/setConstraints browse-button 2 0)
 
-    ; Merge the facing borders of the open and browse buttons.
+    ;; Merge the facing borders of the open and browse buttons.
     (GridPane/setMargin open-button (Insets. 0 -1 0 0))
     (.setOnMousePressed open-button (ui/event-handler _ (.toFront open-button)))
     (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
@@ -334,8 +334,8 @@
                                (ui/remove-style! this "editing-cell")
                                (.setText this (get-value-string (.getItem this)))
                                (.setGraphic this nil)))))))
-                 ; Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
-                 ; See the note at the top of this file.
+                 ;; Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
+                 ;; See the note at the top of this file.
                  (createDefaultSkin []
                    (let [cell ^TableCell this
                          behavior (proxy [TableCellBehavior] [cell]
@@ -470,8 +470,8 @@
                     (ui/remove-style! this "editing-cell")
                     (.setText this (get-value-string item))
                     (.setGraphic this nil)))))
-            ; Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
-            ; See the note at the top of this file.
+            ;; Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
+            ;; See the note at the top of this file.
             (createDefaultSkin []
               (let [cell ^ListCell this
                     behavior (proxy [ListCellBehavior] [cell]
