@@ -177,16 +177,26 @@
 
   (testing "copied file; unstaged and staged"
     (with-git [git (new-git)
-               expect {:score 0, :change-type :add, :old-path nil, :new-path "src/copy.cpp"}]
+               expect [{:change-type :add
+                        :new-path "src/after/copy.cpp"
+                        :old-path nil
+                        :score 0}
+                       {:change-type :rename
+                        :new-path "src/after/original.cpp"
+                        :old-path "src/before/original.cpp"
+                        :score 100}]]
 
-      (create-file git "/src/original.cpp" "void main() {}")
+      (create-file git "/src/before/original.cpp" "void main() {}")
       (commit-src git)
       (is (= [] (git/unified-status git)))
 
-      (copy-file git "/src/original.cpp" "/src/copy.cpp")
-      (is (= [expect] (git/unified-status git)))
+      ;; In order to create a scenario where JGit detects a copy, we need to
+      ;; make a copy of a file below a directory and then rename the directory.
+      (copy-file git "/src/before/original.cpp" "/src/before/copy.cpp")
+      (move-file git "/src/before" "/src/after")
+      (is (= expect (git/unified-status git)))
       (add-src git)
-      (is (= [expect] (git/unified-status git)))))
+      (is (= expect (git/unified-status git)))))
 
   (testing "changed file; unstaged and staged and partially staged"
     (with-git [git (new-git)
