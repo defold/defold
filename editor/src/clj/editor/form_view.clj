@@ -161,17 +161,19 @@
         update-fn (fn [value]
                     (reset! content value)
                     (ui/editable! open-button (some? @content))
-                    (ui/text! text (resource/resource->proj-path value)))]
+                    (ui/text! text (resource/resource->proj-path value)))
+        commit-fn (fn [_] (let [resource-path (ui/text text)
+                                resource (some->> (when-not (string/blank? resource-path) resource-path)
+                                                  (workspace/to-absolute-path)
+                                                  (workspace/resolve-workspace-resource workspace))]
+                            (set path resource)
+                            (update-fn resource)))]
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
                                            (set path resource))))
     (ui/on-action! open-button (fn [_] (ui/run-command open-button :open {:resources [@content]})))
-    (ui/on-action! text (fn [_] (let [resource-path (ui/text text)
-                                      resource (some->> (when-not (string/blank? resource-path) resource-path)
-                                                        (workspace/to-absolute-path)
-                                                        (workspace/resolve-workspace-resource workspace))]
-                                  (set path resource)
-                                  (update-fn resource))))
+    (ui/on-action! text commit-fn)
+    (ui/auto-commit! text commit-fn)
     (install-escape-handler! text cancel)
     (ui/children! box [text open-button browse-button])
     (GridPane/setConstraints text 0 0)
