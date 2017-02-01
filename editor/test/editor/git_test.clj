@@ -19,6 +19,12 @@
     (io/make-parents f)
     (spit f content)))
 
+(defn copy-file [git old-path new-path]
+  (let [old-file (git/file git old-path)
+        new-file (git/file git new-path)]
+    (io/make-parents new-file)
+    (FileUtils/copyFile old-file new-file true)))
+
 (defn move-file [git old-path new-path]
   (let [old-file (git/file git old-path)
         new-file (git/file git new-path)]
@@ -168,6 +174,19 @@
       (is (= [{:score 0, :change-type :add, :old-path nil, :new-path "src/main.cpp"}] (git/unified-status git)))
       (add-src git)
       (is (= [{:score 0, :change-type :add, :old-path nil, :new-path "src/main.cpp"}] (git/unified-status git)))))
+
+  (testing "copied file; unstaged and staged"
+    (with-git [git (new-git)
+               expect {:score 0, :change-type :add, :old-path nil, :new-path "src/copy.cpp"}]
+
+      (create-file git "/src/original.cpp" "void main() {}")
+      (commit-src git)
+      (is (= [] (git/unified-status git)))
+
+      (copy-file git "/src/original.cpp" "/src/copy.cpp")
+      (is (= [expect] (git/unified-status git)))
+      (add-src git)
+      (is (= [expect] (git/unified-status git)))))
 
   (testing "changed file; unstaged and staged and partially staged"
     (with-git [git (new-git)
