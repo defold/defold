@@ -131,6 +131,7 @@ namespace dmGameObject
     {
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
+        m_DefaultCollectionRigCapacity = dmRig::DEFAULT_MAX_RIG_CAPACITY;
         m_Mutex = dmMutex::New();
     }
 
@@ -162,9 +163,20 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
+    Result SetCollectionDefaultRigCapacity(HRegister regist, uint32_t capacity)
+    {
+        regist->m_DefaultCollectionRigCapacity = capacity;
+        return RESULT_OK;
+    }
+
     uint32_t GetCollectionDefaultCapacity(HRegister regist)
     {
         return regist->m_DefaultCollectionCapacity;
+    }
+
+    uint32_t GetCollectionDefaultRigCapacity(HRegister regist)
+    {
+        return regist->m_DefaultCollectionRigCapacity;
     }
 
     void DoDeleteCollection(HCollection collection);
@@ -183,7 +195,7 @@ namespace dmGameObject
 
     void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
 
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, uint32_t max_riginstances)
     {
         if (max_instances > INVALID_INSTANCE_INDEX)
         {
@@ -240,6 +252,17 @@ namespace dmGameObject
                 DeleteCollection(collection);
                 return 0;
             }
+        }
+
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &collection->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = max_riginstances;
+        dmRig::Result rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::RESULT_OK)
+        {
+            dmLogFatal("Unable to create rig context: %d", rr);
+            DeleteCollection(collection);
+            return 0;
         }
 
         return collection;
@@ -299,6 +322,8 @@ namespace dmGameObject
             dmMessage::Consume(collection->m_FrameSocket);
             dmMessage::DeleteSocket(collection->m_FrameSocket);
         }
+
+        dmRig::DeleteContext(collection->m_RigContext);
 
         delete collection;
     }
@@ -2129,6 +2154,9 @@ namespace dmGameObject
 
         collection->m_InUpdate = 1;
 
+        // Update rig context (will update all rig instances in this collection)
+        dmRig::Update(collection->m_RigContext, update_context->m_DT);
+
         bool ret = true;
 
         uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
@@ -2324,6 +2352,11 @@ namespace dmGameObject
         }
 
         return result;
+    }
+
+    dmRig::HRigContext GetRigContext(HCollection collection)
+    {
+        return collection->m_RigContext;
     }
 
     UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count)

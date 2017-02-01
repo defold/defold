@@ -172,7 +172,6 @@ namespace dmGui
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
         context->m_HidContext = params->m_HidContext;
-        context->m_RigContext = params->m_RigContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
 
@@ -260,6 +259,11 @@ namespace dmGui
         return scene->m_AdjustReference;
     }
 
+    dmRig::HRigContext GetRigContext(HScene scene)
+    {
+        return scene->m_RigContext;
+    }
+
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
         context->m_DisplayProfiles = display_profiles;
@@ -325,6 +329,7 @@ namespace dmGui
 
         scene->m_Context = context;
         scene->m_Script = 0x0;
+        scene->m_RigContext = params->m_RigContext;
         scene->m_Nodes.SetCapacity(params->m_MaxNodes);
         scene->m_Nodes.SetSize(params->m_MaxNodes);
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
@@ -380,7 +385,7 @@ namespace dmGui
             InternalNode* n = &scene->m_Nodes[i];
             if (n->m_Node.m_RigInstance) {
                 dmRig::InstanceDestroyParams params = {0};
-                params.m_Context = scene->m_Context->m_RigContext;
+                params.m_Context = scene->m_RigContext;
                 params.m_Instance = n->m_Node.m_RigInstance;
                 dmRig::InstanceDestroy(params);
                 n->m_Node.m_RigInstance = 0x0;
@@ -1967,7 +1972,7 @@ namespace dmGui
         // Delete rig instance if node was a spine
         if (n->m_Node.m_NodeType == NODE_TYPE_SPINE && n->m_Node.m_RigInstance) {
             dmRig::InstanceDestroyParams params = {0};
-            params.m_Context = scene->m_Context->m_RigContext;
+            params.m_Context = scene->m_RigContext;
             params.m_Instance = n->m_Node.m_RigInstance;
             dmRig::InstanceDestroy(params);
             n->m_Node.m_RigInstance = 0x0;
@@ -2401,7 +2406,7 @@ namespace dmGui
             }
 
             dmRig::InstanceDestroyParams params = {0};
-            params.m_Context = scene->m_Context->m_RigContext;
+            params.m_Context = scene->m_RigContext;
             params.m_Instance = n->m_Node.m_RigInstance;
             dmRig::InstanceDestroy(params);
             n->m_Node.m_RigInstance = 0x0;
@@ -2409,7 +2414,7 @@ namespace dmGui
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = scene->m_Context->m_RigContext;
+        create_params.m_Context = scene->m_RigContext;
         create_params.m_Instance = &n->m_Node.m_RigInstance;
 
         create_params.m_PoseCallback = SpinePoseCallback;

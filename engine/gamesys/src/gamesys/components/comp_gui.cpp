@@ -110,8 +110,6 @@ namespace dmGameSystem
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_create_params);
         dmGraphics::SetTexture(gui_world->m_WhiteTexture, tex_params);
 
-        gui_world->m_RigContext = gui_context->m_RigContext;
-
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
 
@@ -510,6 +508,7 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
+        scene_params.m_RigContext = dmGameObject::GetRigContext(dmGameObject::GetCollection(params.m_Instance));
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
         scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
@@ -796,11 +795,12 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
+            const dmRig::HRigContext rig_context = dmGui::GetRigContext(scene);
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             float opacity = node_opacities[i];
             Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             color = Vector4(color.getXYZ() * opacity, opacity);
-            vb_end = (BoxVertex*)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, node_transforms[i], Matrix4::identity(), color, true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
+            vb_end = (BoxVertex*)dmRig::GenerateVertexData(rig_context, rig_instance, node_transforms[i], Matrix4::identity(), color, true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
