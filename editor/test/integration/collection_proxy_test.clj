@@ -22,7 +22,7 @@
         (is (= nil (g/node-value node-id :collection)))
         (is (= "Collection Proxy" (:label outline)))
         (is (empty? (:children outline)))
-        (is (= "" (get-in form-data [:values [:collection]])))))))
+        (is (= nil (get-in form-data [:values [:collection]])))))))
 
 (deftest collection-proxy-with-collection
   (testing "A collection proxy with a collection set"
@@ -35,7 +35,8 @@
         (is (= "/collection_proxy/default.collection" (resource/resource->proj-path (g/node-value node-id :collection))))
         (is (= "Collection Proxy" (:label outline)))
         (is (empty? (:children outline)))
-        (is (= "/collection_proxy/default.collection" (get-in form-data [:values [:collection]])))))))
+        (is (= "/collection_proxy/default.collection"
+               (resource/resource->proj-path (get-in form-data [:values [:collection]]))))))))
 
 (deftest validation
   (with-clean-system
