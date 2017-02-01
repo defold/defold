@@ -95,6 +95,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals("storeFrontImageUrl", result.getStoreFrontImageUrl());
         assertEquals("devLogUrl", result.getDevLogUrl());
         assertEquals("reviewUrl", result.getReviewUrl());
+        assertEquals(project.getId(), result.getProjectId());
     }
 
     @Test
