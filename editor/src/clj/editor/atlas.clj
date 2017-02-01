@@ -457,10 +457,18 @@
   (let [graph-id (g/node-id->graph-id atlas-node)]
     (g/make-nodes
      graph-id
-     [atlas-anim [AtlasAnimation :flip-horizontal (not= 0 (:flip-horizontal anim)) :flip-vertical (not= 0 (:flip-vertical anim))
+     [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
                   :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
      (attach-animation atlas-node atlas-anim)
      (attach-image-nodes atlas-anim [[:image :frames]] (map :image (:images anim)) atlas-node))))
+
+(defn- update-int->bool [keys m]
+  (reduce (fn [m key]
+            (if (contains? m key)
+              (update m key (complement zero?))
+              m))
+            m
+            keys))
 
 (defn load-atlas [project self resources]
   (let [atlas         (protobuf/read-text AtlasProto$Atlas resources)
@@ -473,7 +481,9 @@
                           [[:animation :animations]
                            [:id :animation-ids]]
                           (map :image (:images atlas)) self)
-      (map (partial attach-atlas-animation self) (:animations atlas)))))
+      (map (comp (partial attach-atlas-animation self)
+                 (partial update-int->bool [:flip-horizontal :flip-vertical]))
+           (:animations atlas)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
