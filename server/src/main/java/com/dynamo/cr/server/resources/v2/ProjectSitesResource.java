@@ -4,6 +4,7 @@ import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.AppStoreReference;
 import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.ProjectSite;
 import com.dynamo.cr.server.model.Screenshot;
 import com.dynamo.cr.server.resources.BaseResource;
 import com.dynamo.cr.server.resources.mappers.ProjectSiteMapper;
@@ -24,8 +25,8 @@ public class ProjectSitesResource extends BaseResource {
     @Path("sites")
     @RolesAllowed(value = {"member"})
     public Protocol.ProjectSiteList getProjectSites() {
-        List<Project> projects = projectService.findAll(getUser());
-        return ProjectSiteMapper.map(projects);
+        List<ProjectSite> projectSites = projectService.findAllSites(getUser());
+        return ProjectSiteMapper.map(projectSites);
     }
 
     @GET
@@ -34,7 +35,7 @@ public class ProjectSitesResource extends BaseResource {
         Project project = projectService.find(projectId)
                 .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
 
-        return ProjectSiteMapper.map(project);
+        return ProjectSiteMapper.map(project.getProjectSite());
     }
 
     @PUT

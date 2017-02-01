@@ -9,6 +9,7 @@ import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class ProjectService {
     @Inject
@@ -23,6 +24,11 @@ public class ProjectService {
                 .createQuery("select p from Project p where :user member of p.members", Project.class)
                 .setParameter("user", user)
                 .getResultList();
+    }
+
+    public List<ProjectSite> findAllSites(User user) {
+        List<Project> projects = findAll(user);
+        return projects.stream().map(Project::getProjectSite).collect(Collectors.toList());
     }
 
     @Transactional
@@ -57,7 +63,7 @@ public class ProjectService {
         any.ifPresent(screenshot -> projectSite.getScreenshots().remove(screenshot));
     }
 
-    private ProjectSite getProjectSite(Long projectId) {
+    public ProjectSite getProjectSite(Long projectId) {
         Project project = find(projectId)
                 .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
 
