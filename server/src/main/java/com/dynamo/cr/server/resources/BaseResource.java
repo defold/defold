@@ -34,16 +34,6 @@ public class BaseResource {
         return em.find(User.class, p.getUser().getId());
     }
 
-    /**
-     * Determines if the request is from a logged in (as non-anonymous) user.
-     *
-     * @return True if logged in, false otherwise.
-     */
-    boolean isLoggedIn() {
-        UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
-        return userPrincipal.getUser() != null && userPrincipal.getUser().getRole() != User.Role.ANONYMOUS;
-    }
-
     Response okResponse(String fmt, Object... args) {
         return Response
                 .status(Status.OK)
