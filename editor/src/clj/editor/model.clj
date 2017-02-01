@@ -43,11 +43,6 @@
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
 
-(defn- validate-skeleton [_node-id skeleton animations]
-  (or (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
-      (when animations
-        (validation/prop-error :fatal _node-id :skeleton validation/prop-nil? skeleton "Skeleton"))))
-
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
@@ -55,7 +50,7 @@
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets animation-set-build-target mesh-set-build-target skeleton-build-target animations material mesh skeleton]
   (or (not-empty (filterv some? [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
                                  (prop-resource-error :fatal _node-id :material material "Material")
-                                 (validate-skeleton _node-id skeleton animations)
+                                 (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
                                  (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")]))
       (let [workspace (resource/workspace resource)
             rig-scene-type (workspace/get-resource-type workspace "rigscene")
@@ -149,8 +144,8 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :skeleton-resource]
                                             [:skeleton-build-target :skeleton-build-target])))
-            (dynamic error (g/fnk [_node-id animations skeleton]
-                                  (validate-skeleton _node-id skeleton animations)))
+            (dynamic error (g/fnk [_node-id skeleton]
+                                  (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "dae"})))
   (property animations resource/Resource
