@@ -2,51 +2,25 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.animation-set :as animation-set]
+            [editor.graph-util :as gu]
             [editor.app-view :as app-view]
-            [editor.atlas :as atlas]
-            [editor.camera-editor :as camera]
-            [editor.collada-scene :as collada-scene]
-            [editor.collection :as collection]
-            [editor.collection-proxy :as collection-proxy]
-            [editor.collision-object :as collision-object]
-            [editor.cubemap :as cubemap]
-            [editor.factory :as factory]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
-            [editor.graph-util :as gu]
             [editor.image :as image]
-            [editor.label :as label]
             [editor.defold-project :as project]
             [editor.resource :as resource]
+            [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
-            [editor.sprite :as sprite]
-            [editor.font :as font]
-            [editor.protobuf-types :as protobuf-types]
-            [editor.script :as script]
-            [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.gl.shader :as shader]
-            [editor.rig :as rig]
-            [editor.tile-map :as tile-map]
-            [editor.tile-source :as tile-source]
-            [editor.sound :as sound]
-            [editor.spine :as spine]
-            [editor.particlefx :as particlefx]
-            [editor.gui :as gui]
-            [editor.json :as json]
-            [editor.model :as model]
-            [editor.material :as material]
             [editor.handler :as handler]
-            [editor.display-profiles :as display-profiles]
             [editor.view :as view]
             [util.http-server :as http-server]
-            [util.thread-util :as thread-util]
-            [editor.animation-set :as animation-set])
+            [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
+           [javafx.scene.control Tab]
            [org.apache.commons.io FileUtils FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
@@ -54,45 +28,15 @@
 
 (defn setup-workspace!
   ([graph]
-    (setup-workspace! graph project-path))
+   (setup-workspace! graph project-path))
   ([graph project-path]
-    (let [workspace (workspace/make-workspace graph project-path)]
-      (g/transact
+   (let [workspace (workspace/make-workspace graph project-path)]
+     (g/transact
        (concat
          (scene/register-view-types workspace)))
-      (g/transact
-       (concat
-        (animation-set/register-resource-types workspace)
-        (atlas/register-resource-types workspace)
-        (camera/register-resource-types workspace)
-        (collada-scene/register-resource-types workspace)
-        (collection/register-resource-types workspace)
-        (collection-proxy/register-resource-types workspace)
-        (collision-object/register-resource-types workspace)
-        (cubemap/register-resource-types workspace)
-        (display-profiles/register-resource-types workspace)
-        (factory/register-resource-types workspace)
-        (font/register-resource-types workspace)
-        (game-object/register-resource-types workspace)
-        (game-project/register-resource-types workspace)
-        (gui/register-resource-types workspace)
-        (image/register-resource-types workspace)
-        (json/register-resource-types workspace)
-        (label/register-resource-types workspace)
-        (material/register-resource-types workspace)
-        (model/register-resource-types workspace)
-        (particlefx/register-resource-types workspace)
-        (protobuf-types/register-resource-types workspace)
-        (rig/register-resource-types workspace)
-        (script/register-resource-types workspace)
-        (shader/register-resource-types workspace)
-        (sound/register-resource-types workspace)
-        (spine/register-resource-types workspace)
-        (sprite/register-resource-types workspace)
-        (tile-map/register-resource-types workspace)
-        (tile-source/register-resource-types workspace)))
-      (workspace/resource-sync! workspace)
-      workspace)))
+     (resource-types/register-resource-types! workspace)
+     (workspace/resource-sync! workspace)
+     workspace)))
 
 (defn make-temp-project-copy! [project-path]
   (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
