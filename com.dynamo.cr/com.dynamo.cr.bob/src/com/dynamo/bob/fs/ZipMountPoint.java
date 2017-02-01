@@ -65,6 +65,11 @@ public class ZipMountPoint implements IMountPoint {
         public void setContent(InputStream stream) throws IOException {
             throw new IOException("Zip resources can't be removed.");
         }
+
+        @Override
+        public long getLastModified() {
+            return entry.getLastModifiedTime().toMillis();
+        }
     }
 
     public ZipMountPoint(IFileSystem fileSystem, String archivePath) {
