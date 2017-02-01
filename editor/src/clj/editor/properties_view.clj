@@ -333,7 +333,11 @@
                           (update-field-message [text] message)
                           (ui/editable! text (not read-only?))
                           (ui/editable! browse-button (not read-only?))
-                          (ui/editable! open-button (boolean (when val (resource/proj-path val))))))]
+                          (ui/editable! open-button (boolean (when val (resource/proj-path val))))))
+        commit-fn     (fn [_]
+                        (let [path     (ui/text text)
+                              resource (workspace/resolve-workspace-resource workspace path)]
+                          (properties/set-values! (property-fn) (repeat resource))))]
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project dialog-opts))]
                                            (properties/set-values! (property-fn) (repeat resource)))))
@@ -341,9 +345,8 @@
                                                               properties/values
                                                               properties/unify-values)]
                                           (ui/run-command open-button :open {:resources [resource]}))))
-    (ui/on-action! text (fn [_] (let [path     (ui/text text)
-                                      resource (workspace/resolve-workspace-resource workspace path)]
-                                  (properties/set-values! (property-fn) (repeat resource)))))
+    (ui/on-action! text commit-fn)
+    (ui/auto-commit! text commit-fn)
     (ui/children! box [text browse-button open-button])
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints open-button 1 0)
