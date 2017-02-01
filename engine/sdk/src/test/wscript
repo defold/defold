@@ -17,6 +17,8 @@ def build(bld):
                                       target = 'test_sdk',
                                       source = 'test_sdk.cpp')
 
+    test_sdk.install_path = None
+
     test_sdk_lib = bld.new_task_gen(features = 'cxx cstaticlib ddf test sdk_include_exclusive',
                                  includes = '.',
                                  source = 'test_sdk_lib.cpp',
