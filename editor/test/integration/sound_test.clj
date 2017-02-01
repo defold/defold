@@ -7,6 +7,7 @@
             [editor.handler :as handler]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [editor.types :as types]
             [editor.properties :as properties]
             [integration.test-util :as test-util]))
@@ -21,7 +22,7 @@
             form-data (g/node-value node-id :form-data)]
         (is (= "Sound" (:label outline)))
         (is (empty? (:children outline)))
-        (is (= "" (get-in form-data [:values [:sound]])))))))
+        (is (= nil (get-in form-data [:values [:sound]])))))))
 
 (deftest sound-object-with-sound
   (testing "A sound object with a sound set"
@@ -33,7 +34,8 @@
             form-data (g/node-value node-id :form-data)]
         (is (= "Sound" (:label outline)))
         (is (empty? (:children outline)))
-        (is (= "/sounds/tink.wav" (get-in form-data [:values [:sound]])))))))
+        (is (= "/sounds/tink.wav"
+               (resource/resource->proj-path (get-in form-data [:values [:sound]]))))))))
 
 (deftest sound-validation
   (with-clean-system

@@ -121,9 +121,7 @@
           :element {:type :string :default "New Tag"}}]}]}))
 
 (g/defnk produce-form-data [_node-id name vertex-program fragment-program vertex-constants fragment-constants samplers tags :as args]
-  (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
-                   (update :vertex-program resource/resource->proj-path)
-                   (update :fragment-program resource/resource->proj-path))
+  (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields]))))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
