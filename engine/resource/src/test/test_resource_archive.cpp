@@ -118,7 +118,6 @@ TEST(dmResourceArchive, ShiftInsertResource)
     free(resource);
     dmResourceArchive::Delete(archive);
     FreeMutableIndexData((void*&)arci_copy);
-    fclose(resource_file);
 }
 
 TEST(dmResourceArchive, CalcInsertionIndex)
