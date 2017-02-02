@@ -265,7 +265,7 @@
    :path ["spine" "max_count"]}
   {:type :integer,
    :help "max number of gui components per collection, 64 by default",
-   :default 1024,
+   :default 64,
    :path ["gui" "max_count"]}
   {:type :integer,
    :help "max number of instances per collection, 1024 by default",
@@ -397,7 +397,12 @@
    :filter "png",
    :preserve-extension true,
    :help "iPad Pro portrait launch image (.png)",
-   :path ["ios" "launch_image_2048x1536"]}
+   :path ["ios" "launch_image_2048x2732"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro landscape launch image (.png)",
+   :path ["ios" "launch_image_2732x2048"]}
   {:type :boolean,
    :help "set to true if the icons are prerendered",
    :default false,
