@@ -8,8 +8,9 @@ def build(bld):
     platform = bld.env["PLATFORM"]
 
     if "win32" in platform:
-        src = "%s/ext/lib/%s/PVRTexLib.dll" % (bld.env["PREFIX"], platform)
-        copy_file_task(bld, src)
+        for dll in ["PVRTexLib.dll", "msvcr120.dll"]:
+            src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, dll)
+            copy_file_task(bld, src)
 
     test_texc = bld.new_task_gen(features = 'cc cxx cprogram test',
                                      uselib = 'GTEST DLIB',
