@@ -48,7 +48,7 @@ namespace dmLiveUpdate
      * @name resource.create_manifest
      * @param buffer [type:string] the binary data that represents the manifest
      * @return manifest_reference [type:number] a reference to the manifest
-     * @error an error occurs when too many manifests have been created, or when
+     * @error An error occurs when too many manifests have been created, or when
      * the manifest could not be parsed correctly.
      *
      * @examples
