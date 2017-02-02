@@ -139,9 +139,10 @@ namespace dmLiveUpdate
 
     /*# checks whether a resource matches the expected resource hash or not
      *
-     * Checks whether a resource matches the expected resource hash or not. This
-     * function should always be used before storing a resource using the
-     * function `store_resource` to ensure that the resource was not corrupted,
+     * checks whether a resource matches the expected resource hash or not. This
+     * function can be used before storing a resource using the
+     * function store_resource to ensure that the resource was not corrupted,
+
      * or modified by a third party, during transfer.
      *
      * @name resource.verify_resource
@@ -161,7 +162,7 @@ namespace dmLiveUpdate
      *
      * local function store_resource(self, expected_hash, buffer)
      *     if resource.verify_resource(self.manifest, expected_hash, buffer) then
-     *         resource.store_resource(buffer)
+     *         resource.store_resource(self.manifest, expected_hash, buffer)
      *     end
      * end
      * ```
@@ -170,15 +171,19 @@ namespace dmLiveUpdate
 
     /*# add a resource to the data archive and runtime index
      *
-     * Add a resource to the data archive and runtime index. The resource that
-     * is added must already exist in the manifest, and should be verified using
-     * `verify_resource`. Adding corrupted content or resources that doesn't exist
-     * in the manifest will increase the size of the data archive, but the
-     * resources will not be accessible.
+     * add a resource to the data archive and runtime index. The resource that
+     * is added must already exist in the manifest, and can be verified using
+     * verify_resource. The resource will also be verified internally before being
+     * added to the data archive.
+
      *
      * @name resource.store_resource
-     * @param buffer [type:string) the resource data to store.
-     * @return stored [type:boolean] `true` if the resource could be stored, `false` otherwise.
+     * @param manifest_reference (int) The manifest to check against.
+     * @param expected_hash (string) The expected hash for the resource,
+     * retrieved through collectionproxy.missing_resources.
+     * @param buffer (string) The resource data to store.
+     * @return (bool) True if the resource could be stored, False otherwise.
+
      */
     int Resource_StoreResource(lua_State* L);
 
