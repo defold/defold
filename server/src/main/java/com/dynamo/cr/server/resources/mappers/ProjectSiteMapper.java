@@ -2,6 +2,7 @@ package com.dynamo.cr.server.resources.mappers;
 
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.server.model.AppStoreReference;
+import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.ProjectSite;
 import com.dynamo.cr.server.model.Screenshot;
 
@@ -10,20 +11,23 @@ import java.util.Set;
 
 public class ProjectSiteMapper {
 
-    public static Protocol.ProjectSiteList map(List<ProjectSite> projectSites) {
+    public static Protocol.ProjectSiteList map(List<Project> projects) {
         Protocol.ProjectSiteList.Builder builder = Protocol.ProjectSiteList.newBuilder();
 
-        for (ProjectSite projectSite : projectSites) {
-            builder.addSites(map(projectSite));
+        for (Project project : projects) {
+            builder.addSites(map(project));
         }
 
         return builder.build();
     }
 
-    public static Protocol.ProjectSite map(ProjectSite projectSite) {
+    public static Protocol.ProjectSite map(Project project) {
         Protocol.ProjectSite.Builder builder = Protocol.ProjectSite.newBuilder();
 
-        if (projectSite != null) {
+        if (project.getProjectSite() != null) {
+            ProjectSite projectSite = project.getProjectSite();
+
+            builder.setProjectId(project.getId());
 
             if (projectSite.getName() != null) {
                 builder.setName(projectSite.getName());

@@ -40,7 +40,7 @@ def build(bld):
         ('sprite', ('../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp')),
         ('tilemap', ('../../proto/tile_ddf.proto', 'scripts/script_tilemap.cpp')),
         ('window', ('scripts/script_window.cpp')),
-        #('liveupdate', ('scripts/script_resource_liveupdate.h'))
+        ('liveupdate', ('scripts/script_resource_liveupdate.h'))
     ]
 
     for d, source in sources:
