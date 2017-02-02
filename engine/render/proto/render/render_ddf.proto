@@ -18,6 +18,13 @@ message RenderPrototypeDesc
     repeated MaterialDesc materials = 2;
 }
 
+/*# Rendering API documentation
+ *
+ * @document
+ * @name Render
+ * @namespace render
+ */
+
 /*# draw a text on the screen
  * Draw a text on the screen. This should mostly be used for debugging purposes.
  *

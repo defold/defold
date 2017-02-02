@@ -28,7 +28,7 @@ namespace dmGameSystem
      *
      * @document
      * @name Collection factory
-     * @namespace collection_factory
+     * @namespace collectionfactory
      */
 
     static int HashTableIndex(lua_State* L)

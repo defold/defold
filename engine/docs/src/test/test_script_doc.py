@@ -143,7 +143,7 @@ foobar
 /*#
  * MY_DESC
  * @name MY_NAME
- * @param param_x [type:type_a] DOCX
+ * @param param_x [type: type_a] DOCX
  * @param [param_y] [type:type_b] DOCY
  */
 """
@@ -155,9 +155,9 @@ foobar
         p1 = elements[0].parameters[0]
         p2 = elements[0].parameters[1]
         self.assertEqual('param_x', p1.name)
-        self.assertEqual(u'<p><span class="type">type_a</span> DOCX</p>', p1.doc)
+        self.assertEqual(u'<p><code class="type">type_a</code> DOCX</p>', p1.doc)
         self.assertEqual('[param_y]', p2.name)
-        self.assertEqual(u'<p><span class="type">type_b</span> DOCY</p>', p2.doc)
+        self.assertEqual(u'<p><code class="type">type_b</code> DOCY</p>', p2.doc)
 
     def test_missing_namespace(self):
         doc= """
