@@ -15,7 +15,7 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6 webp-0.5.0".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6 webp-0.5.0".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
@@ -447,7 +447,7 @@ class Configuration(object):
         includes = []
         cwd = os.getcwd()
         os.chdir(self.dynamo_home)
-        for root, dirs, files in os.walk("."):
+        for root, dirs, files in os.walk("sdk/include"):
             for file in files:
                 if file.endswith('.h'):
                     includes.append(os.path.join(root, file))
@@ -455,7 +455,7 @@ class Configuration(object):
 
         os.chdir(cwd)
         includes = [os.path.join(self.dynamo_home, x) for x in includes]
-        self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
+        self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
 
         # Configs
         configs = ['extender/build.yml']
@@ -620,7 +620,7 @@ class Configuration(object):
 
     def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
         self._log('Building libs')
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject rig gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine".split()
+        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject rig gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
@@ -647,6 +647,7 @@ class Configuration(object):
         self.build_bob_light()
         self._build_engine_libs(**build_flags)
         self._build_extender_libs(**build_flags)
+        self.build_docs()
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
@@ -730,7 +731,7 @@ class Configuration(object):
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
-        self._log('Building docs')
+        self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
         self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)

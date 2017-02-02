@@ -68,14 +68,15 @@ class IconPattern(Pattern):
         return el
 
 #
-#   This extension allows the use of [type:some_type] tags in source
+#   This extension allows the use of [type:some_type] tags in source.
+#   Expands to <code class="type">some_type</code>
 #
 class TypeExtensionException(Exception):
     pass
 
 class TypeExtension(Extension):
     def extendMarkdown(self, md, md_globals):
-        pattern = r'\[(?P<prefix>type:)(?P<type>.+?)\]'
+        pattern = r'\[(?P<prefix>type:)\s*(?P<type>.+?)\]'
         tp = TypePattern(pattern)
         tp.md = md
         tp.ext = self
@@ -87,7 +88,7 @@ class TypePattern(Pattern):
         return re.compile("^(.*?)%s(.*)$" % self.pattern, re.DOTALL | re.UNICODE | re.IGNORECASE)
 
     def handleMatch(self, m):
-        el = etree.Element('span')
+        el = etree.Element('code')
         el.set('class', 'type')
         types = m.group(3)
          # Make sure types are shown as type1 | type2
@@ -190,7 +191,10 @@ def _parse_comment(str):
             element.deprecated = md.convert(value)
         elif tag == 'replaces':
             element.replaces = md.convert(value)
-        elif tag == 'namespace':
+        elif tag == 'error':
+            element.error = md.convert(value)
+        elif tag == 'namespace' and document_comment:
+            # Do not set namespace unless this is a document_comment
             element.namespace = value
             namespace_found = True
 

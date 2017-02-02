@@ -21,6 +21,7 @@ import org.apache.commons.io.IOUtils;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
+import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -138,7 +139,7 @@ public class BundleHelper {
         return this;
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, File root, List<File> allSource, File logFile, String srcName, File outputEngine) throws CompileExceptionError {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine) throws CompileExceptionError {
         File zipFile = null;
 
         try {
@@ -149,7 +150,7 @@ public class BundleHelper {
         }
 
         try {
-            extender.build(platform, sdkVersion, root, allSource, zipFile, logFile);
+            extender.build(platform, sdkVersion, allSource, zipFile, logFile);
         } catch (ExtenderClientException e) {
             String buildError = "<no log file>";
             if (logFile != null) {

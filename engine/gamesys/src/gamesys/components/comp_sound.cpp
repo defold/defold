@@ -142,6 +142,13 @@ namespace dmGameSystem
         return update_result;
     }
 
+    /*# Sound API documentation
+     *
+     * @document
+     * @name Sound
+     * @namespace sound
+     */
+
     /*# plays a sound
      * Post this message to a sound-component to make it play its sound. Multiple voices is support. The limit is set to 32 voices per sound component.
      *

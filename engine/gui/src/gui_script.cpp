@@ -1201,7 +1201,7 @@ namespace dmGui
      *
      * @name gui.get_line_break
      * @param node [type:node] node from which to get the line-break for
-     * @return line-break [type:boolean] true or false
+     * @return line-break [type:boolean] `true` or `false`
      */
     static int LuaGetLineBreak(lua_State* L)
     {
@@ -3278,7 +3278,7 @@ namespace dmGui
 
     /*# sets the node color
      * Sets the color of the supplied node. The components
-     * of the supplied [type:vector3] or [type:vector4] should contain the color channel values:
+     * of the supplied vector3 or vector4 should contain the color channel values:
      *
      * Component        | Color value
      * ---------------- | -------------
@@ -3766,8 +3766,8 @@ namespace dmGui
      * Gets the spine skin of a spine node
      *
      * @name gui.get_spine_skin
-     * @param node node to get spine skin from (node)
-     * @return spine skin id, 0 if no explicit skin is set (hash)
+     * @param node [type:node] node to get spine skin from
+     * @return id [type:hash] spine skin id, 0 if no explicit skin is set
      */
     int LuaGetSpineSkin(lua_State* L)
     {
@@ -3878,8 +3878,8 @@ namespace dmGui
      * This is only useful for spine nodes. Gets the playback rate of the animation on a spine node.
      *
      * @name gui.get_spine_playback_rate
-     * @param node spine node to set the cursor for (node)
-     * @return playack rate (number)
+     * @param node [type:node] spine node to set the cursor for
+     * @return rate [type:number] playback rate
      */
     int LuaGetSpinePlaybackRate(lua_State* L)
     {

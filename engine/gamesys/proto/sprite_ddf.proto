@@ -22,6 +22,13 @@ message SpriteDesc
     optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
 }
 
+/*# Sprite API documentation
+ *
+ * @document
+ * @name Sprite
+ * @namespace sprite
+ */
+
 /*# plays a sprite animation
  * <p>
  * Post this message to a sprite-component to make it play an animation from its tile set.

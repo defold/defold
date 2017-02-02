@@ -26,7 +26,7 @@ namespace dmGameSystem
      *
      * @document
      * @name Collection proxy
-     * @namespace collection_proxy
+     * @namespace collectionproxy
      */
 
     using namespace Vectormath::Aos;
