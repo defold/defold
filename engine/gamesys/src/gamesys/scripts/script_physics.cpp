@@ -33,7 +33,7 @@ namespace dmGameSystem
      *
      * @document
      * @name Collision object
-     * @namespace collision_object
+     * @namespace physics
      */
 
     struct PhysicsScriptContext
