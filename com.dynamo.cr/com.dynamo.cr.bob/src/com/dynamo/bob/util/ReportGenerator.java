@@ -110,9 +110,12 @@ public class ReportGenerator {
     private void parseFromDarc() throws IOException {
 
         String rootDir = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-        String darcPath = FilenameUtils.concat(rootDir, "game.darc");
+        String archiveIndex = FilenameUtils.concat(rootDir, "game.arci");
+        String archiveData = FilenameUtils.concat(rootDir, "game.arcd");
+        String manifest = FilenameUtils.concat(rootDir, "game.dmanifest");
 
-        ArchiveReader ar = new ArchiveReader(darcPath);
+        ArchiveReader ar = new ArchiveReader(archiveIndex, archiveData, manifest);
+        
         ar.read();
 
         List<ArchiveEntry> archiveEntries = ar.getEntries();
