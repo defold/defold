@@ -447,7 +447,7 @@ class Configuration(object):
         includes = []
         cwd = os.getcwd()
         os.chdir(self.dynamo_home)
-        for root, dirs, files in os.walk("."):
+        for root, dirs, files in os.walk("sdk/include"):
             for file in files:
                 if file.endswith('.h'):
                     includes.append(os.path.join(root, file))
@@ -455,7 +455,7 @@ class Configuration(object):
 
         os.chdir(cwd)
         includes = [os.path.join(self.dynamo_home, x) for x in includes]
-        self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
+        self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
 
         # Configs
         configs = ['extender/build.yml']
@@ -620,7 +620,7 @@ class Configuration(object):
 
     def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
         self._log('Building libs')
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject rig gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine".split()
+        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject rig gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
