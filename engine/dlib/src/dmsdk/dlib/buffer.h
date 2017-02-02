@@ -8,47 +8,55 @@
 
 namespace dmBuffer
 {
+    /**
+     * Buffer handle
+     */
     typedef struct Buffer* HBuffer;
 
+    /**
+     * ValueTypes
+     */
     enum ValueType
     {
-        VALUE_TYPE_UINT8     = 0,
-        VALUE_TYPE_UINT16    = 1,
-        VALUE_TYPE_UINT32    = 2,
-        VALUE_TYPE_UINT64    = 3,
-
-        VALUE_TYPE_INT8      = 4,
-        VALUE_TYPE_INT16     = 5,
-        VALUE_TYPE_INT32     = 6,
-        VALUE_TYPE_INT64     = 7,
-
-        VALUE_TYPE_FLOAT32   = 8,
-        VALUE_TYPE_FLOAT64   = 9,
-
-        MAX_VALUE_TYPE_COUNT = 10,
+        VALUE_TYPE_UINT8     = 0,   //!< VALUE_TYPE_UINT8
+        VALUE_TYPE_UINT16    = 1,   //!< VALUE_TYPE_UINT16
+        VALUE_TYPE_UINT32    = 2,   //!< VALUE_TYPE_UINT32
+        VALUE_TYPE_UINT64    = 3,   //!< VALUE_TYPE_UINT64
+        VALUE_TYPE_INT8      = 4,   //!< VALUE_TYPE_INT8
+        VALUE_TYPE_INT16     = 5,   //!< VALUE_TYPE_INT16
+        VALUE_TYPE_INT32     = 6,   //!< VALUE_TYPE_INT32
+        VALUE_TYPE_INT64     = 7,   //!< VALUE_TYPE_INT64
+        VALUE_TYPE_FLOAT32   = 8,   //!< VALUE_TYPE_FLOAT32
+        VALUE_TYPE_FLOAT64   = 9,   //!< VALUE_TYPE_FLOAT64
+        MAX_VALUE_TYPE_COUNT = 10,  //!< MAX_VALUE_TYPE_COUNT
     };
 
+    /**
+     * Results
+     */
     enum Result
     {
-        RESULT_OK,
-
-        RESULT_GUARD_INVALID,
-
-        RESULT_ALLOCATION_ERROR,
-
-        RESULT_BUFFER_INVALID,
-        RESULT_BUFFER_SIZE_ERROR,
-
-        RESULT_STREAM_SIZE_ERROR,
-        RESULT_STREAM_MISSING,
-        RESULT_STREAM_TYPE_MISMATCH,
-        RESULT_STREAM_COUNT_MISMATCH,
+        RESULT_OK,                      //!< RESULT_OK,
+        RESULT_GUARD_INVALID,           //!< RESULT_GUARD_INVALID,
+        RESULT_ALLOCATION_ERROR,        //!< RESULT_ALLOCATION_ERROR,
+        RESULT_BUFFER_INVALID,          //!< RESULT_BUFFER_INVALID,
+        RESULT_BUFFER_SIZE_ERROR,       //!< RESULT_BUFFER_SIZE_ERROR,
+        RESULT_STREAM_SIZE_ERROR,       //!< RESULT_STREAM_SIZE_ERROR,
+        RESULT_STREAM_MISSING,          //!< RESULT_STREAM_MISSING,
+        RESULT_STREAM_TYPE_MISMATCH,    //!< RESULT_STREAM_TYPE_MISMATCH,
+        RESULT_STREAM_COUNT_MISMATCH,   //!< RESULT_STREAM_COUNT_MISMATCH,
     };
 
+    /**
+     * StreamDeclaration
+     */
     struct StreamDeclaration
     {
+        /// Hash of stream name
         dmhash_t  m_Name;
+        /// Stream ValueType type
         ValueType m_ValueType;
+        /// Value count of stream type
         uint8_t   m_ValueCount;
     };
 

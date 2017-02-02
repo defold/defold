@@ -1,4 +1,6 @@
 #! /usr/bin/env python
+import os
+from TaskGen import feature, before
 
 VERSION='0.1'
 APPNAME='sdk'
@@ -6,8 +8,7 @@ APPNAME='sdk'
 srcdir = '.'
 blddir = 'build'
 
-import sys, os
-import waf_dynamo, waf_ddf
+import waf_dynamo
 
 def init():
     pass
@@ -17,41 +18,43 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
-
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
-
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SDK"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SDK"')
 
+
 def build(bld):
-    generate_sdk_includes(bld)
+    sdk_path = os.path.join(bld.env.DYNAMO_HOME, 'sdk')
+    sdk_headers = bld.new_task_gen(
+                                 features = 'compile_sdk_headers',
+                                 target = 'sdk.h',
+                                 install_path = os.path.join(sdk_path, 'include', 'dmsdk'),
+                                 sdk_include_path = os.path.join(sdk_path, 'include'),
+                                 always=True)
     bld.add_subdirs('src')
 
 def shutdown():
     waf_dynamo.run_gtests(valgrind = True)
 
-def generate_sdk_includes(bld):
+@feature('compile_sdk_headers')
+@before('cc')
+def compile_sdk_headers(task):
+    sdk_includes = os.path.join(task.install_path)
     includes = []
-    cwd = os.getcwd()
-    os.chdir(os.path.join(bld.env.DYNAMO_HOME, 'sdk', 'include'))
-
-    for root, dirs, files in os.walk('dmsdk'):
+    for root, dirs, files in os.walk(sdk_includes):
         for file in files:
             if file.endswith('.h'):
                 if(file == 'sdk.h'):
                     continue
                 includes.append(os.path.join(root, file))
 
-    with open("dmsdk/sdk.h", "w") as f:
+    with open(os.path.join(task.install_path, task.target), "w") as f:
         f.write("#ifndef DMSDK_SDK_H\n")
         f.write("#define DMSDK_SDK_H\n")
         f.write("\n")
-        for i in includes:
-            f.write("#include <%s>\n" % i)
+        for include in includes:
+            f.write("#include <%s>\n" % os.path.relpath(include, task.sdk_include_path))
         f.write("\n")
         f.write("#endif // DMSDK_SDK_H\n")
-
-    os.chdir(cwd)
-

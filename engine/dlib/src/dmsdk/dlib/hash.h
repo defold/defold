@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include "shared_library.h"
 
+/**
+* dmhash_t type declaration
+*/
 typedef uint64_t dmhash_t;
 
 

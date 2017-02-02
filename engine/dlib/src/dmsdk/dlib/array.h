@@ -10,7 +10,14 @@
  */
 namespace dmArrayUtil
 {
-    void SetCapacity(uint32_t, uint32_t, uintptr_t*, uintptr_t*, uintptr_t*);
+    /** Set capacity of an array, given front, back and end array pointers
+     * @param capacity new capacity
+     * @param type_size size of array element
+     * @param first pointer to a pointer containing the first array element
+     * @param last pointer to a pointer containing the last array element
+     * @param end pointer to a pointer containing the end array element
+     */
+    void SetCapacity(uint32_t capacity, uint32_t type_size, uintptr_t* first, uintptr_t* last, uintptr_t* end);
 };
 
 /** Templatized array with bounds checking.

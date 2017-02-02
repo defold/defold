@@ -16,6 +16,15 @@ enum dmLogSeverity
     DM_LOG_SEVERITY_FATAL       = 5,//!< DM_LOG_SEVERITY_FATAL
 };
 
+/**
+ * dmLog, dmLogOnce functions for domain based logging
+ * @param format Format string
+ * @param args... Format args (variable arg list)
+ *
+ * Valid domain names are Debug, UserDebug, Info, Warning, Error, Fatal (ex. dmLogInfo or dmLogOnceInfo)
+ *
+ */
+
 #ifdef DM_LOG_DISABLE
 
 #define dmLogInfo(format, args...) do {} while(0);

@@ -5,6 +5,7 @@
 namespace dmExtension
 {
     Desc* g_FirstExtension = 0;
+    extern const size_t m_ExtensionDescBufferSize;
 
     AppParams::AppParams()
     {
@@ -26,7 +27,7 @@ namespace dmExtension
         Result (*update)(Params*),
         void   (*on_event)(Params*, const Event*))
     {
-        DM_STATIC_ASSERT(DM_EXTENSION_DESC_BUFFER_SIZE >= sizeof(struct Desc), Invalid_Struct_Size);
+        DM_STATIC_ASSERT(dmExtension::m_ExtensionDescBufferSize >= sizeof(struct Desc), Invalid_Struct_Size);
         desc->m_Name = name;
         desc->AppInitialize = app_init;
         desc->AppFinalize = app_finalize ;

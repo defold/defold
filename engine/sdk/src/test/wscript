@@ -1,11 +1,10 @@
 #! /usr/bin/env python
 import os
-import Task, TaskGen
-from TaskGen import extension, declare_extension, feature, before
+from TaskGen import feature, before
 
-@feature('sdk_include_exclusive')
+@feature('sdk_include_filter')
 @before('cc')
-def sdk_include_exclusive(self):
+def sdk_include_filter(self):
     dynamo_home = self.env['DYNAMO_HOME']
     new_cpppath = [os.path.join(self.env['DYNAMO_HOME'], 'sdk', 'include')]
     for path in self.env['CPPPATH']:
@@ -14,10 +13,11 @@ def sdk_include_exclusive(self):
     self.env['CPPPATH'] = new_cpppath
 
 def build(bld):
-    test_sdk_lib = bld.new_task_gen(features = 'cxx cstaticlib test sdk_include_exclusive',
+    test_sdk_lib = bld.new_task_gen(features = 'cxx cstaticlib test sdk_include_filter',
                                  includes = '.',
                                  source = 'test_sdk_lib.cpp',
-                                 target = 'test_sdk_lib')
+                                 target = 'test_sdk_lib',
+                                 always=True)
     test_sdk_lib.install_path = None
 
     test_sdk = bld.new_task_gen(features = 'cxx cprogram embed test',
@@ -26,5 +26,6 @@ def build(bld):
                                       uselib_local = 'test_sdk_lib',
                                       exported_symbols = ["TestSdk"],
                                       target = 'test_sdk',
-                                      source = 'test_sdk.cpp')
+                                      source = 'test_sdk.cpp',
+                                      always=True)
     test_sdk.install_path = None

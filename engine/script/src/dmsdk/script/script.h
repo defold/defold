@@ -2,7 +2,6 @@
 #define DMSDK_SCRIPT_H
 
 #include <stdint.h>
-
 #include <dmsdk/dlib/buffer.h>
 
 extern "C"
@@ -35,7 +34,6 @@ namespace dmScript
      * @return The pointer to a HBuffer
      */
     dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index);
-
 }
 
 #endif // DMSDK_SCRIPT_H
