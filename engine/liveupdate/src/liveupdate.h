@@ -3,21 +3,23 @@
 
 #include <resource/resource.h>
 #include <resource/manifest_ddf.h>
+#include <resource/resource_archive.h>
 
 namespace dmLiveUpdate
 {
 
     const int MAX_MANIFEST_COUNT = 8;
     const int CURRENT_MANIFEST = 0x0ac83fcc;
+    const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
     void Initialize(const dmResource::HFactory factory);
     void Finalize();
 
     uint32_t GetMissingResources(const char* path, char*** buffer);
 
-    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
+    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource);
 
-    bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const char* buf, uint32_t buflen);
+    bool StoreResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource);
 
     int AddManifest(dmResource::Manifest* manifest);
 
