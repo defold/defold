@@ -39,6 +39,8 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
 
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/graphics', 'dmsdk/graphics/graphics_native.h')
+
     bld.install_files('${PREFIX}/bin', 'texc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
     bld.install_files('${PREFIX}/lib/python', 'pvrtc.py')

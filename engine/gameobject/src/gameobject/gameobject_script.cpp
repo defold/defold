@@ -111,21 +111,21 @@ namespace dmGameObject
      * ```
      */
 
-    /*# [type:vector3] game object scale
+    /*# [type:number] game object scale
      *
-     * The non-uniform scale of the game object. The type of the property is vector3.
+     * The uniform scale of the game object. The type of the property is number.
      *
      * @name scale
      * @property
      * @examples
      *
-     * How to scale a game object independently along the X and Y axis:
+     * How to scale a game object:
      *
      * ```lua
      * function init(self)
-     *   -- Double the y-axis scaling on "player"
-     *   local yscale = go.get("player", "scale.y")
-     *   go.set("player", "scale.y", yscale * 2)
+     *   -- Double the scaling on "player"
+     *   local scale = go.get("player", "scale")
+     *   go.set("player", "scale", scale * 2)
      * end
      * ```
      */
