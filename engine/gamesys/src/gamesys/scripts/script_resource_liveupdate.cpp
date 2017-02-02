@@ -2,6 +2,7 @@
 #include <liveupdate/liveupdate.h>
 
 #include <script/script.h>
+#include "script_collectionproxy.h"
 
 namespace dmLiveUpdate
 {
@@ -66,11 +67,18 @@ namespace dmLiveUpdate
 
     int CollectionProxy_MissingResources(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 1);
-        const char* path = luaL_checkstring(L, 1);
+        int top = lua_gettop(L);
+
+        dmhash_t compUrlHash = dmGameSystem::GetCollectionProxyUrlHash(L, 1);
+
+        if (compUrlHash == 0)
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "Unable to find collection proxy component.");
+        }
 
         char** buffer = 0x0;
-        uint32_t resourceCount = dmLiveUpdate::GetMissingResources(path, &buffer);
+        uint32_t resourceCount = dmLiveUpdate::GetMissingResources(compUrlHash, &buffer);
 
         lua_createtable(L, resourceCount, 0);
         for (uint32_t i = 0; i < resourceCount; ++i)
@@ -80,6 +88,7 @@ namespace dmLiveUpdate
             lua_settable(L, -3);
         }
 
+        assert(lua_gettop(L) == top+1);
         return 1;
     }
 

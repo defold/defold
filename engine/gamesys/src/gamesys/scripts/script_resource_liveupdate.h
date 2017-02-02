@@ -95,7 +95,7 @@ namespace dmLiveUpdate
      *
      * @namespace collectionproxy
      * @name collectionproxy.missing_resources
-     * @param collectionproxy [type:hash|string|url] the collectionproxy to check for missing
+     * @param collectionproxy [type:url] the collectionproxy to check for missing
      * resources.
      * @return resources [type:table] the missing resources
      *

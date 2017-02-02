@@ -15,7 +15,7 @@ namespace dmLiveUpdate
     void Initialize(const dmResource::HFactory factory);
     void Finalize();
 
-    uint32_t GetMissingResources(const char* path, char*** buffer);
+    uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer);
 
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource);
 

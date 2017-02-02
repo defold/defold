@@ -188,6 +188,14 @@ namespace dmGameSystem
 
     void OnWindowFocus(bool focus);
     void OnWindowResized(int width, int height);
+
+    /**
+     * Return current game object instance, if any.
+     * Must be called from within a lua pcall, since it long jumps if no instance can be found.
+     * @param L lua state
+     * @return instance
+     */
+    dmGameObject::HInstance CheckGoInstance(lua_State* L);
 }
 
 #endif // DM_GAMESYS_H
