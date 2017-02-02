@@ -157,6 +157,7 @@ namespace dmGameObject
 
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
     {
+        assert(regist != 0x0);
         if(capacity >= INVALID_INSTANCE_INDEX-1)
             return RESULT_INVALID_OPERATION;
         regist->m_DefaultCollectionCapacity = capacity;
@@ -165,17 +166,20 @@ namespace dmGameObject
 
     Result SetCollectionDefaultRigCapacity(HRegister regist, uint32_t capacity)
     {
+        assert(regist != 0x0);
         regist->m_DefaultCollectionRigCapacity = capacity;
         return RESULT_OK;
     }
 
     uint32_t GetCollectionDefaultCapacity(HRegister regist)
     {
+        assert(regist != 0x0);
         return regist->m_DefaultCollectionCapacity;
     }
 
     uint32_t GetCollectionDefaultRigCapacity(HRegister regist)
     {
+        assert(regist != 0x0);
         return regist->m_DefaultCollectionRigCapacity;
     }
 
@@ -250,7 +254,7 @@ namespace dmGameObject
                     dmLogError("The collection '%s' could not be created since the name is invalid for sockets.", socket_names[i]);
                 }
                 DeleteCollection(collection);
-                return 0;
+                return NULL;
             }
         }
 
@@ -262,7 +266,7 @@ namespace dmGameObject
         {
             dmLogFatal("Unable to create rig context: %d", rr);
             DeleteCollection(collection);
-            return 0;
+            return NULL;
         }
 
         return collection;
@@ -323,7 +327,10 @@ namespace dmGameObject
             dmMessage::DeleteSocket(collection->m_FrameSocket);
         }
 
-        dmRig::DeleteContext(collection->m_RigContext);
+        if (collection->m_RigContext)
+        {
+            dmRig::DeleteContext(collection->m_RigContext);
+        }
 
         delete collection;
     }
@@ -2356,6 +2363,7 @@ namespace dmGameObject
 
     dmRig::HRigContext GetRigContext(HCollection collection)
     {
+        assert(collection != 0x0);
         return collection->m_RigContext;
     }
 

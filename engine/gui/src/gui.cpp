@@ -261,6 +261,7 @@ namespace dmGui
 
     dmRig::HRigContext GetRigContext(HScene scene)
     {
+        assert(scene != 0x0);
         return scene->m_RigContext;
     }
 
