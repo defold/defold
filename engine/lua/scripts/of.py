@@ -235,7 +235,7 @@ content = f.read()
 
 res, _ = convertstring(content)
 for ns, ss in libentries.items():
-    f = open("src/lua_%s.cpp" % ns, "w")
+    f = open("src/lua_%s.doc_h" % ns, "w")
     f.write("/*# Lua %s standard library\n" % ns)
     f.write(" *\n")
     f.write(" * Documentation for the Lua %s standard library.\n" %ns)

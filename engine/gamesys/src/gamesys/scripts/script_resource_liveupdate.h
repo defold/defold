@@ -9,6 +9,14 @@ extern "C"
 
 namespace dmLiveUpdate
 {
+    /*# Resource liveupdate API documentation
+     *
+     * Functions and for creating and controlling live update of resources.
+     *
+     * @document
+     * @name Resource
+     * @namespace resource
+     */
 
     /*# return a reference to the Manifest that is currently loaded
      *
@@ -17,7 +25,6 @@ namespace dmLiveUpdate
      * downloading content that was selected for LiveUpdate during the build
      * process.
      *
-     * @namespace resource
      * @name resource.get_current_manifest
      * @return reference to the Manifest that is currently loaded (int)
      */
@@ -37,7 +44,6 @@ namespace dmLiveUpdate
      * reference to destroy_manifest once all processing has been done to free
      * up memory.
      *
-     * @namespace resource
      * @name resource.create_manifest
      * @param buffer (string) The binary data that represents the manifest.
      * @return (int) a reference to the manifest.
@@ -60,7 +66,6 @@ namespace dmLiveUpdate
      * manifest that is currently loaded, and retrieved through
      * get_current_manifest cannot be destroyed.
      *
-     * @namespace resource
      * @name resource.destroy_manifest
      * @param manifest_reference (int) the reference that should be destroyed.
      * @error An error occurs if a reference to the current manifest is
@@ -135,7 +140,6 @@ namespace dmLiveUpdate
      * function store_resource to ensure that the resource was not corrupted,
      * or modified by a third party, during transfer.
      *
-     * @namespace resource
      * @name resource.verify_resource
      * @param manifest_reference (int) The manifest to check against.
      * @param expected_hash (string) The expected hash for the resource,
@@ -168,7 +172,6 @@ namespace dmLiveUpdate
      * in the manifest will increase the size of the data archive, but the
      * resources will not be accessible.
      *
-     * @namespace resource
      * @name resource.store_resource
      * @param buffer (string) The resource data to store.
      * @return (bool) True if the resource could be stored, False otherwise.
@@ -182,7 +185,6 @@ namespace dmLiveUpdate
      * function store_manifest to ensure that the manifest was not corrupted,
      * or modified by a third party, during transfer.
      *
-     * @namespace resource
      * @name resource.verify_manifest
      * @param manifest_reference (int) the reference that should be verified.
      * @return (bool) True if the manifest signature could be correctly
@@ -241,7 +243,6 @@ namespace dmLiveUpdate
      * developer to update the game, modify existing resources, or add new
      * resources to the game through LiveUpdate.
      *
-     * @namespace resource
      * @name resource.store_manifest
      * @param manifest_reference (int) the reference that should be verified.
      * @return (bool) True if the manifest could be stored, False otherwise.

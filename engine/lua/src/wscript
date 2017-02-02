@@ -9,7 +9,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    apidoc_extract_task(bld, ['lua_base.cpp', 'lua_string.cpp', 'lua_coroutine.cpp',
-                            'lua_debug.cpp', 'lua_io.cpp', 'lua_math.cpp', 'lua_os.cpp',
-                            'lua_package.cpp', 'lua_table.cpp'])
+    apidoc_extract_task(bld, ['lua_base.doc_h', 'lua_string.doc_h', 'lua_coroutine.doc_h',
+                            'lua_debug.doc_h', 'lua_io.doc_h', 'lua_math.doc_h', 'lua_os.doc_h',
+                            'lua_package.doc_h', 'lua_table.doc_h'])
     bld.add_subdirs('lua')
