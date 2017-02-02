@@ -260,12 +260,12 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     char archive_resource_path[DMPATH_MAX_PATH];
     char liveupdate_index_path[DMPATH_MAX_PATH];
     char app_support_path[DMPATH_MAX_PATH];
-    char id_buf[41]; // String repr. of SHA1 hash, always 40 chars + NULL-terminator
+    char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
 
     dmStrlCpy(archive_resource_path, manifestPath, strlen(manifestPath) - manifest_extension_length + 1);
     dmStrlCat(archive_resource_path, "arcd", DMPATH_MAX_PATH);
     
-    HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, 41);
+    HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
     struct stat file_stat;
@@ -660,6 +660,7 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
                 if (read_result != dmResourceArchive::RESULT_OK)
                 {
                     dmLogError("Failed to read resource, result = %i", read_result);
+                    return RESULT_IO_ERROR;
                 }
 
                 buffer->SetSize(file_size);

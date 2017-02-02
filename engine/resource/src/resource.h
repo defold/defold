@@ -16,6 +16,8 @@ namespace dmResource
 
     const static uint32_t MANIFEST_VERSION = 0x01;
 
+    const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
+
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */

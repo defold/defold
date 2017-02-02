@@ -77,7 +77,6 @@ namespace dmResource
     {
         if (map != 0x0)
         {
-            dmLogInfo("ANDROID Unmapping file (munmap)")
             munmap(map, size);
         }
         return RESULT_OK;
@@ -120,6 +119,7 @@ namespace dmResource
             {
                 AAsset_close(data_asset);
                 dmLogError("Error mapping liveupdate index file, result = %i", r);
+                return RESULT_IO_ERROR;
             }
             r = MapFile(lu_data_path, lu_data_map, lu_data_length);
             if (r != RESULT_OK)

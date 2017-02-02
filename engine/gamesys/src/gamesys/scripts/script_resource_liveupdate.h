@@ -164,7 +164,8 @@ namespace dmLiveUpdate
      *
      * add a resource to the data archive and runtime index. The resource that
      * is added must already exist in the manifest, and can be verified using
-     * verify_resource. The resource will be verified before being added to the data archive.
+     * verify_resource. The resource will also be verified internally before being
+     * added to the data archive.
      *
      * @namespace resource
      * @name resource.store_resource

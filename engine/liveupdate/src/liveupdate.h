@@ -10,6 +10,7 @@ namespace dmLiveUpdate
 
     const int MAX_MANIFEST_COUNT = 8;
     const int CURRENT_MANIFEST = 0x0ac83fcc;
+    const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
     void Initialize(const dmResource::HFactory factory);
     void Finalize();

@@ -52,7 +52,7 @@ namespace dmLiveUpdate
 
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
     {
-        if (manifest == 0x0)
+        if (manifest == 0x0 || resource->m_Data == 0x0)
         {
             return false;
         }
@@ -90,7 +90,7 @@ namespace dmLiveUpdate
 
     bool StoreResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
     {
-        if (manifest == 0x0)
+        if (manifest == 0x0 || resource->m_Data == 0x0)
         {
             return false;
         }
@@ -108,8 +108,8 @@ namespace dmLiveUpdate
         uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
 
-        char proj_id[41];
-        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, proj_id, 41);
+        char proj_id[dmResource::MANIFEST_PROJ_ID_LEN];
+        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, proj_id, dmResource::MANIFEST_PROJ_ID_LEN);
         dmResource::Result res = dmResource::StoreResource(manifest, (const uint8_t*)digest, digestLength, resource, proj_id);
 
         if (res != dmResource::RESULT_OK)
