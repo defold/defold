@@ -4,9 +4,10 @@
 #SDK=/opt/MacOSX.sdk
 #SDK=/opt/iPhoneOS.sdk
 SDK=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk
-#SDK=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk
+SDK=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk
 
 
+echo Searching $SDK
 
 LIBS=$(find $SDK/usr/lib/ -iname *.tbd)
 
@@ -16,7 +17,8 @@ do
 	NAME=$(basename $f)
 	NAME=${NAME/lib/}
 	NAME=${NAME/.tbd/}
-	NAME=${NAME/++/\\\\+\\\\+}
+	NAME=${NAME//./\\\\.}
+	NAME=${NAME//++/\\\\+\\\\+}
 	echo -n \"${NAME}\",
 done
 
@@ -26,8 +28,9 @@ do
 	if [ ${f: -10} == ".framework" ]
 	then
 		NAME=$(basename $f)
-		NAME=${NAME/.framework/}
-		NAME=${NAME/++/\\\\+\\\\+}
+		NAME=${NAME//.framework/}
+		NAME=${NAME//./\\\\.}
+		NAME=${NAME//++/\\\\+\\\\+}
 		echo -n \"${NAME}\",
 	fi
 done
