@@ -358,7 +358,7 @@
       (is (= #{"src/untracked" "src/new-location-unstaged" "src/empty-dir"} (:untracked-folders status-before))))
     start-ref))
 
-(defn- simple-status
+(defn simple-status
   "Calls git/status and filters out redundant info and empty collections."
   [git]
   (into {}

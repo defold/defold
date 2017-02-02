@@ -26,7 +26,8 @@
             [editor.view :as view]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
-  (:import [com.defold.editor EditorApplication]
+  (:import [com.defold.control TabPaneBehavior]
+           [com.defold.editor EditorApplication]
            [com.defold.editor Start]
            [java.awt Desktop]
            [java.util Collection]
@@ -40,7 +41,7 @@
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip SplitPane]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input KeyEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser WindowEvent]
@@ -528,6 +529,13 @@
           (onChanged [this change]
             (ui/restyle-tabs! tab-pane)))))
 
+    ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
+    ;; Consume key events that would select non-existing tabs in case we have none.
+    (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
+                                                     (when (and (empty? (.getTabs tab-pane))
+                                                                (TabPaneBehavior/isTraversalEvent event))
+                                                       (.consume event))))
+
     (ui/register-toolbar (.getScene stage) "#toolbar" :toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
@@ -582,7 +590,9 @@
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
      (if-let [make-view-fn (:make-view-fn view-type)]
-       (let [resource-node     (project/get-resource-node project resource)
+       (let [resource-node     (or (project/get-resource-node project resource)
+                                   (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                                   {})))
              ^TabPane tab-pane (g/node-value app-view :tab-pane)
              tabs              (.getTabs tab-pane)
              tab               (or (some #(when (and (= (tab->resource-node %) resource-node)

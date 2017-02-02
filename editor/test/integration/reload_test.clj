@@ -180,14 +180,16 @@
   (with-clean-system
     (let [[workspace project] (setup-scratch world)]
       (testing "Add internal file"
-               (add-file workspace "/test.collection")
-               (let [node (project/get-resource-node project "/test.collection")]
-                 (g/transact
-                   (g/set-property node :name "new_name"))
-                 (is (has-undo? project))
-                 (project/write-save-data-to-disk! project {})
-                 (sync! workspace)
-                 (is (has-undo? project)))))))
+        (add-file workspace "/test.collection")
+        (let [node (project/get-resource-node project "/test.collection")
+              saved (promise)]
+          (g/transact
+            (g/set-property node :name "new_name"))
+          (is (has-undo? project))
+          (project/save-all! project #(deliver saved :done) #(%))
+          (is (= :done (deref saved 100 :timeout)))
+          (sync! workspace)
+          (is (has-undo? project)))))))
 
 (defn- find-error [type v]
   (if (= type (get-in v [:user-data :type]))
@@ -360,11 +362,13 @@
           p ["display" "display_profiles"]
           disp-profs (get (g/node-value node-id :settings-map) p)
           path "/render/default.display_profiles"
-          new-path "/render/default2.display_profiles"]
+          new-path "/render/default2.display_profiles"
+          resource-setting-node ((g/node-value node-id :resource-setting-nodes) p)]
       (write-file workspace path "")
-      (g/transact (g/set-property node-id :display-profiles (workspace/file-resource workspace path)))
+      (g/transact (g/set-property resource-setting-node :value (workspace/file-resource workspace path)))
       (move-file workspace path new-path)
-      (is (= new-path (get (g/node-value node-id :settings-map) p))))))
+      (is (= new-path
+             (resource/resource->proj-path (get (g/node-value node-id :settings-map) p)))))))
 
 (deftest all-project-files
   (with-clean-system

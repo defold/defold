@@ -45,7 +45,7 @@ public class Bob {
 
         try {
             rootFolder = Files.createTempDirectory(null).toFile();
-            
+
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
             String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
@@ -53,7 +53,7 @@ public class Bob {
             if (libc_url != null) {
                 FileUtils.copyURLToFile(libc_url, new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename));
             }
-            
+
             extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
             extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
 
@@ -206,6 +206,10 @@ public class Bob {
         options.addOption("", "native-ext", false, "If set, the native ext support is turned on");
         options.addOption("", "build-server", true, "The build server (when using native extensions)");
         options.addOption("", "defoldsdk", true, "What version of the defold sdk (sha1) to use");
+        options.addOption("", "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
+
+        options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
+        options.addOption("s", "aws-secret-key", true, "Amazon S3 secret key to use when uploading liveupdate content");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
@@ -223,6 +227,26 @@ public class Bob {
         return cmd;
     }
 
+    public static Project createProject(String sourceDirectory, String rootDirectory, String buildDirectory, boolean resolveLibraries) throws IOException, LibraryException, CompileExceptionError {
+        Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
+
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        String cwd = new File(".").getAbsolutePath();
+        project.setLibUrls(LibraryUtil.getLibraryUrlsFromProject(FilenameUtils.concat(cwd, rootDirectory)));
+        if (resolveLibraries) {
+            project.resolveLibUrls(new ConsoleProgress());
+        }
+        project.mount(new ClassLoaderResourceScanner());
+
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
+        project.findSources(sourceDirectory, skipDirs);
+
+        return project;
+    }
+
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         String cwd = new File(".").getAbsolutePath();
@@ -238,7 +262,15 @@ public class Bob {
             commands = new String[] { "build" };
         }
 
-        Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
+        boolean shouldResolveLibs = false;
+        for (String command : commands) {
+            if (command.equals("resolve")) {
+                shouldResolveLibs = true;
+                break;
+            }
+        }
+
+        Project project = createProject(sourceDirectory, rootDirectory, buildDirectory, shouldResolveLibs);
         if (cmd.hasOption('e')) {
             project.setOption("email", getOptionsValue(cmd, 'e', null));
         }
@@ -252,6 +284,10 @@ public class Bob {
             project.setOption("build-server", "https://build.defold.com");
         }
 
+        String secretKey = getOptionsValue(cmd, 's', null);
+        boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
+        project.createPublisher(secretKey, shouldPublish);
+
         Option[] options = cmd.getOptions();
         for (Option o : options) {
             if (cmd.hasOption(o.getLongOpt())) {
@@ -263,21 +299,6 @@ public class Bob {
             }
         }
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
-
-        project.setLibUrls(LibraryUtil.getLibraryUrlsFromProject(FilenameUtils.concat(cwd, rootDirectory)));
-        for (String command : commands) {
-            if (command.equals("resolve")) {
-                project.resolveLibUrls(new ConsoleProgress());
-                break;
-            }
-        }
-        project.mount(new ClassLoaderResourceScanner());
-
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
-        project.findSources(sourceDirectory, skipDirs);
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
         boolean ret = true;
         StringBuilder errors = new StringBuilder();

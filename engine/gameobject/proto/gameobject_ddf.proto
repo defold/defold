@@ -118,10 +118,9 @@ message CollectionDesc
  */
 
 /*# acquires the user input focus
- * <p>
+ *
  * Post this message to a game object instance to make that instance acquire the user input focus.
- * </p>
- * <p>
+ *
  * User input is distributed by the engine to every instance that has 
  * requested it. The last instance to request focus will receive it first.
  * This means that the scripts in the instance will have first-hand-chance
@@ -129,21 +128,19 @@ message CollectionDesc
  * <code>true</code> from <code>on_input</code>) so that no other instances
  * can react on it. The most common case is for a script to send this message
  * to itself when it needs to respond to user input.
- * </p>
- * <p>
+ *
  * A script belonging to an instance which has the user input focus will
  * receive the input actions in its <code>on_input</code> callback function. 
- * See <code>on_input</code> for more information on how user input can be
+ * See [ref:on_input] for more information on how user input can be
  * handled.
- * </p>
  *
  * @message
  * @name acquire_input_focus
  * @examples
- * <p>
+ *
  * This example demonstrates how to acquire and act on user input.
- * </p>
- * <pre>
+ *
+ * ```lua
  * function init(self)
  *     -- acquire input focus as soon as the instance has been initialized
  *     msg.post(".", "acquire_input_focus")
@@ -156,26 +153,29 @@ message CollectionDesc
  *         self.my_action_amount = action.value
  *     end
  * end
- * </pre>
+ * ```
  */
 message AcquireInputFocus {}
 
 /*# releases the user input focus
  * Post this message to an instance to make that instance release the user input focus.
- * See <code>acquire_input_focus</code> for more information on how the user input handling
+ * See [ref:acquire_input_focus] for more information on how the user input handling
  * works.
  *
  * @message
  * @name release_input_focus
  * @examples
  * How to make a game object stop receiving input:
- * <pre>
+ *
+ * ```lua
  * msg.post(".", "release_input_focus")
- * </pre>
+ * ```
  */
 message ReleaseInputFocus {}
 
-/*# (DEPRECATED) requests the transform from an instance
+/* DEPRECATED. OMITTED FROM API DOCS.
+ *
+ * requests the transform from an instance
  * <div><b>DEPRECATED!</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
  * Send this message to an instance to request its transform (position, rotation, scale).
  * The sending script will receive the answer as a <code>transform_response</code>-message
@@ -216,7 +216,9 @@ message ReleaseInputFocus {}
  */
 message RequestTransform {}
 
-/*# (DEPRECATED) reports back the transform of an instance
+/* DEPRECATED. OMITTED FROM API DOCS.
+ *
+ * reports back the transform of an instance
  * <div><b>DEPRECATED!</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
  * The response a script receives after it has requested the transform from an instance
  * using the <code>request_transform</code>-message. See the description of that message
@@ -251,27 +253,27 @@ message TransformResponse
  *
  * @message
  * @name set_parent
- * @param parent_id the id of the new parent (hash)
- * @param keep_world_transform if the world transform of the instance should be preserved when changing spaces, 0 for false and 1 for true (number)
+ * @param parent_id [type:hash] the id of the new parent
+ * @param keep_world_transform [type:number] if the world transform of the instance should be preserved when changing spaces, 0 for false and 1 for true
  * @examples
- * <p>
+ *
  * Attach myself to another instance "my_parent":
- * </p>
- * <pre>
+ *
+ * ```lua
  * msg.post(".", "set_parent", {parent_id = go.get_id("my_parent")})
- * </pre>
- * <p>
+ * ```
+ *
  * Attach an instance "my_instance" to another instance "my_parent":
- * </p>
- * <pre>
+ *
+ * ```lua
  * msg.post("my_instance", "set_parent", {parent_id = go.get_id("my_parent")})
- * </pre>
- * <p>
+ * ```
+ *
  * Detach an instance "my_instance" from its parent (if any):
- * </p>
- * <pre>
+ *
+ * ```lua
  * msg.post("my_instance", "set_parent")
- * </pre>
+ * ```
  */
 message SetParent
 {
@@ -280,63 +282,57 @@ message SetParent
 }
 
 /*# enables the receiving component
- * <p>
+ *
  * This message enables the receiving component. All components are enabled by default, which means they will receive input, updates
  * and be a part of the simulation. A component is disabled when it receives the <code>disable</code> message.
- * </p>
  *
- * <P>
- * <b>Note!</b> Components that currently supports this message are:
- * <ul>
- *   <li>Collection Proxy</li>
- *   <li>Collision Object</li>
- *   <li>Gui</li>
- *   <li>Label</li>
- *   <li>Spine Model</li>
- *   <li>Sprite</li>
- *   <li>Tile Grid</li>
- * </ul>
- * </p>
+ * [icon:alert] Components that currently supports this message are:
+ *
+ * - Collection Proxy
+ * - Collision Object
+ * - Gui
+ * - Label
+ * - Spine Model
+ * - Sprite
+ * - Tile Grid
  *
  * @message
  * @name enable
  * @examples
- * <p>
+ *
  * Enable the component "my_component":
- * </p>
- * <pre>
+ *
+ * ```lua
  * msg.post("#my_component", "enable")
- * </pre>
+ * ```
  */
 message Enable
 {
 }
 
 /*# disables the receiving component
- * <p>
+ *
  * This message disables the receiving component. All components are enabled by default, which means they will receive input, updates
  * and be a part of the simulation. A component is disabled when it receives the <code>disable</code> message.
- * </p>
  *
- * <P>
- * <b>Note!</b> Components that currently supports this message are:
- * <ul>
- *   <li>Collection Proxy</li>
- *   <li>Collision Object</li>
- *   <li>Gui</li>
- *   <li>Spine Model</li>
- *   <li>Sprite</li>
- *   <li>Tile Grid</li>
- * </ul>
- * </p>
+ * [icon:alert] Components that currently supports this message are:
+ *
+ * - Collection Proxy
+ * - Collision Object
+ * - Gui
+ * - Spine Model
+ * - Sprite
+ * - Tile Grid
  *
  * @message
  * @name disable
  * @examples
+ *
  * Disable the component "my_component":
- * <pre>
+ *
+ * ```lua
  * msg.post("#my_component", "disable")
- * </pre>
+ * ```
  */
 message Disable
 {

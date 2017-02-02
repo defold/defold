@@ -45,19 +45,18 @@ namespace dmGameObject
      * @namespace go
      */
 
-    /*# game object position (vector3)
+    /*# [type:vector3] game object position
      *
      * The position of the game object.
      * The type of the property is vector3.
      *
      * @name position
      * @property
-     *
      * @examples
-     * <p>
+     *
      * How to query a game object's position, either as a vector3 or selecting a specific dimension:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *   -- get position from "player"
      *   local pos = go.get("player", "position")
@@ -65,31 +64,30 @@ namespace dmGameObject
      *   -- do something useful
      *   assert(pos.x == posx)
      * end
-     * </pre>
+     * ```
      */
 
-    /*# game object rotation (quaternion)
+    /*# [type:quaternion] game object rotation
      *
      * The rotation of the game object.
      * The type of the property is quaternion.
      *
      * @name rotation
      * @property
-     *
      * @examples
-     * <p>
+     *
      * How to set a game object's rotation:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *   -- set "player" rotation to 45 degrees around z.
      *   local rotz = vmath.quat_rotation_z(3.141592 / 4)
      *   go.set("player", "rotation", rotz)
      * end
-     * </pre>
+     * ```
      */
 
-    /*# game object euler rotation (vector3)
+    /*# [type:vector3] game object euler rotation
      *
      * The rotation of the game object expressed in Euler angles.
      * Euler angles are specified in degrees.
@@ -97,12 +95,11 @@ namespace dmGameObject
      *
      * @name euler
      * @property
-     *
      * @examples
-     * <p>
+     *
      * How to set a game object's rotation with euler angles, either as a vector3 or selecting a specific dimension:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *   -- set "player" euler z rotation component to 45 degrees around z.
      *   local rotz = 45
@@ -111,27 +108,26 @@ namespace dmGameObject
      *   -- do something useful
      *   assert(rot.z == rotz)
      * end
-     * </pre>
+     * ```
      */
 
-    /*# game object scale (vector3)
+    /*# [type:number] game object scale
      *
-     * The non-uniform scale of the game object. The type of the property is vector3.
+     * The uniform scale of the game object. The type of the property is number.
      *
      * @name scale
      * @property
-     *
      * @examples
-     * <p>
-     * How to scale a game object independently along the X and Y axis:
-     * </p>
-     * <pre>
+     *
+     * How to scale a game object:
+     *
+     * ```lua
      * function init(self)
-     *   -- Double the y-axis scaling on "player"
-     *   local yscale = go.get("player", "scale.y")
-     *   go.set("player", "scale.y", yscale * 2)
+     *   -- Double the scaling on "player"
+     *   local scale = go.get("player", "scale")
+     *   go.set("player", "scale", scale * 2)
      * end
-     * </pre>
+     * ```
      */
 
 #define SCRIPTINSTANCE "GOScriptInstance"
@@ -493,18 +489,22 @@ namespace dmGameObject
     /*# gets a named property of the specified game object or component
      *
      * @name go.get
-     * @param url url of the game object or component having the property (hash|string|url)
-     * @param id id of the property to retrieve (hash|string)
-     * @return the value of the specified property (any)
+     * @param url [type:hash|string|url] url of the game object or component having the property
+     * @param property [type:hash|string] id of the property to retrieve
+     * @return value [type:any] the value of the specified property
      * @examples
-     * <p>Get a property "speed" from a script "player", the property must be declared in the player-script:</p>
-     * <pre>
+     *
+     * Get a property "speed" from a script "player", the property must be declared in the player-script:
+     *
+     * ```lua
      * go.property("speed", 50)
-     * </pre>
-     * <p>Then in the calling script (assumed to belong to the same game object, but does not have to):</p>
-     * <pre>
+     * ```
+     *
+     * Then in the calling script (assumed to belong to the same game object, but does not have to):
+     *
+     * ```lua
      * local speed = go.get("#player", "speed")
-     * </pre>
+     * ```
      */
     int Script_Get(lua_State* L)
     {
@@ -582,18 +582,22 @@ namespace dmGameObject
     /*# sets a named property of the specified game object or component
      *
      * @name go.set
-     * @param url url of the game object or component having the property (hash|string|url)
-     * @param id id of the property to set (hash|string)
-     * @param value the value to set (any)
+     * @param url [type:hash|string|url] url of the game object or component having the property
+     * @param property [type:hash|string] id of the property to set
+     * @param value [type:any] the value to set
      * @examples
-     * <p>Set a property "speed" of a script "player", the property must be declared in the player-script:</p>
-     * <pre>
+     *
+     * Set a property "speed" of a script "player", the property must be declared in the player-script:
+     *
+     * ```lua
      * go.property("speed", 50)
-     * </pre>
-     * <p>Then in the calling script (assumed to belong to the same game object, but does not have to):</p>
-     * <pre>
+     * ```
+     *
+     * Then in the calling script (assumed to belong to the same game object, but does not have to):
+     *
+     * ```lua
      * go.set("#player", "speed", 100)
-     * </pre>
+     * ```
      */
     int Script_Set(lua_State* L)
     {
@@ -660,20 +664,25 @@ namespace dmGameObject
     }
 
     /*# gets the position of the instance
-     * The position is relative the parent (if any). Use <code>go.get_world_position</code> to retrieve the global world position.
+     * The position is relative the parent (if any). Use [ref:go.get_world_position] to retrieve the global world position.
      *
      * @name go.get_position
-     * @param [id] optional id of the instance to get the position for, by default the instance of the calling script (hash|string|url)
-     * @return instance position (vector3)
+     * @replaces request_transform transform_response
+     * @param [id] [type:hash|string|url] optional id of the instance to get the position for, by default the instance of the calling script
+     * @return position [type:vector3] instance position
      * @examples
-     * <p>Get the position of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Get the position of the instance the script is attached to:
+     *
+     * ```lua
      * local p = go.get_position()
-     * </pre>
-     * <p>Get the position of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Get the position of another instance "x":
+     *
+     * ```lua
      * local p = go.get_position("x")
-     * </pre>
+     * ```
      */
     int Script_GetPosition(lua_State* L)
     {
@@ -683,20 +692,24 @@ namespace dmGameObject
     }
 
     /*# gets the rotation of the instance
-     * The rotation is relative to the parent (if any). Use <code>go.get_world_rotation</code> to retrieve the global world position.
+     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world position.
      *
      * @name go.get_rotation
-     * @param [id] optional id of the instance to get the rotation for, by default the instance of the calling script (hash|string|url)
-     * @return instance rotation (quaternion)
+     * @param [id] [type:hash|string|url] optional id of the instance to get the rotation for, by default the instance of the calling script
+     * @return rotation [type:quaternion] instance rotation
      * @examples
-     * <p>Get the rotation of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Get the rotation of the instance the script is attached to:
+     *
+     * ```lua
      * local r = go.get_rotation()
-     * </pre>
-     * <p>Get the rotation of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Get the rotation of another instance "x":
+     *
+     * ```lua
      * local r = go.get_rotation("x")
-     * </pre>
+     * ```
      */
     int Script_GetRotation(lua_State* L)
     {
@@ -706,20 +719,24 @@ namespace dmGameObject
     }
 
     /*# gets the uniform scale factor of the instance
-     * The uniform scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
+     * The uniform scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
      *
      * @name go.get_scale
-     * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
-     * @return uniform instance scale factor (number)
+     * @param [id] [type:hash|string|url] optional id of the instance to get the scale for, by default the instance of the calling script
+     * @return scale [type:number] uniform instance scale factor
      * @examples
-     * <p>Get the scale of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Get the scale of the instance the script is attached to:
+     *
+     * ```lua
      * local s = go.get_scale()
-     * </pre>
-     * <p>Get the scale of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Get the scale of another instance "x":
+     *
+     * ```lua
      * local s = go.get_scale("x")
-     * </pre>
+     * ```
      */
     int Script_GetScale(lua_State* L)
     {
@@ -729,20 +746,24 @@ namespace dmGameObject
     }
 
     /*# gets the 3D scale factor of the instance
-     * The scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
+     * The scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
      *
      * @name go.get_scale_vector
-     * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
-     * @return scale factor (vector3)
+     * @param [id] [type:hash|string|url] optional id of the instance to get the scale for, by default the instance of the calling script
+     * @return scale [type:vector3] scale factor
      * @examples
-     * <p>Get the scale of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Get the scale of the instance the script is attached to:
+     *
+     * ```lua
      * local s = go.get_scale_vector()
-     * </pre>
-     * <p>Get the scale of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Get the scale of another instance "x":
+     *
+     * ```lua
      * local s = go.get_scale_vector("x")
-     * </pre>
+     * ```
      */
     int Script_GetScaleVector(lua_State* L)
     {
@@ -755,19 +776,23 @@ namespace dmGameObject
      * The position is relative to the parent (if any). The global world position cannot be manually set.
      *
      * @name go.set_position
-     * @param position position to set (vector3)
-     * @param [id] optional id of the instance to set the position for, by default the instance of the calling script (hash|string|url)
+     * @param position [type:vector3] position to set
+     * @param [id] [type:hash|string|url] optional id of the instance to set the position for, by default the instance of the calling script
      * @examples
-     * <p>Set the position of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Set the position of the instance the script is attached to:
+     *
+     * ```lua
      * local p = ...
      * go.set_position(p)
-     * </pre>
-     * <p>Set the position of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Set the position of another instance "x":
+     *
+     * ```lua
      * local p = ...
      * go.set_position(p, "x")
-     * </pre>
+     * ```
      */
     int Script_SetPosition(lua_State* L)
     {
@@ -781,19 +806,23 @@ namespace dmGameObject
      * The rotation is relative to the parent (if any). The global world rotation cannot be manually set.
      *
      * @name go.set_rotation
-     * @param rotation rotation to set (quaternion)
-     * @param [id] optional id of the instance to get the rotation for, by default the instance of the calling script (hash|string|url)
+     * @param rotation [type:quaternion] rotation to set
+     * @param [id] [type:hash|string|url] optional id of the instance to get the rotation for, by default the instance of the calling script
      * @examples
-     * <p>Set the rotation of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Set the rotation of the instance the script is attached to:
+     *
+     * ```lua
      * local r = ...
      * go.set_rotation(r)
-     * </pre>
-     * <p>Set the rotation of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Set the rotation of another instance "x":
+     *
+     * ```lua
      * local r = ...
      * go.set_rotation(r, "x")
-     * </pre>
+     * ```
      */
     int Script_SetRotation(lua_State* L)
     {
@@ -806,22 +835,26 @@ namespace dmGameObject
     /*# sets the scale factor of the instance
      * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
      *
-     * <b>NOTE!</b> Physics are currently not affected when setting scale from this function.
+     * [icon:attention] Physics are currently not affected when setting scale from this function.
      *
      * @name go.set_scale
-     * @param scale vector or uniform scale factor, must be greater than 0 (number|vector3)
-     * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
+     * @param scale [type:number|vector3] vector or uniform scale factor, must be greater than 0
+     * @param [id] [type:hash|string|url] optional id of the instance to get the scale for, by default the instance of the calling script
      * @examples
-     * <p>Set the scale of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Set the scale of the instance the script is attached to:
+     *
+     * ```lua
      * local s = vmath.vector3(2.0, 1.0, 1.0)
      * go.set_scale(s)
-     * </pre>
-     * <p>Set the scale of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Set the scale of another instance "x":
+     *
+     * ```lua
      * local s = 1.2
      * go.set_scale(s, "x")
-     * </pre>
+     * ```
      */
     int Script_SetScale(lua_State* L)
     {
@@ -849,20 +882,24 @@ namespace dmGameObject
     }
 
     /*# gets the instance world position
-     * Use <code>go.get_position</code> to retrieve the position relative to the parent.
+     * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
-     * @param [id] optional id of the instance to get the world position for, by default the instance of the calling script (hash|string|url)
-     * @return instance world position (vector3)
+     * @param [id] [type:hash|string|url] optional id of the instance to get the world position for, by default the instance of the calling script
+     * @return position [type:vector3] instance world position
      * @examples
-     * <p>Get the world position of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Get the world position of the instance the script is attached to:
+     *
+     * ```lua
      * local p = go.get_world_position()
-     * </pre>
-     * <p>Get the world position of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Get the world position of another instance "x":
+     *
+     * ```lua
      * local p = go.get_world_position("x")
-     * </pre>
+     * ```
      */
     int Script_GetWorldPosition(lua_State* L)
     {
@@ -875,17 +912,21 @@ namespace dmGameObject
      * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
-     * @param [id] optional id of the instance to get the world rotation for, by default the instance of the calling script (hash|string|url)
-     * @return instance world rotation (quaternion)
+     * @param [id] [type:hash|string|url] optional id of the instance to get the world rotation for, by default the instance of the calling script
+     * @return rotation [type:quaternion] instance world rotation
      * @examples
-     * <p>Get the world rotation of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Get the world rotation of the instance the script is attached to:
+     *
+     * ```lua
      * local r = go.get_world_rotation()
-     * </pre>
-     * <p>Get the world rotation of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Get the world rotation of another instance "x":
+     *
+     * ```lua
      * local r = go.get_world_rotation("x")
-     * </pre>
+     * ```
      */
     int Script_GetWorldRotation(lua_State* L)
     {
@@ -898,17 +939,21 @@ namespace dmGameObject
      * Use <code>go.get_scale</code> to retrieve the scale factor relative to the parent.
      *
      * @name go.get_world_scale
-     * @param [id] optional id of the instance to get the world scale for, by default the instance of the calling script (hash|string|url)
-     * @return uniform instance world scale factor (number)
+     * @param [id] [type:hash|string|url] optional id of the instance to get the world scale for, by default the instance of the calling script
+     * @return scale [type:number] uniform instance world scale factor
      * @examples
-     * <p>Get the world scale of the instance the script is attached to:</p>
-     * <pre>
+     *
+     * Get the world scale of the instance the script is attached to:
+     *
+     * ```lua
      * local s = go.get_world_scale()
-     * </pre>
-     * <p>Get the world scale of another instance "x":</p>
-     * <pre>
+     * ```
+     *
+     * Get the world scale of another instance "x":
+     *
+     * ```lua
      * local s = go.get_world_scale("x")
-     * </pre>
+     * ```
      */
     int Script_GetWorldScale(lua_State* L)
     {
@@ -919,27 +964,28 @@ namespace dmGameObject
 
     /*# gets the id of an instance
      * The instance id is a hash of the absolute path.
-     * If <code>path</code> is specified, it can either be absolute or relative to the instance of the calling script.
-     * If <code>path</code> is not specified, the id of the instance of the calling script will be returned. See the examples below for more information.
+     *
+     * - If `path` is specified, it can either be absolute or relative to the instance of the calling script.
+     * - If `path` is not specified, the id of the instance of the calling script will be returned. See the examples below for more information.
      *
      * @name go.get_id
-     * @param [path] path of the instance for which to return the id (string)
-     * @return instance id (hash)
+     * @param [path] [type:string] path of the instance for which to return the id
+     * @return id [type:hash] instance id
      * @examples
-     * <p>
-     * For the instance with path <code>/my_sub_collection/my_instance</code>, the following calls are equivalent:
-     * </p>
-     * <pre>
+     *
+     * For the instance with path `/my_sub_collection/my_instance`, the following calls are equivalent:
+     *
+     * ```lua
      * local id = go.get_id() -- no path, defaults to the instance of the calling script
      * local id = go.get_id("/my_sub_collection/my_instance") -- absolute path
-     * </pre>
-     * <p>
-     * From a script in another instance in the same collection, i.e. path <code>/my_sub_collection/my_other_instance</code>, the id of the first instance can be retrieved in two ways:
-     * </p>
-     * <pre>
+     * ```
+     *
+     * From a script in another instance in the same collection, i.e. path `/my_sub_collection/my_other_instance`, the id of the first instance can be retrieved in two ways:
+     *
+     * ```lua
      * local id = go.get_id("my_instance") -- relative path
      * local id = go.get_id("/my_sub_collection/my_instance") -- absolute path
-     * </pre>
+     * ```
      */
     int Script_GetId(lua_State* L)
     {
@@ -1016,64 +1062,73 @@ namespace dmGameObject
     }
 
     /*# animates a named property of the specified game object or component
-     * <p>
+     *
      * This is only supported for numerical properties. If the node property is already being
      * animated, that animation will be canceled and replaced by the new one.
-     * </p>
-     * <p>
-     * If a <code>complete_function</code> (lua function) is specified, that function will be called when the animation has completed.
+     *
+     * If a `complete_function` (lua function) is specified, that function will be called when the animation has completed.
      * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
      *
-     * <b>NOTE!</b> If you call <code>go.animate()</code> from a game object's <code>final()</code> function, any passed
-     * <code>complete_function</code> will be ignored and never called upon animation completion.
-     * </p>
-     * <p>
-     * See the <a href="/doc/properties">properties guide</a> for which properties can be animated and how.
-     * </p>
+     * [icon:attention] If you call `go.animate()` from a game object's `final()` function,
+     * any passed `complete_function` will be ignored and never called upon animation completion.
+     *
+     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how to animate them.
      *
      * @name go.animate
-     * @param url url of the game object or component having the property (hash|string|url)
-     * @param property name of the property to animate (hash|string)
-     * @param playback playback mode of the animation (constant)
-     * <ul>
-     *   <li><code>go.PLAYBACK_ONCE_FORWARD</code></li>
-     *   <li><code>go.PLAYBACK_ONCE_BACKWARD</code></li>
-     *   <li><code>go.PLAYBACK_ONCE_PINGPONG</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_FORWARD</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
-     * </ul>
-     * @param to target property value (number|vector3|vector4|quaternion)
-     * @param easing easing to use during animation. Either specify a constant, see the <a href="/doc/properties">properties guide</a> for a complete list, or a vmath.vector with a curve. (constant|vector)
-     * @param duration duration of the animation in seconds (number)
-     * @param [delay] delay before the animation starts in seconds (number)
-     * @param [complete_function] function with parameters (self, url, property) to call when the animation has completed (function)
+     * @param url [type:hash|string|url] url of the game object or component having the property
+     * @param property [type:hash|string] id of the property to animate
+     * @param playback [type:constant] playback mode of the animation
+     *
+     * - `go.PLAYBACK_ONCE_FORWARD`
+     * - `go.PLAYBACK_ONCE_BACKWARD`
+     * - `go.PLAYBACK_ONCE_PINGPONG`
+     * - `go.PLAYBACK_LOOP_FORWARD`
+     * - `go.PLAYBACK_LOOP_BACKWARD`
+     * - `go.PLAYBACK_LOOP_PINGPONG`
+     *
+     * @param to [type:number|vector3|vector4|quaternion] target property value
+     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation">animation guide</a> for a complete list, or a vmath.vector with a curve
+     * @param duration [type:number] duration of the animation in seconds
+     * @param [delay] [type:number] delay before the animation starts in seconds
+     * @param [complete_function] [type:function(self, url, property)] optional function to call when the animation has completed
+     *
+     * `self`
+     * :        [type:object] The current object.
+     *
+     * `url`
+     * :        [type:url] The game object or component instance for which the property is animated.
+     *
+     * `property`
+     * :        [type:hash] The id of the animated property.
+     *
      * @examples
-     * <p>Animate the position of a game object to x = 10 during 1 second, then y = 20 during 1 second:</p>
-     * <pre>
+     *
+     * Animate the position of a game object to x = 10 during 1 second, then y = 20 during 1 second:
+     *
+     * ```lua
      * local function x_done(self, url, property)
      *     go.animate(go.get_id(), "position.y", go.PLAYBACK_ONCE_FORWARD, 20, go.EASING_LINEAR, 1)
      * end
+     *
      * function init(self)
      *     go.animate(go.get_id(), "position.x", go.PLAYBACK_ONCE_FORWARD, 10, go.EASING_LINEAR, 1, 0, x_done)
      * end
-     * </pre>
+     * ```
      *
-     * <p>Animate the y positin of a game object using a crazy custom easing curve:</p>
-     * <pre>
-     * function init(self)
-     *     local values = { 0, 0, 0, 0, 0, 0, 0, 0,
-     *                      1, 1, 1, 1, 1, 1, 1, 1,
-     *                      0, 0, 0, 0, 0, 0, 0, 0,
-     *                      1, 1, 1, 1, 1, 1, 1, 1,
-     *                      0, 0, 0, 0, 0, 0, 0, 0,
-     *                      1, 1, 1, 1, 1, 1, 1, 1,
-     *                      0, 0, 0, 0, 0, 0, 0, 0,
-     *                      1, 1, 1, 1, 1, 1, 1, 1 }
-     *      local vec = vmath.vector(values)
-     *      go.animate("go", "position.y", go.PLAYBACK_LOOP_PINGPONG, 100, vec, 2.0)
-     * end
-     * </pre>
+     * Animate the y position of a game object using a crazy custom easing curve:
+     *
+     * ```lua
+     * local values = { 0, 0, 0, 0, 0, 0, 0, 0,
+     *                  1, 1, 1, 1, 1, 1, 1, 1,
+     *                  0, 0, 0, 0, 0, 0, 0, 0,
+     *                  1, 1, 1, 1, 1, 1, 1, 1,
+     *                  0, 0, 0, 0, 0, 0, 0, 0,
+     *                  1, 1, 1, 1, 1, 1, 1, 1,
+     *                  0, 0, 0, 0, 0, 0, 0, 0,
+     *                  1, 1, 1, 1, 1, 1, 1, 1 }
+     * local vec = vmath.vector(values)
+     * go.animate("go", "position.y", go.PLAYBACK_LOOP_PINGPONG, 100, vec, 2.0)
+     * ```
      */
     int Script_Animate(lua_State* L)
     {
@@ -1198,21 +1253,21 @@ namespace dmGameObject
     }
 
     /*# cancels all animations of the named property of the specified game object or component
-     * <p>
+     *
      * By calling this function, all stored animations of the given property will be canceled.
-     * </p>
-     * <p>
-     * See the <a href="/doc/properties">properties guide</a> for which properties can be animated and how.
-     * </p>
+     *
+     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how to animate them.
      *
      * @name go.cancel_animations
-     * @param url url of the game object or component having the property (hash|string|url)
-     * @param property name of the property to animate (hash|string)
+     * @param url [type:hash|string|url] url of the game object or component having the property
+     * @param property [type:hash|string] ide of the property to animate
      * @examples
-     * <p>Cancel the animation of the position of a game object:</p>
-     * <pre>
+     *
+     * Cancel the animation of the position of a game object:
+     *
+     * ```lua
      * go.cancel_animations(go.get_id(), "position")
-     * </pre>
+     * ```
      */
     int Script_CancelAnimations(lua_State* L)
     {
@@ -1276,18 +1331,18 @@ namespace dmGameObject
     }
 
     /*# deletes a game object instance
-     * <div>Delete a game object identified by its id.</div>
+     * Delete a game object identified by its id.
      *
      * @name go.delete
-     * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string|url)
+     * @param [id] [type:hash|string|url] optional id of the instance to delete, the instance of the calling script is deleted by default
      * @examples
-     * <p>
+     *
      * This example demonstrates how to delete a game object with the id "my_game_object".
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
      * go.delete(id) -- delete the game object
-     * </pre>
+     * ```
      */
     int Script_Delete(lua_State* L)
     {
@@ -1305,30 +1360,30 @@ namespace dmGameObject
     }
 
     /*# deletes a set of game object instance
-     * <div>Delete all game objects simultaneously as listed in table.
-     * The table values (not keys) should be game object ids (hashes).</div>
+     * Delete all game objects simultaneously as listed in table.
+     * The table values (not keys) should be game object ids (hashes).
      *
      * @name go.delete_all
-     * @param [ids] table with values of instance ids (hashes) to be deleted
+     * @param [ids] [type:table] table with values of instance ids (hashes) to be deleted
      * @examples
-     * <p>
-     * An example how to delete game objects listed in a table
-     * </p>
-     * <pre>
+     *
+     * An example how to delete game objects listed in a table:
+     *
+     * ```lua
      * -- List the objects to be deleted
      * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
      * go.delete_all(ids)
-     * </pre>
-     * <p>
-     * An example how to delete game objects spawned via a collectionfactory
-     * </p>
-     * <pre>
+     * ```
+     *
+     * An example how to delete game objects spawned via a collectionfactory:
+     *
+     * ```lua
      * -- Spawn a collection of game objects.
      * local ids = collectionfactory.create("#collectionfactory")
      * ...
      * -- Delete all objects listed in the table 'ids'.
      * go.delete_all(ids)
-     * </pre>
+     * ```
      */
     int Script_DeleteAll(lua_State* L)
     {
@@ -1375,15 +1430,16 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# constructs a ray in world space from a position in screen space
+    /* OMITTED FROM API DOCS!
+     * constructs a ray in world space from a position in screen space
      *
-     * @note Do not use this function, WIP!
+     * [icon:alert] Do not use this function, WIP!
      *
      * @name go.screen_ray
-     * @param x x-coordinate of the screen space position (number)
-     * @param y y-coordinate of the screen space position (number)
-     * @return position of the ray in world-space (vector3)
-     * @return direction of the ray in world space (vector3)
+     * @param x [type:number] x-coordinate of the screen space position
+     * @param y [type:number] y-coordinate of the screen space position
+     * @return position [type:vector3] of the ray in world-space
+     * @return direction [type:vector3] of the ray in world space
      */
     int Script_ScreenRay(lua_State* L)
     {
@@ -1404,14 +1460,14 @@ namespace dmGameObject
      * Note that you can only use this function outside any callback-functions like init and update.
      *
      * @name go.property
-     * @param name the name of the property (string)
-     * @param value default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. (number|hash|url|vector3|vector4|quaternion)
+     * @param property [type:string] the id of the property
+     * @param value [type:number|hash|url|vector3|vector4|quaternion] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed
      * @examples
-     * <p>
+     *
      * This example demonstrates how to define a property called "health" in a script.
      * The health is decreased whenever someone sends a message called "take_damage" to the script.
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * go.property("health", 100)
      *
      * function init(self)
@@ -1425,7 +1481,7 @@ namespace dmGameObject
      *         print("Ouch! My health is now: " .. self.health)
      *     end
      * end
-     * </pre>
+     * ```
      */
     int Script_Property(lua_State* L)
     {
@@ -1974,30 +2030,32 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * to set the initial state of the script.
      *
      * @name init
-     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param self [type:object] reference to the script state to be used for storing data
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     -- set up useful data
      *     self.my_value = 1
      * end
-     * </pre>
+     * ```
      */
 
     /*# called when a script component is finalized
-     * <div>This is a callback-function, which is called by the engine when a script component is finalized (destroyed). It can
+     * This is a callback-function, which is called by the engine when a script component is finalized (destroyed). It can
      * be used to e.g. take some last action, report the finalization to other game object instances, delete spawned objects
-     * or release user input focus (see <code>release_input_focus</code>).</div>
+     * or release user input focus (see [ref:release_input_focus]).
      *
      * @name final
-     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param self [type:object] reference to the script state to be used for storing data
      * @examples
-     * <pre>
+     *
+     * ```lua
      * function final(self)
      *     -- report finalization
      *     msg.post("my_friend_instance", "im_dead", {my_stats = self.some_value})
      * end
-     * </pre>
+     * ```
      */
 
     /*# called every frame to update the script component
@@ -2005,13 +2063,13 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * It can be used to perform any kind of game related tasks, e.g. moving the game object instance.
      *
      * @name update
-     * @param self reference to the script state to be used for storing data (script_ref)
-     * @param dt the time-step of the frame update
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
      * @examples
-     * <p>
+     *
      * This example demonstrates how to move a game object instance through the script component:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     -- set initial velocity to be 1 along world x-axis
      *     self.my_velocity = vmath.vector3(1, 0, 0)
@@ -2021,42 +2079,39 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *     -- move the game object instance
      *     go.set_position(go.get_position() + dt * self.my_velocity)
      * end
-     * </pre>
+     * ```
      */
 
     /*# called when a message has been sent to the script component
-     * <p>
+     *
      * This is a callback-function, which is called by the engine whenever a message has been sent to the script component.
      * It can be used to take action on the message, e.g. send a response back to the sender of the message.
-     * </p>
-     * <p>
-     * The <code>message</code> parameter is a table containing the message data. If the message is sent from the engine, the
+     *
+     * The `message` parameter is a table containing the message data. If the message is sent from the engine, the
      * documentation of the message specifies which data is supplied.
-     * </p>
      *
      * @name on_message
-     * @param self reference to the script state to be used for storing data (script_ref)
-     * @param message_id id of the received message (hash)
-     * @param message a table containing the message data (table)
-     * @param sender address of the sender (url)
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param message_id [type:hash] id of the received message
+     * @param message [type:table] a table containing the message data
+     * @param sender [type:url] address of the sender
      * @examples
-     * <p>
+     *
      * This example demonstrates how a game object instance, called "a", can communicate with another instance, called "b". It
      * is assumed that both script components of the instances has id "script".
-     * </p>
-     * <p>
+     *
      * Script of instance "a":
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     -- let b know about some important data
      *     msg.post("b#script", "my_data", {important_value = 1})
      * end
-     * </pre>
-     * <p>
+     * ```
+     *
      * Script of instance "b":
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     -- store the url of instance "a" for later use, by specifying nil as socket we
      *     -- automatically use our own socket
@@ -2070,84 +2125,77 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *         self.important_value = message.important_value
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# called when user input is received
-     * <p>
+     *
      * This is a callback-function, which is called by the engine when user input is sent to the game object instance of the script.
      * It can be used to take action on the input, e.g. move the instance according to the input.
-     * </p>
-     * <p>
-     * For an instance to obtain user input, it must first acquire input focus
-     * through the message <code>acquire_input_focus</code>.
      *
-     * Any instance that has obtained input will be put on top of an 
-     * input stack. Input is sent to all listeners on the stack until the 
-     * end of stack is reached, or a listener returns <code>true</code> 
+     * For an instance to obtain user input, it must first acquire input focus
+     * through the message `acquire_input_focus`.
+     *
+     * Any instance that has obtained input will be put on top of an
+     * input stack. Input is sent to all listeners on the stack until the
+     * end of stack is reached, or a listener returns `true`
      * to signal that it wants input to be consumed.
      *
-     * See the documentation of <code>acquire_input_focus</code> for more
+     * See the documentation of [ref:acquire_input_focus] for more
      * information.
-     * </p>
-     * <p>
-     * The <code>action</code> parameter is a table containing data about the input mapped to the <code>action_id</code>.
+     *
+     * The `action` parameter is a table containing data about the input mapped to the
+     * `action_id`.
      * For mapped actions it specifies the value of the input and if it was just pressed or released.
      * Actions are mapped to input in an input_binding-file.
-     * </p>
-     * <p>
-     * Mouse movement is specifically handled and uses <code>nil</code> as its <code>action_id</code>.
-     * The <code>action</code> only contains positional parameters in this case, such as x and y of the pointer.
-     * </p>
-     * <p>
-     * Here is a brief description of the available table fields:
-     * </p>
-     * <table>
-     *   <th>Field</th>
-     *   <th>Description</th>
-     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
-     *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_x</code></td><td>The screen space x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_y</code></td><td>The screen space y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_dx</code></td><td>The change in screen space x value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>screen_dy</code></td><td>The change in screen space y value of a pointer device, if present.</td></tr>
-     *   <tr><td><code>touch</code></td><td>List of touch input, one element per finger, if present. See table below about touch input</td></tr>
-     * </table>
      *
-     * <p>
+     * Mouse movement is specifically handled and uses `nil` as its `action_id`.
+     * The `action` only contains positional parameters in this case, such as x and y of the pointer.
+     *
+     * Here is a brief description of the available table fields:
+     *
+     * Field       | Description
+     * ----------- | ----------------------------------------------------------
+     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
+     * `pressed`   | If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.
+     * `released`  | If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.
+     * `repeated`  | If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
+     * `x`         | The x value of a pointer device, if present.
+     * `y`         | The y value of a pointer device, if present.
+     * `screen_x`  | The screen space x value of a pointer device, if present.
+     * `screen_y`  | The screen space y value of a pointer device, if present.
+     * `dx`        | The change in x value of a pointer device, if present.
+     * `dy`        | The change in y value of a pointer device, if present.
+     * `screen_dx` | The change in screen space x value of a pointer device, if present.
+     * `screen_dy` | The change in screen space y value of a pointer device, if present.
+     * `gamepad`   | The index of the gamepad device that provided the input.
+     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     *
      * Touch input table:
-     * </p>
-     * <table>
-     *   <th>Field</th>
-     *   <th>Description</th>
-     *   <tr><td><code>pressed</code></td><td>True if the finger was pressed this frame.</td></tr>
-     *   <tr><td><code>released</code></td><td>True if the finger was released this frame.</td></tr>
-     *   <tr><td><code>tap_count</code></td><td>Number of taps, one for single, two for double-tap, etc</td></tr>
-     *   <tr><td><code>x</code></td><td>The x touch location.</td></tr>
-     *   <tr><td><code>y</code></td><td>The y touch location.</td></tr>
-     *   <tr><td><code>dx</code></td><td>The change in x value.</td></tr>
-     *   <tr><td><code>dy</code></td><td>The change in y value.</td></tr>
-     *   <tr><td><code>acc_x</code></td><td>Accelerometer x value (if present).</td></tr>
-     *   <tr><td><code>acc_y</code></td><td>Accelerometer y value (if present).</td></tr>
-     *   <tr><td><code>acc_z</code></td><td>Accelerometer z value (if present).</td></tr>
-     * </table>
+     *
+     * Field       | Description
+     * ----------- | ----------------------------------------------------------
+     * `pressed`   | True if the finger was pressed this frame.
+     * `released`  | True if the finger was released this frame.
+     * `tap_count` | Number of taps, one for single, two for double-tap, etc
+     * `x`         | The x touch location.
+     * `y`         | The y touch location.
+     * `dx`        | The change in x value.
+     * `dy`        | The change in y value.
+     * `acc_x`     | Accelerometer x value (if present).
+     * `acc_y`     | Accelerometer y value (if present).
+     * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self reference to the script state to be used for storing data (script_ref)
-     * @param action_id id of the received input action, as mapped in the input_binding-file (hash)
-     * @param action a table containing the input data, see above for a description (table)
-     * @return optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false (boolean)
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
+     * @param action [type:table] a table containing the input data, see above for a description
+     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
-     * <p>
+     *
      * This example demonstrates how a game object instance can be moved as a response to user input.
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     -- acquire input focus
      *     msg.post(".", "acquire_input_focus")
@@ -2172,22 +2220,21 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *         end
      *     end
      * end
-     * </pre>
+     * ```
      */
 
     /*# called when the script component is reloaded
-     * <p>
+     *
      * This is a callback-function, which is called by the engine when the script component is reloaded, e.g. from the editor.
      * It can be used for live development, e.g. to tweak constants or set up the state properly for the instance.
-     * </p>
      *
      * @name on_reload
-     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param self [type:object] reference to the script state to be used for storing data
      * @examples
-     * <p>
+     *
      * This example demonstrates how to tweak the speed of a game object instance that is moved on user input.
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     -- acquire input focus
      *     msg.post(".", "acquire_input_focus")
@@ -2217,7 +2264,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *     -- edit this value and reload the script component
      *     self.max_speed = 100
      * end
-     * </pre>
+     * ```
      */
 
     /*# no playback
