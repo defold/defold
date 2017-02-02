@@ -580,9 +580,8 @@ public class Project {
                 }
 
                 // Get or build engine binary
-                boolean nativeExtEnabled = this.hasOption("native-ext");
                 List<String> extensionPaths = ExtenderUtil.getExtensionFolders(this);
-                boolean hasNativeExtensions = nativeExtEnabled && extensionPaths.size() > 0;
+                boolean hasNativeExtensions = extensionPaths.size() > 0;
                 if (hasNativeExtensions) {
                     buildEngine(monitor);
                 }
