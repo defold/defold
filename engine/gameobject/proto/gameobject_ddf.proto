@@ -110,6 +110,13 @@ message CollectionDesc
     repeated EmbeddedInstanceDesc   embedded_instances      = 5;
 }
 
+/*# Game object API documentation
+ *
+ * @document
+ * @name Game object
+ * @namespace go
+ */
+
 /*# acquires the user input focus
  *
  * Post this message to a game object instance to make that instance acquire the user input focus.

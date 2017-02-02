@@ -14,7 +14,7 @@ namespace dmGameSystem
 
 /*# Resource API documentation
  *
- * Functions and constants to access the resources
+ * Functions and constants to access resources.
  *
  * @document
  * @name Resource
@@ -99,7 +99,7 @@ static int Set(lua_State* L)
  * In order for the engine to include custom resources in the build process, you need
  * to specify them in the "game.project" settings file:
  *
- * ```
+ * ```ini
  * [project]
  * title = My project
  * version = 0.1

@@ -59,8 +59,6 @@ namespace dmEngineVersion
     waf_render.configure(conf)
     waf_gamesys.configure(conf)
 
-    conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
-
     conf.sub_config('src')
 
     operating_sys = build_util.get_target_os()
