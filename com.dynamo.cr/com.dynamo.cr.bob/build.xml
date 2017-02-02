@@ -236,8 +236,8 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
-                <include name="lib/**/PVRTexLib.dll"/>
-                <include name="lib/**/msvcr120.dll"/>
+                <include name="lib/**/*PVRTexLib.dll*"/>
+                <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
             <fileset dir=".">
                 <include name="libexec/**/*"/>
