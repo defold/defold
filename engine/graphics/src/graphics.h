@@ -1,5 +1,5 @@
-#ifndef DMGRAPHICS_GRAPHICS_H
-#define DMGRAPHICS_GRAPHICS_H
+#ifndef DM_GRAPHICS_H
+#define DM_GRAPHICS_H
 
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
@@ -604,4 +604,4 @@ namespace dmGraphics
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
 }
 
-#endif // DMGRAPHICS_GRAPHICS_H
+#endif // DM_GRAPHICS_H
