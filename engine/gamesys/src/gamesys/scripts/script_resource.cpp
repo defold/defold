@@ -14,7 +14,7 @@ namespace dmGameSystem
 
 /*# Resource API documentation
  *
- * Functions and constants to access the resources
+ * Functions and constants to access resources.
  *
  * @document
  * @name Resource

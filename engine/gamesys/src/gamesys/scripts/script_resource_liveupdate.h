@@ -9,9 +9,9 @@ extern "C"
 
 namespace dmLiveUpdate
 {
-    /*# Resource liveupdate API documentation
+    /*# Resource API documentation
      *
-     * Functions and for creating and controlling live update of resources.
+     * Functions and constants to access resources.
      *
      * @document
      * @name Resource
