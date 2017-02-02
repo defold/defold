@@ -101,7 +101,7 @@ message CollisionObjectDesc
  *
  * @document
  * @name Collision object
- * @namespace collision_object
+ * @namespace physics
  */
 
 /*# applies a force on a collision object
