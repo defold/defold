@@ -5,6 +5,10 @@ def configure(conf):
     pass
 
 def build(bld):
+    bld.add_subdirs('test')
+    bld.install_files('${PREFIX}/include/extension', 'extension.h')
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/extension', 'dmsdk/extension/extension.h')
+
     source = ['extension.cpp']
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ['extension_ios.cpp']
@@ -14,5 +18,3 @@ def build(bld):
                                  source = source,
                                  target = 'extension')
 
-    bld.add_subdirs('test')
-    bld.install_files('${PREFIX}/include/extension', 'extension.h')
