@@ -1,8 +1,6 @@
 package com.dynamo.cr.editor.builders;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -10,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IMarker;
@@ -182,48 +178,5 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             project.dispose();
         }
         return ret;
-    }
-
-    private void parseLog(String stdErr)
-            throws IOException, CoreException {
-        BufferedReader r = new BufferedReader(new StringReader(stdErr));
-        String line = r.readLine();
-
-        // Patterns for error parsing
-        // Group convention:
-        // 1: Filename
-        // 2: Line number
-        // 3: Message
-        Pattern[] pattens = new Pattern[] {
-            // ../content/models/box.model:4:29 : Message type "dmModelDDF.ModelDesc" has no field named "Textures2".
-            Pattern.compile("(.*?):(\\d+):\\d+[ ]?:[ ]*(.*)"),
-
-            //../content/models/box.model:0: error: is missing dependent resource file materials/simple.material2
-            Pattern.compile("(.*?):(\\d+):[ ]*(.*)")
-        };
-        while (line != null) {
-            line = line.trim();
-
-            for (Pattern p : pattens) {
-                Matcher m = p.matcher(line);
-                if (m.matches()) {
-                    // NOTE: We assume that the built file is always relative to from the build folder,
-                    // ie ../content/... This is how waf works.
-                    IFile resource = EditorUtil.getContentRoot(getProject()).getFolder("build").getFile(m.group(1));
-                    if (resource.exists())
-                    {
-                        IMarker marker = resource.createMarker(IMarker.PROBLEM);
-                        marker.setAttribute(IMarker.MESSAGE, m.group(3));
-                        marker.setAttribute(IMarker.LINE_NUMBER, Integer.parseInt(m.group(2)));
-                        marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
-                    }
-                    else {
-                        logger.warn("Unable to locate: " + resource.getFullPath());
-                    }
-                    break; // for (Pattern...)
-                }
-            }
-            line = r.readLine();
-        }
     }
 }
