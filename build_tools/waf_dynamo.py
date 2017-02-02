@@ -54,6 +54,88 @@ def copy_file_task(bld, src, name=None):
                             name = name,
                             shell = True)
 
+#   Extract api docs from source files and store the raw text in .apidoc
+#   files per file and namespace for later collation into .json and .sdoc files.
+def apidoc_extract_task(bld, src):
+    import re
+    def _strip_comment_stars(str):
+        lines = str.split('\n')
+        ret = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith('*'):
+                line = line[1:]
+                if line.startswith(' '):
+                    line = line[1:]
+            ret.append(line)
+        return '\n'.join(ret)
+
+    def _parse_comment(source):
+        str = _strip_comment_stars(source)
+        # The regexp means match all strings that:
+        # * begins with line start, possible whitespace and an @
+        # * followed by non-white-space (the tag)
+        # * followed by possible spaces
+        # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
+        lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
+        is_document = False
+        namespace = None
+        for (tag, value) in lst:
+            tag = tag.strip()
+            value = value.strip()
+            if tag == 'document':
+                is_document = True
+            elif tag == 'namespace':
+                namespace = value
+        return namespace, is_document
+
+    def ns_elements(source):
+        lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
+        elements = {}
+        default_namespace = None
+        for comment_str in lst:
+            ns, is_doc = _parse_comment(comment_str)
+            if ns and is_doc:
+                default_namespace = ns
+            if not ns:
+                ns = default_namespace
+            if ns not in elements:
+                elements[ns] = []
+            elements[ns].append('/' + comment_str + '*/')
+        return elements
+
+    import Node
+    from itertools import chain
+    from collections import defaultdict
+    elements = {}
+    def extract_docs(bld, src):
+        ret = defaultdict(list)
+        # Gather data
+        for s in src:
+            n = bld.path.find_resource(s)
+            with open(n.abspath(), 'r') as in_f:
+                source = in_f.read()
+                for k,v in chain(elements.items(), ns_elements(source).items()):
+                    if k == None:
+                        print("Missing namespace definition in " + n.abspath())
+                    ret[k] = ret[k] + v
+        return ret
+
+    def write_docs(task):
+        # Write all namespace files
+        for o in task.outputs:
+            ns = o.file_base()
+            with open(o.bldpath(task.env), 'w+') as out_f:
+                out_f.write('\n'.join(elements[ns]))
+
+    if not getattr(Options.options, 'skip_apidocs', False):
+        elements = extract_docs(bld, src)
+        target = []
+        for ns in elements.keys():
+            target.append(ns + '.apidoc')
+        return bld.new_task_gen(rule=write_docs, name='apidoc_extract', source = src, target = target)
+
+
 IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
 IOS_SDK_VERSION="9.3"
@@ -1317,5 +1399,6 @@ def set_options(opt):
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
+    opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')

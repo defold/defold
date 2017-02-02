@@ -104,7 +104,18 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "vmath",
                 "webview",
                 "window",
-                "zlib"
+                "zlib",
+                // Lua libs
+        		"base",
+        		"debug",
+        		"math",
+        		"string",
+        		"table",
+        		"coroutine",
+        		"io",
+        		"package",
+        		"os",
+        		"bit"
         };
         for (String doc : docs) {
             loadDocumentation(String.format("doc/%s_doc.sdoc", doc));

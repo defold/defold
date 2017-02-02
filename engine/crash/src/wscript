@@ -1,5 +1,7 @@
 #! /usr/bin/env python
+
 import os, re
+from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
     pass
@@ -46,15 +48,6 @@ def build(bld):
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/crash', 'crash.h')
 
-    bld.new_task_gen(source = 'extension.cpp',
-                     target = 'crash_doc.json',
-                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
-
-    bld.new_task_gen(source = 'extension.cpp',
-                     target = 'crash_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-    bld.install_files('${PREFIX}/share/doc', 'crash_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'crash_doc.json')
+    apidoc_extract_task(bld, ['extension.cpp'])
 
 
