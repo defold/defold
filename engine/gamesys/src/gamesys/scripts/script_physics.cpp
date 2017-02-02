@@ -44,7 +44,7 @@ namespace dmGameSystem
 
     /*# [type:number] collision object mass
      *
-     * [READ ONLY] Returns the defined physical mass of the collision object component as a number.
+     * [mark:READ ONLY] Returns the defined physical mass of the collision object component as a number.
      *
      * @name mass
      * @property
@@ -63,7 +63,7 @@ namespace dmGameSystem
 
     /*# [type:vector3] collision object linear velocity
      *
-     * [READ ONLY] Returns the current linear velocity of the collision object component as a [type:vector3].
+     * [mark:READ ONLY] Returns the current linear velocity of the collision object component as a vector3.
      * The velocity is measured in units/s (pixels/s).
      *
      * @name linear_velocity
@@ -87,7 +87,7 @@ namespace dmGameSystem
 
     /*# [type:vector3] collision object angular velocity
      *
-     * [READ ONLY] Returns the current linear velocity of the collision object component as a [type:vector3].
+     * [mark:READ ONLY] Returns the current linear velocity of the collision object component as a [type:vector3].
      * The velocity is measured as a rotation around the vector with a speed equivalent to the vector length
      * in radians/s.
      *
