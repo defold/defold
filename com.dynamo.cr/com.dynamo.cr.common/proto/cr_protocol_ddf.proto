@@ -127,6 +127,7 @@ message ProjectSite {
     repeated Screenshot screenshots = 10;
     repeated UserInfo members = 11;
     optional int64 project_id = 12;
+    optional string playableUrl = 13; 
 
     message AppStoreReference {
         required int64 id = 1;
