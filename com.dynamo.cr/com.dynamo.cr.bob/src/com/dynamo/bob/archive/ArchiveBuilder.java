@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
 import java.nio.channels.ShutdownChannelGroupException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -86,13 +87,20 @@ public class ArchiveBuilder {
         return Crypt.encryptCTR(buffer, KEY);
     }
 
-    public void writeResourcePack(String filename, String directory, byte[] buffer) throws IOException {
+    public void writeResourcePack(String filename, String directory, byte[] buffer, byte flags, int size) throws IOException {
         FileOutputStream outputStream = null;
         try {
             File fhandle = new File(directory, filename);
             if (!fhandle.exists()) {
+                byte[] padding = new byte[11];
+                byte[] size_bytes = ByteBuffer.allocate(4).putInt(size).array(); 
+                Arrays.fill(padding, (byte)0xED);
                 outputStream = new FileOutputStream(fhandle);
+                outputStream.write(size_bytes); // 4 bytes
+                outputStream.write(flags); // 1 byte
+                outputStream.write(padding); // 11 bytes
                 outputStream.write(buffer);
+                
             }
         } finally {
             IOUtils.closeQuietly(outputStream);
@@ -127,11 +135,12 @@ public class ArchiveBuilder {
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
-
+            byte flags = 0;
             if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
+                    flags = ArchiveEntry.FLAG_COMPRESSED;
                     buffer = compressed;
                     entry.compressedSize = compressed.length;
                 } else {
@@ -142,6 +151,7 @@ public class ArchiveBuilder {
             // Encrypt data
             String extension = FilenameUtils.getExtension(entry.fileName);
             if (ENCRYPTED_EXTS.indexOf(extension) != -1) {
+                flags = (byte) (flags | ArchiveEntry.FLAG_ENCRYPTED);
                 entry.flags = ArchiveEntry.FLAG_ENCRYPTED;
                 buffer = this.encryptResourceData(buffer);
             }
@@ -163,7 +173,7 @@ public class ArchiveBuilder {
 
             // Write resource to data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
-                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer);
+                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, flags, entry.size);
                 entries.remove(i);
             } else {
                 alignBuffer(archiveData, 4);

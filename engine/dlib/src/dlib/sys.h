@@ -164,6 +164,14 @@ namespace dmSys
     Result Unlink(const char* path);
 
     /**
+     * Move a file
+     * @param dst_filename the destination filename. The file which contents is to be overwritten.
+     * @param src_filename the source filename. The contents will be written to the destination filename and the file unlinked if successful.
+     * @return RESULT_OK on success
+    */
+    Result WriteWithMove(const char* dst_filename, const char* src_filename);
+
+    /**
      * Get and create platform specific application support directory.
      * Example paths:
      * OSX: ~/Library/Application Support/APPLICATION_NAME
