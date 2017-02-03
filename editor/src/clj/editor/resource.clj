@@ -145,6 +145,24 @@
 
 (core/register-record-type! ZipResource)
 
+(core/register-read-handler!
+ "zip-resource"
+ (transit/read-handler
+  (fn [{:keys [workspace ^String zip-file name path data children]}]
+    (ZipResource. workspace (File. zip-file) name path data children))))
+
+(core/register-write-handler!
+ ZipResource
+ (transit/write-handler
+  (constantly "zip-resource")
+  (fn [^ZipResource r]
+    {:workspace (:workspace r)
+     :zip-file  (.getPath ^File (:zip-file r))
+     :name      (:name r)
+     :path      (:path r)
+     :data      (:data r)     
+     :children  (:children r)})))
+
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "ZipResource{:workspace %s :path %s :children %s}" (:workspace zip-resource) (:path zip-resource) (str (:children zip-resource)))))
 
