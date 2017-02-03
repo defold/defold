@@ -15,9 +15,8 @@ namespace dmLiveUpdate
         return dmResource::HashLength(algorithm) * 2U;
     }
 
-    HResourceEntry FindResourceEntry(const HManifestFile manifest, const char* path)
+    HResourceEntry FindResourceEntry(const HManifestFile manifest, const dmhash_t urlHash)
     {
-        uint64_t hash = dmHashString64(path);
         HResourceEntry entries = manifest->m_Data.m_Resources.m_Data;
 
         int first = 0;
@@ -26,15 +25,15 @@ namespace dmLiveUpdate
         {
             int mid = first + (last - first) / 2;
             uint64_t currentHash = entries[mid].m_UrlHash;
-            if (currentHash == hash)
+            if (currentHash == urlHash)
             {
                 return &entries[mid];
             }
-            else if (currentHash > hash)
+            else if (currentHash > urlHash)
             {
                 last = mid - 1;
             }
-            else if (currentHash < hash)
+            else if (currentHash < urlHash)
             {
                 first = mid + 1;
             }
@@ -43,7 +42,7 @@ namespace dmLiveUpdate
         return NULL;
     }
 
-    uint32_t MissingResources(dmResource::Manifest* manifest, const char* path, uint8_t* entries[], uint32_t entries_size)
+    uint32_t MissingResources(dmResource::Manifest* manifest, const dmhash_t urlHash, uint8_t* entries[], uint32_t entries_size)
     {
         uint32_t resources = 0;
 
@@ -52,7 +51,7 @@ namespace dmLiveUpdate
             return 0;
         }
 
-        HResourceEntry entry = FindResourceEntry(manifest->m_DDF, path);
+        HResourceEntry entry = FindResourceEntry(manifest->m_DDF, urlHash);
         if (entry != NULL)
         {
             for (uint32_t i = 0; i < entry->m_Dependants.m_Count; ++i)
