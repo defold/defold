@@ -17,14 +17,20 @@ namespace dmScript
     */
     struct LuaStackCheck
     {
+        /// The Lua state to check
         lua_State* m_L;
+        /// The current top of the Lua stack (from lua_gettop())
         int m_Top;
+        /// The expected difference in stack size when this sctruct goes out of scope
         int m_Diff;
         LuaStackCheck(lua_State* L, int diff);
         ~LuaStackCheck();
     };
     
-    /** A helper macro to validate the Lua stack state before leaving a function. Diff is the expected difference of the stack size.
+    /** A helper macro to validate the Lua stack state before leaving a function.
+     * Diff is the expected difference of the stack size.
+     * @param L     lua state
+     * @param diff  (int) Number of expected items to be on the Lua stack once this struct goes out of scope
     */
     #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);
 
