@@ -55,7 +55,10 @@ namespace dmScript
     *
     * - [type:number] `width`: image width
     * - [type:number] `height`: image height
-    * - [type:constant] `type`: image type (image.TYPE_RGB, image.TYPE_RGBA or image.TYPE_LUMINANCE)
+    * - [type:constant] `type`: image type
+    *     - `image.TYPE_RGB`
+    *     - `image.TYPE_RGBA`
+    *     - `image.TYPE_LUMINANCE`
     * - [type:string] `buffer`: the raw image data
     *
     * @examples
