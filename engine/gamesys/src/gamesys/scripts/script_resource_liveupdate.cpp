@@ -64,25 +64,6 @@ namespace dmLiveUpdate
         return 0;
     }
 
-    int CollectionProxy_MissingResources(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        const char* path = luaL_checkstring(L, 1);
-
-        char** buffer = 0x0;
-        uint32_t resourceCount = dmLiveUpdate::GetMissingResources(path, &buffer);
-
-        lua_createtable(L, resourceCount, 0);
-        for (uint32_t i = 0; i < resourceCount; ++i)
-        {
-            lua_pushnumber(L, i + 1);
-            lua_pushstring(L, buffer[i]);
-            lua_settable(L, -3);
-        }
-
-        return 1;
-    }
-
     int Resource_VerifyResource(lua_State* L)
     {
         int top = lua_gettop(L);

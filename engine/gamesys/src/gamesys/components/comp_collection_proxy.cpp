@@ -77,6 +77,22 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, uint32_t index)
+    {
+        dmhash_t comp_url_hash = 0;
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
+        {
+            dmGameSystem::CollectionProxyComponent* c = &world->m_Components[i];
+            if (c->m_ComponentIndex == index)
+            {
+                comp_url_hash = c->m_Resource->m_UrlHash;
+                break;
+            }
+        }
+
+        return comp_url_hash;
+    }
+
     dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CollectionProxyWorld* proxy_world = new CollectionProxyWorld();
