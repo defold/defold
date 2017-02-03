@@ -10,30 +10,9 @@
 
 namespace dmGameSystem
 {
-    struct CollectionProxyComponent
-    {
-        dmMessage::URL                  m_Unloader;
-        CollectionProxyResource*        m_Resource;
-        dmGameObject::HCollection       m_Collection;
-        dmGameObject::HInstance         m_Instance;
-        dmGameSystemDDF::TimeStepMode   m_TimeStepMode;
-        float                           m_TimeStepFactor;
-        float                           m_AccumulatedTime;
-        uint32_t                        m_ComponentIndex : 8;
-        uint32_t                        m_Initialized : 1;
-        uint32_t                        m_Enabled : 1;
-        uint32_t                        m_Unloaded : 1;
-        uint32_t                        m_AddedToUpdate : 1;
+    typedef struct CollectionProxyWorld* HCollectionProxyWorld;
 
-        dmResource::HPreloader          m_Preloader;
-        dmMessage::URL                  m_LoadSender, m_LoadReceiver;
-    };
-
-    struct CollectionProxyWorld
-    {
-        dmArray<CollectionProxyComponent>   m_Components;
-        dmIndexPool32                       m_IndexPool;
-    };
+    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, uint32_t index);
 
     dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 

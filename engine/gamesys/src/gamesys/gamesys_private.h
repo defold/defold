@@ -32,6 +32,14 @@ namespace dmGameSystem
     };
 
     /**
+     * Return current game object instance, if any.
+     * Must be called from within a lua pcall, since it long jumps if no instance can be found.
+     * @param L lua state
+     * @return instance
+     */
+    dmGameObject::HInstance CheckGoInstance(lua_State* L);
+
+    /**
      * Log message error. The function will send a formatted printf-style string to dmLogError
      * and append message sender/receiver information on the following format:
      * Message <MESSAGE-ID> sent from <SENDER> to <RECEIVER>. For format-string should be a complete sentence including

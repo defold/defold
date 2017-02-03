@@ -33,6 +33,31 @@ namespace dmGameSystem
 
     const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";
 
+    struct CollectionProxyComponent
+    {
+        dmMessage::URL                  m_Unloader;
+        CollectionProxyResource*        m_Resource;
+        dmGameObject::HCollection       m_Collection;
+        dmGameObject::HInstance         m_Instance;
+        dmGameSystemDDF::TimeStepMode   m_TimeStepMode;
+        float                           m_TimeStepFactor;
+        float                           m_AccumulatedTime;
+        uint32_t                        m_ComponentIndex : 8;
+        uint32_t                        m_Initialized : 1;
+        uint32_t                        m_Enabled : 1;
+        uint32_t                        m_Unloaded : 1;
+        uint32_t                        m_AddedToUpdate : 1;
+
+        dmResource::HPreloader          m_Preloader;
+        dmMessage::URL                  m_LoadSender, m_LoadReceiver;
+    };
+
+    struct CollectionProxyWorld
+    {
+        dmArray<CollectionProxyComponent>   m_Components;
+        dmIndexPool32                       m_IndexPool;
+    };
+
     static dmGameObject::UpdateResult DoLoad(dmResource::HFactory factory, CollectionProxyComponent *proxy)
     {
         dmResource::Result result = dmResource::Get(factory, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
@@ -50,6 +75,22 @@ namespace dmGameSystem
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, uint32_t index)
+    {
+        dmhash_t comp_url_hash = 0;
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
+        {
+            dmGameSystem::CollectionProxyComponent* c = &world->m_Components[i];
+            if (c->m_ComponentIndex == index)
+            {
+                comp_url_hash = c->m_Resource->m_UrlHash;
+                break;
+            }
+        }
+
+        return comp_url_hash;
     }
 
     dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params)
