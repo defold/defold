@@ -43,12 +43,12 @@ namespace dmScript
     /*# perform a HTTP/HTTPS request
      * Perform a HTTP/HTTPS request.
      *
-     * [icon:attention] If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is 0. (0 == blocks indefinitely)
+     * [icon:attention] If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is `0` (which blocks indefinitely).
      *
      * @name http.request
      * @replaces facebook.me
      * @param url [type:string] target url
-     * @param method [type:string] HTTP/HTTPS method, e.g. "GET" / "PUT" / "POST" / "DELETE" /...
+     * @param method [type:string] HTTP/HTTPS method, e.g. "GET", "PUT", "POST" etc.
      * @param callback [type:function(self, id, response)] response callback function
      *
      * `self`
@@ -64,8 +64,6 @@ namespace dmScript
      * - [type:string] `response`: the response data
      * - [type:table] `headers`: all the returned headers
      *
-     * in the fields status, the response (the data) and headers (a table).
-     *
      * @param [headers] [type:table] optional table with custom headers
      * @param [post_data] [type:string] optional data to send
      * @param [options] [type:table] optional table with request parameters. Supported entries:
@@ -78,7 +76,7 @@ namespace dmScript
      * in the fields status, the response (the data) and headers (a table).
      *
      * ```lua
-     * local function http_result(self, id, response)
+     * local function http_result(self, _, response)
      *     print(response.status)
      *     print(response.response)
      *     pprint(response.headers)
