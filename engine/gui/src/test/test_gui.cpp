@@ -197,6 +197,7 @@ public:
     std::map<std::string, Point3> m_NodeTextToRenderedPosition;
     std::map<std::string, Vector3> m_NodeTextToRenderedSize;
 
+    dmRig::HRigContext      m_RigContext;
     dmRig::HRigInstance     m_RigInstance;
     dmArray<dmRig::RigBone> m_BindPose;
     dmRigDDF::Skeleton*     m_Skeleton;
@@ -225,7 +226,7 @@ public:
         m_Context->m_SceneTraversalCache.m_Data.SetSize(MAX_NODES);
 
         dmRig::NewContextParams rig_params = {0};
-        rig_params.m_Context = &m_Context->m_RigContext;
+        rig_params.m_Context = &m_RigContext;
         rig_params.m_MaxRigInstanceCount = 2;
         dmRig::NewContext(rig_params);
 
@@ -235,6 +236,7 @@ public:
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
+        params.m_RigContext = m_RigContext;
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         params.m_OnWindowResizeCallback = OnWindowResizeCallback;
@@ -270,7 +272,7 @@ public:
         TearDownSimpleSpine();
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
-        dmRig::DeleteContext(m_Context->m_RigContext);
+        dmRig::DeleteContext(m_RigContext);
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmMessage::DeleteSocket(m_Socket);
         dmScript::Finalize(m_ScriptContext);
@@ -283,7 +285,7 @@ private:
     {
         m_RigInstance = 0x0;
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = m_Context->m_RigContext;
+        create_params.m_Context = m_RigContext;
         create_params.m_Instance = &m_RigInstance;
 
         m_Skeleton     = new dmRigDDF::Skeleton();
@@ -506,7 +508,7 @@ private:
     void TearDownSimpleSpine() {
 
         dmRig::InstanceDestroyParams destroy_params = {0};
-        destroy_params.m_Context = m_Context->m_RigContext;
+        destroy_params.m_Context = m_RigContext;
         destroy_params.m_Instance = m_RigInstance;
         if (dmRig::RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
             dmLogError("Could not delete rig instance!");
