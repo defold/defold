@@ -1,8 +1,6 @@
 #ifndef H_SCRIPT_COLLECTIONPROXY
 #define H_SCRIPT_COLLECTIONPROXY
 
-#include <dlib/hash.h>
-
 extern "C"
 {
 #include <lua/lua.h>

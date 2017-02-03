@@ -2,11 +2,7 @@
 #define DM_GAMESYS_COLLECTION_PROXY_H
 
 #include <gameobject/gameobject.h>
-
 #include <dlib/index_pool.h>
-
-#include "gamesys_ddf.h"
-#include "resources/res_collection_proxy.h"
 
 namespace dmGameSystem
 {
