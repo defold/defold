@@ -59,9 +59,6 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         options.put("platform", "armv7-darwin");
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
 
-        if (EditorUtil.isDev()) {
-            options.put("native-ext", "true");
-        }
         EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
         String sdkVersion = corePlugin.getSha1();
         if (sdkVersion == "NO SHA1") {

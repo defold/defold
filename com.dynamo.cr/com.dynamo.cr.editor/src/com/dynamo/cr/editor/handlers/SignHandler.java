@@ -161,7 +161,6 @@ public class SignHandler extends AbstractHandler {
                     String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
 
                     tmpProject.setOption("build-server", nativeExtServerURI);
-                    tmpProject.setOption("native-ext", "true");
                     tmpProject.setOption("binary-output", buildDirectory);
                     tmpProject.setOption("platform", Platform.Arm64Darwin.getPair());
 

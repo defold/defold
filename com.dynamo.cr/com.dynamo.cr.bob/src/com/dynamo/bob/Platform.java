@@ -7,7 +7,7 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 
 public enum Platform {
-    X86Darwin("x86", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
+    X86Darwin("x86", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformArchitectures.OSX, "x86-osx"),
     X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
     X86Win32("x86", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86-windows"}, PlatformArchitectures.Windows, "x86-windows"),
     X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86_64-windows"}, PlatformArchitectures.Windows, "x86_64-windows"),
