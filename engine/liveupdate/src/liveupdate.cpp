@@ -27,14 +27,14 @@ namespace dmLiveUpdate
      ** LiveUpdate utility functions
      ********************************************************************** **/
 
-    uint32_t GetMissingResources(const char* path, char*** buffer)
+    uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
     {
-        uint32_t resourceCount = MissingResources(g_LiveUpdate.m_Manifest, path, NULL, 0);
+        uint32_t resourceCount = MissingResources(g_LiveUpdate.m_Manifest, urlHash, NULL, 0);
         if (resourceCount > 0)
         {
             uint8_t** resources = (uint8_t**) malloc(resourceCount * sizeof(uint8_t*));
             *buffer = (char**) malloc(resourceCount * sizeof(char**));
-            MissingResources(g_LiveUpdate.m_Manifest, path, resources, resourceCount);
+            MissingResources(g_LiveUpdate.m_Manifest, urlHash, resources, resourceCount);
 
             dmLiveUpdateDDF::HashAlgorithm algorithm = g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
             uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
