@@ -1,5 +1,5 @@
 context:
-    includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
+    includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include']
     symbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",  "AudioDecoderTremolo"]
 
 main: |
