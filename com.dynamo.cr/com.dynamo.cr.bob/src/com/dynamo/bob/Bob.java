@@ -279,9 +279,6 @@ public class Bob {
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
         }
-        if (!cmd.hasOption("build-server")) {
-            project.setOption("build-server", "https://build.defold.com");
-        }
 
         String secretKey = getOptionsValue(cmd, 's', null);
         boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
