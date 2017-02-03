@@ -645,4 +645,19 @@ namespace dmScript
     {
         return (uint32_t)lua_gc(L, LUA_GCCOUNT, 0);
     }
+
+    LuaStackCheck::LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff)
+    {
+    }
+
+    LuaStackCheck::~LuaStackCheck()
+    {
+        uint32_t expected = m_Top + m_Diff;
+        uint32_t actual = lua_gettop(m_L);
+        if (expected != actual)
+        {
+            dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
+            assert(expected == actual);
+        }
+    }
 }

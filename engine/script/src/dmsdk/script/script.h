@@ -13,6 +13,36 @@ extern "C"
 namespace dmScript
 {
     /**
+     *  A utility to make sure we check the Lua stack state before leaving a function. m_Diff is the expected difference of the stack size.
+    */
+    struct LuaStackCheck
+    {
+        lua_State* m_L;
+        int m_Top;
+        int m_Diff;
+        LuaStackCheck(lua_State* L, int diff);
+        ~LuaStackCheck();
+    };
+    
+    /** A helper macro to validate the Lua stack state before leaving a function. Diff is the expected difference of the stack size.
+    */
+    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);
+
+    /** A wrapper for luaL_ref(L, LUA_REGISTRYINDEX). It also tracks number of global references kept
+     * @param L lua state
+     * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
+     * @return the new reference
+    */
+    int Ref(lua_State* L, int table);
+
+    /** A wrapper for luaL_unref. It also decreases the number of global references kept
+     * @param L lua state
+     * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
+     * @param reference the reference to the object
+    */
+    void Unref(lua_State* L, int table, int reference);
+
+    /**
      * Check if the value at #index is a HBuffer
      * @param L Lua state
      * @param index Index of the value
