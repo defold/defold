@@ -436,6 +436,19 @@ public class GameProjectBuilder extends Builder<Void> {
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
                 createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources);
+                
+                FileInputStream archiveIndexIdInputStream = null;
+                
+                try {
+                    archiveIndexIdInputStream = new FileInputStream(archiveIndexHandle);
+                    byte[] bytes = IOUtils.toByteArray(archiveIndexIdInputStream);
+                    byte[] archiveIndexHash = ManifestBuilder.CryptographicOperations.createHashDigest(bytes, HashAlgorithm.HASH_MD5).toByteArray();//ManifestBuilder.CryptographicOperations.hash(bytes, HashAlgorithm.HASH_MD5);
+                    manifestBuilder.setArchiveIdentifier(archiveIndexHash);
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IOException("Hash algorithm for archive identifier not supported", e);
+                } finally {
+                    IOUtils.closeQuietly(archiveIndexIdInputStream);
+                }
 
                 // Create manifest
                 byte[] manifestFile = manifestBuilder.buildManifest();

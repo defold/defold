@@ -102,7 +102,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
     int index = -1;
     dmResourceArchive::CalcInsertionIndex(archive, sorted_middle_hash, index);
     ASSERT_TRUE(index >= 0);
-    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, 0x0, sorted_middle_hash, 20, index, resource);
+    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, 0x0, sorted_middle_hash, 20, index, resource, 0x0);
     ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
     uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
     ASSERT_EQ(6U, entry_count_after);

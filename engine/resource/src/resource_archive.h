@@ -69,6 +69,24 @@ namespace dmResourceArchive
         LiveUpdateResourceHeader* m_Header;
     };
 
+    struct LiveUpdateEntries {
+        LiveUpdateEntries(const uint8_t* hashes, uint32_t hash_len, EntryData* entry_datas, uint32_t num_entries) {
+            m_Hashes = hashes;
+            m_HashLen = hash_len;
+            m_Entries = entry_datas;
+            m_Count = num_entries;
+        }
+
+        LiveUpdateEntries() {
+            memset(this, 0, sizeof(LiveUpdateEntries));
+        }
+
+        const uint8_t* m_Hashes;
+        uint32_t m_HashLen;
+        EntryData* m_Entries;
+        uint32_t m_Count;
+    };
+
     /**
      * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
      * archive is not needed.
@@ -124,6 +142,18 @@ namespace dmResourceArchive
     Result CalcInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int& index);
 
     Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
+
+    Result ReloadBundledArchiveIndex(
+        const char* bundled_index_path, 
+        const char* bundled_resourc_path,
+        const char* lu_index_path,
+        const char* lu_resource_path,
+        ArchiveIndexContainer*& lu_index_container,
+        void*& index_mount_info);
+
+    //void SetArchiveIdentifier(HArchiveIndexContainer& archive_container, uint8_t* archive_id, uint32_t archive_id_len);
+
+    int CmpArchiveIdentifier(const HArchiveIndexContainer archive_container, uint8_t* archive_id, uint32_t len);
 
 }  // namespace dmResourceArchive
 

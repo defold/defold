@@ -22,6 +22,7 @@
 #include <dlib/http_cache.h>
 #include <dlib/http_cache_verify.h>
 #include <dlib/math.h>
+#include <dlib/md5.h>
 #include <dlib/memory.h>
 #include <dlib/uri.h>
 #include <dlib/path.h>
@@ -257,6 +258,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     const uint32_t manifest_extension_length = strlen("dmanifest");
     const uint32_t index_extension_length = strlen("arci");
     
+    char archive_index_path[DMPATH_MAX_PATH];
     char archive_resource_path[DMPATH_MAX_PATH];
     char liveupdate_index_path[DMPATH_MAX_PATH];
     char app_support_path[DMPATH_MAX_PATH];
@@ -264,6 +266,9 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
 
     dmStrlCpy(archive_resource_path, manifestPath, strlen(manifestPath) - manifest_extension_length + 1);
     dmStrlCat(archive_resource_path, "arcd", DMPATH_MAX_PATH);
+    // derive path to arci file from path to arcd file
+    dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
+    archive_index_path[strlen(archive_index_path) - 1] = 'i';
     
     HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
@@ -273,11 +278,9 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
 
     if (!luIndexExists)
     {
-        // derive path to arci file from path to arcd file
-        char archive_index_path[DMPATH_MAX_PATH];
-        dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
-        archive_index_path[strlen(archive_index_path) - 1] = 'i';
+        dmLogInfo("NO LU INDEX,  bundled index path = %s", archive_index_path);
         result = MountArchiveInternal(archive_index_path, archive_resource_path, 0x0, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
+        //dmResourceArchive::SetArchiveIdentifier(factory->m_Manifest->m_ArchiveIndex, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count);
     }
     else // If a liveupdate index exists, use that one instead
     {
@@ -302,7 +305,17 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
             }
             dmSys::Unlink(temp_archive_index_path);
         }
+        uint8_t* archive_id = factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data;
+        uint32_t archive_id_len = 16; //MD5 //factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count;
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
+        // compare archive identifier of manifest ddf with archive identifier on ArchiveIndex here factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data
+        int archive_id_cmp = dmResourceArchive::CmpArchiveIdentifier(factory->m_Manifest->m_ArchiveIndex, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count);
+        dmLogInfo("Archive id compare: %i", archive_id_cmp);
+        if (archive_id_cmp != 0)
+        {
+            dmLogInfo("Reloading bundled index");
+            dmResourceArchive::Result reload_res = ReloadBundledArchiveIndex(archive_index_path, archive_resource_path, liveupdate_index_path, liveupdate_resource_path, factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
+        }
 	}
 
     return result;

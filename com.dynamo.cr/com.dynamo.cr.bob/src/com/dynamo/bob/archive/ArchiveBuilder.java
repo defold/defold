@@ -131,6 +131,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(0); // EntryOffset
         archiveIndex.writeInt(0); // HashOffset
         archiveIndex.writeInt(0); // HashLength
+        //archiveIndex.write(new byte[16]);
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
@@ -198,8 +199,21 @@ public class ArchiveBuilder {
             archiveIndex.writeInt(entry.compressedSize);
             archiveIndex.writeInt(entry.flags);
         }
-
-        // Update index header with offsets.
+        
+        /*byte[] archiveIndexMD5 = new byte[16];
+        try {
+            // Calc index file MD5 hash
+            archiveIndex.seek(0);
+            long num_bytes = archiveIndex.length();
+            byte[] archiveIndexBytes = new byte[(int) num_bytes];            
+            archiveIndex.readFully(archiveIndexBytes);
+            archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
+        } catch (NoSuchAlgorithmException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }*/
+        
+        // Update index header with offsets
         archiveIndex.seek(0);
         archiveIndex.writeInt(VERSION);
         archiveIndex.writeInt(0); // Pad
@@ -208,6 +222,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
+        //archiveIndex.write(archiveIndexMD5);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
@@ -309,6 +324,18 @@ public class ArchiveBuilder {
 
             List<String> excludedResources = new ArrayList<String>();
             archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+            
+            FileInputStream archiveIndexIdInputStream = null;
+            try {
+                archiveIndexIdInputStream = new FileInputStream(filepathArchiveIndex);
+                byte[] bytes = IOUtils.toByteArray(archiveIndexIdInputStream);
+                byte[] archiveIndexHash = ManifestBuilder.CryptographicOperations.hash(bytes, HashAlgorithm.HASH_MD5);
+                manifestBuilder.setArchiveIdentifier(archiveIndexHash);
+            } catch (NoSuchAlgorithmException e) {
+                throw new IOException("Hash algorithm for archive identifier not supported", e);
+            } finally {
+                IOUtils.closeQuietly(archiveIndexIdInputStream);
+            }
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();
