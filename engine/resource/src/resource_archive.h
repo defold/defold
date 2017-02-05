@@ -143,15 +143,7 @@ namespace dmResourceArchive
 
     Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
 
-    Result ReloadBundledArchiveIndex(
-        const char* bundled_index_path, 
-        const char* bundled_resourc_path,
-        const char* lu_index_path,
-        const char* lu_resource_path,
-        ArchiveIndexContainer*& lu_index_container,
-        void*& index_mount_info);
-
-    //void SetArchiveIdentifier(HArchiveIndexContainer& archive_container, uint8_t* archive_id, uint32_t archive_id_len);
+    Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resourc_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info);
 
     int CmpArchiveIdentifier(const HArchiveIndexContainer archive_container, uint8_t* archive_id, uint32_t len);
 

@@ -41,6 +41,7 @@ public class ArchiveBuilder {
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
+    private byte[] archiveIndexMD5 = new byte[16];
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder) {
         this.root = new File(root).getAbsolutePath();
@@ -64,6 +65,10 @@ public class ArchiveBuilder {
 
     public int getArchiveEntrySize() {
         return this.entries.size();
+    }
+    
+    public byte[] getArchiveIndexHash() {
+        return this.archiveIndexMD5;
     }
 
     public byte[] loadResourceData(String filepath) throws IOException {
@@ -131,7 +136,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(0); // EntryOffset
         archiveIndex.writeInt(0); // HashOffset
         archiveIndex.writeInt(0); // HashLength
-        //archiveIndex.write(new byte[16]);
+        archiveIndex.write(new byte[16]);
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
@@ -200,18 +205,18 @@ public class ArchiveBuilder {
             archiveIndex.writeInt(entry.flags);
         }
         
-        /*byte[] archiveIndexMD5 = new byte[16];
+        byte[] archiveIndexMD5 = new byte[16];
         try {
             // Calc index file MD5 hash
             archiveIndex.seek(0);
             long num_bytes = archiveIndex.length();
             byte[] archiveIndexBytes = new byte[(int) num_bytes];            
             archiveIndex.readFully(archiveIndexBytes);
-            archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
+            this.archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
         } catch (NoSuchAlgorithmException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-        }*/
+        }
         
         // Update index header with offsets
         archiveIndex.seek(0);
@@ -222,7 +227,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
-        //archiveIndex.write(archiveIndexMD5);
+        archiveIndex.write(this.archiveIndexMD5);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
@@ -324,18 +329,7 @@ public class ArchiveBuilder {
 
             List<String> excludedResources = new ArrayList<String>();
             archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
-            
-            FileInputStream archiveIndexIdInputStream = null;
-            try {
-                archiveIndexIdInputStream = new FileInputStream(filepathArchiveIndex);
-                byte[] bytes = IOUtils.toByteArray(archiveIndexIdInputStream);
-                byte[] archiveIndexHash = ManifestBuilder.CryptographicOperations.hash(bytes, HashAlgorithm.HASH_MD5);
-                manifestBuilder.setArchiveIdentifier(archiveIndexHash);
-            } catch (NoSuchAlgorithmException e) {
-                throw new IOException("Hash algorithm for archive identifier not supported", e);
-            } finally {
-                IOUtils.closeQuietly(archiveIndexIdInputStream);
-            }
+            manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();

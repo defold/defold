@@ -54,7 +54,7 @@ namespace dmResourceArchive
         uint32_t m_EntryDataOffset;
         uint32_t m_HashOffset;
         uint32_t m_HashLength;
-        //uint8_t  m_ArchiveIndexMD5[16];
+        uint8_t  m_ArchiveIndexMD5[16];
     };
 
     struct ArchiveIndexContainer
@@ -95,11 +95,6 @@ namespace dmResourceArchive
     }
     // END DEBUG
 
-
-    // Forward decl. Could be moved to resource_archive_private.h
-    void DeepCopyArchiveIndex(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc);
-    Result CalcInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int& index);
-
     Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
@@ -128,17 +123,14 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    /*void SetArchiveIdentifier(HArchiveIndexContainer& archive_container, uint8_t* archive_id, uint32_t archive_id_len)
-    {
-        assert(archive_id);
-        memcpy(archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, archive_id, archive_id_len);
-    }*/
-
     int CmpArchiveIdentifier(const HArchiveIndexContainer archive_container, uint8_t* archive_id, uint32_t len)
     {
         dmLogInfo("Comparing hashes, len = %u", len);
-        //return memcmp(archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, archive_id, len);
-        return 0;
+        dmLogInfo("Printing MD5:s...");
+        PrintHash(archive_id, len);
+        PrintHash(archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, len);
+
+        return memcmp(archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, archive_id, len);
     }
 
     void StoreLiveUpdateEntries(const ArchiveIndexContainer* archive_container, LiveUpdateEntries* lu_hashes_entries, uint32_t& num_lu_entries)
@@ -187,13 +179,7 @@ namespace dmResourceArchive
         lu_hashes_entries->m_Count = num_lu_entries;
     }
 
-    Result ReloadBundledArchiveIndex(
-        const char* bundled_index_path, 
-        const char* bundled_resourc_path,
-        const char* lu_index_path,
-        const char* lu_resource_path,
-        ArchiveIndexContainer*& lu_index_container,
-        void*& index_mount_info)
+    Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resourc_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info)
     {
         // traverse (already mounted) lu_index_container for LU entries
         // store LU hashes and entries in RAM
@@ -242,11 +228,11 @@ namespace dmResourceArchive
             dmLogInfo("insert_index: %i", insert_index);
 
             // DEBUG current archive index hashes
-            for (int j = 0; j < JAVA_TO_C(reloaded_index->m_EntryDataCount); ++j)
+            /*for (int j = 0; j < JAVA_TO_C(reloaded_index->m_EntryDataCount); ++j)
             {
                 uint8_t* reloaded_hash = (uint8_t*)(uintptr_t(reloaded_hashes) + DMRESOURCE_MAX_HASH*j);
                 PrintHash(reloaded_hash, hash_len);
-            }
+            }*/
             // END DEBUG
 
             // Insert each liveupdate entry WITHOUT writing any resource data!
@@ -291,8 +277,8 @@ namespace dmResourceArchive
 
         dmLogInfo("DONE!");
 
-        //free((void*)lu_entries->m_Hashes);
-        //free(lu_entries->m_Entries);
+        free(lu_entries->m_Entries);
+        free((void*)lu_entries->m_Hashes);
 
         return RESULT_OK;
     }
@@ -523,6 +509,8 @@ namespace dmResourceArchive
         }
 
         dst = (ArchiveIndex*)new uint8_t[size_to_alloc];
+
+        dmLogInfo("sizeof(ArchiveIndex): %lu", sizeof(ArchiveIndex))
 
         if (!src->m_IsMemMapped)
         {
