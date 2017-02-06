@@ -310,7 +310,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
         // compare archive identifier of manifest ddf with archive identifier on ArchiveIndex here factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data
         int archive_id_cmp = dmResourceArchive::CmpArchiveIdentifier(factory->m_Manifest->m_ArchiveIndex, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count);
-        dmLogInfo("Archive id compared: %i", archive_id_cmp);
+        dmLogInfo("Archive id compare: %i", archive_id_cmp);
         if (archive_id_cmp != 0)
         {
             dmLogInfo("Reloading bundled index");

@@ -40,7 +40,7 @@ namespace dmResourceArchive
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 
-    struct ArchiveIndex
+    struct DM_ALIGNED(16) ArchiveIndex
     {
         ArchiveIndex()
         {
@@ -66,6 +66,7 @@ namespace dmResourceArchive
 
         ArchiveIndex* m_ArchiveIndex; // this could be mem-mapped or loaded into memory from file
         bool m_IsMemMapped;
+        bool m_ResourcesMemMapped;
         bool m_LiveUpdateResourcesMemMapped;
 
         /// Used if the archive is loaded from file
@@ -106,6 +107,7 @@ namespace dmResourceArchive
             return RESULT_VERSION_MISMATCH;
         }
         (*archive)->m_ResourceData = (uint8_t*)resource_data;
+        (*archive)->m_ResourcesMemMapped = true;
         (*archive)->m_LiveUpdateResourceData = (uint8_t*)lu_resource_data;
         (*archive)->m_LiveUpdateFileResourceData = f_lu_resource_data;
 
@@ -345,6 +347,7 @@ namespace dmResourceArchive
 
         aic = new ArchiveIndexContainer;
         aic->m_IsMemMapped = false;
+        aic->m_ResourcesMemMapped = false;
 
         ai = new ArchiveIndex;
         if (fread(ai, 1, sizeof(ArchiveIndex), f_index) != sizeof(ArchiveIndex))
@@ -797,9 +800,9 @@ namespace dmResourceArchive
         bool resource_memmapped = false;
 
         if (loaded_with_liveupdate)
-          resource_memmapped = archive->m_LiveUpdateResourcesMemMapped;
+            resource_memmapped = archive->m_LiveUpdateResourcesMemMapped;
         else
-           resource_memmapped = archive->m_IsMemMapped;
+            resource_memmapped = archive->m_ResourcesMemMapped;
 
         if (!resource_memmapped)
         {
