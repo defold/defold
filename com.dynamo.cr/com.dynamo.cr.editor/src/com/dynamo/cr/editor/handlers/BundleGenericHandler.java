@@ -70,10 +70,6 @@ public class BundleGenericHandler extends AbstractBundleHandler {
             options.put("liveupdate", "true");
         }
 
-        if (EditorUtil.isDev()) {
-            options.put("native-ext", "true");
-        }
-
         final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
 

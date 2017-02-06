@@ -9,6 +9,16 @@ def set_options(opt):
 def build(bld):
     bld.add_subdirs('test')
     bld.add_subdirs('examples')
+
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/align.h')
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/array.h')
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/buffer.h')
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/configfile.h')
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/hash.h')
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/shared_library.h')
+    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/log.h')
+
+
     bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')

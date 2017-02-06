@@ -36,7 +36,6 @@ namespace dmGameSystem
 
     struct SpineModelWorld
     {
-        dmRig::HRigContext                  m_RigContext;
         dmObjectPool<SpineModelComponent*>  m_Components;
         dmArray<dmRender::RenderObject>     m_RenderObjects;
         dmGraphics::HVertexDeclaration      m_VertexDeclaration;

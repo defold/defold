@@ -71,9 +71,6 @@ public class BundleAndroidHandler extends AbstractBundleHandler {
 
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
 
-        if (EditorUtil.isDev()) {
-            options.put("native-ext", "true");
-        }
         EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
         String sdkVersion = corePlugin.getSha1();
         if (sdkVersion == "NO SHA1") {

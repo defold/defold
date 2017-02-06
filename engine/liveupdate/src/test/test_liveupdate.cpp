@@ -26,15 +26,15 @@ TEST(dmLiveUpdate, HashToString)
     uint8_t instance[16] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
 
     char buffer_short[6];
-    dmLiveUpdate::HashToString(dmLiveUpdateDDF::HASH_MD5, instance, buffer_short, 6);
+    dmResource::HashToString(dmLiveUpdateDDF::HASH_MD5, instance, buffer_short, 6);
     ASSERT_STREQ("00010", buffer_short);
 
     char buffer_fitted[33];
-    dmLiveUpdate::HashToString(dmLiveUpdateDDF::HASH_MD5, instance, buffer_fitted, 33);
+    dmResource::HashToString(dmLiveUpdateDDF::HASH_MD5, instance, buffer_fitted, 33);
     ASSERT_STREQ("000102030405060708090a0b0c0d0e0f", buffer_fitted);
 
     char buffer_long[513];
-    dmLiveUpdate::HashToString(dmLiveUpdateDDF::HASH_MD5, instance, buffer_long, 513);
+    dmResource::HashToString(dmLiveUpdateDDF::HASH_MD5, instance, buffer_long, 513);
     ASSERT_STREQ("000102030405060708090a0b0c0d0e0f", buffer_long);
 }
 

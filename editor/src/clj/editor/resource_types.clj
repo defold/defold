@@ -1,5 +1,6 @@
 (ns editor.resource-types
   (:require [dynamo.graph :as g]
+            [editor.animation-set :as animation-set]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
             [editor.collada-scene :as collada-scene]
@@ -23,19 +24,17 @@
             [editor.protobuf-types :as protobuf-types]
             [editor.render-pb :as render-pb]
             [editor.rig :as rig]
-            [editor.scene :as scene]
             [editor.script :as script]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.sprite :as sprite]
             [editor.tile-map :as tile-map]
-            [editor.tile-source :as tile-source]
-            [editor.ui :as ui]
-            [editor.web-profiler :as web-profiler]))
+            [editor.tile-source :as tile-source]))
 
 (defn register-resource-types! [workspace]
   (g/transact
     (concat
+      (animation-set/register-resource-types workspace)
       (atlas/register-resource-types workspace)
       (camera/register-resource-types workspace)
       (collada-scene/register-resource-types workspace)

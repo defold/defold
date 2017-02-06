@@ -8,6 +8,7 @@
 #include "sys.h"
 #include "log.h"
 #include "dstrings.h"
+#include "hash.h"
 #include "path.h"
 #include "math.h"
 
@@ -19,6 +20,8 @@
 #else
 #include <unistd.h>
 #include <sys/utsname.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 #endif
 
 #include <sys/types.h>
@@ -168,6 +171,68 @@ namespace dmSys
     NetworkConnectivity GetNetworkConnectivity()
     {
         return NETWORK_CONNECTED;
+    }
+
+#endif
+
+
+#if !defined(__EMSCRIPTEN__)
+    Result WriteWithMove(const char* dst_filename, const char* src_filename)
+    {
+#if defined(_WIN32)
+        bool rename_result = MoveFileEx(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+        bool rename_result = rename(src_filename, dst_filename) != -1;
+#endif
+        if (rename_result)
+        {
+            return RESULT_OK;
+        }
+        return RESULT_UNKNOWN;
+    }
+#else // EMSCRIPTEN
+    Result WriteWithMove(const char* dst_filename, const char* src_filename)
+    {
+        FILE* src_file = fopen(src_filename, "rb");
+        if (!src_file)
+        {
+            return RESULT_IO;
+        }
+
+        fseek(src_file, 0, SEEK_END);
+        size_t buf_len = ftell(src_file);
+        fseek(src_file, 0, SEEK_SET);
+        char* buf = (char*)malloc(buf_len);
+        if (fread(buf, 1, buf_len, src_file) != buf_len)
+        {
+            fclose(src_file);
+            free(buf);
+            return RESULT_IO;
+        }
+
+        FILE* dst_file = fopen(dst_filename, "wb");
+        if (!dst_file)
+        {
+            fclose(src_file);
+            free(buf);
+            return RESULT_IO;
+        }
+
+        if(fwrite(buf, 1, buf_len, dst_file) != buf_len)
+        {
+            fclose(src_file);
+            fclose(dst_file);
+            free(buf);
+            return RESULT_IO;
+        }
+
+        fclose(src_file);
+        fclose(dst_file);
+        free(buf);
+
+        dmSys::Unlink(src_filename);
+
+        return RESULT_OK;
     }
 
 #endif

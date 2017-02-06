@@ -1,6 +1,7 @@
 package com.dynamo.cr.server.resources.mappers;
 
 import com.dynamo.cr.protocol.proto.Protocol;
+import com.dynamo.cr.server.clients.magazine.MagazineClient;
 import com.dynamo.cr.server.model.AppStoreReference;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.ProjectSite;
@@ -11,18 +12,21 @@ import java.util.Set;
 
 public class ProjectSiteMapper {
 
-    public static Protocol.ProjectSiteList map(List<Project> projects) {
+    public static Protocol.ProjectSiteList map(List<Project> projects, MagazineClient magazineClient) {
         Protocol.ProjectSiteList.Builder builder = Protocol.ProjectSiteList.newBuilder();
 
         for (Project project : projects) {
-            builder.addSites(map(project));
+            builder.addSites(map(project, magazineClient));
         }
 
         return builder.build();
     }
 
-    public static Protocol.ProjectSite map(Project project) {
+    public static Protocol.ProjectSite map(Project project, MagazineClient magazineClient) {
         Protocol.ProjectSite.Builder builder = Protocol.ProjectSite.newBuilder();
+
+        // TODO: Keep track of if a playable has been uploaded?
+        builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable") + "/index.html");
 
         if (project.getProjectSite() != null) {
             ProjectSite projectSite = project.getProjectSite();

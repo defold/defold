@@ -38,6 +38,7 @@ class dmGuiScriptTest : public ::testing::Test
 public:
     dmScript::HContext m_ScriptContext;
     dmGui::HContext m_Context;
+    dmRig::HRigContext m_RigContext;
 
     virtual void SetUp()
     {
@@ -52,14 +53,14 @@ public:
         m_Context = dmGui::NewContext(&context_params);
 
         dmRig::NewContextParams rig_params = {0};
-        rig_params.m_Context = &m_Context->m_RigContext;
+        rig_params.m_Context = &m_RigContext;
         rig_params.m_MaxRigInstanceCount = 2;
         dmRig::NewContext(rig_params);
     }
 
     virtual void TearDown()
     {
-        dmRig::DeleteContext(m_Context->m_RigContext);
+        dmRig::DeleteContext(m_RigContext);
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
@@ -100,6 +101,7 @@ TEST_F(dmGuiScriptTest, URLOutsideFunctions)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
@@ -119,6 +121,7 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
@@ -173,6 +176,7 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -210,6 +214,7 @@ TEST_F(dmGuiScriptTest, TestGlobalNodeFail)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::HScene scene2 = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
@@ -250,6 +255,7 @@ TEST_F(dmGuiScriptTest, TestParenting)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -283,6 +289,7 @@ TEST_F(dmGuiScriptTest, TestGetIndex)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -322,6 +329,7 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -368,6 +376,7 @@ TEST_F(dmGuiScriptTest, TestPieNodeScript)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -404,6 +413,7 @@ TEST_F(dmGuiScriptTest, TestTextNodeScript)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -434,6 +444,7 @@ TEST_F(dmGuiScriptTest, TestSlice9)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -465,6 +476,7 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -511,6 +523,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
@@ -542,13 +555,14 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
 }
 
 static void InitializeScriptScene(dmGui::HContext* context,
-    dmGui::HScript* script, dmGui::HScene* scene, void* user_data, const char* source)
+    dmGui::HScript* script, dmGui::HScene* scene, dmRig::HRigContext rig_context, void* user_data, const char* source)
 {
     *script = dmGui::NewScript(*context);
     dmGui::NewSceneParams params;
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = user_data;
+    params.m_RigContext = rig_context;
     *scene = dmGui::NewScene(*context, &params);
 
     dmGui::Result result = dmGui::RESULT_OK;
@@ -571,7 +585,7 @@ TEST_F(dmGuiScriptTest, TestSetRenderOrderMinimum)
     dmGui::HScene scene = NULL;
 
     const char* source = "function init(self)\ngui.set_render_order(0)\nend\n";
-    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    InitializeScriptScene(&m_Context, &script, &scene, m_RigContext, this, source);
     ASSERT_EQ(0, scene->m_RenderOrder);
 
     dmGui::DeleteScene(scene);
@@ -584,7 +598,7 @@ TEST_F(dmGuiScriptTest, TestSetRenderOrderMaximum)
     dmGui::HScene scene = NULL;
 
     const char* source = "function init(self)\ngui.set_render_order(15)\nend\n";
-    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    InitializeScriptScene(&m_Context, &script, &scene, m_RigContext, this, source);
     ASSERT_EQ(15, scene->m_RenderOrder);
 
     dmGui::DeleteScene(scene);
@@ -597,7 +611,7 @@ TEST_F(dmGuiScriptTest, TestSetRenderOrderUnderflow)
     dmGui::HScene scene = NULL;
 
     const char* source = "function init(self)\ngui.set_render_order(-1)\nend\n";
-    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    InitializeScriptScene(&m_Context, &script, &scene, m_RigContext, this, source);
     ASSERT_EQ(0, scene->m_RenderOrder);
 
     dmGui::DeleteScene(scene);
@@ -610,7 +624,7 @@ TEST_F(dmGuiScriptTest, TestSetRenderOrderOverflow)
     dmGui::HScene scene = NULL;
 
     const char* source = "function init(self)\ngui.set_render_order(16)\nend\n";
-    InitializeScriptScene(&m_Context, &script, &scene, this, source);
+    InitializeScriptScene(&m_Context, &script, &scene, m_RigContext, this, source);
     ASSERT_EQ(15, scene->m_RenderOrder);
 
     dmGui::DeleteScene(scene);
@@ -625,6 +639,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
@@ -673,6 +688,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnimWithCallback)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
@@ -734,6 +750,7 @@ TEST_F(dmGuiScriptTest, TestCustomEasingAnimation)
 	params.m_MaxNodes = 64;
 	params.m_MaxAnimations = 32;
 	params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
 
 	dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
 	dmGui::SetSceneResolution(scene, 1, 1);
@@ -780,6 +797,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
         params.m_MaxNodes = 64;
         params.m_MaxAnimations = 32;
         params.m_UserData = this;
+        params.m_RigContext = m_RigContext;
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneScript(scene, script);
 
@@ -846,6 +864,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
         params.m_MaxNodes = 64;
         params.m_MaxAnimations = 32;
         params.m_UserData = this;
+        params.m_RigContext = m_RigContext;
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneScript(scene, script);
 
@@ -991,6 +1010,7 @@ TEST_F(dmGuiScriptTest, SpineScenes)
         params.m_MaxNodes = 64;
         params.m_MaxAnimations = 32;
         params.m_UserData = this;
+        params.m_RigContext = m_RigContext;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneScript(scene, script);
@@ -1029,6 +1049,7 @@ TEST_F(dmGuiScriptTest, DeleteSpine)
         params.m_MaxNodes = 64;
         params.m_MaxAnimations = 32;
         params.m_UserData = this;
+        params.m_RigContext = m_RigContext;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneScript(scene, script);
@@ -1076,6 +1097,7 @@ TEST_F(dmGuiScriptTest, DeleteBone)
         params.m_MaxNodes = 64;
         params.m_MaxAnimations = 32;
         params.m_UserData = this;
+        params.m_RigContext = m_RigContext;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneScript(scene, script);
@@ -1121,6 +1143,7 @@ TEST_F(dmGuiScriptTest, SetBoneNodeProperties)
         params.m_MaxNodes = 64;
         params.m_MaxAnimations = 32;
         params.m_UserData = this;
+        params.m_RigContext = m_RigContext;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneScript(scene, script);

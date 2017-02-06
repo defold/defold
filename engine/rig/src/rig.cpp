@@ -11,7 +11,7 @@ namespace dmRig
     static const float CURSOR_EPSILON = 0.0001f;
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
-    const char* MAX_RIG_INSTANCE_COUNT_KEY = "rig.max_instance_count";
+    const char* RIG_MAX_INSTANCES_KEY = "rig.max_instance_count";
 
     Result NewContext(const NewContextParams& params)
     {
@@ -1409,7 +1409,7 @@ namespace dmRig
 
         if (context->m_Instances.Full())
         {
-            dmLogError("Rig Instance could not be created since the buffer is full (%d), consider increasing %s.", context->m_Instances.Capacity(), MAX_RIG_INSTANCE_COUNT_KEY);
+            dmLogError("Rig Instance could not be created since the buffer is full (%d), consider increasing %s.", context->m_Instances.Capacity(), RIG_MAX_INSTANCES_KEY);
             return dmRig::RESULT_ERROR;
         }
 

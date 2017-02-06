@@ -15,7 +15,7 @@ public class ProjectSite {
     @Column
     private String name;
 
-    @Column
+    @Column(length = 3000)
     private String description;
 
     @Column

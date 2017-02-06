@@ -59,7 +59,7 @@
                  "**/tile_map_collision_shape.collisionobject"
                  "**/spineboy.spinescene"
                  "**/spineboy.spinemodel"
-                 "**/primary.model"
+                 "**/treasure_chest.model"
                  "**/new.factory"
                  "**/with_prototype.factory"
                  "**/new.sound"
