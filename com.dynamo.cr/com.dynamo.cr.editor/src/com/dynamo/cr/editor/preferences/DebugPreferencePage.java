@@ -45,8 +45,6 @@ public class DebugPreferencePage extends FieldEditorPreferencePage implements IW
             runInDebuggerField.setEnabled(false, getFieldEditorParent());
             autoRunDebuggerField.setEnabled(false, getFieldEditorParent());
         }
-
-        addField(new StringFieldEditor(PreferenceConstants.P_NATIVE_EXT_SERVER_URI, "Native Extension Server URI:", getFieldEditorParent()));
     }
 
     @Override

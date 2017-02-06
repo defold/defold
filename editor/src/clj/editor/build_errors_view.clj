@@ -30,7 +30,7 @@
           (recur (pop queue) (conj ret {:error error :parents path})))
         ret))))
 
-(defn parent-file-resource
+(defn- parent-file-resource
   [errors]
   (->> errors
        (map (fn [{:keys [_node-id] :as error}]
@@ -47,7 +47,7 @@
   (let [items (->> (root-causes root-error)
                    (map (fn [{:keys [error parents] :as root-cause}]
                           {:error error
-                           :parent (parent-file-resource parents)}))
+                           :parent (parent-file-resource (conj parents error))}))
                    (group-by :parent)
                    (reduce-kv (fn [ret resource errors]
                                 (conj ret {:type :resource

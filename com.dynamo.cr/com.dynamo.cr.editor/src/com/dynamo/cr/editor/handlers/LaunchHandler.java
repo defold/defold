@@ -131,7 +131,6 @@ public class LaunchHandler extends AbstractHandler {
                 if (EditorUtil.isDev()) {
                     String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
                     bobArgs.put("build-server", nativeExtServerURI);
-                    bobArgs.put("native-ext", "true");
 
                     // "binary-output"
                     bobArgs.put("binary-output", location);

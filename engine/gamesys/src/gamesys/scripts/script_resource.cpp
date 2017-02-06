@@ -267,9 +267,7 @@ static const luaL_reg Module_methods[] =
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
     {"create_manifest", dmLiveUpdate::Resource_CreateManifest},
     {"destroy_manifest", dmLiveUpdate::Resource_DestroyManifest},
-    {"verify_resource", dmLiveUpdate::Resource_VerifyResource},
     {"store_resource", dmLiveUpdate::Resource_StoreResource},
-    {"verify_manifest", dmLiveUpdate::Resource_VerifyManifest},
     {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
 
     {0, 0}

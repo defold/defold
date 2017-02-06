@@ -70,7 +70,7 @@ public class BundleResourcesTest {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        addResourceDirectory("/test");
+        addResourceDirectory("/testextension");
     }
 
     private void addFile(String file, String source) {

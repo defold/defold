@@ -6,6 +6,7 @@
 /lib/*/*OpenAL32*
 /lib/*/*wrap_oal*
 /lib/*/*PVRTexLib*
+/lib/*/*msvcr120*
 /lib/builtins.zip
 /lib/classes.dex
 /lib/android.jar

@@ -521,7 +521,7 @@ namespace dmResourceArchive
         }
     }
 
-    Result WriteResourceToArchive(HArchiveIndexContainer& archive, const uint8_t* buf, uint32_t buf_len, uint32_t& bytes_written, uint32_t& offset)
+    Result WriteResourceToArchive(HArchiveIndexContainer& archive, const uint8_t* buf, size_t buf_len, uint32_t& bytes_written, uint32_t& offset)
     {
         fseek(archive->m_LiveUpdateFileResourceData, 0, SEEK_END);
         uint32_t offs = (uint32_t)ftell(archive->m_LiveUpdateFileResourceData);
