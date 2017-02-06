@@ -1,7 +1,7 @@
 (ns editor.resource-watch
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor.game-project-core :as game-project-core]
+            [editor.settings-core :as settings-core]
             [editor.library :as library]
             [editor.resource :as resource]
             [dynamo.graph :as g])
@@ -22,8 +22,8 @@
 
 (defn- extract-game-project-include-dirs [game-project-resource]
   (with-open [reader (io/reader game-project-resource)]
-    (let [settings (game-project-core/parse-settings reader)]
-      (parse-include-dirs (str (game-project-core/get-setting settings ["library" "include_dirs"]))))))
+    (let [settings (settings-core/parse-settings reader)]
+      (parse-include-dirs (str (settings-core/get-setting settings ["library" "include_dirs"]))))))
 
 (defn- make-library-zip-tree [workspace file]
   (let [base-path (library/library-base-path file)
