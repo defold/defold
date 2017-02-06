@@ -262,7 +262,7 @@
         (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
                 (engine/reboot (:url target) local-url)))
-            (engine/launch prefs workspace (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+            (engine/launch project prefs))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]

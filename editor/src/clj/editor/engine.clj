@@ -2,14 +2,14 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.prefs :as prefs]
-            [editor
-             [dialogs :as dialogs]
-             [protobuf :as protobuf]
-             [resource :as resource]
-             [console :as console]
-             [ui :as ui]
-             [targets :as targets]
-             [workspace :as workspace]]
+            [editor.dialogs :as dialogs]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.console :as console]
+            [editor.ui :as ui]
+            [editor.targets :as targets]
+            [editor.defold-project :as project]
+            [editor.workspace :as workspace]
             [editor.engine.native-extensions :as native-extensions])
   (:import [com.defold.editor Platform]
            [java.net HttpURLConnection URI URL]
@@ -94,19 +94,18 @@
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-output is)))))))
 
-(defn- bundled-engine [workspace platform]
+(defn- bundled-engine [platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") platform suffix)]
     (io/file path)))
 
-(defn get-engine [workspace prefs platform]
+(defn get-engine [project prefs platform]
   (if-let [native-extension-roots (and (prefs/get-prefs prefs "enable-extensions" false)
-                                       (native-extensions/extension-roots workspace))]
-    (native-extensions/get-engine workspace native-extension-roots platform (prefs/get-prefs prefs "extensions-server" nil))
-    (bundled-engine workspace platform)))
+                                       (native-extensions/extension-roots project))]
+    (native-extensions/get-engine project native-extension-roots platform (prefs/get-prefs prefs "extensions-server" nil))
+    (bundled-engine platform)))
 
-
-
-(defn launch [prefs workspace launch-dir]
-  (let [^File engine (get-engine workspace prefs (.getPair (Platform/getJavaPlatform)))]
+(defn launch [project prefs]
+  (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
+        ^File engine (get-engine project prefs (.getPair (Platform/getJavaPlatform)))]
     (do-launch (.getAbsolutePath engine) launch-dir prefs)))
