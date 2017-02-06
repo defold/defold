@@ -120,7 +120,7 @@ components {
 }
 components {
   id: "animated_model"
-  component: "/model/primary.model"
+  component: "/model/treasure_chest.model"
   position {
     x: 0.0
     y: 0.0
