@@ -117,14 +117,14 @@
     [check {:update update-fn
             :edit #(ui/request-focus! check)}]))
 
-(defmethod create-field-control :choicebox [{:keys [options path help]} {:keys [set cancel]} _]
+(defmethod create-field-control :choicebox [{:keys [options path help from-string to-string]} {:keys [set cancel]} _]
   (let [option-map (into {} options)
         inv-options (clojure.set/map-invert option-map)
         converter (proxy [StringConverter] []
-                              (toString [value]
-                                (get option-map value (str value)))
-                              (fromString [s]
-                                (inv-options s)))
+                    (toString [value]
+                      (get option-map value (or (and to-string (to-string value)) (str value))))
+                    (fromString [s]
+                      (get inv-options s (and from-string (from-string s)))))
         internal-change (atom false)
         cb (doto (ComboBox.)
              (-> (.getItems) (.addAll (object-array (map first options))))
@@ -134,6 +134,7 @@
                     (reset! internal-change true)
                     (.setValue cb value)
                     (reset! internal-change false))]
+    (ui/editable! cb (boolean (and from-string to-string)))
     (ui/observe (.valueProperty cb)
                 (fn [observable old-val new-val]
                   (when-not @internal-change
