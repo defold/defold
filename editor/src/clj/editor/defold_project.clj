@@ -36,8 +36,6 @@
 
 (def ^:private unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-
-
 (g/defnode ResourceNode
   (inherits core/Scope)
   (inherits outline/OutlineNode)
