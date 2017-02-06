@@ -23,6 +23,7 @@
     .source-segment, .plain-source-segment {
         -fx-font-family: "Dejavu Sans Mono";
         -fx-font-size: 9pt;
+        -styled-text-color: $defold-white;
     }
     .selection-marker {
             -fx-background-color: rgba(172,148,120,0.3)
