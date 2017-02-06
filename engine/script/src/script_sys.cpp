@@ -617,16 +617,37 @@ union SaveLoadBuffer
      *
      * @name sys.set_error_handler
      * @param error_handler [type:function(source, message, traceback)] the function to be called on error
+     *
+     * `source`
+     * : [type:string] The runtime context of the error. Currently, this is always `"lua"`.
+     *
+     * `message`
+     * : [type:string] The source file, line number and error message.
+     *
+     * `traceback`
+     * : [type:string] The stack traceback.
+     *
      * @examples
      *
      * Install error handler that just prints the errors
      *
      * ```lua
-     *  sys.set_error_handler(function(source, message, traceback)
-     *      print("source: " .. source);
-     *      print("message: " .. message);
-     *      print("traceback: " .. traceback);
-     *  end)
+     * local function my_error_handler(source, message, traceback)
+     *     print(source)   --> lua
+     *     print(message)  --> main/my.script:10: attempt to perform arithmetic on a string value
+     *     print(traceback) --> stack traceback:
+     *                      -->         main/test.script:10: in function 'boom'
+     *                      -->         main/test.script:15: in function <main/my.script:13>
+     * end
+     *
+     * local function boom()
+     *     return 10 + "string"
+     * end
+     *
+     * function init(self)
+     *     sys.set_error_handler(my_error_handler)
+     *     boom()
+     *end
      * ```
      */
     int Sys_SetErrorHandler(lua_State* L)

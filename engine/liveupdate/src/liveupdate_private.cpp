@@ -73,7 +73,7 @@ namespace dmLiveUpdate
         return resources;
     }
 
-    void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, uint32_t buflen, uint8_t* digest)
+    void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, size_t buflen, uint8_t* digest)
     {
         if (algorithm == dmLiveUpdateDDF::HASH_MD5)
         {

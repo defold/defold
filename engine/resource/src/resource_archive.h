@@ -65,7 +65,7 @@ namespace dmResourceArchive
         }
 
         const uint8_t* m_Data;
-        uint32_t m_Count;
+        size_t m_Count;
         LiveUpdateResourceHeader* m_Header;
     };
 

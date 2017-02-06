@@ -507,10 +507,7 @@ public class Project {
         File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
         cacheDir.mkdirs();
 
-        String serverURL = this.option("build-server", null);
-        if (serverURL == null) {
-            throw new CompileExceptionError(null, -1, "No native extension build server set.");
-        }
+        String serverURL = this.option("build-server", "https://build.defold.com");
 
         // Get SHA1 and create log file
         String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -580,9 +577,8 @@ public class Project {
                 }
 
                 // Get or build engine binary
-                boolean nativeExtEnabled = this.hasOption("native-ext");
                 List<String> extensionPaths = ExtenderUtil.getExtensionFolders(this);
-                boolean hasNativeExtensions = nativeExtEnabled && extensionPaths.size() > 0;
+                boolean hasNativeExtensions = extensionPaths.size() > 0;
                 if (hasNativeExtensions) {
                     buildEngine(monitor);
                 }
