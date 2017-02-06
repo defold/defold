@@ -109,7 +109,6 @@ namespace dmLiveUpdate
      *
      * `status`
      * : [type:boolean] Whether or not the resource was successfully stored.
-     * @return (bool) True if the resource could be stored, False otherwise.
      *
      * @examples
      * ```
