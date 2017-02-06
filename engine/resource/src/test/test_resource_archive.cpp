@@ -167,6 +167,7 @@ TEST(dmResourceArchive, StoreLiveUpdateEntries)
 
     free(liveupdate_entries->m_Entries);
     free((void*)liveupdate_entries->m_Hashes);
+    delete liveupdate_entries;
 
     dmResourceArchive::Delete(archive_container);
 }

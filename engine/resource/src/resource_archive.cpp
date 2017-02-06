@@ -431,7 +431,7 @@ namespace dmResourceArchive
 
     void Delete(ArchiveIndex* archive)
     {
-        delete archive;
+        delete[] (uint8_t*)archive;
     }
 
     Result CalcInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int& index)
