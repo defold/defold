@@ -619,13 +619,13 @@ union SaveLoadBuffer
      * @param error_handler [type:function(source, message, traceback)] the function to be called on error
      *
      * `source`
-     * : The runtime context of the error. Currently, this is always `"lua"`.
+     * : [type:string] The runtime context of the error. Currently, this is always `"lua"`.
      *
      * `message`
-     * : The source file, line number and error message.
+     * : [type:string] The source file, line number and error message.
      *
      * `traceback`
-     * : The stack traceback.
+     * : [type:string] The stack traceback.
      *
      * @examples
      *
