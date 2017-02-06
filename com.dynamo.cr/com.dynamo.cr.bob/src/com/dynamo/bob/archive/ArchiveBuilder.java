@@ -48,6 +48,11 @@ public class ArchiveBuilder {
         this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
     }
+    
+    private void add(String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
+        ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress, isLiveUpdate);
+        entries.add(e);
+    }
 
     public void add(String fileName, boolean doCompress) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress);
@@ -141,12 +146,12 @@ public class ArchiveBuilder {
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
-            byte flags = 0;
+            byte flags = (byte) entry.flags;
             if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                    flags = ArchiveEntry.FLAG_COMPRESSED;
+                    flags = (byte)(flags | ArchiveEntry.FLAG_COMPRESSED);
                     buffer = compressed;
                     entry.compressedSize = compressed.length;
                 } else {
@@ -158,7 +163,7 @@ public class ArchiveBuilder {
             String extension = FilenameUtils.getExtension(entry.fileName);
             if (ENCRYPTED_EXTS.indexOf(extension) != -1) {
                 flags = (byte) (flags | ArchiveEntry.FLAG_ENCRYPTED);
-                entry.flags = ArchiveEntry.FLAG_ENCRYPTED;
+                entry.flags = (entry.flags | ArchiveEntry.FLAG_ENCRYPTED);
                 buffer = this.encryptResourceData(buffer);
             }
 
@@ -205,7 +210,6 @@ public class ArchiveBuilder {
             archiveIndex.writeInt(entry.flags);
         }
         
-        byte[] archiveIndexMD5 = new byte[16];
         try {
             // Calc index file MD5 hash
             archiveIndex.seek(0);
@@ -273,6 +277,7 @@ public class ArchiveBuilder {
 
         boolean doCompress = false;
         List<File> inputs = new ArrayList<File>();
+        List<File> liveupdateInputs = new ArrayList<File>();
         for (int i = 2; i < args.length; ++i) {
             if (args[i].equals("-c")) {
                 doCompress = true;
@@ -281,8 +286,12 @@ public class ArchiveBuilder {
                 if (!currentInput.isFile()) {
                     printUsageAndTerminate("file does not exist: " + currentInput.getAbsolutePath());
                 }
-
-                inputs.add(currentInput);
+                if (args[i].indexOf("liveupdate.") != -1)
+                {
+                    liveupdateInputs.add(currentInput);
+                } else {
+                    inputs.add(currentInput);
+                }
             }
         }
 
@@ -310,6 +319,13 @@ public class ArchiveBuilder {
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
         for (File currentInput : inputs) {
             archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
+            ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
+            rootNode.addChild(currentNode);
+        }
+        
+        System.out.println("Adding " + Integer.toString(liveupdateInputs.size()) + " liveupdate entries to archive...");
+        for (File currentInput : liveupdateInputs) {
+            archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, true);
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
             rootNode.addChild(currentNode);
         }

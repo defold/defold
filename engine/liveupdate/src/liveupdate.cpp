@@ -98,7 +98,7 @@ namespace dmLiveUpdate
         bool verify = VerifyResource(manifest, expected, expectedLength, resource);
         if (!verify)
         {
-            dmLogError("Invalid resource");
+            dmLogError("Verification of liveupdate resource failed for expected hash: %s", expected);
             return false;
         }
 

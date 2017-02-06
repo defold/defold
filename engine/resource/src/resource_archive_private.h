@@ -19,5 +19,13 @@ namespace dmResourceArchive
 	
     Result CalcInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int& index);
 
+    void StoreLiveUpdateEntries(const ArchiveIndexContainer* archive_container, LiveUpdateEntries* lu_hashes_entries, uint32_t& num_lu_entries);
+
+    uint32_t GetEntryDataOffset(ArchiveIndexContainer* archive_container);
+
+    uint32_t GetEntryDataOffset(ArchiveIndex* archive);
+
+    void Delete(ArchiveIndex* archive);
+
 }
 #endif // RESOURCE_ARCHIVE_PRIVATE_H

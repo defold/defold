@@ -22,7 +22,6 @@
 #include <dlib/http_cache.h>
 #include <dlib/http_cache_verify.h>
 #include <dlib/math.h>
-#include <dlib/md5.h>
 #include <dlib/memory.h>
 #include <dlib/uri.h>
 #include <dlib/path.h>
@@ -278,9 +277,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
 
     if (!luIndexExists)
     {
-        dmLogInfo("NO LU INDEX,  bundled index path = %s", archive_index_path);
         result = MountArchiveInternal(archive_index_path, archive_resource_path, 0x0, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
-        //dmResourceArchive::SetArchiveIdentifier(factory->m_Manifest->m_ArchiveIndex, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count);
     }
     else // If a liveupdate index exists, use that one instead
     {
@@ -305,15 +302,11 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
             }
             dmSys::Unlink(temp_archive_index_path);
         }
-        uint8_t* archive_id = factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data;
-        uint32_t archive_id_len = 16; //MD5 //factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count;
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
-        // compare archive identifier of manifest ddf with archive identifier on ArchiveIndex here factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data
         int archive_id_cmp = dmResourceArchive::CmpArchiveIdentifier(factory->m_Manifest->m_ArchiveIndex, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count);
-        dmLogInfo("Archive id compare: %i", archive_id_cmp);
         if (archive_id_cmp != 0)
         {
-            dmLogInfo("Reloading bundled index");
+            dmLogInfo("Reloading bundled resource archive");
             dmResourceArchive::Result reload_res = ReloadBundledArchiveIndex(archive_index_path, archive_resource_path, liveupdate_index_path, liveupdate_resource_path, factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
         }
 	}
