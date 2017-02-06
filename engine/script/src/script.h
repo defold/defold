@@ -2,6 +2,8 @@
 #define DM_SCRIPT_H
 
 #include <stdint.h>
+#include <dmsdk/script/script.h>
+
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/buffer.h>
 #include <dlib/vmath.h>
@@ -18,6 +20,7 @@ extern "C"
 #include <lua/lua.h>
 #include <lua/lauxlib.h>
 }
+
 
 namespace dmLuaDDF
 {
@@ -146,29 +149,6 @@ namespace dmScript
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
-
-    /**
-     * Check if the value at #index is a HBuffer
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a HBuffer
-     */
-    bool IsBuffer(lua_State *L, int index);
-
-    /**
-     * Push a HBuffer onto the supplied lua state, will increase the stack by 1.
-     * @param L Lua state
-     * @param buffer HBuffer to push
-     */
-    void PushBuffer(lua_State* L, dmBuffer::HBuffer buffer);
-
-    /**
-     * Check if the value in the supplied index on the lua stack is a HBuffer and returns it.
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The pointer to a HBuffer
-     */
-    dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index);
 
     /**
      * Serialize a table to a buffer
@@ -504,43 +484,6 @@ namespace dmScript
      */
     int JsonToLua(lua_State*L, dmJson::Document* doc, int index);
 
-    /**
-     *  A utility to make sure we check the lua stack state before leaving a function. m_Diff is the expected difference of the stack size.
-    */
-    struct LuaStackCheck
-    {
-        lua_State* m_L;
-        int m_Top;
-        int m_Diff;
-        LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff) {}
-        ~LuaStackCheck() {
-            uint32_t expected = m_Top + m_Diff;
-            uint32_t actual = lua_gettop(m_L);
-            if (expected != actual)
-            {
-                dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
-                assert(expected == actual);
-            }
-
-        }
-    };
-
-    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);
-
-    /** A wrapper for luaL_ref(L, LUA_REGISTRYINDEX). It also tracks number of global references kept
-     * @param L lua state
-     * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
-     * @return the new reference
-    */
-    int Ref(lua_State* L, int table);
-
-    /** A wrapper for luaL_unref. It also decreases the number of global references kept
-     * @param L lua state
-     * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
-     * @param reference the reference to the object
-    */
-    void Unref(lua_State* L, int table, int reference);
-
     /** Gets the number of references currently kept
      * @return the total number of references in the game
     */
@@ -556,5 +499,6 @@ namespace dmScript
     */
     uint32_t GetLuaGCCount(lua_State* L);
 }
+
 
 #endif // DM_SCRIPT_H

@@ -7,6 +7,7 @@ import org.apache.commons.io.FilenameUtils;
 
 public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public static final int FLAG_ENCRYPTED = 1 << 0;
+    public static final int FLAG_COMPRESSED = 1 << 1;
     public static final int FLAG_UNCOMPRESSED = 0xFFFFFFFF;
 
     // Member vars, TODO make these private and add getters/setters

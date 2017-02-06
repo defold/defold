@@ -5,11 +5,17 @@ import com.dynamo.cr.server.resources.AbstractResourceTest;
 import com.dynamo.cr.server.test.TestUser;
 import com.dynamo.cr.server.test.TestUtils;
 import com.sun.jersey.api.client.WebResource;
+import com.sun.jersey.multipart.MultiPart;
+import com.sun.jersey.multipart.file.FileDataBodyPart;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import javax.persistence.EntityManager;
+import javax.ws.rs.core.MediaType;
+import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 
 import static org.junit.Assert.assertEquals;
 
@@ -37,34 +43,32 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return baseResource.path("/projects/-1/").post(Protocol.ProjectInfo.class, newProject);
     }
 
+    private WebResource projectSiteResource(TestUser user, Long projectId) {
+        return createBaseResource(user.email, user.password).path("v2/projects").path(projectId.toString()).path("site");
+    }
+
     private void updateProjectSite(TestUser testUser, Long projectId, Protocol.ProjectSite projectSite) {
-        WebResource baseResource = createBaseResource(testUser.email, testUser.password);
-        baseResource.path("v2/projects").path(projectId.toString()).path("site").put(projectSite);
+        projectSiteResource(testUser, projectId).put(projectSite);
     }
 
     private Protocol.ProjectSite getProjectSite(TestUser testUser, Long projectId) {
-        WebResource baseResource = createBaseResource(testUser.email, testUser.password);
-        return baseResource.path("v2/projects").path(projectId.toString()).path("site").get(Protocol.ProjectSite.class);
+        return projectSiteResource(testUser, projectId).get(Protocol.ProjectSite.class);
     }
 
     private void addAppStoreReference(TestUser testUser, Long projectId, Protocol.NewAppStoreReference newAppStoreReference) {
-        WebResource baseResource = createBaseResource(testUser.email, testUser.password);
-        baseResource.path("v2/projects/").path(projectId.toString()).path("site/app_store_references").post(newAppStoreReference);
+        projectSiteResource(testUser, projectId).path("app_store_references").post(newAppStoreReference);
     }
 
     private void deleteAppStoreReference(TestUser testUser, Long projectId, Long appStoreReferenceId) {
-        WebResource baseResource = createBaseResource(testUser.email, testUser.password);
-        baseResource.path("v2/projects/").path(projectId.toString()).path("site/app_store_references").path(appStoreReferenceId.toString()).delete();
+        projectSiteResource(testUser, projectId).path("app_store_references").path(appStoreReferenceId.toString()).delete();
     }
 
     private void addScreenshot(TestUser testUser, Long projectId, Protocol.NewScreenshot newScreenshot) {
-        WebResource baseResource = createBaseResource(testUser.email, testUser.password);
-        baseResource.path("v2/projects/").path(projectId.toString()).path("site/screenshots").post(newScreenshot);
+        projectSiteResource(testUser, projectId).path("screenshots").post(newScreenshot);
     }
 
     private void deleteScreenshot(TestUser testUser, Long projectId, Long screenshotId) {
-        WebResource baseResource = createBaseResource(testUser.email, testUser.password);
-        baseResource.path("v2/projects/").path(projectId.toString()).path("site/screenshots").path(screenshotId.toString()).delete();
+        projectSiteResource(testUser, projectId).path("screenshots").path(screenshotId.toString()).delete();
     }
 
     @Test
@@ -158,5 +162,25 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         // Ensure that you get one reference back.
         projectSite = getProjectSite(TestUser.JAMES, project.getId());
         assertEquals(1, projectSite.getScreenshotsCount());
+    }
+
+    @Test
+    @Ignore("Integration test to run explicitly.")
+    public void uploadPlayable() throws URISyntaxException {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        File playableFile = new File(ClassLoader.getSystemResource("test_playable.zip").toURI());
+
+        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
+        FileDataBodyPart fileDataBodyPart = new FileDataBodyPart("file", playableFile, MediaType.APPLICATION_OCTET_STREAM_TYPE);
+        multiPart.bodyPart(fileDataBodyPart);
+
+        projectSiteResource(TestUser.JAMES, project.getId())
+                .path("playable")
+                .type(MediaType.MULTIPART_FORM_DATA_TYPE)
+                .put(multiPart);
+
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        System.out.println(projectSite.getPlayableUrl());
     }
 }

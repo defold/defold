@@ -31,7 +31,7 @@ public class JarTest {
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob-light.jar";
-        Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-i", "test", command });
+        Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", ".", command });
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
         String line;
         while ((line = in.readLine()) != null) {
@@ -46,12 +46,12 @@ public class JarTest {
         int result = bob("distclean");
         assertEquals(0, result);
         for (String output : outputs) {
-            assertFalse(new File("build/default/test/" + output).exists());
+            assertFalse(new File("test/build/default/" + output).exists());
         }
         result = bob("build");
         assertEquals(0, result);
         for (String output : outputs) {
-            assertTrue(new File("build/default/test/" + output).exists());
+            assertTrue(new File("test/build/default/" + output).exists());
         }
     }
 
@@ -68,7 +68,7 @@ public class JarTest {
         }
 
         IFileSystem fs = new DefaultFileSystem();
-        String cwd = new File(".").getAbsolutePath();
+        String cwd = new File("test").getAbsolutePath();
         Project p = new Project(fs, cwd, "build/default");
         p.setPublisher(new NullPublisher(new PublisherSettings()));
 
@@ -78,7 +78,7 @@ public class JarTest {
 
         Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", "build/default"));
 
-        p.findSources("test", skipDirs);
+        p.findSources("", skipDirs);
         List<TaskResult> result = p.build(new ConsoleProgress(), "distclean", "build");
         assertFalse(result.isEmpty());
         boolean res = true;

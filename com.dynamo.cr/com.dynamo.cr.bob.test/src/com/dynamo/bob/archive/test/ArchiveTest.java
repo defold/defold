@@ -120,7 +120,7 @@ public class ArchiveTest {
         outFileData.close();
 
         // Read
-        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
         ar.read();
         ar.close();
     }
@@ -144,7 +144,7 @@ public class ArchiveTest {
         outFileData.close();
 
         // Read
-        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath());
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
         ar.read();
         List<ArchiveEntry> entries = ar.getEntries();
 

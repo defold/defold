@@ -1,7 +1,9 @@
 function init(self)
+    self.ev = sys.get_engine_info()
 end
 
 function update(self, dt)
+    gui.set_text(gui.get_node("version"), "Defold Version " .. self.ev.version .. "\n(" .. self.ev.version_sha1 .. ")")
 end
 
 function on_message(self, message_id, message, sender)

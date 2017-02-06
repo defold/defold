@@ -1,17 +1,15 @@
 package com.dynamo.cr.server;
 
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.List;
-
-import javax.ws.rs.core.MultivaluedMap;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.sun.jersey.spi.container.ContainerRequest;
 import com.sun.jersey.spi.container.ContainerResponse;
 import com.sun.jersey.spi.container.ContainerResponseFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.ws.rs.core.MultivaluedMap;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.List;
 
 public class CrossSiteHeaderResponseFilter implements ContainerResponseFilter {
     protected static Logger logger = LoggerFactory.getLogger(CrossSiteHeaderResponseFilter.class);
@@ -29,7 +27,7 @@ public class CrossSiteHeaderResponseFilter implements ContainerResponseFilter {
         httpHeaders.add("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD, DELETE, POST, PUT");
 
         httpHeaders.add("Access-Control-Allow-Headers",
-                "X-Email, X-Password, X-Auth, Content-Type");
+                "X-Email, X-Password, X-Auth, Content-Type, Cache-Control");
 
         List<String> origins = request.getRequestHeaders().get("origin");
         if (origins != null && origins.size() > 0) {

@@ -159,6 +159,7 @@ namespace dmGui
         uint32_t m_MaxFonts;
         uint32_t m_MaxSpineScenes;
         uint32_t m_MaxLayers;
+        dmRig::HRigContext m_RigContext;
         void*    m_UserData;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
@@ -237,7 +238,6 @@ namespace dmGui
         uint32_t                m_Dpi;
         dmHID::HContext         m_HidContext;
         dmResource::HFactory    m_Factory;
-        dmRig::HRigContext      m_RigContext;
 
         NewContextParams()
         {
@@ -507,6 +507,8 @@ namespace dmGui
     void* GetDisplayProfiles(HScene scene);
 
     AdjustReference GetSceneAdjustReference(HScene scene);
+
+    dmRig::HRigContext GetRigContext(HScene scene);
 
     /**
      * Adds a texture and optional textureset with the specified name to the scene.

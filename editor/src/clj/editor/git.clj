@@ -26,12 +26,18 @@
     (.parseCommit walk (.resolve repository revision))))
 
 (defn- diff-entry->map [^DiffEntry de]
-  ; NOTE: We convert /dev/null to nil.
-  (let [f (fn [p] (when-not (= p "/dev/null") p))]
-    {:score (.getScore de)
-     :change-type (-> (.getChangeType de) str .toLowerCase keyword)
-     :old-path (f (.getOldPath de))
-     :new-path (f (.getNewPath de))}))
+  ; NOTE: We convert /dev/null paths to nil, and convert copies into adds.
+  (let [f (fn [p] (when-not (= p "/dev/null") p))
+        change-type (-> (.getChangeType de) str .toLowerCase keyword)]
+    (if (= :copy change-type)
+      {:score 0
+       :change-type :add
+       :old-path nil
+       :new-path (f (.getNewPath de))}
+      {:score (.getScore de)
+       :change-type change-type
+       :old-path (f (.getOldPath de))
+       :new-path (f (.getNewPath de))})))
 
 (defn- find-original-for-renamed [ustatus file]
   (->> ustatus
