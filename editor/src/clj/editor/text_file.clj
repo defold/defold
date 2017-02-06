@@ -197,7 +197,7 @@
 (defn- is-word-start [^Character c] (or (Character/isLetter c) (= c \#) (= c \_) (= c \:)))
 (defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c) (= c \-)))
 
-(def operator-pattern (set->pattern c-operators))
+(def operator-pattern (set->pattern cpp-operators))
 
 (defn match-operator [s]
   (code/match-regex s operator-pattern))
@@ -215,7 +215,7 @@
                          :rules     [{:type :whitespace :space? #{\space \tab \newline \return}}
                                      {:type :custom :scanner match-single-line-comment :class "comment"}
                                      {:type :custom :scanner match-multi-line-comment :class "comment"}
-                                     {:type :keyword :start? is-word-start :part? is-word-part :keywords c-keywords :class "keyword"}
+                                     {:type :keyword :start? is-word-start :part? is-word-part :keywords cpp-keywords :class "keyword"}
                                      {:type :keyword :start? is-word-start :part? is-word-part :keywords preprocessor-directives :class "directive"}
                                      {:type :word :start? is-word-start :part? is-word-part :class "default"}
                                      {:type :multiline :start "\"" :end "\"" :esc \\ :class "string"}
