@@ -3,15 +3,8 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
-            [editor.workspace :as workspace]
-            [editor.defold-project :as project]
-            [editor.geom :as geom]
-            [editor.spine :as spine]
             [editor.types :as types])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [org.apache.commons.io FilenameUtils FileUtils]
-           [javax.vecmath Point3d]))
+  (:import [javax.vecmath Point3d]))
 
 (deftest aabb
   (with-clean-system
@@ -31,4 +24,4 @@
           vbs (g/node-value node-id :vbs)]
       (is (= 1 (count vbs)))
       (let [vb (first vbs)]
-        (is (= (count vb) (count (get-in (g/node-value node-id :content) [:mesh-entries 0 :meshes 0 :indices]))))))))
+        (is (= (count vb) (count (get-in (g/node-value node-id :mesh-set) [:mesh-entries 0 :meshes 0 :indices]))))))))
