@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.changes-view :as changes-view]
+            [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.handler :as handler]
@@ -254,7 +255,8 @@
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
-  (run [workspace project prefs web-server build-errors-view]
+  (run [project prefs web-server build-errors-view]
+    (console/clear-console!)
     (let [build (build-project project build-errors-view)]
       (when (and (future? build) @build)
         (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
