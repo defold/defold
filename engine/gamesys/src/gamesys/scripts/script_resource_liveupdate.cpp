@@ -133,14 +133,26 @@ namespace dmLiveUpdate
             return luaL_error(L, "The manifest identifier does not exist");
         }
 
-        // BEGIN Temporary solution until async
         StoreResourceEntry entry;
         entry.m_L = dmScript::GetMainThread(L);
         dmScript::GetInstance(L);
         entry.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
         entry.m_Callback = callback;
         entry.m_HexDigest = hexDigest;
-        entry.m_Status = dmLiveUpdate::StoreResource(manifest, hexDigest, hexDigestLength, &resource);
+
+        if (buflen >= sizeof(dmResourceArchive::LiveUpdateResourceHeader))
+        {
+            // BEGIN Temporary solution until async
+            entry.m_Status = dmLiveUpdate::StoreResource(manifest, hexDigest, hexDigestLength, &resource);
+            // END Temporary solution until async
+        }
+        else
+        {
+            dmLogError("The resource could not be verified, header information is missing: %s", hexDigest);
+            entry.m_Status = false;
+        }
+
+        // BEGIN Temporary solution until async
         Callback_StoreResource(&entry);
         // END Temporary solution until async
 
