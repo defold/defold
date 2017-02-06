@@ -74,6 +74,28 @@ namespace dmGameSystem
      * </pre>
      */
 
+    /*# sprite texture0 (hash)
+     *
+     * [READ ONLY] Returns the texture path hash of the sprite. Used for getting/setting resource data
+     *
+     * @name texture0
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to overwrite a sprite's original texture
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- get texture resource from one sprite and set it on another
+     *  local resource_path1 = go.get("#sprite1", "texture0")
+     *  local buffer = resource.load(resource_path1)
+     *  local resource_path2 = go.get("#sprite2", "texture0")
+     *  resource.set(resource_path2, buffer)
+     * end
+     * </pre>
+     */
+
     /*# make a sprite flip the animations horizontally or not
      * Which sprite to flip is identified by the URL.
      * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.

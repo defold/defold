@@ -101,6 +101,27 @@ namespace dmGameSystem
      * </pre>
      */
 
+    /*# model texture0 (hash)
+     *
+     * [READ ONLY] Returns the texture path hash of the model. Used for getting/setting resource data
+     *
+     * @name texture0
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to overwrite a model's original texture
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- get texture resource from one model and set it on another
+     *  local resource_path1 = go.get("#model1", "texture0")
+     *  local buffer = resource.load(resource_path1)
+     *  local resource_path2 = go.get("#model2", "texture0")
+     *  resource.set(resource_path2, buffer)
+     * end
+     * </pre>
+     */
 
     int LuaModelComp_Play(lua_State* L)
     {
