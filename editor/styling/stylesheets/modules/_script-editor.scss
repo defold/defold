@@ -5,7 +5,7 @@
     -fx-background-color: $bright-black;
 
     .comment {
-        -styled-text-color: $script-comment; 
+        -styled-text-color: $script-comment;
         -fx-font-style: italic;
     }
     .list-view {
@@ -25,7 +25,7 @@
         -fx-font-size: 9pt;
     }
     .selection-marker {
-	    -fx-background-color: rgba(172,148,120,0.3)
+            -fx-background-color: rgba(172,148,120,0.3)
     }
     .text-caret {
         -fx-fill: white;
@@ -34,7 +34,7 @@
 }
 
 /* Script view colors */
-.lua, .glsl {
+.lua, .glsl, .c {
     &.styled-text-area {
         -styled-text-color: $script-comment;
 
@@ -49,7 +49,7 @@
         }
 
         .keyword {
-            -styled-text-color: $script-keyword;   
+            -styled-text-color: $script-keyword;
         }
 
         .operator {
@@ -102,20 +102,20 @@
 
 .glsl {
     &.styled-text-area {
-        .directive, .macro-keyword, .precision-keyword,
-        .storage-modifier-keyword, .support-function-keyword {
+        .keyword {
             -styled-text-color: $script-keyword;
-        }
-
-        .storage-type {
-            -styled-text-color: $script-function;
-        }
-
-        .support-variable-keyword {
-            -styled-text-color: $defold-white;
         }
     }
 }
+
+.c {
+    &.styled-text-area {
+        .directive {
+            -styled-text-color: $script-keyword;
+        }
+    }
+}
+
 
 /* text editor code completion popup */
 #proposals .list-cell:filled:selected {
