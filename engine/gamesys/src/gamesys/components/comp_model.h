@@ -36,7 +36,6 @@ namespace dmGameSystem
 
     struct ModelWorld
     {
-        dmRig::HRigContext              m_RigContext;
         dmObjectPool<ModelComponent*>   m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;

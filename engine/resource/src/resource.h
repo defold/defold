@@ -16,6 +16,8 @@ namespace dmResource
 
     const static uint32_t MANIFEST_VERSION = 0x01;
 
+    const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
+
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
@@ -538,6 +540,8 @@ namespace dmResource
 
     Result LoadManifest(const char* manifestPath, HFactory factory);
 
+    Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
+
     /**
      * Determines if the resource could be unique
      * @param name Resource name
@@ -551,6 +555,18 @@ namespace dmResource
      * @param resource Resource
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
+
+    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
+
+    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
+
+    // Platform specific implementation of archive loading. Data written into mount_info must
+    // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
+    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info);
+    // Files mapped with this function should be unmapped with UnmapFile(...)
+    Result MapFile(const char* filename, void*& map, uint32_t& size);
+    Result UnmapFile(void*& map, uint32_t size);
 }
 
 #endif // RESOURCE_H

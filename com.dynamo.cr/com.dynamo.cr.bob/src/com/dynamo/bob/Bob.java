@@ -203,7 +203,6 @@ public class Bob {
         options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
         options.addOption("brhtml", "build-report-html", true, "Filepath where to save a build report as HTML");
 
-        options.addOption("", "native-ext", false, "If set, the native ext support is turned on");
         options.addOption("", "build-server", true, "The build server (when using native extensions)");
         options.addOption("", "defoldsdk", true, "What version of the defold sdk (sha1) to use");
         options.addOption("", "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
@@ -279,9 +278,6 @@ public class Bob {
         }
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
-        }
-        if (!cmd.hasOption("build-server")) {
-            project.setOption("build-server", "https://build.defold.com");
         }
 
         String secretKey = getOptionsValue(cmd, 's', null);

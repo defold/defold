@@ -1,18 +1,36 @@
 package com.dynamo.cr.server.services;
 
+import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.server.ServerException;
+import com.dynamo.cr.server.clients.magazine.MagazineClient;
 import com.dynamo.cr.server.model.*;
 import com.dynamo.inject.persist.Transactional;
 
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.*;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class ProjectService {
     @Inject
     private EntityManager entityManager;
+
+    @Inject
+    private Config.Configuration configuration;
+
+    private MagazineClient magazineClient;
+
+    private MagazineClient getMagazineClient() throws Exception {
+        if (magazineClient == null) {
+            magazineClient = new MagazineClient(configuration.getMagazineServiceUrl());
+        }
+        return magazineClient;
+    }
 
     public Optional<Project> find(Long projectId) {
         return Optional.ofNullable(entityManager.find(Project.class, projectId));
@@ -104,6 +122,51 @@ public class ProjectService {
 
         if (projectSite.hasReviewUrl()) {
             existingProjectSite.setReviewUrl(projectSite.getReviewUrl());
+        }
+    }
+
+    public void uploadPlayableFiles(String username, Long projectId, InputStream file) throws Exception {
+        Path tempFile = null;
+
+        try {
+            tempFile = Files.createTempFile("defold-playable-", ".zip");
+            Files.copy(file, tempFile, StandardCopyOption.REPLACE_EXISTING);
+
+            Path playablePath = findPlayableInArchive(tempFile)
+                    .orElseThrow(() -> new Exception("No playable found in zip archive."));
+
+            uploadPlayableFiles(username, projectId, playablePath);
+
+        } finally {
+            if (tempFile != null) {
+                Files.deleteIfExists(tempFile);
+            }
+        }
+    }
+
+    private Optional<Path> findPlayableInArchive(Path zipFile) throws IOException {
+        FileSystem zipFileSystem = FileSystems.newFileSystem(zipFile, null);
+
+        for (Path rootDirectory : zipFileSystem.getRootDirectories()) {
+            Optional<java.nio.file.Path> playablePath = Files
+                    .find(rootDirectory, 100, (path, basicFileAttributes) -> path.endsWith("index.html"))
+                    .map(Path::getParent)
+                    .findAny();
+
+            if (playablePath.isPresent()) {
+                return playablePath;
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private void uploadPlayableFiles(String user, long projectId, Path playablePath) throws Exception {
+        String writeToken = getMagazineClient().createWriteToken(user, String.format("/projects/%d/playable", projectId));
+        List<Path> playablePaths = Files.walk(playablePath).collect(Collectors.toList());
+
+        for (Path path : playablePaths) {
+            getMagazineClient().put(writeToken, playablePath.relativize(path.getParent()).toString(), path);
         }
     }
 }
