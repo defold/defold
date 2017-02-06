@@ -409,6 +409,10 @@
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)
         files (fileify resources)
+        ;; Note: It would seem we should use the TransferMode/COPY_OR_MOVE mode
+        ;; here in order to support making copies of non-readonly files, but
+        ;; that results in every drag operation becoming a copy on macOS due to
+        ;; https://bugs.openjdk.java.net/browse/JDK-8148025
         mode (if (empty? (filter resource/read-only? resources))
                TransferMode/MOVE
                TransferMode/COPY)
@@ -444,7 +448,7 @@
     (when-let [^TreeCell cell (target (.getTarget e))]
       (when (and (not (.isEmpty cell))
                  (.hasFiles db))
-       ; Auto scrolling
+       ;; Auto scrolling
        (let [view (.getTreeView cell)
              view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
              height (.getHeight (.getBoundsInLocal view))]
@@ -454,7 +458,10 @@
            (.scrollTo view (inc (.getIndex cell)))))
        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
          (when (allow-resource-transfer? tgt-resource (.getFiles db))
-           (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+           ;; Allow move only if the drag source was also the tree view.
+           (if (= (.getTreeView cell) (.getGestureSource e))
+             (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+             (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY])))
            (.consume e)))))))
 
 (defn- find-files [^File src ^File tgt]
