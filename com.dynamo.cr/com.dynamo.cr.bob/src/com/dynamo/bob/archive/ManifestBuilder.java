@@ -267,7 +267,7 @@ public class ManifestBuilder {
     private String publicKeyFilepath = null;
     private String projectIdentifier = null;
     private ResourceNode dependencies = null;
-    private byte[] archiveIdentifier = null;
+    private byte[] archiveIdentifier = new byte[16];
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         private int compare(byte[] left, byte[] right) {
