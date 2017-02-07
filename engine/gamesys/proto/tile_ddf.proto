@@ -95,16 +95,7 @@ message TileGrid
     optional BlendMode blend_mode   = 4 [default = BLEND_MODE_ALPHA];
 }
 
-/*# Tilemap API documentation
- *
- * Functions and messages used to manipulate tile map components.
- *
- * @document
- * @name Tilemap
- * @namespace tilemap
- */
-
-/*# (DEPRECATED) changes a tile in a tile map
+/* (DEPRECATED and removed from docs) changes a tile in a tile map
  * Send this message to a tile map component to change the tile in one of its cells.
  *
  * @deprecated Use <code>tilemap.set_tile()</code> instead.

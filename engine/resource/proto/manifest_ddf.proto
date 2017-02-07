@@ -117,4 +117,5 @@ message ManifestData {
 message ManifestFile {
     required ManifestData       data = 1;
     required bytes              signature = 2;
+    required bytes              archive_identifier = 3;
 }

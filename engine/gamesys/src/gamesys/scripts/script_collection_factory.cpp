@@ -73,7 +73,7 @@ namespace dmGameSystem
      * prefix added to each instance.
      *
      * @name collectionfactory.create
-     * @param url [type:hash|string|url] the collection factory component to be used
+     * @param url [type:string|hash|url] the collection factory component to be used
      * @param [position] [type:vector3] position to assign to the newly spawned collection
      * @param [rotation] [type:quaternion] rotation to assign to the newly spawned collection
      * @param [properties] [type:table] table of script properties to propagate to any new game object instances

@@ -24,6 +24,11 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         dmGameObject::HInstance receiver_instance = dmGameObject::GetInstanceFromIdentifier(collection, receiver.m_Path);
 
+        if (receiver_instance == 0x0)
+        {
+            return 0;
+        }
+
         uint8_t component_index = 0;
         dmGameObject::GetComponentIndex(receiver_instance, receiver.m_Fragment, &component_index);
         uintptr_t user_data = 0;
