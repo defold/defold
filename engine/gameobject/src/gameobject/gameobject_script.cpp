@@ -489,8 +489,8 @@ namespace dmGameObject
     /*# gets a named property of the specified game object or component
      *
      * @name go.get
-     * @param url [type:hash|string|url] url of the game object or component having the property
-     * @param property [type:hash|string] id of the property to retrieve
+     * @param url [type:string|hash|url] url of the game object or component having the property
+     * @param property [type:string|hash] id of the property to retrieve
      * @return value [type:any] the value of the specified property
      * @examples
      *
@@ -582,8 +582,8 @@ namespace dmGameObject
     /*# sets a named property of the specified game object or component
      *
      * @name go.set
-     * @param url [type:hash|string|url] url of the game object or component having the property
-     * @param property [type:hash|string] id of the property to set
+     * @param url [type:string|hash|url] url of the game object or component having the property
+     * @param property [type:string|hash] id of the property to set
      * @param value [type:any] the value to set
      * @examples
      *
@@ -668,7 +668,7 @@ namespace dmGameObject
      *
      * @name go.get_position
      * @replaces request_transform transform_response
-     * @param [id] [type:hash|string|url] optional id of the instance to get the position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the position for, by default the instance of the calling script
      * @return position [type:vector3] instance position
      * @examples
      *
@@ -695,7 +695,7 @@ namespace dmGameObject
      * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world position.
      *
      * @name go.get_rotation
-     * @param [id] [type:hash|string|url] optional id of the instance to get the rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the rotation for, by default the instance of the calling script
      * @return rotation [type:quaternion] instance rotation
      * @examples
      *
@@ -722,7 +722,7 @@ namespace dmGameObject
      * The uniform scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
      *
      * @name go.get_scale
-     * @param [id] [type:hash|string|url] optional id of the instance to get the scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
      * @return scale [type:number] uniform instance scale factor
      * @examples
      *
@@ -749,7 +749,7 @@ namespace dmGameObject
      * The scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
      *
      * @name go.get_scale_vector
-     * @param [id] [type:hash|string|url] optional id of the instance to get the scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
      * @return scale [type:vector3] scale factor
      * @examples
      *
@@ -777,7 +777,7 @@ namespace dmGameObject
      *
      * @name go.set_position
      * @param position [type:vector3] position to set
-     * @param [id] [type:hash|string|url] optional id of the instance to set the position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to set the position for, by default the instance of the calling script
      * @examples
      *
      * Set the position of the instance the script is attached to:
@@ -807,7 +807,7 @@ namespace dmGameObject
      *
      * @name go.set_rotation
      * @param rotation [type:quaternion] rotation to set
-     * @param [id] [type:hash|string|url] optional id of the instance to get the rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the rotation for, by default the instance of the calling script
      * @examples
      *
      * Set the rotation of the instance the script is attached to:
@@ -839,7 +839,7 @@ namespace dmGameObject
      *
      * @name go.set_scale
      * @param scale [type:number|vector3] vector or uniform scale factor, must be greater than 0
-     * @param [id] [type:hash|string|url] optional id of the instance to get the scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
      * @examples
      *
      * Set the scale of the instance the script is attached to:
@@ -885,7 +885,7 @@ namespace dmGameObject
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
-     * @param [id] [type:hash|string|url] optional id of the instance to get the world position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the world position for, by default the instance of the calling script
      * @return position [type:vector3] instance world position
      * @examples
      *
@@ -912,7 +912,7 @@ namespace dmGameObject
      * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
-     * @param [id] [type:hash|string|url] optional id of the instance to get the world rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the world rotation for, by default the instance of the calling script
      * @return rotation [type:quaternion] instance world rotation
      * @examples
      *
@@ -939,7 +939,7 @@ namespace dmGameObject
      * Use <code>go.get_scale</code> to retrieve the scale factor relative to the parent.
      *
      * @name go.get_world_scale
-     * @param [id] [type:hash|string|url] optional id of the instance to get the world scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the instance to get the world scale for, by default the instance of the calling script
      * @return scale [type:number] uniform instance world scale factor
      * @examples
      *
@@ -1075,8 +1075,8 @@ namespace dmGameObject
      * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how to animate them.
      *
      * @name go.animate
-     * @param url [type:hash|string|url] url of the game object or component having the property
-     * @param property [type:hash|string] id of the property to animate
+     * @param url [type:string|hash|url] url of the game object or component having the property
+     * @param property [type:string|hash] id of the property to animate
      * @param playback [type:constant] playback mode of the animation
      *
      * - `go.PLAYBACK_ONCE_FORWARD`
@@ -1259,8 +1259,8 @@ namespace dmGameObject
      * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how to animate them.
      *
      * @name go.cancel_animations
-     * @param url [type:hash|string|url] url of the game object or component having the property
-     * @param property [type:hash|string] ide of the property to animate
+     * @param url [type:string|hash|url] url of the game object or component having the property
+     * @param property [type:string|hash] ide of the property to animate
      * @examples
      *
      * Cancel the animation of the position of a game object:
@@ -1334,7 +1334,7 @@ namespace dmGameObject
      * Delete a game object identified by its id.
      *
      * @name go.delete
-     * @param [id] [type:hash|string|url] optional id of the instance to delete, the instance of the calling script is deleted by default
+     * @param [id] [type:string|hash|url] optional id of the instance to delete, the instance of the calling script is deleted by default
      * @examples
      *
      * This example demonstrates how to delete a game object with the id "my_game_object".

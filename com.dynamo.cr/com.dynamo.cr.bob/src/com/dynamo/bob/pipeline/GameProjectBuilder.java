@@ -225,6 +225,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+        manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
         archiveIndex.close();
         archiveData.close();
 

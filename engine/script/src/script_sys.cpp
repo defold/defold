@@ -75,17 +75,7 @@ union SaveLoadBuffer
      * table.add(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * if not sys.save(my_file_path, my_table) then
-     *     -- Alert user that the data could not be saved
-     * end
-     * ```
-     *
-     * And load it at a later time, e.g. next game session:
-     *
-     * ```lua
-     * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * local my_table = sys.load(my_file_path)
-     * if not next(my_table) then
-     *     -- empty table
+     *   -- Alert user that the data could not be saved
      * end
      * ```
      */
@@ -163,6 +153,17 @@ union SaveLoadBuffer
      * @name sys.load
      * @param filename [type:string] file to read from
      * @return loaded [type:table] lua table, which is empty if the file could not be found
+     * @examples
+     *
+     * Load data that was previously saved, e.g. an earlier game session:
+     *
+     * ```lua
+     * local my_file_path = sys.get_save_file("my_game", "my_file")
+     * local my_table = sys.load(my_file_path)
+     * if not next(my_table) then
+     *   -- empty table
+     * end
+     * ```
      */
     int Sys_Load(lua_State* L)
     {
@@ -192,12 +193,20 @@ union SaveLoadBuffer
     }
 
     /*# gets the save-file path
-     * The save-file path is operating system specific and is typically located under the users home directory.
+     * The save-file path is operating system specific and is typically located under the user's home directory.
      *
      * @name sys.get_save_file
      * @param application_id [type:string] user defined id of the application, which helps define the location of the save-file
      * @param file_name [type:string] file-name to get path for
      * @return path [type:string] path to save-file
+     * @examples
+     *
+     * Find a path where we can store data (the example path is on the macOS platform):
+     *
+     * ```lua
+     * local my_file_path = sys.get_save_file("my_game", "my_file")
+     * print(my_file_path) --> /Users/my_users/Library/Application Support/my_game/my_file
+     * ```
      */
     int Sys_GetSaveFile(lua_State* L)
     {
@@ -303,6 +312,16 @@ union SaveLoadBuffer
      * @name sys.open_url
      * @param url [type:string] url to open
      * @return success [type:boolean] a boolean indicating if the url could be opened or not
+     * @examples
+     *
+     * Open an URL:
+     *
+     * ```lua
+     * local success = sys.open_url("http://www.defold.com")
+     * if not success then
+     *   -- could not open the url...
+     * end
+     * ```
      */
     int Sys_OpenURL(lua_State* L)
     {
@@ -365,34 +384,59 @@ union SaveLoadBuffer
 
     /*# get system information
      *
-     * Returns a table with the following members:
-     *
-     * - `device_model`
-     * - `manufacturer`
-     * - `system_name`
-     * - `system_version`
-     * - `api_version`
-     * - `language`
-     * - `device_language`
-     * - `territory`
-     * - `gmt_offset (minutes)`
-     * - `device_ident`
-     * - `ad_ident`
-     * - `ad_tracking_enabled`
-     * - `user_agent`
-     *
-     * [icon:ios][icon:android] `device_model` and `manufacturer` is currently only available on iOS and Android.
-     *
-     * `language` is in ISO-639 format (two characters) `territory` in ISO-3166 format (two characters).
-     *
-     * `device_language` is in ISO-639 format (two characters) and if applicable by a dash (-) and an ISO 15924 script code. Reflects device preferred language.
-     *
-     * [icon:ios] `device_ident` is "identifierForVendor" and `ad_ident` is "advertisingIdentifier" on iOS.
-     *
-     * [icon:andriod] `device_ident` is "android_id" and `ad_ident` is advertising ID provided by Google Play on Android.
-     *
+     * Returns a table with system information.
      * @name sys.get_sys_info
-     * @return sys_info [type:table] table with system information
+     * @return sys_info [type:table] table with system information in the following fields:
+     *
+     * `device_model`
+     * : [type:string] [icon:ios][icon:android] Only available on iOS and Android.
+     *
+     * `manufacturer`
+     * : [type:string] [icon:ios][icon:android] Only available on iOS and Android.
+     *
+     * `system_name`
+     * : [type:string] The system OS name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
+     *
+     * `system_version`
+     * : [type:string] The system OS version.
+     *
+     * `api_version`
+     * : [type:string] The API version on the system.
+     *
+     * `language`
+     * : [type:string] Two character ISO-639 format, i.e. "en".
+     *
+     * `device_language`
+     * : [type:string] Two character ISO-639 format (i.e. "sr") and, if applicable, followed by a dash (-) and an ISO 15924 script code (i.e. "sr-Cyrl" or "sr-Latn"). Reflects the device preferred language.
+     *
+     * `territory`
+     * : [type:string] Two character ISO-3166 format, i.e. "US".
+     *
+     * `gmt_offset` 
+     * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
+     *
+     * `device_ident`
+     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:andriod] "android_id" on Android.
+     *
+     * `ad_ident`
+     * : [type:string] [icon:ios] "advertisingIdentifier" on iOS. [icon:android] advertising ID provided by Google Play on Android.
+     *
+     * `ad_tracking_enabled`
+     * : [type:boolean] `true` if ad tracking is enabled, `false` otherwise.
+     *
+     * `user_agent`
+     * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
+     *
+     * @examples
+     *
+     * How to get system information:
+     *
+     * ```lua
+     * local info = sys.get_sys_info()
+     * if info.system_name == "HTML5" then
+     *   -- We are running in a browser.
+     * end
+     * ```
      */
     int Sys_GetSysInfo(lua_State* L)
     {
@@ -448,13 +492,27 @@ union SaveLoadBuffer
 
     /*# get engine information
      *
-     * Returns a table with the following members:
-     *
-     * - `version`
-     * - `engine_sha1`
+     * Returns a table with engine information.
      *
      * @name sys.get_engine_info
-     * @return engine_info [type:table] table with engine information
+     * @return engine_info [type:table] table with engine information in the following fields:
+     *
+     * `version`
+     * : [type:string] The current Defold engine version, i.e. "1.2.96"
+     *
+     * `engine_sha1`
+     * : [type:string] The SHA1 for the current engine build, i.e. "0060183cce2e29dbd09c85ece83cbb72068ee050"
+     *
+     * @examples
+     *
+     * How to retrieve engine information:
+     *
+     * ```lua
+     * -- Update version text label so our testers know what version we're running
+     * local engine_info = sys.get_engine_info()
+     * local version_str = "Defold " .. engine_info.version .. "\n" .. engine_info.version_sha1
+     * gui.set_text(gui.get_node("version"), version_str)
+     * ```
      */
     int Sys_GetEngineInfo(lua_State* L)
     {
@@ -477,12 +535,50 @@ union SaveLoadBuffer
 
     /*# get application information
      *
-     * Returns a table with the following members:
+     * Returns a table with application information for the requested app.
      *
-     * - `installed`
+     * [icon:iOS] On iOS, the `app_string` is an url scheme for the app that is queried. Your
+     * game needs to list the schemes that are queried in an `LSApplicationQueriesSchemes` array
+     * in a custom "Info.plist".
+     *
+     * [icon:android] On Android, the `app_string` is the package identifier for the app.
      *
      * @name sys.get_application_info
-     * @return app_info [type:table] table with application information
+     * @param app_string [type:string] platform specific string with application package or query, see above for details.
+     * @return app_info [type:table] table with application information in the following fields:
+     *
+     * `installed`
+     * : [type:boolean] `true` if the application is installed, `false` otherwise.
+     *
+     * @examples
+     *
+     * Check if twitter is installed:
+     *
+     * ```lua
+     * sysinfo = sys.get_sys_info()
+     * twitter = {}
+     *
+     * if sysinfo.system_name == "Android" then
+     *   twitter = sys.get_application_info("com.twitter.android")
+     * elseif sysinfo.system_name == "iPhone OS" then
+     *   twitter = sys.get_application_info("twitter:")
+     * end
+     *
+     * if twitter.installed then
+     *   -- twitter is installed!
+     * end
+     * ```
+     *
+     * [icon:iOS] Info.plist for the iOS app needs to list the schemes that are queried:
+     *
+     * ```xml
+     * ...
+     * <key>LSApplicationQueriesSchemes</key>
+     *  <array>
+     *    <string>twitter</string>
+     *  </array>
+     * ...
+     * ```
      */
     int Sys_GetApplicationInfo(lua_State* L)
     {
@@ -523,21 +619,40 @@ union SaveLoadBuffer
         return is_android && marshmallow_or_higher;
     }
 
-    /*# enumerate network cards
+    /*# enumerate network interfaces
      *
-     * Returns an array of tables with the following members:
-     *
-     * - `name`
-     * - `address` (ip-string)
-     * - `mac` (hardware address
-     * - `colon` (separated string)
-     * - `up` (boolean)
-     * - `running` (boolean)
-     *
-     * [icon:attention] `address` and `mac` might be nil if not available
+     * Returns an array of tables with information on network interfaces.
      *
      * @name sys.get_ifaddrs
-     * @return ifaddrs [type:table] an array of tables
+     * @return ifaddrs [type:table] an array of tables. Each table entry contain the followind fields:
+     *
+     * `name`
+     * : [type:string] Interface name
+     *
+     * `address`
+     * : [type:string] IP address. [icon:attention] might be `nil` if not available.
+     *
+     * `mac`
+     * : [type:string] Hardware MAC address. [icon:attention] might be nil if not available.
+     *
+     * `up`
+     * : [type:boolean] `true` if the interface is up (available to transmit and receive data), `false` otherwise.
+     *
+     * `running`
+     * : [type:boolean] `true` if the interface is running, `false` otherwise.
+     *
+     * @examples
+     *
+     * How to get the IP address of interface "en0":
+     *
+     * ```lua
+     * ifaddrs = sys.get_ifaddrs()
+     * for _,interface in ipairs(ifaddrs) do
+     *   if interface.name == "en0" then
+     *     local ip = interface.address
+     *   end
+     * end
+     * ```
      */
     int Sys_GetIfaddrs(lua_State* L)
     {
@@ -633,20 +748,20 @@ union SaveLoadBuffer
      *
      * ```lua
      * local function my_error_handler(source, message, traceback)
-     *     print(source)   --> lua
-     *     print(message)  --> main/my.script:10: attempt to perform arithmetic on a string value
-     *     print(traceback) --> stack traceback:
-     *                      -->         main/test.script:10: in function 'boom'
-     *                      -->         main/test.script:15: in function <main/my.script:13>
+     *   print(source)    --> lua
+     *   print(message)   --> main/my.script:10: attempt to perform arithmetic on a string value
+     *   print(traceback) --> stack traceback:
+     *                    -->         main/test.script:10: in function 'boom'
+     *                    -->         main/test.script:15: in function <main/my.script:13>
      * end
      *
      * local function boom()
-     *     return 10 + "string"
+     *   return 10 + "string"
      * end
      *
      * function init(self)
-     *     sys.set_error_handler(my_error_handler)
-     *     boom()
+     *   sys.set_error_handler(my_error_handler)
+     *   boom()
      *end
      * ```
      */
@@ -680,7 +795,7 @@ union SaveLoadBuffer
      * @examples
      *
      * ```lua
-     *  sys.set_connectivity_host("www.google.com")
+     * sys.set_connectivity_host("www.google.com")
      * ```
      */
     static int Sys_SetConnectivityHost(lua_State* L)
@@ -693,22 +808,23 @@ union SaveLoadBuffer
 
     /*# get current network connectivity status
      *
-     * Returns the current network connectivity status:
-     *
-     * - `sys.NETWORK_DISCONNECTED` - if no network connection is found
-     * - `sys.NETWORK_CONNECTED_CELLULAR` - if connected through mobile cellular
-     * - `sys.NETWORK_CONNECTED` - otherwise
+     * Returns the current network connectivity status.
      *
      * @name sys.get_connectivity
      * @return status [type:constant] network connectivity status:
+     *
+     * - `sys.NETWORK_DISCONNECTED` (no network connection is found)
+     * - `sys.NETWORK_CONNECTED_CELLULAR` (connected through mobile cellular)
+     * - `sys.NETWORK_CONNECTED` (otherwise)
+     *
      * @examples
      *
      * Check if we are connected through a cellular connection
      *
      * ```lua
-     *  if (sys.NETWORK_CONNECTED_CELLULAR == sys.get_connectivity()) then
-     *      print("Connected via cellular, avoid downloading big files!")
-     *  end
+     * if (sys.NETWORK_CONNECTED_CELLULAR == sys.get_connectivity()) then
+     *   print("Connected via cellular, avoid downloading big files!")
+     * end
      * ```
      */
     static int Sys_GetConnectivity(lua_State* L)
