@@ -26,7 +26,7 @@
 
 ;;; Rudimentary syntax highlightning support for C/C++
 
-(def preprocessor-directives
+(def cpp-preprocessor-directives
   #{"#assert"
     "#define"
     "#elif"
@@ -193,8 +193,8 @@
     "^"
     "^="})
 
-(defn- is-word-start [^Character c] (or (Character/isLetter c) (= c \#) (= c \_) (= c \:)))
-(defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c) (= c \-)))
+(defn- is-word-start [^Character c] (or (Character/isLetter c) (= c \_)))
+(defn- is-word-part [^Character c] (or (is-word-start c) (Character/isDigit c)))
 
 (def operator-pattern (set->pattern cpp-operators))
 
@@ -215,11 +215,10 @@
                                      {:type :custom :scanner match-single-line-comment :class "comment"}
                                      {:type :custom :scanner match-multi-line-comment :class "comment"}
                                      {:type :keyword :start? is-word-start :part? is-word-part :keywords cpp-keywords :class "keyword"}
-                                     {:type :keyword :start? is-word-start :part? is-word-part :keywords preprocessor-directives :class "directive"}
+                                     {:type :keyword :start? is-word-start :part? is-word-part :keywords cpp-preprocessor-directives :class "directive"}
                                      {:type :word :start? is-word-start :part? is-word-part :class "default"}
                                      {:type :multiline :start "\"" :end "\"" :esc \\ :class "string"}
                                      {:type :multiline :start "'" :end "'" :esc \\ :class "string"}
-                                     #_{:type :singleline :start "<" :end ">" :esc \\ :class "string"}
                                      {:type :custom :scanner code/match-number :class "number"}
                                      {:type :custom :scanner match-operator :class "operator"}
                                      {:type :default :class "default"}]}]}})
