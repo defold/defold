@@ -149,7 +149,7 @@
 (core/register-read-handler!
  "zip-resource"
  (transit/read-handler
-  (fn [{:keys [workspace ^URL zip-url name path data children]}]
+  (fn [{:keys [workspace ^String zip-url name path data children]}]
     (ZipResource. workspace (URL. zip-url) name path data children))))
 
 (core/register-write-handler!
@@ -185,8 +185,8 @@
       (.replaceFirst entry-name (str base-path "/") "")
       entry-name)))
 
-(defn- load-zip [url base-path]
-  (when-let [stream (and url (io/input-stream url))]
+(defn- load-zip [file-or-url base-path]
+  (when-let [stream (and file-or-url (io/input-stream file-or-url))]
     (with-open [zip (ZipInputStream. stream)]
       (loop [entries []]
         (let [e (.getNextEntry zip)]
@@ -205,12 +205,12 @@
       (ZipResource. workspace zip-url key path' nil (mapv (fn [x] (->zip-resources workspace zip-url path' x)) val)))))
 
 (defn make-zip-tree
-  ([workspace file-name]
-   (make-zip-tree workspace file-name nil))
-  ([workspace file-name base-path]
-   (let [entries (load-zip file-name base-path)]
+  ([workspace file-or-url]
+   (make-zip-tree workspace file-or-url nil))
+  ([workspace file-or-url base-path]
+   (let [entries (load-zip file-or-url base-path)]
      (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
-          (mapv (fn [x] (->zip-resources workspace (io/as-url file-name) "" x)))))))
+          (mapv (fn [x] (->zip-resources workspace (io/as-url file-or-url) "" x)))))))
 
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))
