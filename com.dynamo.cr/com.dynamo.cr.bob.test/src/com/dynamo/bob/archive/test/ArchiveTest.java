@@ -171,6 +171,7 @@ public class ArchiveTest {
     	for (int i = 1; i < 50; ++i) {
 			String filename = "dummy" + Integer.toString(i);
 			String content  = "dummy" + Integer.toString(i);
+			byte[] archiveIndexMD5 = new byte[16];
 			instance.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, filename, content.getBytes())));
     		
     		RandomAccessFile archiveIndex = new RandomAccessFile(outputIndex, "rw");
@@ -190,10 +191,11 @@ public class ArchiveTest {
 	        int entryOffset = archiveIndex.readInt();	// EntryOffset
 	        int hashOffset  = archiveIndex.readInt();	// HashOffset
 	        archiveIndex.readInt();						// HashSize
+	        archiveIndex.read(archiveIndexMD5);         // Archive index MD5 identifier
 	        archiveIndex.close();
 	        
-	        assertEquals(32, hashOffset);
-	        assertEquals(32 + entrySize * ArchiveBuilder.HASH_MAX_LENGTH, entryOffset);
+	        assertEquals(48, hashOffset);
+	        assertEquals(48 + entrySize * ArchiveBuilder.HASH_MAX_LENGTH, entryOffset);
 	        assertTrue(entryOffset % 4 == 0);
 	        assertTrue(hashOffset % 4 == 0);
     	}
