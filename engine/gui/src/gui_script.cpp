@@ -2063,7 +2063,7 @@ namespace dmGui
      * Get text metrics given the provided font, text and parameters.
      *
      * @name gui.get_text_metrics
-     * @param font [type:hash|string] font id
+     * @param font [type:string|hash] font id
      * @param text [type:string] text to measure
      * @param width [type:number] max-width. Use for line-breaks (default=FLT_MAX)
      * @param line_breaks [type:boolean] true to break lines accordingly to width (default=false)
