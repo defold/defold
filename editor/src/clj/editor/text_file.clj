@@ -15,12 +15,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- re-compile [s] (Pattern/compile s))
 (defn- re-quote [s] (Pattern/quote s))
 
 (defn- set->pattern
   [s]
-  (re-compile (str "^(?:"
+  (re-pattern (str "^(?:"
                    (clojure.string/join "|" (map re-quote (reverse (sort s))))
                    ")")))
 
