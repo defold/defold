@@ -48,7 +48,7 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
  *
  * @name resource.set
  *
- * @param path [type:hash|string] The path to the resource
+ * @param path [type:string|hash] The path to the resource
  * @param buffer [type:buffer] The buffer of precreated data, suitable for the intended resource type
  *
  * @examples
@@ -83,7 +83,7 @@ static int Set(lua_State* L)
  *
  * @name resource.load
  *
- * @param path [type:hash|string] The path to the resource
+ * @param path [type:string|hash] The path to the resource
  * @return buffer [type:buffer] Returns the buffer stored on disc
  *
  * @examples
@@ -301,9 +301,7 @@ static const luaL_reg Module_methods[] =
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
     {"create_manifest", dmLiveUpdate::Resource_CreateManifest},
     {"destroy_manifest", dmLiveUpdate::Resource_DestroyManifest},
-    {"verify_resource", dmLiveUpdate::Resource_VerifyResource},
     {"store_resource", dmLiveUpdate::Resource_StoreResource},
-    {"verify_manifest", dmLiveUpdate::Resource_VerifyManifest},
     {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
 
     {0, 0}

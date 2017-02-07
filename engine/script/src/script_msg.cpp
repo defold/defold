@@ -281,7 +281,7 @@ namespace dmScript
      *
      * In addition, the following shorthands are available:
      *
-     * - `.` the current game object
+     * - `"."` the current game object
      * - `"#"` the current component
      * - `nil` the current component
      *
@@ -305,7 +305,7 @@ namespace dmScript
     /*# creates a new URL from separate arguments
      *
      * @name msg.url
-     * @param [socket] [type:string|socket] socket of the URL
+     * @param [socket] [type:string|number] socket of the URL
      * @param [path] [type:string|hash] path of the URL
      * @param [fragment] [type:string|hash] fragment of the URL
      * @return url [type:url] a new URL
@@ -449,7 +449,7 @@ namespace dmScript
      *
      * The following receiver shorthands are available:
      *
-     * - `.` the current game object
+     * - `"."` the current game object
      * - `"#"` the current component
      * - `nil` the current component
      *

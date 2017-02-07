@@ -33,23 +33,23 @@ namespace dmGameSystem
 
     /*# [type:vector3] sprite size
      *
-     * [READ ONLY] Returns the size of the sprite, not allowing for any additional scaling that may be applied.
+     * [mark:READ ONLY] Returns the size of the sprite, not allowing for any additional scaling that may be applied.
      * The type of the property is vector3.
      *
      * @name size
      * @property
      *
      * @examples
-     * 
+     *
      * How to query a sprite's size, either as a vector or selecting a specific dimension:
-     * 
+     *
      * ```lua
      * function init(self)
-     *     -- get size from component "sprite"
-     * 	   local size = go.get("#sprite", "size")
-     * 	   local sx = go.get("#sprite", "size.x")
-     * 	   -- do something useful
-     * 	   assert(size.x == sx)
+     *    -- get size from component "sprite"
+     * 	  local size = go.get("#sprite", "size")
+     * 	  local sx = go.get("#sprite", "size.x")
+     * 	  -- do something useful
+     * 	  assert(size.x == sx)
      * end
      * ```
      */
@@ -62,9 +62,10 @@ namespace dmGameSystem
      * @property
      *
      * @examples
-     * 
+     *
      * How to scale a sprite independently along the X and Y axis:
-     * 
+     *
+
      * ```lua
      * function init(self)
      *     -- Double the y-axis scaling on component "sprite"
@@ -76,7 +77,7 @@ namespace dmGameSystem
 
     /*# [type:hash] sprite texture0
      *
-     * [READ ONLY] Returns the texture path hash of the sprite. Used for getting/setting resource data
+     * [mark:READ ONLY] Returns the texture path hash of the sprite. Used for getting/setting resource data
      *
      * @name texture0
      * @property
@@ -96,23 +97,25 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# make a sprite flip the animations horizontally or not
-     * Which sprite to flip is identified by the URL.
+    /*# set horizontal flipping on a sprite's animations
+     * Sets horizontal flipping of the provided sprite's animations.
+     * The sprite is identified by its URL.
      * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
      *
      * @name sprite.set_hflip
-     * @param url [type:url] the sprite that should flip its animations
-     * @param flip [type:boolean] if the sprite should flip its animations or not
+     * @param url [type:string|hash|url] the sprite that should flip its animations
+     * @param flip [type:boolean] `true` if the sprite should flip its animations, `false` if not
      * @examples
-     * 
+     *
      * How to flip a sprite so it faces the horizontal movement:
-     * 
+     *
      * ```lua
      * function update(self, dt)
      *     -- calculate self.velocity somehow
      *     sprite.set_hflip("#sprite", self.velocity.x < 0)
      * end
      * ```
+     *
      * It is assumed that the sprite component has id "sprite" and that the original animations faces right.
      */
     int SpriteComp_SetHFlip(lua_State* L)
@@ -133,23 +136,25 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# make a sprite flip the animations vertically or not
-     * Which sprite to flip is identified by the URL.
+    /*# set vertical flipping on a sprite's animations
+     * Sets horizontal flipping of the provided sprite's animations.
+     * The sprite is identified by its URL.
      * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
      *
      * @name sprite.set_vflip
-     * @param url [type:url] the sprite that should flip its animations
-     * @param flip [type:boolean] if the sprite should flip its animations or not
+     * @param url [type:string|hash|url] the sprite that should flip its animations
+     * @param flip [type:boolean] `true` if the sprite should flip its animations, `false` if not
      * @examples
-     * 
+     *
      * How to flip a sprite in a game which negates gravity as a game mechanic:
-     * 
+     *
      * ```lua
      * function update(self, dt)
      *     -- calculate self.up_side_down somehow
      *     sprite.set_vflip("#sprite", self.up_side_down)
      * end
      * ```
+     *
      * It is assumed that the sprite component has id "sprite" and that the original animations are up-right.
      */
     int SpriteComp_SetVFlip(lua_State* L)
@@ -171,23 +176,23 @@ namespace dmGameSystem
     }
 
     /*# set a shader constant for a sprite
+     * Sets a shader constant for a sprite component.
      * The constant must be defined in the material assigned to the sprite.
      * Setting a constant through this function will override the value set for that constant in the material.
-     * The value will be overridden until sprite.reset_constant is called.
+     * The value will be overridden until `sprite.reset_constant` is called.
      * Which sprite to set a constant for is identified by the URL.
      *
      * @name sprite.set_constant
-     * @param url [type:url] the sprite that should have a constant set
-     * @param name [type:string|hash] name of the constant
-     * @param value [type:vec4] value of the constant
+     * @param url [type:string|hash|url] the sprite that should have a constant set
+     * @param constant [type:string|hash] name of the constant
+     * @param value [type:vector4] of the constant
      * @examples
-     * 
-     * The following examples assumes that the sprite has id "sprite" and that the default-material in builtins is used.
+     *
+     * The following examples assumes that the sprite has id "sprite" and that the default-material in builtins is used, which defines the constant "tint".
      * If you assign a custom material to the sprite, you can set the constants defined there in the same manner.
-     * 
-     * 
-     * How to tint a sprite to red:
-     * 
+     *
+     * How to tint a sprite red:
+     *
      * ```lua
      * function init(self)
      *     sprite.set_constant("#sprite", "tint", vmath.vector4(1, 0, 0, 1))
@@ -216,21 +221,21 @@ namespace dmGameSystem
     }
 
     /*# reset a shader constant for a sprite
+     * Resets a shader constant for a sprite component.
      * The constant must be defined in the material assigned to the sprite.
      * Resetting a constant through this function implies that the value defined in the material will be used.
      * Which sprite to reset a constant for is identified by the URL.
      *
      * @name sprite.reset_constant
-     * @param url [type:url] the sprite that should have a constant reset
-     * @param name [type:string|hash] name of the constant
+     * @param url [type:string|hash|url] the sprite that should have a constant reset
+     * @param constant [type:string|hash] name of the constant
      * @examples
-     * 
-     * The following examples assumes that the sprite has id "sprite" and that the default-material in builtins is used.
+     *
+     * The following examples assumes that the sprite has id "sprite" and that the default-material in builtins is used, which defines the constant "tint".
      * If you assign a custom material to the sprite, you can reset the constants defined there in the same manner.
-     * 
-     * 
+     *
      * How to reset the tinting of a sprite:
-     * 
+     *
      * ```lua
      * function init(self)
      *     sprite.reset_constant("#sprite", "tint")

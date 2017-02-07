@@ -4,6 +4,8 @@ function test_hash(hash_value, hash_value_hex)
     assert(hash_value_hex == hash_to_hex(hash_value))
     assert(hash("test_string1") ~= hash("test_string2") )
     assert(hash_to_hex(hash("test_string1")) ~= hash_to_hex(hash("test_string2")))
+    assert(hash("1976") == hash(1976))
+    assert(hash("3.14") == hash(3.14))
     print(tostring(hash_value))
     print("hash: " .. hash_value)
 

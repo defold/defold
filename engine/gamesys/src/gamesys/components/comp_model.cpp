@@ -319,6 +319,7 @@ namespace dmGameSystem
     static void DestroyComponent(ModelWorld* world, uint32_t index)
     {
         ModelComponent* component = world->m_Components.Get(index);
+        dmGameObject::DeleteBones(component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
 
