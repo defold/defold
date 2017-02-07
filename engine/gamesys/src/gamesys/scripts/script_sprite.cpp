@@ -31,7 +31,7 @@ namespace dmGameSystem
      * @namespace sprite
      */
 
-    /*# sprite size (vector3)
+    /*# [type:vector3] sprite size
      *
      * [READ ONLY] Returns the size of the sprite, not allowing for any additional scaling that may be applied.
      * The type of the property is vector3.
@@ -40,21 +40,21 @@ namespace dmGameSystem
      * @property
      *
      * @examples
-     * <p>
+     * 
      * How to query a sprite's size, either as a vector or selecting a specific dimension:
-     * </p>
-     * <pre>
+     * 
+     * ```lua
      * function init(self)
-     *  -- get size from component "sprite"
-     * 	local size = go.get("#sprite", "size")
-     * 	local sx = go.get("#sprite", "size.x")
-     * 	-- do something useful
-     * 	assert(size.x == sx)
+     *     -- get size from component "sprite"
+     * 	   local size = go.get("#sprite", "size")
+     * 	   local sx = go.get("#sprite", "size.x")
+     * 	   -- do something useful
+     * 	   assert(size.x == sx)
      * end
-     * </pre>
+     * ```
      */
 
-    /*# sprite scale (vector3)
+    /*# [type:vector3] sprite scale
      *
      * The non-uniform scale of the sprite. The type of the property is vector3.
      *
@@ -62,19 +62,19 @@ namespace dmGameSystem
      * @property
      *
      * @examples
-     * <p>
+     * 
      * How to scale a sprite independently along the X and Y axis:
-     * </p>
-     * <pre>
+     * 
+     * ```lua
      * function init(self)
-     *  -- Double the y-axis scaling on component "sprite"
-     * 	local yscale = go.get("#sprite", "scale.y")
-     * 	go.set("#sprite", "scale.y", yscale * 2)
+     *     -- Double the y-axis scaling on component "sprite"
+     * 	   local yscale = go.get("#sprite", "scale.y")
+     * 	   go.set("#sprite", "scale.y", yscale * 2)
      * end
-     * </pre>
+     * ```
      */
 
-    /*# sprite texture0 (hash)
+    /*# [type:hash] sprite texture0
      *
      * [READ ONLY] Returns the texture path hash of the sprite. Used for getting/setting resource data
      *
@@ -82,18 +82,18 @@ namespace dmGameSystem
      * @property
      *
      * @examples
-     * <p>
+     * 
      * How to overwrite a sprite's original texture
-     * </p>
-     * <pre>
+     * 
+     * ```lua
      * function init(self)
-     *  -- get texture resource from one sprite and set it on another
-     *  local resource_path1 = go.get("#sprite1", "texture0")
-     *  local buffer = resource.load(resource_path1)
-     *  local resource_path2 = go.get("#sprite2", "texture0")
-     *  resource.set(resource_path2, buffer)
+     *     -- get texture resource from one sprite and set it on another
+     *     local resource_path1 = go.get("#sprite1", "texture0")
+     *     local buffer = resource.load(resource_path1)
+     *     local resource_path2 = go.get("#sprite2", "texture0")
+     *     resource.set(resource_path2, buffer)
      * end
-     * </pre>
+     * ```
      */
 
     /*# make a sprite flip the animations horizontally or not
@@ -101,19 +101,19 @@ namespace dmGameSystem
      * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
      *
      * @name sprite.set_hflip
-     * @param url the sprite that should flip its animations (url)
-     * @param flip if the sprite should flip its animations or not (boolean)
+     * @param url [type:url] the sprite that should flip its animations
+     * @param flip [type:boolean] if the sprite should flip its animations or not
      * @examples
-     * <p>
+     * 
      * How to flip a sprite so it faces the horizontal movement:
-     * </p>
-     * <pre>
+     * 
+     * ```lua
      * function update(self, dt)
      *     -- calculate self.velocity somehow
      *     sprite.set_hflip("#sprite", self.velocity.x < 0)
      * end
-     * </pre>
-     * <p>It is assumed that the sprite component has id "sprite" and that the original animations faces right.</p>
+     * ```
+     * It is assumed that the sprite component has id "sprite" and that the original animations faces right.
      */
     int SpriteComp_SetHFlip(lua_State* L)
     {
@@ -138,19 +138,19 @@ namespace dmGameSystem
      * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
      *
      * @name sprite.set_vflip
-     * @param url the sprite that should flip its animations (url)
-     * @param flip if the sprite should flip its animations or not (boolean)
+     * @param url [type:url] the sprite that should flip its animations
+     * @param flip [type:boolean] if the sprite should flip its animations or not
      * @examples
-     * <p>
+     * 
      * How to flip a sprite in a game which negates gravity as a game mechanic:
-     * </p>
-     * <pre>
+     * 
+     * ```lua
      * function update(self, dt)
      *     -- calculate self.up_side_down somehow
      *     sprite.set_vflip("#sprite", self.up_side_down)
      * end
-     * </pre>
-     * <p>It is assumed that the sprite component has id "sprite" and that the original animations are up-right.</p>
+     * ```
+     * It is assumed that the sprite component has id "sprite" and that the original animations are up-right.
      */
     int SpriteComp_SetVFlip(lua_State* L)
     {
@@ -177,22 +177,22 @@ namespace dmGameSystem
      * Which sprite to set a constant for is identified by the URL.
      *
      * @name sprite.set_constant
-     * @param url the sprite that should have a constant set (url)
-     * @param name of the constant (string|hash)
-     * @param value of the constant (vec4)
+     * @param url [type:url] the sprite that should have a constant set
+     * @param name [type:string|hash] name of the constant
+     * @param value [type:vec4] value of the constant
      * @examples
-     * <p>
+     * 
      * The following examples assumes that the sprite has id "sprite" and that the default-material in builtins is used.
      * If you assign a custom material to the sprite, you can set the constants defined there in the same manner.
-     * </p>
-     * <p>
+     * 
+     * 
      * How to tint a sprite to red:
-     * </p>
-     * <pre>
+     * 
+     * ```lua
      * function init(self)
      *     sprite.set_constant("#sprite", "tint", vmath.vector4(1, 0, 0, 1))
      * end
-     * </pre>
+     * ```
      */
     int SpriteComp_SetConstant(lua_State* L)
     {
@@ -221,21 +221,21 @@ namespace dmGameSystem
      * Which sprite to reset a constant for is identified by the URL.
      *
      * @name sprite.reset_constant
-     * @param url the sprite that should have a constant reset (url)
-     * @param name of the constant (string|hash)
+     * @param url [type:url] the sprite that should have a constant reset
+     * @param name [type:string|hash] name of the constant
      * @examples
-     * <p>
+     * 
      * The following examples assumes that the sprite has id "sprite" and that the default-material in builtins is used.
      * If you assign a custom material to the sprite, you can reset the constants defined there in the same manner.
-     * </p>
-     * <p>
+     * 
+     * 
      * How to reset the tinting of a sprite:
-     * </p>
-     * <pre>
+     * 
+     * ```lua
      * function init(self)
      *     sprite.reset_constant("#sprite", "tint")
      * end
-     * </pre>
+     * ```
      */
     int SpriteComp_ResetConstant(lua_State* L)
     {
