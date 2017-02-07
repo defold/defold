@@ -991,7 +991,7 @@ namespace dmRender
      *
      * @name render.get_render_target_height
      * @param render_target [type:render_target] render target from which to retrieve the buffer height
-     * @param buffer_type [type:constant] which type of buffer to retrieve the height from (constant)
+     * @param buffer_type [type:constant] which type of buffer to retrieve the height from
      *
      * - `render.BUFFER_COLOR_BIT`
      * - `render.BUFFER_DEPTH_BIT`
@@ -1607,16 +1607,16 @@ namespace dmRender
     * The comparison is performed only if depth testing is enabled and specifies
     * the conditions under which a pixel will be drawn.
     *
-    * Function constant              | Condition
-    * ------------------------------ | --------------------------------
-    * `render.COMPARE_FUNC_NEVER`    | never passes
-    * `render.COMPARE_FUNC_LESS`     | passes if the incoming depth value is less than the stored value
-    * `render.COMPARE_FUNC_LEQUAL`   | passes if the incoming depth value is less than or equal to the stored value
-    * `render.COMPARE_FUNC_GREATER`  | passes if the incoming depth value is greater than the stored value
-    * `render.COMPARE_FUNC_GEQUAL`   | passes if the incoming depth value is greater than or equal to the stored value
-    * `render.COMPARE_FUNC_EQUAL`    | passes if the incoming depth value is equal to the stored value
-    * `render.COMPARE_FUNC_NOTEQUAL` | passes if the incoming depth value is not equal to the stored value
-    * `render.COMPARE_FUNC_ALWAYS`   | always passes
+    * Function constants:
+    *
+    * - `render.COMPARE_FUNC_NEVER` (never passes)
+    * - `render.COMPARE_FUNC_LESS` (passes if the incoming depth value is less than the stored value)
+    * - `render.COMPARE_FUNC_LEQUAL` (passes if the incoming depth value is less than or equal to )the stored value
+    * `render.COMPARE_FUNC_GREATER` (passes if the incoming depth value is greater than the stored )v- alue
+    * `render.COMPARE_FUNC_GEQUAL` (passes if the incoming depth value is greater than or equal to )t- he stored value
+    * - `render.COMPARE_FUNC_EQUAL` (passes if the incoming depth value is equal to the stored value)
+    * - `render.COMPARE_FUNC_NOTEQUAL` (passes if the incoming depth value is not equal to the )stored value
+    * - `render.COMPARE_FUNC_ALWAYS` (always passes)
     *
     * The depth function is initially set to `render.COMPARE_FUNC_LESS`.
     *
@@ -1677,16 +1677,16 @@ namespace dmRender
     * `mask` is ANDed with both the reference value and the stored stencil value when the test
     * is done. The initial value is all `1`'s.
     *
-    * Function constant              | Condition
-    * ------------------------------ | --------------------------------
-    * `render.COMPARE_FUNC_NEVER`    | never passes
-    * `render.COMPARE_FUNC_LESS`     | passes if (ref & mask) < (stencil & mask)
-    * `render.COMPARE_FUNC_LEQUAL`   | passes if (ref & mask) <= (stencil & mask)
-    * `render.COMPARE_FUNC_GREATER`  | passes if (ref & mask) > (stencil & mask)
-    * `render.COMPARE_FUNC_GEQUAL`   | passes if (ref & mask) >= (stencil & mask)
-    * `render.COMPARE_FUNC_EQUAL`    | passes if (ref & mask) = (stencil & mask)
-    * `render.COMPARE_FUNC_NOTEQUAL` | passes if (ref & mask) != (stencil & mask)
-    * `render.COMPARE_FUNC_ALWAYS`   | always passes
+    * Function constant:
+    *
+    * - `render.COMPARE_FUNC_NEVER` (never passes)
+    * - `render.COMPARE_FUNC_LESS` (passes if (ref & mask) < (stencil & mask))
+    * - `render.COMPARE_FUNC_LEQUAL` (passes if (ref & mask) <= (stencil & mask))
+    * - `render.COMPARE_FUNC_GREATER` (passes if (ref & mask) > (stencil & mask))
+    * - `render.COMPARE_FUNC_GEQUAL` (passes if (ref & mask) >= (stencil & mask))
+    * - `render.COMPARE_FUNC_EQUAL` (passes if (ref & mask) = (stencil & mask))
+    * - `render.COMPARE_FUNC_NOTEQUAL` (passes if (ref & mask) != (stencil & mask))
+    * - `render.COMPARE_FUNC_ALWAYS` (always passes)
     *
     * @name render.set_stencil_func
     * @param func [type:constant] stencil test function, see the description for available values
@@ -1778,16 +1778,16 @@ namespace dmRender
     * pixel's color or depth buffers, and `sfail` specifies what happens to the stencil buffer
     * contents.
     *
-    * Operator constant             | Action
-    * ----------------------------- | ------------------------
-    * `render.STENCIL_OP_KEEP`      | keeps the current value
-    * `render.STENCIL_OP_ZERO`      | sets the stencil buffer value to 0
-    * `render.STENCIL_OP_REPLACE`   | sets the stencil buffer value to `ref`, as specified by [ref:render.set_stencil_func]
-    * `render.STENCIL_OP_INCR`      | increments the stencil buffer value and clamp to the maximum representable unsigned value
-    * `render.STENCIL_OP_INCR_WRAP` | increments the stencil buffer value and wrap to zero when incrementing the maximum representable unsigned value
-    * `render.STENCIL_OP_DECR`      | decrements the current stencil buffer value and clamp to 0
-    * `render.STENCIL_OP_DECR_WRAP` | decrements the current stencil buffer value and wrap to the maximum representable unsigned value when decrementing zero
-    * `render.STENCIL_OP_INVERT`    | bitwise inverts the current stencil buffer value
+    * Operator constants:
+    *
+    * - `render.STENCIL_OP_KEEP` (keeps the current value)
+    * - `render.STENCIL_OP_ZERO` (sets the stencil buffer value to 0)
+    * - `render.STENCIL_OP_REPLACE` (sets the stencil buffer value to `ref`, as specified by [ref:render.set_stencil_func])
+    * - `render.STENCIL_OP_INCR` (increments the stencil buffer value and clamp to the maximum representable unsigned value)
+    * - `render.STENCIL_OP_INCR_WRAP` (increments the stencil buffer value and wrap to zero when incrementing the maximum representable unsigned value)
+    * - `render.STENCIL_OP_DECR` (decrements the current stencil buffer value and clamp to 0)
+    * - `render.STENCIL_OP_DECR_WRAP` (decrements the current stencil buffer value and wrap to the maximum representable unsigned value when decrementing zero)
+    * - `render.STENCIL_OP_INVERT` (bitwise inverts the current stencil buffer value)
     *
     * `dppass` and `dpfail` specify the stencil buffer actions depending on whether subsequent
     * depth buffer tests succeed (dppass) or fail (dpfail).
@@ -2102,7 +2102,7 @@ namespace dmRender
      * in the "game.project" setting.
      *
      * @name render.enable_material
-     * @param material_id [type:string] material id to enable
+     * @param material_id [type:string|hash] material id to enable
      * @examples
      *
      * Enable material named "glow", then draw my_pred with it.

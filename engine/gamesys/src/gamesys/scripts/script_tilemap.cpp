@@ -32,7 +32,7 @@ namespace dmGameSystem
      * Which tile map to set a constant for is identified by the URL.
      *
      * @name tilemap.set_constant
-     * @param url [type:hash|string|url] the tile map that should have a constant set
+     * @param url [type:string|hash|url] the tile map that should have a constant set
      * @param constant [type:string|hash] name of the constant
      * @param value [type:vector4] value of the constant
      * @examples
@@ -77,7 +77,7 @@ namespace dmGameSystem
      * Which tile map to reset a constant for is identified by the URL.
      *
      * @name tilemap.reset_constant
-     * @param url [type:hash|string|url] the tile map that should have a constant reset
+     * @param url [type:string|hash|url] the tile map that should have a constant reset
      * @param constant [type:string|hash] name of the constant
      * @examples
      *
@@ -134,7 +134,7 @@ namespace dmGameSystem
      * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by the URL and the layer name parameters.
      *
      * @name tilemap.set_tile
-     * @param url [type:hash|string|url] the tile map
+     * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
      * @param x [type:number] x-coordinate of the tile
      * @param y [type:number] y-coordinate of the tile
@@ -239,7 +239,7 @@ namespace dmGameSystem
      * layer name parameters.
      *
      * @name tilemap.get_tile
-     * @param url [type:hash|string|url] the tile map
+     * @param url [type:string|hash|url] the tile map
      * @param layer [type:string|hash] name of the layer for the tile
      * @param x [type:number] x-coordinate of the tile
      * @param y [type:number] y-coordinate of the tile
@@ -300,7 +300,7 @@ namespace dmGameSystem
      * the bounds are calculated as if all layers were collapsed into one.
      *
      * @name tilemap.get_bounds
-     * @param url [type:hash|string|url] the tile map (url)
+     * @param url [type:string|hash|url] the tile map (url)
      * @return x [type:number] x coordinate of the bottom left corner
      * @return y [type:number] y coordinate of the bottom left corner
      * @return w [type:number] number of columns (width) in the tile map
