@@ -477,7 +477,7 @@
 
 (defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
 
-(defmethod resolve-conflicts :replace
+(defmethod resolve-conflicts :overwrite
   [_ src-dest-pairs]
   src-dest-pairs)
 
@@ -495,6 +495,38 @@
         (into non-conflicts (resolve-conflicts strategy conflicts)))
       non-conflicts)))
 
+(defn- move-file
+  "Moves a file to the specified target location. Any existing file at the
+  target location will be overwritten. If it does not already exist, the path
+  leading up to the target location will be created. Returns true if the move
+  was successful, or false if the move failed for any reason."
+  [^File src ^File tgt]
+  (try
+    (if (.exists tgt)
+      (and (FileUtils/deleteQuietly tgt)
+           (.renameTo src tgt))
+      (do (io/make-parents tgt)
+          (.renameTo src tgt)))
+    (catch Exception _
+      false)))
+
+(defn- drag-move-files [dragged-pairs]
+  (let [file-pairs (mapcat (fn [[src tgt]] (find-files src tgt)) dragged-pairs)
+        moved-file-pairs (filterv (fn [[src tgt]] (move-file src tgt)) file-pairs)]
+    ;; Delete any now-empty directories.
+    (doseq [[^File src] dragged-pairs]
+      (when (and (.isDirectory src)
+                 (empty? (.list src)))
+        (FileUtils/deleteQuietly src)))
+    moved-file-pairs))
+
+(defn- drag-copy-files [dragged-pairs]
+  (doseq [[^File src ^File tgt] dragged-pairs]
+    (if (.isDirectory src)
+      (FileUtils/copyDirectory src tgt)
+      (FileUtils/copyFile src tgt)))
+  [])
+
 (defn- drag-dropped [^DragEvent e]
   (let [db (.getDragboard e)]
     (when (.hasFiles db)
@@ -508,24 +540,13 @@
                        (mapv (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]))
                        (resolve-any-conflicts)
                        (vec))
-            moved (if move?
-                    (vec (mapcat (fn [[^File src ^File tgt]]
-                                   (find-files src tgt)) pairs))
-                    [])
             workspace (resource/workspace resource)]
-        (when pairs
-          (doseq [[^File src-file ^File tgt-file] pairs]
-            (if (= (.getTransferMode e) TransferMode/MOVE)
-              (do
-                (io/make-parents tgt-file)
-                (.renameTo src-file tgt-file))
-              (if (.isDirectory src-file)
-                (FileUtils/copyDirectory src-file tgt-file)
-                (FileUtils/copyFile src-file tgt-file))))
-          (select-files! workspace tree-view (mapv second pairs))
-          (workspace/resource-sync! workspace true moved))))
-    (.setDropCompleted e true)
-    (.consume e)))
+        (when (seq pairs)
+          (let [moved (if move? (drag-move-files pairs) (drag-copy-files pairs))]
+            (select-files! workspace tree-view (mapv second pairs))
+            (workspace/resource-sync! workspace true moved))))))
+  (.setDropCompleted e true)
+  (.consume e))
 
 (defrecord SelectionProvider [asset-browser]
   handler/SelectionProvider
