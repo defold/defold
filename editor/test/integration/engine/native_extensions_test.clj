@@ -13,9 +13,10 @@
 
 (deftest extension-roots-test
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")]
+    (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+          project (test-util/setup-project! workspace)]
       (is (= #{"/extension1" "/subdir/extension2"}
-             (set (map resource/proj-path (native-extensions/extension-roots workspace))))))))
+             (set (map resource/proj-path (native-extensions/extension-roots project))))))))
 
 (deftest extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
