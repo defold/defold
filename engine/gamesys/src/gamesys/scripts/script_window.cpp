@@ -125,7 +125,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  * : [type:object] The calling script
  *
  * `event`
- * : [type:number] The type of event. Can be one of these:
+ * : [type:constant] The type of event. Can be one of these:
  *
  * - `window.WINDOW_EVENT_FOCUS_LOST`
  * - `window.WINDOW_EVENT_FOCUS_GAINED`
