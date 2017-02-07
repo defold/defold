@@ -123,20 +123,8 @@
   [resource path]
   (reduce resource-child resource path))
 
-(defn extension-resources
-  [roots platform]
-  (let [paths (platform-extension-paths platform)]
-    (->> (for [root roots
-               path paths
-               :let [resource (resource-by-path root path)]
-               :when resource]
-           resource)
-         (mapcat resource/resource-seq)
-         (filter #(= :file (resource/source-type %))))))
-
 (defn extension-resource-nodes
   [project roots platform]
-  (def p project)
   (let [paths (platform-extension-paths platform)]
     (->> (for [root roots
                path paths
