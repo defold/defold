@@ -850,8 +850,8 @@ namespace dmScript
      * This function creates a copy of the given vector.
      *
      * @name vmath.vector3
-     * @param v [type:vector3] existing vector
-     * @return v2 [type:vector3] new vector
+     * @param v1 [type:vector3] existing vector
+     * @return v [type:vector3] new vector
      * @examples
      *
      * ```lua
@@ -952,8 +952,8 @@ namespace dmScript
      * This function creates a copy of the given vector.
      *
      * @name vmath.vector4
-     * @param v [type:vector4] existing vector
-     * @return v2 [type:vector4] new vector
+     * @param v1 [type:vector4] existing vector
+     * @return v [type:vector4] new vector
      * @examples
      *
      * ```lua
@@ -1047,8 +1047,8 @@ namespace dmScript
      * This function creates a copy of the given quaternion.
      *
      * @name vmath.quat
-     * @param q [type:quaternion] existing quaternion
-     * @return q2 [type:quaternion] new quaternion
+     * @param q1 [type:quaternion] existing quaternion
+     * @return q [type:quaternion] new quaternion
      * @examples
      *
      * ```lua
@@ -1101,14 +1101,14 @@ namespace dmScript
         return 1;
     }
 
-    /*# creates a quaternion to rotate between two unit length vectors
+    /*# creates a quaternion to rotate between two unit vectors
      *
      * The resulting quaternion describes the rotation that,
      * if applied to the first vector, would rotate the first
      * vector to the second. The two vectors must be unit
-     * length vectors (of length 1).
+     * vectors (of length 1).
      *
-     * @note The result is undefined if the two vectors point in opposite directions
+     * [icon:attention] The result is undefined if the two vectors point in opposite directions
      *
      * @name vmath.quat_from_to
      * @param v1 [type:vector3] first unit vector, before rotation
@@ -1131,10 +1131,10 @@ namespace dmScript
         return 1;
     }
 
-    /*# creates a quaternion to rotate around a unit-length vector
+    /*# creates a quaternion to rotate around a unit vector
      *
      * The resulting quaternion describes a rotation of `angle`
-     * radians around the axis described by the unit length vector `v`.
+     * radians around the axis described by the unit vector `v`.
      *
      * @name vmath.quat_axis_angle
      * @param v [type:vector3] axis
@@ -1157,11 +1157,11 @@ namespace dmScript
         return 1;
     }
 
-    /*# creates a quaternion from three base unit length vectors
+    /*# creates a quaternion from three base unit vectors
      *
      * The resulting quaternion describes the rotation from the
      * identity quaternion (no rotation) to the coordinate system
-     * as described by the given x, y and z base unit length vectors.
+     * as described by the given x, y and z base unit vectors.
      *
      * @name vmath.quat_basis
      * @param x [type:vector3] x base vector
@@ -1287,8 +1287,8 @@ namespace dmScript
      * the function creates a copy of the given matrix.
      *
      * @name vmath.matrix4
-     * @param m [type:matrix4] existing matrix
-     * @return m2 [type:matrix4] matrix which is a copy of the specified matrix
+     * @param m1 [type:matrix4] existing matrix
+     * @return m [type:matrix4] matrix which is a copy of the specified matrix
      * @examples
      *
      * ```lua
@@ -1576,14 +1576,14 @@ namespace dmScript
     /*# calculates the inverse matrix.
      * The resulting matrix is the inverse of the supplied matrix.
      *
-     * @note For ortho-normal matrices, e.g. regular object transformation,
+     * [icon:attention] For ortho-normal matrices, e.g. regular object transformation,
      * use `vmath.ortho_inv()` instead.
      * The specialized inverse for ortho-normalized matrices is much faster
      * than the general inverse.
      *
      * @name vmath.inv
-     * @param m [type:matrix4] matrix to invert
-     * @return m2 [type:matrix4] inverse of the supplied matrix
+     * @param m1 [type:matrix4] matrix to invert
+     * @return m [type:matrix4] inverse of the supplied matrix
      * @examples
      *
      * ```lua
@@ -1606,12 +1606,12 @@ namespace dmScript
      * The supplied matrix has to be an ortho-normal matrix, e.g.
      * describe a regular object transformation.
      *
-     * @note For matrices that are not ortho-normal
+     * [icon:attention] For matrices that are not ortho-normal
      * use the general inverse `vmath.inv()` instead.
      *
      * @name vmath.ortho_inv
-     * @param m [type:matrix4] ortho-normalized matrix to invert
-     * @return m2 [type:matrix4] inverse of the supplied matrix
+     * @param m1 [type:matrix4] ortho-normalized matrix to invert
+     * @return m [type:matrix4] inverse of the supplied matrix
      * @examples
      *
      * ```lua
@@ -1633,7 +1633,7 @@ namespace dmScript
      *
      * The returned value is a scalar defined as:
      *
-     * `P &#x22C5; Q = |P| |Q| cos &#x03B8;`
+     * <code>P &#x22C5; Q = |P| |Q| cos &#x03B8;</code>
      *
      * where &#x03B8; is the angle between the vectors P and Q.
      *
@@ -1742,8 +1742,8 @@ namespace dmScript
      * division-by-zero will occur.
      *
      * @name vmath.normalize
-     * @param v [type:vector3|vector4] vector to normalize
-     * @return v2 [type:vector3|vector4] new normalized vector
+     * @param v1 [type:vector3|vector4] vector to normalize
+     * @return v [type:vector3|vector4] new normalized vector
      * @examples
      *
      * ```lua
@@ -1807,7 +1807,8 @@ namespace dmScript
      * the positions in a straight line. Lerp is useful to describe
      * transitions from one place to another over time.
      *
-     * @note The function does not clamp t between 0 and 1.
+     * [icon:attention] The function does not clamp t between 0 and 1.
+     *
      * @name vmath.lerp
      * @param t [type:number] interpolation parameter, 0-1
      * @param v1 [type:vector3|vector4] vector to lerp from
@@ -1839,7 +1840,8 @@ namespace dmScript
      * rotations. For interpolations of arbitrary rotations,
      * [ref:vmath.slerp] yields much better results.
      *
-     * @note The function does not clamp t between 0 and 1.
+     * [icon:attention] The function does not clamp t between 0 and 1.
+     *
      * @name vmath.lerp
      * @param t [type:number] interpolation parameter, 0-1
      * @param q1 [type:quaternion] quaternion to lerp from
@@ -1866,10 +1868,11 @@ namespace dmScript
 
     /*# lerps between two numbers
      *
-     * Linearly interpolate between two values. Lerp is useful 
+     * Linearly interpolate between two values. Lerp is useful
      * to describe transitions from one value to another over time.
      *
-     * @note The function does not clamp t between 0 and 1.
+     * [icon:attention] The function does not clamp t between 0 and 1.
+     *
      * @name vmath.lerp
      * @param t [type:number] interpolation parameter, 0-1
      * @param n1 [type:number] number to lerp from
@@ -1938,9 +1941,9 @@ namespace dmScript
      * and the magnitude is interpolated between the magnitudes of the
      * from and to vectors.
      *
-     * Slerp is computationally more expensive than lerp.
+     * [icon:attention] Slerp is computationally more expensive than lerp.
+     * The function does not clamp t between 0 and 1.
      *
-     * @note The function does not clamp t between 0 and 1.
      * @name vmath.slerp
      * @param t [type:number] interpolation parameter, 0-1
      * @param v1 [type:vector3|vector4] vector to slerp from
@@ -1975,7 +1978,8 @@ namespace dmScript
      * Slerp travels the torque-minimal path, which means it travels
      * along the straightest path the rounded surface of a sphere.
      *
-     * @note The function does not clamp t between 0 and 1.
+     * [icon:attention] The function does not clamp t between 0 and 1.
+     *
      * @name vmath.slerp
      * @param t [type:number] interpolation parameter, 0-1
      * @param q1 [type:quaternion] quaternion to slerp from
@@ -2035,8 +2039,8 @@ namespace dmScript
      * <code>q<super>*</super> = [w, -v]</code>
      *
      * @name vmath.conj
-     * @param q [type:quatertion] quaternion of which to calculate the conjugate
-     * @return q2 [type:quatertion] the conjugate
+     * @param q1 [type:quatertion] quaternion of which to calculate the conjugate
+     * @return q [type:quatertion] the conjugate
      * @examples
      *
      * ```lua
@@ -2059,8 +2063,8 @@ namespace dmScript
      *
      * @name vmath.rotate
      * @param q [type:quatertion] quaternion
-     * @param v [type:vector3] vector to rotate
-     * @return v2 [type:vector3] the rotated vector
+     * @param v1 [type:vector3] vector to rotate
+     * @return v [type:vector3] the rotated vector
      * @examples
      *
      * ```lua
@@ -2081,7 +2085,9 @@ namespace dmScript
      *
      * Calculates the extent the projection of the first vector onto the second.
      * The returned value is a scalar p defined as:
-     * <p><code>p = |P| cos &#x03B8; / |Q|</code></p>
+     *
+     * <code>p = |P| cos &#x03B8; / |Q|</code>
+     *
      * where &#x03B8; is the angle between the vectors P and Q.
      *
      * @name vmath.project
