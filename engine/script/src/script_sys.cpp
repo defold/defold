@@ -395,7 +395,7 @@ union SaveLoadBuffer
      * : [type:string] [icon:ios][icon:android] Only available on iOS and Android.
      *
      * `system_name`
-     * : [type:string] The system OS name: "Darwin", "Windows", "HTML5", "Android" or "iPhone OS"
+     * : [type:string] The system OS name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
      *
      * `system_version`
      * : [type:string] The system OS version.
