@@ -257,6 +257,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     const uint32_t manifest_extension_length = strlen("dmanifest");
     const uint32_t index_extension_length = strlen("arci");
     
+    char archive_index_path[DMPATH_MAX_PATH];
     char archive_resource_path[DMPATH_MAX_PATH];
     char liveupdate_index_path[DMPATH_MAX_PATH];
     char app_support_path[DMPATH_MAX_PATH];
@@ -264,6 +265,9 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
 
     dmStrlCpy(archive_resource_path, manifestPath, strlen(manifestPath) - manifest_extension_length + 1);
     dmStrlCat(archive_resource_path, "arcd", DMPATH_MAX_PATH);
+    // derive path to arci file from path to arcd file
+    dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
+    archive_index_path[strlen(archive_index_path) - 1] = 'i';
     
     HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
@@ -273,10 +277,6 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
 
     if (!luIndexExists)
     {
-        // derive path to arci file from path to arcd file
-        char archive_index_path[DMPATH_MAX_PATH];
-        dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
-        archive_index_path[strlen(archive_index_path) - 1] = 'i';
         result = MountArchiveInternal(archive_index_path, archive_resource_path, 0x0, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
     }
     else // If a liveupdate index exists, use that one instead
@@ -288,7 +288,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
         // Check if any liveupdate resources were stored last time engine was running
         char temp_archive_index_path[DMPATH_MAX_PATH];
         dmStrlCpy(temp_archive_index_path, liveupdate_index_path, strlen(liveupdate_index_path)+1);
-        dmStrlCat(temp_archive_index_path, "-temp", DMPATH_MAX_PATH); // check for liveupdate.arci-temp
+        dmStrlCat(temp_archive_index_path, ".tmp", DMPATH_MAX_PATH); // check for liveupdate.arci.tmp
         bool luTempIndexExists = stat(temp_archive_index_path, &file_stat) == 0;
         if (luTempIndexExists)
         {
@@ -303,6 +303,23 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
             dmSys::Unlink(temp_archive_index_path);
         }
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
+        if (result != RESULT_OK)
+        {
+            dmLogError("Failed to mount archive, result = %i", result);
+            return RESULT_IO_ERROR;
+        }
+
+        int archive_id_cmp = dmResourceArchive::CmpArchiveIdentifier(factory->m_Manifest->m_ArchiveIndex, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count);
+        if (archive_id_cmp != 0)
+        {
+            dmResourceArchive::Result reload_res = ReloadBundledArchiveIndex(archive_index_path, archive_resource_path, liveupdate_index_path, liveupdate_resource_path, factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
+
+            if (reload_res != dmResourceArchive::RESULT_OK)
+            {
+                dmLogError("Failed to reload liveupdate index with bundled index, result = %i", reload_res);
+                return RESULT_IO_ERROR;
+            }
+        }
 	}
 
     return result;
