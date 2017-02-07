@@ -142,7 +142,7 @@ public class SignHandler extends AbstractHandler {
             Project tmpProject = null;
             Map<String, IResource> bundleResources = null;
             try {
-                tmpProject = Bob.createProject("", sourceDirectory, "build", false);
+                tmpProject = Bob.createProject("", sourceDirectory, "build", false, null, null);
                 tmpProject.loadProjectFile();
 
                 // Collect bundle/package resources to be included in .App directory
