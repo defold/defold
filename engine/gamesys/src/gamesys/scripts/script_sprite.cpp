@@ -65,11 +65,34 @@ namespace dmGameSystem
      *
      * How to scale a sprite independently along the X and Y axis:
      *
+
      * ```lua
      * function init(self)
-     *  -- Double the y-axis scaling on component "sprite"
-     * 	local yscale = go.get("#sprite", "scale.y")
-     * 	go.set("#sprite", "scale.y", yscale * 2)
+     *     -- Double the y-axis scaling on component "sprite"
+     * 	   local yscale = go.get("#sprite", "scale.y")
+     * 	   go.set("#sprite", "scale.y", yscale * 2)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] sprite texture0
+     *
+     * [mark:READ ONLY] Returns the texture path hash of the sprite. Used for getting/setting resource data
+     *
+     * @name texture0
+     * @property
+     *
+     * @examples
+     * 
+     * How to overwrite a sprite's original texture
+     * 
+     * ```lua
+     * function init(self)
+     *     -- get texture resource from one sprite and set it on another
+     *     local resource_path1 = go.get("#sprite1", "texture0")
+     *     local buffer = resource.load(resource_path1)
+     *     local resource_path2 = go.get("#sprite2", "texture0")
+     *     resource.set(resource_path2, buffer)
      * end
      * ```
      */
