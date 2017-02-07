@@ -288,7 +288,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
         // Check if any liveupdate resources were stored last time engine was running
         char temp_archive_index_path[DMPATH_MAX_PATH];
         dmStrlCpy(temp_archive_index_path, liveupdate_index_path, strlen(liveupdate_index_path)+1);
-        dmStrlCat(temp_archive_index_path, "-temp", DMPATH_MAX_PATH); // check for liveupdate.arci-temp
+        dmStrlCat(temp_archive_index_path, ".tmp", DMPATH_MAX_PATH); // check for liveupdate.arci.tmp
         bool luTempIndexExists = stat(temp_archive_index_path, &file_stat) == 0;
         if (luTempIndexExists)
         {
@@ -303,11 +303,22 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
             dmSys::Unlink(temp_archive_index_path);
         }
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
+        if (result != RESULT_OK)
+        {
+            dmLogError("Failed to mount archive, result = %i", result);
+            return RESULT_IO_ERROR;
+        }
+
         int archive_id_cmp = dmResourceArchive::CmpArchiveIdentifier(factory->m_Manifest->m_ArchiveIndex, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count);
         if (archive_id_cmp != 0)
         {
-            dmLogInfo("Reloading bundled resource archive");
             dmResourceArchive::Result reload_res = ReloadBundledArchiveIndex(archive_index_path, archive_resource_path, liveupdate_index_path, liveupdate_resource_path, factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
+
+            if (reload_res != dmResourceArchive::RESULT_OK)
+            {
+                dmLogError("Failed to reload liveupdate index with bundled index, result = %i", reload_res);
+                return RESULT_IO_ERROR;
+            }
         }
 	}
 

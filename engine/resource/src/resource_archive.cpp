@@ -221,13 +221,13 @@ namespace dmResourceArchive
         bundled_archive_container->m_IsMemMapped = true;
 
         // reloaded_index is now the union of bundled archive index and liveupdate entries
-        // use it as runtime index, and write it to liveupdate.arci-temp
+        // use it as runtime index, and write it to liveupdate.arci.tmp
         lu_index_container = bundled_archive_container;
 
-        // Write to temporary index file, filename liveupdate.arci-temp
+        // Write to temporary index file, filename liveupdate.arci.tmp
         char lu_temp_index_path[DMPATH_MAX_PATH];
         dmStrlCpy(lu_temp_index_path, lu_index_path, DMPATH_MAX_PATH);
-        dmStrlCat(lu_temp_index_path, "-temp", DMPATH_MAX_PATH);
+        dmStrlCat(lu_temp_index_path, ".tmp", DMPATH_MAX_PATH);
         FILE* f_lu_index = fopen(lu_temp_index_path, "wb");
         if (!f_lu_index)
         {
@@ -239,9 +239,10 @@ namespace dmResourceArchive
         }
         uint32_t entry_count = JAVA_TO_C(reloaded_index->m_EntryDataCount);
         uint32_t total_size = sizeof(ArchiveIndex) + entry_count * DMRESOURCE_MAX_HASH + entry_count * sizeof(EntryData);
-        if (fwrite((void*)reloaded_index, 1, total_size, f_lu_index) != total_size)
+        uint32_t written_bytes = fwrite((void*)reloaded_index, 1, total_size, f_lu_index);
+        if (written_bytes != total_size)
         {
-            dmLogError("Failed to write liveupdate index file");
+            dmLogError("Failed to write liveupdate index file, written bytes: %u, expected: %u", written_bytes, total_size);
             fclose(f_lu_index);
             free(lu_entries->m_Entries);
             free((void*)lu_entries->m_Hashes);
@@ -431,7 +432,10 @@ namespace dmResourceArchive
 
     void Delete(ArchiveIndex* archive)
     {
-        delete[] (uint8_t*)archive;
+        if (archive != 0x0)
+        {
+            delete[] (uint8_t*)archive;
+        }
     }
 
     Result CalcInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int& index)
@@ -689,8 +693,8 @@ namespace dmResourceArchive
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
         archive_container->m_IsMemMapped = true;
 
-        // Write to temporary index file, filename liveupdate.arci-temp
-        dmStrlCat(lu_index_path, "-temp", DMPATH_MAX_PATH);
+        // Write to temporary index file, filename liveupdate.arci.tmp
+        dmStrlCat(lu_index_path, ".tmp", DMPATH_MAX_PATH);
         FILE* f_lu_index = fopen(lu_index_path, "wb");
         if (!f_lu_index)
         {

@@ -267,7 +267,7 @@ public class ManifestBuilder {
     private String publicKeyFilepath = null;
     private String projectIdentifier = null;
     private ResourceNode dependencies = null;
-    private byte[] archiveIdentifier = new byte[16];
+    private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         private int compare(byte[] left, byte[] right) {
@@ -342,7 +342,9 @@ public class ManifestBuilder {
     }
     
     public void setArchiveIdentifier(byte[] archiveIdentifier) {
-        this.archiveIdentifier = archiveIdentifier;
+        if (archiveIdentifier.length == ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH) {
+            this.archiveIdentifier = archiveIdentifier;
+        }
     }
 
     public void addSupportedEngineVersion(String hash) {

@@ -32,6 +32,7 @@ public class ArchiveBuilder {
     public static final int VERSION = 4;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
     public static final int HASH_LENGTH = 20;
+    public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
 
     private static final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
 
@@ -41,7 +42,7 @@ public class ArchiveBuilder {
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
-    private byte[] archiveIndexMD5 = new byte[16];
+    private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder) {
         this.root = new File(root).getAbsolutePath();
@@ -141,7 +142,9 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(0); // EntryOffset
         archiveIndex.writeInt(0); // HashOffset
         archiveIndex.writeInt(0); // HashLength
-        archiveIndex.write(new byte[16]);
+        archiveIndex.write(new byte[MD5_HASH_DIGEST_BYTE_LENGTH]);
+        
+        int archiveIndexHeaderOffset = (int) archiveIndex.getFilePointer();
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
@@ -212,13 +215,13 @@ public class ArchiveBuilder {
         
         try {
             // Calc index file MD5 hash
-            archiveIndex.seek(0);
-            long num_bytes = archiveIndex.length();
-            byte[] archiveIndexBytes = new byte[(int) num_bytes];            
+            archiveIndex.seek(archiveIndexHeaderOffset);
+            int num_bytes = (int) archiveIndex.length() - archiveIndexHeaderOffset;
+            byte[] archiveIndexBytes = new byte[num_bytes];            
             archiveIndex.readFully(archiveIndexBytes);
             this.archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
         } catch (NoSuchAlgorithmException e) {
-            // TODO Auto-generated catch block
+            System.err.println("The algorithm specified is not supported!");
             e.printStackTrace();
         }
         
@@ -277,7 +280,6 @@ public class ArchiveBuilder {
 
         boolean doCompress = false;
         List<File> inputs = new ArrayList<File>();
-        List<File> liveupdateInputs = new ArrayList<File>();
         for (int i = 2; i < args.length; ++i) {
             if (args[i].equals("-c")) {
                 doCompress = true;
@@ -286,12 +288,8 @@ public class ArchiveBuilder {
                 if (!currentInput.isFile()) {
                     printUsageAndTerminate("file does not exist: " + currentInput.getAbsolutePath());
                 }
-                if (args[i].indexOf("liveupdate.") != -1)
-                {
-                    liveupdateInputs.add(currentInput);
-                } else {
-                    inputs.add(currentInput);
-                }
+                
+                inputs.add(currentInput);
             }
         }
 
@@ -318,14 +316,11 @@ public class ArchiveBuilder {
         System.out.println("Adding " + Integer.toString(inputs.size()) + " entries to archive ...");
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
         for (File currentInput : inputs) {
-            archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
-            ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
-            rootNode.addChild(currentNode);
-        }
-        
-        System.out.println("Adding " + Integer.toString(liveupdateInputs.size()) + " liveupdate entries to archive...");
-        for (File currentInput : liveupdateInputs) {
-            archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, true);
+            if (currentInput.getName().startsWith("liveupdate.")){
+                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, true);
+            } else {
+                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
+            }
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
             rootNode.addChild(currentNode);
         }

@@ -30,6 +30,9 @@ static const char* content[]            = {
     "file2_datafile2_datafile2_data",
     "liveupdatefile1_datafile1_datafile1_data"
 };
+
+static const uint64_t liveupdate_path_hash[2] = { 0x68b7e06402ee965c, 0xe7b921ca4d761083 };
+
 static const uint8_t sorted_first_hash[20] = 
     {  0U,   1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
 static const uint8_t sorted_middle_hash[20] = 
@@ -81,7 +84,14 @@ void FreeMutableIndexData(void*& arci_data)
 
 bool IsLiveUpdateResource(dmhash_t lu_path_hash)
 {
-    return lu_path_hash == 0x68b7e06402ee965c || lu_path_hash == 0xe7b921ca4d761083;
+    for (uint32_t i = 0; i < (sizeof(liveupdate_path_hash) / sizeof(liveupdate_path_hash[0])); ++i)
+    {
+        if (lu_path_hash == liveupdate_path_hash[i])
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 TEST(dmResourceArchive, ShiftInsertResource)

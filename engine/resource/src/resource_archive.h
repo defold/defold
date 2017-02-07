@@ -71,24 +71,6 @@ namespace dmResourceArchive
         LiveUpdateResourceHeader* m_Header;
     };
 
-    struct LiveUpdateEntries {
-        LiveUpdateEntries(const uint8_t* hashes, uint32_t hash_len, EntryData* entry_datas, uint32_t num_entries) {
-            m_Hashes = hashes;
-            m_HashLen = hash_len;
-            m_Entries = entry_datas;
-            m_Count = num_entries;
-        }
-
-        LiveUpdateEntries() {
-            memset(this, 0, sizeof(LiveUpdateEntries));
-        }
-
-        const uint8_t* m_Hashes;
-        uint32_t m_HashLen;
-        EntryData* m_Entries;
-        uint32_t m_Count;
-    };
-
     /**
      * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
      * archive is not needed.
