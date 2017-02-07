@@ -61,10 +61,23 @@ namespace dmLiveUpdate
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
         uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
+        if (digest == 0x0)
+        {
+            dmLogError("Failed to allocate memory for hash calculation.");
+            return false;
+        }
+
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
 
         uint32_t hexDigestLength = digestLength * 2 + 1;
         char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
+        if (hexDigest == 0x0)
+        {
+            dmLogError("Failed to allocate memory for hash calculation.");
+            free(digest);
+            return false;
+        }
+
         dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
 
         if (expectedLength == (hexDigestLength - 1))
@@ -106,6 +119,12 @@ namespace dmLiveUpdate
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
         uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
+        if (digest == 0x0)
+        {
+            dmLogError("Failed to allocate memory for hash calculation.");
+            return false;
+        }
+
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
 
         char proj_id[dmResource::MANIFEST_PROJ_ID_LEN];

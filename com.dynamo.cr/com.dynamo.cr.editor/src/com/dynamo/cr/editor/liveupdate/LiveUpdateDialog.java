@@ -238,13 +238,13 @@ public class LiveUpdateDialog extends TitleAreaDialog {
         // -------------------------------------------------------------------
         // Defold Service
         // -------------------------------------------------------------------
-        CreateHorizontalSpacing(container);
-        CreateRadioButton(container, "Upload to Defold AWS service", false, new IRadioAction() {
-            @Override
-            public void select() {
-                presenter.setMode(PublisherSettings.PublishMode.Defold);
-            }
-        });
+        // CreateHorizontalSpacing(container);
+        // CreateRadioButton(container, "Upload to Defold AWS service", false, new IRadioAction() {
+        //     @Override
+        //     public void select() {
+        //         presenter.setMode(PublisherSettings.PublishMode.Defold);
+        //     }
+        // });
 
 
         // -------------------------------------------------------------------

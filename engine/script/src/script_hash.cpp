@@ -70,7 +70,16 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        dmhash_t hash = CheckHashOrString(L, 1);
+        dmhash_t hash;
+        if(IsHash(L, 1))
+        {
+            hash = *(dmhash_t*)lua_touserdata(L, 1);
+        }
+        else
+        {
+            const char* str = luaL_checkstring(L, 1);
+            hash = dmHashString64(str);
+        }
         PushHash(L, hash);
 
         assert(top + 1 == lua_gettop(L));
