@@ -30,7 +30,8 @@ namespace dmLiveUpdate
      */
     int Resource_GetCurrentManifest(lua_State* L);
 
-    /*# create a new manifest from a buffer
+    // DOCUMENTATION NOT CURRENTLY EXPOSED
+    /* create a new manifest from a buffer
      *
      * Create a new manifest from a buffer and return a reference to the
      * manifest. Before storing a manifest that has been downloaded it is
@@ -61,7 +62,8 @@ namespace dmLiveUpdate
      */
     int Resource_CreateManifest(lua_State* L);
 
-    /*# remove a manifest that has been created
+    // DOCUMENTATION NOT CURRENTLY EXPOSED
+    /* remove a manifest that has been created
      *
      * remove a manifest that has been created using `create_manifest`. This will
      * free up the memory that was allocated when creating the manifest. The
@@ -83,114 +85,65 @@ namespace dmLiveUpdate
      */
     int Resource_DestroyManifest(lua_State* L);
 
-    /*# checks whether a resource matches the expected resource hash or not
-     *
-     * checks whether a resource matches the expected resource hash or not. This
-     * function can be used before storing a resource using the
-     * function store_resource to ensure that the resource was not corrupted,
-
-     * or modified by a third party, during transfer.
-     *
-     * @name resource.verify_resource
-     * @param manifest_reference [type:number] the manifest to check against
-     * @param expected_hash [type:string] the expected hash for the resource,
-     * retrieved through `collectionproxy.missing_resources`.
-     * @param buffer [type:string] the resource data to verify.
-     * @return matches [type:boolean] `true` if the resource matches the expected hash, `false`
-     * otherwise.
-     * @error An error occurs if the manifest_reference is invalid.
-     * @examples
-     *
-     * ```lua
-     * function init(self)
-     *     self.manifest = resource.get_current_manifest()
-     * end
-     *
-     * local function store_resource(self, expected_hash, buffer)
-     *     if resource.verify_resource(self.manifest, expected_hash, buffer) then
-     *         resource.store_resource(self.manifest, expected_hash, buffer)
-     *     end
-     * end
-     * ```
-     */
-    int Resource_VerifyResource(lua_State* L);
-
     /*# add a resource to the data archive and runtime index
      *
      * add a resource to the data archive and runtime index. The resource that
      * is added must already exist in the manifest, and can be verified using
      * verify_resource. The resource will also be verified internally before being
      * added to the data archive.
-
      *
      * @name resource.store_resource
-     * @param manifest_reference (int) The manifest to check against.
-     * @param expected_hash (string) The expected hash for the resource,
+     * @param manifest_reference [type:number] The manifest to check against.
+     * @param data [type:string] The resource data that should be stored.
+     * @param hexdigest [type:string] The expected hash for the resource,
      * retrieved through collectionproxy.missing_resources.
-     * @param buffer (string) The resource data to store.
+     * @param callback [type:function(self, hexdigest, status)] The callback
+     * function that is executed once the engine has been attempted to store
+     * the resource.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `hexdigest`
+     * : [type:string] The hexdigest of the resource.
+     *
+     * `status`
+     * : [type:boolean] Whether or not the resource was successfully stored.
      * @return (bool) True if the resource could be stored, False otherwise.
-
-     */
-    int Resource_StoreResource(lua_State* L);
-
-    /*# check if a manifest has been created with the correct private key
-     *
-     * Check if a manifest has been created with the correct private key. This
-     * function should always be used before storing a new manifest using the
-     * function `store_manifest` to ensure that the manifest was not corrupted,
-     * or modified by a third party, during transfer.
-     *
-     * @name resource.verify_manifest
-     * @param manifest_reference [type:number] the reference that should be verified.
-     * @return verified [type:boolean] `true` if the manifest signature could be correctly
-     * verified, `false` otherwise.
      *
      * @examples
-     *
-     * ```lua
-     * local function callback_update_manifest(self, id, response)
-     *     if response.status == 200 then
-     *         local manifest = resource.create_manifest(response.response)
-     *         if resource.verify_manifest(manifest) then
-     *             resource.store_manifest(manifest)
-     *             msg.post("@system", "reboot")
-     *         else
-     *             print("Manifest could not be verified")
-     *             -- error handling
-     *         end
-     *         resource.destroy_manifest(manifest)
-     *     else
-     *         print("Could not retrieve new manifest from server")
-     *         -- error handling
-     *     end
+     * ```
+     * function init(self)
+     *     self.manifest = resource.get_current_manifest()
      * end
      *
-     * local function callback_manifest_info(self, id, response)
-     *     if response.status == 200 then
-     *         error, data = pcall(json.decode, response.response)
-     *         if not error then
-     *             if data.version > self.version then
-     *                 http.request(data.uri, "GET", callback_update_manifest)
-     *             end
-     *         else
-     *             print("Could not parse manifest information from server")
-     *             -- error handling
-     *         end
-     *     else
-     *         print("Could not retrieve manifest information from server")
-     *         -- error handling
-     *     end
+     * local function callback_store_resource(self, hexdigest, status)
+     *      if status == true then
+     *           print("Successfully stored resource: " .. hexdigest)
+     *      else
+     *           print("Failed to store resource: " .. hexdigest)
+     *      end
      * end
      *
-     * local function check_new_manifest(self)
-     *     local uri = "http://example.defold.com/latest_manifest.json"
-     *     http.request(uri, "GET", callback_manifest_info)
+     * local function load_resources(self, target)
+     *      local resources = collectionproxy.missing_resources(target)
+     *      for _, resource_hash in ipairs(resources) do
+     *           local baseurl = "http://example.defold.com:8000/"
+     *           http.request(baseurl .. resource_hash, "GET", function(self, id, response)
+     *                if response.status == 200 then
+     *                     resource.store_resource(self.manifest, response.response, resource_hash, callback_store_resource)
+     *                else
+     *                     print("Failed to download resource: " .. resource_hash)
+     *                end
+     *           end)
+     *      end
      * end
      * ```
      */
-    int Resource_VerifyManifest(lua_State* L);
+    int Resource_StoreResource(lua_State* L);
 
-    /*# store a manifest to device
+    // DOCUMENTATION NOT CURRENTLY EXPOSED
+    /* store a manifest to device
      *
      * Store a manifest to device. The manifest that is stored should be
      * verified using `verify_manifest` before the manifest is stored. The next
