@@ -43,9 +43,9 @@ namespace dmGameSystem
      *   cursor = go.get("#model", "cursor")
      * end
      * ```
-     * 
+     *
      * How to animate the cursor from 0.0 to 1.0 using linear easing for 2.0 seconds:
-     * 
+     *
      * ```lua
      * function init(self)
      *   -- Get the current value on component "model"
@@ -54,7 +54,7 @@ namespace dmGameSystem
      *   go.animate("#model", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
      * end
      * ```
-     * 
+     *
      * Please note that model events may not fire as expected when the cursor is manipulated directly.
      */
 
@@ -66,9 +66,9 @@ namespace dmGameSystem
      * @property
      *
      * @examples
-     * 
+     *
      * How to set the playback_rate on component "model" to play at double the current speed:
-     * 
+     *
      * ```lua
      * function init(self)
      *   -- Get the current value on component "model"
@@ -89,9 +89,9 @@ namespace dmGameSystem
      * @property
      *
      * @examples
-     * 
+     *
      * How to read the current animation from a model component:
-     * 
+     *
      * ```lua
      * function init(self)
      *   -- Get the current animation on component "model"
@@ -105,15 +105,15 @@ namespace dmGameSystem
 
     /*# [type:hash] model texture0
      *
-     * [READ ONLY] Returns the texture path hash of the model. Used for getting/setting resource data
+     * [mark:READ ONLY] Returns the texture path hash of the model. Used for getting/setting resource data
      *
      * @name texture0
      * @property
      *
      * @examples
-     * 
+     *
      * How to overwrite a model's original texture
-     * 
+     *
      * ```lua
      * function init(self)
      *   -- get texture resource from one model and set it on another
@@ -165,9 +165,10 @@ namespace dmGameSystem
     }
 
     /*# play an animation on a model
+     * Plays an animation on a model component.
      *
      * @name model.play_anim
-     * @param url [type:url] the model for which to play the animation
+     * @param url [type:string|hash|url] the model for which to play the animation
      * @param anim_id [type:string|hash] id of the animation to play
      * @param playback [type:constant] playback mode of the animation
      *
@@ -182,18 +183,21 @@ namespace dmGameSystem
      *
      * Play properties table:
      *
-     * Field              | Description
-     * ------------------ | ----------------------------------------------------------
-     * `blend_duration`   | [type:number] Duration of a linear blend between the current and new animation
-     * `offset`           | [type:number] The normalized initial value of the animation cursor when the animation starts playing
-     * `playback_rate`    | [type:number] The rate with which the animation will be played. Must be positive
+     * `blend_duration`
+     * : [type:number] Duration of a linear blend between the current and new animation.
+     *
+     * `offset`
+     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing.
+     *
+     * `playback_rate`
+     * : [type:number] The rate with which the animation will be played. Must be positive.
      *
      * @examples
-     * 
+     *
      * The following examples assumes that the model has id "model".
      *
      * How to play the "jump" animation followed by the "run" animation:
-     * 
+     *
      * ```lua
      * function init(self)
      *     local url = msg.url("#model")
@@ -264,9 +268,10 @@ namespace dmGameSystem
     }
 
     /*# cancel all animation on a model
+     * Cancels all animation on a model component.
      *
      * @name model.cancel
-     * @param url [type:url] the model for which to cancel the animation
+     * @param url [type:string|hash|url] the model for which to cancel the animation
      */
     int LuaModelComp_Cancel(lua_State* L)
     {
@@ -286,21 +291,21 @@ namespace dmGameSystem
     }
 
     /*# retrieve the game object corresponding to a model skeleton bone
+     * Gets the id of the game object that corresponds to a model skeleton bone.
      * The returned game object can be used for parenting and transform queries.
-     * This function has complexity O(n), where n is the number of bones in the model skeleton.
+     * This function has complexity `O(n)`, where `n` is the number of bones in the model skeleton.
      * Game objects corresponding to a model skeleton bone can not be individually deleted.
-     * Only available from .script files.
      *
      * @name model.get_go
-     * @param url [type:url] the model to query
+     * @param url [type:string|hash|url] the model to query
      * @param bone_id [type:string|hash] id of the corresponding bone
      * @return id of the game object
      * @examples
-     * 
+     *
      * The following examples assumes that the model component has id "model".
-     * 
+     *
      * How to parent the game object of the calling script to the "right_hand" bone of the model in a player game object:
-     * 
+     *
      * ```lua
      * function init(self)
      *     local parent = model.get_go("player#model", "right_hand")
@@ -358,23 +363,24 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# set a shader constant for a model component
+    /*# set a shader constant for a model
+     * Sets a shader constant for a model component.
      * The constant must be defined in the material assigned to the model.
      * Setting a constant through this function will override the value set for that constant in the material.
      * The value will be overridden until model.reset_constant is called.
      * Which model to set a constant for is identified by the URL.
      *
      * @name model.set_constant
-     * @param url [type:url] the model that should have a constant set
-     * @param name [type:string|hash] name of the constant
-     * @param value [type:vec4] value of the constant
+     * @param url [type:string|hash|url] the model that should have a constant set
+     * @param constant [type:string|hash] name of the constant
+     * @param value [type:vector4] value of the constant
      * @examples
-     * 
-     * The following examples assumes that the model has id "model" and that the default-material in builtins is used.
+     *
+     * The following examples assumes that the model has id "model" and that the default-material in builtins is used, which defines the constant "tint".
      * If you assign a custom material to the model, you can set the constants defined there in the same manner.
-     * 
+     *
      * How to tint a model to red:
-     * 
+     *
      * ```lua
      * function init(self)
      *     model.set_constant("#model", "tint", vmath.vector4(1, 0, 0, 1))
@@ -404,20 +410,21 @@ namespace dmGameSystem
     }
 
     /*# reset a shader constant for a model
+     * Resets a shader constant for a model component.
      * The constant must be defined in the material assigned to the model.
      * Resetting a constant through this function implies that the value defined in the material will be used.
      * Which model to reset a constant for is identified by the URL.
      *
      * @name model.reset_constant
-     * @param url [type:url] the model that should have a constant reset
-     * @param name [type:string|hash] name of the constant
+     * @param url [type:string|hash|url] the model that should have a constant reset.
+     * @param constant [type:string|hash] name of the constant.
      * @examples
-     * 
-     * The following examples assumes that the model has id "model" and that the default-material in builtins is used.
+     *
+     * The following examples assumes that the model has id "model" and that the default-material in builtins is used, which defines the constant "tint".
      * If you assign a custom material to the model, you can reset the constants defined there in the same manner.
-     * 
+     *
      * How to reset the tinting of a model:
-     * 
+     *
      * ```lua
      * function init(self)
      *     model.reset_constant("#model", "tint")
