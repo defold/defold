@@ -226,8 +226,10 @@ public class Bob {
         return cmd;
     }
 
-    public static Project createProject(String sourceDirectory, String rootDirectory, String buildDirectory, boolean resolveLibraries) throws IOException, LibraryException, CompileExceptionError {
+    public static Project createProject(String sourceDirectory, String rootDirectory, String buildDirectory, boolean resolveLibraries, String email, String auth) throws IOException, LibraryException, CompileExceptionError {
         Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
+        project.setOption("email", email);
+        project.setOption("auth", auth);
 
         ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
@@ -269,13 +271,9 @@ public class Bob {
             }
         }
 
-        Project project = createProject(sourceDirectory, rootDirectory, buildDirectory, shouldResolveLibs);
-        if (cmd.hasOption('e')) {
-            project.setOption("email", getOptionsValue(cmd, 'e', null));
-        }
-        if (cmd.hasOption('u')) {
-            project.setOption("auth", getOptionsValue(cmd, 'u', null));
-        }
+        String email = getOptionsValue(cmd, 'e', null);
+        String auth = getOptionsValue(cmd, 'u', null);
+        Project project = createProject(sourceDirectory, rootDirectory, buildDirectory, shouldResolveLibs, email, auth);
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
         }
