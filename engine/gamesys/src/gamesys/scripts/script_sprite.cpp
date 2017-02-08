@@ -45,11 +45,11 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *    -- get size from component "sprite"
-     * 	  local size = go.get("#sprite", "size")
-     * 	  local sx = go.get("#sprite", "size.x")
-     * 	  -- do something useful
-     * 	  assert(size.x == sx)
+     *   -- get size from component "sprite"
+     *   local size = go.get("#sprite", "size")
+     *   local sx = go.get("#sprite", "size.x")
+     *   -- do something useful
+     *   assert(size.x == sx)
      * end
      * ```
      */
