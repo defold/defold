@@ -248,7 +248,12 @@
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
-(defn- allow-resource-transfer? [tgt-resource src-files]
+(defn allow-resource-move?
+  "Returns true if it is legal to move all the supplied source files to the
+  specified target resource. Disallows moves that would place a parent below
+  one of its own children, moves to a readonly destination, and moves to the
+  same path the file already resides in."
+  [tgt-resource src-files]
   (and (not (resource/read-only? tgt-resource))
        (let [^Path tgt-path (-> tgt-resource resource/abs-path File. util/to-folder .getAbsolutePath ->path)
              src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
@@ -263,7 +268,7 @@
             (let [cb (Clipboard/getSystemClipboard)]
               (and (.hasFiles cb)
                    (= 1 (count selection))
-                   (allow-resource-transfer? (first selection) (.getFiles cb)))))
+                   (not (resource/read-only? (first selection))))))
   (run [selection workspace asset-browser]
        (let [tree-view (g/node-value asset-browser :tree-view)
              resource (first selection)
@@ -457,7 +462,7 @@
          (when (> view-y (- height 15))
            (.scrollTo view (inc (.getIndex cell)))))
        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
-         (when (allow-resource-transfer? tgt-resource (.getFiles db))
+         (when (allow-resource-move? tgt-resource (.getFiles db))
            ;; Allow move only if the drag source was also the tree view.
            (if (= (.getTreeView cell) (.getGestureSource e))
              (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
