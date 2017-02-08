@@ -27,6 +27,7 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:const defold-build-server-url "https://build.defold.com")
 
 ;;; Caching
 
