@@ -781,11 +781,26 @@ namespace dmScript
         {0,0}
     };
 
-    /*# creates a new vector from a table of values
+    /*# create a new vector from a table of values
+     * Creates a vector of arbitrary size. The vector is initialized
+     * with numeric values from a table.
+     *
+     * [icon:attention] The table values are converted to floating point
+     * values. If a value cannot be converted, a 0 is stored in that
+     * value position in the vector.
      *
      * @name vmath.vector
      * @param t [type:table] table of numbers
      * @return v [type:vector] new vector
+     * @examples
+     *
+     * How to create a vector with custom data to be used for animation easing:
+     *
+     * ```lua
+     * local values = { 0, 0.5, 0 }
+     * local vec = vmath.vector(values)
+     * print(vec) --> vmath.vector (size: 3)
+     * ```
      */
     static int Vector_new(lua_State* L)
     {
