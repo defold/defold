@@ -111,7 +111,7 @@
 
 (defn extension-roots
   [project]
-  (->> (g/node-value (project/workspace project) :resource-list)
+  (->> (g/node-value project :resources)
        (filter extension-root?)
        (seq)))
 
