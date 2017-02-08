@@ -85,7 +85,7 @@
      :children  (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
-  (.write w (format "FileResource{:workspace %s :file %s :children %s}" (:workspace file-resource) (:file file-resource) (str (:children file-resource)))))
+  (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
 
 (defrecord MemoryResource [workspace ext data]
   Resource
@@ -112,7 +112,7 @@
 (core/register-record-type! MemoryResource)
 
 (defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
-  (.write w (format "MemoryResource{:workspace %s :data %s}" (:workspace memory-resource) (:data memory-resource))))
+  (.write w (format "{:MemoryResource %s}" (pr-str (ext memory-resource)))))
 
 (defn make-memory-resource [workspace resource-type data]
   (MemoryResource. workspace (:ext resource-type) data))
@@ -165,7 +165,7 @@
      :children  (:children r)})))
 
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
-  (.write w (format "ZipResource{:workspace %s :path %s :children %s}" (:workspace zip-resource) (:path zip-resource) (str (:children zip-resource)))))
+  (.write w (format "{:ZipResource %s}" (pr-str (proj-path zip-resource)))))
 
 (defn- read-zip-entry [^ZipInputStream zip ^ZipEntry e]
   (let [os (ByteArrayOutputStream.)
