@@ -393,6 +393,9 @@
 (defn read-only? [property]
   (:read-only? property))
 
+(defn edit-type [property]
+  (:edit-type property))
+
 (defn set-values!
   ([property values]
     (set-values! property values (gensym)))
