@@ -4,6 +4,7 @@
    [clojure.string :as str]
    [dynamo.graph :as g]
    [editor.prefs :as prefs]
+   [editor.defold-project :as project]
    [editor.resource :as resource]
    [editor.system :as system]
    [editor.workspace :as workspace])
@@ -15,7 +16,7 @@
    (javax.ws.rs.core MediaType)
    (org.apache.commons.codec.binary Hex)
    (org.apache.commons.codec.digest DigestUtils)
-   (org.apache.commons.io FileUtils FilenameUtils)
+   (org.apache.commons.io FileUtils FilenameUtils IOUtils)
    (com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder)
    (com.sun.jersey.api.client.config ClientConfig DefaultClientConfig)
    (com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider)
@@ -26,38 +27,22 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:const defold-build-server-url "https://build.defold.com")
 
 ;;; Caching
 
-;; map from resource-path to {:hash, :timestamp} so we can avoid
-;; re-calculating file hashes if file hasn't been modified
-(def ^:private resource-hashes (atom {}))
-
-(defn- hash-resource ^String
-  [resource]
-  (let [proj-path (resource/proj-path resource)
-        resource-file (io/as-file resource)]
-    (or (when-let [cache-entry (get @resource-hashes proj-path)]
-          (when (= (:timestamp cache-entry) (.lastModified resource-file))
-            (:hash cache-entry)))
-        (let [hash (with-open [s (io/input-stream resource)]
-                     (DigestUtils/sha256Hex s))]
-          (swap! resource-hashes assoc proj-path {:timestamp (.lastModified resource-file)
-                                                  :hash      hash})
-          hash))))
-
 (defn- hash-resources! ^MessageDigest
-  [^MessageDigest md resources]
-  (run! #(DigestUtils/updateDigest md (hash-resource %))
-        (sort-by resource/proj-path resources))
+  [^MessageDigest md resource-nodes]
+  (run! #(DigestUtils/updateDigest md ^String (g/node-value % :sha256))
+        (sort resource-nodes))
   md)
 
 (defn- cache-key
-  [^String platform ^String sdk-version resources]
+  [^String platform ^String sdk-version resource-nodes]
   (-> (DigestUtils/getSha256Digest)
       (DigestUtils/updateDigest platform)
       (DigestUtils/updateDigest (or sdk-version ""))
-      (hash-resources! resources)
+      (hash-resources! resource-nodes)
       (.digest)
       (Hex/encodeHexString)))
 
@@ -97,7 +82,7 @@
 ;;; Extension discovery/processing
 
 (def ^:private extender-platforms
-  {(.getPair Platform/X86Darwin)    {:platform      "x86_64-osx"
+  {(.getPair Platform/X86Darwin)    {:platform      "x86-osx"
                                      :library-paths #{"osx" "x86-osx"}}
    (.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
@@ -125,8 +110,8 @@
   (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
 
 (defn extension-roots
-  [workspace]
-  (->> (g/node-value workspace :resource-list)
+  [project]
+  (->> (g/node-value project :resources)
        (filter extension-root?)
        (seq)))
 
@@ -139,8 +124,8 @@
   [resource path]
   (reduce resource-child resource path))
 
-(defn extension-resources
-  [roots platform]
+(defn extension-resource-nodes
+  [project roots platform]
   (let [paths (platform-extension-paths platform)]
     (->> (for [root roots
                path paths
@@ -148,17 +133,24 @@
                :when resource]
            resource)
          (mapcat resource/resource-seq)
-         (filter #(= :file (resource/source-type %))))))
-
+         (filter #(= :file (resource/source-type %)))
+         (map (fn [resource]
+                (project/get-resource-node project resource))))))
 
 ;;; Extender API
 
 (defn- build-url
   [platform sdk-version]
-  (format "/build/%s/%s" platform sdk-version))
+  (format "/build/%s/%s" platform (or sdk-version "")))
+
+(defn- resource-content-stream ^java.io.InputStream
+  [resource-node]
+  (if-let [content (some-> (g/node-value resource-node :save-data) :content)]
+    (IOUtils/toInputStream ^String content "UTF-8")
+    (io/input-stream (g/node-value resource-node :resource))))
 
 (defn- build-engine-archive ^File
-  [server-url platform sdk-version resources]
+  [server-url platform sdk-version resource-nodes]
   (let [cc (DefaultClientConfig.)
         ;; TODO: Random errors wihtout this... Don't understand why random!
         ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
@@ -170,22 +162,27 @@
         build-resource (.path api-root (build-url platform sdk-version))
         builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))]
     (with-open [form (FormDataMultiPart.)]
-      (doseq [r resources]
-        (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
-      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
-            f (doto (File/createTempFile "defold-engine" ".zip")
-                (.deleteOnExit))]
-        (when-not (= 200 (.getStatus cr))
-          (throw (ex-info (format "Engine build failed: %s" (.getEntity cr String))
-                          {:status (.getStatus cr)})))
-        (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-        f))))
+      (doseq [node resource-nodes]
+        (let [resource (g/node-value node :resource)]
+          (.bodyPart form (StreamDataBodyPart. (resource/proj-path resource) (resource-content-stream node)))))
+      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)]
+        (case (.getStatus cr)
+          200 (let [f (doto (File/createTempFile "defold-engine" ".zip")
+                        (.deleteOnExit))]
+                (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
+                f)
+
+          422  (throw (ex-info (format "Compilation error: %s" (.getEntity cr String))
+                               {:status (.getStatus cr)}))
+
+          (throw (ex-info (format "Failed to build engine: %s" (.getEntity cr String))
+                          {:status (.getStatus cr)})))))))
 
 (defn- find-or-build-engine-archive
-  [cache-dir server-url platform sdk-version resources]
-  (let [key (cache-key platform sdk-version resources)]
+  [cache-dir server-url platform sdk-version resource-nodes]
+  (let [key (cache-key platform sdk-version resource-nodes)]
     (or (cached-engine-archive cache-dir platform key)
-        (let [engine-archive (build-engine-archive server-url platform sdk-version resources)]
+        (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes)]
           (cache-engine-archive! cache-dir platform key engine-archive)))))
 
 (defn- unpack-dmengine
@@ -200,17 +197,11 @@
         (.setExecutable true)))))
 
 (defn get-engine
-  [workspace roots platform build-server]
+  [project roots platform build-server]
   (let [extender-platform (get-in extender-platforms [platform :platform])
-        engine-archive (find-or-build-engine-archive (cache-dir (workspace/project-path workspace))
+        engine-archive (find-or-build-engine-archive (cache-dir (workspace/project-path (project/workspace project)))
                                                      build-server
                                                      extender-platform
                                                      (system/defold-sha1)
-                                                     (extension-resources roots platform))]
+                                                     (extension-resource-nodes project roots platform))]
     (unpack-dmengine engine-archive)))
-
-
-
-
-
-
