@@ -36,6 +36,8 @@ namespace dmGameSystem
      *
      * The normalized animation cursor. The type of the property is number.
      *
+     * [icon:attention] Please note that spine events may not fire as expected when the cursor is manipulated directly.
+     *
      * @name cursor
      * @property
      *
@@ -60,8 +62,6 @@ namespace dmGameSystem
      *   go.animate("#spine", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
      * end
      * ```
-     *
-     * Please note that spine events may not fire as expected when the cursor is manipulated directly.
      */
 
      /*# [type:number] spine playback_rate
@@ -174,11 +174,11 @@ namespace dmGameSystem
      * mode and parameters.
      *
      * An optional completion callback function can be provided that will be called when
-     * the animation has completed playing. If no function is provided, a `spine_animation_done`
-     * message is sent to the script that started the animation.
+     * the animation has completed playing. If no function is provided,
+     * a [ref:spine_animation_done] message is sent to the script that started the animation.
      *
      * [icon:attention] The callback is not called (or message sent) if the animation is
-     * cancelled with [ref:spine.cancel()]. The callback is called (or message sent) only for
+     * cancelled with [ref:spine.cancel]. The callback is called (or message sent) only for
      * animations that play with the following playback modes:
      *
      * - `go.PLAYBACK_ONCE_FORWARD`
