@@ -28,6 +28,7 @@
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.sprite :as sprite]
+            [editor.text-file :as text-file]
             [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]))
 
@@ -62,6 +63,7 @@
       (sound/register-resource-types workspace)
       (spine/register-resource-types workspace)
       (sprite/register-resource-types workspace)
+      (text-file/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace))))
 
