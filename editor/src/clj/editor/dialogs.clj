@@ -747,9 +747,9 @@
     (ui/user-data! stage ::file-conflict-resolution-strategy :rename)
     (ui/close! stage)))
 
-(handler/defhandler ::replace-conflicting-files :dialog
+(handler/defhandler ::overwrite-conflicting-files :dialog
   (run [^Stage stage]
-    (ui/user-data! stage ::file-conflict-resolution-strategy :replace)
+    (ui/user-data! stage ::file-conflict-resolution-strategy :overwrite)
     (ui/close! stage)))
 
 (defn make-resolve-file-conflicts-dialog
@@ -760,14 +760,17 @@
                        (observe-focus)
                        (.initOwner (ui/main-stage))
                        (.initModality Modality/WINDOW_MODAL)
-                       (ui/title! "Resolve file name conflicts")
+                       (ui/title! "Name Conflict")
                        (.setScene scene))
-        controls (ui/collect-controls root ["message" "rename" "replace" "cancel"])]
+        controls (ui/collect-controls root ["message" "rename" "overwrite" "cancel"])]
     (ui/context! root :dialog {:stage stage} nil)
     (ui/bind-action! (:rename controls) ::rename-conflicting-files)
-    (ui/bind-action! (:replace controls) ::replace-conflicting-files)
+    (ui/bind-action! (:overwrite controls) ::overwrite-conflicting-files)
     (ui/bind-action! (:cancel controls) ::close)
     (ui/bind-keys! root {KeyCode/ESCAPE ::close})
-    (ui/text! (:message controls) (format "The destination has %d file(s) with the same names" (count src-dest-pairs)))
+    (ui/text! (:message controls) (let [conflict-count (count src-dest-pairs)]
+                                    (if (= 1 conflict-count)
+                                      "The destination has an entry with the same name."
+                                      (format "The destination has %d entries with conflicting names." conflict-count))))
     (ui/show-and-wait! stage)
     (ui/user-data stage ::file-conflict-resolution-strategy)))
