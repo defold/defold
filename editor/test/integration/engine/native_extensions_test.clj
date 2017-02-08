@@ -3,6 +3,7 @@
    [clojure.test :refer :all]
    [integration.test-util :as test-util]
    [support.test-support :refer [with-clean-system]]
+   [dynamo.graph :as g]
    [editor.engine.native-extensions :as native-extensions]
    [editor.resource :as resource])
   (:import
@@ -12,19 +13,25 @@
 
 (deftest extension-roots-test
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")]
+    (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+          project (test-util/setup-project! workspace)]
       (is (= #{"/extension1" "/subdir/extension2"}
-             (set (map resource/proj-path (native-extensions/extension-roots workspace))))))))
+             (set (map resource/proj-path (native-extensions/extension-roots project))))))))
 
-(deftest extension-resources-test
-  (letfn [(platform-resources [workspace platform]
-            (set (map resource/proj-path
-                      (native-extensions/extension-resources
-                        (native-extensions/extension-roots workspace)
-                        platform))))]
+(deftest extension-resource-nodes-test
+  (letfn [(platform-resources [project platform]
+            (let [resource-nodes (native-extensions/extension-resource-nodes
+                                   project
+                                   (native-extensions/extension-roots project)
+                                   platform)]
+              (->> resource-nodes
+                   (map (comp resource/proj-path
+                              #(g/node-value % :resource)))
+                   set)))]
     (testing "x86_64-osx"
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")]
+        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+              project (test-util/setup-project! workspace)]
           (is (= #{"/extension1/ext.manifest"
                    "/extension1/include/file"
                    "/extension1/include/subdir/file"
@@ -34,10 +41,11 @@
                    "/extension1/lib/x86_64-osx/file"
                    "/extension1/lib/osx/file"
                    "/subdir/extension2/ext.manifest"}
-                 (platform-resources workspace "x86_64-darwin"))))))
+                 (platform-resources project "x86_64-darwin"))))))
     (testing "x86_64-win32"
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")]
+        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+              project (test-util/setup-project! workspace)]
           (is (= #{"/extension1/ext.manifest"
                    "/extension1/include/file"
                    "/extension1/include/subdir/file"
@@ -47,7 +55,7 @@
                    "/extension1/lib/x86_64-windows/file"
                    "/extension1/lib/windows/file"
                    "/subdir/extension2/ext.manifest"}
-                 (platform-resources workspace "x86_64-win32"))))))))
+                 (platform-resources project "x86_64-win32"))))))))
 
 (defn- dummy-file
   []

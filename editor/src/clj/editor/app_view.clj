@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.changes-view :as changes-view]
+            [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.handler :as handler]
@@ -254,13 +255,14 @@
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
-  (run [workspace project prefs web-server build-errors-view]
+  (run [project prefs web-server build-errors-view]
+    (console/clear-console!)
     (let [build (build-project project build-errors-view)]
       (when (and (future? build) @build)
         (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
               (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
                 (engine/reboot (:url target) local-url)))
-            (engine/launch prefs workspace (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+            (engine/launch project prefs))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
