@@ -2,7 +2,8 @@
   (:require [service.log :as log]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
-            [editor.system :as system])
+            [editor.system :as system]
+            [editor.engine.native-extensions :as native-extensions])
   (:import [com.defold.control LongField]
            [javafx.scene Parent Scene]
            [javafx.scene.paint Color]
@@ -90,7 +91,7 @@
             {:label "Mouse Type" :type :choicebox :key "scene-mouse-type" :default :one-button :options [[:one-button "One Button"] [:three "Three Buttons"]]}]}
    {:name  "Extensions"
     :prefs [{:label "Enable Extensions" :type :boolean :key "enable-extensions" :default false}
-            {:label "Build Server" :type :string :key "extensions-server" :default "https://build.defold.com"}]}])
+            {:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}])
 
 (defn open-prefs [prefs]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")
