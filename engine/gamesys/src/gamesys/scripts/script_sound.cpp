@@ -71,7 +71,7 @@ namespace dmGameSystem
      * the instantaneous values.
      *
      * For instance: for a sinewave signal with a peak gain of -1.94 dB (0.8 linear),
-     * the RMS is `0.8 &times; 1/sqrt(2)` which is about 0.566.
+     * the RMS is <code>0.8 &times; 1/sqrt(2)</code> which is about 0.566.
      *
      * [icon:attention] Note the returned value might be an approximation and in particular
      * the effective window might be larger than specified.
