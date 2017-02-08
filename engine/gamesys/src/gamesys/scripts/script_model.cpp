@@ -165,7 +165,20 @@ namespace dmGameSystem
     }
 
     /*# play an animation on a model
-     * Plays an animation on a model component.
+     * Plays an animation on a model component with specified playback
+     * mode and parameters.
+     *
+     * An optional completion callback function can be provided that will be called when
+     * the animation has completed playing. If no function is provided, a `model_animation_done`
+     * message is sent to the script that started the animation.
+     *
+     * [icon:attention] The callback is not called (or message sent) if the animation is
+     * cancelled with [ref:model.cancel()]. The callback is called (or message sent) only for
+     * animations that play with the following playback modes:
+     *
+     * - `go.PLAYBACK_ONCE_FORWARD`
+     * - `go.PLAYBACK_ONCE_BACKWARD`
+     * - `go.PLAYBACK_ONCE_PINGPONG`
      *
      * @name model.play_anim
      * @param url [type:string|hash|url] the model for which to play the animation
@@ -192,6 +205,23 @@ namespace dmGameSystem
      * `playback_rate`
      * : [type:number] The rate with which the animation will be played. Must be positive.
      *
+     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `message_id`
+     * : [type:hash] The name of the completion message, `"model_animation_done"`.
+     *
+     * `message`
+     * : [type:table] Information about the completion:
+     *
+     * - [type:hash] `animation_id` - the animation that was completed.
+     * - [type:constant] `playback` - the playback mode for the animation.
+     *
+     * `sender`
+     * : [type:url] The invoker of the callback: the model component.
+     *
      * @examples
      *
      * The following examples assumes that the model has id "model".
@@ -199,14 +229,21 @@ namespace dmGameSystem
      * How to play the "jump" animation followed by the "run" animation:
      *
      * ```lua
+     * local function anim_done(self, message_id, message, sender)
+     *   if message_id == hash("model_animation_done") then
+     *     if message.animation_id == hash("jump") then
+     *       -- open animation done, chain with "run"
+     *       local properties = { blend_duration = 0.2 }
+     *       model.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties, anim_done)
+     *     end
+     *   end
+     * end
+     *
      * function init(self)
      *     local url = msg.url("#model")
      *     local play_properties = { blend_duration = 0.1 }
      *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
-     *     model.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
-     *         local properties = { blend_duration = 0.2 }
-     *         model.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties)
-     *     end)
+     *     model.play_anim(url, "open", go.PLAYBACK_ONCE_FORWARD, play_properties, anim_done)
      * end
      * ```
      */
@@ -299,7 +336,7 @@ namespace dmGameSystem
      * @name model.get_go
      * @param url [type:string|hash|url] the model to query
      * @param bone_id [type:string|hash] id of the corresponding bone
-     * @return id of the game object
+     * @return id [type:hash] id of the game object
      * @examples
      *
      * The following examples assumes that the model component has id "model".

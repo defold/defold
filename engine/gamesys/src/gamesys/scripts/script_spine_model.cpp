@@ -45,8 +45,8 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *  -- Get the cursor value on component "spine"
-     *  cursor = go.get("#spine", "cursor")
+     *   -- Get the cursor value on component "spine"
+     *   cursor = go.get("#spine", "cursor")
      * end
      * ```
      *
@@ -54,10 +54,10 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *  -- Get the current value on component "spine"
-     *  go.set("#spine", "cursor", 0.0)
-     *  -- Animate the cursor value
-     *  go.animate("#spine", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
+     *   -- Get the current value on component "spine"
+     *   go.set("#spine", "cursor", 0.0)
+     *   -- Animate the cursor value
+     *   go.animate("#spine", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
      * end
      * ```
      *
@@ -79,10 +79,10 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *  -- Get the current value on component "spine"
-     *  playback_rate = go.get("#spine", "playback_rate")
-     *  -- Set the playback_rate to double the previous value.
-     *  go.set("#spine", "playback_rate", playback_rate * 2)
+     *   -- Get the current value on component "spine"
+     *   playback_rate = go.get("#spine", "playback_rate")
+     *   -- Set the playback_rate to double the previous value.
+     *   go.set("#spine", "playback_rate", playback_rate * 2)
      * end
      * ```
      */
@@ -100,8 +100,8 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *  -- Get the current animation on component "spinemodel"
-     *  local animation = go.get("#spinemodel", "animation")
+     *   -- Get the current animation on component "spinemodel"
+     *   local animation = go.get("#spinemodel", "animation")
      * end
      * ```
      */
@@ -121,11 +121,11 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *  -- If the hero skin is set to "bruce_banner", turn him green
-     *  local skin = go.get("#hero", "skin")
-     *  if skin == hash("bruce_banner") then
-     *      go.set("#hero", "skin", hash("green"))
-     *  end
+     *   -- If the hero skin is set to "bruce_banner", turn him green
+     *   local skin = go.get("#hero", "skin")
+     *   if skin == hash("bruce_banner") then
+     *     go.set("#hero", "skin", hash("green"))
+     *   end
      * end
      * ```
      */
@@ -170,7 +170,20 @@ namespace dmGameSystem
     }
 
     /*# play an animation on a spine model
-     * Plays a specified animation on a spine model component.
+     * Plays a specified animation on a spine model component with specified playback
+     * mode and parameters.
+     *
+     * An optional completion callback function can be provided that will be called when
+     * the animation has completed playing. If no function is provided, a `spine_animation_done`
+     * message is sent to the script that started the animation.
+     *
+     * [icon:attention] The callback is not called (or message sent) if the animation is
+     * cancelled with [ref:spine.cancel()]. The callback is called (or message sent) only for
+     * animations that play with the following playback modes:
+     *
+     * - `go.PLAYBACK_ONCE_FORWARD`
+     * - `go.PLAYBACK_ONCE_BACKWARD`
+     * - `go.PLAYBACK_ONCE_PINGPONG`
      *
      * @name spine.play_anim
      * @param url [type:string|hash|url] the spine model for which to play the animation
@@ -195,10 +208,22 @@ namespace dmGameSystem
      * `playback_rate`
      * : [type:number] the rate with which the animation will be played. Must be positive.
      *
-     * @param [complete_function] [type:function(self)] function to call when the animation has completed
+     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
      *
      * `self`
      * : [type:object] The current object.
+     *
+     * `message_id`
+     * : [type:hash] The name of the completion message, `"spine_animation_done"`.
+     *
+     * `message`
+     * : [type:table] Information about the completion:
+     *
+     * - [type:hash] `animation_id` - the animation that was completed.
+     * - [type:constant] `playback` - the playback mode for the animation.
+     *
+     * `sender`
+     * : [type:url] The invoker of the callback: the spine model component.
      *
      * @examples
      *
@@ -207,14 +232,21 @@ namespace dmGameSystem
      * How to play the "jump" animation followed by the "run" animation:
      *
      * ```lua
+     * local function anim_done(self, message_id, message, sender)
+     *   if message_id == hash("spine_animation_done") then
+     *     if message.animation_id == hash("jump") then
+     *       -- open animation done, chain with "run"
+     *       local properties = { blend_duration = 0.2 }
+     *       spine.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties, anim_done)
+     *     end
+     *   end
+     * end
+     *
      * function init(self)
      *     local url = msg.url("#spinemodel")
      *     local play_properties = { blend_duration = 0.1 }
      *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
-     *     spine.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
-     *         local properties = { blend_duration = 0.2 }
-     *         spine.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties)
-     *     end)
+     *     spine.play_anim(url, "open", go.PLAYBACK_ONCE_FORWARD, play_properties, anim_done)
      * end
      * ```
      */
@@ -288,7 +320,7 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     spine.cancel("#spinemodel")
+     *   spine.cancel("#spinemodel")
      * end
      * ```
      */
@@ -327,8 +359,8 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     local parent = spine.get_go("player#spinemodel", "right_hand")
-     *     msg.post(".", "set_parent", {parent_id = parent})
+     *   local parent = spine.get_go("player#spinemodel", "right_hand")
+     *   msg.post(".", "set_parent", {parent_id = parent})
      * end
      * ```
      */
@@ -399,8 +431,8 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *  local pos = vmath.vector3(1, 2, 3)
-     *  spine.set_ik_target_position("player#spinemodel", "right_hand_constraint", pos)
+     *   local pos = vmath.vector3(1, 2, 3)
+     *   spine.set_ik_target_position("player#spinemodel", "right_hand_constraint", pos)
      * end
      * ```
      */
@@ -448,7 +480,7 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     spine.set_ik_target("player#spinemodel", "right_hand_constraint", "some_game_object")
+     *   spine.set_ik_target("player#spinemodel", "right_hand_constraint", "some_game_object")
      * end
      * ```
      */
@@ -508,7 +540,7 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     spine.set_constant("#spinemodel", "tint", vmath.vector4(1, 0, 0, 1))
+     *   spine.set_constant("#spinemodel", "tint", vmath.vector4(1, 0, 0, 1))
      * end
      * ```
      */
@@ -552,7 +584,7 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     spine.reset_constant("#spinemodel", "tint")
+     *   spine.reset_constant("#spinemodel", "tint")
      * end
      * ```
      */

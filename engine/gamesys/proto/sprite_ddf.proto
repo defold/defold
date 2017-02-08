@@ -31,7 +31,7 @@ message SpriteDesc
 
 /*# play a sprite animation
  *
- * Post this message to a sprite-component to make it play an animation from its tile set.
+ * Post this message to a sprite component to make it play an animation from its tile set.
  *
  * @message
  * @name play_animation
