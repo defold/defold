@@ -29,37 +29,20 @@ message SpriteDesc
  * @namespace sprite
  */
 
-/*# plays a sprite animation
- * <p>
+/*# play a sprite animation
+ *
  * Post this message to a sprite-component to make it play an animation from its tile set.
- * </p>
  *
  * @message
  * @name play_animation
- * @param id the id of the animation to play
+ * @param id [type:hash] the id of the animation to play
  * @examples
- * <p>
- * In the examples, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be bound to a tile set with animations "walk" and "jump".
- * <pre>
- * msg.post("#sprite", "play_animation", {id = hash("jump")})
- * </pre>
- * <p>
- * How to sequence two animations together.
- * </p>
- * <pre>
- * function init(self)
- *     -- play jump animation at init
- *     msg.post("#sprite", "play_animation", {id = hash("jump")})
- * end
  *
- * function on_message(self, message_id, message, sender)
- *     -- check for animation done response
- *     if message_id == hash("animation_done") then
- *         -- start the walk animation
- *         msg.post("#sprite", "play_animation", {id = hash("walk")})
- *     end
- * end
- * </pre>
+ * In the example, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be bound to a tile set with animations "walk" and "jump".
+ *
+ * ```lua
+ * msg.post("#sprite", "play_animation", {id = hash("jump")})
+ * ```
  */
 message PlayAnimation
 {
@@ -67,24 +50,42 @@ message PlayAnimation
 }
 
 /*# reports that an animation has completed
- * <p>This message is sent to the sender of a <code>play_animation</code> message when the 
- * animation has completed.</p>
  *
- * <p>Note that this message is sent only for animations that play with the following 
- * playback modes:</p>
- * <ul>
- * <li>Once Forward</li>
- * <li>Once Backward</li>
- * <li>Once Ping Pong</li>
- * </ul>
+ * This message is sent to the sender of a <code>play_animation</code> message when the
+ * animation has completed.
  *
- * <p>See <code>play_animation</code> for more information and examples of how to use 
- * this message.</p>
+ * Note that this message is sent only for animations that play with the following
+ * playback modes:
+ *
+ * - Once Forward
+ * - Once Backward
+ * - Once Ping Pong
+ *
+ * See [ref:play_animation] for more information and examples of how to use
+ * this message.
  *
  * @message
  * @name animation_done
- * @param current_tile the current tile of the sprite (number)
- * @param id id of the animation that was completed (hash)
+ * @param current_tile [type:number] the current tile of the sprite
+ * @param id [type:hash] id of the animation that was completed
+ * @examples
+ *
+ * How to sequence two animations together.
+ *
+ * ```lua
+ * function init(self)
+ *   -- play jump animation at init
+ *   msg.post("#sprite", "play_animation", {id = hash("jump")})
+ * end
+ *
+ * function on_message(self, message_id, message, sender)
+ *   -- check for animation done response
+ *   if message_id == hash("animation_done") then
+ *     -- start the walk animation
+ *     msg.post("#sprite", "play_animation", { id = hash("walk") })
+ *   end
+ * end
+ * ```
  */
 message AnimationDone
 {
