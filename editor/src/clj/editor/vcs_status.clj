@@ -2,8 +2,8 @@
 
 (def ^:const change-type-icons
   {:add    "icons/32/Icons_M_07_plus.png"
-   :modify "icons/32/Icons_S_06_arrowup.png"
-   :delete "icons/32/Icons_M_06_trash.png"
+   :modify "icons/32/Icons_M_10_modified.png"
+   :delete "icons/32/Icons_M_11_minus.png"
    :rename "icons/32/Icons_S_08_arrow-d-right.png"})
 
 (def ^:const change-type-styles
