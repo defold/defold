@@ -73,10 +73,6 @@ Links:
   -fx-control-inner-background: $bright-black-light;
   -fx-hover-base: $defold-red; }
 
-/* Modules - Major panes in the editor */
-#properties HBox {
-  -fx-spacing: 0; }
-
 /* Drag and drop targets */
 .drop-target {
   -fx-background-color: $dark-grey !important;
