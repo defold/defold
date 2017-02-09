@@ -185,23 +185,29 @@ static int GraphicsTextureTypeToImageType(int texturetype)
 
 
 /*# Set a texture
- * Sets the pixel data for a specific texture
+ * Sets the pixel data for a specific texture.
  *
  * @name resource.set_texture
  *
  * @param path [type:hash|string] The path to the resource
  * @param table [type:table] A table containing info about the texture. Supported entries:
  *
- * - [type:number] `type`: The texture type. Supported values:
+ * `type`
+ * : [type:number] The texture type. Supported values:
  *
- * -- resource.TEXTURE_TYPE_2D
+ * - `resource.TEXTURE_TYPE_2D`
  *
- * - [type:number] `width`: The width of the texture (in pixels)
- * - [type:number] `height`: The width of the texture (in pixels)
- * - [type:number] `format`: The texture format. Supported values:
+ * `width`
+ * : [type:number] The width of the texture (in pixels)
  *
- * -- resource.TEXTURE_FORMAT_RGB
- * -- resource.TEXTURE_FORMAT_RGBA
+ * `height`
+ * : [type:number] The width of the texture (in pixels)
+ *
+ * `format`
+ * : [type:number] The texture format. Supported values:
+ *
+ * - `resource.TEXTURE_FORMAT_RGB`
+ * - `resource.TEXTURE_FORMAT_RGBA`
  *
  * @param buffer [type:buffer] The buffer of precreated pixel data
  *
