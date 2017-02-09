@@ -1186,10 +1186,6 @@
        (finally
          (run-now (enable-ui focus-owner#))))))
 
-(defn mouse-type
-  []
-  :one-button)
-
 (defn- on-ui-thread?
   []
   (Platform/isFxApplicationThread))
