@@ -131,19 +131,19 @@
                 :passes [pass/opaque pass/selection pass/outline]}})
 
 (defn- mesh->vb [mesh]
-  (let [positions (vec (partition 3 (:positions mesh)))
-        positions-indices (:indices mesh)
-        vcount (count positions-indices)
-        normals (vec (partition 3 (or (not-empty (:normals mesh)) [0.0 0.0 1.0])))
-        normals-indices (or (not-empty (:normals-indices mesh)) (repeat vcount 0))
-        texcoords (vec (partition 2 (or (not-empty (:texcoord0 mesh)) [0.0 0.0])))
-        texcoords-indices (or (not-empty (:texcoord0-indices mesh)) (repeat vcount 0))]
+  (let [positions         (vec (partition 3 (:positions mesh)))
+        normals           (vec (partition 3 (:normals mesh)))
+        texcoords         (vec (partition 2 (:texcoord0 mesh)))
+        positions-indices (vec (:indices mesh))
+        normals-indices   (vec (:normals-indices mesh))
+        texcoords-indices (vec (:texcoord0-indices mesh))
+        vcount (count positions-indices)]
     (loop [vb (->vtx-pos-nrm-tex vcount)
            vi 0]
       (if (< vi vcount)
-        (let [[px py pz] (positions (nth positions-indices vi))
-              [nx ny nz] (normals (nth normals-indices vi))
-              [tu tv] (texcoords (nth texcoords-indices vi))]
+        (let [[px py pz] (nth positions (nth positions-indices vi 0) [0.0 0.0 0.0])
+              [nx ny nz] (nth normals   (nth normals-indices vi 0)   [0.0 0.0 1.0])
+              [tu tv]    (nth texcoords (nth texcoords-indices vi 0) [0.0 0.0])]
           (recur (conj! vb [px py pz nx ny nz tu tv]) (inc vi)))
         (persistent! vb)))))
 
