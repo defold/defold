@@ -67,20 +67,35 @@
   (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
     (and resource (resource/resource-name resource))))
 
-(defn- find-errors [{:keys [user-data causes _node-id] :as error} labels]
-  (let [labels (conj labels (get-resource-name _node-id))]
-    (if causes
-      (recur (first causes) labels)
-      [(remove nil? labels) user-data])))
+(defn- root-causes
+  [error]
+  (->> (tree-seq :causes :causes error)
+       (filter :message)
+       (remove :causes)))
+
+(defn- render-error
+  [gl render-args renderables nrenderables]
+  (when (= pass/overlay (:pass render-args))
+    (let [errors  (set (mapcat root-causes (map (comp :error :user-data) renderables)))]
+      (scene-text/overlay gl "Render error:" 24.0 -22.0)
+      (doseq [[n error] (partition 2 (interleave (range) errors))]
+        (let [message (format "- %s: %s"
+                              (or (get-resource-name (:_node-id error))
+                                  "unknown")
+                              (:message error))]
+          (scene-text/overlay gl message 24.0  (- -22.0 (* 14 (inc n)))))))))
+
+(defn substitute-render-data
+  [error]
+  [{pass/overlay [{:render-fn render-error
+                   :user-data {:error error}
+                   :batch-key ::error}]}])
 
 (defn substitute-scene [error]
   {:aabb       (geom/null-aabb)
-   :renderable {:render-fn (fn [gl render-args renderables count]
-                             (let [pass           (:pass render-args)
-                                   [labels cause] (find-errors error [])
-                                   message        (format "Render error [%s] '%s'" (last labels) cause)]
-                               (when (= pass pass/overlay)
-                                 (scene-text/overlay gl message 12.0 -22.0))))
+   :renderable {:render-fn render-error
+                :user-data {:error error}
+                :batch-key ::error
                 :passes    [pass/overlay]}})
 
 ;; Avoid recreating the image each frame
@@ -418,7 +433,7 @@
 
   (input input-handlers Runnable :array)
   (input picking-rect Rect)
-  (input tool-renderables pass/RenderData :array)
+  (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
   (input active-tool g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
