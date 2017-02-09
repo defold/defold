@@ -273,20 +273,18 @@
            :rotation r)))
 
 (def ^:private button-interpretation
-  ;[button-scheme button     shift ctrl  alt   meta] => movement
-  {[:one-button   :primary   false false true  false] :tumble
-   [:one-button   :primary   false true  true  false] :track
-   [:one-button   :primary   false true  false false] :dolly
-   [:three-button :primary   false false true  false] :tumble
-   [:three-button :secondary false false false false] :track
-   [:three-button :middle    false false true  false] :dolly})
+  ;; button    shift ctrl  alt   meta => movement
+  {[:primary   false true  false false] :tumble
+   [:primary   false false true  false] :track
+   [:primary   false true  true  false] :dolly
+   [:secondary false false true  false] :dolly
+   [:middle    false false false false] :track})
 
 (defn camera-movement
   ([action]
-    (camera-movement (ui/mouse-type) (:button action) (:shift action) (:control action) (:alt action) (:meta action)))
-  ([mouse-type button shift ctrl alt meta]
-    (let [key [mouse-type button shift ctrl alt meta]
-          mv (button-interpretation key :idle)]
+    (camera-movement (:button action) (:shift action) (:control action) (:alt action) (:meta action)))
+  ([button shift ctrl alt meta]
+    (let [key [button shift ctrl alt meta]]
       (button-interpretation key :idle))))
 
 
