@@ -156,40 +156,38 @@ public class SignHandler extends AbstractHandler {
                 exeArmv7 = new File(Bob.getDmengineExe(Platform.Armv7Darwin, true));
                 exeArm64 = new File(Bob.getDmengineExe(Platform.Arm64Darwin, true));
 
-                if (EditorUtil.isDev()) {
-                    final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-                    String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
+                final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+                String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
 
-                    tmpProject.setOption("build-server", nativeExtServerURI);
-                    tmpProject.setOption("binary-output", buildDirectory);
-                    tmpProject.setOption("platform", Platform.Arm64Darwin.getPair());
+                tmpProject.setOption("build-server", nativeExtServerURI);
+                tmpProject.setOption("binary-output", buildDirectory);
+                tmpProject.setOption("platform", Platform.Arm64Darwin.getPair());
 
-                    EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
-                    String sdkVersion = corePlugin.getSha1();
-                    if (sdkVersion == "NO SHA1") {
-                        sdkVersion = "";
+                EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+                String sdkVersion = corePlugin.getSha1();
+                if (sdkVersion == "NO SHA1") {
+                    sdkVersion = "";
+                }
+                tmpProject.setOption("defoldsdk", sdkVersion);
+
+                tmpProject.buildEngine(new ProgressDelegate(monitor));
+
+                // Get engine executables
+                // armv7 exe
+                {
+                    Platform targetPlatform = Platform.Armv7Darwin;
+                    File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                    if (extenderExe.exists()) {
+                        exeArmv7 = extenderExe;
                     }
-                    tmpProject.setOption("defoldsdk", sdkVersion);
+                }
 
-                    tmpProject.buildEngine(new ProgressDelegate(monitor));
-
-                    // Get engine executables
-                    // armv7 exe
-                    {
-                        Platform targetPlatform = Platform.Armv7Darwin;
-                        File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-                        if (extenderExe.exists()) {
-                            exeArmv7 = extenderExe;
-                        }
-                    }
-
-                    // arm64 exe
-                    {
-                        Platform targetPlatform = Platform.Arm64Darwin;
-                        File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-                        if (extenderExe.exists()) {
-                            exeArm64 = extenderExe;
-                        }
+                // arm64 exe
+                {
+                    Platform targetPlatform = Platform.Arm64Darwin;
+                    File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                    if (extenderExe.exists()) {
+                        exeArm64 = extenderExe;
                     }
                 }
 
