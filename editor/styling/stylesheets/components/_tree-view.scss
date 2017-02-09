@@ -15,6 +15,9 @@
 
         &:hover {
             -fx-text-fill: $defold-white;
+            .image-view {
+                @include effect-bright-grey();
+            }
         }
         &:selected {
             -fx-border-width: 0 0 0 2;
@@ -22,7 +25,7 @@
             -fx-text-fill: $defold-white;
             -fx-background-color: $dark-grey-selected;
             .image-view {
-                @include effect-lighten-blue();
+                @include effect-bright-grey();
             }
         }
 
@@ -35,5 +38,8 @@
                 @include effect-bright-grey();
             }
         }
+
+        // Generate css for file extensions
+        @include extensions(tree);
     }
 }
