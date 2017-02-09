@@ -67,9 +67,10 @@ public class AndroidBundler implements IBundler {
         String key = project.option("private-key", "");
 
         // If a custom engine was built we need to copy it
+        Platform targetPlatform = Platform.Armv7Android;
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(Platform.Armv7Android.getExtenderPair(), Platform.X86Darwin.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(Platform.Armv7Android, debug));
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
         File bundleExe = defaultExe;
         if (extenderExe.exists()) {
             bundleExe = extenderExe;

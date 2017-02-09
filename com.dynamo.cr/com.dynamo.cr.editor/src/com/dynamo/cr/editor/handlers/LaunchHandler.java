@@ -29,6 +29,7 @@ import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.util.Exec;
@@ -95,12 +96,22 @@ public class LaunchHandler extends AbstractHandler {
         IBranchClient branchClient = Activator.getDefault().getBranchClient();
         final String location = FilenameUtils.concat(branchClient.getNativeLocation(), "build");
 
-        final String binaryOutputPath = FilenameUtils.concat(location, FilenameUtils.concat(hostPlatform.getExtenderPair(), hostPlatform.formatBinaryName("dmengine")));
+        final String outputDir = FilenameUtils.concat(location, hostPlatform.getExtenderPair());
+        final String binaryOutputPath = FilenameUtils.concat(outputDir, hostPlatform.formatBinaryName("dmengine"));
         final File inputExe = new File(exeName);
         final File outputExe = new File(binaryOutputPath);
         outputExe.mkdirs();
         try {
             Files.copy(inputExe.toPath(), outputExe.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+            if (!store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
+	            if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
+	            	File libOpenAL = new File(Bob.getLib(hostPlatform, "OpenAL32"));
+	            	File libWrapOAL = new File(Bob.getLib(hostPlatform, "wrap_oal"));
+	                Files.copy(libOpenAL.toPath(), new File(FilenameUtils.concat(outputDir, libOpenAL.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+	                Files.copy(libWrapOAL.toPath(), new File(FilenameUtils.concat(outputDir, libWrapOAL.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+	            }
+            }
         } catch (IOException e) {
             return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("'%s' could not copy engine binary.", exeName));
         }
@@ -128,13 +139,11 @@ public class LaunchHandler extends AbstractHandler {
                 if (enableTextureProfiles) {
                     bobArgs.put("texture-profiles", "true");
                 }
-                if (EditorUtil.isDev()) {
-                    String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
-                    bobArgs.put("build-server", nativeExtServerURI);
 
-                    // "binary-output"
-                    bobArgs.put("binary-output", location);
-                }
+                String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
+                bobArgs.put("build-server", nativeExtServerURI);
+                // output location for native extension
+                bobArgs.put("binary-output", location);
 
                 EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
                 String sdkVersion = corePlugin.getSha1();
