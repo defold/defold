@@ -20,7 +20,7 @@
                 -fx-text-fill: $defold-white; 
             }
             .image-view {
-                @include effect-lighten-blue();
+                @include effect-bright-grey();
             }
         }
         @include extensions(tree);

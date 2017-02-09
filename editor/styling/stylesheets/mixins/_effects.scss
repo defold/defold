@@ -15,5 +15,5 @@
 }
 
 @mixin effect-bright-grey() {
-	@include colorize-image-view($bright-grey);
+	@include colorize-image-view($bright-grey-light);
 }
