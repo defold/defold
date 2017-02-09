@@ -22,6 +22,13 @@ namespace dmRender
      * Rendering functions, messages and constants. The "render" namespace is
      * accessible only from render scripts.
      *
+     * The rendering API is built on top of OpenGL ES 2.0, is a subset of the
+     * OpenGL computer graphics rendering API for rendering 2D and 3D computer
+     * graphics. OpenGL ES 2.0 is supported on all our target platforms.
+     *
+     * [icon:attention] It is possible to create materials and write shaders that
+     * require features not in OpenGL ES 2.0, but those will not work cross platform.
+     *
      * @document
      * @name Render
      * @namespace render

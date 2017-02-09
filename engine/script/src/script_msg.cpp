@@ -453,10 +453,12 @@ namespace dmScript
      * - `"#"` the current component
      * - `nil` the current component
      *
+     * [icon:attention] There is a 2 kilobyte limit to the message parameter table size.
+     *
      * @name msg.post
      * @param receiver [type:string|url|hash|nil] The receiver must be a string in URL-format, a URL object, a hashed string or `nil`.
      * @param message_id [type:string|hash] The id must be a string or a hashed string.
-     * @param [message] [type:table] lua table message to send
+     * @param [message] [type:table] a lua table with message parameters to send.
      * @examples
      *
      * Send "enable" to the sprite "my_sprite" in "my_gameobject":
@@ -468,7 +470,8 @@ namespace dmScript
      * Send a "my_message" to an url with some additional data:
      *
      * ```lua
-     * msg.post(my_url, "my_message", {my_parameter = "my_value"})
+     * local params = {my_parameter = "my_value"}
+     * msg.post(my_url, "my_message", params)
      * ```
      */
     int Msg_Post(lua_State* L)
