@@ -10,9 +10,7 @@
     }
     &:hover {
         >.list-cell {
-            -fx-border-width: 0;/*
-            -fx-border-color: $mid-grey;
-            -fx-text-fill: $defold-white;*/
+            -fx-border-width: 0;
         }
     }
     &:showing {
@@ -21,7 +19,6 @@
             -fx-rotate: 180;
         }
         >.list-cell {
-            -fx-background-color: red !important;
             -fx-border-width: 1 1 1 1;
             -fx-border-color: $bright-grey;
             -fx-text-fill: $defold-white;
@@ -40,7 +37,7 @@
         -fx-text-fill: $mid-grey; 
     }
     .list-cell {
-        -fx-background-color: $root-background;//$dark-black-light;
+        -fx-background-color: $root-background;
         -fx-color: $bright-grey;
         &:hover {
             -fx-cursor: hand;
