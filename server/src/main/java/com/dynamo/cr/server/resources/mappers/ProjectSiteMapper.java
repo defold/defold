@@ -81,7 +81,13 @@ public class ProjectSiteMapper {
                 for (Screenshot screenShot : screenShots) {
                     Protocol.ProjectSite.Screenshot.Builder screenShotBuilder = Protocol.ProjectSite.Screenshot.newBuilder();
                     screenShotBuilder.setId(screenShot.getId());
-                    screenShotBuilder.setUrl(screenShot.getUrl());
+
+                    if (screenShot.getMediaType() == Screenshot.MediaType.IMAGE) {
+                        // Sign URL for images hosted by Magazine
+                        screenShotBuilder.setUrl(magazineClient.createReadUrl(screenShot.getUrl()));
+                    } else {
+                        screenShotBuilder.setUrl(screenShot.getUrl());
+                    }
                     screenShotBuilder.setMediaType(Protocol.ScreenshotMediaType.valueOf(screenShot.getMediaType().name()));
                     builder.addScreenshots(screenShotBuilder.build());
                 }

@@ -166,6 +166,30 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
     @Test
     @Ignore("Integration test to run explicitly.")
+    public void updateScreenshotImages() throws URISyntaxException {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        File playableFile = new File(ClassLoader.getSystemResource("defold-logo.png").toURI());
+
+        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
+        FileDataBodyPart fileDataBodyPart = new FileDataBodyPart("file", playableFile, MediaType.APPLICATION_OCTET_STREAM_TYPE);
+        multiPart.bodyPart(fileDataBodyPart);
+
+        projectSiteResource(TestUser.JAMES, project.getId())
+                .path("screenshots")
+                .path("images")
+                .type(MediaType.MULTIPART_FORM_DATA_TYPE)
+                .post(multiPart);
+
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+
+        for (Protocol.ProjectSite.Screenshot screenshot : projectSite.getScreenshotsList()) {
+            System.out.println(screenshot.getId() + " " + screenshot.getUrl());
+        }
+    }
+
+    @Test
+    @Ignore("Integration test to run explicitly.")
     public void uploadPlayable() throws URISyntaxException {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
 
