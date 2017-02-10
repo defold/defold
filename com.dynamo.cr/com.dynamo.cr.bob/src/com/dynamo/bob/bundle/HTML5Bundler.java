@@ -12,7 +12,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +27,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
@@ -38,7 +39,10 @@ public class HTML5Bundler implements IBundler {
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static final String[] SplitFileNames = {
         "game.projectc",
-        "game.darc"
+        "game.arci",
+        "game.arcd",
+        "game.dmanifest",
+        "game.public.der"
     };
 
     class SplitFile {
@@ -145,6 +149,9 @@ public class HTML5Bundler implements IBundler {
     public void bundleApplication(Project project, File bundleDirectory)
             throws IOException, CompileExceptionError {
 
+        // Collect bundle/package resources to be included in bundle directory
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.JsWeb);
+
         BobProjectProperties projectProperties = project.getProjectProperties();
 
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
@@ -211,6 +218,9 @@ public class HTML5Bundler implements IBundler {
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
         createSplitFiles(buildDir, splitDir);
+
+        // Copy bundle resources into bundle directory
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy engine
         FileUtils.copyFile(new File(js), new File(appDir, engine));

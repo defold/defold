@@ -37,23 +37,6 @@
   ;; bypassing handler for the dialog handling
   (go-to-line source-viewer line-number))
 
-(defn- find-text! [source-viewer text]
-  ;; bypassing handler for the dialog handling
-  (find-text source-viewer text))
-
-(defn- find-next! [source-viewer]
-  (cvx/handler-run :find-next [(->context source-viewer nil)] {}))
-
-(defn- find-prev! [source-viewer]
-  (cvx/handler-run :find-prev [(->context source-viewer nil)] {}))
-
-(defn- replace-text! [source-viewer text]
-  ;; bypassing handler for the dialog handling
-  (replace-text source-viewer text))
-
-(defn- replace-next! [source-viewer]
-  (cvx/handler-run :replace-next [(->context source-viewer nil)] {}))
-
 (defn- key-typed! [source-viewer key-typed]
   (cvx/handler-run :key-typed [(->context source-viewer nil)] {:key-typed key-typed
                                                                :key-event (KeyEvent. KeyEvent/KEY_TYPED
@@ -517,18 +500,18 @@
 (deftest goto-line-test
   (with-code lua/lua "a\nb\nc"
     (testing "goto line"
-      (go-to-line! source-viewer "2")
+      (go-to-line! source-viewer 2)
       (is (= \b (get-char-at-caret source-viewer)))
-      (go-to-line! source-viewer "3")
+      (go-to-line! source-viewer 3)
       (is (= \c (get-char-at-caret source-viewer)))
-      (go-to-line! source-viewer "1")
+      (go-to-line! source-viewer 1)
       (is (= \a (get-char-at-caret source-viewer))))
     (testing "goto line bounds"
-      (go-to-line! source-viewer "0")
+      (go-to-line! source-viewer 0)
       (is (= \a (get-char-at-caret source-viewer)))
-      (go-to-line! source-viewer "-2")
+      (go-to-line! source-viewer -2)
       (is (= \a (get-char-at-caret source-viewer)))
-      (go-to-line! source-viewer "100")
+      (go-to-line! source-viewer 100)
       (is (= nil (get-char-at-caret source-viewer)))
       (is (= 5 (caret source-viewer))))))
 
@@ -703,74 +686,181 @@
         (paste! source-viewer clipboard)
         (is (= 10 (caret source-viewer)))))))
 
-(deftest find-text-test
-  (with-code lua/lua "the blue ducks"
-    (testing "find match"
-      (find-text! source-viewer "the")
-      (is (= "the" (text-selection source-viewer)))
-      (is (= \space (get-char-at-caret source-viewer)))
-      (find-text! source-viewer "duck")
-      (is (= "duck" (text-selection source-viewer)))
-      (is (= \s (get-char-at-caret source-viewer)))
-      (testing "no match"
-        (find-text! source-viewer "dog")
-        (is (= "duck" (text-selection source-viewer)))
-        (is (= \s (get-char-at-caret source-viewer)))))))
 
-(deftest find-next-prev-test
-  (with-code lua/lua "duck1 duck2 duck3"
-    (testing "find-next"
-      (find-text! source-viewer "duck")
-      (is (= "duck" (text-selection source-viewer)))
-      (is (= \1 (get-char-at-caret source-viewer)))
-      (find-next! source-viewer)
-      (is (= "duck" (text-selection source-viewer)))
-      (is (= \2 (get-char-at-caret source-viewer)))
-      (find-next! source-viewer)
-      (is (= "duck" (text-selection source-viewer)))
-      (is (= \3 (get-char-at-caret source-viewer)))
-      (testing "bounds"
-        (find-next! source-viewer)
-        (is (= "duck" (text-selection source-viewer)))
-        (is (= \3 (get-char-at-caret source-viewer)))))
-    (testing "find-prev"
-      (find-prev! source-viewer)
-      (is (= "duck" (text-selection source-viewer)))
-      (is (= \2 (get-char-at-caret source-viewer)))
-      (find-prev! source-viewer)
-      (is (= "duck" (text-selection source-viewer)))
-      (is (= \1 (get-char-at-caret source-viewer)))
-      (testing "bounds"
-        (find-prev! source-viewer)
-        (is (= "duck" (text-selection source-viewer)))
-        (is (= \1 (get-char-at-caret source-viewer)))))))
+(defn set-find-params! [{:keys [term replacement whole-word case-sensitive wrap]}]
+  (.setValue cvx/find-term (or term ""))
+  (.setValue cvx/find-replacement (or replacement ""))
+  (.setValue cvx/find-whole-word (or whole-word false))
+  (.setValue cvx/find-case-sensitive (or case-sensitive false))
+  (.setValue cvx/find-wrap (or wrap false)))
 
-(deftest replace-text-test
-  (with-code lua/lua "the blue ducks"
-    (testing "replacing match"
-      (replace-text! source-viewer {:find-text "blue" :replace-text "red"})
-      (is (= "the red ducks" (text source-viewer)))
-      (is (= 7 (caret source-viewer))))
-    (testing "replacing no match"
-      (replace-text! source-viewer {:find-text "cake" :replace-text "foo"})
-      (is (= "the red ducks" (text source-viewer)))
-      (is (= 7 (caret source-viewer))))))
+(defn- check-find-next [source-viewer expectations]
+  (doseq [[text pos] expectations]
+    (cvx/find-next source-viewer)
+    (is (= text (text-selection source-viewer)))
+    (is (= pos (caret source-viewer)))))
+
+(deftest find-next-test
+  (with-code lua/lua "cakes Cakes CAKES cake Cake CAKE"
+    (testing "find empty string"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "" :wrap true})
+      (check-find-next source-viewer [["" 0]])
+      (caret! source-viewer (count code) false)
+      (check-find-next source-viewer [["" (count code)]]))
+    (testing "find case sensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :case-sensitive true})
+      (check-find-next source-viewer [["cake" 4] ["cake" 22] ["cake" 22]]))
+    (testing "find case insensitive"
+      (caret! source-viewer 22 false)
+      (set-find-params! {:term "cake"})
+      (check-find-next source-viewer [["Cake" 27] ["CAKE" 32] ["CAKE" 32]]))
+    (testing "find whole word case sensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :whole-word true :case-sensitive true})
+      (check-find-next source-viewer [["cake" 22] ["cake" 22]]))
+    (testing "find whole word case insensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :whole-word true})
+      (check-find-next source-viewer [["cake" 22] ["Cake" 27] ["CAKE" 32] ["CAKE" 32]]))
+    (testing "wrap wraps"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :whole-word true :wrap true})
+      (check-find-next source-viewer [["cake" 22] ["Cake" 27] ["CAKE" 32] ["cake" 22] ["Cake" 27] ["CAKE" 32]]))))
+
+(defn- check-find-prev [source-viewer expectations]
+  (doseq [[text pos] expectations]
+    (cvx/find-prev source-viewer)
+    (is (= text (text-selection source-viewer)))
+    (is (= pos (caret source-viewer)))))
+
+(deftest find-prev-test
+  (with-code lua/lua "cake Cake CAKE cakes Cakes CAKES"
+    (testing "find empty string"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "" :wrap true})
+      (check-find-prev source-viewer [["" 0]])
+      (caret! source-viewer (count code) false)
+      (check-find-prev source-viewer [["" (count code)]]))
+    (testing "find exact case sensitive"
+      (caret! source-viewer (count code) false)
+      (set-find-params! {:term "cake" :case-sensitive true})
+      (check-find-prev source-viewer [["cake" 15] ["cake" 0] ["cake" 0]]))
+    (testing "find case insensitive"
+      (caret! source-viewer (count code) false)
+      (set-find-params! {:term "cake"})
+      (check-find-prev source-viewer [["CAKE" 27] ["Cake" 21] ["cake" 15] ["CAKE" 10] ["Cake" 5] ["cake" 0] ["cake" 0]]))
+    (testing "find whole word case sensitive"
+      (caret! source-viewer (count code) false)
+      (set-find-params! {:term "cake" :whole-word true :case-sensitive true})
+      (check-find-prev source-viewer [["cake" 0] ["cake" 0]]))
+    (testing "find whole word case insensitive"
+      (caret! source-viewer (count code) false)
+      (set-find-params! {:term "cake" :whole-word true})
+      (check-find-prev source-viewer [["CAKE" 10] ["Cake" 5] ["cake" 0] ["cake" 0]]))
+    (testing "wrap wraps"
+      (caret! source-viewer (count code) false)
+      (set-find-params! {:term "cake" :whole-word true :wrap true})
+      (check-find-prev source-viewer [["CAKE" 10] ["Cake" 5] ["cake" 0] ["CAKE" 10] ["Cake" 5] ["cake" 0]]))))
+
+(defn- check-replacements [source-viewer expectations]
+  (doseq [[new-code selection pos] expectations]
+    (cvx/replace-next source-viewer)
+    (is (= new-code (text source-viewer)))
+    (is (= selection (text-selection source-viewer)))
+    (is (= pos (caret source-viewer)))))
 
 (deftest replace-next-test
-  (with-code lua/lua "the blue blue ducks"
-    (testing "replacing match"
-      (replace-text! source-viewer {:find-text "blue" :replace-text "red"})
-      (is (= "the red blue ducks" (text source-viewer)))
-      (is (= 7 (caret source-viewer)))
-      (replace-next! source-viewer)
-      (is (= "the red red ducks" (text source-viewer)))
-      (is (= 11 (caret source-viewer))))
-    (testing "when caret is beyond match, will not replace"
-      (text! source-viewer code)
-      (caret! source-viewer 7 false)
-      (replace-next! source-viewer)
-      (is (= "the blue red ducks" (text source-viewer)))
-      (is (= 12 (caret source-viewer))))))
+  (with-code lua/lua "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace empty string"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "" :replacement "bogus"})
+      (check-replacements source-viewer [[code "" 0] [code "" 0]])))
+  (with-code lua/lua "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace case-sensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank" :case-sensitive true})
+      (check-replacements source-viewer [["cakes Cakes CAKES cake Cake CAKE" "cake" 4]
+                                         ["tanks Cakes CAKES cake Cake CAKE" "cake" 22]
+                                         ["tanks Cakes CAKES tank Cake CAKE" "" 22]
+                                         ["tanks Cakes CAKES tank Cake CAKE" "" 22]])))
+  (with-code lua/lua "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace case insensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank"})
+      (check-replacements source-viewer [["cakes Cakes CAKES cake Cake CAKE" "cake" 4]
+                                         ["tanks Cakes CAKES cake Cake CAKE" "Cake" 10]
+                                         ["tanks tanks CAKES cake Cake CAKE" "CAKE" 16]
+                                         ["tanks tanks tankS cake Cake CAKE" "cake" 22]
+                                         ["tanks tanks tankS tank Cake CAKE" "Cake" 27]
+                                         ["tanks tanks tankS tank tank CAKE" "CAKE" 32]
+                                         ["tanks tanks tankS tank tank tank" "" 32]
+                                         ["tanks tanks tankS tank tank tank" "" 32]])))
+  (with-code lua/lua "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace whole word case sensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank" :whole-word true :case-sensitive true})
+      (check-replacements source-viewer [["cakes Cakes CAKES cake Cake CAKE" "cake" 22]
+                                         ["cakes Cakes CAKES tank Cake CAKE" "" 22]
+                                         ["cakes Cakes CAKES tank Cake CAKE" "" 22]])))
+  (with-code lua/lua "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace whole-word case insensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank" :whole-word true})
+      (check-replacements source-viewer [["cakes Cakes CAKES cake Cake CAKE" "cake" 22]
+                                         ["cakes Cakes CAKES tank Cake CAKE" "Cake" 27]
+                                         ["cakes Cakes CAKES tank tank CAKE" "CAKE" 32]
+                                         ["cakes Cakes CAKES tank tank tank" "" 32]
+                                         ["cakes Cakes CAKES tank tank tank" "" 32]])))
+  (with-code lua/lua "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace whole word case insensitive wrap"
+      (caret! source-viewer 22 false)
+      (set-find-params! {:term "cake" :replacement "tank" :whole-word true :wrap true})
+      (check-replacements source-viewer [["cakes Cakes CAKES cake Cake CAKE" "Cake" 27]
+                                         ["cakes Cakes CAKES cake tank CAKE" "CAKE" 32]
+                                         ["cakes Cakes CAKES cake tank tank" "cake" 22]
+                                         ["cakes Cakes CAKES tank tank tank" "" 22]
+                                         ["cakes Cakes CAKES tank tank tank" "" 22]]))))
+
+(deftest replace-all-test
+  (with-code lua/lua "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace empty string"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "" :replacement "bogus"})
+      (cvx/replace-all source-viewer)
+      (cvx/replace-all source-viewer)
+      (is (= "cakes Cakes CAKES cake Cake CAKE" (text source-viewer)))))
+  (with-code lua/lua  "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace case sensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank" :case-sensitive true})
+      (cvx/replace-all source-viewer)
+      (is (=  "tanks Cakes CAKES tank Cake CAKE" (text source-viewer)))))
+  (with-code lua/lua  "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace case insensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank"})
+      (cvx/replace-all source-viewer)
+      (is (= "tanks tanks tankS tank tank tank" (text source-viewer)))))
+  (with-code lua/lua  "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace whole word case sensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank" :whole-word true :case-sensitive true})
+      (cvx/replace-all source-viewer)
+      (is (= "cakes Cakes CAKES tank Cake CAKE" (text source-viewer)))))
+  (with-code lua/lua  "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace whole word case insensitive"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank" :whole-word true})
+      (cvx/replace-all source-viewer)
+      (is (= "cakes Cakes CAKES tank tank tank" (text source-viewer)))))
+  (with-code lua/lua  "cakes Cakes CAKES cake Cake CAKE"
+    (testing "replace whole word case insensitive wrap (irrelevant)"
+      (caret! source-viewer 0 false)
+      (set-find-params! {:term "cake" :replacement "tank" :whole-word true})
+      (cvx/replace-all source-viewer)
+      (is (= "cakes Cakes CAKES tank tank tank" (text source-viewer))))))
 
 (deftest tab-test
   (with-code lua/lua "hi"

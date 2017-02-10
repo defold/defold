@@ -3,21 +3,21 @@
 }
 
 .property-label {
-    -fx-padding: 5 10 5 0;
-    -fx-font-weight: bold;
+    -fx-padding: 4 10 6 5;
+    -fx-font-weight: normal;//bold;
 }
 
 .property-component {
     -fx-spacing: 0;
     -fx-padding: 0;
     .label {
-        -fx-padding: 5px;
+        -fx-padding: 5px 0 5px 0;
         -fx-font-weight: normal;
         -fx-text-fill: #848484;
-        -fx-alignment: center;
+        -fx-alignment: center;//left;//center;
+        -fx-min-width: 20px;
     }
     .text-field {
         -fx-alignment: center-right;
-        -fx-padding: 5px 8px;
     }
 }

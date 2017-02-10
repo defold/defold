@@ -20,33 +20,34 @@ namespace dmGameSystem
      *
      * Functions and messages used to manipulate tile map components.
      *
+     * @document
      * @name Tilemap
      * @namespace tilemap
      */
 
     /*# set a shader constant for a tile map
+     * Sets a shader constant for a tile map component.
      * The constant must be defined in the material assigned to the tile map.
      * Setting a constant through this function will override the value set for that constant in the material.
      * The value will be overridden until tilemap.reset_constant is called.
      * Which tile map to set a constant for is identified by the URL.
      *
      * @name tilemap.set_constant
-     * @param url the tile map that should have a constant set (url)
-     * @param name of the constant (string|hash)
-     * @param value of the constant (vec4)
+     * @param url [type:string|hash|url] the tile map that should have a constant set
+     * @param constant [type:string|hash] name of the constant
+     * @param value [type:vector4] value of the constant
      * @examples
-     * <p>
-     * The following examples assumes that the tile map has id "tile map" and that the default-material in builtins is used.
+     *
+     * The following examples assumes that the tile map has id "tile map" and that the default-material in builtins is used, which defines the constant "tint".
      * If you assign a custom material to the tile map, you can set the constants defined there in the same manner.
-     * </p>
-     * <p>
+     *
      * How to tint a tile map to red:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     tilemap.set_constant("#tilemap", "tint", vmath.vector4(1, 0, 0, 1))
      * end
-     * </pre>
+     * ```
      */
     int TileMap_SetConstant(lua_State* L)
     {
@@ -71,26 +72,26 @@ namespace dmGameSystem
     }
 
     /*# reset a shader constant for a tile map
+     * Resets a shader constant for a tile map component.
      * The constant must be defined in the material assigned to the tile map.
      * Resetting a constant through this function implies that the value defined in the material will be used.
      * Which tile map to reset a constant for is identified by the URL.
      *
      * @name tilemap.reset_constant
-     * @param url the tile map that should have a constant reset (url)
-     * @param name of the constant (string|hash)
+     * @param url [type:string|hash|url] the tile map that should have a constant reset
+     * @param constant [type:string|hash] name of the constant
      * @examples
-     * <p>
-     * The following examples assumes that the tile map has id "tilemap" and that the default-material in builtins is used.
+     *
+     * The following examples assumes that the tile map has id "tilemap" and that the default-material in builtins is used, which defines the constant "tint".
      * If you assign a custom material to the tile map, you can reset the constants defined there in the same manner.
-     * </p>
-     * <p>
+     *
      * How to reset the tinting of a tile map:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     tilemap.reset_constant("#tilemap", "tint")
      * end
-     * </pre>
+     * ```
      */
     int TileMap_ResetConstant(lua_State* L)
     {
@@ -113,10 +114,10 @@ namespace dmGameSystem
 
     /*# set a tile in a tile map
      * Replace a tile in a tile map with a new tile.
-     * The coordinates of the tiles are indexed so that the "first" tile just 
+     * The coordinates of the tiles are indexed so that the "first" tile just
      * above and to the right of origo has coordinates 1,1.
      * Tiles to the left of and below origo are indexed 0, -1, -2 and so forth.
-     * 
+     *
      * <pre>
      * +-------+-------+------+------+
      * |  0,3  |  1,3  | 1,2  | 3,3  |
@@ -128,24 +129,25 @@ namespace dmGameSystem
      * |  0,0  |  1,0  | 2,0  | 3,0  |
      * +-------+-------+------+------+
      * </pre>
-     * The coordinates must be within the bounds of the tile map as it were created. That is, it is not
-     * possible to extend the size of a tile map by setting tiles outside the edges.
-     * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by
-     * the URL and the layer name parameters.
+     *
+     * The coordinates must be within the bounds of the tile map as it were created.
+     * That is, it is not possible to extend the size of a tile map by setting tiles outside the edges.
+     * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by the URL and the layer name parameters.
      *
      * @name tilemap.set_tile
-     * @param url the tile map (url)
-     * @param name of the layer (string|hash)
-     * @param x-coordinate of the tile (number)
-     * @param y-coordinate of the tile (number)
-     * @param new tile to set (number)
-     * @param optional if the tile should be horizontally flipped (boolean)
-     * @param optional i the tile should be vertically flipped (boolean)
+     * @param url [type:string|hash|url] the tile map
+     * @param layer [type:string|hash] name of the layer for the tile
+     * @param x [type:number] x-coordinate of the tile
+     * @param y [type:number] y-coordinate of the tile
+     * @param tile [type:number] index of new tile to set
+     * @param [h-flipped] [type:boolean] optional if the tile should be horizontally flipped
+     * @param [v-flipped] [type:boolean] optional i the tile should be vertically flipped
      * @examples
-     * <pre>
+     *
+     * ```lua
      * -- Clear the tile under the player.
      * tilemap.set_tile("/level#tilemap", "foreground", self.player_x, self.player_y, 0)
-     * </pre>
+     * ```
      */
     int TileMap_SetTile(lua_State* L)
     {
@@ -233,21 +235,22 @@ namespace dmGameSystem
     /*# get a tile from a tile map
      * Get the tile set at the specified position in the tilemap.
      * The position is identified by the tile index starting at origo
-     * with index 1, 1. (see <code>tilemap.set_tile()</code>)
-     * Which tile map and layer to query is identified by the URL and the 
+     * with index 1, 1. (see [ref:tilemap.set_tile()])
+     * Which tile map and layer to query is identified by the URL and the
      * layer name parameters.
      *
      * @name tilemap.get_tile
-     * @param url the tile map (url)
-     * @param name of the layer (string|hash)
-     * @param x-coordinate of the tile (number)
-     * @param y-coordinate of the tile (number)
-     * @return index of the tile (number)
+     * @param url [type:string|hash|url] the tile map
+     * @param layer [type:string|hash] name of the layer for the tile
+     * @param x [type:number] x-coordinate of the tile
+     * @param y [type:number] y-coordinate of the tile
+     * @return tile [type:number] index of the tile
      * @examples
-     * <pre>
+     *
+     * ```lua
      * -- get the tile under the player.
      * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
-     * </pre>
+     * ```
      */
     int TileMap_GetTile(lua_State* L)
     {
@@ -291,23 +294,24 @@ namespace dmGameSystem
 
     /*# get the bounds of a tile map
      * Get the bounds for a tile map. This function returns multiple values:
-     * The lower left corner index x and y coordinates (1-indexed), 
-     * the tile map width and the tile map height. 
+     * The lower left corner index x and y coordinates (1-indexed),
+     * the tile map width and the tile map height.
      *
      * The resulting values take all tile map layers into account, meaning that
      * the bounds are calculated as if all layers were collapsed into one.
      *
      * @name tilemap.get_bounds
-     * @param url the tile map (url)
-     * @return x coordinate of the bottom left corner (number)
-     * @return y coordinate of the bottom left corner (number)
-     * @return number of columns in the tile map (number)
-     * @return number of rows in the tile map (number)
+     * @param url [type:string|hash|url] the tile map
+     * @return x [type:number] x coordinate of the bottom left corner
+     * @return y [type:number] y coordinate of the bottom left corner
+     * @return w [type:number] number of columns (width) in the tile map
+     * @return h [type:number] number of rows (height) in the tile map
      * @examples
-     * <pre>
+     *
+     * ```lua
      * -- get the level bounds.
      * local x, y, w, h = tilemap.get_bounds("/level#tilemap")
-     * </pre>
+     * ```
      */
     int TileMap_GetBounds(lua_State* L)
     {

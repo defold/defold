@@ -62,7 +62,7 @@ namespace dmGameSystem
         SpineModelWorld* world = new SpineModelWorld();
 
         world->m_Components.SetCapacity(context->m_MaxSpineModelCount);
-        world->m_RigContext = context->m_RigContext;
+        // world->m_RigContext = context->m_RigContext;
         world->m_RenderObjects.SetCapacity(context->m_MaxSpineModelCount);
 
         dmGraphics::VertexElement ve[] =
@@ -323,7 +323,7 @@ namespace dmGameSystem
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = world->m_RigContext;
+        create_params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;
@@ -371,7 +371,8 @@ namespace dmGameSystem
         component->m_NodeInstances.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params = {0};
-        params.m_Context = world->m_RigContext;
+        // params.m_Context = world->m_RigContext;
+        params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
@@ -412,7 +413,8 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-            vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
+            dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(c->m_Instance));
+            vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -724,15 +726,17 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component, int index)
     {
+        dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
-        destroy_params.m_Context = world->m_RigContext;
+        destroy_params.m_Context = rig_context;
         destroy_params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(destroy_params);
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = world->m_RigContext;
+        create_params.m_Context = rig_context;
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;

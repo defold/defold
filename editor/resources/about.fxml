@@ -28,6 +28,7 @@
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
             <RowConstraints minHeight="10.0" prefHeight="60.0" vgrow="NEVER" />
             <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
             <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
@@ -43,17 +44,22 @@
                   <Font size="11.0" />
                </font>
             </Label>
-            <TextField id="sha1" text="(2b680b3ec7af8a84401ad584d8bc47a246f82947)" GridPane.rowIndex="2" editable="false" focusTraversable="false" alignment="center" styleClass="copyable-label">
+            <TextField id="sha1" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="2" editable="false" focusTraversable="false" alignment="center" styleClass="copyable-label">
                <font>
                   <Font size="11.0" />
                </font>
             </TextField>
-            <Label text="Copyright (c) 2011-2016" GridPane.rowIndex="4">
+            <Label id="time" text="Built: n/a" GridPane.rowIndex="3">
                <font>
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label text="Midasplayer Technology AB" GridPane.rowIndex="5">
+            <Label text="Copyright (c) 2011-2016" GridPane.rowIndex="5">
+               <font>
+                  <Font size="11.0" />
+               </font>
+            </Label>
+            <Label text="Midasplayer Technology AB" GridPane.rowIndex="6">
                <font>
                   <Font size="11.0" />
                </font>

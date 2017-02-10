@@ -86,8 +86,9 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [ext build-ext node-type load-fn icon view-types view-opts tags template label]}]
-  (let [resource-type {:ext ext
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn icon view-types view-opts tags template label]}]
+  (let [resource-type {:textual? (true? textual?)
+                       :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
@@ -207,7 +208,7 @@ ordinary paths."
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
        (when notify-listeners?
-         (let [changes                      (into {} (map (fn [[type resources]] [type (filter (comp some? resource/resource-type) resources)]) changes)) ; skip unknown resources
+         (let [changes                      (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
                move-srcs                    (set (map first moved-paths))
                move-trgs                    (set (map second moved-paths))
                ;; the new snapshot will show the source of the move as

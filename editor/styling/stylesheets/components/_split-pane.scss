@@ -1,24 +1,22 @@
 .split-pane {
   -fx-padding: 0.0em;
+  &:horizontal {
+    -fx-border-width: 0;
+    -fx-background-insets: 0;
+    
+    >.split-pane-divider {
+      -fx-padding: 0 9 0 8;
+      -fx-background-color: transparent;//$dark-grey;
+    }
+  }
+
+  &:vertical {
+    -fx-border-width: 0;
+    -fx-background-insets: 0;
+    
+    >.split-pane-divider {
+      -fx-padding: 1;
+      -fx-background-color: transparent;//$dark-grey;
+    }
+  }
 }
-
-.split-pane:horizontal > .split-pane-divider {
-  -fx-padding: 1; }
-
-.split-pane:vertical > .split-pane-divider {
-  -fx-padding: 1; }
-
-.split-pane:horizontal > .split-pane-divider {
-  -fx-background-color: $dark-grey; }
-
-/* vertical the two nodes are placed on top of each other. */
-.split-pane:vertical > .split-pane-divider {
-  -fx-background-color: $dark-grey; }
-
-.split-pane:horizontal {
-  -fx-border-width: 0;
-  -fx-background-insets: 0; }
-
-.split-pane:vertical {
-  -fx-border-width: 0;
-  -fx-background-insets: 0; }

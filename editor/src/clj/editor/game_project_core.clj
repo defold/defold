@@ -18,7 +18,7 @@
 (defn- resource-reader [resource-name]
   (io/reader (io/resource resource-name)))
 
-(defn- pushback-reader [reader]
+(defn- pushback-reader ^PushbackReader [reader]
   (PushbackReader. reader))
 
 (defn string-reader [content]
@@ -74,24 +74,24 @@
    :boolean false
    :integer 0
    :number 0.0
-   :resource ""})
+   :resource nil})
 
 (defn- add-type-defaults [meta-info]
   (update-in meta-info [:settings]
              (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
 
-(def basic-meta-info (add-type-defaults (edn/read (pushback-reader (resource-reader "meta.edn")))))
+(def basic-meta-info (with-open [r (pushback-reader (resource-reader "meta.edn"))]
+                       (add-type-defaults (edn/read r))))
 
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))
         unknown-settings (remove known-settings (map :path settings))]
     (map (fn [setting-path] {:path setting-path :type :string :help "unknown setting"}) unknown-settings)))
 
-(defn complement-meta-info [meta-info settings]
-  (update meta-info :settings
-          #(concat % (make-meta-settings-for-unknown % settings))))
+(defn add-meta-info-for-unknown-settings [meta-info settings]
+  (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings))))
 
-(defn- make-meta-settings-map [meta-settings]
+(defn make-meta-settings-map [meta-settings]
   (zipmap (map :path meta-settings) meta-settings))
 
 (defn- trim-trailing-c [value]
@@ -115,7 +115,7 @@
   (vec (map (partial sanitize-setting (make-meta-settings-map meta-settings)) settings)))
 
 (defn make-default-settings [meta-settings]
-  (map (fn [meta-setting]
+  (mapv (fn [meta-setting]
          {:path (:path meta-setting) :value (:default meta-setting)})
        meta-settings))
 
@@ -166,15 +166,15 @@
 (defmethod render-raw-setting-value :default [_ value]
   (str value))
 
-(defn set-setting [settings meta-setting path value]
-  (let [raw-value (render-raw-setting-value meta-setting value)]
-    (if-let [index (setting-index settings path)]
-      (assoc-in settings [index :value] raw-value)
-      (conj settings {:path path :value raw-value}))))
+(defn set-setting [settings path value]
+  (if-let [index (setting-index settings path)]
+    (assoc-in settings [index :value] value)
+    (conj settings {:path path :value value})))
 
 (defn clear-setting [settings path]
-  (when-let [index (setting-index settings path)]
-    (update settings index dissoc :value)))
+  (if-let [index (setting-index settings path)]
+    (update settings index dissoc :value)
+    settings))
 
 (defn get-default-setting [meta-settings path]
   (when-let [index (setting-index meta-settings path)]
@@ -183,6 +183,10 @@
 (defn get-setting-or-default [meta-settings settings path]
   (or (get-setting settings path)
       (get-default-setting meta-settings path)))
+
+(defn get-meta-setting
+  [meta-settings path]
+  (nth meta-settings (setting-index meta-settings path)))
 
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))

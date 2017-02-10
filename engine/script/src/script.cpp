@@ -10,6 +10,7 @@
 #include "script_hash.h"
 #include "script_msg.h"
 #include "script_vmath.h"
+#include "script_buffer.h"
 #include "script_sys.h"
 #include "script_module.h"
 #include "script_image.h"
@@ -29,7 +30,8 @@ namespace dmScript
     /*# Built-ins API documentation
      *
      * Built-in scripting functions.
-     * 
+     *
+     * @document
      * @name Built-ins
      * @namespace builtins
      */
@@ -132,6 +134,7 @@ namespace dmScript
         InitializeHash(L);
         InitializeMsg(L);
         InitializeVmath(L);
+        InitializeBuffer(L);
         InitializeSys(L);
         InitializeModule(L);
         InitializeImage(L);
@@ -332,10 +335,38 @@ namespace dmScript
     }
 
     /*# pretty printing
-     * Pretty printing of lua values
+     * Pretty printing of Lua values. This function prints Lua values
+     * in a manner similar to +print()+, but will also recurse into tables
+     * and pretty print them. There is a limit to how deep the function
+     * will recurse.
      *
      * @name pprint
-     * @param v value to print
+     * @param v [type:any] value to print
+     * @examples
+     *
+     * Pretty printing a Lua table with a nested table:
+     *
+     * ```lua
+     * local t2 = { 1, 2, 3, 4 }
+     * local t = { key = "value", key2 = 1234, key3 = t2 }
+     * pprint(t)
+     * ```
+     *
+     * Resulting in the following output (note that the key order in non array
+     * Lua tables is undefined):
+     *
+     * ```
+     * {
+     *   key3 = {
+     *     1 = 1,
+     *     2 = 2,
+     *     3 = 3,
+     *     4 = 4,
+     *   }
+     *   key2 = 1234,
+     *   key = value,
+     * }
+     * ```
      */
     int LuaPPrint(lua_State* L)
     {
@@ -613,5 +644,20 @@ namespace dmScript
     uint32_t GetLuaGCCount(lua_State* L)
     {
         return (uint32_t)lua_gc(L, LUA_GCCOUNT, 0);
+    }
+
+    LuaStackCheck::LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff)
+    {
+    }
+
+    LuaStackCheck::~LuaStackCheck()
+    {
+        uint32_t expected = m_Top + m_Diff;
+        uint32_t actual = lua_gettop(m_L);
+        if (expected != actual)
+        {
+            dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
+            assert(expected == actual);
+        }
     }
 }

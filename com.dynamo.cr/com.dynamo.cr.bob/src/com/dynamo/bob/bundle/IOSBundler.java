@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -23,6 +25,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 
@@ -80,9 +84,40 @@ public class IOSBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
 
+        // Collect bundle/package resources to be included in .App directory
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+
+        boolean debug = project.hasOption("debug");
+
+        File exeArmv7 = null;
+        File exeArm64 = null;
+
+        // If a custom engine was built we need to copy it
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+
+        // armv7 exe
+        {
+            Platform targetPlatform = Platform.Armv7Darwin;
+            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            exeArmv7 = defaultExe;
+            if (extenderExe.exists()) {
+                exeArmv7 = extenderExe;
+            }
+        }
+
+        // arm64 exe
+        {
+            Platform targetPlatform = Platform.Arm64Darwin;
+            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            exeArm64 = defaultExe;
+            if (extenderExe.exists()) {
+                exeArm64 = extenderExe;
+            }
+        }
+
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exeArmv7 = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("debug"));
-        String exeArm64 = Bob.getDmengineExe(Platform.Arm64Darwin, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -100,12 +135,13 @@ public class IOSBundler implements IBundler {
 
         if (useArchive) {
             // Copy archive and game.projectc
-            for (String name : Arrays.asList("game.projectc", "game.darc")) {
+            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
             }
         } else {
             FileUtils.copyDirectory(buildDir, appDir);
-            new File(buildDir, "game.darc").delete();
+            new File(buildDir, "game.arci").delete();
+            new File(buildDir, "game.arcd").delete();
         }
 
         // Copy icons
@@ -204,6 +240,9 @@ public class IOSBundler implements IBundler {
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
 
+        // Copy bundle resources into .app folder
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
@@ -213,10 +252,10 @@ public class IOSBundler implements IBundler {
         String exe = tmpFile.getPath();
 
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
+        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
 
         // Strip executable
-        if( !project.hasOption("debug") )
+        if( !debug )
         {
             Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
         }

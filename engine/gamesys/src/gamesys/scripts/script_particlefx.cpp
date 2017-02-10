@@ -30,6 +30,7 @@ namespace dmGameSystem
      * Functions for controlling particle effect component playback and
      * shader constants.
      *
+     * @document
      * @name Particle effects
      * @namespace particlefx
      */
@@ -107,28 +108,48 @@ namespace dmGameSystem
     }
 
     /*# start playing a particle FX
-     * Particle FX started this way need to be manually stopped through particlefx.stop.
+     * Starts playing a particle FX component.
+     * Particle FX started this way need to be manually stopped through `particlefx.stop()`.
      * Which particle FX to play is identified by the URL.
      *
      * @name particlefx.play
-     * @param url the particle fx that should start playing (url)
-     * @param [emitter_state_cb] optional callback that will be called when an emitter attached to this particlefx changes state.
+     * @param url [type:string|hash|url] the particle fx that should start playing.
+     * @param [emitter_state_function] [type:function(self, id, emitter, state)] optional callback function that will be called when an emitter attached to this particlefx changes state.
+     *
+     * `self`
+     * : [type:object] The current object
+     *
+     * `id`
+     * : [type:hash] The id of the particle fx component
+     *
+     * `emitter`
+     * : [type:hash] The id of the emitter
+     *
+     * `state`
+     * : [type:constant] the new state of the emitter:
+     *
+     * - `particlefx.EMITTER_STATE_POSTSPAWN`
+     * - `particlefx.EMITTER_STATE_PRESPAWN`
+     * - `particlefx.EMITTER_STATE_SLEEPING`
+     * - `particlefx.EMITTER_STATE_SPAWNING`
+     *
      * @examples
-     * <p>
+     *
      * How to play a particle fx when a game object is created.
      * The callback receives the hash of the path to the particlefx, the hash of the id
      * of the emitter, and the new state of the emitter as particlefx.EMITTER_STATE_<STATE>.
-     * </p>
-     * <pre>
-     * local function emitter_state_cb(self, particlefx_url, emitter_id, state)
-     *    print(particlefx_url)
-     *    print(emitter_id)
-     *    print(state)
+     *
+     * ```lua
+     * local function emitter_state_change(self, id, emitter, state)
+     *   if emitter == hash("exhaust") and state == particlefx.EMITTER_STATE_POSTSPAWN then
+     *     -- exhaust is done spawning particles...
+     *   end
      * end
+     *
      * function init(self)
-     *     particlefx.play("#particlefx", emitter_state_cb)
+     *     particlefx.play("#particlefx", emitter_state_change)
      * end
-     * </pre>
+     * ```
      */
     int ParticleFX_Play(lua_State* L)
     {
@@ -198,20 +219,21 @@ namespace dmGameSystem
     }
 
     /*# stop playing a particle fx
-     * Stopping a particle FX does not remove the already spawned particles.
-     * Which particle fx to stop is identified by the URL.
+     * Stops a particle FX component from playing.
+     * Stopping a particle FX does not remove already spawned particles.
+     * Which particle FX to stop is identified by the URL.
      *
      * @name particlefx.stop
-     * @param url the particle fx that should stop playing (url)
+     * @param url [type:string|hash|url] the particle fx that should stop playing
      * @examples
-     * <p>
+     *
      * How to stop a particle fx when a game object is deleted:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function final(self)
      *     particlefx.stop("#particlefx")
      * end
-     * </pre>
+     * ```
      */
     int ParticleFX_Stop(lua_State* L)
     {
@@ -235,30 +257,31 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# set a shader constant for a particle FX emitter
+    /*# set a shader constant for a particle FX component emitter
+     * Sets a shader constant for a particle FX component emitter.
      * The constant must be defined in the material assigned to the emitter.
      * Setting a constant through this function will override the value set for that constant in the material.
      * The value will be overridden until particlefx.reset_constant is called.
      * Which particle FX to set a constant for is identified by the URL.
      *
      * @name particlefx.set_constant
-     * @param url the particle FX that should have a constant set (url)
-     * @param emitter_id the id of the emitter (string|hash)
-     * @param name the name of the constant (string|hash)
-     * @param value the value of the constant (vec4)
+     * @param url [type:string|hash|url] the particle FX that should have a constant set
+     * @param emitter [type:string|hash] the id of the emitter
+     * @param constant [type:string|hash] the name of the constant
+     * @param value [type:vector4] the value of the constant
      * @examples
-     * <p>
-     * The following examples assumes that the particle FX has id "particlefx", contains an emitter with id "emitter" and that the default-material in builtins is used.
-     * If you assign a custom material to the emitter, you can set the constants defined there in the same manner.
-     * </p>
-     * <p>
+     *
+     * The following examples assumes that the particle FX has id "particlefx", it
+     * contains an emitter with the id "emitter" and that the default-material in builtins is used, which defines the constant "tint".
+     * If you assign a custom material to the sprite, you can reset the constants defined there in the same manner.
+     *
      * How to tint particles from an emitter red:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     particlefx.set_constant("#particlefx", "emitter", "tint", vmath.vector4(1, 0, 0, 1))
      * end
-     * </pre>
+     * ```
      */
     int ParticleFX_SetConstant(lua_State* L)
     {
@@ -284,28 +307,29 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# reset a shader constant for a particle FX emitter
+    /*# reset a shader constant for a particle FX component emitter
+     * Resets a shader constant for a particle FX component emitter.
      * The constant must be defined in the material assigned to the emitter.
      * Resetting a constant through this function implies that the value defined in the material will be used.
      * Which particle FX to reset a constant for is identified by the URL.
      *
      * @name particlefx.reset_constant
-     * @param url the particle FX that should have a constant reset (url)
-     * @param emitter_id the id of the emitter (string|hash)
-     * @param name the name of the constant (string|hash)
+     * @param url [type:string|hash|url] the particle FX that should have a constant reset
+     * @param emitter [type:string|hash] the id of the emitter
+     * @param constant [type:string|hash] the name of the constant
      * @examples
-     * <p>
-     * The following examples assumes that the particle FX has id "particlefx", contains an emitter with id "emitter" and that the default-material in builtins is used.
-     * If you assign a custom material to the emitter, you can reset the constants defined there in the same manner.
-     * </p>
-     * <p>
+     *
+     * The following examples assumes that the particle FX has id "particlefx", it
+     * contains an emitter with the id "emitter" and that the default-material in builtins is used, which defines the constant "tint".
+     * If you assign a custom material to the sprite, you can reset the constants defined there in the same manner.
+     *
      * How to reset the tinting of particles from an emitter:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     particlefx.reset_constant("#particlefx", "emitter", "tint")
      * end
-     * </pre>
+     * ```
      */
     int ParticleFX_ResetConstant(lua_State* L)
     {

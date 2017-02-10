@@ -6,14 +6,18 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.view :as view]
             [editor.workspace :as workspace])
   (:import [com.defold.editor.eclipse DefoldRuleBasedScanner Document DefoldStyledTextSkin DefoldStyledTextSkin$LineCell
             DefoldStyledTextBehavior DefoldStyledTextArea DefoldSourceViewer DefoldStyledTextLayoutContainer]
-           [javafx.scene Parent Cursor]
-           [javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent]
+           [javafx.beans.property SimpleStringProperty]
+           [javafx.scene Node Parent Cursor]
+           [javafx.scene.layout GridPane Priority ColumnConstraints]
+           [javafx.scene.shape Rectangle]
+           [javafx.scene.input Clipboard ClipboardContent KeyEvent KeyCode MouseEvent]
            [javafx.scene.image Image ImageView]
            [java.util.function Function]
-           [javafx.scene.control ListView ListCell Tab Label]
+           [javafx.scene.control ListView ListCell Tab Label TextField CheckBox]
            [org.eclipse.fx.text.ui TextAttribute]
            [org.eclipse.fx.text.ui.presentation PresentationReconciler]
            [org.eclipse.fx.text.ui.rules DefaultDamagerRepairer]
@@ -31,7 +35,9 @@
                 (cvx/create-menu-data))
 
 (defn- code-node [text-area]
-  (ui/user-data text-area ::code-node))
+  (-> text-area
+    (ui/user-data ::view-id)
+    (g/node-value :resource-node)))
 
 (defn- behavior [text-area]
   (ui/user-data text-area ::behavior))
@@ -73,31 +79,32 @@
     (reset! (typing-timeout source-viewer)
             (ui/->future 1 (fn [] (reset! (typing-opseq source-viewer) nil))))))
 
-(g/defnk update-source-viewer [^SourceViewer source-viewer code-node code caret-position selection-offset selection-length prefer-offset tab-triggers]
-  (ui/user-data! (.getTextWidget source-viewer) ::code-node code-node)
-  (let [did-update
-        (some some?
-              [(when (not= code (cvx/text source-viewer))
-                 (cvx/text! source-viewer code)
-                 :updated)
-               (when (not= prefer-offset (cvx/preferred-offset source-viewer))
-                 (cvx/preferred-offset! source-viewer prefer-offset)
-                 :updated)
-               (when (not= tab-triggers (cvx/snippet-tab-triggers source-viewer))
-                 (cvx/snippet-tab-triggers! source-viewer tab-triggers)
-                 :updated)
-               (when (not= caret-position (cvx/caret source-viewer))
-                 (cvx/caret! source-viewer caret-position false)
-                 (cvx/show-line source-viewer)
-                 :updated)
-               (when (not= [selection-offset selection-length]
-                           [(cvx/selection-offset source-viewer) (cvx/selection-length source-viewer)])
-                 (cvx/caret! source-viewer caret-position false)
-                 (cvx/text-selection! source-viewer selection-offset selection-length)
-                 :updated)])]
-    (when did-update
-      (reset! (last-command-data source-viewer) nil)))
-  [code-node])
+(g/defnk update-source-viewer [_node-id ^SourceViewer source-viewer code caret-position selection-offset selection-length prefer-offset tab-triggers]
+  (ui/user-data! (.getTextWidget source-viewer) ::view-id _node-id)
+  (when code
+    (let [did-update
+          (some some?
+            [(when (not= code (cvx/text source-viewer))
+               (cvx/text! source-viewer code)
+               :updated)
+             (when (not= prefer-offset (cvx/preferred-offset source-viewer))
+               (cvx/preferred-offset! source-viewer prefer-offset)
+               :updated)
+             (when (not= tab-triggers (cvx/snippet-tab-triggers source-viewer))
+               (cvx/snippet-tab-triggers! source-viewer tab-triggers)
+               :updated)
+             (when (not= caret-position (cvx/caret source-viewer))
+               (cvx/caret! source-viewer caret-position false)
+               (cvx/show-line source-viewer)
+               :updated)
+             (when (not= [selection-offset selection-length]
+                         [(cvx/selection-offset source-viewer) (cvx/selection-length source-viewer)])
+               (cvx/caret! source-viewer caret-position false)
+               (cvx/text-selection! source-viewer selection-offset selection-length)
+               :updated)])]
+      (when did-update
+        (reset! (last-command-data source-viewer) nil))))
+  source-viewer)
 
 (defn- default-rule? [rule]
   (= (:type rule) :default))
@@ -293,9 +300,14 @@
 
 (defn setup-source-viewer [opts]
   (let [source-viewer (DefoldSourceViewer.)
+        clip-rectangle (Rectangle. 0 0)
         source-viewer-config (create-viewer-config source-viewer opts)
         document (Document. "")
         partitioner (make-partitioner opts)]
+
+    (.setClip source-viewer clip-rectangle)
+    (.bind (.heightProperty clip-rectangle) (.heightProperty source-viewer))
+    (.bind (.widthProperty clip-rectangle) (.widthProperty source-viewer))
 
     (when partitioner
       (.setDocumentPartitioner document (.getConfiguredDocumentPartitioning source-viewer-config source-viewer) partitioner)
@@ -399,8 +411,10 @@
   source-viewer))
 
 (g/defnode CodeView
+  (inherits view/WorkbenchView)
+
   (property source-viewer SourceViewer)
-  (input code-node g/Int)
+
   (input code g/Str)
   (input caret-position g/Int)
   (input prefer-offset g/Int)
@@ -412,7 +426,6 @@
 (defn setup-code-view [app-view-id view-id code-node initial-caret-position]
   (g/transact
    (concat
-    (g/connect code-node :_node-id view-id :code-node)
     (g/connect code-node :code view-id :code)
     (g/connect code-node :caret-position view-id :caret-position)
     (g/connect code-node :prefer-offset view-id :prefer-offset)
@@ -657,24 +670,129 @@
 (defn- ^DefoldStyledTextSkin skin [^SourceViewer source-viewer]
   (-> source-viewer (.getTextWidget) (.getSkin)))
 
+(defn- setup-find-bar [^GridPane find-bar source-viewer]
+  (doto find-bar
+    (ui/context! :find-bar {:find-bar find-bar :source-viewer source-viewer} nil)
+    (.setMaxWidth Double/MAX_VALUE))
+  (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
+    (.bindBidirectional (.textProperty term) cvx/find-term)
+    (.bindBidirectional (.selectedProperty whole-word) cvx/find-whole-word)
+    (.bindBidirectional (.selectedProperty case-sensitive) cvx/find-case-sensitive)
+    (.bindBidirectional (.selectedProperty wrap) cvx/find-wrap)
+    (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
+    (ui/bind-action! next :find-next)
+    (ui/bind-action! prev :find-prev))
+  find-bar)
+
+(defn- setup-replace-bar [^GridPane replace-bar source-viewer]
+  (doto replace-bar
+    (ui/context! :replace-bar {:replace-bar replace-bar :source-viewer source-viewer} nil)
+    (.setMaxWidth Double/MAX_VALUE))
+  (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
+    (.bindBidirectional (.textProperty term) cvx/find-term)
+    (.bindBidirectional (.textProperty replacement) cvx/find-replacement)
+    (.bindBidirectional (.selectedProperty whole-word) cvx/find-whole-word)
+    (.bindBidirectional (.selectedProperty case-sensitive) cvx/find-case-sensitive)
+    (.bindBidirectional (.selectedProperty wrap) cvx/find-wrap)
+    (ui/bind-action! next :find-next)
+    (ui/bind-action! replace :replace-next)
+    (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
+    (ui/bind-action! replace-all :replace-all))
+  replace-bar)
+
+(defn- hide-bars [^GridPane grid]
+  (let [visible-bars (filter #(= (GridPane/getRowIndex %) 1) (.. grid getChildren))]
+    (.. grid getChildren (removeAll (to-array visible-bars)))))
+
+(defn- show-bar [^GridPane grid ^Parent bar]
+  (when-not (.. grid getChildren (contains bar))
+    (hide-bars grid)
+    (GridPane/setConstraints bar 0 1)
+    (.. grid getChildren (add bar))))
+
+(defn- focus-text-area [^SourceViewer source-viewer]
+  (.requestFocus (.getTextWidget source-viewer)))
+
+(defn- focus-term-field [^Parent bar]
+  (ui/with-controls bar [^TextField term]
+    (.requestFocus term)
+    (.selectAll term)))
+
+(defn- non-empty-text-selection [source-viewer]
+  (let [text (cvx/text-selection source-viewer)]
+    (when (seq text) text)))
+
+(handler/defhandler :find-text :code-view
+  (run [grid source-viewer find-bar]
+    (when-let [text (non-empty-text-selection source-viewer)]
+      (cvx/set-find-term text))
+    (show-bar grid find-bar)
+    (focus-term-field find-bar)))
+
+(handler/defhandler :replace-text :code-view
+  (run [grid source-viewer replace-bar]
+    (when-let [text (non-empty-text-selection source-viewer)]
+      (cvx/set-find-term text))
+    (show-bar grid replace-bar)
+    (focus-term-field replace-bar)))
+
+(handler/defhandler :find-text :console ;; in practice, from find/replace bars
+  (run [grid find-bar]
+    (show-bar grid find-bar)
+    (focus-term-field find-bar)))
+
+(handler/defhandler :replace-text :console
+  (run [grid replace-bar]
+    (show-bar grid replace-bar)
+    (focus-term-field replace-bar)))
+
+(handler/defhandler :hide-bars :console
+  (run [grid source-viewer find-bar replace-bar]
+    (hide-bars grid)
+    (focus-text-area source-viewer)))
+
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))
-        repainter (ui/->timer 10 "refresh-code-view" (fn [_ dt] (g/node-value view-id :new-content)))]
-    (ui/children! parent [source-viewer])
-    (ui/fill-control source-viewer)
-    (ui/context! source-viewer :code-view {:code-node code-node :view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer} source-viewer)
+        repainter (ui/->timer 10 "refresh-code-view" (fn [_ dt] (g/node-value view-id :new-content)))
+        grid (GridPane.)
+        find-bar (setup-find-bar ^GridPane (ui/load-fxml "find.fxml") source-viewer)
+        replace-bar (setup-replace-bar ^GridPane (ui/load-fxml "replace.fxml") source-viewer)
+        context-env {:view-node view-id :clipboard (Clipboard/getSystemClipboard) :source-viewer source-viewer :grid grid :find-bar find-bar :replace-bar replace-bar}]
+
+    (ui/context! grid :console context-env nil)
+    (ui/bind-keys! grid {KeyCode/ESCAPE :hide-bars})
+
+    (doto (.getColumnConstraints grid)
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/ALWAYS))))
+
+    (GridPane/setConstraints source-viewer 0 0)
+    (GridPane/setVgrow source-viewer Priority/ALWAYS)
+
+    (ui/children! grid [source-viewer])
+    (ui/children! parent [grid])
+    (ui/fill-control grid)
+    (ui/context! source-viewer :code-view context-env source-viewer {:code-node [:view-node :resource-node]})
     (ui/observe (.selectedProperty ^Tab (:tab opts)) (fn [this old new]
                                                        (when (= true new)
                                                          (ui/run-later (cvx/refresh! source-viewer)))))
     (cvx/refresh! source-viewer)
     (ui/timer-start! repainter)
     (ui/timer-stop-on-closed! ^Tab (:tab opts) repainter)
-    (ui/timer-stop-on-closed! (ui/parent->stage parent) repainter)
+    (g/node-value view-id :new-content)
     view-id))
+
+(defn focus-view
+  [code-view-node {:keys [line]}]
+  (when-let [^SourceViewer source-viewer (g/node-value code-view-node :source-viewer)]
+    (cvx/refresh! source-viewer)
+    (when line
+      (cvx/go-to-line source-viewer line))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
                                 :label "Code"
-                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))))
+                                :make-view-fn (fn [graph ^Parent parent code-node opts] (make-view graph parent code-node opts))
+                                :focus-fn focus-view))

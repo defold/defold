@@ -1,57 +1,32 @@
 .tree-view {
     -fx-background-color: $dark-grey-light;
     -fx-background-insets: 0;
-    >.virtual-flow {
-        >.scroll-bar {
-            &:vertical {
-                -fx-background-insets: 0;
-                -fx-padding: -1 -1 -1 0;
-            }
-            &:horizontal {
-                -fx-background-insets: 0;
-                -fx-padding: -1 -1 -1 0;
-            }
-        }
-    }
 }
 
 .tree-cell {
     -fx-background-color: $dark-grey-light;
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
     &:filled {
         -fx-padding: 5;
         -fx-border-width: 0 0 0 2;
+        -fx-background-insets: 0 5 0 0;
         -fx-border-color: transparent;
         -fx-text-fill: $bright-grey-light;
 
         &:hover {
             -fx-text-fill: $defold-white;
+            .image-view {
+                @include effect-bright-grey();
+            }
         }
         &:selected {
             -fx-border-width: 0 0 0 2;
             -fx-border-color: $defold-orange;
             -fx-text-fill: $defold-white;
             -fx-background-color: $dark-grey-selected;
-            &:hover {
-                -fx-text-fill: $defold-white; 
-            }
             .image-view {
-                @include effect-lighten-blue();
+                @include effect-bright-grey();
             }
-        }
-        &.first-tree-item {
-            -fx-border-insets: 0 0 0 0;
-            -fx-padding: 5;
-            -fx-background-insets: 0 0 0 0;
-            &.last-tree-item {
-                -fx-border-insets: 0 0 0 0;
-                -fx-padding: 5 5 5 -10;
-                -fx-background-insets: 0 0 0 0;
-            }
-        }
-        &.last-tree-item {
-            -fx-border-insets: 0 0 0 0;
-            -fx-background-insets: 0 0 0 0; 
         }
 
         .image-view {
@@ -63,5 +38,8 @@
                 @include effect-bright-grey();
             }
         }
+
+        // Generate css for file extensions
+        @include extensions(tree);
     }
 }

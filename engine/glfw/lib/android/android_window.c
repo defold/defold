@@ -403,3 +403,52 @@ void _glfwAndroidSetInputMethod(int use_hidden_input)
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
+
+void _glfwAndroidSetImmersiveMode(int immersive_mode)
+{
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+        return;
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+
+    jmethodID set_immersive_mode = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "setImmersiveMode", "(Z)V");
+    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, set_immersive_mode, immersive_mode);
+
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+}
+
+//========================================================================
+// Defold extension: Get native references (window, view and context)
+//========================================================================
+GLFWAPI EGLContext glfwGetAndroidEGLContext()
+{
+    return _glfwWin.context;
+}
+
+GLFWAPI EGLSurface glfwGetAndroidEGLSurface()
+{
+    return _glfwWin.surface;
+}
+
+GLFWAPI JavaVM* glfwGetAndroidJavaVM()
+{
+    return g_AndroidApp->activity->vm;
+}
+
+GLFWAPI jobject glfwGetAndroidActivity()
+{
+    return g_AndroidApp->activity->clazz;
+}

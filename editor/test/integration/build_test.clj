@@ -1,5 +1,6 @@
 (ns integration.build-test
   (:require [clojure.test :refer :all]
+            [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
@@ -11,10 +12,8 @@
             [editor.resource :as resource]
             [util.murmur :as murmur]
             [integration.test-util :as test-util])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
-            GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
-           [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
@@ -22,18 +21,11 @@
            [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
            [com.dynamo.model.proto ModelProto$Model]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
-           [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
-           [editor.types Region]
-           [editor.workspace BuildResource]
-           [java.awt.image BufferedImage]
            [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -56,6 +48,10 @@
 (defn- target [path targets]
   (let [ext (FilenameUtils/getExtension path)
         pb-class (get target-pb-classes ext)]
+    (when (nil? pb-class)
+      (throw (ex-info (str "No target-pb-classes entry for extension \"" ext "\", path \"" path "\".")
+                      {:ext ext
+                       :path path})))
     (protobuf/bytes->map pb-class (get targets path))))
 
 (def pb-cases {"/game.project"
@@ -84,65 +80,104 @@
                  :test-fn (fn [pb targets]
                             (is (= "default" (:collision-group (first (:convex-hulls pb)))))
                             (is (< 0 (count (:convex-hull-points pb)))))}
-                {:label "Spine Scene"
-                 :path "/player/spineboy.spinescene"
+               {:label "Spine Scene"
+                :path "/player/spineboy.spinescene"
+                :pb-class Rig$RigScene
+                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                :test-fn (fn [pb targets]
+                           (is (some? (-> pb :texture-set (target targets) :texture)))
+                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+                {:label "Spine Scene with weighted mesh"
+                 :path "/ladder/ladder.spinescene"
                  :pb-class Rig$RigScene
                  :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
                  :test-fn (fn [pb targets]
-                            (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
-                {:label "Spine Model"
-                 :path "/player/spineboy.spinemodel"
-                 :pb-class Spine$SpineModelDesc
-                 :resource-fields [:spine-scene :material]}
-                {:label "Label"
-                 :path "/main/label.label"
-                 :pb-class Label$LabelDesc
-                 :resource-fields [:font :material]
-                 :test-fn (fn [pb targets]
-                            (is (= {:color [1.0 1.0 1.0 1.0],
-                                    :line-break false,
-                                    :scale [1.0 1.0 1.0 0.0],
-                                    :blend-mode :blend-mode-alpha,
-                                    :leading 1.0,
-                                    :font "/builtins/fonts/system_font.fontc",
-                                    :size [128.0 32.0 0.0 0.0],
-                                    :tracking 0.0,
-                                    :material "/builtins/fonts/label.materialc",
-                                    :outline [0.0 0.0 0.0 1.0],
-                                    :pivot :pivot-center,
-                                    :shadow [0.0 0.0 0.0 1.0],
-                                    :text "Label"}
-                                   pb)))}
-                {:label "Collada Scene"
-                 :path "/model/book_of_defold.dae"
-                 :pb-class Rig$MeshSet
-                 :test-fn (fn [pb targets]
-                            ;; TODO - id must be 0 currently because of the runtime
-                            ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
-                            (is (= 0 (get-in pb [:mesh-entries 0 :id]))))}
-                {:label "Model"
-                 :path "/model/book_of_defold.model"
-                 :pb-class ModelProto$Model
-                 :resource-fields [:rig-scene :material]
-                 :test-fn (fn [pb targets]
-                            ;; TODO - id must be 0 currently because of the runtime
-                            ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
-                            (is (= 0 (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}
-               {:label "Model with animations"
-                :path "/model/primary.model"
+                            (let [mesh-set (-> pb :mesh-set (target targets))]
+                              (doseq [mesh-entry (:mesh-entries mesh-set)]
+                                (doseq [mesh (:meshes mesh-entry)]
+                                  (is (= (/ (count (:positions mesh)) 3)
+                                         (/ (count (:bone-indices mesh)) 4)))))))}
+               {:label "Spine Model"
+                :path "/player/spineboy.spinemodel"
+                :pb-class Spine$SpineModelDesc
+                :resource-fields [:spine-scene :material]}
+               {:label "Label"
+                :path "/main/label.label"
+                :pb-class Label$LabelDesc
+                :resource-fields [:font :material]
+                :test-fn (fn [pb targets]
+                           (is (= {:color [1.0 1.0 1.0 1.0],
+                                   :line-break false,
+                                   :scale [1.0 1.0 1.0 0.0],
+                                   :blend-mode :blend-mode-alpha,
+                                   :leading 1.0,
+                                   :font "/builtins/fonts/system_font.fontc",
+                                   :size [128.0 32.0 0.0 0.0],
+                                   :tracking 0.0,
+                                   :material "/builtins/fonts/label.materialc",
+                                   :outline [0.0 0.0 0.0 1.0],
+                                   :pivot :pivot-center,
+                                   :shadow [0.0 0.0 0.0 1.0],
+                                   :text "Label"}
+                                 pb)))}
+               {:label "Model"
+                :path "/model/book_of_defold.model"
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           (is (< 0 (count (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :meshes first :indices)))))}]
+                           (let [rig-scene (target (:rig-scene pb) targets)]
+                             (is (= "" (:animation-set rig-scene)))
+                             (is (= "" (:skeleton rig-scene)))
+                             (is (= "" (:texture-set rig-scene)))
+
+                             ;; TODO - id must be 0 currently because of the runtime
+                             ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
+                             (is (= 0 (-> rig-scene :mesh-set (target targets) :mesh-entries first :id)))))}
+               {:label "Model with animations"
+                :path "/model/treasure_chest.model"
+                :pb-class ModelProto$Model
+                :resource-fields [:rig-scene :material]
+                :test-fn (fn [pb targets]
+                           (let [rig-scene (target (:rig-scene pb) targets)
+                                 animation-set (target (:animation-set rig-scene) targets)
+                                 mesh-set (target (:mesh-set rig-scene) targets)
+                                 skeleton (target (:skeleton rig-scene) targets)]
+                             (is (= "" (:texture-set rig-scene)))
+
+                             (let [animations (-> animation-set :animations)]
+                               (is (= 2 (count animations)))
+                               (is (= #{(murmur/hash64 "treasure_chest")
+                                        (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
+                                      (set (map :id animations)))))
+
+                             (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                               (is (< 2 (-> mesh :indices count))))
+
+                             ;; TODO - id must be 0 currently because of the runtime
+                             ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
+                             (is (= 0 (-> mesh-set :mesh-entries first :id)))
+
+                             (is (= 3 (count (:bones skeleton))))
+                             (is (= (:bone-list mesh-set) (:bone-list animation-set)))
+                             (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
                  :pb-class GameSystem$CollectionProxyDesc
-                 :resource-fields [:collection]}]})
+                 :resource-fields [:collection]}]
+               "/gui/spine.gui"
+               [{:label "Gui with spine scene"
+                 :path "/gui/spine.gui"
+                 :pb-class Gui$SceneDesc
+                 :resource-fields [[:spine-scenes :spine-scene]]
+                 :test-fn (fn [pb targets]
+                            (let [main-node (first (:nodes pb))
+                                  nodes (into #{} (map :id (:nodes pb)))]
+                              (is (= "default" (:spine-skin main-node)))
+                              (is (every? nodes ["spine" "spine/root"]))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -153,8 +188,12 @@
              (when test-fn
                (test-fn pb content-by-target))
              (doseq [field (:resource-fields case)]
-               (is (contains? content-by-target (get pb field)))
-               (is (> (count (get content-by-target (get pb field))) 0))))))
+               (doseq [field (if (vector? field)
+                               (map-indexed (fn [i v] [(first field) i (second field)]) (get pb (first field)))
+                               [[field]])
+                       :let [path (get-in pb field)]]
+                 (is (contains? content-by-target path))
+                 (is (> (count (get content-by-target path)) 0)))))))
 
 (defmacro with-build-results [path & forms]
   `(with-clean-system

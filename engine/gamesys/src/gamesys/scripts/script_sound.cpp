@@ -25,15 +25,29 @@ namespace dmGameSystem
      * Functions and messages for controlling sound components and
      * mixer groups.
      *
+     * @document
      * @name Sound
      * @namespace sound
      */
 
     /*# check if background music is playing
-     * Checks if background music is playing, e.g. from iTunes
+     * Checks if background music is playing, e.g. from iTunes.
+     *
+     * [icon:macOS][icon:windows][icon:linux][icon:html5] On non mobile platforms,
+     * this function always return `false`.
      *
      * @name sound.is_music_playing
-     * @return true if music is playing (bool)
+     * @return playing [type:boolean] `true` if music is playing, otherwise `false`.
+     * @examples
+     *
+     * If music is playing, mute "master":
+     *
+     * ```lua
+     * if sound.is_music_playing() then
+     *     -- mute "master"
+     *     sound.set_group_gain("master", 0)
+     * end
+     * ```
      */
     int Sound_IsMusicPlaying(lua_State* L)
     {
@@ -51,18 +65,30 @@ namespace dmGameSystem
         return (dmhash_t) 0;
     }
 
-    /*# get rms value from mixer group
-     * Get RMS (Root Mean Square) value from mixer group.
-     * <p>
-     * Note that the returned value might be an approximation and in particular
-     * the effective window might be larger than specified.
-     * </p>
+    /*# get RMS value from mixer group
+     * Get RMS (Root Mean Square) value from mixer group. This value is the
+     * square root of the mean (average) value of the squared function of
+     * the instantaneous values.
      *
-     * @param group group name (hash|string)
-     * @param window window length in seconds (number)
+     * For instance: for a sinewave signal with a peak gain of -1.94 dB (0.8 linear),
+     * the RMS is <code>0.8 &times; 1/sqrt(2)</code> which is about 0.566.
+     *
+     * [icon:attention] Note the returned value might be an approximation and in particular
+     * the effective window might be larger than specified.
+     *
+     * @param group [type:string|hash] group name
+     * @param window [type:number] window length in seconds
      * @name sound.get_rms
-     * @return rms value for left channel (number)
-     * @return rms value for right channel (number)
+     * @return rms_l [type:number] RMS value for left channel
+     * @return rms_r [type:number] RMS value for right channel
+     * @examples
+     *
+     * Get the RMS from the "master" group where a mono -1.94 dB sinewave is playing:
+     *
+     * ```lua
+     * local rms = sound.get_rms("master", 0.1) -- throw away right channel.
+     * print(rms) --> 0.56555819511414
+     * ```
      */
     int Sound_GetRMS(lua_State* L)
     {
@@ -85,16 +111,28 @@ namespace dmGameSystem
 
     /*# get peak gain value from mixer group
      * Get peak value from mixer group.
-     * <p>
-     * Note that the returned value might be an approximation and in particular
-     * the effective window might be larger than specified.
-     * </p>
      *
-     * @param group group name (hash|string)
-     * @param window window length in seconds (number)
+     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
+     * To get the dB value from the gain, use the formula `20 * log(gain)`.
+     * Inversely, to find the linear value from a dB value, use the formula
+     * <code>10<sup>db/20</sup></code>.
+     * Also note that the returned value might be an approximation and in particular
+     * the effective window might be larger than specified.
+     *
+     * @param group [type:string|hash] group name
+     * @param window [type:number] window length in seconds
      * @name sound.get_peak
-     * @return peak value for left channel (number)
-     * @return peak value for right channel (number)
+     * @return peak_l [type:number] peak value for left channel
+     * @return peak_r [type:number] peak value for right channel
+     * @examples
+     *
+     * Get the peak gain from the "master" group and convert to dB for displaying:
+     *
+     * ```lua
+     * local left_p, right_p = sound.get_peak("master", 0.1)
+     * left_p_db = 20 * log(left_p)
+     * right_p_db = 20 * log(right_p)
+     * ```
      */
     int Sound_GetPeak(lua_State* L)
     {
@@ -117,13 +155,24 @@ namespace dmGameSystem
 
     /*# set mixer group gain
      * Set mixer group gain
-     * <p>
-     * Note that gain is in linear scale.
-     * </p>
      *
-     * @param group group name (hash|string)
-     * @param gain gain in linear scale (number)
+     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
+     * To get the dB value from the gain, use the formula `20 * log(gain)`.
+     * Inversely, to find the linear value from a dB value, use the formula
+     * <code>10<sup>db/20</sup></code>.
+     *
+     * @param group [type:string|hash] group name
+     * @param gain [type:number] gain in linear scale
      * @name sound.set_group_gain
+     * @examples
+     *
+     * Set mixer group gain on the "soundfx" group to -4 dB:
+     *
+     * ```lua
+     * local gain_db = -4
+     * local gain = 10^gain_db/20 -- 0.63095734448019
+     * sound.set_group_gain("soundfx", gain)
+     * ```
      */
     int Sound_SetGroupGain(lua_State* L)
     {
@@ -142,13 +191,23 @@ namespace dmGameSystem
 
     /*# get mixer group gain
      * Get mixer group gain
-     * <p>
-     * Note that gain is in linear scale.
-     * </p>
      *
-     * @param group group name (hash|string)
+     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
+     * To get the dB value from the gain, use the formula `20 * log(gain)`.
+     * Inversely, to find the linear value from a dB value, use the formula
+     * <code>10<sup>db/20</sup></code>.
+     *
+     * @param group [type:string|hash] group name
      * @name sound.get_group_gain
-     * @return gain in linear scale
+     * @return gain [type:number] gain in linear scale
+     * @examples
+     *
+     * Get the mixer group gain for the "soundfx" and convert to dB:
+     *
+     * ```lua
+     * local gain = sound.get_group_gain("soundfx")
+     * local gain_db = 20 * log(gain)
+     * ```
      */
     int Sound_GetGroupGain(lua_State* L)
     {
@@ -166,10 +225,25 @@ namespace dmGameSystem
     }
 
     /*# get all mixer group names
-     * Get all mixer group names
+     * Get a table of all mixer group names (hashes).
      *
      * @name sound.get_groups
-     * @return table of mixer groups names (table)
+     * @return groups [type:table] table of mixer group names
+     * @examples
+     *
+     * Get the mixer groups, set all gains to 0 except for "master" and "soundfx"
+     * where gain is set to 1:
+     *
+     * ```lua
+     * local groups = sound.get_groups()
+     * for _,group in ipairs(groups) do
+     *     if group == hash("master") or group == hash("soundfx") then
+     *         sound.set_group_gain(group, 1)
+     *     else
+     *         sound.set_group_gain(group, 0)
+     *     end
+     * end
+     * ```
      */
     int Sound_GetGroups(lua_State* L)
     {
@@ -191,11 +265,25 @@ namespace dmGameSystem
 
     /*# get mixer group name string
      * Get a mixer group name as a string.
-     * <p>Note that this function does not return correct group name in release mode</p>
+     *
+     * [icon:attention] This function is to be used for debugging and
+     * development tooling only. The function does a reverse hash lookup, which does not
+     * return a proper string value when the game is built in release mode.
      *
      * @name sound.get_group_name
-     * @param group group name (hash|string)
-     * @return group name (string)
+     * @param group [type:string|hash] group name
+     * @return name [type:string] group name
+     * @examples
+     *
+     * Get the mixer group string names so we can show them as labels on a dev mixer overlay:
+     *
+     * ```lua
+     * local groups = sound.get_groups()
+     * for _,group in ipairs(groups) do
+     *     local name = sound.get_group_name(group)
+     *     msg.post("/mixer_overlay#gui", "set_mixer_label", { group = group, label = name})
+     * end
+     * ```
      */
     int Sound_GetGroupName(lua_State* L)
     {
@@ -217,8 +305,20 @@ namespace dmGameSystem
      * Checks if a phone call is active. If there is an active phone call all
      * other sounds will be muted until the phone call is finished.
      *
+     * [icon:macOS][icon:windows][icon:linux][icon:html5] On non mobile platforms,
+     * this function always return `false`.
+     *
      * @name sound.is_phone_call_active
-     * @return true if there is an active phone call (bool)
+     * @return call_active [type:boolean] `true` if there is an active phone call, `false` otherwise.
+     * @examples
+     *
+     * Test if a phone call is on-going:
+     *
+     * ```lua
+     * if sound.is_phone_call_active() then
+     *     -- do something sensible.
+     * end
+     * ```
      */
     int Sound_IsPhoneCallActive(lua_State* L)
     {

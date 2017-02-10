@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os, re
+from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
     pass
@@ -40,17 +41,6 @@ def build(bld):
                             source = source,
                             target = 'iacext')
 
-    bld.new_task_gen(source = 'iac.cpp',
-                     target = 'iac_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-
-    bld.new_task_gen(source = 'iac.cpp',
-                     target = 'iac_doc.json',
-                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
-
-
-    bld.install_files('${PREFIX}/share/doc', 'iac_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'iac_doc.json')
+    apidoc_extract_task(bld, ['iac.cpp'])
 
 

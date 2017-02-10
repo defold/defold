@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -30,13 +30,13 @@
 
 /**
  * AES implementation - this is a small code version. There are much faster
- * versions around but they are much larger in size (i.e. they use large 
+ * versions around but they are much larger in size (i.e. they use large
  * submix tables).
  */
 
 #include <string.h>
-#include "os_port.h"
-#include "crypto.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/crypto/crypto.h>
 
 /* all commented out in skeleton mode */
 #ifndef CONFIG_SSL_SKELETON_MODE
@@ -45,7 +45,7 @@
 #define rot2(x) (((x) << 16) | ((x) >> 16))
 #define rot3(x) (((x) <<  8) | ((x) >> 24))
 
-/* 
+/*
  * This cute trick does 4 'mul by two' at once.  Stolen from
  * Dr B. R. Gladman <brg@gladman.uk.net> but I'm sure the u-(u>>7) is
  * a standard graphics trick
@@ -117,7 +117,7 @@ static const uint8_t aes_sbox[256] =
 /*
  * AES is-box
  */
-static const uint8_t aes_isbox[256] = 
+static const uint8_t aes_isbox[256] =
 {
     0x52,0x09,0x6a,0xd5,0x30,0x36,0xa5,0x38,
     0xbf,0x40,0xa3,0x9e,0x81,0xf3,0xd7,0xfb,
@@ -175,7 +175,7 @@ static unsigned char AES_xtime(uint32_t x)
 /**
  * Set up AES with the key/iv and cipher size.
  */
-void AES_set_key(AES_CTX *ctx, const uint8_t *key, 
+void AES_set_key(AES_CTX *ctx, const uint8_t *key,
         const uint8_t *iv, AES_MODE mode)
 {
     int i, ii;
@@ -292,7 +292,7 @@ void AES_cbc_encrypt(AES_CTX *ctx, const uint8_t *msg, uint8_t *out, int length)
 
         for (i = 0; i < 4; i++)
         {
-            tout[i] = tin[i]; 
+            tout[i] = tin[i];
             out_32[i] = htonl(tout[i]);
         }
 
@@ -359,7 +359,7 @@ static void AES_encrypt(const AES_CTX *ctx, uint32_t *data)
     uint32_t tmp[4];
     uint32_t tmp1, old_a0, a0, a1, a2, a3, row;
     int curr_rnd;
-    int rounds = ctx->rounds; 
+    int rounds = ctx->rounds;
     const uint32_t *k = ctx->ks;
 
     /* Pre-round key addition */
@@ -374,7 +374,7 @@ static void AES_encrypt(const AES_CTX *ctx, uint32_t *data)
         {
             a0 = (uint32_t)aes_sbox[(data[row%4]>>24)&0xFF];
             a1 = (uint32_t)aes_sbox[(data[(row+1)%4]>>16)&0xFF];
-            a2 = (uint32_t)aes_sbox[(data[(row+2)%4]>>8)&0xFF]; 
+            a2 = (uint32_t)aes_sbox[(data[(row+2)%4]>>8)&0xFF];
             a3 = (uint32_t)aes_sbox[(data[(row+3)%4])&0xFF];
 
             /* Perform MixColumn iff not last round */
@@ -392,7 +392,7 @@ static void AES_encrypt(const AES_CTX *ctx, uint32_t *data)
         }
 
         /* KeyAddition - note that it is vital that this loop is separate from
-           the MixColumn operation, which must be atomic...*/ 
+           the MixColumn operation, which must be atomic...*/
         for (row = 0; row < 4; row++)
             data[row] = tmp[row] ^ *(k++);
     }
@@ -402,7 +402,7 @@ static void AES_encrypt(const AES_CTX *ctx, uint32_t *data)
  * Decrypt a single block (16 bytes) of data
  */
 static void AES_decrypt(const AES_CTX *ctx, uint32_t *data)
-{ 
+{
     uint32_t tmp[4];
     uint32_t xt0,xt1,xt2,xt3,xt4,xt5,xt6;
     uint32_t a0, a1, a2, a3, row;
@@ -429,7 +429,7 @@ static void AES_decrypt(const AES_CTX *ctx, uint32_t *data)
             if (curr_rnd<(rounds-1))
             {
                 /* The MDS cofefficients (0x09, 0x0B, 0x0D, 0x0E)
-                   are quite large compared to encryption; this 
+                   are quite large compared to encryption; this
                    operation slows decryption down noticeably. */
                 xt0 = AES_xtime(a0^a1);
                 xt1 = AES_xtime(a1^a2);

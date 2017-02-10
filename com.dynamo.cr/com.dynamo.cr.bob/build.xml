@@ -7,6 +7,8 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="protobuf-java*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext/aws" includes="*.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
 
@@ -64,11 +66,16 @@
             <proto dir="../../engine/render/proto/render" file="font_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="material_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="render_ddf.proto"/>
+            <proto dir="../../engine/resource/proto" file="manifest_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>
             <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
+
+        <exec dir="." executable="python">
+                <arg line="engine_version_generator.py" />
+        </exec>
 
         <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
             <fileset dir="${env.DYNAMO_HOME}/share">
@@ -177,6 +184,7 @@
                 <include name="win32/OpenAL32.dll"/>
                 <include name="win32/wrap_oal.dll"/>
                 <include name="win32/PVRTexLib.dll"/>
+                <include name="win32/msvcr120.dll"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
@@ -189,6 +197,7 @@
                 <include name="x86_64-win32/OpenAL32.dll"/>
                 <include name="x86_64-win32/wrap_oal.dll"/>
                 <include name="x86_64-win32/PVRTexLib.dll"/>
+                <include name="x86_64-win32/msvcr120.dll"/>
             </fileset>
         </copy>
         <jar destfile="lib/luajit-share.zip">
@@ -213,6 +222,10 @@
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
+              <include name="extender-client-*.jar"/>
+            </zipgroupfileset>
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
+                <include name="*.jar" />
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
               <include name="*.jar"/>
@@ -224,6 +237,7 @@
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
                 <include name="lib/**/*PVRTexLib.dll*"/>
+                <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
             <fileset dir=".">
                 <include name="libexec/**/*"/>
@@ -249,6 +263,10 @@
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
+              <include name="extender-client-*.jar"/>
+            </zipgroupfileset>
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
+                <include name="*.jar" />
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
                 <include name="*.jar"/>

@@ -1,10 +1,7 @@
 #ifndef DM_HASH_H
 #define DM_HASH_H
 
-#include <stdint.h>
-#include "shared_library.h"
-
-typedef uint64_t dmhash_t;
+#include <dmsdk/dlib/hash.h>
 
 struct dmReverseHashEntry
 {
@@ -113,26 +110,11 @@ DM_DLLEXPORT uint32_t dmHashBuffer32(const void* buffer, uint32_t buffer_len);
 DM_DLLEXPORT uint32_t dmHashBufferNoReverse32(const void* buffer, uint32_t buffer_len);
 
 /**
- * Calculate 64-bit hash value from buffer
- * @param buffer Buffer
- * @param buffer_len Length of buffer
- * @return Hash value
- */
-DM_DLLEXPORT uint64_t dmHashBuffer64(const void* buffer, uint32_t buffer_len);
-
-/**
  * Calculate 32-bit hash value from string
  * @param string String
  * @return Hash value
  */
 DM_DLLEXPORT uint32_t dmHashString32(const char* string);
-
-/**
- * Calculate 64-bit hash value from string
- * @param string String
- * @return Hash value
- */
-DM_DLLEXPORT uint64_t dmHashString64(const char* string);
 
 /**
  * Enable/disable support for reverse hash lookup
@@ -161,5 +143,6 @@ DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
 DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
 
 }
+
 
 #endif // DM_HASH_H

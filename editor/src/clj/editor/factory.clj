@@ -41,7 +41,7 @@
                          :label "Prototype"
                          :type :resource
                          :filter (get-in factory-types [factory-type :ext])}]}]
-   :values {[:prototype] (resource/resource->proj-path prototype-resource)}})
+   :values {[:prototype] prototype-resource}})
 
 (g/defnk produce-pb-msg
   [prototype-resource]
@@ -121,6 +121,7 @@
   [workspace]
   (concat
    (workspace/register-resource-type workspace
+                                     :textual? true
                                      :ext "factory"
                                      :node-type FactoryNode
                                      :load-fn (partial load-factory :game-object)
@@ -130,6 +131,7 @@
                                      :tags #{:component}
                                      :label "Factory Object")
    (workspace/register-resource-type workspace
+                                     :textual? true
                                      :ext "collectionfactory"
                                      :node-type FactoryNode
                                      :load-fn (partial load-factory :collection)

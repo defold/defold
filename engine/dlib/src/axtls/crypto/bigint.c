@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -33,8 +33,8 @@
  * @brief The bigint implementation as used by the axTLS project.
  *
  * The bigint library is for RSA encryption/decryption as well as signing.
- * This code tries to minimise use of malloc/free by maintaining a small 
- * cache. A bigint context may maintain state by being made "permanent". 
+ * This code tries to minimise use of malloc/free by maintaining a small
+ * cache. A bigint context may maintain state by being made "permanent".
  * It be be later released with a bi_depermanent() and bi_free() call.
  *
  * It supports the following reduction techniques:
@@ -65,8 +65,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-#include "os_port.h"
-#include "bigint.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/crypto/bigint.h>
 
 #define V1      v->comps[v->size-1]                 /**< v1 for division */
 #define V2      v->comps[v->size-2]                 /**< v2 for division */
@@ -99,9 +99,9 @@ BI_CTX *bi_initialize(void)
 {
     /* calloc() sets everything to zero */
     BI_CTX *ctx = (BI_CTX *)calloc(1, sizeof(BI_CTX));
-   
+
     /* the radix */
-    ctx->bi_radix = alloc(ctx, 2); 
+    ctx->bi_radix = alloc(ctx, 2);
     ctx->bi_radix->comps[0] = 0;
     ctx->bi_radix->comps[1] = 1;
     bi_permanent(ctx->bi_radix);
@@ -111,13 +111,13 @@ BI_CTX *bi_initialize(void)
 /**
  * @brief Close the bigint context and free any resources.
  *
- * Free up any used memory - a check is done if all objects were not 
+ * Free up any used memory - a check is done if all objects were not
  * properly freed.
  * @param ctx [in]   The bigint session context.
  */
 void bi_terminate(BI_CTX *ctx)
 {
-    bi_depermanent(ctx->bi_radix); 
+    bi_depermanent(ctx->bi_radix);
     bi_free(ctx, ctx->bi_radix);
 
     if (ctx->active_count != 0)
@@ -142,7 +142,7 @@ void bi_clear_cache(BI_CTX *ctx)
 
     if (ctx->free_list == NULL)
         return;
-    
+
     for (p = ctx->free_list; p != NULL; p = pn)
     {
         pn = p->next;
@@ -155,7 +155,7 @@ void bi_clear_cache(BI_CTX *ctx)
 }
 
 /**
- * @brief Increment the number of references to this object. 
+ * @brief Increment the number of references to this object.
  * It does not do a full copy.
  * @param bi [in]   The bigint to copy.
  * @return A reference to the same bigint.
@@ -207,9 +207,9 @@ void bi_depermanent(bigint *bi)
 }
 
 /**
- * @brief Free a bigint object so it can be used again. 
+ * @brief Free a bigint object so it can be used again.
  *
- * The memory itself it not actually freed, just tagged as being available 
+ * The memory itself it not actually freed, just tagged as being available
  * @param ctx [in]   The bigint session context.
  * @param bi [in]    The bigint to be freed.
  */
@@ -244,7 +244,7 @@ void bi_free(BI_CTX *ctx, bigint *bi)
  * @brief Convert an (unsigned) integer into a bigint.
  * @param ctx [in]   The bigint session context.
  * @param i [in]     The (unsigned) integer to be converted.
- * 
+ *
  */
 bigint *int_to_bi(BI_CTX *ctx, comp i)
 {
@@ -312,7 +312,7 @@ bigint *bi_add(BI_CTX *ctx, bigint *bia, bigint *bib)
  * is_negative may be null.
  * @return The result of the subtraction. The result is always positive.
  */
-bigint *bi_subtract(BI_CTX *ctx, 
+bigint *bi_subtract(BI_CTX *ctx,
         bigint *bia, bigint *bib, int *is_negative)
 {
     int n = bia->size;
@@ -325,7 +325,7 @@ bigint *bi_subtract(BI_CTX *ctx,
     pa = bia->comps;
     pb = bib->comps;
 
-    do 
+    do
     {
         comp sl, rl, cy1;
         sl = *pa - *pb++;
@@ -373,7 +373,7 @@ static bigint *bi_int_multiply(BI_CTX *ctx, bigint *bia, comp b)
 }
 
 /**
- * @brief Does both division and modulo calculations. 
+ * @brief Does both division and modulo calculations.
  *
  * Used extensively when doing classical reduction.
  * @param ctx [in]  The bigint session context.
@@ -447,9 +447,9 @@ bigint *bi_divide(BI_CTX *ctx, bigint *u, bigint *v, int is_mod)
             if (v->size > 1 && V2)
             {
                 /* we are implementing the following:
-                if (V2*q_dash > (((U(0)*COMP_RADIX + U(1) - 
+                if (V2*q_dash > (((U(0)*COMP_RADIX + U(1) -
                         q_dash*V1)*COMP_RADIX) + U(2))) ... */
-                comp inner = (comp)((long_comp)COMP_RADIX*U(0) + U(1) - 
+                comp inner = (comp)((long_comp)COMP_RADIX*U(0) + U(1) -
                                             (long_comp)q_dash*V1);
                 if ((long_comp)V2*q_dash > (long_comp)inner*COMP_RADIX + U(2))
                 {
@@ -462,11 +462,11 @@ bigint *bi_divide(BI_CTX *ctx, bigint *u, bigint *v, int is_mod)
         if (q_dash)
         {
             int is_negative;
-            tmp_u = bi_subtract(ctx, tmp_u, 
+            tmp_u = bi_subtract(ctx, tmp_u,
                     bi_int_multiply(ctx, bi_copy(v), q_dash), &is_negative);
             more_comps(tmp_u, n+1);
 
-            Q(j) = q_dash; 
+            Q(j) = q_dash;
 
             /* add back */
             if (is_negative)
@@ -481,7 +481,7 @@ bigint *bi_divide(BI_CTX *ctx, bigint *u, bigint *v, int is_mod)
         }
         else
         {
-            Q(j) = 0; 
+            Q(j) = 0;
         }
 
         /* copy back to u */
@@ -525,10 +525,10 @@ static bigint *bi_int_divide(BI_CTX *ctx, bigint *biR, comp denom)
 
 #ifdef CONFIG_BIGINT_MONTGOMERY
 /**
- * There is a need for the value of integer N' such that B^-1(B-1)-N^-1N'=1, 
- * where B^-1(B-1) mod N=1. Actually, only the least significant part of 
- * N' is needed, hence the definition N0'=N' mod b. We reproduce below the 
- * simple algorithm from an article by Dusse and Kaliski to efficiently 
+ * There is a need for the value of integer N' such that B^-1(B-1)-N^-1N'=1,
+ * where B^-1(B-1) mod N=1. Actually, only the least significant part of
+ * N' is needed, hence the definition N0'=N' mod b. We reproduce below the
+ * simple algorithm from an article by Dusse and Kaliski to efficiently
  * find N0' from N0 and b */
 static comp modular_inverse(bigint *bim)
 {
@@ -556,7 +556,7 @@ static comp modular_inverse(bigint *bim)
 #if defined(CONFIG_BIGINT_KARATSUBA) || defined(CONFIG_BIGINT_BARRETT) || \
     defined(CONFIG_BIGINT_MONTGOMERY)
 /**
- * Take each component and shift down (in terms of components) 
+ * Take each component and shift down (in terms of components)
  */
 static bigint *comp_right_shift(bigint *biR, int num_shifts)
 {
@@ -583,7 +583,7 @@ static bigint *comp_right_shift(bigint *biR, int num_shifts)
 }
 
 /**
- * Take each component and shift it up (in terms of components) 
+ * Take each component and shift it up (in terms of components)
  */
 static bigint *comp_left_shift(bigint *biR, int num_shifts)
 {
@@ -642,7 +642,7 @@ bigint *bi_import(BI_CTX *ctx, const uint8_t *data, int size)
 
 #ifdef CONFIG_SSL_FULL_MODE
 /**
- * @brief The testharness uses this code to import text hex-streams and 
+ * @brief The testharness uses this code to import text hex-streams and
  * convert them into bigints.
  * @param ctx [in]  The bigint session context.
  * @param data [in] A string consisting of hex characters. The characters must
@@ -690,14 +690,14 @@ void bi_print(const char *label, bigint *x)
             comp num = (x->comps[i] & mask) >> (j*4);
             putc((num <= 9) ? (num + '0') : (num + 'A' - 10), stdout);
         }
-    }  
+    }
 
     printf("\n");
 }
 #endif
 
 /**
- * @brief Take a bigint and convert it into a byte sequence. 
+ * @brief Take a bigint and convert it into a byte sequence.
  *
  * This is useful after a decrypt operation.
  * @param ctx [in]  The bigint session context.
@@ -733,7 +733,7 @@ buf_done:
 }
 
 /**
- * @brief Pre-calculate some of the expensive steps in reduction. 
+ * @brief Pre-calculate some of the expensive steps in reduction.
  *
  * This function should only be called once (normally when a session starts).
  * When the session is over, bi_free_mod() should be called. bi_mod_power()
@@ -771,7 +771,7 @@ void bi_set_mod(BI_CTX *ctx, bigint *bim, int mod_offset)
     ctx->N0_dash[mod_offset] = modular_inverse(ctx->bi_mod[mod_offset]);
 
 #elif defined (CONFIG_BIGINT_BARRETT)
-    ctx->bi_mu[mod_offset] = 
+    ctx->bi_mu[mod_offset] =
         bi_divide(ctx, comp_left_shift(
             bi_clone(ctx, ctx->bi_radix), k*2-1), ctx->bi_mod[mod_offset], 0);
     bi_permanent(ctx->bi_mu[mod_offset]);
@@ -794,21 +794,21 @@ void bi_free_mod(BI_CTX *ctx, int mod_offset)
     bi_free(ctx, ctx->bi_RR_mod_m[mod_offset]);
     bi_free(ctx, ctx->bi_R_mod_m[mod_offset]);
 #elif defined(CONFIG_BIGINT_BARRETT)
-    bi_depermanent(ctx->bi_mu[mod_offset]); 
+    bi_depermanent(ctx->bi_mu[mod_offset]);
     bi_free(ctx, ctx->bi_mu[mod_offset]);
 #endif
-    bi_depermanent(ctx->bi_normalised_mod[mod_offset]); 
+    bi_depermanent(ctx->bi_normalised_mod[mod_offset]);
     bi_free(ctx, ctx->bi_normalised_mod[mod_offset]);
 }
 
-/** 
+/**
  * Perform a standard multiplication between two bigints.
  *
  * Barrett reduction has no need for some parts of the product, so ignore bits
  * of the multiply. This routine gives Barrett its big performance
- * improvements over Classical/Montgomery reduction methods. 
+ * improvements over Classical/Montgomery reduction methods.
  */
-static bigint *regular_multiply(BI_CTX *ctx, bigint *bia, bigint *bib, 
+static bigint *regular_multiply(BI_CTX *ctx, bigint *bia, bigint *bib,
         int inner_partial, int outer_partial)
 {
     int i = 0, j;
@@ -825,7 +825,7 @@ static bigint *regular_multiply(BI_CTX *ctx, bigint *bia, bigint *bib,
     /* clear things to start with */
     memset(biR->comps, 0, ((n+t)*COMP_BYTE_SIZE));
 
-    do 
+    do
     {
         long_comp tmp;
         comp carry = 0;
@@ -840,7 +840,7 @@ static bigint *regular_multiply(BI_CTX *ctx, bigint *bia, bigint *bib,
 
         do
         {
-            if (inner_partial && r_index >= inner_partial) 
+            if (inner_partial && r_index >= inner_partial)
             {
                 break;
             }
@@ -860,9 +860,9 @@ static bigint *regular_multiply(BI_CTX *ctx, bigint *bia, bigint *bib,
 
 #ifdef CONFIG_BIGINT_KARATSUBA
 /*
- * Karatsuba improves on regular multiplication due to only 3 multiplications 
- * being done instead of 4. The additional additions/subtractions are O(N) 
- * rather than O(N^2) and so for big numbers it saves on a few operations 
+ * Karatsuba improves on regular multiplication due to only 3 multiplications
+ * being done instead of 4. The additional additions/subtractions are O(N)
+ * rather than O(N^2) and so for big numbers it saves on a few operations
  */
 static bigint *karatsuba(BI_CTX *ctx, bigint *bia, bigint *bib, int is_square)
 {
@@ -906,7 +906,7 @@ static bigint *karatsuba(BI_CTX *ctx, bigint *bia, bigint *bib, int is_square)
         p1 = bi_multiply(ctx, bi_add(ctx, x0, x1), bi_add(ctx, y0, y1));
     }
 
-    p1 = bi_subtract(ctx, 
+    p1 = bi_subtract(ctx,
             bi_subtract(ctx, p1, bi_copy(p2), NULL), bi_copy(p0), NULL);
 
     comp_left_shift(p1, m);
@@ -1004,7 +1004,7 @@ bigint *bi_square(BI_CTX *ctx, bigint *bia)
     check(bia);
 
 #ifdef CONFIG_BIGINT_KARATSUBA
-    if (bia->size < SQU_KARATSUBA_THRESH) 
+    if (bia->size < SQU_KARATSUBA_THRESH)
     {
         return regular_square(ctx, bia);
     }
@@ -1035,25 +1035,25 @@ int bi_compare(bigint *bia, bigint *bib)
         r = -1;
     else
     {
-        comp *a = bia->comps; 
-        comp *b = bib->comps; 
+        comp *a = bia->comps;
+        comp *b = bib->comps;
 
         /* Same number of components.  Compare starting from the high end
          * and working down. */
         r = 0;
         i = bia->size - 1;
 
-        do 
+        do
         {
             if (a[i] > b[i])
-            { 
+            {
                 r = 1;
-                break; 
+                break;
             }
             else if (a[i] < b[i])
-            { 
+            {
                 r = -1;
-                break; 
+                break;
             }
         } while (--i >= 0);
     }
@@ -1062,7 +1062,7 @@ int bi_compare(bigint *bia, bigint *bib)
 }
 
 /*
- * Allocate and zero more components.  Does not consume bi. 
+ * Allocate and zero more components.  Does not consume bi.
  */
 static void more_comps(bigint *bi, int n)
 {
@@ -1244,7 +1244,7 @@ bigint *bi_mont(BI_CTX *ctx, bigint *bixy)
 #elif defined(CONFIG_BIGINT_BARRETT)
 /*
  * Stomp on the most significant components to give the illusion of a "mod base
- * radix" operation 
+ * radix" operation
  */
 static bigint *comp_mod(bigint *bi, int mod)
 {
@@ -1283,7 +1283,7 @@ bigint *bi_barrett(BI_CTX *ctx, bigint *bi)
     q1 = comp_right_shift(bi_clone(ctx, bi), k-1);
 
     /* do outer partial multiply */
-    q2 = regular_multiply(ctx, q1, ctx->bi_mu[mod_offset], 0, k-1); 
+    q2 = regular_multiply(ctx, q1, ctx->bi_mu[mod_offset], 0, k-1);
     q3 = comp_right_shift(q2, k+1);
     r1 = comp_mod(bi, k+1);
 
@@ -1303,7 +1303,7 @@ bigint *bi_barrett(BI_CTX *ctx, bigint *bi)
 
 #ifdef CONFIG_BIGINT_SLIDING_WINDOW
 /*
- * Work out g1, g3, g5, g7... etc for the sliding-window algorithm 
+ * Work out g1, g3, g5, g7... etc for the sliding-window algorithm
  */
 static void precompute_slide_window(BI_CTX *ctx, int window, bigint *g1)
 {
@@ -1334,7 +1334,7 @@ static void precompute_slide_window(BI_CTX *ctx, int window, bigint *g1)
 /**
  * @brief Perform a modular exponentiation.
  *
- * This function requires bi_set_mod() to have been called previously. This is 
+ * This function requires bi_set_mod() to have been called previously. This is
  * one of the optimisations used for performance.
  * @param ctx [in]  The bigint session context.
  * @param bi  [in]  The bigint on which to perform the mod power operation.
@@ -1352,7 +1352,7 @@ bigint *bi_mod_power(BI_CTX *ctx, bigint *bi, bigint *biexp)
     if (!ctx->use_classical)
     {
         /* preconvert */
-        bi = bi_mont(ctx, 
+        bi = bi_mont(ctx,
                 bi_multiply(ctx, bi, ctx->bi_RR_mod_m[mod_offset]));    /* x' */
         bi_free(ctx, biR);
         biR = ctx->bi_R_mod_m[mod_offset];                              /* A */
@@ -1413,7 +1413,7 @@ bigint *bi_mod_power(BI_CTX *ctx, bigint *bi, bigint *biexp)
             i--;
         }
     } while (i >= 0);
-     
+
     /* cleanup */
     for (i = 0; i < ctx->window; i++)
     {
@@ -1454,8 +1454,8 @@ bigint *bi_mod_power2(BI_CTX *ctx, bigint *bi, bigint *bim, bigint *biexp)
      * doing peer verification, and so is not expensive :-) */
     BI_CTX *tmp_ctx = bi_initialize();
     bi_set_mod(tmp_ctx, bi_clone(tmp_ctx, bim), BIGINT_M_OFFSET);
-    tmp_biR = bi_mod_power(tmp_ctx, 
-                bi_clone(tmp_ctx, bi), 
+    tmp_biR = bi_mod_power(tmp_ctx,
+                bi_clone(tmp_ctx, bi),
                 bi_clone(tmp_ctx, biexp));
     biR = bi_clone(ctx, tmp_biR);
     bi_free(tmp_ctx, tmp_biR);

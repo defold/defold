@@ -11,3 +11,4 @@
 /.ccache
 .idea
 *.iml
+*.apidoc_

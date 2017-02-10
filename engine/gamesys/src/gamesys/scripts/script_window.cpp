@@ -12,6 +12,7 @@ namespace dmGameSystem
      * Functions and constants to access the window, window event listeners 
      * and screen dimming.
      *
+     * @document
      * @name Window
      * @namespace window
      */
@@ -113,30 +114,32 @@ static void RunCallback(CallbackInfo* cbinfo)
     assert(top == lua_gettop(L));
 }
 
-/*# Sets a window event listener
+/*# sets a window event listener
  * Sets a window event listener.
  *
  * @name window.set_listener
  *
- * @param callback (function) A callback which receives info about window events. Can be nil.
+ * @param callback [type:function(self, event, data)] A callback which receives info about window events. Pass an empty function if you no longer wish to receive callbacks.
  *
- * <ul>
- *     <li>self (object) The calling script</li>
- *     <li>event (number) The type of event. Can be one of these:</li>
- *     <ul>
- *         <li>window.WINDOW_EVENT_FOCUS_LOST</li>
- *         <li>window.WINDOW_EVENT_FOCUS_GAINED</li>
- *         <li>window.WINDOW_EVENT_RESIZED</li>
- *     </ul>
- *     <li>data (table) The callback value ''data'' is a table which currently holds these values</li>
- *     <ul>
- *         <li>width (number) The width of a resize event. nil otherwise.</li>
- *         <li>height (number) The height of a resize event. nil otherwise.</li>
- *     </ul>
- * </ul>
+ * `self`
+ * : [type:object] The calling script
+ *
+ * `event`
+ * : [type:constant] The type of event. Can be one of these:
+ *
+ * - `window.WINDOW_EVENT_FOCUS_LOST`
+ * - `window.WINDOW_EVENT_FOCUS_GAINED`
+ * - `window.WINDOW_EVENT_RESIZED`
+ *
+ * `data`
+ * : [type:table] The callback value `data` is a table which currently holds these values
+ *
+ * - [type:number] `width`: The width of a resize event. nil otherwise.
+ * - [type:number] `height`: The height of a resize event. nil otherwise.
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * function window_callback(self, event, data)
  *     if event == window.WINDOW_EVENT_FOCUS_LOST then
  *         print("window.WINDOW_EVENT_FOCUS_LOST")
@@ -150,7 +153,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  * function init(self)
  *     window.set_listener(window_callback)
  * end
- * </pre>
+ * ```
  */
 static int SetListener(lua_State* L)
 {
@@ -169,15 +172,14 @@ static int SetListener(lua_State* L)
     return 0;
 }
 
-/*# Set the mode for screen dimming
+/*# set the mode for screen dimming
  * The dimming mode specifies whether or not a mobile device should dim the screen after a period without user interaction. The dimming mode will only affect the mobile device while the game is in focus on the device, but not when the game is running in the background.
  *
  * @name window.set_dim_mode
- * @param mode (constant) The mode for screen dimming
- * <ul>
- *     <li><code>window.DIMMING_ON</code></li>
- *     <li><code>window.DIMMING_OFF</code></li>
- * </ul>
+ * @param mode [type:constant] The mode for screen dimming
+ *
+ * - `window.DIMMING_ON`
+ * - `window.DIMMING_OFF`
  */
 
  /*# dimming mode on
@@ -221,16 +223,15 @@ static int SetDimMode(lua_State* L)
     return 0;
 }
 
-/*# Get the mode for screen dimming
+/*# get the mode for screen dimming
  * The dimming mode specifies whether or not a mobile device should dim the screen after a period without user interaction.
  *
  * @name window.get_dim_mode
- * @return mode (constant) The mode for screen dimming
- * <ul>
- *     <li><code>window.DIMMING_UNKNOWN</code></li>
- *     <li><code>window.DIMMING_ON</code></li>
- *     <li><code>window.DIMMING_OFF</code></li>
- * </ul>
+ * @return mode [type:constant] The mode for screen dimming
+ *
+ * - `window.DIMMING_UNKNOWN`
+ * - `window.DIMMING_ON`
+ * - `window.DIMMING_OFF`
  */
 static int GetDimMode(lua_State* L)
 {

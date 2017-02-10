@@ -42,5 +42,5 @@ max_particle_count = 512
 debug = 0
 
 [graphics]
-texture_profiles = /textures/game.texture_profilesc
+texture_profiles = /textures/game.texture_profiles
 

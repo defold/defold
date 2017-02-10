@@ -35,13 +35,13 @@
 // This is the X11 version of GLFW
 #define _GLFW_ANDROID
 
-
 // Include files
 #include <sys/time.h>
 #include <unistd.h>
 #include <signal.h>
 #include <android_native_app_glue.h>
 #include "../../include/GL/glfw.h"
+#include "../../include/GL/glfw_native.h"
 
 // Do we have pthread support?
 #ifdef _GLFW_HAS_PTHREAD

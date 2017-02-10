@@ -37,7 +37,7 @@ protected:
 
         m_MessageTargetCounter = 0;
 
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, 0, ResMessageTargetCreate, ResMessageTargetDestroy, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, 0, ResMessageTargetCreate, ResMessageTargetDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         // MessageTargetComponent
@@ -58,7 +58,7 @@ protected:
         dmGameObject::Result result = dmGameObject::RegisterComponentType(m_Register, mt_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
     }
 
 

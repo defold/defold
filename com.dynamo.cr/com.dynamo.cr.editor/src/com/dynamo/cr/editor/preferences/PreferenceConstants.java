@@ -18,6 +18,8 @@ public class PreferenceConstants {
 
     public static final String P_SHOW_WELCOME_PAGE = "showWelcomePage";
 
+	public static final String P_NATIVE_EXT_SERVER_URI = "nativeExtServerUrlPreference";
+
     // Debug
     public static final String P_RUN_IN_DEBUGGER = "runInDebugger";
     public static final String P_AUTO_RUN_DEBUGGER = "autoRunDebugger";

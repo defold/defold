@@ -1,4 +1,5 @@
 .separator {
+    -fx-background-color: red;
     &:horizontal {
         .line {
             -fx-border-color: $dark-black;

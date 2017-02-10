@@ -99,3 +99,11 @@
     (reify Thread$UncaughtExceptionHandler
       (uncaughtException [_ thread exception]
         (report-exception! exception thread)))))
+
+(defmacro catch-all!
+  "Executes body, catching and reporting any unhandled exceptions."
+  [& body]
+  `(try
+     ~@body
+     (catch Throwable throwable#
+       (report-exception! throwable#))))
