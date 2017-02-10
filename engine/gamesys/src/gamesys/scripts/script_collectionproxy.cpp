@@ -35,7 +35,7 @@ namespace dmGameSystem
         dmGameSystem::HCollectionProxyWorld world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, index, collection, "collectionproxyc", &user_data, &receiver, (void**)&world);
 
-        return dmGameSystem::GetUrlHashFromComponent(world, component_index);
+        return dmGameSystem::GetUrlHashFromComponent(world, dmGameObject::GetIdentifier(receiver_instance), component_index);
     }
 
     int CollectionProxy_MissingResources(lua_State* L)
