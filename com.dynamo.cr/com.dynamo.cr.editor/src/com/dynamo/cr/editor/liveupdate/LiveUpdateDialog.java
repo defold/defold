@@ -4,9 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.eclipse.jface.dialogs.IDialogConstants;
-import org.eclipse.jface.dialogs.IMessageProvider;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
-import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.swt.SWT;
@@ -22,8 +20,6 @@ import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.DirectoryDialog;
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
@@ -36,14 +32,9 @@ public class LiveUpdateDialog extends TitleAreaDialog {
         public void setInput(String value);
     }
 
-    private interface IRadioAction {
-        public void select();
-    }
-
     private LiveUpdatePresenter presenter;
 
-    private Button saveButton = null;
-    private Button cancelButton = null;
+    private Combo modeCombo = null;
     private Combo bucketCombo = null;
     private Map<Text, IInputAction> textComponents = new HashMap<Text, IInputAction>();
 
@@ -77,44 +68,6 @@ public class LiveUpdateDialog extends TitleAreaDialog {
         });
 
         return comboControl;
-    }
-
-    private void CreateCheckbox(Composite container, final String label, final IInputAction action) {
-        Label labelControl = new Label(container, SWT.NONE);
-
-        final Button buttonControl = new Button(container, SWT.CHECK);
-        buttonControl.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-        buttonControl.setText(label);
-        buttonControl.setSelection(false);
-        buttonControl.addSelectionListener(new SelectionAdapter() {
-
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                if (buttonControl.getSelection()) {
-                    action.setInput("yes");
-                } else {
-                    action.setInput("no");
-                }
-            }
-        });
-    }
-
-    private void CreateRadioButton(Composite container, final String label, boolean selected, final IRadioAction action) {
-        final Button buttonControl = new Button(container, SWT.RADIO);
-        buttonControl.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
-        buttonControl.setText(label);
-        buttonControl.setSelection(selected);
-        buttonControl.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetDefaultSelected(SelectionEvent e) {
-                action.select();
-            }
-
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                action.select();
-            }
-        });
     }
 
     private void CreateTextInput(Composite container, final String label, boolean password, String text, final IInputAction action) {
@@ -185,94 +138,66 @@ public class LiveUpdateDialog extends TitleAreaDialog {
         container.setLayoutData(new GridData(GridData.FILL_BOTH));
 
         // -------------------------------------------------------------------
+        // Publish mode
+        // -------------------------------------------------------------------
+        this.modeCombo = CreateDropdown(container, "Mode:", new IInputAction() {
+            @Override
+            public void setInput(String value) {
+                presenter.setMode(PublisherSettings.PublishMode.valueOf(value));
+            }
+        });
+        
+        
+        // -------------------------------------------------------------------
         // Amazon S3
         // -------------------------------------------------------------------
-        CreateRadioButton(container, "Upload to personal AWS account", true, new IRadioAction() {
-            @Override
-            public void select() {
-                presenter.setMode(PublisherSettings.PublishMode.Amazon);
-            }
-        });
-
-        CreateTextInput(container, "Access Key:", false, presenter.getAccessKey(), new IInputAction() {
+        CreateHorizontalSpacing(container);
+        
+        CreateTextInput(container, "(Amazon) Credential profile:", false, presenter.getAmazonCredentialProfile(), new IInputAction() {
             @Override
             public void setInput(String value) {
-                presenter.setAccessKey(value);
+                presenter.setAmazonCredentialProfile(value);
             }
         });
 
-        CreateTextInput(container, "Secret Key:", true, presenter.getSecretKey(), new IInputAction() {
+        this.bucketCombo = CreateDropdown(container, "(Amazon) Bucket:", new IInputAction() {
             @Override
             public void setInput(String value) {
-                presenter.setSecretKey(value);
+                presenter.setAmazonBucket(value);
             }
         });
 
-        CreateCheckbox(container, "Store secret key in liveupdate.settings", new IInputAction() {
+        CreateTextInput(container, "(Amazon) Prefix:", false, presenter.getAmazonPrefix(), new IInputAction() {
             @Override
             public void setInput(String value) {
-                if (value == "yes") {
-                    presenter.setPersistSecretKey(true);
-                } else {
-                    presenter.setPersistSecretKey(false);
-                }
+                presenter.setAmazonPrefix(value);
             }
         });
-
-        this.bucketCombo = CreateDropdown(container, "Bucket:", new IInputAction() {
-            @Override
-            public void setInput(String value) {
-                presenter.setBucket(value);
-            }
-        });
-        presenter.updateBuckets();
-
-        CreateTextInput(container, "Key Prefix:", false, presenter.getPrefix(), new IInputAction() {
-            @Override
-            public void setInput(String value) {
-                presenter.setPrefix(value);
-            }
-        });
-
-
-        // -------------------------------------------------------------------
-        // Defold Service
-        // -------------------------------------------------------------------
-        // CreateHorizontalSpacing(container);
-        // CreateRadioButton(container, "Upload to Defold AWS service", false, new IRadioAction() {
-        //     @Override
-        //     public void select() {
-        //         presenter.setMode(PublisherSettings.PublishMode.Defold);
-        //     }
-        // });
 
 
         // -------------------------------------------------------------------
         // Zip Archive
         // -------------------------------------------------------------------
         CreateHorizontalSpacing(container);
-        CreateRadioButton(container, "Export as ZIP", false, new IRadioAction() {
-            @Override
-            public void select() {
-                presenter.setMode(PublisherSettings.PublishMode.Zip);
-            }
-        });
 
-        CreateFileInput(container, "Export path:", presenter.getExportPath(), new IInputAction() {
+        CreateFileInput(container, "(Zip) Export path:", presenter.getZipFilepath(), new IInputAction() {
             @Override
             public void setInput(String value) {
-                presenter.setExportPath(value);
+                presenter.setZipFilepath(value);
 
             }
         });
 
+
+        presenter.updateMode();
+        presenter.updateBuckets(false);
         return area;
     }
 
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
-        cancelButton = createButton(parent, IDialogConstants.CANCEL_ID, "Cancel", false); //$NON-NLS-1$
-        saveButton = createButton(parent, IDialogConstants.OK_ID, "Save", true); //$NON-NLS-1$
+        createButton(parent, IDialogConstants.CANCEL_ID, "Cancel", false); //$NON-NLS-1$
+        createButton(parent, IDialogConstants.OK_ID, "Save", true); //$NON-NLS-1$
     }
 
     @Override
@@ -313,12 +238,30 @@ public class LiveUpdateDialog extends TitleAreaDialog {
     public void warning(String message) {
         this.setMessage(message, 2);
     }
+    
+    public void setModeSelection(String mode) {
+    	if (mode != null) {
+    		String[] items = this.modeCombo.getItems();
+    		for (int i = 0; i < items.length; ++i) {
+    			if (mode.equals(items[i])) {
+    				this.modeCombo.select(i);
+    				break;
+    			}
+    		}
+    	}
+    }
+    
+    public void addMode(String mode) {
+    	if (this.modeCombo != null) {
+    		this.modeCombo.add(mode);
+    	}
+    }
 
     public void setBucketSelection(String bucket) {
         if (bucket != null) {
             String[] items = this.bucketCombo.getItems();
             for (int i = 0; i < items.length; ++i) {
-                if (items[i].equals(bucket)) {
+                if (bucket.equals(items[i])) {
                     this.bucketCombo.select(i);
                     break;
                 }

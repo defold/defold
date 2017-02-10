@@ -8,7 +8,7 @@ namespace dmGameSystem
 {
     typedef struct CollectionProxyWorld* HCollectionProxyWorld;
 
-    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, uint32_t index);
+    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index);
 
     dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
