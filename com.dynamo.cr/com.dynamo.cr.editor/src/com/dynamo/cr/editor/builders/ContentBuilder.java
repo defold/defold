@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.LibraryException;
+import com.dynamo.bob.MultipleCompileExceptionError;
 import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
@@ -173,6 +174,15 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
             } else {
                 throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed: " + e.getMessage(), e));
+            }
+        } catch (MultipleCompileExceptionError e) {
+            for (MultipleCompileExceptionError.Info info : e.errors) {
+                ret = false;
+                IFile resource = EditorUtil.getContentRoot(getProject()).getFile(info.getResource().getPath());
+                IMarker marker = resource.createMarker(IMarker.PROBLEM);
+                marker.setAttribute(IMarker.MESSAGE, info.getMessage());
+                marker.setAttribute(IMarker.LINE_NUMBER, info.getLineNumber());
+                marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
             }
         } finally {
             project.dispose();
