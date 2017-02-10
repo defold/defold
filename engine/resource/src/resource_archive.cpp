@@ -190,6 +190,7 @@ namespace dmResourceArchive
             int insert_index = 0;
             const uint8_t* hash = (const uint8_t*)((uintptr_t)lu_entries->m_Hashes + hash_len * i);
             const EntryData* entry = (EntryData*)((uintptr_t)lu_entries->m_Entries + sizeof(EntryData) * i);
+            // This call can return either RESULT_ALREADY_STORED or RESULT_OK, both of with are fine in this case
             CalcInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, insert_index);
 
             // Insert each liveupdate entry WITHOUT writing any resource data!
