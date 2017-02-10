@@ -403,7 +403,11 @@
   (input child-scenes g/Any :array)
 
   (output images           [Image]             :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
-  (output aabb             AABB                (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
+  (output aabb             AABB                (g/fnk [texture-set-data]
+                                                 (if (zero? (get-in texture-set-data [:texture-set :tile-count]))
+                                                   (geom/null-aabb)
+                                                   (let [^BufferedImage img (:image texture-set-data)]
+                                                     (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0))))))
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output packed-image     BufferedImage       (g/fnk [texture-set-data] (:image texture-set-data)))
