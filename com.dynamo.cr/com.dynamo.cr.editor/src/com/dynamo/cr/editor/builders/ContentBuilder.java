@@ -126,7 +126,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
 
         boolean ret = true;
         try {
-            project.createPublisher(null, project.hasOption("liveupdate"));
+            project.createPublisher(project.hasOption("liveupdate"));
 
             project.setLibUrls(BobUtil.getLibraryUrls(branchLocation));
             project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.builtins")));
