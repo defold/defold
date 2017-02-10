@@ -2161,8 +2161,6 @@ namespace dmGameObject
 
         collection->m_InUpdate = 1;
 
-        // Update rig context (will update all rig instances in this collection)
-        dmRig::Update(collection->m_RigContext, update_context->m_DT);
 
         bool ret = true;
 
@@ -2204,6 +2202,9 @@ namespace dmGameObject
         if (collection->m_DirtyTransforms) {
             UpdateTransforms(collection);
         }
+
+        // Update rig context (will update all rig instances in this collection)
+        dmRig::Update(collection->m_RigContext, update_context->m_DT);
 
         return ret;
     }

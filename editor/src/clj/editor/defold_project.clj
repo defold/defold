@@ -27,6 +27,7 @@
             [clojure.string :as str])
   (:import [java.io File]
            [java.nio.file FileSystem FileSystems PathMatcher]
+           [org.apache.commons.codec.digest DigestUtils]
            [editor.resource FileResource]))
 
 (set! *warn-on-reflection* true)
@@ -51,7 +52,14 @@
              {:node-id _node-id
               :label (or (:label rt) (:ext rt) "unknown")
               :icon (or (:icon rt) unknown-icon)
-              :children children}))))
+              :children children})))
+
+  (output sha256 g/Str :cached (g/fnk [resource save-data]
+                                 (let [content (get save-data :content ::no-content)]
+                                   (if (= ::no-content content)
+                                     (with-open [s (io/input-stream resource)]
+                                       (DigestUtils/sha256Hex ^java.io.InputStream s))
+                                     (DigestUtils/sha256Hex ^String content))))))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))

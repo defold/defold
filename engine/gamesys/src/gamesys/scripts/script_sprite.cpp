@@ -65,12 +65,11 @@ namespace dmGameSystem
      *
      * How to scale a sprite independently along the X and Y axis:
      *
-
      * ```lua
      * function init(self)
-     *     -- Double the y-axis scaling on component "sprite"
-     * 	   local yscale = go.get("#sprite", "scale.y")
-     * 	   go.set("#sprite", "scale.y", yscale * 2)
+     *   -- Double the y-axis scaling on component "sprite"
+     * 	 local yscale = go.get("#sprite", "scale.y")
+     * 	 go.set("#sprite", "scale.y", yscale * 2)
      * end
      * ```
      */
@@ -83,16 +82,16 @@ namespace dmGameSystem
      * @property
      *
      * @examples
-     * 
+     *
      * How to overwrite a sprite's original texture
-     * 
+     *
      * ```lua
      * function init(self)
-     *     -- get texture resource from one sprite and set it on another
-     *     local resource_path1 = go.get("#sprite1", "texture0")
-     *     local buffer = resource.load(resource_path1)
-     *     local resource_path2 = go.get("#sprite2", "texture0")
-     *     resource.set(resource_path2, buffer)
+     *   -- get texture resource from one sprite and set it on another
+     *   local resource_path1 = go.get("#sprite1", "texture0")
+     *   local buffer = resource.load(resource_path1)
+     *   local resource_path2 = go.get("#sprite2", "texture0")
+     *   resource.set(resource_path2, buffer)
      * end
      * ```
      */
@@ -111,8 +110,8 @@ namespace dmGameSystem
      *
      * ```lua
      * function update(self, dt)
-     *     -- calculate self.velocity somehow
-     *     sprite.set_hflip("#sprite", self.velocity.x < 0)
+     *   -- calculate self.velocity somehow
+     *   sprite.set_hflip("#sprite", self.velocity.x < 0)
      * end
      * ```
      *
@@ -150,8 +149,8 @@ namespace dmGameSystem
      *
      * ```lua
      * function update(self, dt)
-     *     -- calculate self.up_side_down somehow
-     *     sprite.set_vflip("#sprite", self.up_side_down)
+     *   -- calculate self.up_side_down somehow
+     *   sprite.set_vflip("#sprite", self.up_side_down)
      * end
      * ```
      *
@@ -195,7 +194,7 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     sprite.set_constant("#sprite", "tint", vmath.vector4(1, 0, 0, 1))
+     *   sprite.set_constant("#sprite", "tint", vmath.vector4(1, 0, 0, 1))
      * end
      * ```
      */
@@ -238,7 +237,7 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     sprite.reset_constant("#sprite", "tint")
+     *   sprite.reset_constant("#sprite", "tint")
      * end
      * ```
      */

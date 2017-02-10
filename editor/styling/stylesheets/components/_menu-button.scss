@@ -1,9 +1,9 @@
 .menu-button {
-    -fx-background-radius: 3;
-    -fx-border-radius: 3;
-    -fx-background-color: $dark-grey;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-background-color: transparent;
     -fx-background-insets: 0;
-    -fx-border-color: $mid-grey;
+    -fx-border-color: transparent; 
     &:hover {
         -fx-background-color: $dark-black;
     }
