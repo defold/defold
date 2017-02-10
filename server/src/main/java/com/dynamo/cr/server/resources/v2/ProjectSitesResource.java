@@ -87,6 +87,16 @@ public class ProjectSitesResource extends BaseResource {
                 new Screenshot(newScreenshot.getUrl(), Screenshot.MediaType.valueOf(newScreenshot.getMediaType().name())));
     }
 
+    @POST
+    @RolesAllowed(value = {"owner"})
+    @Path("screenshots/images")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public void addScreenshotImage(@PathParam("project") Long projectId,
+                                   @FormDataParam("file") InputStream file,
+                                   @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+        projectService.addScreenshotImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
+    }
+
     @DELETE
     @RolesAllowed(value = {"owner"})
     @Path("screenshots/{screenshotId}")
