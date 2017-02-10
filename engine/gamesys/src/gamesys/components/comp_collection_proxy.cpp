@@ -83,6 +83,12 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
         {
             dmGameSystem::CollectionProxyComponent* c = &world->m_Components[i];
+
+            if (c == 0x0)
+            {
+                continue;
+            }
+
             dmhash_t component_instance_id = dmGameObject::GetIdentifier(c->m_Instance);
             if (component_instance_id == instanceId && c->m_ComponentIndex == index)
             {
