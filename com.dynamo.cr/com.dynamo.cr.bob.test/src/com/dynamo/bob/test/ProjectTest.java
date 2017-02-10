@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.osgi.framework.Bundle;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileExceptionError;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
@@ -73,7 +74,7 @@ public class ProjectTest {
             throw new IOException("Unable to start http server", e);
         }
     }
-    
+
     @Before
     public void setUp() throws Exception {
         bundle = Platform.getBundle("com.dynamo.cr.bob");
@@ -93,7 +94,7 @@ public class ProjectTest {
         project.dispose();
     }
 
-    List<TaskResult> build(String... commands) throws IOException, CompileExceptionError {
+    List<TaskResult> build(String... commands) throws IOException, CompileExceptionError, MultipleCompileExceptionError {
         return project.build(new NullProgress(), commands);
     }
 
