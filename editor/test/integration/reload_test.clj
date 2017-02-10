@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system undo-stack]]
+            [support.test-support :refer [with-clean-system undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
             [editor.math :as math]
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
@@ -73,26 +73,19 @@
   ([workspace name sync?]
     (let [f (File. (workspace/project-path workspace) name)]
       (mkdirs f)
-      (if (not (.exists f))
-        (.createNewFile f)
-        (when sync? (Thread/sleep 1100)))
-      (.setLastModified f (System/currentTimeMillis)))
+      (touch-until-new-mtime f))
     (when sync?
       (sync! workspace))))
 
 (defn- touch-files [workspace names]
   (doseq [name names]
     (touch-file workspace name false))
-  (Thread/sleep 1100)
   (sync! workspace))
 
 (defn- write-file [workspace name content]
   (let [f (File. (workspace/project-path workspace) name)]
     (mkdirs f)
-    (if (not (.exists f))
-      (.createNewFile f)
-      (Thread/sleep 1100))
-    (spit f content))
+    (spit-until-new-mtime f content))
   (sync! workspace))
 
 (defn- read-file [workspace name]
@@ -120,9 +113,7 @@
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
         type (FilenameUtils/getExtension name)
         f (File. (workspace/project-path workspace) name)]
-    (when (.exists f)
-      (Thread/sleep 1100))
-    (ImageIO/write img type f)
+    (write-until-new-mtime (fn [f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
 (defn- has-undo? [project]
@@ -189,14 +180,16 @@
   (with-clean-system
     (let [[workspace project] (setup-scratch world)]
       (testing "Add internal file"
-               (add-file workspace "/test.collection")
-               (let [node (project/get-resource-node project "/test.collection")]
-                 (g/transact
-                   (g/set-property node :name "new_name"))
-                 (is (has-undo? project))
-                 (project/write-save-data-to-disk! project {})
-                 (sync! workspace)
-                 (is (has-undo? project)))))))
+        (add-file workspace "/test.collection")
+        (let [node (project/get-resource-node project "/test.collection")
+              saved (promise)]
+          (g/transact
+            (g/set-property node :name "new_name"))
+          (is (has-undo? project))
+          (project/save-all! project #(deliver saved :done) #(%))
+          (is (= :done (deref saved 100 :timeout)))
+          (sync! workspace)
+          (is (has-undo? project)))))))
 
 (defn- find-error [type v]
   (if (= type (get-in v [:user-data :type]))
@@ -369,11 +362,13 @@
           p ["display" "display_profiles"]
           disp-profs (get (g/node-value node-id :settings-map) p)
           path "/render/default.display_profiles"
-          new-path "/render/default2.display_profiles"]
+          new-path "/render/default2.display_profiles"
+          resource-setting-node ((g/node-value node-id :resource-setting-nodes) p)]
       (write-file workspace path "")
-      (g/transact (g/set-property node-id :display-profiles (workspace/file-resource workspace path)))
+      (g/transact (g/set-property resource-setting-node :value (workspace/file-resource workspace path)))
       (move-file workspace path new-path)
-      (is (= new-path (get (g/node-value node-id :settings-map) p))))))
+      (is (= new-path
+             (resource/resource->proj-path (get (g/node-value node-id :settings-map) p)))))))
 
 (deftest all-project-files
   (with-clean-system

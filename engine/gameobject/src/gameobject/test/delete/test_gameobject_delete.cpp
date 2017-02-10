@@ -27,10 +27,10 @@ protected:
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "deleteself", this, 0, ResDeleteSelfCreate, ResDeleteSelfDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "deleteself", this, 0, ResDeleteSelfCreate, ResDeleteSelfDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;

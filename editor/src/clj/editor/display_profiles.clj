@@ -1,6 +1,5 @@
 (ns editor.display-profiles
   (:require [editor.protobuf :as protobuf]
-            [editor.protobuf-forms :as protobuf-forms]
             [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -119,6 +118,7 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext (:ext pb-def)
                                     :label (:label pb-def)
                                     :build-ext (:build-ext pb-def)

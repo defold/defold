@@ -8,6 +8,7 @@ option java_outer_classname = "Label";
 
 /*# Label API documentation
  *
+ * @document
  * @name Label
  * @namespace label
  */

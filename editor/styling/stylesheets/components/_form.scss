@@ -1,6 +1,5 @@
 .form {
     >.viewport {
-
     }
     .section-label {
         -fx-font-size: 14px;
@@ -29,6 +28,6 @@
 
 .field-info {
     -fx-border-width: 1 !important;
-    -fx-border-color: $defold-light-blue !important;
+    -fx-border-color: rgba($defold-orange, 0.5) !important;
     -fx-effect: none !important;
 }

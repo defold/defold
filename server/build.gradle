@@ -39,6 +39,7 @@ dependencies {
     compile 'com.sun.jersey:jersey-client:1.11'
     compile 'com.sun.jersey:jersey-server:1.11'
     compile 'com.sun.jersey:jersey-servlet:1.11'
+    compile 'com.sun.jersey.contribs:jersey-multipart:1.11'
     compile 'com.sun.jersey.contribs:jersey-guice:1.11'
     compile 'com.google.api-client:google-api-client:1.18.0-rc'
     compile 'com.google.http-client:google-http-client-jackson:1.18.0-rc'
@@ -67,6 +68,7 @@ dependencies {
     compile 'commons-configuration:commons-configuration:1.10'
     compile 'com.google.guava:guava:19.0'
     compile 'org.mindrot:jbcrypt:0.3m'
+    compile 'com.auth0:java-jwt:3.0.1'
 
     testCompile 'org.mockito:mockito-all:1.10.19'
     testCompile 'org.apache.derby:derby:10.11.1.1'

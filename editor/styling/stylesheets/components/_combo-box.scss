@@ -3,11 +3,14 @@
     -fx-border-radius: 0px;
     -fx-background-insets: 0;
     -fx-border-width: 0;
+    -fx-background-color: $panel-background;
+    &:focused {
+        -fx-background-insets: 0;
+        -fx-background-color: $panel-background;
+    }
     &:hover {
         >.list-cell {
-            -fx-border-width: 1 0 1 1;
-            -fx-border-color: $mid-grey;
-            -fx-text-fill: $defold-white;
+            -fx-border-width: 0;
         }
     }
     &:showing {
@@ -26,15 +29,15 @@
     }
     .list-view {
         -fx-min-width: 10em;
-        -fx-background-color: $dark-grey;
+        -fx-background-color: $dark-black-light;
         -fx-border-width: 0;
         -fx-border-color: $mid-grey;
-        -fx-border-insets: 0 0 0 0;
-        -fx-background-insets: 0 0 0 0;
+        -fx-border-insets: 0;
+        -fx-background-insets: 0;
         -fx-text-fill: $mid-grey; 
     }
     .list-cell {
-        -fx-background-color: $dark-grey;//$dark-black;
+        -fx-background-color: $root-background;
         -fx-color: $bright-grey;
         &:hover {
             -fx-cursor: hand;
@@ -42,34 +45,38 @@
         }
     }
     .arrow-button {
-        -fx-background-radius: 0px;
-        -fx-border-radius: 0px;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
         -fx-background-insets: 0;
-        -fx-background-color: $mid-grey-light !important;//$dark-grey;
+        -fx-background-color: $mid-grey !important;
         -fx-border-width: 0;
         -fx-padding: 5 7;
 
         &:hover {
-            -fx-background-color: $dark-grey !important;//$bright-black; 
+            -fx-background-color: $mid-grey-light !important;
+            -fx-background-insets: 0;
         }
-        &:pressed {
-            -fx-background-color: $dark-grey;
+        &:pressed, &:focused {
+            -fx-background-color: $input-background;
             -fx-text-fill: $defold-white;
         }
     }
     >.list-cell {
-        -fx-border-width: 1;
+        -fx-border-width: 0;
         -fx-border-color: transparent;
         -fx-text-fill: $bright-grey;
     }
     .text-field, .text-input {
+        /*-fx-border-width: 0;*/
         -fx-background-insets: 0;
-        -fx-border-width: 0 0 1 0;
-        -fx-border-color: $dark-grey-header;
+        &:hover {
+            -fx-background-insets: 0;
+            /*-fx-border-width: 0;*/
+        }
         &:focused {
-            -fx-background-color: $dark-grey-selected;
-            -fx-border-color: $dark-grey-selected;
-            -fx-text-fill: $defold-white;
+            -fx-border-width: 1;
+            -fx-border-color: $input-border;
+            -fx-padding: 4px 8px;
         }
     }
 }

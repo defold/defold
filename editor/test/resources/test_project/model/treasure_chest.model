@@ -1,0 +1,7 @@
+mesh: "/mesh/treasure_chest.dae"
+material: "/builtins/materials/model.material"
+textures: "/mesh/test_m.png"
+skeleton: "/mesh/treasure_chest.dae"
+animations: "/model/treasure_chest.animationset"
+default_animation: ""
+name: "unnamed"

@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system spit-until-new-mtime]]
             [editor.library :as library]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
@@ -100,11 +100,11 @@
   (let [settings (-> (slurp game-project)
                    gpc/string-reader
                    gpc/parse-settings)]
-    (spit game-project (->
-                         settings
-                         (gpc/set-setting {} ["project" "dependencies"] deps)
-                         gpc/settings-with-value
-                         gpc/settings->str))))
+    (spit-until-new-mtime game-project (->
+                                         settings
+                                         (gpc/set-setting ["project" "dependencies"] deps)
+                                         gpc/settings-with-value
+                                         gpc/settings->str))))
 
 (deftest open-project
   (with-clean-system
@@ -137,7 +137,7 @@
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
 
       ;; add dependency, fetch libraries, we should now have library file
-      (g/update-property! game-project :raw-settings (fn [settings] (gpc/set-setting settings {} ["project" "dependencies"] url)))
+      (g/update-property! game-project :raw-settings gpc/set-setting ["project" "dependencies"] url)
       (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
 
@@ -151,6 +151,6 @@
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
 
       ;; add dependency, fetch libraries, we should now have library file
-      (g/update-property! game-project :raw-settings (fn [settings] (gpc/set-setting settings {} ["project" "dependencies"] url)))
+      (g/update-property! game-project :raw-settings gpc/set-setting ["project" "dependencies"] url)
       (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))

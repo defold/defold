@@ -26,11 +26,13 @@ namespace dmGameSystem
      * Functions for controlling factory components which are used to
      * dynamically spawn game objects into the runtime.
      *
+     * @document
      * @name Factory
      * @namespace factory
      */
 
     /*# make a factory create a new game object
+     *
      * The URL identifies which factory should create the game object.
      * If the game object is created inside of the frame (e.g. from an update callback), the game object will be created instantly, but none of its component will be updated in the same frame.
      *
@@ -38,33 +40,34 @@ namespace dmGameSystem
      * See go.property for more information on script properties.
      *
      * @name factory.create
-     * @param url the factory that should create a game object (url)
-     * @param [position] the position of the new game object, the position of the game object containing the factory is used by default (vector3)
-     * @param [rotation] the rotation of the new game object, the rotation of the game object containing the factory is used by default (quat)
-     * @param [properties] the properties defined in a script attached to the new game object (table)
-     * @param [scale] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default (number or vector3)
-     * @return the global id of the spawned game object (hash)
+     * @param url [type:string|hash|url] the factory that should create a game object
+     * @param [position] [type:vector3] the position of the new game object, the position of the game object containing the factory is used by default
+     * @param [rotation] [type:quaternion] the rotation of the new game object, the rotation of the game object containing the factory is used by default
+     * @param [properties] [type:table] the properties defined in a script attached to the new game object
+     * @param [scale] [type:number|vector3] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default
+     * @return id [type:hash] the global id of the spawned game object
      * @examples
-     * <p>
+     *
      * How to create a new game object:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
+     *     -- create a new game object and provide property values
      *     self.my_created_object = factory.create("#factory", nil, nil, {my_value = 1})
      *     -- communicate with the object
-     *     msg.post(msg.url(nil, self.my_created_object), "hello")
+     *     msg.post(self.my_created_object, "hello")
      * end
-     * </pre>
-     * <p>
+     * ```
+     *
      * And then let the new game object have a script attached:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * go.property("my_value", 0)
      *
      * function init(self)
      *     -- do something with self.my_value which is now one
      * end
-     * </pre>
+     * ```
      */
     int FactoryComp_Create(lua_State* L)
     {

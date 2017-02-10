@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os, re
-from waf_dynamo import copy_file_task
+from waf_dynamo import copy_file_task, apidoc_extract_task
 
 def set_options(opt):
     pass
@@ -11,7 +11,7 @@ def build(bld):
                           target = 'engine',
                           proto_gen_py = True,
                           protoc_includes = '../proto',
-                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins.arc ../content/builtins/connect/connect.project',
+                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                           source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
@@ -20,7 +20,7 @@ def build(bld):
                           defines = 'DM_RELEASE=1',
                           proto_gen_py = True,
                           protoc_includes = '../proto',
-                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins.arc ../content/builtins/connect/connect.project',
+                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                           source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
 
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
@@ -82,7 +82,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'WEBVIEWEXT ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -106,7 +106,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'WEBVIEWEXT ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -128,7 +128,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH SOUND_NULL DLIB DMGLFW X',
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH SOUND_NULL DLIB DMGLFW LIVEUPDATE X',
         uselib_local = 'engine',
         includes = '../build ../proto . ..',
         proto_gen_py = True,
@@ -139,16 +139,7 @@ def build(bld):
     if 'win32' in bld.env.BUILD_PLATFORM:
         obj.source.append('engine.rc')
 
-    bld.new_task_gen(source = '../proto/engine_ddf.proto',
-                     target = 'engine_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-    bld.new_task_gen(source = '../proto/engine_ddf.proto',
-                     target = 'engine_doc.json',
-                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
-
-    bld.install_files('${PREFIX}/share/doc', 'engine_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'engine_doc.json')
+    apidoc_extract_task(bld, ['../proto/engine_ddf.proto'])
 
     if 'win32' in bld.env.PLATFORM:
         src_dir = "%s/ext/lib/%s" % (bld.env.PREFIX, bld.env.PLATFORM)

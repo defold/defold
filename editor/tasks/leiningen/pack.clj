@@ -41,29 +41,44 @@
    "x86-linux"     {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
    "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
-                    "lib" ["libparticle_shared.so" "libtexc_shared.so"]}})
+                    "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
+   "armv7-ios"     {"bin" ["dmengine" "dmengine_release"]
+                    "lib" []}
+   "arm64-ios"     {"bin" ["dmengine" "dmengine_release"]
+                    "lib" []}})
 
 (def engine-platform
   {"x86_64-linux"  "x86_64-linux"
    "x86-linux"     "linux"
    "x86_64-darwin" "x86_64-darwin"
    "x86-win32"     "win32"
-   "x86_64-win32"  "x86_64-win32"})
+   "x86_64-win32"  "x86_64-win32"
+   "armv7-ios"     "armv7-darwin"
+   "arm64-ios"     "arm64-darwin"})
 
-;; these are only sourced from local DYNAMO_HOME
-(def dynamo-home-artifacts
-  {"ext/bin/win32/luajit.exe"            "x86-win32/bin/luajit.exe"
-   "ext/lib/win32/OpenAL32.dll"          "x86-win32/bin/OpenAL32.dll"
-   "ext/lib/win32/wrap_oal.dll"          "x86-win32/bin/wrap_oal.dll"
-   "ext/lib/win32/PVRTexLib.dll"         "x86-win32/lib/PVRTexLib.dll"
-   "ext/bin/x86_64-win32/luajit.exe"     "x86_64-win32/bin/luajit.exe"
-   "ext/lib/x86_64-win32/OpenAL32.dll"   "x86_64-win32/bin/OpenAL32.dll"
-   "ext/lib/x86_64-win32/wrap_oal.dll"   "x86_64-win32/bin/wrap_oal.dll"
-   "ext/lib/x86_64-win32/PVRTexLib.dll"  "x86_64-win32/lib/PVRTexLib.dll"
-   "ext/bin/linux/luajit"                "x86-linux/bin/luajit"
-   "ext/bin/x86_64-darwin/luajit"        "x86_64-darwin/bin/luajit"
-   "ext/bin/x86_64-linux/luajit"         "x86_64-linux/bin/luajit"
-   "ext/share/luajit"                    "shared/luajit"})
+(def artifacts
+  {"${DYNAMO-HOME}/ext/bin/win32/luajit.exe"          "x86-win32/bin/luajit.exe"
+   "${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
+   "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"        "x86-win32/bin/wrap_oal.dll"
+   "${DYNAMO-HOME}/ext/lib/win32/PVRTexLib.dll"       "x86-win32/lib/PVRTexLib.dll"
+   "${DYNAMO-HOME}/ext/lib/win32/msvcr120.dll"        "x86-win32/lib/msvcr120.dll"
+
+   "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit.exe"    "x86_64-win32/bin/luajit.exe"
+   "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"  "x86_64-win32/bin/OpenAL32.dll"
+   "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"  "x86_64-win32/bin/wrap_oal.dll"
+   "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
+   "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
+
+   "${DYNAMO-HOME}/ext/bin/linux/luajit"              "x86-linux/bin/luajit"
+
+   "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit"      "x86_64-darwin/bin/luajit"
+
+   "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"       "x86_64-linux/bin/luajit"
+
+   "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
+
+   "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
+   "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"})
 
 (defn engine-archive-url
   [sha platform file]
@@ -80,11 +95,11 @@
                          (io/file (dynamo-home) dir platform file))]
                [src (io/file platform dir file)]))))
 
-(defn dynamo-home-artifact-files
+(defn artifact-files
   []
-  (into {} (for [[src dest] dynamo-home-artifacts]
-             [(io/file (dynamo-home) src) (io/file dest)])))
-
+  (let [subst (fn [s] (.replace s "${DYNAMO-HOME}" (dynamo-home)))]
+    (into {} (for [[src dest] artifacts]
+               [(io/file (subst src)) (io/file (subst dest))]))))
 
 ;; Manually re-pack JOGL natives, so we can avoid JOGLs automatic
 ;; library loading, see DEFEDIT-494.
@@ -134,7 +149,7 @@
 (defn copy-artifacts
   [pack-path git-sha]
   (let [files (merge (engine-artifact-files git-sha)
-                     (dynamo-home-artifact-files))]
+                     (artifact-files))]
     (doseq [[src dest] files]
       (let [dest (io/file pack-path dest)]
         (println (format "copying '%s' to '%s'" (str src) (str dest)))

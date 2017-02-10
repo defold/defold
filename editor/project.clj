@@ -22,6 +22,8 @@
                      [ch.qos.logback/logback-classic              "1.1.3"]
                      [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
+                     [commons-configuration/commons-configuration "1.10"]
+                     [commons-codec/commons-codec                 "1.10"]
                      [org.clojure/data.json                       "0.2.6"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
@@ -38,6 +40,8 @@
 
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
+
+                     [com.defold.lib/openmali                     "1.0"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -86,7 +90,7 @@
 
   :aliases           {"ci"        ["do" "test," "uberjar"]
                       "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "init"      ["do" "clean," "builtins," "protobuf," "sass" "once," "pack"]}
+                      "init"      ["do" "local-jars," "clean," "builtins," "protobuf," "sass" "once," "pack"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}

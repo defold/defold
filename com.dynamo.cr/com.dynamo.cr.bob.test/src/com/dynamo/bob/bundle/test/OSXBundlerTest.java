@@ -18,10 +18,13 @@ import org.junit.Test;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileExceptionError;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.OSXBundler;
 import com.dynamo.bob.fs.DefaultFileSystem;
 
@@ -50,8 +53,9 @@ public class OSXBundlerTest {
         assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/MacOS/Unnamed")).isFile());
     }
 
-    void build() throws IOException, CompileExceptionError {
+    void build() throws IOException, CompileExceptionError, MultipleCompileExceptionError {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
         project.scan(scanner, "com.dynamo.bob");
@@ -65,7 +69,7 @@ public class OSXBundlerTest {
     }
 
     @Test
-    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         createFile(contentRoot, "test.icns", "test_icon");
         createFile(contentRoot, "game.project", "[osx]\napp_icon=test.icns\n");
         build();

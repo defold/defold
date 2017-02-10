@@ -58,6 +58,7 @@ public class Start extends Application {
 
     private LinkedBlockingQueue<Object> pool;
     private ThreadPoolExecutor threadPool;
+    private LinkedBlockingQueue<Runnable> preUpdateActions;
     private Timer updateTimer;
     private Updater updater;
     private static boolean createdFromMain = false;
@@ -69,11 +70,19 @@ public class Start extends Application {
         threadPool = new ThreadPoolExecutor(1, 1, 3000, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>());
         threadPool.allowCoreThreadTimeOut(true);
+        preUpdateActions = new LinkedBlockingQueue<>();
 
         if (System.getProperty("defold.resourcespath") != null && System.getProperty("defold.sha1") != null)  {
             logger.debug("automatic updates enabled");
             installUpdater();
         }
+    }
+
+    public void registerPreUpdateAction(Runnable action) throws Exception {
+        if (action == null) {
+            throw new IllegalArgumentException("action cannot be null");
+        }
+        preUpdateActions.add(action);
     }
 
     private void installUpdater() throws IOException {
@@ -119,10 +128,10 @@ public class Start extends Application {
                     if (pendingUpdate != null) {
                         javafx.application.Platform.runLater(() -> {
                             try {
+                                // We found a pending update. Ask the user if we should install it.
+                                // If not, we won't check for further updates during this session.
                                 if (showRestartDialog()) {
                                     updateTimer.schedule(newInstallUpdateTask(pendingUpdate), 0);
-                                } else {
-                                    updateTimer.schedule(newCheckForUpdateTask(), updateDelay);
                                 }
                             } catch (IOException e) {
                                 logger.error("unable to open update alert dialog");
@@ -142,13 +151,28 @@ public class Start extends Application {
         return new TimerTask() {
             @Override
             public void run() {
+                // User has requested we install the update.
+                // Before proceeding, run any registered pre-update actions.
+                // For example, we might want to save the project before
+                // applying the update and restarting the editor.
+                try {
+                    Runnable action;
+                    while (null != (action = preUpdateActions.poll())) {
+                        action.run();
+                    }
+                } catch (Exception e) {
+                    logger.error("an exception was thrown from a pre-update action", e);
+                    return;
+                }
+
+                // All the pre-update actions completed successfully.
+                // Apply the update and restart the editor.
                 try {
                     pendingUpdate.install();
                     logger.info("update installed - restarting");
                     System.exit(17);
                 } catch (IOException e) {
                     logger.debug("update installation failed", e);
-                    updateTimer.schedule(newCheckForUpdateTask(), updateDelay);
                 }
             }
         };
@@ -268,5 +292,4 @@ public class Start extends Application {
         createdFromMain = true;
         Start.launch(args);
     }
-
 }

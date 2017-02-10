@@ -3,7 +3,6 @@
 VERSION = '0.1'
 APPNAME = 'render'
 
-
 srcdir = '.'
 blddir = 'build'
 
@@ -23,7 +22,6 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
 
     waf_ddf.configure(conf)
-    conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
 
     conf.sub_config('src')
 

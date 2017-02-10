@@ -1,5 +1,6 @@
 (ns editor.form-view
   (:require [dynamo.graph :as g]
+            [clojure.string :as string]
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
@@ -7,7 +8,8 @@
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.view :as view])
   (:import [javafx.animation AnimationTimer]
            [java.util List Collection]
            [javafx.scene Parent Group Node]
@@ -21,7 +23,26 @@
            [javafx.beans.binding Bindings]
            [javafx.scene.layout Region AnchorPane Pane GridPane HBox VBox Priority ColumnConstraints]
            [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
-           [com.defold.control ListCell TableCell]))
+           [com.defold.control ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
+           [com.sun.javafx.scene.control.behavior ListCellBehavior]))
+
+;; A note about the cell-factory controls (:list, :table, :2panel):
+;; When clicking on another cell in the edited table, the edit is cancelled and
+;; the value is never committed due to a JavaFX bug:
+;; https://bugs.openjdk.java.net/browse/JDK-8089514
+;;
+;; As a workaround we ensure focus leaves our editing control before letting the
+;; ListView or TableView handle the click. In order to do this we have to
+;; implement createDefaultSkin in our Cell proxies and use custom implementations
+;; of the CellSkin and CellBehavior classes. If they decide to fix the bug, the
+;; following Java classes can also be removed from com.defold.control:
+;;
+;;   ListCellSkinWithBehavior
+;;   TableCellBehavior
+;;   TableCellSkinWithBehavior
+;;
+;; Details about this workaround can be found here:
+;; http://stackoverflow.com/questions/24694616/how-to-enable-commit-on-focuslost-for-tableview-treetableview
 
 (set! *warn-on-reflection* true)
 
@@ -29,11 +50,6 @@
 (def grid-vgap 6)
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
-
-;; FIXME: When using field controls for cell editing, we would really like to add a ui/on-focus! and set the new val when focus is lost, but due to a javafx bug the
-;; edit is cancelled and the value never committed.
-;; see:  https://bugs.openjdk.java.net/browse/JDK-8089514
-;; possible workaround: http://stackoverflow.com/questions/24694616/how-to-enable-commit-on-focuslost-for-tableview-treetableview
 
 (def ^:private default-value-alignments
   {:number Pos/CENTER_RIGHT
@@ -61,18 +77,15 @@
                          (cancel))))))
 
 (defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
-  (let [tf (TextField.)]
+  (let [tf (TextField.)
+        commit-fn (fn [_]
+                    (when-let [val (parse (ui/text tf))]
+                      (set path val)))]
     (.setPrefWidth tf (field-width field-info))
     (.setMinWidth tf Control/USE_PREF_SIZE)
-    (ui/on-action! tf (fn [_]
-                         (when-let [val (parse (ui/text tf))]
-                           (set path val))))
+    (ui/on-action! tf commit-fn)
+    (ui/auto-commit! tf commit-fn)
     (install-escape-handler! tf cancel)
-;; See FIXME above.
-;;     (ui/on-focus! tf (fn [got-focus]
-;;                        (when (not got-focus)
-;;                          (when-let [val (parse (ui/text tf))]
-;;                            (set path val)))))
     (.setAlignment tf (value-alignment field-info))
     (ui/tooltip! tf help)
     [tf {:update #(ui/text! tf (serialize %))
@@ -89,6 +102,7 @@
 
 (defmethod create-field-control :boolean [{:keys [path help]} {:keys [set cancel]} ctxt]
   (let [check (CheckBox.)
+        commit-fn (fn [_] (set path (.isSelected check)))
         update-fn (fn [value]
                     (if (nil? value)
                       (.setIndeterminate check true)
@@ -96,12 +110,9 @@
                         (.setIndeterminate false)
                         (.setSelected value))))]
 
-    (ui/on-action! check (fn [_] (set path (.isSelected check))))
+    (ui/on-action! check commit-fn)
+    (ui/auto-commit! check commit-fn)
     (install-escape-handler! check cancel)
-;; See FIXME above.
-;;     (ui/on-focus! check (fn [got-focus]
-;;                           (when (not got-focus)
-;;                             (set path (.isSelected check)))))
     (ui/tooltip! check help)
     [check {:update update-fn
             :edit #(ui/request-focus! check)}]))
@@ -127,11 +138,8 @@
                 (fn [observable old-val new-val]
                   (when-not @internal-change
                     (set path new-val))))
+    (ui/auto-commit! cb (fn [_] (set path (.getValue cb))))
     (install-escape-handler! cb cancel)
-;; See FIXME above.
-;;     (ui/on-focus! cb (fn [got-focus]
-;;                        (when (not got-focus)
-;;                          (set path (.getValue cb)))))
     (ui/tooltip! cb help)
     [cb {:update update-fn
          :edit #(do (ui/request-focus! cb) (.show cb))}]))
@@ -149,24 +157,30 @@
                (.setMinWidth tf Control/USE_PREF_SIZE)
                (GridPane/setFillWidth tf true)
                tf)
-        update-fn (fn [value] (ui/text! text value))]
+        content (atom nil)
+        update-fn (fn [value]
+                    (reset! content value)
+                    (ui/editable! open-button (some? @content))
+                    (ui/text! text (resource/resource->proj-path value)))
+        commit-fn (fn [_] (let [resource-path (ui/text text)
+                                resource (some->> (when-not (string/blank? resource-path) resource-path)
+                                                  (workspace/to-absolute-path)
+                                                  (workspace/resolve-workspace-resource workspace))]
+                            (set path resource)
+                            (update-fn resource)))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext (when filter [filter])}))]
+    (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
                                            (set path resource))))
-    (ui/on-action! open-button (fn [_] (when-let [resource (workspace/resolve-workspace-resource workspace (workspace/to-absolute-path (ui/text text)))]
-                                         (ui/run-command open-button :open {:resources [resource]}))))
-    (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
-                                      resource (workspace/resolve-workspace-resource workspace rpath)]
-                                  (when-let [resource-path (and resource (resource/proj-path resource))]
-                                    (set path resource-path)
-                                    (update-fn resource-path)))))
+    (ui/on-action! open-button (fn [_] (ui/run-command open-button :open {:resources [@content]})))
+    (ui/on-action! text commit-fn)
+    (ui/auto-commit! text commit-fn)
     (install-escape-handler! text cancel)
     (ui/children! box [text open-button browse-button])
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints open-button 1 0)
     (GridPane/setConstraints browse-button 2 0)
 
-    ; Merge the facing borders of the open and browse buttons.
+    ;; Merge the facing borders of the open and browse buttons.
     (GridPane/setMargin open-button (Insets. 0 -1 0 0))
     (.setOnMousePressed open-button (ui/event-handler _ (.toFront open-button)))
     (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
@@ -212,21 +226,22 @@
         parse-val (fn []
                     (let [val (mapv (comp field-expression/to-double ui/text) text-fields)]
                       (when (not (some #{nil} val))
-                        val)))
-        setter (fn [] (if-let [val (parse-val)]
-                        (do
-                          (reset! current-value val)
-                          (set path @current-value))
-                        (update-fn @current-value)))]
-    (doseq [tf text-fields]
-      (ui/on-action! tf (fn [_] (setter)))
+                        val)))]
+    (doseq [^TextField tf text-fields]
+      (ui/on-action! tf (fn [_]
+                          (if-let [val (parse-val)]
+                            (do
+                              (reset! current-value val)
+                              (set path @current-value))
+                            (update-fn @current-value))))
+      (ui/auto-commit! tf (fn [_]
+                            (if-let [val (parse-val)]
+                              (let [new-focus-owner (some-> tf .getScene .getFocusOwner)]
+                                (reset! current-value val)
+                                (when-not (some #(= new-focus-owner %) text-fields)
+                                  (set path @current-value)))
+                              (update-fn @current-value))))
       (install-escape-handler! tf cancel)
-;; See FIXME above.
-;;       (ui/on-focus! tf (fn [got-focus]
-;;                          (when (not got-focus)
-;;                            (when-let [focd (some-> tf .getScene .getFocusOwner)]
-;;                              (when (not (some #{focd} text-fields))
-;;                                (setter))))))
       (ui/tooltip! tf help))
     (doall (map-indexed (fn [idx [tf label]]
                           (let [label-ctrl (doto (Label. label)
@@ -254,6 +269,9 @@
 (defmethod get-value-string-fn :default [_]
   str)
 
+(defmethod get-value-string-fn :resource [_]
+  resource/resource->proj-path)
+
 (defn- create-cell-field-control [^Cell cell column-info ctxt]
   (let [field-ops {:set (fn [_ value] (.commitEdit cell value))
                    :cancel #(.cancelEdit cell)
@@ -270,7 +288,7 @@
     (when (< curr-width min-width)
       (.impl_setWidth table-column min-width))))
 
-(defn- create-table-cell-factory [column-info ctxt]
+(defn- create-table-cell-factory [column-info ctxt edited-cell-atom]
   (reify Callback
     (call [this p]
       (let [ctrl-data (atom nil)
@@ -281,19 +299,22 @@
                      (when (not (.isEmpty this))
                        (proxy-super startEdit)
                        (reset! ctrl-data (create-cell-field-control this column-info ctxt))
+                       (reset! edited-cell-atom this)
                        ((:update (second @ctrl-data)) (.getItem this))
                        (ui/add-style! this "editing-cell")
                        (.setText this nil)
                        (.setGraphic this (first @ctrl-data))
                        (let [start-edit (:edit (second @ctrl-data))
                              table-column (.getTableColumn this)]
-                       (ui/run-later
-                        (resize-column-to-fit-control table-column (first @ctrl-data))
-                        (when [start-edit]
-                          (start-edit)))))))
+                         (ui/run-later
+                           (resize-column-to-fit-control table-column (first @ctrl-data))
+                           (when [start-edit]
+                             (start-edit)))))))
                  (cancelEdit []
                    (let [this ^TableCell this]
                      (proxy-super cancelEdit)
+                     (reset! ctrl-data nil)
+                     (reset! edited-cell-atom nil)
                      (ui/remove-style! this "editing-cell")
                      (.setText this (get-value-string (.getItem this)))
                      (.setGraphic this nil)))
@@ -312,7 +333,18 @@
                              (do
                                (ui/remove-style! this "editing-cell")
                                (.setText this (get-value-string (.getItem this)))
-                               (.setGraphic this nil))))))))]
+                               (.setGraphic this nil)))))))
+                 ;; Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
+                 ;; See the note at the top of this file.
+                 (createDefaultSkin []
+                   (let [cell ^TableCell this
+                         behavior (proxy [TableCellBehavior] [cell]
+                                    (handleClicks [button click-count already-selected?]
+                                      (let [this ^TableCellBehavior this]
+                                        (when-let [^Node edited-cell @edited-cell-atom]
+                                          (.requestFocus edited-cell))
+                                        (proxy-super handleClicks button click-count already-selected?))))]
+                     (TableCellSkinWithBehavior. cell behavior))))]
         (doto tc
           (.setAlignment (value-alignment column-info)))))))
 
@@ -321,10 +353,10 @@
     (call [this p]
       (ReadOnlyObjectWrapper. (((comp last :path) column-info) (.getValue ^TableColumn$CellDataFeatures p))))))
 
-(defn- create-table-column [column-info cell-setter ctxt]
+(defn- create-table-column [column-info cell-setter ctxt edited-cell-atom]
   (let [table-column (TableColumn. (:label column-info))]
     (.setCellValueFactory table-column (create-cell-value-factory column-info))
-    (.setCellFactory table-column (create-table-cell-factory column-info ctxt))
+    (.setCellFactory table-column (create-table-cell-factory column-info ctxt edited-cell-atom))
     (.setOnEditCommit table-column
                       (ui/event-handler event
                                         (let [event ^TableColumn$CellEditEvent event]
@@ -365,6 +397,7 @@
   (assert (not cancel) "no support for nested tables")
   (let [table (TableView.)
         content (atom nil)
+        edited-cell (atom nil)
         update-fn (fn [value]
                     (reset! content (if (seq value) value []))
                     (.setAll (.getItems table) ^Collection @content))
@@ -391,7 +424,7 @@
 
     (.setEditable table true)
     (.setAll (.getColumns table)
-             ^Collection (map (fn [column-info] (create-table-column column-info cell-setter ctxt)) (:columns field-info)))
+             ^Collection (map (fn [column-info] (create-table-column column-info cell-setter ctxt edited-cell)) (:columns field-info)))
 
     (set-context-menu! table [["Add" on-add-row (constantly default-row)]
                               ["Remove" on-remove-row selected-row]])
@@ -400,7 +433,7 @@
 
     [table {:update update-fn}]))
 
-(defn- create-list-cell-factory [element-info ctxt]
+(defn- create-list-cell-factory [element-info ctxt edited-cell-atom]
   (let [get-value-string (get-value-string-fn element-info)]
     (reify Callback
       (call ^ListCell [this view]
@@ -411,6 +444,7 @@
                 (when (not (.isEmpty this))
                   (proxy-super startEdit)
                   (reset! ctrl-data (create-cell-field-control this element-info ctxt))
+                  (reset! edited-cell-atom this)
                   ((:update (second @ctrl-data)) (.getItem this))
                   (ui/add-style! this "editing-cell")
                   (.setText this nil)
@@ -421,6 +455,8 @@
             (cancelEdit []
               (let [this ^ListCell this]
                 (proxy-super cancelEdit)
+                (reset! ctrl-data nil)
+                (reset! edited-cell-atom nil)
                 (ui/remove-style! this "editing-cell")
                 (.setText this (get-value-string (.getItem this)))
                 (.setGraphic this nil)))
@@ -433,7 +469,18 @@
                   (do
                     (ui/remove-style! this "editing-cell")
                     (.setText this (get-value-string item))
-                    (.setGraphic this nil)))))))))))
+                    (.setGraphic this nil)))))
+            ;; Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
+            ;; See the note at the top of this file.
+            (createDefaultSkin []
+              (let [cell ^ListCell this
+                    behavior (proxy [ListCellBehavior] [cell]
+                               (mousePressed [event]
+                                 (let [this ^ListCellBehavior this]
+                                   (when-let [^Node edited-cell @edited-cell-atom]
+                                     (.requestFocus edited-cell))
+                                   (proxy-super mousePressed event))))]
+                (ListCellSkinWithBehavior. cell behavior)))))))))
 
 (defn- nil->neg1 [index]
   (if (nil? index)
@@ -476,6 +523,7 @@
 (defmethod create-field-control :list [field-info {:keys [set cancel] :as field-ops} ctxt]
   (let [list-view (create-fixed-cell-size-list-view)
         content (atom nil)
+        edited-cell (atom nil)
         default-row (form/field-default (:element field-info))
         set-row (fn [row val]
                   (swap! content
@@ -495,7 +543,7 @@
                       (select-index list-view old-selected)
                       (focus-index list-view old-focus)))]
 
-    (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt))
+    (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt edited-cell))
     (.setOnEditCommit list-view
                       (ui/event-handler event
                                         (let [event ^ListView$EditEvent event]
@@ -530,6 +578,7 @@
                     (.setMinWidth Control/USE_PREF_SIZE))
         hbox (HBox.)
         content (atom nil)
+        edited-cell (atom nil)
         nested-field-ops {:set (fn [path val]
                                  (let [selected-index (get-selected-index list-view)]
                                    (when selected-index
@@ -574,7 +623,9 @@
                         (swap! content assoc-in
                                (cons row (:path panel-key-info))
                                val)
-                        ((:set field-ops) (:path field-info) @content))
+                        (if-let [field-setter (:set field-info)]
+                          (field-setter (get @content row) (:path panel-key-info) val)
+                          ((:set field-ops) (:path field-info) @content)))
         on-add-row (:on-add field-info (fn []
                                          (swap! content conj default-row)
                                          ((:set field-ops) (:path field-info) @content)))
@@ -591,7 +642,7 @@
     (ui/children! hbox [list-view grid])
     (.setSpacing hbox 10) ; same as inset of outer VBox
 
-    (.setCellFactory list-view (create-list-cell-factory panel-key-info ctxt))
+    (.setCellFactory list-view (create-list-cell-factory panel-key-info ctxt edited-cell))
 
     (.setOnEditCommit list-view
                       (ui/event-handler event
@@ -652,7 +703,7 @@
                                          :explicit value
                                          :default (form/field-default field-info)
                                          nil)
-                             overridden? (and (boolean (:optional field-info)) (= source :explicit))]
+                             overridden? (and (form/optional-field? field-info) (= source :explicit))]
                          ((:update api) value)
                          (update-label-box overridden?)))]
 
@@ -757,6 +808,7 @@
         form))))
 
 (g/defnode FormView
+  (inherits view/WorkbenchView)
   (property parent-view Parent)
   (property workspace g/Any)
   (property project g/Any)
@@ -774,7 +826,6 @@
         (g/connect resource-node :form-data view-id :form-data)))
     (ui/timer-start! repainter)
     (ui/timer-stop-on-closed! ^Tab (:tab opts) repainter)
-    (ui/timer-stop-on-closed! (ui/parent->stage parent) repainter)
     view-id))
 
 (defn- make-form-view [graph ^Parent parent resource-node opts]

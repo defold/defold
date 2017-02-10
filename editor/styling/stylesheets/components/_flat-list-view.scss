@@ -1,18 +1,28 @@
 .flat-list-view {
     -fx-background-insets: 0;
     .list-cell {
-        -fx-background-color: $bright-black;
-        -fx-border-width: 0 0 0 0;
-        -fx-border-color: $bright-black;//rgba(51, 57, 63, 0.5);
-        -fx-padding: 0.5em 1em;
-        &.first-list-item {
-            -fx-border-width: 0;
-        }
+        -fx-background-color: $dark-grey-light;
+        -fx-border-width: 0 0 0 2;
+        -fx-border-color: $dark-grey-light;
+        -fx-padding: 5;//0.5em 1em;
         &:hover {
             -fx-text-fill: $defold-white;
         }
         &:selected {
-            -fx-background-color: $selected-blue;
+            -fx-border-width: 0 0 0 2;
+            -fx-border-color: $defold-orange;
+            -fx-text-fill: $defold-white;
+            -fx-background-color: $dark-grey-selected;
+            &:hover {
+                -fx-text-fill: $defold-white; 
+            }
+            .image-view {
+                @include effect-lighten-blue();
+            }
+        }
+
+        .label {
+            -fx-text-fill: $defold-white;
         }
     }
 }
