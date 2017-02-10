@@ -27,7 +27,7 @@
       (.printStackTrace e)
       {})))
 
-(def ^:private docs (string/split "builtins camera collection_proxy collection_factory collision_object engine factory go gui http iap image json msg particlefx render sound sprite sys tilemap vmath spine zlib" #" "))
+(def ^:private docs (string/split "base bit builtins camera collectionfactory collectionproxy coroutine crash debug facebook factory go gui http iac iap image io json label math model msg os package particlefx physics push render resource sound spine sprite string sys table tilemap vmath webview window zlib" #" "))
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
@@ -130,8 +130,7 @@
           slurp
           edn/read-string)})
 
-(def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
-
+(def lua-std-libs-docs (atom (lua-base-documentation)))
 
 (defn filter-proposals [completions ^String text offset ^String line]
   (try
