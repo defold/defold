@@ -190,15 +190,8 @@ namespace dmResourceArchive
             int insert_index = 0;
             const uint8_t* hash = (const uint8_t*)((uintptr_t)lu_entries->m_Hashes + hash_len * i);
             const EntryData* entry = (EntryData*)((uintptr_t)lu_entries->m_Entries + sizeof(EntryData) * i);
-            Result index_result = CalcInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, insert_index);
-            if (index_result != RESULT_OK)
-            {
-                dmLogError("Failed to calc insertion index during reload, result = %i", index_result);
-                free(lu_entries->m_Entries);
-                free((void*)lu_entries->m_Hashes);
-                delete lu_entries;
-                return RESULT_IO_ERROR;
-            }
+            // This call can return either RESULT_ALREADY_STORED or RESULT_OK, both of with are fine in this case
+            CalcInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, insert_index);
 
             // Insert each liveupdate entry WITHOUT writing any resource data!
             Result insert_result = ShiftAndInsert(bundled_archive_container, reloaded_index, hash, hash_len, insert_index, 0x0, entry);
@@ -452,7 +445,6 @@ namespace dmResourceArchive
             if (cmp == 0)
             {
                 // attemping to insert an already inserted resource
-                dmLogWarning("Resource already stored");
                 return RESULT_ALREADY_STORED;
             }
             else if (cmp > 0)
