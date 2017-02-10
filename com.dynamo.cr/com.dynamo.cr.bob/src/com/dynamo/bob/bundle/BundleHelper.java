@@ -196,20 +196,32 @@ public class BundleHelper {
                     List<ResourceInfo> infos = new ArrayList<>();
                     parseLog(buildError, infos);
 
-                    if (infos.size() > 0) {
+                    MultipleCompileExceptionError exception = new MultipleCompileExceptionError("Build error", e);
 
-                        MultipleCompileExceptionError exception = new MultipleCompileExceptionError("Build error", e.getCause());
+                    IResource firstresource = null;
+                    if (infos.size() > 0) {
                         for (ResourceInfo info : infos) {
                             IResource resource = ExtenderUtil.getResource(info.resource, allSource);
                             if (resource != null) {
                                 exception.addError(resource, info.message, info.lineNumber);
+
+                                if (firstresource == null) {
+                                    firstresource = resource;
+                                }
                             }
                         }
-
-                        if (exception.errors.size() > 0) {
-                            throw exception;
-                        } // else, throw the entire log, so the user has a chance to inspect the log and actually find the error
                     }
+
+                    // Trick to always supply the full log
+                    // 1. We pick a resource, the first one generating errors should be related.
+                    //    Otherwise we fall back on an ext.manifest (possibly the wrong one!)
+                    // 2. We put it first, because the list is reversed later when presented
+                    if (firstresource == null) {
+                        firstresource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
+                    }
+                    exception.addError(firstresource, buildError, 1);
+
+                    throw exception;
                 } catch (IOException ioe) {
                     buildError = "<failed reading log>";
                 }
