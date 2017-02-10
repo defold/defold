@@ -1,0 +1,47 @@
+@mixin extension-template($element, $color, $active-color){
+    .image-view {
+        @include colorize-image-view($color);  
+    }
+    &:selected, &:hover {
+        @if($element == "tab") {
+            .tab-container {
+                .tab-label {
+                    .image-view {
+                        @include colorize-image-view($active-color);  
+                    }
+                }
+            }
+        } @else {
+            .image-view {
+                @include colorize-image-view($active-color);  
+            }
+        } 
+    }
+}
+
+@mixin extensions ($element) {
+    &.resource-ext- {
+        /* Script files */
+        &fp, &gui_script, &lua,
+        &render_script, &script, &vp {
+            @include extension-template($element, $script-file, $script-file-active);
+        }
+
+        /* Design files */
+        &atlas, &collection, &collisionobject,
+        &cubemap, &dae, &font, &go,
+        &gui, &label, &model, &particlefx,
+        &spinemodel, &spinescene, &sprite,
+        &tilemap, &tilesource {
+            @include extension-template($element, $design-file, $design-file-active);
+        }
+
+        /* Property container files */
+        &camera, &collectionfactory, &collectionproxy,
+        &display_profiles, &factory,
+        &gamepads, &input_binding, &material, &project,
+        &render, &sound, &texture_profiles {
+            @include extension-template($element, $property-file, $property-file-active);
+        }
+    }
+}

@@ -1,0 +1,8 @@
+.menu-bar {
+    -fx-background-color: $root-background;
+     .menu-item {
+         &:hover {
+             -fx-background-color: $tree-view-icon;
+         }
+    }
+}
