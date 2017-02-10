@@ -208,7 +208,6 @@ public class Bob {
         options.addOption("", "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
-        options.addOption("s", "aws-secret-key", true, "Amazon S3 secret key to use when uploading liveupdate content");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
@@ -248,7 +247,7 @@ public class Bob {
         return project;
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
+    public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         String cwd = new File(".").getAbsolutePath();
 
@@ -278,9 +277,8 @@ public class Bob {
             project.setOption("defoldsdk", EngineVersion.sha1);
         }
 
-        String secretKey = getOptionsValue(cmd, 's', null);
         boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-        project.createPublisher(secretKey, shouldPublish);
+        project.createPublisher(shouldPublish);
 
         Option[] options = cmd.getOptions();
         for (Option o : options) {

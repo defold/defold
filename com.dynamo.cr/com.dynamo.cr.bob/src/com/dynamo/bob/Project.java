@@ -272,16 +272,13 @@ public class Project {
         System.err.println(String.format(fmt, args));
     }
 
-    public void createPublisher(String secretKey, boolean shouldPublish) throws CompileExceptionError {
+    public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
         if (shouldPublish) {
             try {
                 IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
                 if (publisherSettings.exists()) {
                     ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
                     PublisherSettings settings = PublisherSettings.load(is);
-                    if (secretKey != null) {
-                        settings.setValue("liveupdate", "aws-secret-key", secretKey);
-                    }
 
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
@@ -326,11 +323,14 @@ public class Project {
      * @throws IOException
      * @throws CompileExceptionError
      */
-    public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
+    public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileExceptionError {
         try {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
+            // Pass on unmodified
+            throw e;
+        } catch (MultipleCompileExceptionError e) {
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
@@ -489,8 +489,7 @@ public class Project {
         return false;
     }
 
-    public void buildEngine(IProgress monitor) throws IOException, CompileExceptionError {
-
+    public void buildEngine(IProgress monitor) throws IOException, CompileExceptionError, MultipleCompileExceptionError {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
@@ -533,13 +532,14 @@ public class Project {
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform);
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
             BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe);
+
             m.worked(1);
         }
 
         m.done();
     }
 
-    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
+    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileExceptionError {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
