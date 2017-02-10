@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.nio.file.*;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class ProjectService {
@@ -168,5 +169,14 @@ public class ProjectService {
         for (Path path : playablePaths) {
             getMagazineClient().put(writeToken, playablePath.relativize(path.getParent()).toString(), path);
         }
+    }
+
+    public void addScreenshotImage(String user, long projectId, String originalFilename, InputStream file) throws Exception {
+        String contextPath = String.format("/projects/%d/screenshots", projectId);
+        String writeToken = getMagazineClient().createWriteToken(user, contextPath);
+        String filename = UUID.randomUUID().toString() + "-" + originalFilename;
+        getMagazineClient().put(writeToken, "", file, filename);
+
+        addScreenshot(projectId, new Screenshot(Paths.get(contextPath, filename).toString(), Screenshot.MediaType.IMAGE));
     }
 }
