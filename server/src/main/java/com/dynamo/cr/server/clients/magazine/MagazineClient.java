@@ -36,11 +36,15 @@ public class MagazineClient {
             return;
         }
 
-        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
-
         InputStream inputStream = Files.newInputStream(path);
+        String filename = path.getFileName().toString();
 
-        StreamDataBodyPart streamDataBodyPart = new StreamDataBodyPart("file", inputStream, path.getFileName().toString());
+        put(token, relativePath, inputStream, filename);
+    }
+
+    public void put(String token, String relativePath, InputStream inputStream, String filename) {
+        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
+        StreamDataBodyPart streamDataBodyPart = new StreamDataBodyPart("file", inputStream, filename);
         multiPart.bodyPart(streamDataBodyPart);
 
         client.resource(magazineServiceUrl)
