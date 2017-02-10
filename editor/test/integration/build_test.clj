@@ -54,12 +54,32 @@
                        :path path})))
     (protobuf/bytes->map pb-class (get targets path))))
 
+(defn- approx? [as bs]
+  (every? #(< % 0.00001)
+          (map #(Math/abs (- %1 %2))
+               as bs)))
+
 (def pb-cases {"/game.project"
                [{:label    "ParticleFX"
                  :path     "/main/blob.particlefx"
                  :pb-class Particle$ParticleFX
                  :test-fn  (fn [pb targets]
                              (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
+                {:label    "ParticleFX with complex setup"
+                 :path     "/main/tail.particlefx"
+                 :pb-class Particle$ParticleFX
+                 :test-fn  (fn [pb targets]
+                             (let [emitter (-> pb :emitters first)]
+                               (is (= :size-mode-auto (:size-mode emitter)))
+                               (is (not-empty (:properties emitter)))
+                               (is (not-empty (:particle-properties emitter)))
+                               (is (true? (every? (comp :points not-empty) (:properties emitter))))
+                               (is (true? (every? (comp :points not-empty) (:particle-properties emitter))))
+                               (let [modifier (-> emitter :modifiers first)]
+                                 (is (not-empty (:properties modifier)))
+                                 (is (true? (every? (comp :points not-empty) (:properties modifier))))
+                                 (is (approx? [-20.0 10.0 -30.0] (:position modifier)))
+                                 (is (approx? [0.0 0.0 -0.70710677 0.70710677] (:rotation modifier))))))}
                 {:label           "Sound"
                  :path            "/main/sound.sound"
                  :pb-class        Sound$SoundDesc
