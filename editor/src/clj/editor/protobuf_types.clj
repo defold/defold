@@ -13,12 +13,10 @@
             [editor.math :as math]
             [editor.gl.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
-           [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
            [com.dynamo.gamesystem.proto GameSystem$LightDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
            [com.dynamo.input.proto Input$GamepadMaps]
-           [com.dynamo.sound.proto Sound$SoundDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -34,12 +32,6 @@
                :pb-class Input$InputBinding
                :label "Input Binding"
                :view-types [:form-view :text]}
-              {:ext "render"
-               :icon "icons/32/Icons_30-Render.png"
-               :pb-class Render$RenderPrototypeDesc
-               :resource-fields [:script [:materials :material]]
-               :view-types [:form-view :text]
-               :label "Render"}
               {:ext "light"
                :label "Light"
                :icon "icons/32/Icons_21-Light.png"
@@ -55,12 +47,6 @@
                ; TODO - missing icon
                :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
                :pb-class Physics$ConvexShape}
-              {:ext "sound"
-               :label "Sound"
-               :icon "icons/32/Icons_26-AT-Sound.png"
-               :pb-class Sound$SoundDesc
-               :resource-fields [:sound]
-               :tags #{:component}}
               {:ext "texture_profiles"
                :label "Texture Profiles"
                :view-types [:form-view :text]
@@ -136,15 +122,16 @@
         exts (if (vector? ext) ext [ext])]
     (for [ext exts]
       (workspace/register-resource-type workspace
-                                     :ext ext
-                                     :label (:label def)
-                                     :build-ext (:build-ext def)
-                                     :node-type ProtobufNode
-                                     :load-fn (fn [project self resource] (load-pb project self resource def))
-                                     :icon (:icon def)
-                                     :view-types (:view-types def)
-                                     :tags (:tags def)
-                                     :template (:template def)))))
+                                        :textual? true
+                                        :ext ext
+                                        :label (:label def)
+                                        :build-ext (:build-ext def)
+                                        :node-type ProtobufNode
+                                        :load-fn (fn [project self resource] (load-pb project self resource def))
+                                        :icon (:icon def)
+                                        :view-types (:view-types def)
+                                        :tags (:tags def)
+                                        :template (:template def)))))
 
 (defn register-resource-types [workspace]
   (for [def pb-defs]

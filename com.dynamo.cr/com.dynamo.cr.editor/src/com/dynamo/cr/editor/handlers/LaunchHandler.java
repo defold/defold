@@ -2,9 +2,12 @@ package com.dynamo.cr.editor.handlers;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -26,11 +29,14 @@ import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Platform;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.core.ITargetService;
@@ -66,14 +72,17 @@ public class LaunchHandler extends AbstractHandler {
         String msg = event.getParameter(PARM_MSG);
         final boolean rebuild = msg != null && msg.equals("rebuild");
 
-        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        final IProject project = getActiveProject(event);
 
-        String exeName;
+        String exeName = "";
+
         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
             exeName = store.getString(PreferenceConstants.P_APPLICATION);
         } else {
-            exeName = Engine.getDefault().getEnginePath();
             String platform = EditorCorePlugin.getPlatform();
+            exeName = Engine.getDefault().getEnginePath();
+
             if (!platform.contains("win32")) {
                 try {
                     Exec.exec("chmod", "+x", exeName);
@@ -82,13 +91,30 @@ public class LaunchHandler extends AbstractHandler {
                 }
             }
         }
-        final File exe = new File(exeName);
 
-        if (!exe.exists()) {
-            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", exeName));
+        Platform hostPlatform = Platform.getHostPlatform();
+        IBranchClient branchClient = Activator.getDefault().getBranchClient();
+        final String location = FilenameUtils.concat(branchClient.getNativeLocation(), "build");
+
+        final String outputDir = FilenameUtils.concat(location, hostPlatform.getExtenderPair());
+        final String binaryOutputPath = FilenameUtils.concat(outputDir, hostPlatform.formatBinaryName("dmengine"));
+        final File inputExe = new File(exeName);
+        final File outputExe = new File(binaryOutputPath);
+        outputExe.mkdirs();
+        try {
+            Files.copy(inputExe.toPath(), outputExe.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+            if (!store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
+	            if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
+	            	File libOpenAL = new File(Bob.getLib(hostPlatform, "OpenAL32"));
+	            	File libWrapOAL = new File(Bob.getLib(hostPlatform, "wrap_oal"));
+	                Files.copy(libOpenAL.toPath(), new File(FilenameUtils.concat(outputDir, libOpenAL.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+	                Files.copy(libWrapOAL.toPath(), new File(FilenameUtils.concat(outputDir, libWrapOAL.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+	            }
+            }
+        } catch (IOException e) {
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("'%s' could not copy engine binary.", exeName));
         }
-
-        final IProject project = getActiveProject(event);
 
         // save all editors depending on user preferences (this is set to true by default in plugin_customization.ini)
         BuildUtilities.saveEditors(null);
@@ -96,8 +122,12 @@ public class LaunchHandler extends AbstractHandler {
         Job job = new Job("Building") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
+
+                if (!outputExe.exists()) {
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", outputExe.getAbsolutePath()));
+                }
+
                 Map<String, String> args = new HashMap<String, String>();
-                final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
                 final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
                 if (localBranch)
                     args.put("location", "local");
@@ -109,6 +139,18 @@ public class LaunchHandler extends AbstractHandler {
                 if (enableTextureProfiles) {
                     bobArgs.put("texture-profiles", "true");
                 }
+
+                String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
+                bobArgs.put("build-server", nativeExtServerURI);
+                // output location for native extension
+                bobArgs.put("binary-output", location);
+
+                EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+                String sdkVersion = corePlugin.getSha1();
+                if (sdkVersion == "NO SHA1") {
+                    sdkVersion = "";
+                }
+                bobArgs.put("defoldsdk", sdkVersion);
 
                 BobUtil.putBobArgs(bobArgs, args);
 
@@ -128,6 +170,8 @@ public class LaunchHandler extends AbstractHandler {
                         String customApplication = null;
                         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
                             customApplication = store.getString(PreferenceConstants.P_APPLICATION);
+                        } else {
+                            customApplication = outputExe.getAbsolutePath();
                         }
 
                         targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy,

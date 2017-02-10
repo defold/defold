@@ -21,42 +21,44 @@ namespace dmGameSystem
      *
      * Functions and messages for interacting with model components.
      *
+     * @document
      * @name Model
      * @namespace model
      */
 
-    /*# model cursor (number)
+    /*# [type:number] model cursor
      *
      * The normalized animation cursor. The type of the property is number.
+     *
+     * [icon:attention] Please note that model events may not fire as expected when the cursor is manipulated directly.
      *
      * @name cursor
      * @property
      *
      * @examples
-     * <p>
+     *
      * How to get the normalized cursor value:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
-     *  -- Get the cursor value on component "model"
-     *  cursor = go.get("#model", "cursor")
+     *   -- Get the cursor value on component "model"
+     *   cursor = go.get("#model", "cursor")
      * end
-     * </pre>
-     * <p>
+     * ```
+     *
      * How to animate the cursor from 0.0 to 1.0 using linear easing for 2.0 seconds:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
-     *  -- Get the current value on component "model"
-     *  go.set("#model", "cursor", 0.0)
-     *  -- Animate the cursor value
-     *  go.animate("#model", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
+     *   -- Get the current value on component "model"
+     *   go.set("#model", "cursor", 0.0)
+     *   -- Animate the cursor value
+     *   go.animate("#model", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
      * end
-     * </pre>
-     * <p>Please note that model events may not fire as expected when the cursor is manipulated directly.</p>
+     * ```
      */
 
-    /*# model playback_rate (number)
+    /*# [type:number] model playback_rate
      *
      * The animation playback rate. A multiplier to the animation playback rate. The type of the property is number.
      *
@@ -64,18 +66,63 @@ namespace dmGameSystem
      * @property
      *
      * @examples
-     * <p>
+     *
      * How to set the playback_rate on component "model" to play at double the current speed:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
-     *  -- Get the current value on component "model"
-     *  playback_rate = go.get("#model", "playback_rate")
-     *  -- Set the playback_rate to double the previous value.
-     *  go.set("#model", "playback_rate", playback_rate * 2)
+     *   -- Get the current value on component "model"
+     *   playback_rate = go.get("#model", "playback_rate")
+     *   -- Set the playback_rate to double the previous value.
+     *   go.set("#model", "playback_rate", playback_rate * 2)
      * end
-     * </pre>
-     * <p>The playback_rate is a non-negative number, a negative value will be clamped to 0.</p>
+     * ```
+     *
+     * The playback_rate is a non-negative number, a negative value will be clamped to 0.
+     */
+
+     /*# [type:hash] model animation
+     *
+     * The current animation set on the component. The type of the property is hash.
+     *
+     * @name animation
+     * @property
+     *
+     * @examples
+     *
+     * How to read the current animation from a model component:
+     *
+     * ```lua
+     * function init(self)
+     *   -- Get the current animation on component "model"
+     *   local animation = go.get("#model", "animation")
+     *   if animation == hash("run_left") then
+     *     -- Running left. Do something...
+     *   end
+     * end
+     * ```
+     */
+
+    /*# [type:hash] model texture0
+     *
+     * [mark:READ ONLY] Returns the texture path hash of the model. Used for getting/setting resource data
+     *
+     * @name texture0
+     * @property
+     *
+     * @examples
+     *
+     * How to overwrite a model's original texture
+     *
+     * ```lua
+     * function init(self)
+     *   -- get texture resource from one model and set it on another
+     *   local resource_path1 = go.get("#model1", "texture0")
+     *   local buffer = resource.load(resource_path1)
+     *   local resource_path2 = go.get("#model2", "texture0")
+     *   resource.set(resource_path2, buffer)
+     * end
+     * ```
      */
 
     int LuaModelComp_Play(lua_State* L)
@@ -118,43 +165,87 @@ namespace dmGameSystem
     }
 
     /*# play an animation on a model
+     * Plays an animation on a model component with specified playback
+     * mode and parameters.
+     *
+     * An optional completion callback function can be provided that will be called when
+     * the animation has completed playing. If no function is provided,
+     * a [ref:model_animation_done] message is sent to the script that started the animation.
+     *
+     * [icon:attention] The callback is not called (or message sent) if the animation is
+     * cancelled with [ref:model.cancel]. The callback is called (or message sent) only for
+     * animations that play with the following playback modes:
+     *
+     * - `go.PLAYBACK_ONCE_FORWARD`
+     * - `go.PLAYBACK_ONCE_BACKWARD`
+     * - `go.PLAYBACK_ONCE_PINGPONG`
      *
      * @name model.play_anim
-     * @param url the model for which to play the animation (url)
-     * @param anim_id id of the animation to play (string|hash)
-     * @param playback playback mode of the animation (constant)
-     * <ul>
-     *   <li><code>go.PLAYBACK_ONCE_FORWARD</code></li>
-     *   <li><code>go.PLAYBACK_ONCE_BACKWARD</code></li>
-     *   <li><code>go.PLAYBACK_ONCE_PINGPONG</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_FORWARD</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
-     *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
-     * </ul>
-     * @param [play_properties] optional table with properties (table)
-     * <ul>
-     *   <li><code>blend_duration</code> duration of a linear blend between the current and new animation (number)</li>
-     *   <li><code>offset</code> the normalized initial value of the animation cursor when the animation starts playing (number)</li>
-     *   <li><code>playback_rate</code> the rate with which the animation will be played. Must be positive (number)</li>
-     * </ul>
+     * @param url [type:string|hash|url] the model for which to play the animation
+     * @param anim_id [type:string|hash] id of the animation to play
+     * @param playback [type:constant] playback mode of the animation
+     *
+     * - `go.PLAYBACK_ONCE_FORWARD`
+     * - `go.PLAYBACK_ONCE_BACKWARD`
+     * - `go.PLAYBACK_ONCE_PINGPONG`
+     * - `go.PLAYBACK_LOOP_FORWARD`
+     * - `go.PLAYBACK_LOOP_BACKWARD`
+     * - `go.PLAYBACK_LOOP_PINGPONG`
+     *
+     * @param [play_properties] [type:table] optional table with properties
+     *
+     * Play properties table:
+     *
+     * `blend_duration`
+     * : [type:number] Duration of a linear blend between the current and new animation.
+     *
+     * `offset`
+     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing.
+     *
+     * `playback_rate`
+     * : [type:number] The rate with which the animation will be played. Must be positive.
+     *
+     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `message_id`
+     * : [type:hash] The name of the completion message, `"model_animation_done"`.
+     *
+     * `message`
+     * : [type:table] Information about the completion:
+     *
+     * - [type:hash] `animation_id` - the animation that was completed.
+     * - [type:constant] `playback` - the playback mode for the animation.
+     *
+     * `sender`
+     * : [type:url] The invoker of the callback: the model component.
+     *
      * @examples
-     * <p>
+     *
      * The following examples assumes that the model has id "model".
-     * </p>
-     * <p>
+     *
      * How to play the "jump" animation followed by the "run" animation:
-     * </p>
-     * <pre>
+     *
+     * ```lua
+     * local function anim_done(self, message_id, message, sender)
+     *   if message_id == hash("model_animation_done") then
+     *     if message.animation_id == hash("jump") then
+     *       -- open animation done, chain with "run"
+     *       local properties = { blend_duration = 0.2 }
+     *       model.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties, anim_done)
+     *     end
+     *   end
+     * end
+     *
      * function init(self)
      *     local url = msg.url("#model")
      *     local play_properties = { blend_duration = 0.1 }
      *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
-     *     model.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, function (self)
-     *         local properties = { blend_duration = 0.2 }
-     *         model.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties)
-     *     end)
+     *     model.play_anim(url, "open", go.PLAYBACK_ONCE_FORWARD, play_properties, anim_done)
      * end
-     * </pre>
+     * ```
      */
     int LuaModelComp_PlayAnim(lua_State* L)
     {
@@ -214,9 +305,10 @@ namespace dmGameSystem
     }
 
     /*# cancel all animation on a model
+     * Cancels all animation on a model component.
      *
      * @name model.cancel
-     * @param url the model for which to cancel the animation (url)
+     * @param url [type:string|hash|url] the model for which to cancel the animation
      */
     int LuaModelComp_Cancel(lua_State* L)
     {
@@ -236,27 +328,27 @@ namespace dmGameSystem
     }
 
     /*# retrieve the game object corresponding to a model skeleton bone
+     * Gets the id of the game object that corresponds to a model skeleton bone.
      * The returned game object can be used for parenting and transform queries.
-     * This function has complexity O(n), where n is the number of bones in the model skeleton.
+     * This function has complexity `O(n)`, where `n` is the number of bones in the model skeleton.
      * Game objects corresponding to a model skeleton bone can not be individually deleted.
-     * Only available from .script files.
      *
      * @name model.get_go
-     * @param url the model to query (url)
-     * @param bone_id id of the corresponding bone (string|hash)
-     * @return id of the game object
+     * @param url [type:string|hash|url] the model to query
+     * @param bone_id [type:string|hash] id of the corresponding bone
+     * @return id [type:hash] id of the game object
      * @examples
-     * <p>
+     *
      * The following examples assumes that the model component has id "model".
-     * <p>
+     *
      * How to parent the game object of the calling script to the "right_hand" bone of the model in a player game object:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     local parent = model.get_go("player#model", "right_hand")
      *     msg.post(".", "set_parent", {parent_id = parent})
      * end
-     * </pre>
+     * ```
      */
     int LuaModelComp_GetGO(lua_State* L)
     {
@@ -308,29 +400,29 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# set a shader constant for a model component
+    /*# set a shader constant for a model
+     * Sets a shader constant for a model component.
      * The constant must be defined in the material assigned to the model.
      * Setting a constant through this function will override the value set for that constant in the material.
      * The value will be overridden until model.reset_constant is called.
      * Which model to set a constant for is identified by the URL.
      *
      * @name model.set_constant
-     * @param url the model that should have a constant set (url)
-     * @param name of the constant (string|hash)
-     * @param value of the constant (vec4)
+     * @param url [type:string|hash|url] the model that should have a constant set
+     * @param constant [type:string|hash] name of the constant
+     * @param value [type:vector4] value of the constant
      * @examples
-     * <p>
-     * The following examples assumes that the model has id "model" and that the default-material in builtins is used.
+     *
+     * The following examples assumes that the model has id "model" and that the default-material in builtins is used, which defines the constant "tint".
      * If you assign a custom material to the model, you can set the constants defined there in the same manner.
-     * </p>
-     * <p>
+     *
      * How to tint a model to red:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     model.set_constant("#model", "tint", vmath.vector4(1, 0, 0, 1))
      * end
-     * </pre>
+     * ```
      */
     int LuaModelComp_SetConstant(lua_State* L)
     {
@@ -355,26 +447,26 @@ namespace dmGameSystem
     }
 
     /*# reset a shader constant for a model
+     * Resets a shader constant for a model component.
      * The constant must be defined in the material assigned to the model.
      * Resetting a constant through this function implies that the value defined in the material will be used.
      * Which model to reset a constant for is identified by the URL.
      *
      * @name model.reset_constant
-     * @param url the model that should have a constant reset (url)
-     * @param name of the constant (string|hash)
+     * @param url [type:string|hash|url] the model that should have a constant reset.
+     * @param constant [type:string|hash] name of the constant.
      * @examples
-     * <p>
-     * The following examples assumes that the model has id "model" and that the default-material in builtins is used.
+     *
+     * The following examples assumes that the model has id "model" and that the default-material in builtins is used, which defines the constant "tint".
      * If you assign a custom material to the model, you can reset the constants defined there in the same manner.
-     * </p>
-     * <p>
+     *
      * How to reset the tinting of a model:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *     model.reset_constant("#model", "tint")
      * end
-     * </pre>
+     * ```
      */
     int LuaModelComp_ResetConstant(lua_State* L)
     {

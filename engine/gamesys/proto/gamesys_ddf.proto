@@ -29,6 +29,7 @@ message Create
 message CollectionProxyDesc
 {
     required string collection = 1 [(resource)=true];
+    optional bool exclude = 2;
 }
 
 enum TimeStepMode

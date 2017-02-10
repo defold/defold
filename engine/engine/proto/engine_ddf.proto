@@ -8,28 +8,29 @@ option java_outer_classname = "Engine";
 
 /*# System API documentation
  *
+ * @document
  * @name System
  * @namespace sys
  */
 
 /*# exits application
  * Terminates the game application and reports the specified <code>code</code> to the OS.
- * This message can only be sent to the designated <code>@system</code> socket.
+ * This message can only be sent to the designated `@system` socket.
  *
  * @message
  * @name exit
- * @param code exit code to report to the OS, 0 means clean exit (number)
+ * @param code [type:number] exit code to report to the OS, 0 means clean exit
  * @examples
- * <p>
+ *
  * This examples demonstrates how to exit the application when some kind of quit messages is received (maybe from gui or similar):
- * </p>
- * <pre>
+ *
+ * ```lua
  * function on_message(self, message_id, message, sender)
  *     if message_id == hash("quit") then
  *         msg.post("@system:", "exit", {code = 0})
  *     end
  * end
- * </pre>
+ * ```
  */
 message Exit
 {
@@ -39,26 +40,45 @@ message Exit
 message HideApp {}
 
 /*# shows/hides the on-screen profiler
- * This message can only be sent to the designated <code>@system</code> socket.
+ * Toggles the on-screen profiler.
+ * The profiler is a real-time tool that shows the numbers of milliseconds spent
+ * in each scope per frame as well as counters. The profiler is very useful for
+ * tracking down performance and resource problems.
+ *
+ * In addition to the on-screen profiler, Defold includes a web-based profiler that
+ * allows you to sample a series of data points and then analyze them in detail.
+ * The web profiler is available at `http://<device IP>:8002` where <device IP> is
+ * the IP address of the device you are running your game on.
+ *
+ * This message can only be sent to the designated `@system` socket.
  *
  * @message
  * @name toggle_profile
  * @examples
- * <pre>
+ *
+ * ```lua
  * msg.post("@system:", "toggle_profile")
- * </pre>
+ * ```
  */
 message ToggleProfile {}
 
 /*# shows/hides the on-screen physics visual debugging
- * This message can only be sent to the designated <code>@system</code> socket.
+ * Toggles the on-screen physics visual debugging mode which is very useful for
+ * tracking down issues related to physics. This mode visualizes
+ * all collision object shapes and normals at detected contact points. Toggling
+ * this mode on is equal to setting `physics.debug` in the "game.project" settings,
+ * but set in run-time.
+ *
+ * This message can only be sent to the designated `@system` socket.
  *
  * @message
  * @name toggle_physics_debug
  * @examples
- * <pre>
+ * @examples
+ *
+ * ```lua
  * msg.post("@system:", "toggle_physics_debug")
- * </pre>
+ * ```
  */
 message TogglePhysicsDebug {}
 
@@ -68,22 +88,29 @@ message TogglePhysicsDebug {}
  * to YouTube. The VLC video player has native support but with the known issue that
  * not the entirely files is played back. It's probably an issue with VLC.
  * The Miro Video Converter has support for vp8/ivf.
- * NOTE: Audio is currently not supported
+ *
+ * [icon:attention] Audio is currently not supported
+ *
+ * This message can only be sent to the designated `@system` socket.
  *
  * @message
  * @name start_record
- * @param file_name file name to write the video to
- * @param frame_period frame period to record, ie write every nth frame. Default value is 2
- * @param fps frames per second. Playback speed for the video. Default value is 30. The fps value doens't affect the recording. It's only meta-data in the written video file.
+ * @param file_name [type:string] file name to write the video to
+ * @param frame_period [type:number] frame period to record, ie write every nth frame. Default value is `2`
+ * @param fps [type:number] frames per second. Playback speed for the video. Default value is `30`. The fps value doens't affect the recording. It's only meta-data in the written video file.
  * @examples
- * <pre>
+ *
  * Record a video in 30 fps given that the native game fps is 60:
+ *
+ * ```lua
  * msg.post("@system:", "start_record", { file_name = "test_rec.ivf" } )
+ * ```
  *
  * To write a video in 60 fps given that the native game fps is 60:
- * msg.post("@system:", "start_record", { file_name = "test_rec.ivf", frame_period = 1, fps = 60 } )
  *
- * </pre>
+ * ```lua
+ * msg.post("@system:", "start_record", { file_name = "test_rec.ivf", frame_period = 1, fps = 60 } )
+ * ```
  */
 message StartRecord
 {
@@ -93,13 +120,17 @@ message StartRecord
 }
 
 /*# stop current video recording
+ * Stops the currently active video recording.
+ *
+ * This message can only be sent to the designated `@system` socket.
  *
  * @message
  * @name stop_record
  * @examples
- * <pre>
+ *
+ * ```lua
  * msg.post("@system:", "stop_record")
- * </pre>
+ * ```
  */
 message StopRecord
 {
@@ -107,24 +138,28 @@ message StopRecord
 
 
 /*# reboot engine with arguments
+ * Reboots the game engine with a specified set of arguments.
  * Arguments will be translated into command line arguments. Sending the reboot
  * command is equivalent to starting the engine with the same arguments.
-
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
  * @message
  * @name reboot
- * @param arg1 argument 1
- * @param arg2 argument 2
- * @param arg3 argument 3
- * @param arg4 argument 4
- * @param arg5 argument 5
- * @param arg6 argument 6
+ * @param arg1 [type:string] argument 1
+ * @param arg2 [type:string] argument 2
+ * @param arg3 [type:string] argument 3
+ * @param arg4 [type:string] argument 4
+ * @param arg5 [type:string] argument 5
+ * @param arg6 [type:string] argument 6
  * @examples
- * <pre>
+ *
+ * ```lua
  * -- Reboot engine with a specific bootstrap collection.
  * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
  * local arg2 = 'build/default/game.projectc'
  * msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})
- * </pre>
+ * ```
  */
 message Reboot
 {
@@ -138,8 +173,10 @@ message Reboot
 }
 
 /*# set update frequency
- * Set game update-frequency. This option is equivalent to display.update_frequency but
- * set in run-time
+ * Set game update-frequency. This option is equivalent to `display.update_frequency` in
+ * the "game.project" settings but set in run-time.
+ *
+ * This message can only be sent to the designated `@system` socket.
  *
  * @message
  * @name set_update_frequency

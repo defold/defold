@@ -1,0 +1,34 @@
+#!/usr/bin/env python
+
+VERSION = '1.0'
+APPNAME = 'liveupdate'
+
+import os
+import waf_dynamo, waf_ddf
+
+def init():
+    pass
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+    conf.check_tool('java')
+
+    waf_ddf.configure(conf)
+    conf.sub_config('src')
+
+    conf.env['LIB_GTEST'] = 'gtest'
+    conf.env['STATICLIB_DDF'] = 'ddf'
+    conf.env['STATICLIB_RESOURCE'] = 'resource'
+    conf.env['STATICLIB_DLIB'] = 'dlib'
+
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="LIVEUPDATE"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="LIVEUPDATE"')
+
+def build(bld):
+    bld.add_subdirs('src')
+
+def shutdown():
+    waf_dynamo.run_gtests(valgrind = True)

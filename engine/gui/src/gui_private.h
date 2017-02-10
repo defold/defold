@@ -84,7 +84,6 @@ namespace dmGui
         dmArray<uint16_t>               m_StencilScopeIndices;
         dmArray<HNode>                  m_ScratchBoneNodes;
         dmHID::HContext                 m_HidContext;
-        dmRig::HRigContext              m_RigContext;
         void*                           m_DefaultFont;
         void*                           m_DisplayProfiles;
         SceneTraversalCache             m_SceneTraversalCache;
@@ -248,6 +247,7 @@ namespace dmGui
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
+        dmRig::HRigContext      m_RigContext;
         dmHashTable64<void*>    m_SpineScenes;
         void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;

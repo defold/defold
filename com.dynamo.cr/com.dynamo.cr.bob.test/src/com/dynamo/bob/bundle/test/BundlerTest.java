@@ -10,7 +10,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 
@@ -28,11 +31,15 @@ import org.junit.runners.Parameterized.Parameters;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileExceptionError;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
 
 @RunWith(Parameterized.class)
@@ -79,8 +86,9 @@ public class BundlerTest {
         FileUtils.deleteDirectory(new File(contentRootUnused));
     }
 
-    void build() throws IOException, CompileExceptionError {
+    void build() throws IOException, CompileExceptionError, MultipleCompileExceptionError {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
         project.scan(scanner, "com.dynamo.bob");
@@ -96,34 +104,58 @@ public class BundlerTest {
         }
     }
 
-    HashSet<String> readDarcEntries(String root) throws IOException
+    @SuppressWarnings("unused")
+    Set<byte[]> readDarcEntries(String root) throws IOException
     {
         // Read the path entries in the resulting archive
-        RandomAccessFile darcFile = new RandomAccessFile(root + "/build/game.darc", "r");
-        darcFile.readInt();  // Version
-        darcFile.readInt();  // Pad
-        darcFile.readLong(); // Userdata
-        int stringPoolOffset = darcFile.readInt();
-        int stringPoolSize = darcFile.readInt();
+        RandomAccessFile archiveIndex = new RandomAccessFile(root + "/build/game.arci", "r");
+        archiveIndex.readInt();  // Version
+        archiveIndex.readInt();  // Pad
+        archiveIndex.readLong(); // Userdata
+        int entryCount  = archiveIndex.readInt();
+        int entryOffset = archiveIndex.readInt();
+        int hashOffset  = archiveIndex.readInt();
+        int hashLength  = archiveIndex.readInt();
 
-        // Seek to path entries
-        HashSet<String> entries = new HashSet<String>();
-        darcFile.seek(stringPoolOffset);
-        while (darcFile.getFilePointer() < stringPoolOffset + stringPoolSize) {
-            String path = "";
-            byte[] b = {0};
-            while((b[0] = darcFile.readByte()) != 0) {
-                path = path + new String(b);
+        long fileSize = archiveIndex.length();
+
+        Set<byte[]> entries = new HashSet<byte[]>();
+        for (int i = 0; i < entryCount; ++i) {
+            int offset = hashOffset + (i * ArchiveBuilder.HASH_MAX_LENGTH);
+            archiveIndex.seek(offset);
+            byte[] buffer = new byte[ArchiveBuilder.HASH_MAX_LENGTH];
+
+            for (int n = 0; n < buffer.length; ++n) {
+                buffer[n] = archiveIndex.readByte();
             }
-            entries.add(path);
+
+            entries.add(buffer);
         }
-        darcFile.close();
+
+        archiveIndex.close();
         return entries;
     }
 
-    void buildWithUnused() throws IOException, CompileExceptionError {
+    @Test
+    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+        createFile(contentRoot, "test.icns", "test_icon");
+        build();
+    }
+
+    private String createFile(String root, String name, String content) throws IOException {
+        File file = new File(root, name);
+        file.deleteOnExit();
+        FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
+        return file.getAbsolutePath();
+    }
+
+    @Test
+    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+        createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
+        createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
 
         Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
         project.scan(scanner, "com.dynamo.bob");
@@ -138,45 +170,23 @@ public class BundlerTest {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
 
-        HashSet<String> entries = readDarcEntries(contentRootUnused);
+        Set<byte[]> entries = readDarcEntries(contentRootUnused);
 
-        assertTrue(entries.contains("/main.collectionc"));
-        assertTrue(entries.contains("/unused.collectionc"));
-    }
-
-
-
-    @Test
-    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError {
-        createFile(contentRoot, "test.icns", "test_icon");
-        build();
-    }
-
-    private String createFile(String root, String name, String content) throws IOException {
-        File file = new File(root, name);
-        file.deleteOnExit();
-        FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
-        return file.getAbsolutePath();
+        assertEquals(2, entries.size());
     }
 
     @Test
-    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError {
-        createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
-        createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
-        buildWithUnused();
-    }
-
-    @Test
-    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
-        HashSet<String> entries = readDarcEntries(contentRoot);
-        assertTrue(entries.contains("/m.txt"));
+
+        Set<byte[]> entries = readDarcEntries(contentRoot);
+        assertEquals(1, entries.size());
     }
 
     @Test
-    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
         File sub1 = new File(cust, "sub1");
@@ -191,20 +201,12 @@ public class BundlerTest {
 
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom,m.txt\n[display]\nwidth=640\nheight=480\n");
         build();
-        HashSet<String> entries = readDarcEntries(contentRoot);
-        assertTrue(entries.contains("/m.txt"));
-        assertTrue(entries.contains("/custom/sub1/s1-1.txt"));
-        assertTrue(entries.contains("/custom/sub1/s1-2.txt"));
-        assertTrue(entries.contains("/custom/sub2/s2-1.txt"));
-        assertTrue(entries.contains("/custom/sub2/s2-2.txt"));
+        Set<byte[]> entries = readDarcEntries(contentRoot);
+        assertEquals(5, entries.size());
 
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
         entries = readDarcEntries(contentRoot);
-        assertFalse(entries.contains("/m.txt"));
-        assertFalse(entries.contains("/custom/sub1/s1-1.txt"));
-        assertFalse(entries.contains("/custom/sub1/s1-2.txt"));
-        assertTrue(entries.contains("/custom/sub2/s2-1.txt"));
-        assertTrue(entries.contains("/custom/sub2/s2-2.txt"));
+        assertEquals(2, entries.size());
     }
 }

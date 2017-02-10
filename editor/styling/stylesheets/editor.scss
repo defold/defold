@@ -43,23 +43,24 @@ Links:
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:vertical {
   -fx-background-insets: 0;
-  -fx-padding: -1 -1 -1 0; }
+}
 
 /* Remove extra border */
 .list-view > .virtual-flow > .scroll-bar:horizontal {
   -fx-background-insets: 0;
-  -fx-padding: -1 -1 -1 0; }
+}
 
 
 /* Selected rows */
-.list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
+/*.list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
 .tree-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-cell:filled:selected,
 .table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected,
 .tree-table-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell:filled:selected,
 .table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell .table-cell:selected,
 .tree-table-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell .tree-table-cell:selected {
   -fx-background: -fx-selection-bar;
-  -fx-text-fill: $defold-white; }
+  -fx-text-fill: red;//$defold-white;
+}*/
 
 .root__ {
   -fx-base: $bright-black;
@@ -71,11 +72,6 @@ Links:
   -fx-background: $bright-black-light;
   -fx-control-inner-background: $bright-black-light;
   -fx-hover-base: $defold-red; }
-
-
-/* Modules - Major panes in the editor */
-#properties HBox {
-  -fx-spacing: 0; }
 
 /* Drag and drop targets */
 .drop-target {

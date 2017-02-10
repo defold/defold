@@ -18,9 +18,10 @@
            [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control TextField TreeView TreeItem ListView]
+           [javafx.scene.control Button Label ListView ProgressBar TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
+           [javafx.scene.layout Region]
            [javafx.stage Stage StageStyle Modality DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
@@ -71,6 +72,24 @@
               (fn [property old-val new-val]
                 (record-focus-change! new-val))))
 
+(defn make-progress-dialog [title message]
+  (let [root     ^Parent (ui/load-fxml "progress.fxml")
+        stage    (ui/make-stage)
+        scene    (Scene. root)
+        controls (ui/collect-controls root ["title" "message" "progress"])]
+    (observe-focus stage)
+    (ui/title! stage title)
+    (ui/text! (:title controls) title)
+    (ui/text! (:message controls) message)
+    (.setProgress ^ProgressBar (:progress controls) 0)
+    (.initModality stage Modality/APPLICATION_MODAL)
+    (.setScene stage scene)
+    (.setAlwaysOnTop stage true)
+    (.show stage)
+    {:stage              stage
+     :render-progress-fn (fn [progress]
+                           (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
+
 (defn make-alert-dialog [message]
   (let [root     ^Parent (ui/load-fxml "alert.fxml")
         stage    (ui/make-stage)
@@ -85,25 +104,31 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
-(defn make-confirm-dialog [message]
-  (let [root     ^Parent (ui/load-fxml "confirm.fxml")
-        stage    (ui/make-stage)
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["message" "ok" "cancel"])
-        result   (atom false)]
-    (observe-focus stage)
-    (ui/title! stage "Please confirm")
-    (ui/text! (:message controls) message)
-    (ui/on-action! (:ok controls) (fn [_]
-                                    (reset! result true)
-                                    (.close stage)))
-    (ui/on-action! (:cancel controls) (fn [_]
-                                        (.close stage)))
-
-    (.initModality stage Modality/APPLICATION_MODAL)
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-    @result))
+(defn make-confirm-dialog
+  ([text]
+   (make-confirm-dialog text {}))
+  ([text options]
+   (let [root     ^Region (ui/load-fxml "confirm.fxml")
+         stage    (ui/make-stage)
+         scene    (Scene. root)
+         result   (atom false)]
+     (observe-focus stage)
+     (ui/with-controls root [^Label message ^Button ok ^Button cancel]
+       (ui/text! message text)
+       (ui/text! ok (get options :ok-label "OK"))
+       (ui/text! cancel (get options :cancel-label "Cancel"))
+       (ui/on-action! ok (fn [_]
+                           (reset! result true)
+                           (.close stage)))
+       (ui/on-action! cancel (fn [_]
+                               (.close stage))))
+     (when-let [pref-width (:pref-width options)]
+       (.setPrefWidth root pref-width))
+     (ui/title! stage (get options :title "Please Confirm"))
+     (.initModality stage Modality/APPLICATION_MODAL)
+     (.setScene stage scene)
+     (ui/show-and-wait! stage)
+     @result)))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
@@ -157,7 +182,7 @@
                         (ui/visible! (:error-group controls) visible)
                         (.sizeToScene stage))))]
     (observe-focus stage)
-    (ui/text! (:ok controls) (or (:ok-label options) "Ok"))
+    (ui/text! (:ok controls) (get options :ok-label "OK"))
     (ui/title! stage (or (:title options) ""))
     (ui/children! (:dialog-area controls) [dialog-root])
     (ui/fill-control dialog-root)
@@ -337,6 +362,7 @@
                      :filter ""
                      :cell-fn (fn [r] {:text (resource/proj-path r)
                                        :icon (workspace/resource-icon r)
+                                       :style (resource/style-classes r)
                                        :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
                                                   (tooltip-gen r))})
                      :filter-fn (fn [filter-value items]
@@ -430,9 +456,11 @@
 
     (ui/cell-factory! (:resources-tree controls) (fn [r] (if (instance? MatchContextResource r)
                                                            {:text (resource/resource-name r)
-                                                            :icon (workspace/resource-icon r)}
+                                                            :icon (workspace/resource-icon r)
+                                                            :style (resource/style-classes r)}
                                                            {:text (resource/proj-path r)
-                                                            :icon (workspace/resource-icon r)})))
+                                                            :icon (workspace/resource-icon r)
+                                                            :style (resource/style-classes r)})))
 
     (ui/observe (.textProperty term-field) on-input-changed!)
     (ui/observe (.textProperty exts-field) on-input-changed!)
@@ -630,50 +658,9 @@
                       (ui/event-handler e
                            (let [key (.getCode ^KeyEvent e)]
                              (when (= key KeyCode/ENTER)
-                               (close (ui/text (:line controls))))
-                             (when (= key KeyCode/ESCAPE)
-                               (close nil)))))
-    (.initModality stage Modality/NONE)
-    (.setScene stage scene)
-    (ui/show! stage)
-    stage))
-
-(defn make-find-text-dialog [result]
-  (let [root ^Parent (ui/load-fxml "find-text-dialog.fxml")
-        stage (ui/make-stage)
-        scene (Scene. root)
-        controls (ui/collect-controls root ["text"])
-        close (fn [v] (do (deliver result v) (.close stage)))]
-    (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
-    (ui/title! stage "Find Text")
-    (.setOnKeyPressed scene
-                      (ui/event-handler e
-                           (let [key (.getCode ^KeyEvent e)]
-                             (when (= key KeyCode/ENTER)
-                               (close (ui/text (:text controls))))
-                             (when (= key KeyCode/ESCAPE)
-                               (close nil)))))
-    (.initModality stage Modality/NONE)
-    (.setScene stage scene)
-    (ui/show! stage)
-    stage))
-
-(defn make-replace-text-dialog [result]
-  (let [root ^Parent (ui/load-fxml "replace-text-dialog.fxml")
-        stage (ui/make-stage)
-        scene (Scene. root)
-        controls (ui/collect-controls root ["find-text" "replace-text"])
-        close (fn [v] (do (deliver result v) (.close stage)))]
-    (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
-    (ui/title! stage "Find/Replace Text")
-    (.setOnKeyPressed scene
-                      (ui/event-handler e
-                           (let [key (.getCode ^KeyEvent e)]
-                             (when (= key KeyCode/ENTER)
-                               (close {:find-text (ui/text (:find-text controls))
-                                       :replace-text (ui/text (:replace-text controls))}))
+                               (close (try
+                                        (Integer/parseInt (ui/text (:line controls)))
+                                        (catch Exception _))))
                              (when (= key KeyCode/ESCAPE)
                                (close nil)))))
     (.initModality stage Modality/NONE)
@@ -760,9 +747,9 @@
     (ui/user-data! stage ::file-conflict-resolution-strategy :rename)
     (ui/close! stage)))
 
-(handler/defhandler ::replace-conflicting-files :dialog
+(handler/defhandler ::overwrite-conflicting-files :dialog
   (run [^Stage stage]
-    (ui/user-data! stage ::file-conflict-resolution-strategy :replace)
+    (ui/user-data! stage ::file-conflict-resolution-strategy :overwrite)
     (ui/close! stage)))
 
 (defn make-resolve-file-conflicts-dialog
@@ -773,14 +760,17 @@
                        (observe-focus)
                        (.initOwner (ui/main-stage))
                        (.initModality Modality/WINDOW_MODAL)
-                       (ui/title! "Resolve file name conflicts")
+                       (ui/title! "Name Conflict")
                        (.setScene scene))
-        controls (ui/collect-controls root ["message" "rename" "replace" "cancel"])]
+        controls (ui/collect-controls root ["message" "rename" "overwrite" "cancel"])]
     (ui/context! root :dialog {:stage stage} nil)
     (ui/bind-action! (:rename controls) ::rename-conflicting-files)
-    (ui/bind-action! (:replace controls) ::replace-conflicting-files)
+    (ui/bind-action! (:overwrite controls) ::overwrite-conflicting-files)
     (ui/bind-action! (:cancel controls) ::close)
     (ui/bind-keys! root {KeyCode/ESCAPE ::close})
-    (ui/text! (:message controls) (format "The destination has %d file(s) with the same names" (count src-dest-pairs)))
+    (ui/text! (:message controls) (let [conflict-count (count src-dest-pairs)]
+                                    (if (= 1 conflict-count)
+                                      "The destination has an entry with the same name."
+                                      (format "The destination has %d entries with conflicting names." conflict-count))))
     (ui/show-and-wait! stage)
     (ui/user-data stage ::file-conflict-resolution-strategy)))

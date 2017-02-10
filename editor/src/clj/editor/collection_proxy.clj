@@ -31,7 +31,7 @@
                          :label "Collection"
                          :type :resource
                          :filter "collection"}]}]
-   :values {[:collection] (resource/resource->proj-path collection-resource)}})
+   :values {[:collection] collection-resource}})
 
 (g/defnk produce-pb-msg
   [collection-resource]
@@ -100,6 +100,7 @@
 (defn register-resource-types
   [workspace]
   (workspace/register-resource-type workspace
+                                    :textual? true
                                     :ext "collectionproxy"
                                     :node-type CollectionProxyNode
                                     :load-fn load-collection-proxy

@@ -50,8 +50,11 @@
             .tab-label {
                 -fx-text-fill: $bright-grey;
             }
-        }
+            
+            // Generate css for file extensions
+            @include extensions(tab);
     }
+}
 
 .tab-header-area {
     -fx-padding: 0;
@@ -108,7 +111,4 @@
     -fx-border-width: 0;
     -fx-border-color: $mid-grey;
     -fx-padding: 0;
-    .text-area {
-        -fx-background-color: $mid-black;
-    }
 }

@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "ssdp.h"
+#include <dlib/ssdp_private.h>
 
 #include "array.h"
 #include "dstrings.h"
@@ -21,9 +22,8 @@
 
 namespace dmSSDP
 {
-    const char * SSDP_MCAST_ADDR_IPV4              = "239.255.255.250";
-    const uint16_t SSDP_MCAST_PORT                 = 1900U;
-    const uint32_t SSDP_MCAST_TTL                  = 4U;
+
+    static const char * SSDP_MCAST_ADDR_IPV4               = "239.255.255.250";
 
     static const char* SSDP_ALIVE_TMPL =
         "NOTIFY * HTTP/1.1\r\n"
@@ -43,10 +43,6 @@ namespace dmSSDP
         "NT: ${NT}\r\n"
         "USN: ${UDN}::${DEVICE_TYPE}\r\n\r\n";
 
-    /*
-     * NOTE: We skip the following recommended headers (no time/data api in dlib)
-     * - DATE
-     */
     static const char* SEARCH_RESULT_FMT =
         "HTTP/1.1 200 OK\r\n"
         "SERVER: Defold SSDP 1.0\r\n"
@@ -57,117 +53,13 @@ namespace dmSSDP
         "USN: ${UDN}::${DEVICE_TYPE}\r\n"
         "Content-Length: 0\r\n\r\n";
 
-    static const char * M_SEARCH_FMT =
+    static const char* M_SEARCH_FMT =
         "M-SEARCH * HTTP/1.1\r\n"
         "SERVER: Defold SSDP 1.0\r\n"
         "HOST: 239.255.255.250:1900\r\n"
         "MAN: \"ssdp:discover\"\r\n"
         "MX: 3\r\n"
         "ST: upnp:rootdevice\r\n\r\n";
-
-    const uint32_t SSDP_LOCAL_ADDRESS_EXPIRATION = 4U;
-    const uint32_t SSDP_MAX_LOCAL_ADDRESSES = 32U;
-
-    struct Device
-    {
-        // Only available for registered devices
-        const DeviceDesc*   m_DeviceDesc;
-
-        struct IfAddrState {
-            uint64_t m_Expires;
-            dmSocket::Address m_Address;
-        } m_IfAddrState[SSDP_MAX_LOCAL_ADDRESSES];
-
-        uint32_t m_IfAddrStateCount;
-
-        // Time when the device expires
-        // For registered devices: a notification should be sent
-        // For discovered devices: the device should be removed
-        uint64_t            m_Expires;
-
-        Device()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-
-        Device(const DeviceDesc* device_desc)
-        {
-            memset(this, 0, sizeof(*this));
-            m_DeviceDesc = device_desc;
-            // NOTE: We set expires to such that announce messages
-            // will be sent in one second (if enabled)
-            m_Expires = dmTime::GetTime();
-        }
-    };
-
-    struct SSDP
-    {
-        SSDP()
-        {
-            memset(this, 0, sizeof(*this));
-            m_DiscoveredDevices.SetCapacity(983, 1024);
-            m_RegistredEntries.SetCapacity(17, 32);
-            m_MCastSocket = dmSocket::INVALID_SOCKET_HANDLE;
-        }
-
-        // Max age for registered devices
-        uint32_t                m_MaxAge;
-        char                    m_MaxAgeText[16];
-
-        // True if announce messages should be sent
-        uint32_t                m_Announce : 1;
-
-        // Time interval for annouce messages (if m_Announce is set). Typically m_MaxAge / 2
-        uint32_t                m_AnnounceInterval;
-
-        // True if reconnection should be performed in next update
-        uint32_t                m_Reconnect : 1;
-
-        // Send/Receive buffer
-        uint8_t                 m_Buffer[1500];
-
-        // All discovered devices
-        dmHashTable64<Device>   m_DiscoveredDevices;
-
-        // All registered devices
-        dmHashTable64<Device*>  m_RegistredEntries;
-
-        // Port for m_Socket
-        uint16_t                m_Port;
-
-        // Socket for multicast receive
-        dmSocket::Socket        m_MCastSocket;
-
-        // Addresses & sockets for each available network address.
-        // Mutex lock is held during Update() calls and from addr. update thread.
-        dmSocket::IfAddr        m_LocalAddr[SSDP_MAX_LOCAL_ADDRESSES];
-        dmSocket::Socket        m_LocalAddrSocket[SSDP_MAX_LOCAL_ADDRESSES];
-        uint32_t                m_LocalAddrCount;
-        uint64_t                m_LocalAddrExpires;
-
-        // Hostname for the current request being processed.
-        char                    m_HttpHost[64];
-
-        // Http server for device descriptions
-        dmHttpServer::HServer   m_HttpServer;
-        char                    m_HttpPortText[8];
-    };
-
-    struct Replacer
-    {
-        Replacer*                   m_Parent;
-        void*                       m_Userdata;
-        dmTemplate::ReplaceCallback m_Callback;
-
-        Replacer(Replacer* parent, void* user_data, dmTemplate::ReplaceCallback call_back)
-        {
-            m_Parent = parent;
-            m_Userdata = user_data;
-            m_Callback = call_back;
-        }
-
-        static const char* Replace(void* user_data, const char* key);
-    };
 
     const char* Replacer::Replace(void* user_data, const char* key)
     {
@@ -181,79 +73,7 @@ namespace dmSSDP
             return 0;
     }
 
-    struct ReplaceContext
-    {
-        SSDP*   m_SSDP;
-        Device* m_Device;
-
-        ReplaceContext(SSDP* ssdp, Device* device)
-        {
-            m_SSDP = ssdp;
-            m_Device = device;
-        }
-    };
-
-    enum RequestType
-    {
-        RT_UNKNOWN    = 0,
-        RT_NOTIFY     = 1,
-        RT_M_SEARCH   = 2,
-    };
-
-    struct RequestParseState
-    {
-        SSDP*                       m_SSDP;
-        // Parsed max-age
-        uint32_t                    m_MaxAge;
-
-        // Request-type, ie NOTIFY or M-SEARCH
-        RequestType                 m_RequestType;
-
-        // All headers
-        dmHashTable64<const char*>  m_Headers;
-
-        // HTTP status
-        int                         m_Status;
-
-        // Notification Type (NT)
-        dmhash_t                    m_NTHash;
-        // Notification Sub Type (NTS)
-        dmhash_t                    m_NTSHash;
-
-        RequestParseState(SSDP* ssdp)
-        {
-            memset(this, 0, sizeof(*this));
-            m_SSDP = ssdp;
-            m_Headers.SetCapacity(27, 64);
-            // Default max-age if none is found
-            m_MaxAge = 1800;
-        }
-
-        static void FreeCallback(RequestParseState *state, const dmhash_t* key, const char** value);
-
-        ~RequestParseState()
-        {
-            m_Headers.Iterate(FreeCallback, this);
-        }
-    };
-
-    struct SearchResponseContext
-    {
-        RequestParseState*  m_State;
-        const char*         m_ST;
-        dmSocket::Address   m_FromAddress;
-        uint16_t            m_FromPort;
-
-        SearchResponseContext(RequestParseState* state, const char* st, dmSocket::Address from_address, uint16_t from_port)
-        {
-            m_State = state;
-            m_ST = st;
-            m_FromAddress = from_address;
-            m_FromPort = from_port;
-        }
-    };
-
-    static const char* ReplaceIfAddrVar(void *user_data, const char *key)
+    const char* ReplaceIfAddrVar(void *user_data, const char *key)
     {
         static char tmp[45 + 1] = { 0 };
         dmSocket::Address saddr = *((dmSocket::Address*) user_data);
@@ -271,7 +91,7 @@ namespace dmSSDP
         return 0;
     }
 
-    static const char* ReplaceHttpHostVar(void *user_data, const char *key)
+    const char* ReplaceHttpHostVar(void *user_data, const char *key)
     {
         SSDP* ssdp = (SSDP*) user_data;
         if (strcmp(key, "HTTP-HOST") == 0)
@@ -281,7 +101,7 @@ namespace dmSSDP
         return 0;
     }
 
-    static const char* ReplaceSSDPVar(void* user_data, const char* key)
+    const char* ReplaceSSDPVar(void* user_data, const char* key)
     {
         SSDP* ssdp = (SSDP*) user_data;
 
@@ -296,7 +116,7 @@ namespace dmSSDP
         return 0;
     }
 
-    static const char* ReplaceDeviceVar(void* user_data, const char* key)
+    const char* ReplaceDeviceVar(void* user_data, const char* key)
     {
         dmSSDP::Device *device = (dmSSDP::Device*) user_data;
 
@@ -320,7 +140,7 @@ namespace dmSSDP
         return 0;
     }
 
-    static const char* ReplaceSearchResponseVar(void* user_data, const char* key)
+    const char* ReplaceSearchResponseVar(void* user_data, const char* key)
     {
         SearchResponseContext* context = (SearchResponseContext*) user_data;
         if (strcmp(key, "ST") == 0)
@@ -330,7 +150,7 @@ namespace dmSSDP
         return 0;
     }
 
-    static dmSocket::Socket NewSocket(dmSocket::Domain domain)
+    dmSocket::Socket NewSocket(dmSocket::Domain domain)
     {
         dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Result sr = dmSocket::New(domain, dmSocket::TYPE_DGRAM, dmSocket::PROTOCOL_UDP, &socket);
@@ -354,13 +174,13 @@ bail:
     }
 
 
-    static bool AddressSortPred(dmSocket::IfAddr const &a, dmSocket::IfAddr const &b)
+    bool AddressSortPred(dmSocket::IfAddr const &a, dmSocket::IfAddr const &b)
     {
         return a.m_Address < b.m_Address;
     }
 
     // Internally used only; clean up the LocalAddrSocket entry at index 'slot'
-    static void DestroyListeningSocket(SSDP *ssdp, uint32_t slot)
+    void DestroyListeningSocket(SSDP *ssdp, uint32_t slot)
     {
         if (ssdp->m_LocalAddrSocket[slot] != dmSocket::INVALID_SOCKET_HANDLE)
         {
@@ -372,7 +192,7 @@ bail:
     }
 
     // Make sure we have sockets bound to all local if addresses
-    static void UpdateListeningSockets(SSDP *ssdp, dmSocket::IfAddr *if_addr, uint32_t if_addr_count)
+    void UpdateListeningSockets(SSDP *ssdp, dmSocket::IfAddr *if_addr, uint32_t if_addr_count)
     {
         dmSocket::Socket new_socket[SSDP_MAX_LOCAL_ADDRESSES];
 
@@ -406,25 +226,33 @@ bail:
                 dmLogDebug("SSDP Update: Creating new socket on #%02d", i);
                 new_socket[i] = dmSocket::INVALID_SOCKET_HANDLE;
 
-                if (addr.m_family != dmSocket::DOMAIN_IPV4 && addr.m_family != dmSocket::DOMAIN_IPV6)
+                if (addr.m_family == dmSocket::DOMAIN_IPV6)
                 {
+                    dmLogDebug("Skipping interface with IPv6 domain (#%02d)", i);
+                    continue;
+                } else if (addr.m_family != dmSocket::DOMAIN_IPV4)
+                {
+                    dmLogDebug("Skipping interface with unknown domain (#%02d)", i);
                     continue;
                 }
 
                 dmSocket::Socket s = NewSocket(addr.m_family);
                 if (s == dmSocket::INVALID_SOCKET_HANDLE)
                 {
+                    dmLogDebug("Skipping interface, unable to create socket (#%02d)", i);
                     continue;
                 }
 
                 if (dmSocket::RESULT_OK != dmSocket::SetMulticastIf(s, addr))
                 {
+                    dmLogDebug("Skipping interface, unable to multicast (#%02d)", i);
                     dmSocket::Delete(s);
                     continue;
                 }
 
                 if (dmSocket::RESULT_OK != dmSocket::Bind(s, addr, 0))
                 {
+                    dmLogDebug("Skipping interface, unable to bind (#%02d)", i);
                     dmSocket::Delete(s);
                     continue;
                 }
@@ -448,7 +276,7 @@ bail:
         memcpy(ssdp->m_LocalAddrSocket, new_socket, sizeof(dmSocket::Socket) * if_addr_count);
     }
 
-    static void HttpHeader(void* user_data, const char* key, const char* value)
+    void HttpHeader(void* user_data, const char* key, const char* value)
     {
         // Catch the 'Host' header value to know through what address the client
         // is connecting using. This same host will be used as replace var to
@@ -467,7 +295,7 @@ bail:
         }
     }
 
-    static void HttpResponse(void* user_data, const dmHttpServer::Request* request)
+    void HttpResponse(void* user_data, const dmHttpServer::Request* request)
     {
         SSDP* ssdp = (SSDP*) user_data;
 
@@ -505,7 +333,7 @@ bail:
         dmHttpServer::Send(request, buffer, strlen(buffer));
     }
 
-    static void Disconnect(SSDP* ssdp)
+    void Disconnect(SSDP* ssdp)
     {
         if (ssdp->m_MCastSocket != dmSocket::INVALID_SOCKET_HANDLE)
         {
@@ -514,7 +342,7 @@ bail:
         }
     }
 
-    static Result Connect(SSDP* ssdp)
+    Result Connect(SSDP* ssdp)
     {
         Disconnect(ssdp);
 
@@ -631,7 +459,7 @@ bail:
         return RESULT_OK;
     }
 
-    static bool SendAnnounce(HSSDP ssdp, Device* device, uint32_t iface)
+    bool SendAnnounce(HSSDP ssdp, Device* device, uint32_t iface)
     {
         assert(iface < ssdp->m_LocalAddrCount);
         if (ssdp->m_LocalAddrSocket[iface] == dmSocket::INVALID_SOCKET_HANDLE)
@@ -666,7 +494,7 @@ bail:
         return true;
     }
 
-    static void SendUnannounce(HSSDP ssdp, Device* device, uint32_t iface)
+    void SendUnannounce(HSSDP ssdp, Device* device, uint32_t iface)
     {
         Replacer replacer(0, device, ReplaceDeviceVar);
         dmTemplate::Result tr = dmTemplate::Format(&replacer, (char*) ssdp->m_Buffer, sizeof(ssdp->m_Buffer), SSDP_BYEBYE_TMPL, Replacer::Replace);
@@ -730,13 +558,13 @@ bail:
         free((void*) *value);
     }
 
-    static void VersionCallback(void* user_data, int major, int minor, int status, const char* status_str)
+    void VersionCallback(void* user_data, int major, int minor, int status, const char* status_str)
     {
         RequestParseState* state = (RequestParseState*) user_data;
         state->m_Status = status;
     }
 
-    static void RequestCallback(void* user_data, const char* request_method, const char* resource, int major, int minor)
+    void RequestCallback(void* user_data, const char* request_method, const char* resource, int major, int minor)
     {
         RequestParseState* state = (RequestParseState*) user_data;
 
@@ -748,7 +576,7 @@ bail:
             state->m_RequestType = RT_UNKNOWN;
     }
 
-    static void HeaderCallback(void* user_data, const char* orig_key, const char* value)
+    void HeaderCallback(void* user_data, const char* orig_key, const char* value)
     {
         RequestParseState* state = (RequestParseState*) user_data;
 
@@ -781,13 +609,13 @@ bail:
         state->m_Headers.Put(key_hash, strdup(value));
     }
 
-    static void ResponseCallback(void* user_data, int offset)
+    void ResponseCallback(void* user_data, int offset)
     {
         (void) user_data;
         (void) offset;
     }
 
-    static void HandleAnnounce(RequestParseState* state, const char* usn)
+    void HandleAnnounce(RequestParseState* state, const char* usn)
     {
         static const dmhash_t location_hash = dmHashString64("LOCATION");
 
@@ -827,7 +655,7 @@ bail:
         }
     }
 
-    static void HandleUnAnnounce(RequestParseState* state, const char* usn)
+    void HandleUnAnnounce(RequestParseState* state, const char* usn)
     {
         dmhash_t id = dmHashString64(usn);
         SSDP* ssdp = state->m_SSDP;
@@ -839,7 +667,7 @@ bail:
         }
     }
 
-    static void SearchCallback(SearchResponseContext* ctx, const dmhash_t* key, Device** device)
+    void SearchCallback(SearchResponseContext* ctx, const dmhash_t* key, Device** device)
     {
         if (strcmp(ctx->m_ST, (*device)->m_DeviceDesc->m_DeviceType) != 0) {
             return;
@@ -888,7 +716,7 @@ bail:
         dmSocket::SendTo(output_socket, ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, ctx->m_FromAddress, ctx->m_FromPort);
     }
 
-    static void HandleSearch(RequestParseState* state, dmSocket::Address from_address, uint16_t from_port)
+    void HandleSearch(RequestParseState* state, dmSocket::Address from_address, uint16_t from_port)
     {
         static const dmhash_t st_hash = dmHashString64("ST");
         const char** st = state->m_Headers.Get(st_hash);
@@ -902,20 +730,6 @@ bail:
         state->m_SSDP->m_RegistredEntries.Iterate(SearchCallback, &context);
     }
 
-    struct ExpireContext
-    {
-        SSDP*                   m_SSDP;
-        uint64_t                m_Now;
-        dmArray<dmhash_t>       m_ToExpire;
-
-        ExpireContext(SSDP* ssdp)
-        {
-            memset(this, 0, sizeof(*this));
-            m_SSDP = ssdp;
-            m_Now = dmTime::GetTime();
-        }
-    };
-
     /**
      * Dispatch socket
      * @param ssdp ssdp handle
@@ -923,7 +737,7 @@ bail:
      * @param response true for response-dispatch
      * @return true on success or on transient errors. false on permanent errors.
      */
-    static bool DispatchSocket(SSDP* ssdp, dmSocket::Socket socket, bool response)
+    bool DispatchSocket(SSDP* ssdp, dmSocket::Socket socket, bool response)
     {
         static const dmhash_t usn_hash = dmHashString64("USN");
         static const dmhash_t ssdp_alive_hash = dmHashString64("ssdp:alive");
@@ -1023,7 +837,7 @@ bail:
         return true;
     }
 
-    static void VisitDiscoveredExpireDevice(ExpireContext* context, const dmhash_t* key, Device* device)
+    void VisitDiscoveredExpireDevice(ExpireContext* context, const dmhash_t* key, Device* device)
     {
         if (context->m_Now >= device->m_Expires)
         {
@@ -1035,7 +849,7 @@ bail:
         }
     }
 
-    static void ExpireDiscovered(SSDP* ssdp)
+    void ExpireDiscovered(SSDP* ssdp)
     {
         ExpireContext context(ssdp);
         ssdp->m_DiscoveredDevices.Iterate(VisitDiscoveredExpireDevice, &context);
@@ -1049,7 +863,7 @@ bail:
         }
     }
 
-    static void VisitRegistredAnnounceDevice(SSDP* ssdp, const dmhash_t* key, Device** device)
+    void VisitRegistredAnnounceDevice(SSDP* ssdp, const dmhash_t* key, Device** device)
     {
         const uint64_t now = dmTime::GetTime();
         const uint64_t next = now + ssdp->m_AnnounceInterval * uint64_t(1000000);
@@ -1098,7 +912,7 @@ bail:
         }
     }
 
-    static void AnnounceRegistred(SSDP* ssdp)
+    void AnnounceRegistred(SSDP* ssdp)
     {
         ssdp->m_RegistredEntries.Iterate(VisitRegistredAnnounceDevice, ssdp);
     }

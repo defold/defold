@@ -2,43 +2,19 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.graph-util :as gu]
             [editor.app-view :as app-view]
-            [editor.atlas :as atlas]
-            [editor.camera-editor :as camera]
-            [editor.collada-scene :as collada-scene]
-            [editor.collection :as collection]
-            [editor.collection-proxy :as collection-proxy]
-            [editor.collision-object :as collision-object]
-            [editor.cubemap :as cubemap]
-            [editor.factory :as factory]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
-            [editor.graph-util :as gu]
             [editor.image :as image]
-            [editor.label :as label]
             [editor.defold-project :as project]
             [editor.resource :as resource]
+            [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
-            [editor.sprite :as sprite]
-            [editor.font :as font]
-            [editor.protobuf-types :as protobuf-types]
-            [editor.script :as script]
-            [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.gl.shader :as shader]
-            [editor.rig :as rig]
-            [editor.tile-map :as tile-map]
-            [editor.tile-source :as tile-source]
-            [editor.sound :as sound]
-            [editor.spine :as spine]
-            [editor.particlefx :as particlefx]
-            [editor.gui :as gui]
-            [editor.json :as json]
-            [editor.model :as model]
-            [editor.material :as material]
             [editor.handler :as handler]
-            [editor.display-profiles :as display-profiles]
+            [editor.view :as view]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
@@ -52,50 +28,25 @@
 
 (defn setup-workspace!
   ([graph]
-    (setup-workspace! graph project-path))
+   (setup-workspace! graph project-path))
   ([graph project-path]
-    (let [workspace (workspace/make-workspace graph project-path)]
-      (g/transact
+   (let [workspace (workspace/make-workspace graph project-path)]
+     (g/transact
        (concat
          (scene/register-view-types workspace)))
-      (g/transact
-       (concat
-        (atlas/register-resource-types workspace)
-        (camera/register-resource-types workspace)
-        (collada-scene/register-resource-types workspace)
-        (collection/register-resource-types workspace)
-        (collection-proxy/register-resource-types workspace)
-        (collision-object/register-resource-types workspace)
-        (cubemap/register-resource-types workspace)
-        (display-profiles/register-resource-types workspace)
-        (factory/register-resource-types workspace)
-        (font/register-resource-types workspace)
-        (game-object/register-resource-types workspace)
-        (game-project/register-resource-types workspace)
-        (gui/register-resource-types workspace)
-        (image/register-resource-types workspace)
-        (json/register-resource-types workspace)
-        (label/register-resource-types workspace)
-        (material/register-resource-types workspace)
-        (model/register-resource-types workspace)
-        (particlefx/register-resource-types workspace)
-        (protobuf-types/register-resource-types workspace)
-        (rig/register-resource-types workspace)
-        (script/register-resource-types workspace)
-        (shader/register-resource-types workspace)
-        (sound/register-resource-types workspace)
-        (spine/register-resource-types workspace)
-        (sprite/register-resource-types workspace)
-        (tile-map/register-resource-types workspace)
-        (tile-source/register-resource-types workspace)))
-      (workspace/resource-sync! workspace)
-      workspace)))
+     (resource-types/register-resource-types! workspace)
+     (workspace/resource-sync! workspace)
+     workspace)))
 
-(defn setup-scratch-workspace! [graph project-path]
+(defn make-temp-project-copy! [project-path]
   (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
                               (.toFile)
                               (.getAbsolutePath))]
     (FileUtils/copyDirectory (io/file project-path) (io/file temp-project-path))
+    temp-project-path))
+
+(defn setup-scratch-workspace! [graph project-path]
+  (let [temp-project-path (make-temp-project-copy! project-path)]
     (setup-workspace! graph temp-project-path)))
 
 (defn setup-project!
@@ -156,12 +107,13 @@
   (let [sel (g/node-value app-view :selected-node-ids)]
     (not (nil? (some #{tgt-node-id} sel)))))
 
+(g/defnode MockView
+  (inherits view/WorkbenchView))
+
 (g/defnode MockAppView
   (inherits app-view/AppView)
-  (property mock-active-resource resource/Resource)
-  (property mock-open-resources g/Any)
-  (output active-resource resource/Resource (g/fnk [mock-active-resource] mock-active-resource))
-  (output open-resources g/Any (g/fnk [mock-open-resources] mock-open-resources)))
+  (property active-view g/NodeID)
+  (output active-view g/NodeID (gu/passthrough active-view)))
 
 (defn make-view-graph! []
   (g/make-graph! :history false :volatility 2))
@@ -170,33 +122,51 @@
   (let [view-graph (make-view-graph!)]
     (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
           (g/connect project :_node-id app-view :project-id)
-          (for [label [:selected-node-ids-by-resource :selected-node-properties-by-resource :sub-selections-by-resource]]
+          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))
       g/transact
       g/tx-nodes-added
       first)))
 
-(defn open-tab! [project app-view path]
+(defn- make-tab! [project app-view path make-view-fn!]
   (let [node-id (project/get-resource-node project path)
+        views-by-node-id (let [views (g/node-value app-view :open-views)]
+                           (zipmap (map :resource-node (vals views)) (keys views)))
         resource (g/node-value node-id :resource)
-        open-resources (set (g/node-value app-view :open-resources))]
-    (if (contains? open-resources resource)
-      (g/set-property! app-view :mock-active-resource resource)
+        view (get views-by-node-id node-id)]
+    (if view
       (do
+        (g/set-property! app-view :active-view view)
+        [node-id view])
+      (let [view-graph (g/make-graph! :history false :volatility 2)
+            view (make-view-fn! view-graph node-id)]
         (g/transact
           (concat
-            (g/set-property app-view :mock-active-resource resource)
-            (g/update-property app-view :mock-open-resources (comp vec conj) resource)))
-        (app-view/select! app-view [node-id])))
-    node-id))
+            (g/connect node-id :_node-id view :resource-node)
+            (g/connect node-id :node-id+resource view :node-id+resource)
+            (g/connect view :view-data app-view :open-views)
+            (g/set-property app-view :active-view view)))
+        (app-view/select! app-view [node-id])
+        [node-id view]))))
+
+(defn open-tab! [project app-view path]
+  (first
+    (make-tab! project app-view path (fn [view-graph resource-node]
+                                      (->> (g/make-node view-graph MockView)
+                                        g/transact
+                                        g/tx-nodes-added
+                                        first)))))
+
+(defn open-scene-view! [project app-view path width height]
+  (make-tab! project app-view path (fn [view-graph resource-node]
+                                     (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
-        resource (g/node-value node-id :resource)]
-    (g/transact
-      (concat
-        (g/update-property app-view :mock-active-resource (fn [res] (if (= res resource) nil res)))
-        (g/update-property app-view :mock-open-resources (fn [resources] (filterv #(not= resource %) resources)))))))
+        view (some (fn [[view-id {:keys [resource-node]}]]
+                     (when (= resource-node node-id) view-id)) (g/node-value app-view :open-views))]
+    (when view
+      (g/delete-graph! (g/node-id->graph-id view)))))
 
 (defn setup!
   ([graph]
@@ -209,12 +179,6 @@
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
-
-(defn open-scene-view! [project app-view path width height]
-  (let [resource-node (open-tab! project app-view path)
-        view-graph (g/make-graph! :history false :volatility 2)
-        view-id (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)]
-    [resource-node view-id]))
 
 (defn- fake-input!
   ([view type x y]

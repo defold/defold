@@ -1,0 +1,1845 @@
+# Copied from http://clang.llvm.org/docs/ClangCommandLineReference.html
+# Clang 5 (Even though we use clang 3.9)
+
+# A tool will extract all uncommented lines and output them in appropriate build.yml form
+
+
+# -B<dir>, --prefix <arg>, --prefix=<arg>
+# Add <dir> to search path for binaries and object files used implicitly
+
+# -F<arg>
+# Add directory to framework include search path
+
+-ObjC
+-ObjC++
+#-Qunused-arguments  #Don’t emit warning for unused driver arguments
+
+#-Wa,<arg>,<arg2>... #Pass the comma separated arguments in <arg> to the assembler
+-Wa,{{comma_separated_arg}}
+
+
+# Warnings + -Wno-
+-W{{warning}}
+
+# Excluded due to multiple arguments and we use
+#-Xarch_<arg1> <arg2>
+#-Xcuda-fatbinary <arg>
+# Pass <arg> to fatbinary invocation
+#-Xcuda-ptxas <arg>
+#Pass <arg> to the ptxas assembler
+
+# Don't really know what these do?
+# -Z{{arg}}
+# -a{{arg}}
+# --profile-blocks
+# -all_load
+
+# Excluded because undocumented and multiple args
+# -allowable_client <arg>
+
+# --analyze
+# --analyze-auto
+# --analyzer-no-default-checks
+# --analyzer-outputtext
+# Disabled due to the fact that they output files
+#--analyzer-output(html|plist|plist-multi-file|plist-html|text)
+#Static analyzer report output format (html|plist|plist-multi-file|plist-html|text).
+
+-ansi
+--ansi
+
+# Excluded since Defold sets arch
+#-arch <arg>
+
+# -arch_errors_fatal
+
+# Excluded since Defold sets arch
+#-arch_only <arg>
+
+# -arcmt-migrate-emit-errors
+
+# Disabled due to outputting files
+#-arcmt-migrate-report-output <arg>
+# Output path for the plist report
+
+# -bind_at_load
+# -bundle
+# Excluded due to multiple args
+# -bundle_loader <arg>
+
+# Excluded due to poor documentation (what should the args be?)
+#-client_name<arg>
+#-compatibility_version<arg>
+# --constant-cfstrings
+# -coverage
+# --coverage
+
+# --cuda-compile-host-device #Compile CUDA code for both host and device (default). Has no effect on non-CUDA compilations.
+# --cuda-device-only #Compile CUDA code for device only
+
+# --cuda-gpu-arch=[a-zA-Z0-9_]+
+# --no-cuda-gpu-arch=[a-zA-Z0-9_]+ #CUDA GPU architecture (e.g. sm_35). May be specified more than once.
+
+# --cuda-host-only #Compile CUDA code for host only. Has no effect on non-CUDA compilations.
+
+# --cuda-noopt-device-debug
+# --no-cuda-noopt-device-debug #Enable device-side debug info generation. Disables ptxas optimizations.
+
+# Disabled since it is only allowed with -dynamiclib
+#-current_version<arg>
+
+#-dead_strip
+
+# Disabled due to output
+#-dependency-dot <arg> # Filename to write DOT-formatted header dependencies to
+#-dependency-file <arg> #Filename (or -) to write dependency output to
+
+#-dumpmachine
+#-dumpversion
+
+#--dyld-prefix=<arg>, --dyld-prefix <arg>
+#-dylib_file <arg>
+#-dylinker
+#-dylinker_install_name<arg>
+#-dynamic
+#-dynamiclib
+
+
+#-emit-ast # Emit Clang AST files for source inputs
+
+#-exported_symbols_list <arg>
+
+#-faligned-new=<arg>
+#-fcuda-approx-transcendentals, -fno-cuda-approx-transcendentals #Use approximate transcendental functions
+
+#-fcuda-flush-denormals-to-zero
+#-fno-cuda-flush-denormals-to-zero # Flush denormal floating point values to zero in CUDA device mode.
+
+# -fheinous-gnu-extensions
+# -flat_namespace
+
+# -fopenmp-targets=<arg1>,<arg2>... # Specify comma-separated list of triples OpenMP offloading targets to be supported
+
+# -force_cpusubtype_ALL
+# -force_flat_namespace
+#-force_load <arg>
+# Disabled since Defold specifies this
+#-framework <arg>
+
+
+# Should not use other tools than those specified by us
+#--gcc-toolchain=<arg>, -gcc-toolchain <arg>  # Use the gcc toolchain at the given directory
+
+# -gcodeview  #Generate CodeView debug information
+
+# undocumented
+#-headerpad_max_install_names<arg>
+
+#-help, --help #Display available options
+
+#--help-hidden
+#-image_base <arg>
+#-index-header-map #Make the next included directory (-I or -F) an indexer header map
+
+#-init <arg>
+#-install_name <arg>
+#-keep_private_externs
+#-lazy_framework <arg>
+#-lazy_library <arg>
+#-mbig-endian, -EB
+#--migrate #Run the migrator
+
+#-mlinker-version=<arg>
+#-mlittle-endian, -EL
+#-mllvm <arg> #Additional arguments to forward to LLVM’s option processing
+
+#-module-dependency-dir <arg> Directory to dump module dependencies to
+
+#-multi_module
+#-multiply_defined <arg>
+#-multiply_defined_unused <arg>
+
+# --no-cuda-version-check #Don’t error out if the detected version of the CUDA install is too low for the requested CUDA gpu architecture.
+
+# -no-integrated-cpp
+# --no-integrated-cpp
+# -no_dead_strip_inits_and_terms
+
+# -nobuiltininc #Disable builtin #include directories
+# -nocudainc
+# -nocudalib
+# -nodefaultlibs
+# -nofixprebinding
+# -nolibc
+# -nomultidefs
+# -nopie
+# -noprebind
+# -noseglinkedit
+# -nostartfiles
+# -nostdinc
+# --no-standard-includes
+# -nostdinc++ #Disable standard #include directories for the C++ standard library
+
+# -nostdlib
+# --no-standard-libraries
+# -nostdlibinc
+
+# Disabled due to output
+#-o<file>, --output <arg>, --output=<arg> #Write output to <file>
+
+#-objcmt-atomic-property #Make migration to ‘atomic’ properties
+#-objcmt-migrate-all #Enable migration to modern ObjC
+#-objcmt-migrate-annotation #Enable migration to property and method annotations
+#-objcmt-migrate-designated-init #Enable migration to infer NS_DESIGNATED_INITIALIZER for initializer methods
+#-objcmt-migrate-instancetype #Enable migration to infer instancetype for method result type
+#-objcmt-migrate-literals #Enable migration to modern ObjC literals
+#-objcmt-migrate-ns-macros #Enable migration to NS_ENUM/NS_OPTIONS macros
+#-objcmt-migrate-property #Enable migration to modern ObjC property
+#-objcmt-migrate-property-dot-syntax #Enable migration of setter/getter messages to property-dot syntax
+#-objcmt-migrate-protocol-conformance #Enable migration to add protocol conformance on classes
+#-objcmt-migrate-readonly-property #Enable migration to modern ObjC readonly property
+#-objcmt-migrate-readwrite-property #Enable migration to modern ObjC readwrite property
+#-objcmt-migrate-subscripting #Enable migration to modern ObjC subscripting
+#-objcmt-ns-nonatomic-iosonly #Enable migration to use NS_NONATOMIC_IOSONLY macro for setting property’s ‘atomic’ attribute
+#-objcmt-returns-innerpointer-property #Enable migration to annotate property with NS_RETURNS_INNER_POINTER
+#-objcmt-whitelist-dir-path=<arg>, -objcmt-white-list-dir-path=<arg> #Only modify files with a filename contained in the provided directory path
+
+#-object
+#-p, --profile
+#-pagezero_size<arg>
+#-pg # Enable mcount instrumentation
+
+#-pie
+
+# Disabled since we don't want it to control executable flow
+#-pipe
+#--pipe #Use pipes between commands, when possible
+
+# -prebind
+# -prebind_all_twolevel_modules
+# -preload
+
+#--print-diagnostic-categories
+#-print-file-name=<file>, --print-file-name=<file>, --print-file-name <arg> #Print the full library path of <file>
+#-print-ivar-layout # Enable Objective-C Ivar layout bitmap print trace
+# -print-libgcc-file-name, --print-libgcc-file-name #Print the library path for the currently used compiler runtime library (“libgcc.a” or “libclang_rt.builtins.*.a”)
+#-print-multi-directory, --print-multi-directory
+#-print-multi-lib, --print-multi-lib
+#-print-prog-name=<name>, --print-prog-name=<name>, --print-prog-name <arg> #Print the full program path of <name>
+
+#-print-search-dirs, --print-search-dirs # Print the paths used for finding libraries and programs
+
+# Obsolete
+#-private_bundle
+
+#-pthread, -no-pthread # Support POSIX threads in generated code
+
+# -pthreads
+# -rdynamic
+
+#-read_only_relocs <arg>
+#-relocatable-pch, --relocatable-pch # Whether to build a relocatable precompiled header
+
+# -remap
+# -rewrite-legacy-objc #Rewrite Legacy Objective-C source to C++
+
+#-rtlib=<arg>, --rtlib=<arg>, --rtlib <arg> #Compiler runtime library to use
+
+#-save-stats=<arg>, --save-stats=<arg>, -save-stats (equivalent to -save-stats=cwd), --save-stats (equivalent to -save-stats=cwd) #Save llvm statistics.
+
+#-save-temps=<arg>, --save-temps=<arg>, -save-temps (equivalent to -save-temps=cwd), --save-temps (equivalent to -save-temps=cwd) #Save intermediate compilation results.
+
+# -sectalign <arg1> <arg2> <arg3>
+# -sectcreate <arg1> <arg2> <arg3>
+# -sectobjectsymbols <arg1> <arg2>
+# -sectorder <arg1> <arg2> <arg3>
+# -seg1addr<arg>
+# -seg_addr_table <arg>
+# -seg_addr_table_filename <arg>
+# -segaddr <arg1> <arg2>
+# -segcreate <arg1> <arg2> <arg3>
+# -seglinkedit
+# -segprot <arg1> <arg2> <arg3>
+# -segs_read_<arg>
+# -segs_read_only_addr <arg>
+# -segs_read_write_addr <arg>
+# -serialize-diagnostics <arg>, --serialize-diagnostics <arg> #Serialize compiler diagnostics to a file
+
+
+# -shared, --shared
+# -shared-libasan
+# -shared-libgcc
+#-single_module
+#-specs=<arg>, --specs=<arg>
+# -static, --static
+# -static-libgcc
+# -static-libstdc++
+-std-default={{arg}}
+
+-stdlib=(libstdc\\+\\+|libc\\+\\+)
+#-stdlib=<arg>
+#--stdlib=<arg>
+#--stdlib <arg> #C++ standard library to use
+
+#-sub_library<arg>
+#-sub_umbrella<arg>
+#--sysroot=<arg>, --sysroot <arg>
+#--target-help
+#--target=<arg>, -target <arg> #Generate code for the given target
+
+#-time #Time individual commands
+
+#-traditional, --traditional
+#-traditional-cpp, --traditional-cpp #Enable some traditional CPP emulation
+
+#-twolevel_namespace
+#-twolevel_namespace_hints
+#-umbrella <arg>
+#-unexported_symbols_list <arg>
+
+#Excluded since the may show info about server structure
+# -v
+# --verbose #Show commands to run and use verbose output
+
+#--verify-debug-info #Verify the binary representation of debug output
+
+#--version
+-w
+--no-warnings #Suppress all warnings
+
+#-weak-l<arg>
+#-weak_framework <arg>
+#-weak_library <arg>
+#-weak_reference_mismatches <arg>
+#-whatsloaded
+#-whyload
+#-working-directory<arg>, -working-directory=<arg> # Resolve file paths relative to the specified directory
+
+# -x<language>, --language <arg>, --language=<arg> #Treat subsequent input files as having type <language>
+
+#-y<arg> #Actions The action to perform on the input.
+
+#-E, --preprocess Only run the preprocessor
+
+# -S, --assemble Only run preprocess and compilation steps
+
+#-c, --compile # Only run preprocess, compile, and assemble steps
+
+#-emit-llvm #Use the LLVM representation for assembler and object files
+
+#-fsyntax-only
+#-module-file-info #Provide information about a particular module file
+
+#--precompile #Only precompile the input
+
+#-rewrite-objc #Rewrite Objective-C source to C++
+
+#-verify-pch # Load and verify that a pre-compiled header file is not stale
+
+# Compilation flags
+# Flags controlling the behavior of Clang during compilation. These flags have no effect during actions that do not perform compilation.
+
+# SHould use -Wa,<arg> instead
+#-Xassembler <arg>
+#Pass <arg> to the assembler
+
+#-Xclang <arg> #Pass <arg> to the clang compiler
+
+#-fcomment-block-commands=<arg>,<arg2>...
+#Treat each comma separated argument in <arg> as a documentation comment block command
+
+# -fdeclspec, -fno-declspec
+# Allow __declspec as a keyword
+
+# -fdepfile-entry=<arg>
+# -fdiagnostics-fixit-info, -fno-diagnostics-fixit-info
+# -fdiagnostics-format=<arg>
+# -fdiagnostics-parseable-fixits
+# Print fix-its in machine parseable form
+
+# -fdiagnostics-print-source-range-info
+# Print source range spans in numeric form
+
+# -fdiagnostics-show-category=<arg>
+# -fexperimental-new-pass-manager, -fno-experimental-new-pass-manager
+# Enables an experimental new pass manager in LLVM.
+
+# -finline-functions
+# -fno-inline-functions #Inline suitable functions
+# -finline-hint-functions #Inline functions which are (explicitly or implicitly) marked inline
+
+# -fno-crash-diagnostics
+# -fno-sanitize-blacklist # Don’t use blacklist file for sanitizers
+
+# -fparse-all-comments
+# -fsanitize-address-field-padding=<arg>
+# Level of field padding for AddressSanitizer
+
+# -fsanitize-address-use-after-scope, -fno-sanitize-address-use-after-scope
+# Enable use-after-scope detection in AddressSanitizer
+
+# -fsanitize-blacklist=<arg>
+# Path to blacklist file for sanitizers
+
+# -fsanitize-cfi-cross-dso, -fno-sanitize-cfi-cross-dso
+# Enable control flow integrity (CFI) checks for cross-DSO calls.
+
+# -fsanitize-coverage=<arg1>,<arg2>..., -fno-sanitize-coverage=<arg1>,<arg2>...
+# Specify the type of coverage instrumentation for Sanitizers
+
+# -fsanitize-link-c++-runtime
+# -fsanitize-memory-track-origins, -fno-sanitize-memory-track-origins
+# Enable origins tracking in MemorySanitizer
+
+# -fsanitize-memory-track-origins=<arg>
+# Enable origins tracking in MemorySanitizer
+
+# -fsanitize-memory-use-after-dtor
+# Enable use-after-destroy detection in MemorySanitizer
+
+# -fsanitize-recover, -fno-sanitize-recover
+# -fsanitize-recover=<arg1>,<arg2>..., -fno-sanitize-recover=<arg1>,<arg2>...
+# Enable recovery for specified sanitizers
+
+# -fsanitize-stats, -fno-sanitize-stats
+# Enable sanitizer statistics gathering.
+
+# -fsanitize-thread-atomics, -fno-sanitize-thread-atomics
+# Enable atomic operations instrumentation in ThreadSanitizer (default)
+
+# -fsanitize-thread-func-entry-exit, -fno-sanitize-thread-func-entry-exit
+# Enable function entry/exit instrumentation in ThreadSanitizer (default)
+
+# -fsanitize-thread-memory-access, -fno-sanitize-thread-memory-access
+# Enable memory access instrumentation in ThreadSanitizer (default)
+
+# -fsanitize-trap=<arg1>,<arg2>..., -fno-sanitize-trap=<arg1>,<arg2>...
+# Enable trapping for specified sanitizers
+
+# -fsanitize-undefined-strip-path-components=<number>
+# Strip (or keep only, if negative) a given number of path components when emitting check metadata.
+
+# -fsanitize-undefined-trap-on-error, -fno-sanitize-undefined-trap-on-error
+# -fsanitize=<check>,<arg2>..., -fno-sanitize=<arg1>,<arg2>...
+# Turn on runtime checks for various forms of undefined or suspicious behavior. See user manual for available checks
+
+#--param <arg>
+#--param={{arg}}
+
+-std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)
+#--std=(c89|c99|c++0x|c++11|c++14|c++17)
+#--std <arg> # Language standard to compile for
+
+# Preprocessor flags
+
+# Flags controlling the behavior of the Clang preprocessor.
+
+# -C, --comments
+# Include comments in preprocessed output
+
+# -CC, --comments-in-macros
+# Include comments from within macros in preprocessed output
+
+# -D{{macro_value}}
+# --define-macro={{macro_value}}
+#-D<macro>=<value>
+#--define-macro <arg>
+#--define-macro=<arg> #Define <macro> to <value> (or 1 if <value> omitted)
+
+# -H
+# --trace-includes #Show header includes and nesting depth
+
+# -P, --no-line-commands
+# Disable linemarker output in -E mode
+
+# -U{{macro}}
+# --undefine-macro={{macro}}
+#-U<macro>, --undefine-macro <arg>, --undefine-macro=<arg> #Undefine macro <macro>
+
+-Wp,{{comma_separated_arg}}
+#-Wp,<arg>,<arg2>... #Pass the comma separated arguments in <arg> to the preprocessor
+#-Xpreprocessor <arg> #Pass <arg> to the preprocessor
+
+# Include path management
+# Flags controlling how #includes are resolved to files.
+
+# -I<dir>, --include-directory <arg>, --include-directory=<arg>
+# Add directory to include search path
+
+# -I-, --include-barrier
+# Restrict all prior -I flags to double-quoted inclusion and remove current directory from include path
+
+# --cuda-path=<arg>
+# CUDA installation path
+
+# -cxx-isystem<directory>
+# Add directory to the C++ SYSTEM include search path
+
+# -fbuild-session-file=<file>
+# Use the last modification time of <file> as the build session timestamp
+
+# -fbuild-session-timestamp=<time since Epoch in seconds>
+# Time when the current build session started
+
+# -fmodules-cache-path=<directory>
+# Specify the module cache path
+
+# -fmodules-disable-diagnostic-validation
+# Disable validation of the diagnostic options when loading the module
+
+# -fmodules-prune-after=<seconds>
+# Specify the interval (in seconds) after which a module file will be considered unused
+
+# -fmodules-prune-interval=<seconds>
+# Specify the interval (in seconds) between attempts to prune the module cache
+
+# -fmodules-user-build-path <directory>
+# Specify the module user build path
+
+# -fmodules-validate-once-per-build-session
+# Don’t verify input files for the modules if the module has been successfully validated or loaded during this build session
+
+# -fmodules-validate-system-headers
+# Validate the system headers that a module depends on when loading the module
+
+# -fprebuilt-module-path=<directory>
+# Specify the prebuilt module path
+
+# -i<arg>
+# -idirafter<arg>, --include-directory-after <arg>, --include-directory-after=<arg>
+# Add directory to AFTER include search path
+
+# -iframework<arg>
+# Add directory to SYSTEM framework search path
+
+# -imacros<file>, --imacros<file>, --imacros=<arg>
+# Include macros from file before parsing
+
+# -include<file>, --include<file>, --include=<arg>
+# Include file before parsing
+
+# -include-pch <file>
+# Include precompiled header file
+
+# -iprefix<dir>, --include-prefix <arg>, --include-prefix=<arg>
+# Set the -iwithprefix/-iwithprefixbefore prefix
+
+# -iquote<directory>
+# Add directory to QUOTE include search path
+
+# -isysroot<dir>
+# Set the system root directory (usually /)
+
+# -isystem<directory>
+# Add directory to SYSTEM include search path
+
+# -isystem-after<directory>
+# Add directory to end of the SYSTEM include search path
+
+# -ivfsoverlay<arg>
+# Overlay the virtual filesystem described by file over the real file system
+
+# -iwithprefix<dir>, --include-with-prefix <arg>,
+#--include-with-prefix-after <arg>
+#--include-with-prefix-after=<arg>
+#--include-with-prefix=<arg>
+# Set directory to SYSTEM include search path with prefix
+
+# -iwithprefixbefore<dir>, --include-with-prefix-before <arg>, --include-with-prefix-before=<arg>
+# Set directory to include search path with prefix
+
+# -iwithsysroot<directory>
+# Add directory to SYSTEM include search path, absolute paths are relative to -isysroot
+
+# --ptxas-path=<arg>
+# Path to ptxas (used for compiling CUDA code)
+
+# --system-header-prefix=<prefix>, --no-system-header-prefix=<prefix>, --system-header-prefix <arg>
+# Treat all #include paths starting with <prefix> as including a system header.
+
+# Dependency file generation
+
+# Flags controlling generation of a dependency file for make-like build systems.
+
+# -M, --dependencies
+# Like -MD, but also implies -E and writes to stdout by default
+
+# -MD, --write-dependencies
+# Write a depfile containing user and system headers
+
+# -MF<file>
+# Write depfile output from -MMD, -MD, -MM, or -M to <file>
+
+# -MG, --print-missing-file-dependencies
+# Add missing headers to depfile
+
+# -MJ<arg>
+# Write a compilation database entry per input
+
+# -MM, --user-dependencies
+# Like -MMD, but also implies -E and writes to stdout by default
+
+# -MMD, --write-user-dependencies
+# Write a depfile containing user headers
+
+# -MP
+# Create phony target for each dependency (other than main file)
+
+# -MQ<arg>
+# Specify name of main file output to quote in depfile
+
+# -MT<arg>
+# Specify name of main file output in depfile
+
+# -MV
+# Use NMake/Jom format for the depfile
+
+# Dumping preprocessor state
+
+# Flags allowing the state of the preprocessor to be dumped in various ways.
+
+# -d
+# -d{{arg}}
+# -dA
+# -dD
+# # Print macro definitions in -E mode in addition to normal output
+
+# -dI
+# #Print include directives in -E mode in addition to normal output
+
+# -dM
+# #Print macro definitions in -E mode instead of normal output
+
+# Diagnostic flags
+
+# Flags controlling which warnings, errors, and remarks Clang will generate. See the full list of warning and remark flags.
+
+# -R<remark>
+# Enable the specified remark
+
+# -Rpass-analysis=<arg>
+# Report transformation analysis from optimization passes whose name matches the given POSIX regular expression
+
+# -Rpass-missed=<arg>
+# Report missed transformations by optimization passes whose name matches the given POSIX regular expression
+
+# -Rpass=<arg>
+# Report transformations performed by optimization passes whose name matches the given POSIX regular expression
+
+-W{{warning}}
+--extra-warnings
+--warn-{{warning}}
+--warn-={{warning}}
+#Enable the specified warning
+
+# -Wdeprecated
+# -Wno-deprecated
+# #Enable warnings for deprecated constructs and define __DEPRECATED
+
+# -Wnonportable-cfstrings<arg>, -Wno-nonportable-cfstrings<arg>
+# Target-independent compilation options
+
+#-Wframe-larger-than=<arg>
+
+# -fPIC
+# -fno-PIC
+# -fPIE
+# -fno-PIE
+# -faccess-control
+# -fno-access-control
+# -faligned-allocation
+# -faligned-new
+# -fno-aligned-allocation
+#Enable C++17 aligned allocation functions
+
+# -fallow-unsupported
+# -faltivec
+# -fno-altivec
+# -maltivec
+#Enable AltiVec vector initializer syntax
+
+#-fansi-escape-codes
+#Use ANSI escape codes for diagnostics
+
+# -fapple-kext
+# -findirect-virtual-calls
+# -fterminated-vtables
+# #Use Apple’s kernel extensions ABI
+
+# -fapple-pragma-pack
+# -fno-apple-pragma-pack
+# #Enable Apple gcc-compatible #pragma pack handling
+
+# -fapplication-extension
+# -fno-application-extension
+# #Restrict code to those available for App Extensions
+
+# -fasm
+# -fno-asm
+# -fasm-blocks
+# -fno-asm-blocks
+# -fassociative-math
+# -fno-associative-math
+# -fassume-sane-operator-new
+# -fno-assume-sane-operator-new
+# -fast
+# -fastcp
+# -fastf
+# -fasynchronous-unwind-tables
+# -fno-asynchronous-unwind-tables
+# -fautolink
+# -fno-autolink
+# -fblocks
+# -fno-blocks
+# #Enable the ‘blocks’ language feature
+
+# -fbootclasspath=<arg>, --bootclasspath <arg>, --bootclasspath=<arg>
+# -fborland-extensions, -fno-borland-extensions
+# Accept non-standard constructs supported by the Borland compiler
+
+# -fbracket-depth=<arg>
+# -fbuiltin, -fno-builtin
+# -fbuiltin-module-map
+# Load the clang builtins module map file.
+
+# -fcaret-diagnostics, -fno-caret-diagnostics
+# -fclasspath=<arg>, --CLASSPATH <arg>, --CLASSPATH=<arg>, --classpath <arg>, --classpath=<arg>
+
+# -fcolor-diagnostics
+# -fno-color-diagnostics
+# #Use colors in diagnostics
+
+# -fcommon
+# -fno-common
+#-fcompile-resource=<arg>
+#--resource <arg>
+#--resource=<arg>
+# -fconstant-cfstrings
+# -fno-constant-cfstrings
+# #-fconstant-string-class=<arg>
+# -fconstexpr-backtrace-limit={{number}}
+# -fconstexpr-depth={{number}}
+# -fconstexpr-steps={{number}}
+# -fcoroutines-ts
+# -fno-coroutines-ts
+# #Enable support for the C++ Coroutines TS
+
+# -fcoverage-mapping
+# -fno-coverage-mapping
+# #Generate coverage mapping to enable code coverage analysis
+
+# -fcreate-profile
+# -fcxx-exceptions
+# -fno-cxx-exceptions
+# #Enable C++ exceptions
+
+# -fcxx-modules
+# -fno-cxx-modules
+# -fdata-sections, -fno-data-sections
+# #Place each data in its own section (ELF Only)
+
+# -fdebug-info-for-profiling
+# -fno-debug-info-for-profiling
+# #Emit extra debug info to make sample profile more accurate.
+
+#-fdebug-pass-arguments
+#-fdebug-pass-structure
+#-fdebug-prefix-map=<arg>
+#remap file source paths in debug info
+
+# -fdebug-types-section
+# -fno-debug-types-section
+# Place debug types in their own section (ELF Only)
+
+# -fdelayed-template-parsing
+# -fno-delayed-template-parsing
+#Parse templated function definitions at the end of the translation unit
+
+# -fdenormal-fp-math=<arg>
+# -fdiagnostics-absolute-paths
+# Print absolute paths in diagnostics
+
+# -fdiagnostics-color
+# -fno-diagnostics-color
+# #-fdiagnostics-color=<arg>
+# -fdiagnostics-show-hotness
+# -fno-diagnostics-show-hotness
+# #Enable profile hotness information in diagnostic line
+
+# -fdiagnostics-show-note-include-stack
+# -fno-diagnostics-show-note-include-stack
+# #Display include stacks for diagnostic notes
+
+# -fdiagnostics-show-option
+# -fno-diagnostics-show-option
+# #Print option name with mappable diagnostics
+
+# -fdiagnostics-show-template-tree
+# #Print a template comparison tree for differing templates
+
+# -fdollars-in-identifiers
+# -fno-dollars-in-identifiers
+# Allow ‘$’ in identifiers
+
+# -fdwarf-directory-asm
+# -fno-dwarf-directory-asm
+# -felide-constructors
+# -fno-elide-constructors
+# -feliminate-unused-debug-symbols
+# -fno-eliminate-unused-debug-symbols
+# -fembed-bitcode=<option>
+# -fembed-bitcode (equivalent to -fembed-bitcode=all)
+# -fembed-bitcode-marker (equivalent to -fembed-bitcode=marker)
+# Embed LLVM bitcode (option: off, all, bitcode, marker)
+
+# -femit-all-decls
+# Emit all declarations, even if unused
+
+# -femulated-tls, -fno-emulated-tls
+# Use emutls functions to access thread_local variables
+
+#-fencoding=<arg>, --encoding <arg>, --encoding=<arg>
+-ferror-limit={{number}}
+# -fexceptions
+# -fno-exceptions
+# #Enable support for exception handling
+
+#-fexec-charset=<arg>
+#-fextdirs=<arg>, --extdirs <arg>, --extdirs=<arg>
+# -ffast-math
+# -fno-fast-math
+# #Allow aggressive, lossy floating-point optimizations
+
+# -ffinite-math-only
+# -fno-finite-math-only
+# -ffor-scope
+# -fno-for-scope
+# -ffp-contract=(fast|on|off)
+# #Form fused FP ops (e.g. FMAs): fast (everywhere) | on (according to FP_CONTRACT pragma, default) | off (never fuse)
+
+# -ffreestanding
+# #Assert that the compilation takes place in a freestanding environment
+
+# -ffunction-sections
+# -fno-function-sections
+# #Place each function in its own section (ELF Only)
+
+# -fgnu-inline-asm
+# -fno-gnu-inline-asm
+# -fgnu-keywords
+# -fno-gnu-keywords
+# #Allow GNU-extension keywords regardless of language standard
+
+# -fgnu-runtime
+# #Generate output compatible with the standard GNU Objective-C runtime
+
+# -fgnu89-inline
+# -fno-gnu89-inline
+# #Use the gnu89 inline semantics
+
+# -fhonor-infinities, -fhonor-infinites, -fno-honor-infinities
+# -fhonor-nans, -fno-honor-nans
+# -fhosted
+# -fimplicit-module-maps, -fmodule-maps, -fno-implicit-module-maps
+# Implicitly search the file system for module map files.
+
+# -fimplicit-modules, -fno-implicit-modules
+# -finput-charset=<arg>
+# -finstrument-functions
+# Generate calls to instrument function entry and exit
+
+# -fintegrated-as
+# -fno-integrated-as
+# -integrated-as
+# #Enable the integrated assembler
+
+# -fjump-tables
+# -fno-jump-tables
+# -flax-vector-conversions
+# -fno-lax-vector-conversions
+# #-flimited-precision=<arg>
+# -flto
+# -fno-lto
+# #Enable LTO in ‘full’ mode
+
+# -flto-jobs={{number}}
+# #Controls the backend parallelism of -flto=thin (default of 0 means the number of threads will be derived from the number of CPUs detected)
+
+# -flto=(thin|full)
+# #Set LTO mode to either ‘full’ or ‘thin’
+
+# -fmacro-backtrace-limit={{number}}
+# -fmath-errno
+# -fno-math-errno
+# #Require math functions to indicate errors by setting errno
+
+# -fmax-type-align={{number}}
+# #Specify the maximum alignment to enforce on pointers lacking an explicit alignment
+
+# -fmerge-all-constants
+# -fno-merge-all-constants
+# -fmessage-length={{number}}
+# -fmodule-file-deps
+# -fno-module-file-deps
+# #-fmodule-file=<file>
+# #Load this precompiled module file
+
+#-fmodule-map-file=<file>
+#Load this module map file
+
+# -fmodule-name=<name>
+# -fmodule-implementation-of <arg>
+# -fmodule-name <arg>
+# Specify the name of the module to build
+
+# -fmodules
+# -fno-modules
+# #Enable the ‘modules’ language feature
+
+# -fmodules-decluse
+# -fno-modules-decluse
+# #Require declaration of modules used within a module
+
+# -fmodules-ignore-macro={{macro}}
+# #Ignore the definition of the given macro when building and loading modules
+
+# -fmodules-search-all
+# -fno-modules-search-all
+# #Search even non-imported modules to resolve references
+
+# -fmodules-strict-decluse
+# #Like -fmodules-decluse but requires all headers to be in modules
+
+# -fmodules-ts
+# #Enable support for the C++ Modules TS
+
+# -fms-compatibility
+# -fno-ms-compatibility
+# #Enable full Microsoft Visual C++ compatibility
+
+# -fms-compatibility-version={{version}}
+# #Dot-separated value representing the Microsoft compiler version number to report in _MSC_VER (0 = don’t define it (default))
+
+# -fms-extensions
+# -fno-ms-extensions
+# #Accept some non-standard constructs supported by the Microsoft compiler
+
+# -fms-memptr-rep=(single|multiple|virtual)
+# #-fms-volatile<arg>
+# -fms-volatile
+# -fmsc-version={{number_4}}
+# #Microsoft compiler version number to report in _MSC_VER (0 = don’t define it (default))
+
+# # -fmudflap
+# # -fmudflapth
+# -fnested-functions
+# -fnew-alignment={{number}}
+# #-fnew-alignment <arg>
+# #Specifies the largest alignment guaranteed by ‘::operator new(size_t)’
+
+# -fnext-runtime
+# -fno-builtin-{{arg}}
+# #Disable implicit builtin knowledge of a specific function
+
+# -fno-elide-type
+# #Do not elide types when printing diagnostics
+
+# -fno-max-type-align
+# -fno-operator-names
+# #Do not treat C++ operator name keywords as synonyms for operators
+
+# -fno-strict-modules-decluse
+# -fno-working-directory
+# -fnoopenmp-use-tls
+# -fobjc-abi-version={{arg}}
+# -fobjc-arc
+# -fno-objc-arc
+# #Synthesize retain and release calls for Objective-C pointers
+
+# -fobjc-arc-exceptions
+# -fno-objc-arc-exceptions
+# #Use EH-safe code when synthesizing retains and releases in -fobjc-arc
+
+# -fobjc-exceptions
+# -fno-objc-exceptions
+# #Enable Objective-C exceptions
+
+# -fobjc-infer-related-result-type
+# -fno-objc-infer-related-result-type
+# -fobjc-legacy-dispatch
+# -fno-objc-legacy-dispatch
+# -fobjc-link-runtime
+# -fobjc-nonfragile-abi
+# -fno-objc-nonfragile-abi
+# -fobjc-nonfragile-abi-version={{arg}}
+# -fobjc-runtime={{arg}}
+# #Specify the target Objective-C runtime kind and version
+
+# -fobjc-sender-dependent-dispatch
+# -fobjc-weak
+# -fno-objc-weak
+# #Enable ARC-style weak references in Objective-C
+
+# # -fomit-frame-pointer
+# # -fno-omit-frame-pointer
+# -fopenmp
+# -fno-openmp
+# -fopenmp-dump-offload-linker-script
+# -fopenmp-use-tls
+# -fopenmp-version={{arg}}
+# -fopenmp={{arg}}
+# -foperator-arrow-depth={{arg}}
+# #-foptimization-record-file=<arg>
+# #Specify the file name of any generated YAML optimization record
+
+# -foptimize-sibling-calls
+# -fno-optimize-sibling-calls
+# #-foutput-class-dir=<arg>
+# #--output-class-directory <arg>
+# #--output-class-directory=<arg>
+# -fpack-struct
+# -fno-pack-struct
+# -fpack-struct={{arg}}
+# #Specify the default maximum struct packing alignment
+
+# -fpascal-strings
+# -fno-pascal-strings
+# -mpascal-strings
+# #Recognize and construct Pascal-style string literals
+
+# -fpcc-struct-return
+# #Override the default ABI to return all structs on the stack
+
+# -fpch-preprocess
+# -fpic
+# -fno-pic
+# -fpie
+# -fno-pie
+# #-fplugin=<dsopath>
+# #Load the named plugin (dynamic shared object)
+
+# -fpreserve-as-comments
+# -fno-preserve-as-comments
+# -fprofile-arcs
+# -fno-profile-arcs
+# #-fprofile-dir=<arg>
+# -fprofile-generate
+# -fno-profile-generate
+# #Generate instrumented code to collect execution counts into default.profraw (overridden by LLVM_PROFILE_FILE env var)
+
+#-fprofile-generate=<directory>
+#Generate instrumented code to collect execution counts into <directory>/default.profraw (overridden by LLVM_PROFILE_FILE env var)
+
+# -fprofile-instr-generate
+# -fno-profile-instr-generate
+# #Generate instrumented code to collect execution counts into default.profraw file (overridden by ‘=’ form of option or LLVM_PROFILE_FILE env var)
+
+# -fprofile-instr-generate=<file>
+# Generate instrumented code to collect execution counts into <file> (overridden by LLVM_PROFILE_FILE env var)
+
+# -fprofile-instr-use
+# -fno-profile-instr-use
+# -fprofile-use
+# -fprofile-instr-use={{arg}}
+# #Use instrumentation data for profile-guided optimization
+
+# -fprofile-sample-use={{arg}}
+# -fauto-profile={{arg}}
+# #Enable sample-based profile guided optimizations
+
+# # -fprofile-use=<pathname>
+# # Use instrumentation data for profile-guided optimization. If pathname is a directory, it reads from <pathname>/default.profdata. Otherwise, it reads from file <pathname>.
+
+# -freciprocal-math
+# -fno-reciprocal-math
+# #Allow division operations to be reassociated
+
+# -freg-struct-return
+# #Override the default ABI to return small structs in registers
+
+# -frelaxed-template-template-args
+# -fno-relaxed-template-template-args
+# #Enable C++17 relaxed template template argument matching
+
+# -freroll-loops
+# -fno-reroll-loops
+# #Turn on loop reroller
+
+# -fretain-comments-from-system-headers
+# -frewrite-includes
+# -fno-rewrite-includes
+# #-frewrite-map-file <arg>
+# #-frewrite-map-file=<arg>
+# -fropi
+# -fno-ropi
+# -frtti
+# -fno-rtti
+# -frwpi
+# -fno-rwpi
+# #-fsave-optimization-record
+# #-fno-save-optimization-record
+# #Generate a YAML optimization record file
+
+# -fshort-enums
+# -fno-short-enums
+# #Allocate to an enum type only as many bytes as it needs for the declared range of possible values
+
+# -fshort-wchar
+# -fno-short-wchar
+# #Force wchar_t to be a short unsigned int
+
+# -fshow-column
+# -fno-show-column
+# #-fshow-overloads=<arg>
+# #Which overload candidates to show when overload resolution fails: best|all; defaults to all
+
+# -fshow-source-location
+# -fno-show-source-location
+# -fsignaling-math
+# -fno-signaling-math
+# -fsigned-bitfields
+# -fsigned-char
+# -fno-signed-char
+# --signed-char
+# -fsigned-zeros
+# -fno-signed-zeros
+# -fsized-deallocation
+# -fno-sized-deallocation
+# #Enable C++14 sized global deallocation functions
+
+# -fsjlj-exceptions
+# #Use SjLj style exceptions
+
+# -fslp-vectorize
+# -fno-slp-vectorize
+# -ftree-slp-vectorize
+# #Enable the superword-level parallelism vectorization passes
+
+# -fslp-vectorize-aggressive
+# -fno-slp-vectorize-aggressive
+# #Enable the BB vectorization passes
+
+# -fspell-checking
+# -fno-spell-checking
+# -fspell-checking-limit={{number}}
+# -fsplit-dwarf-inlining
+# -fno-split-dwarf-inlining
+# #Place debug types in their own section (ELF Only)
+
+# -fsplit-stack
+# -fstack-protector
+# -fno-stack-protector
+# #Enable stack protectors for functions potentially vulnerable to stack smashing
+
+# -fstack-protector-all
+# #Force the usage of stack protectors for all functions
+
+# -fstack-protector-strong
+# #Use a strong heuristic to apply stack protectors to functions
+
+# -fstandalone-debug
+# -fno-limit-debug-info
+# -fno-standalone-debug
+# #Emit full debug info for all types used by the program
+
+# -fstrict-aliasing
+# -fno-strict-aliasing
+# -fstrict-enums
+# -fno-strict-enums
+# #Enable optimizations based on the strict definition of an enum’s value range
+
+# -fstrict-overflow
+# -fno-strict-overflow
+# -fstrict-return
+# -fno-strict-return
+# #Always treat control flow paths that fall off the end of a non-voidfunction as unreachable
+
+# -fstrict-vtable-pointers
+# -fno-strict-vtable-pointers
+# #Enable optimizations based on the strict rules for overwriting polymorphic C++ objects
+
+# -fstruct-path-tbaa
+# -fno-struct-path-tbaa
+# #-ftabstop=<arg>
+# -ftemplate-backtrace-limit={{number}}
+# -ftemplate-depth-{{number}}
+# -ftemplate-depth={{number}}
+# -ftest-coverage
+# #-fthinlto-index=<arg>
+# #Perform ThinLTO importing using provided function summary index
+
+# -fthreadsafe-statics
+# -fno-threadsafe-statics
+# -ftime-report
+# # -ftls-model=<arg>
+# # -ftrap-function=<arg>
+# # Issue call to specified function rather than a trap instruction
+
+# # -ftrapping-math
+# # -fno-trapping-math
+# # -ftrapv
+# # Trap on integer overflow
+
+# # -ftrapv-handler <arg>
+# # -ftrapv-handler=<function name>
+# # Specify the function to be called on overflow
+
+# -ftrigraphs
+# -fno-trigraphs
+# -trigraphs
+# --trigraphs
+# #Process trigraph sequences
+
+# -funique-section-names
+# -fno-unique-section-names
+#Use unique names for text and data sections (ELF Only)
+
+# -funit-at-a-time
+# -fno-unit-at-a-time
+# -funroll-loops
+# -fno-unroll-loops
+# #Turn on loop unroller
+
+# -funsafe-math-optimizations
+# -fno-unsafe-math-optimizations
+# -funsigned-bitfields
+# -funsigned-char
+# -fno-unsigned-char
+# --unsigned-char
+# -funwind-tables
+# -fno-unwind-tables
+# -fuse-cxa-atexit
+# -fno-use-cxa-atexit
+# -fuse-init-array
+# -fno-use-init-array
+# #Use .init_array instead of .ctors
+
+#-fuse-ld=<arg>
+#-fuse-line-directives
+#-fno-use-line-directives
+#-fveclib={{arg}}
+#Use the given vector functions library
+
+# -fvectorize
+# -fno-vectorize
+# -ftree-vectorize
+# #Enable the loop vectorization passes
+
+# -fverbose-asm
+# -fno-verbose-asm
+# -fvisibility-inlines-hidden
+# #Give inline C++ member functions default visibility by default
+
+# -fvisibility-ms-compat
+# #Give global types ‘default’ visibility and global functions and variables ‘hidden’ visibility by default
+
+# -fvisibility=(default|visible)
+# #Set the default symbol visibility for all global declarations
+
+# -fwhole-program-vtables
+# -fno-whole-program-vtables
+# #Enables whole-program vtable optimization. Requires -flto
+
+# -fwrapv
+# -fno-wrapv
+# #Treat signed integer overflow as two’s complement
+
+# -fwritable-strings
+# #Store string literals as writable data
+
+# -fxray-instruction-threshold<arg>
+# -fxray-instruction-threshold=<arg>
+# Sets the minimum function size to instrument with XRay
+
+# -fxray-instrument, -fno-xray-instrument
+# Generate XRay instrumentation sleds on function entry and exit
+
+# -fzero-initialized-in-bss
+# -fno-zero-initialized-in-bss
+# -fzvector
+# -fno-zvector
+# -mzvector
+# #Enable System z vector language extension
+
+# -pedantic
+# --pedantic
+# -no-pedantic
+# --no-pedantic
+# -pedantic-errors
+# --pedantic-errors
+
+# OpenCL flags
+
+# -cl-denorms-are-zero
+# OpenCL only. Allow denormals to be flushed to zero.
+
+# -cl-fast-relaxed-math
+# OpenCL only. Sets -cl-finite-math-only and -cl-unsafe-math-optimizations, and defines __FAST_RELAXED_MATH__.
+
+# -cl-finite-math-only
+# OpenCL only. Allow floating-point optimizations that assume arguments and results are not NaNs or +-Inf.
+
+# -cl-fp32-correctly-rounded-divide-sqrt
+# OpenCL only. Specify that single precision floating-point divide and sqrt used in the program source are correctly rounded.
+
+# -cl-kernel-arg-info
+# OpenCL only. Generate kernel argument metadata.
+
+# -cl-mad-enable
+# OpenCL only. Allow use of less precise MAD computations in the generated binary.
+
+# -cl-no-signed-zeros
+# OpenCL only. Allow use of less precise no signed zeros computations in the generated binary.
+
+# -cl-opt-disable
+# OpenCL only. This option disables all optimizations. By default optimizations are enabled.
+
+# -cl-single-precision-constant
+# OpenCL only. Treat double precision floating-point constant as single precision constant.
+
+# -cl-std=<arg>
+# OpenCL language standard to compile for.
+
+# -cl-strict-aliasing
+# OpenCL only. This option is added for compatibility with OpenCL 1.0.
+
+# -cl-unsafe-math-optimizations
+# OpenCL only. Allow unsafe floating-point optimizations. Also implies -cl-no-signed-zeros and -cl-mad-enable.
+
+#Target-dependent compilation options
+
+# -G{{number}}
+# -G={{number}}
+# -msmall-data-threshold={{number}}
+# #Put objects of at most <size> bytes into small data section (MIPS / Hexagon)
+
+# -m16
+# -m32
+# -m64
+# -mabi={{arg}}
+# -mabicalls
+# -mno-abicalls
+# #Enable SVR4-style position-independent code (Mips only)
+
+# -malign-double
+# #Align doubles to two words in structs (x86 only)
+
+# # Desabled since Defold uses this
+# #-march={{arg}}
+# -masm={{arg}}
+# -mbackchain
+# -mno-backchain
+# #Link stack frames through backchain on System Z
+
+# -mcheck-zero-division
+# -mno-check-zero-division
+
+# -mcmodel=<arg>
+# -mcompact-branches=<arg>
+# -mconsole<arg>
+# -mcpu=<arg>
+# -mv4 (equivalent to -mcpu=hexagonv4)
+# -mv5 (equivalent to -mcpu=hexagonv5)
+# -mv55 (equivalent to -mcpu=hexagonv55)
+# -mv60 (equivalent to -mcpu=hexagonv60)
+# -mdll<arg>
+# -mdouble-float
+# -mdsp
+# -mno-dsp
+# -mdspr2
+# -mno-dspr2
+# -mdynamic-no-pic<arg>
+# -meabi <arg>
+# Set EABI type, e.g. 4, 5 or gnu (default depends on triple)
+
+# -mfloat-abi=<arg>
+# -mfp32
+# Use 32-bit floating point registers (MIPS only)
+
+# -mfp64
+# Use 64-bit floating point registers (MIPS only)
+
+# -mfpmath={{arg}}
+# -mfpu={{arg}}
+# -mglobal-merge
+# -mno-global-merge
+# #Enable merging of globals
+
+# -mhard-float
+# -mhwdiv={{arg}}
+# #--mhwdiv <arg>
+# --mhwdiv={{arg}}
+# -miamcu
+# -mno-iamcu
+# #Use Intel MCU ABI
+
+# -mimplicit-float
+# -mno-implicit-float
+# -mimplicit-it={{arg}}
+# #-mincremental-linker-compatible
+# #-mno-incremental-linker-compatible
+# #(integrated-as) Emit an object file which can be used with an incremental linker
+
+# # Controlled by Defold
+# # -miphoneos-version-min=<arg>
+# # -mios-simulator-version-min=<arg>
+# # -mios-version-min=<arg>
+# # -miphonesimulator-version-min=<arg>
+# -mips16
+# -mkernel
+# -mldc1-sdc1
+# -mno-ldc1-sdc1
+# -mlong-calls
+# -mno-long-calls
+#Generate branches with extended addressability, usually via indirect jumps.
+
+# Controlled by Defold
+# -mmacosx-version-min=<arg>
+# Set Mac OS X deployment target
+
+# -mmicromips
+# -mno-micromips
+# -mms-bitfields
+# -mno-ms-bitfields
+# #Set the default structure layout to be compatible with the Microsoft compiler standard
+
+# -mmsa
+# -mno-msa
+# #Enable MSA ASE (MIPS only)
+
+# -mnan={{arg}}
+# -mno-mips16
+# -momit-leaf-frame-pointer
+# -mno-omit-leaf-frame-pointer
+# #Omit frame pointer setup for leaf functions
+
+# # -moslib=<arg>
+# # -mpie-copy-relocations, -mno-pie-copy-relocations
+# # Use copy relocations support for PIE builds
+
+# # -mqdsp6-compat
+# # Enable hexagon-qdsp6 backward compatibility
+
+# # -mrecip
+# # -mrecip=<arg1>,<arg2>...
+# # -mred-zone, -mno-red-zone
+# # -mregparm=<arg>
+# # -mrelax-all, -mno-relax-all
+# # (integrated-as) Relax all machine instructions
+
+# -mrtd
+# -mno-rtd
+# #Make StdCall calling convention the default
+
+# -msingle-float
+# -msoft-float, -mno-soft-float
+# #Use software floating point
+
+# -mstack-alignment={{number}}
+# #Set the stack alignment
+
+# -mstack-probe-size={{number}}
+# #Set the stack probe size
+
+# -mstackrealign
+# -mno-stackrealign
+# #Force realign the stack at entry to every function
+
+# # -mthread-model <arg>
+# # The thread model to use, e.g. posix, single (posix by default)
+
+# #-mthreads<arg>
+# -mthumb
+# -mno-thumb
+# -mtune={{arg}}
+# # Controlled by Defold
+# # -mtvos-version-min=<arg>
+# # -mappletvos-version-min=<arg>
+# # -mappletvsimulator-version-min=<arg>
+# # -mtvos-simulator-version-min=<arg>
+# #-municode<arg>
+# -mvx
+# -mno-vx
+# -mwarn-nonportable-cfstrings
+# -mno-warn-nonportable-cfstrings
+# # Controlled by Defold
+# # -mwatchos-version-min=<arg>
+# # -mwatchos-simulator-version-min=<arg>
+# # -mwatchsimulator-version-min=<arg>
+
+# # -mwindows<arg>
+# # -mx32
+# # -mxgot
+# # -mno-xgot
+# # AARCH64
+
+# -ffixed-x18
+# Reserve the x18 register (AArch64 only)
+
+# -mfix-cortex-a53-835769, -mno-fix-cortex-a53-835769
+# Workaround Cortex-A53 erratum 835769 (AArch64 only)
+
+# -mgeneral-regs-only
+# Generate code which only uses the general purpose registers (AArch64 only)
+
+# AMDGPU
+
+# ARM
+
+# -ffixed-r9
+# #Reserve the r9 register (ARM only)
+
+# -mcrc
+# #Allow use of CRC instructions (ARM only)
+
+# -mexecute-only
+# -mno-execute-only
+# -mpure-code
+# #Disallow generation of data access to code sections (ARM only)
+
+# -mno-movt
+# #Disallow use of movt/movw pairs (ARM only)
+
+# -mnocrc
+# #Disallow use of CRC instructions (ARM only)
+
+# -mrestrict-it
+# -mno-restrict-it
+# #Disallow generation of deprecated IT blocks for ARMv8. It is on by default for ARMv8 Thumb mode.
+
+# -munaligned-access
+# -mno-unaligned-access
+# #Allow memory accesses to be unaligned (AArch32/AArch64 only)
+
+# Hexagon
+
+# -mhvx
+# -mno-hvx
+# Enable Hexagon Vector eXtensions
+
+# -mhvx-double
+# -mno-hvx-double
+# Enable Hexagon Double Vector eXtensions
+
+# -mieee-rnd-near
+
+# PowerPC
+
+# -mcmpb, -mno-cmpb
+# -mcrbits, -mno-crbits
+# -mcrypto, -mno-crypto
+# -mdirect-move, -mno-direct-move
+# -mfloat128, -mno-float128
+# -mfprnd, -mno-fprnd
+# -mhtm, -mno-htm
+# -minvariant-function-descriptors, -mno-invariant-function-descriptors
+# -misel, -mno-isel
+# -mlongcall, -mno-longcall
+# -mmfocrf, -mmfcrf, -mno-mfocrf
+# -mpopcntd, -mno-popcntd
+# -mpower8-vector, -mno-power8-vector
+# -mpower9-vector, -mno-power9-vector
+# -mqpx, -mno-qpx
+# -mvsx, -mno-vsx
+# WebAssembly
+
+# -msimd128
+# -mno-simd128
+
+# # X86
+
+# -m3dnow
+# -mno-3dnow
+# -m3dnowa
+# -mno-3dnowa
+# -madx
+# -mno-adx
+# -maes
+# -mno-aes
+# -mavx
+# -mno-avx
+# -mavx2
+# -mno-avx2
+# -mavx512bw
+# -mno-avx512bw
+# -mavx512cd
+# -mno-avx512cd
+# -mavx512dq
+# -mno-avx512dq
+# -mavx512er
+# -mno-avx512er
+# -mavx512f
+# -mno-avx512f
+# -mavx512ifma
+# -mno-avx512ifma
+# -mavx512pf
+# -mno-avx512pf
+# -mavx512vbmi
+# -mno-avx512vbmi
+# -mavx512vl
+# -mno-avx512vl
+# -mbmi
+# -mno-bmi
+# -mbmi2
+# -mno-bmi2
+# -mcx16
+# -mno-cx16
+# -mf16c
+# -mno-f16c
+# -mfma
+# -mno-fma
+# -mfma4
+# -mno-fma4
+# -mfsgsbase
+# -mno-fsgsbase
+# -mfxsr
+# -mno-fxsr
+# -mlzcnt
+# -mno-lzcnt
+# -mmmx
+# -mno-mmx
+# -mmwaitx
+# -mno-mwaitx
+# -mpclmul
+# -mno-pclmul
+# -mpku
+# -mno-pku
+# -mpopcnt
+# -mno-popcnt
+# -mprfchw
+# -mno-prfchw
+# -mrdrnd
+# -mno-rdrnd
+# -mrdseed
+# -mno-rdseed
+# -mrtm
+# -mno-rtm
+# -msha
+# -mno-sha
+# -msse
+# -mno-sse
+# -msse2
+# -mno-sse2
+# -msse3
+# -mno-sse3
+# -msse4.1
+# -mno-sse4.1
+# -msse4.2
+# -mno-sse4.2
+# -msse4
+# -msse4a
+# -mno-sse4a
+# -mssse3
+# -mno-ssse3
+# -mtbm
+# -mno-tbm
+# -mx87
+# -m80387
+# -mno-x87
+# -mxop
+# -mno-xop
+# -mxsave
+# -mno-xsave
+# -mxsavec
+# -mno-xsavec
+# -mxsaveopt
+# -mno-xsaveopt
+# -mxsaves
+# -mno-xsaves
+
+#Optimization level
+
+#Flags controlling how much optimization should be performed.
+
+-O([0-4]?|fast|s|z)
+# --optimize
+# --optimize=([0-4]?|fast|s|z)
+# #Debug information generation
+
+# #Flags controlling how much and what kind of debug information should be generated.
+
+# #Kind and level of debug information
+
+# -g
+# --debug
+# --debug={{arg}}
+# #Generate source-level debug information
+
+# -gdwarf-2
+# #Generate source-level debug information with dwarf version 2
+
+# -gdwarf-3
+# #Generate source-level debug information with dwarf version 3
+
+# -gdwarf-4
+# -gdwarf
+# #Generate source-level debug information with dwarf version 4
+
+# -gdwarf-5
+# #Generate source-level debug information with dwarf version 5
+
+# -gfull
+# -gused
+# #Debug level
+
+# -g0
+# -g2
+# -g3
+# -ggdb0
+# -ggdb1
+# -ggdb2
+# -ggdb3
+# -gline-tables-only
+# -g1
+# -gmlt
+# #Emit debug line number tables only
+
+# -gmodules
+# #Generate debug info with external references to clang modules or precompiled headers
+
+# Debugger to tune debug information for
+
+# #-ggdb
+# -glldb
+# #-gsce
+# #Debug information flags
+
+# -gcolumn-info
+# -gno-column-info
+# -gdwarf-aranges
+# -ggnu-pubnames
+# -grecord-gcc-switches
+# -gno-record-gcc-switches
+# -gsplit-dwarf
+# -gstrict-dwarf
+# -gno-strict-dwarf
+
+#Static analyzer flags
+#Flags controlling the behavior of the Clang Static Analyzer.
+
+# -Xanalyzer <arg>
+# Pass <arg> to the static analyzer
+
+# Fortran compilation flags
+
+# Flags that will be passed onto the gfortran compiler when Clang is given a Fortran input.
+
+# -A<arg>, --assert <arg>, --assert=<arg>
+# -A-<arg>
+# -J<arg>
+# -cpp
+# -faggressive-function-elimination, -fno-aggressive-function-elimination
+# -falign-commons, -fno-align-commons
+# -fall-intrinsics, -fno-all-intrinsics
+# -fautomatic, -fno-automatic
+# -fbackslash, -fno-backslash
+# -fbacktrace, -fno-backtrace
+# -fblas-matmul-limit=<arg>
+# -fbounds-check, -fno-bounds-check
+# -fcheck-array-temporaries, -fno-check-array-temporaries
+# -fcheck=<arg>
+# -fcoarray=<arg>
+# -fconvert=<arg>
+# -fcray-pointer, -fno-cray-pointer
+# -fd-lines-as-code, -fno-d-lines-as-code
+# -fd-lines-as-comments, -fno-d-lines-as-comments
+# -fdefault-double-8, -fno-default-double-8
+# -fdefault-integer-8, -fno-default-integer-8
+# -fdefault-real-8, -fno-default-real-8
+# -fdollar-ok, -fno-dollar-ok
+# -fdump-fortran-optimized, -fno-dump-fortran-optimized
+# -fdump-fortran-original, -fno-dump-fortran-original
+# -fdump-parse-tree, -fno-dump-parse-tree
+# -fexternal-blas, -fno-external-blas
+# -ff2c, -fno-f2c
+# -ffixed-form, -fno-fixed-form
+# -ffixed-line-length-<arg>
+# -ffpe-trap=<arg>
+# -ffree-form, -fno-free-form
+# -ffree-line-length-<arg>
+# -ffrontend-optimize, -fno-frontend-optimize
+# -fimplicit-none, -fno-implicit-none
+# -finit-character=<arg>
+# -finit-integer=<arg>
+# -finit-local-zero, -fno-init-local-zero
+# -finit-logical=<arg>
+# -finit-real=<arg>
+# -finteger-4-integer-8, -fno-integer-4-integer-8
+# -fintrinsic-modules-path, -fno-intrinsic-modules-path
+# -fmax-array-constructor=<arg>
+# -fmax-errors=<arg>
+# -fmax-identifier-length, -fno-max-identifier-length
+# -fmax-stack-var-size=<arg>
+# -fmax-subrecord-length=<arg>
+# -fmodule-private, -fno-module-private
+# -fpack-derived, -fno-pack-derived
+# -fprotect-parens, -fno-protect-parens
+# -frange-check, -fno-range-check
+# -freal-4-real-10, -fno-real-4-real-10
+# -freal-4-real-16, -fno-real-4-real-16
+# -freal-4-real-8, -fno-real-4-real-8
+# -freal-8-real-10, -fno-real-8-real-10
+# -freal-8-real-16, -fno-real-8-real-16
+# -freal-8-real-4, -fno-real-8-real-4
+# -frealloc-lhs, -fno-realloc-lhs
+# -frecord-marker=<arg>
+# -frecursive, -fno-recursive
+# -frepack-arrays, -fno-repack-arrays
+# -fsecond-underscore, -fno-second-underscore
+# -fsign-zero, -fno-sign-zero
+# -fstack-arrays, -fno-stack-arrays
+# -funderscoring, -fno-underscoring
+# -fwhole-file, -fno-whole-file
+# -nocpp
+# -static-libgfortran
+
+# Linker flags
+
+# Flags that are passed on to the linker
+
+# -L<dir>
+# --library-directory <arg>
+# --library-directory=<arg>
+# Add directory to library search path
+
+# -Mach
+# # -T<script>
+# # Specify <script> as linker script
+
+# -Tbss{{number}}
+# #Set starting address of BSS to <addr>
+
+# -Tdata{{number}}
+# #Set starting address of BSS to <addr>
+
+# -Ttext{{number}}
+#Set starting address of BSS to <addr>
+
+# We have a separate list of linker flags
+#-Wl,<arg>,<arg2>... #Pass the comma separated arguments in <arg> to the linker
+
+# -X
+# -Xlinker <arg>, --for-linker <arg>, --for-linker=<arg>
+# Pass <arg> to the linker
+
+#-Z
+#-e<arg>, --entry
+#-filelist <arg>
+#-l<arg>
+#-r
+#-rpath <arg>
+#-s # obsolete
+#-t # lists libs?
+#-u<arg>
+#--force-link <arg>
+#--force-link=<arg>
+#-undef
+#undef all system defines
+
+#-undefined<arg>, --no-undefined
+#-z <arg>
+#Pass -z <arg> to the linker
+
+#«  Objective-C Automatic Reference Counting (ARC)   ::   Contents   ::   Attributes in Clang  »
+
+#© Copyright 2007-2017, The Clang Team. Created using Sphinx 1.5.1.

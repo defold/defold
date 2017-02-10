@@ -4,7 +4,12 @@ import java.util.Map;
 
 import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jface.dialogs.Dialog;
+import org.eclipse.jface.preference.IPreferenceStore;
 
+import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.target.bundle.BundleGenericDialog;
 import com.dynamo.cr.target.bundle.BundleGenericPresenter;
 import com.dynamo.cr.target.bundle.IBundleGenericView;
@@ -60,6 +65,20 @@ public class BundleGenericHandler extends AbstractBundleHandler {
         if(presenter.shouldGenerateReport()) {
             options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));
         }
+
+        if (presenter.shouldPublishLiveUpdate()) {
+            options.put("liveupdate", "true");
+        }
+
+        final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
+
+        EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+        String sdkVersion = corePlugin.getSha1();
+        if (sdkVersion == "NO SHA1") {
+            sdkVersion = "";
+        }
+        options.put("defoldsdk", sdkVersion);
     }
 
 }

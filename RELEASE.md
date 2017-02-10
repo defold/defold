@@ -139,7 +139,7 @@ The following smoke tests are currently performed by the team on each platform (
     Important: *Make sure the SHA1 and channel is correct!*
 
 2. Verify release by updating an old editor, OSX, Win and Linux.
-3. Post release notes on forum.defold.com and send notification email to defold-users@king.com
+3. Post release notes on forum.defold.com and send notification email to defold-users@king.com and releasenotification@king.com
 4. Publish latest documentation by logging into http://www.defold.com/ref/update/latest
 5. Merge master into dev
 

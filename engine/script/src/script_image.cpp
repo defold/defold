@@ -19,7 +19,8 @@ namespace dmScript
     /*# Image API documentation
      *
      * Functions for creating image objects.
-     * 
+     *
+     * @document
      * @name Image
      * @namespace image
      */
@@ -48,9 +49,29 @@ namespace dmScript
     * Load image (PNG or JPEG) from buffer.
     *
     * @name image.load
-    * @param buffer image data buffer
-    * @param [premult] premultiply alpha. optional and defaults to false
-    * @return object with the following fields: width, height, type and buffer (raw data). nil is returned if loading fails.
+    * @param buffer [type:string] image data buffer
+    * @param [premult] [type:boolean] optional flag if alpha should be premultiplied. Defaults to `false`
+    * @return image [type:table] object or `nil` if loading fails. The object is a table with the following fields:
+    *
+    * - [type:number] `width`: image width
+    * - [type:number] `height`: image height
+    * - [type:constant] `type`: image type
+    *     - `image.TYPE_RGB`
+    *     - `image.TYPE_RGBA`
+    *     - `image.TYPE_LUMINANCE`
+    * - [type:string] `buffer`: the raw image data
+    *
+    * @examples
+    *
+    * How to load an image from an URL and create a GUI texture from it:
+    *
+    * ```lua
+    * local imgurl = "http://www.site.com/image.png"
+    * http.request(imgurl, "GET", function(self, id, response)
+    *         local img = image.load(response.response)
+    *         local tx = gui.new_texture("image_node", img.width, img.height, img.type, img.buffer)
+    *     end)
+    * ```
     */
     int Image_Load(lua_State* L)
     {

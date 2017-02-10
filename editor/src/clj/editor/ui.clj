@@ -9,6 +9,7 @@
    [editor.progress :as progress]
    [editor.menu :as menu]
    [editor.ui.tree-view-hack :as tree-view-hack]
+   [editor.util :as eutil]
    [internal.util :as util]
    [service.log :as log]
    [util.profiler :as profiler])
@@ -21,16 +22,15 @@
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans.value ChangeListener ObservableValue]
-   [javafx.collections ObservableList ListChangeListener ListChangeListener$Change]
+   [javafx.collections ObservableList ListChangeListener]
    [javafx.css Styleable]
-   [javafx.event ActionEvent EventHandler WeakEventHandler Event]
+   [javafx.event EventHandler WeakEventHandler Event]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
    [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
-   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent KeyCode]
+   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image]
-   [javafx.scene.layout Region]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window]
@@ -43,7 +43,7 @@
 (import com.sun.javafx.application.PlatformImpl)
 (PlatformImpl/startup (constantly nil))
 
-(defonce ^:dynamic *menu-key-combos* (atom #{}))
+(defonce key-combo->menu-item (atom {}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
 (defprotocol Text
@@ -63,7 +63,8 @@
   (editable! [this val])
   (on-edit! [this fn]))
 
-(def application-icon-image (Image. (io/input-stream (io/resource "logo_blue.png"))))
+(def application-icon-image (with-open [in (io/input-stream (io/resource "logo_blue.png"))]
+                              (Image. in)))
 
 (defn make-stage
   ^Stage []
@@ -108,6 +109,15 @@
       (throw (Exception. (format "controls %s are missing" missing))))
     controls))
 
+(defmacro with-controls [parent child-syms & body]
+  (let [child-keys (map keyword child-syms)
+        child-ids (mapv str child-syms)
+        all-controls-sym (gensym)
+        assignment-pairs (map #(vector %1 (list %2 all-controls-sym)) child-syms child-keys)]
+    `(let [~all-controls-sym (collect-controls ~parent ~child-ids)
+           ~@(mapcat identity assignment-pairs)]
+       ~@body)))
+
 ; TODO: Better name?
 (defn fill-control [control]
   (AnchorPane/setTopAnchor control 0.0)
@@ -141,33 +151,6 @@
         (let [listeners (-> (or (user-data node ::list-listeners) [])
                           (conj listener))]
           (user-data! node ::list-listeners listeners))))))
-
-(defmacro observe-selection
-  "Helper macro that lets you observe selection changes in a generic fashion.
-  Takes a Node that has a getSelectionModel method and a function that takes
-  the reporting Node and a vector with the selected items as its arguments.
-
-  This is a macro because JavaFX does not have a common interface for classes
-  that feature a getSelectionModel method. To avoid reflection warnings, tag
-  the node argument with type metadata.
-
-  Supports both single and multi-selection. In both cases the selected items
-  will be provided in a vector."
-  [node listen-fn]
-  `(let [selection-owner# ~node
-         selection-listener# ~listen-fn
-         selection-model# (.getSelectionModel selection-owner#)]
-     (condp instance? selection-model#
-       MultipleSelectionModel
-       (observe-list selection-owner#
-                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
-                     (fn [_# selected-items#]
-                       (selection-listener# selection-owner# selected-items#)))
-
-       SelectionModel
-       (observe (.selectedItemProperty ^SelectionModel selection-model#)
-                (fn [_# _# selected-item#]
-                  (selection-listener# selection-owner# [selected-item#]))))))
 
 (defn remove-list-observers
   [^Node node ^ObservableList observable]
@@ -342,7 +325,14 @@
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
 
-(defn load-fxml [path]
+(defn auto-commit! [^Node node commit-fn]
+  (on-focus! node (fn [got-focus] (if got-focus
+                                    (user-data! node ::auto-commit? false)
+                                    (when (user-data node ::auto-commit?)
+                                      (commit-fn nil)))))
+  (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
+
+(defn ^Parent load-fxml [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))
         css (io/file "editor.css")]
     (when (and (.exists css) (seq (.getStylesheets root)))
@@ -370,7 +360,10 @@
 (extend-type Tab
   HasUserData
   (user-data [this key] (get (.getUserData this) key))
-  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val)))
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
 
 (defprotocol HasAction
   (on-action! [this fn]))
@@ -399,12 +392,12 @@
   (value! [this val] (text! this val))
   Text
   (text [this] (.getText this))
-  ; TODO: This is hack to reduce the cpu usage due to bug DEFEDIT-131
-  (text! [this val] (when-not (= val (.getText this))
-                      (.setText this val)
-                      (when (.isFocused this)
-                        (.end this)
-                        (.selectAll this))))
+  (text! [this val]
+    (doto this
+      (.setText val)
+      (.end))
+    (when (.isFocused this)
+      (.selectAll this)))
   Editable
   (editable [this] (.isEditable this))
   (editable! [this val] (.setEditable this val))
@@ -432,10 +425,7 @@
 
 (extend-type TextField
   HasAction
-  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
-  Text
-  (text [this] (.getText this))
-  (text! [this val] (.setText this val)))
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
 
 (extend-type Labeled
   Text
@@ -504,21 +494,32 @@
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
 
 (defn- make-tree-cell [render-fn]
-  (let [cell (proxy [TreeCell] []
-               (updateItem [resource empty]
+  (let [apply-style-classes! (make-style-applier)
+        cell (proxy [TreeCell] []
+               (updateItem [item empty]
                  (let [^TreeCell this this
-                       render-data (and resource (render-fn resource))]
-                   (proxy-super updateItem resource empty)
+                       render-data (and item (render-fn item))]
+                   (proxy-super updateItem item empty)
                    (update-tree-cell-style! this)
                    (if empty
                      (do
+                       (apply-style-classes! this #{})
                        (proxy-super setText nil)
-                       (proxy-super setGraphic nil))
+                       (proxy-super setGraphic nil)
+                       (proxy-super setTooltip nil)
+                       (proxy-super setOnDragOver nil)
+                       (proxy-super setOnDragDropped nil)
+                       (proxy-super setOnDragEntered nil)
+                       (proxy-super setOnDragExited nil))
                      (do
-                       (when-let [text (:text render-data)]
-                         (proxy-super setText text))
-                       (when-let [icon (:icon render-data)]
-                         (proxy-super setGraphic (jfx/get-image-view icon 16))))))))]
+                       (apply-style-classes! this (:style render-data #{}))
+                       (proxy-super setText (:text render-data))
+                       (proxy-super setGraphic (some-> (:icon render-data) (jfx/get-image-view (:icon-size render-data 16))))
+                       (proxy-super setTooltip (:tooltip render-data))
+                       (proxy-super setOnDragOver (:over-handler render-data))
+                       (proxy-super setOnDragDropped (:dropped-handler render-data))
+                       (proxy-super setOnDragEntered (:entered-handler render-data))
+                       (proxy-super setOnDragExited (:exited-handler render-data)))))))]
     cell))
 
 (defn- make-tree-cell-factory [render-fn]
@@ -578,19 +579,16 @@
       item)
     []))
 
-
 (defn select-indices!
   [^TreeView tree-view indices]
   (doto (.getSelectionModel tree-view)
     (tree-view-hack/subvert-broken-selection-model-optimization!)
-    (.selectIndices  (int (first indices)) (int-array (rest indices)))))
+    (.selectIndices (int (first indices)) (int-array (rest indices)))))
 
 (extend-type TreeView
   CollectionView
   (selection [this] (some->> this
-                      (.getSelectionModel)
-                      (.getSelectedItems)
-                      (filter (comp not nil?))
+                      tree-view-hack/broken-selected-tree-items
                       (mapv #(.getValue ^TreeItem %))))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
@@ -606,7 +604,7 @@
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
 (defn selection-root-items [^TreeView tree-view path-fn id-fn]
-  (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
+  (let [selection (tree-view-hack/broken-selected-tree-items tree-view)]
     (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
           roots (loop [paths (keys items)
                        roots []]
@@ -635,6 +633,33 @@
                                       (.getParent last-item))))
                               (.getRoot tree-view))]
     [(.getValue next-item)]))
+
+(defmacro observe-selection
+  "Helper macro that lets you observe selection changes in a generic fashion.
+  Takes a Node that has a getSelectionModel method and a function that takes
+  the reporting Node and a vector with the selected items as its arguments.
+
+  This is a macro because JavaFX does not have a common interface for classes
+  that feature a getSelectionModel method. To avoid reflection warnings, tag
+  the node argument with type metadata.
+
+  Supports both single and multi-selection. In both cases the selected items
+  will be provided in a vector."
+  [node listen-fn]
+  `(let [selection-owner# ~node
+         selection-listener# ~listen-fn
+         selection-model# (.getSelectionModel selection-owner#)]
+     (condp instance? selection-model#
+       MultipleSelectionModel
+       (observe-list selection-owner#
+                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
+                     (fn [_# _#]
+                       (selection-listener# selection-owner# (selection selection-owner#))))
+
+       SelectionModel
+       (observe (.selectedItemProperty ^SelectionModel selection-model#)
+                (fn [_# _# _#]
+                  (selection-listener# selection-owner# (selection selection-owner#)))))))
 
 ;; context handling
 
@@ -744,7 +769,7 @@
       (.setId menu-item (name command)))
     (when key-combo
       (.setAccelerator menu-item key-combo)
-      (swap! *menu-key-combos* conj key-combo))
+      (swap! key-combo->menu-item assoc key-combo menu-item))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
     (.setDisable menu-item (not enabled?))
@@ -828,17 +853,46 @@
     (.setImpl_showRelativeToWindow cm true)
     (.setContextMenu tab cm)))
 
+(defn- handle-shortcut
+  [^MenuBar menu-bar ^Event event]
+  (when-let [^MenuItem menu-item (first (keep (fn [[^KeyCombination c ^MenuItem m]]
+                                                (when (.match c event) m))
+                                              @key-combo->menu-item))]
+    ;; Workaround for https://bugs.openjdk.java.net/browse/JDK-8087863
+    ;;
+    ;; Normally, when a KeyEvent has a MenuItem with a matching
+    ;; accelerator, the corresponding onAction handler will not be
+    ;; invoked if the event is consumed. This is in line with the
+    ;; normal JavaFX capturing/bubbling event mechanism. However, on
+    ;; OSX, when using the system menubar, the onAction handler is
+    ;; always invoked and there is no way to prevent its execution.
+    ;;
+    ;; We do the following:
+    ;;
+    ;; - Always consume the event if it's bound to a command,
+    ;;   preventing further propagation.
+    ;;
+    ;; - In the normal case, we eagerly invoke the handler bound to
+    ;;   the key combination here, as it won't be invoked by the menu
+    ;;   system.
+    ;;
+    ;; - For the bug case, we don't do anything here, but exploit the
+    ;;   bug and rely on the handler being invoked by the menu system
+    ;;   even though the event has been consumed.
+    (when-not (and (eutil/is-mac-os?)
+                   (.isUseSystemMenuBar menu-bar))
+      (when-let [action-handler (.getOnAction menu-item)]
+        (.handle action-handler nil)))
+    (.consume event)))
+
 (defn register-menubar [^Scene scene  menubar-id menu-id ]
-  ; TODO: See comment below about top-level items. Should be enforced here
+  ;; TODO: See comment below about top-level items. Should be enforced here
  (let [root (.getRoot scene)]
    (if-let [menubar (.lookup root menubar-id)]
      (let [desc (make-desc menubar menu-id)]
-       (user-data! root ::menubar desc))
-     (log/warn :message (format "menubar %s not found" menubar-id))))
-  (.addEventFilter scene KeyEvent/KEY_PRESSED
-    (event-handler event
-      (when (some (fn [^KeyCombination c] (.match c event)) @*menu-key-combos*)
-        (.consume event)))))
+       (user-data! root ::menubar desc)
+       (.addEventFilter scene KeyEvent/KEY_PRESSED (event-handler event (handle-shortcut menubar event))))
+     (log/warn :message (format "menubar %s not found" menubar-id)))))
 
 (defn run-command
   ([^Node node command]
@@ -1057,6 +1111,9 @@
 (defn default-render-progress! [progress]
   (run-later (update-progress! progress)))
 
+(defn default-render-progress-now! [progress]
+  (update-progress! progress))
+
 (defn init-progress!
   []
   (update-progress! progress/done))
@@ -1097,23 +1154,37 @@
           (throw @return)
           @return))))
 
-(def ^:private last-focused-node (atom nil))
+(defn ui-disabled?
+  []
+  (run-now (.. (main-stage) getScene getRoot isDisabled)))
 
-(defn disable-ui [disabled]
+(def disabled-ui-event-filter
+  (event-handler e (.consume e)))
+
+(defn disable-ui
+  []
   (let [scene       (.getScene (main-stage))
         focus-owner (.getFocusOwner scene)
         root        (.getRoot scene)]
-    (.setDisable root disabled)
-    (when-let [^Node node @last-focused-node]
-      (.requestFocus node))
-    (reset! last-focused-node focus-owner)))
+    (.setDisable root true)
+    (.addEventFilter scene javafx.event.EventType/ROOT disabled-ui-event-filter)
+    focus-owner))
+
+(defn enable-ui
+  [^Node focus-owner]
+  (let [scene       (.getScene (main-stage))
+        root        (.getRoot scene)]
+    (.removeEventFilter scene javafx.event.EventType/ROOT disabled-ui-event-filter)
+    (.setDisable root false)
+    (when focus-owner
+      (.requestFocus focus-owner))))
 
 (defmacro with-disabled-ui [& body]
-  `(try
-     (run-now (disable-ui true))
-     ~@body
-     (finally
-       (run-now (disable-ui false)))))
+  `(let [focus-owner# (run-now (disable-ui))]
+     (try
+       ~@body
+       (finally
+         (run-now (enable-ui focus-owner#))))))
 
 (defn mouse-type
   []
