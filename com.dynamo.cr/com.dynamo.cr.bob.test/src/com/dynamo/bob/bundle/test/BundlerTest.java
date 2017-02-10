@@ -31,6 +31,7 @@ import org.junit.runners.Parameterized.Parameters;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileExceptionError;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
@@ -85,7 +86,7 @@ public class BundlerTest {
         FileUtils.deleteDirectory(new File(contentRootUnused));
     }
 
-    void build() throws IOException, CompileExceptionError {
+    void build() throws IOException, CompileExceptionError, MultipleCompileExceptionError {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
@@ -136,7 +137,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         createFile(contentRoot, "test.icns", "test_icon");
         build();
     }
@@ -149,7 +150,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
         createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
 
@@ -175,7 +176,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
@@ -185,7 +186,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
         File sub1 = new File(cust, "sub1");

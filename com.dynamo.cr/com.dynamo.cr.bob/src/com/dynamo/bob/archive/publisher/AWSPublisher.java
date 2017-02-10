@@ -1,14 +1,11 @@
 package com.dynamo.bob.archive.publisher;
 
-import java.util.List;
-
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AccessControlList;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.Grant;
 import com.amazonaws.services.s3.model.Permission;
 import com.dynamo.bob.CompileExceptionError;
@@ -28,72 +25,59 @@ public class AWSPublisher extends Publisher {
         String message = "Unable to upload: " + reason;
         return new CompileExceptionError(message, exception);
     }
+    
+    private boolean hasWritePermissions(AmazonS3 client, String bucket) {
+    	AccessControlList acl = client.getBucketAcl(bucket);
+        for (Grant grant : acl.getGrantsAsList()) {
+            if (grant.getPermission().equals(Permission.Write) || grant.getPermission().equals(Permission.FullControl)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
 
     @Override
     public void Publish() throws CompileExceptionError {
-        AWSCredentials credentials = null;
-        AmazonS3 client = null;
-        Bucket bucket = null;
-        boolean writePermission = false;
+    	if (this.getPublisherSettings().getAmazonBucket() == null) {
+    		throw compileException("AWS Bucket is not specified", null);
+    	} else if (this.getPublisherSettings().getAmazonPrefix() == null) {
+    		throw compileException("AWS Prefix is not specified", null);
+    	} else if (this.getPublisherSettings().getAmazonCredentialProfile() == null) {
+    		throw compileException("AWS Credential profile is not specified", null);
+    	}
+    	
         try {
-            String accessKey = this.getPublisherSettings().getAwsAccessKey();
-            String secretKey = this.getPublisherSettings().getAwsSecretKey();
-            credentials = new BasicAWSCredentials(accessKey, secretKey);
-            client = new AmazonS3Client(credentials);
-
-            String selectedBucket = this.getPublisherSettings().getAwsBucket();
-            if (selectedBucket != null) {
-                List<Bucket> buckets = client.listBuckets();
-                for (Bucket current : buckets) {
-                    if (selectedBucket.equals(current.getName())) {
-                        bucket = current;
-                        break;
+        	String credentialProfile = this.getPublisherSettings().getAmazonCredentialProfile();
+    		AWSCredentialsProvider credentials = new ProfileCredentialsProvider(credentialProfile);
+    		AmazonS3Client client = new AmazonS3Client(credentials);
+        	String bucket = this.getPublisherSettings().getAmazonBucket();
+            
+            if (client.doesBucketExist(bucket)) {
+                if (hasWritePermissions(client, bucket)) {
+                	String prefix = this.getPublisherSettings().getAmazonPrefix();
+                    for (String hexDigest : this.getEntries().keySet()) {
+                        String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
+                        try {
+                        	client.putObject(bucket, key, this.getEntries().get(hexDigest));
+                        } catch (AmazonS3Exception exception) {
+                        	throw amazonException("Unable to upload file, " + exception.getErrorMessage() + ": " + key, exception);
+                        }
                     }
+                } else {
+                	throw amazonException("The account does not have permission to upload resources", null);
                 }
-            }
-
-            if (bucket != null) {
-                AccessControlList acl = client.getBucketAcl(bucket.getName());
-                for (Grant grant : acl.getGrantsAsList()) {
-                    if (grant.getPermission().equals(Permission.Write)) {
-                        writePermission = true;
-                        break;
-                    } else if (grant.getPermission().equals(Permission.FullControl)) {
-                        writePermission = true;
-                        break;
-                    }
-                }
+            } else {
+            	throw amazonException("The bucket specified does not exist: " + bucket, null);
             }
         } catch (AmazonS3Exception exception) {
-            if (exception.getErrorCode().equals("InvalidAccessKeyId")) {
-                throw amazonException("The access key is invalid", exception);
-            } else if (exception.getErrorCode().equals("SignatureDoesNotMatch")) {
-                throw amazonException("The secret key doesn't match the access key", exception);
-            } else if (exception.getErrorCode().equals("AccessDenied")) {
-                throw amazonException("Access denied, cannot list/write to S3", exception);
-            } else {
-                throw amazonException("Unexpected error: " + exception.getErrorMessage(), exception);
-            }
+            throw amazonException(exception.getErrorMessage(), exception);
         } catch (Exception exception) {
-            throw compileException("communication with Amazon S3 failed", exception);
-        }
-
-        if (bucket == null) {
-            throw compileException("unable to find the bucket specified,  has it been removed?", null);
-        } else if (writePermission == false) {
-            throw compileException("there's no write permission to the bucket specified", null);
-        }
-
-        for (String hexDigest : this.getEntries().keySet()) {
-            String prefix = this.getPublisherSettings().getAwsPrefix();
-            String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
-            try {
-                client.putObject(bucket.getName(), key, this.getEntries().get(hexDigest));
-            } catch (AmazonS3Exception exception) {
-                throw amazonException("unable to upload file, " + exception.getErrorMessage() + ": " + key, exception);
-            } catch (Exception exception) {
-                throw compileException("unable to upload file: " + key, exception);
-            }
+        	if (exception instanceof CompileExceptionError) {
+        		throw exception;
+        	}
+        	
+            throw compileException("Failed to publish resources to Amazon", exception);
         }
     }
 
