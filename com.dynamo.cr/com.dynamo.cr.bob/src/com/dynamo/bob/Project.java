@@ -272,16 +272,13 @@ public class Project {
         System.err.println(String.format(fmt, args));
     }
 
-    public void createPublisher(String secretKey, boolean shouldPublish) throws CompileExceptionError {
+    public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
         if (shouldPublish) {
             try {
                 IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
                 if (publisherSettings.exists()) {
                     ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
                     PublisherSettings settings = PublisherSettings.load(is);
-                    if (secretKey != null) {
-                        settings.setValue("liveupdate", "aws-secret-key", secretKey);
-                    }
 
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
