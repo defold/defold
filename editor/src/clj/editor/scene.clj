@@ -76,14 +76,14 @@
 (defn- render-error
   [gl render-args renderables nrenderables]
   (when (= pass/overlay (:pass render-args))
-    (let [errors  (set (mapcat root-causes (map (comp :error :user-data) renderables)))]
+    (let [errors (set (mapcat root-causes (map (comp :error :user-data) renderables)))]
       (scene-text/overlay gl "Render error:" 24.0 -22.0)
       (doseq [[n error] (partition 2 (interleave (range) errors))]
         (let [message (format "- %s: %s"
                               (or (get-resource-name (:_node-id error))
                                   "unknown")
                               (:message error))]
-          (scene-text/overlay gl message 24.0  (- -22.0 (* 14 (inc n)))))))))
+          (scene-text/overlay gl message 24.0 (- -22.0 (* 14 (inc n)))))))))
 
 (defn substitute-render-data
   [error]
