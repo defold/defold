@@ -185,6 +185,11 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
         for (Protocol.ProjectSite.Screenshot screenshot : projectSite.getScreenshotsList()) {
             System.out.println(screenshot.getId() + " " + screenshot.getUrl());
+
+            projectSiteResource(TestUser.JAMES, project.getId())
+                    .path("screenshots")
+                    .path(String.valueOf(screenshot.getId()))
+                    .delete();
         }
     }
 
