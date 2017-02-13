@@ -100,8 +100,8 @@ public class ProjectSitesResource extends BaseResource {
     @DELETE
     @RolesAllowed(value = {"owner"})
     @Path("screenshots/{screenshotId}")
-    public void deleteScreenshot(@PathParam("project") Long projectId, @PathParam("screenshotId") Long id) {
-        projectService.deleteScreenshot(projectId, id);
+    public void deleteScreenshot(@PathParam("project") Long projectId, @PathParam("screenshotId") Long id) throws Exception {
+        projectService.deleteScreenshot(getUser(), projectId, id);
     }
 
     @PUT
