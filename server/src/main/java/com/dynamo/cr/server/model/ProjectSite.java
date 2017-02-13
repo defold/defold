@@ -36,6 +36,9 @@ public class ProjectSite {
     @Column
     private String reviewUrl;
 
+    @Column
+    private boolean playableUploaded;
+
     @OneToMany(cascade = CascadeType.ALL)
     private Set<AppStoreReference> appStoreReferences = new HashSet<>();
 
@@ -120,5 +123,13 @@ public class ProjectSite {
 
     public void setScreenshots(Set<Screenshot> screenShots) {
         this.screenshots = screenShots;
+    }
+
+    public boolean isPlayableUploaded() {
+        return playableUploaded;
+    }
+
+    public void setPlayableUploaded(boolean playableUploaded) {
+        this.playableUploaded = playableUploaded;
     }
 }
