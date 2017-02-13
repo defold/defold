@@ -61,7 +61,8 @@ main: |
 
 
 whitelist:
-  defineRe:       "[A-Za-z]+[A-Za-z0-9_]+=?[A-Za-z0-9_]+"
+  filenameRe:       "[A-Za-z0-9_ ](?:[A-Za-z0-9_\-\/ ]|(?:\.[A-Za-z0-9_\-\/ ]))+"
+  defineRe:         "[A-Za-z]+[A-Za-z0-9_]+=?[A-Za-z0-9_]+"
 
   context:
     arg:                  "[a-zA-Z][a-zA-Z0-9-_]+"
