@@ -106,25 +106,6 @@
 
 (def defold-docs (atom (defold-documentation)))
 
-(defn lua-std-libs-documentation []
-  (let [base-items (->  (io/resource "lua-standard-libs.edn")
-                        slurp
-                        edn/read-string)
-        hints (for [item base-items]
-                (let [insert-string (string/replace item #"\[.*\]" "")
-                      params (re-find #"(\()(.*)(\))" insert-string)
-                      tab-triggers (when (< 3 (count params)) (remove #(= "" %) (string/split (nth params 2) #",")))]
-                  (code/create-hint
-                   (first (string/split item #"\("))
-                   item
-                   insert-string
-                   ""
-                   {:select tab-triggers :exit (when tab-triggers ")")})))
-        completions (group-by #(let [names (string/split (:name %) #"\.")]
-                                         (if (= 2 (count names)) (first names) "")) hints)
-        package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]
-    (merge-with into completions package-completions)))
-
 (defn lua-base-documentation []
   {"" (-> (io/resource "lua-base-snippets.edn")
           slurp
