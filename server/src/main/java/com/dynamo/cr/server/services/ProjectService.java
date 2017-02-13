@@ -126,6 +126,7 @@ public class ProjectService {
         }
     }
 
+    @Transactional
     public void uploadPlayableFiles(String username, Long projectId, InputStream file) throws Exception {
         Path tempFile = null;
 
@@ -138,6 +139,8 @@ public class ProjectService {
 
             uploadPlayableFiles(username, projectId, playablePath);
 
+            ProjectSite projectSite = getProjectSite(projectId);
+            projectSite.setPlayableUploaded(true);
         } finally {
             if (tempFile != null) {
                 Files.deleteIfExists(tempFile);
