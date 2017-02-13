@@ -6,6 +6,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
 import java.util.HashSet;
 import java.util.Set;
 import javax.ws.rs.core.UriBuilder;
@@ -239,6 +241,13 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         // TODO This is a hack to make sure noone is using remote branches, which is not currently supported
         store.setValue(PreferenceConstants.P_USE_LOCAL_BRANCHES, true);
         updateSocksProxy();
+
+        // Extract and set updated SSL cacerts file
+        File cacertsTmpFile = Files.createTempFile("cacerts", "").toFile();
+        cacertsTmpFile.deleteOnExit();
+        URL input = getClass().getClassLoader().getResource("/cacerts");
+        FileUtils.copyURLToFile(input, cacertsTmpFile);
+        System.setProperty("javax.net.ssl.trustStore", cacertsTmpFile.getAbsolutePath());
 
         // Disable auto-building of projects
         IWorkspace workspace = ResourcesPlugin.getWorkspace();
