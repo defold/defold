@@ -131,21 +131,31 @@
                 :passes [pass/opaque pass/selection pass/outline]}})
 
 (defn- mesh->vb [mesh]
-  (let [positions (vec (partition 3 (:positions mesh)))
-        positions-indices (:indices mesh)
-        vcount (count positions-indices)
-        normals (vec (partition 3 (or (:normals mesh) [0.0 0.0 1.0])))
-        normals-indices (or (:normals-indices mesh) (repeat vcount 0))
-        texcoords (vec (partition 2 (or (:texcoord0 mesh) [0.0 0.0])))
-        texcoords-indices (or (:texcoord0-indices mesh) (repeat vcount 0))]
+  (let [positions         (vec (partition 3 (:positions mesh)))
+        normals           (vec (partition 3 (:normals mesh)))
+        texcoords         (vec (partition 2 (:texcoord0 mesh)))
+        positions-indices (vec (:indices mesh))
+        normals-indices   (vec (:normals-indices mesh))
+        texcoords-indices (vec (:texcoord0-indices mesh))
+        vcount (count positions-indices)]
     (loop [vb (->vtx-pos-nrm-tex vcount)
            vi 0]
       (if (< vi vcount)
-        (let [[px py pz] (-> vi positions-indices positions)
-              [nx ny nz] (-> vi normals-indices normals)
-              [tu tv] (-> vi texcoords-indices texcoords)]
+        (let [[px py pz] (nth positions (nth positions-indices vi 0) [0.0 0.0 0.0])
+              [nx ny nz] (nth normals   (nth normals-indices vi 0)   [0.0 0.0 1.0])
+              [tu tv]    (nth texcoords (nth texcoords-indices vi 0) [0.0 0.0])]
           (recur (conj! vb [px py pz nx ny nz tu tv]) (inc vi)))
         (persistent! vb)))))
+
+(g/defnk produce-vbs [mesh-set]
+  (try
+    (into []
+          (comp (mapcat :meshes)
+                (remove (comp :positions empty?))
+                (map mesh->vb))
+          (:mesh-entries mesh-set))
+    (catch Exception _
+      (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
 
 (g/defnode ColladaSceneNode
   (inherits project/ResourceNode)
@@ -162,12 +172,7 @@
   (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)
   (output skeleton g/Any produce-skeleton)
   (output skeleton-build-target g/Any :cached produce-skeleton-build-target)
-  (output vbs g/Any :cached (g/fnk [mesh-set]
-                              (into []
-                                    (comp (mapcat :meshes)
-                                          (remove (comp :positions empty?))
-                                          (map mesh->vb))
-                                    (:mesh-entries mesh-set))))
+  (output vbs g/Any :cached produce-vbs)
   (output scene g/Any :cached produce-scene))
 
 (defn register-resource-types [workspace]
