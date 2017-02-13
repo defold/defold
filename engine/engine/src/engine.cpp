@@ -852,8 +852,8 @@ namespace dmEngine
             _glfwAndroidSetInputMethod(use_hidden_inputfield);
         }
         {
-        	int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
-        	_glfwAndroidSetImmersiveMode(immersive_mode);
+            int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
+            _glfwAndroidSetImmersiveMode(immersive_mode);
         }
 #endif
 
