@@ -4,6 +4,14 @@
 #include "../resource_archive.h"
 #include "../resource_archive_private.h"
 
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#include <netinet/in.h>
+#elif defined(_WIN32)
+#include <winsock2.h>
+#else
+#error "Unsupported platform"
+#endif
+
 // new file format, generated test data
 extern unsigned char RESOURCES_ARCI[];
 extern uint32_t RESOURCES_ARCI_SIZE;
