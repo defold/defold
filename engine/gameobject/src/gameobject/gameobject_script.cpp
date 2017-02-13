@@ -1460,7 +1460,7 @@ namespace dmGameObject
      * Note that you can only use this function outside any callback-functions like init and update.
      *
      * @name go.property
-     * @param property [type:string] the id of the property
+     * @param name [type:string] the id of the property
      * @param value [type:number|hash|url|vector3|vector4|quaternion] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed
      * @examples
      *

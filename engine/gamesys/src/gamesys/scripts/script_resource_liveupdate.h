@@ -111,7 +111,8 @@ namespace dmLiveUpdate
      * : [type:boolean] Whether or not the resource was successfully stored.
      *
      * @examples
-     * ```
+     *
+     * ```lua
      * function init(self)
      *     self.manifest = resource.get_current_manifest()
      * end
