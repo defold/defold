@@ -71,8 +71,6 @@
 (defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])
 
-(def MouseType #{:one-button :three-button})
-
 (def Registry {s/Any s/Any})
 
 (s/defrecord Rect
