@@ -112,7 +112,7 @@
   ([t :- (s/enum :perspective :orthographic) filter-fn :- Runnable opts]
    (let [distance 5000.0
          position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
-         rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
+         rotation (doto (Quat4d.) (.set 0.0 0.0 0.0 1.0))]
      (types/->Camera t position rotation
                      0 10000
                      (get opts :fov-x 30) (get opts :fov-y 30)
