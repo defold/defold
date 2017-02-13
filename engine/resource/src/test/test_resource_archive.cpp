@@ -138,6 +138,8 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     ai->m_EntryDataCount = C_TO_JAVA(entry_count - num_lu_entries);
 
     arci_size = sizeof(dmResourceArchive::ArchiveIndex) + JAVA_TO_C(ai->m_EntryDataCount) * (ENTRY_SIZE);
+
+    dmResourceArchive::Delete(archive);
 }
 
 void FreeMutableIndexData(void*& arci_data)
