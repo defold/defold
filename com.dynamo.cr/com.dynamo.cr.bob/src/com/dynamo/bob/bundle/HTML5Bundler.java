@@ -157,6 +157,7 @@ public class HTML5Bundler implements IBundler {
 
         File projectRoot = new File(project.getRootDirectory());
         URL html = getResource(projectProperties, projectRoot, "html5", "htmlfile", "engine_template.html");
+        URL htmlEmbed = getResource(projectProperties, projectRoot, "html5", "htmlfile", "engine_template_embed.html");
         URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
         String version = projectProperties.getStringValue("project", "version", "0.0");
         File appDir = new File(bundleDirectory, title);
@@ -224,6 +225,7 @@ public class HTML5Bundler implements IBundler {
         }
 
         format(html, infoData, new File(appDir, "index.html"));
+        format(htmlEmbed, infoData, new File(appDir, "embed.html"));
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
         FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
 
