@@ -28,61 +28,10 @@
 #error "Unsupported platform"
 #endif
 
-#define MD5_SIZE (16)
-
 namespace dmResourceArchive
 {
-    enum EntryFlag
-    {
-        ENTRY_FLAG_ENCRYPTED        = 1 << 0,
-        ENTRY_FLAG_COMPRESSED       = 1 << 1,
-        ENTRY_FLAG_LIVEUPDATE_DATA  = 1 << 2,
-    };
-
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
-
-    struct DM_ALIGNED(16) ArchiveIndex
-    {
-        ArchiveIndex()
-        {
-            memset(this, 0, sizeof(ArchiveIndex));
-        }
-
-        uint32_t m_Version;
-        uint32_t m_Pad;
-        uint64_t m_Userdata;
-        uint32_t m_EntryDataCount;
-        uint32_t m_EntryDataOffset;
-        uint32_t m_HashOffset;
-        uint32_t m_HashLength;
-        uint8_t  m_ArchiveIndexMD5[MD5_SIZE];
-    };
-
-    struct ArchiveIndexContainer
-    {
-        ArchiveIndexContainer()
-        {
-            memset(this, 0, sizeof(ArchiveIndexContainer));
-        }
-
-        ArchiveIndex* m_ArchiveIndex; // this could be mem-mapped or loaded into memory from file
-        bool m_IsMemMapped;
-        bool m_ResourcesMemMapped;
-        bool m_LiveUpdateResourcesMemMapped;
-
-        /// Used if the archive is loaded from file
-        uint8_t* m_Hashes;
-        EntryData* m_Entries;
-        uint8_t* m_ResourceData;
-        FILE* m_FileResourceData;
-
-        /// Resources acquired with LiveUpdate
-        char m_LiveUpdateResourcePath[DMPATH_MAX_PATH];
-        uint8_t* m_LiveUpdateResourceData;
-        uint32_t m_LiveUpdateResourceSize;
-        FILE* m_LiveUpdateFileResourceData;
-    };
 
     Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
     {
@@ -118,24 +67,35 @@ namespace dmResourceArchive
         return memcmp(archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, archive_id, len);
     }
 
-    void StoreLiveUpdateEntries(const ArchiveIndexContainer* archive_container, LiveUpdateEntries* lu_hashes_entries, uint32_t& num_lu_entries)
+    void StoreLiveUpdateEntries(const ArchiveIndexContainer* lu_archive_container, const ArchiveIndexContainer* bundled_archive_container, LiveUpdateEntries* lu_hashes_entries, uint32_t& num_lu_entries)
     {
-        uint32_t entry_count = JAVA_TO_C(archive_container->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t hash_length = JAVA_TO_C(archive_container->m_ArchiveIndex->m_HashLength);
-        uint32_t hash_offset = JAVA_TO_C(archive_container->m_ArchiveIndex->m_HashOffset);
-        uint32_t entries_offset = JAVA_TO_C(archive_container->m_ArchiveIndex->m_EntryDataOffset);
+        uint32_t entry_count = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t hash_length = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashLength);
+        uint32_t hash_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashOffset);
+        uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
         num_lu_entries = 0;
         
-        uint8_t* hashes = (!archive_container->m_IsMemMapped) ? archive_container->m_Hashes : (uint8_t*)((uintptr_t)archive_container->m_ArchiveIndex + hash_offset);
-        EntryData* entries = (!archive_container->m_IsMemMapped) ? archive_container->m_Entries : (EntryData*)((uintptr_t)archive_container->m_ArchiveIndex + entries_offset);
+        uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
+        EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
 
-        // Count number of liveupdate entries
+        uint32_t bundled_hash_offset = JAVA_TO_C(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
+        uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
+
+        // Count number of liveupdate entries to cache
         for (int i = 0; i < entry_count; ++i)
         {
             EntryData& e = entries[i];
             if (JAVA_TO_C(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
             {
-                ++num_lu_entries;
+                // Calc insertion index into bundled archive to see if entry now resides in bundled archive instead
+                uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
+                int insert_index = -1;
+                Result index_result = CalcInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, insert_index);
+
+                if (index_result == RESULT_OK)
+                {
+                    ++num_lu_entries;
+                }
             }
         }
 
@@ -148,9 +108,16 @@ namespace dmResourceArchive
             EntryData& e = entries[i];
             if (JAVA_TO_C(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
             {
-                memcpy((void*)((uintptr_t)lu_hashes + hash_length * lu_counter), (void*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i), hash_length);
-                memcpy((void*)((uintptr_t)lu_entries + sizeof(EntryData) * lu_counter), (void*)((uintptr_t)entries + sizeof(EntryData) * i), sizeof(EntryData));
-                ++lu_counter;
+                uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
+                int insert_index = -1;
+                Result index_result = CalcInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, insert_index);
+
+                if (index_result == RESULT_OK)
+                {
+                    memcpy((void*)((uintptr_t)lu_hashes + hash_length * lu_counter), (void*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i), hash_length);
+                    memcpy((void*)((uintptr_t)lu_entries + sizeof(EntryData) * lu_counter), (void*)((uintptr_t)entries + sizeof(EntryData) * i), sizeof(EntryData));
+                    ++lu_counter;
+                }
             }
         }
 
@@ -164,14 +131,12 @@ namespace dmResourceArchive
     {
         LiveUpdateEntries* lu_entries = new LiveUpdateEntries;
         uint32_t num_lu_entries = 0;
-
-        StoreLiveUpdateEntries(lu_index_container, lu_entries, num_lu_entries);
-        dmResource::UnmountArchiveInternal(lu_index_container, index_mount_info);
+        void* bundled_index_mount_info = 0;
 
         // Mount bundled archive and make deep copy
         ArchiveIndexContainer* bundled_archive_container = 0x0;
         ArchiveIndex* reloaded_index = 0x0;
-        dmResource::Result mount_result = dmResource::MountArchiveInternal(bundled_index_path, bundled_resource_path, lu_resource_path, &bundled_archive_container , &index_mount_info);
+        dmResource::Result mount_result = dmResource::MountArchiveInternal(bundled_index_path, bundled_resource_path, lu_resource_path, &bundled_archive_container, &bundled_index_mount_info);
         if (mount_result != dmResource::RESULT_OK)
         {
             dmLogError("Failed to mount bundled archive index during reload, result = %i", mount_result);
@@ -181,17 +146,21 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
 
-        DeepCopyArchiveIndex(reloaded_index, bundled_archive_container, num_lu_entries);
+        // Cache liveupdate entries and unmount liveupdate index
+        StoreLiveUpdateEntries(lu_index_container, bundled_archive_container, lu_entries, num_lu_entries);
+        dmResource::UnmountArchiveInternal(lu_index_container, index_mount_info);
+        index_mount_info = bundled_index_mount_info;
 
+        // Construct reloaded index, which is union of bundled index and cached liveupdate entries
+        DeepCopyArchiveIndex(reloaded_index, bundled_archive_container, num_lu_entries);
         uint32_t hash_len = lu_entries->m_HashLen;
         uint8_t* reloaded_hashes = (uint8_t*)(uintptr_t(reloaded_index) + JAVA_TO_C(reloaded_index->m_HashOffset));
         for (int i = 0; i < lu_entries->m_Count; ++i)
         {
-            int insert_index = 0;
+            int insert_index = -1;
             const uint8_t* hash = (const uint8_t*)((uintptr_t)lu_entries->m_Hashes + hash_len * i);
             const EntryData* entry = (EntryData*)((uintptr_t)lu_entries->m_Entries + sizeof(EntryData) * i);
-            // This call can return either RESULT_ALREADY_STORED or RESULT_OK, both of with are fine in this case
-            CalcInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, insert_index);
+            Result index_result = CalcInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, insert_index);
 
             // Insert each liveupdate entry WITHOUT writing any resource data!
             Result insert_result = ShiftAndInsert(bundled_archive_container, reloaded_index, hash, hash_len, insert_index, 0x0, entry);
@@ -551,8 +520,9 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    Result ShiftAndInsert(ArchiveIndexContainer* archive_container, ArchiveIndex* ai, const uint8_t* hash_digest, uint32_t hash_digest_len, uint32_t insertion_index, const dmResourceArchive::LiveUpdateResource* resource, const EntryData* lu_entry_data)
+    Result ShiftAndInsert(ArchiveIndexContainer* archive_container, ArchiveIndex* ai, const uint8_t* hash_digest, uint32_t hash_digest_len, int insertion_index, const dmResourceArchive::LiveUpdateResource* resource, const EntryData* lu_entry_data)
     {
+        assert(insertion_index >= 0);
         ArchiveIndex* archive = (ai == 0x0) ? archive_container->m_ArchiveIndex : ai;
         uint8_t* hashes = (uint8_t*)((uintptr_t)archive + JAVA_TO_C(archive->m_HashOffset));
         EntryData* entries = (EntryData*)((uintptr_t)archive + JAVA_TO_C(archive->m_EntryDataOffset));
@@ -647,7 +617,7 @@ namespace dmResourceArchive
     {
         Result result = RESULT_OK;
 
-        int idx = 0;
+        int idx = -1;
         Result index_result = CalcInsertionIndex(archive_container, hash_digest, idx);
         if (index_result != RESULT_OK)
         {

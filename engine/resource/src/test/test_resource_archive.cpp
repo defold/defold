@@ -59,7 +59,7 @@ static const uint8_t compressed_content_hash[][20] = {
     {  90U,  15U,  50U,  67U, 184U,   5U, 147U, 194U, 160U, 203U,  45U, 150U,  20U, 194U,  55U, 123U, 189U, 218U, 105U, 103U }
 };
 
-static const uint32_t entry_size = sizeof(dmResourceArchive::EntryData) + DMRESOURCE_MAX_HASH;
+static const uint32_t ENTRY_SIZE = sizeof(dmResourceArchive::EntryData) + DMRESOURCE_MAX_HASH;
 
 void PopulateLiveUpdateResource(dmResourceArchive::LiveUpdateResource*& resource)
 {
@@ -70,11 +70,66 @@ void PopulateLiveUpdateResource(dmResourceArchive::LiveUpdateResource*& resource
     resource->m_Header->m_Size = 0;
 }
 
+void FreeLiveUpdateEntries(dmResourceArchive::LiveUpdateEntries*& liveupdate_entries)
+{
+    free(liveupdate_entries->m_Entries);
+    free((void*)liveupdate_entries->m_Hashes);
+    delete liveupdate_entries;
+}
+
 void GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
 {
-    uint32_t index_alloc_size = RESOURCES_ARCI_SIZE + entry_size * num_entries_to_be_added;
+    uint32_t index_alloc_size = RESOURCES_ARCI_SIZE + ENTRY_SIZE * num_entries_to_be_added;
     arci_data = malloc(index_alloc_size);
     memcpy(arci_data, RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
+}
+
+void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t num_entries_to_keep)
+{
+    uint32_t num_lu_entries = 2 - num_entries_to_keep; // 2 LiveUpdate resources in archive in total
+    ASSERT_EQ(true, num_lu_entries >= 0);
+    arci_data = malloc(RESOURCES_ARCI_SIZE - ENTRY_SIZE * num_lu_entries);
+    // Init archive container including LU resources
+    dmResourceArchive::ArchiveIndexContainer* archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    uint32_t entry_count = htonl(archive->m_ArchiveIndex->m_EntryDataCount);
+    uint32_t hash_length = JAVA_TO_C(archive->m_ArchiveIndex->m_HashLength);
+    uint32_t hash_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset);
+    uint32_t entries_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataOffset);
+    dmResourceArchive::EntryData* entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entries_offset);
+
+    // Construct "bundled" archive
+    uint8_t* cursor = (uint8_t*)arci_data;
+    uint8_t* cursor_hash = (uint8_t*)((uintptr_t)arci_data + hash_offset);
+    uint8_t* cursor_entry = (uint8_t*)((uintptr_t)arci_data + entries_offset - num_lu_entries * DMRESOURCE_MAX_HASH);
+    memcpy(cursor, RESOURCES_ARCI, sizeof(dmResourceArchive::ArchiveIndex)); // Copy header
+    int lu_entries_to_copy = num_entries_to_keep;
+    for (int i = 0; i < entry_count; ++i)
+    {
+        dmResourceArchive::EntryData& e = entries[i];
+        bool is_lu_entry = JAVA_TO_C(e.m_Flags) & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA;
+        if (!is_lu_entry || lu_entries_to_copy > 0)
+        {
+            if (is_lu_entry)
+            {
+                --lu_entries_to_copy;
+            }
+
+            memcpy(cursor_hash, (void*)((uintptr_t)RESOURCES_ARCI + hash_offset + DMRESOURCE_MAX_HASH * i), DMRESOURCE_MAX_HASH);
+            memcpy(cursor_entry, &e, sizeof(dmResourceArchive::EntryData));
+
+            cursor_hash = (uint8_t*)((uintptr_t)cursor_hash + DMRESOURCE_MAX_HASH);
+            cursor_entry = (uint8_t*)((uintptr_t)cursor_entry + sizeof(dmResourceArchive::EntryData));
+            
+        }
+    }
+    dmResourceArchive::ArchiveIndex* ai = (dmResourceArchive::ArchiveIndex*)arci_data;
+    ai->m_EntryDataOffset = C_TO_JAVA(entries_offset - num_lu_entries * DMRESOURCE_MAX_HASH);
+    ai->m_EntryDataCount = C_TO_JAVA(entry_count - num_lu_entries);
+
+    arci_size = sizeof(dmResourceArchive::ArchiveIndex) + JAVA_TO_C(ai->m_EntryDataCount) * (ENTRY_SIZE);
 }
 
 void FreeMutableIndexData(void*& arci_data)
@@ -92,6 +147,23 @@ bool IsLiveUpdateResource(dmhash_t lu_path_hash)
         }
     }
     return false;
+}
+
+void CreateBundledArchive(dmResourceArchive::HArchiveIndexContainer& bundled_archive_container, dmResourceArchive::HArchiveIndex& bundled_archive_index, uint32_t num_entries_to_keep)
+{
+    bundled_archive_container = 0;
+    bundled_archive_index = 0;
+    uint32_t bundled_archive_size = 0;
+    GetMutableBundledIndexData((void*&)bundled_archive_index, bundled_archive_size, num_entries_to_keep);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*&) bundled_archive_index, bundled_archive_size, RESOURCES_ARCD, 0x0, 0x0, 0x0, &bundled_archive_container);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(5U + num_entries_to_keep, dmResourceArchive::GetEntryCount(bundled_archive_container));
+}
+
+void FreeBundledArchive(dmResourceArchive::HArchiveIndexContainer& bundled_archive_container, dmResourceArchive::HArchiveIndex& bundled_archive_index)
+{
+    dmResourceArchive::Delete(bundled_archive_container);
+    FreeMutableIndexData((void*&)bundled_archive_index);
 }
 
 TEST(dmResourceArchive, ShiftInsertResource)
@@ -165,19 +237,32 @@ TEST(dmResourceArchive, DeepCopyArchiveIndex)
 
 TEST(dmResourceArchive, StoreLiveUpdateEntries)
 {
+    dmResourceArchive::HArchiveIndexContainer bundled_archive_container;
+    dmResourceArchive::ArchiveIndex* bundled_archive_index;
+    uint32_t bundled_archive_size;
+
     dmResourceArchive::HArchiveIndexContainer archive_container = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive_container));
 
+    // Create "bundled" archive container that does not contain any LiveUpdate resources
+    CreateBundledArchive(bundled_archive_container, bundled_archive_index, 0);
     dmResourceArchive::LiveUpdateEntries* liveupdate_entries = new dmResourceArchive::LiveUpdateEntries;
     uint32_t lu_count = 0;
-    dmResourceArchive::StoreLiveUpdateEntries(archive_container, liveupdate_entries, lu_count);
+    dmResourceArchive::StoreLiveUpdateEntries(archive_container, bundled_archive_container, liveupdate_entries, lu_count);
     ASSERT_EQ(2U, liveupdate_entries->m_Count);
+    FreeLiveUpdateEntries(liveupdate_entries);
+    FreeBundledArchive(bundled_archive_container, bundled_archive_index);
 
-    free(liveupdate_entries->m_Entries);
-    free((void*)liveupdate_entries->m_Hashes);
-    delete liveupdate_entries;
+    // Create "bundled" archive container that has 1 LiveUpdate entry now in bundle instead
+    CreateBundledArchive(bundled_archive_container, bundled_archive_index, 1);
+    liveupdate_entries = new dmResourceArchive::LiveUpdateEntries;
+    lu_count = 0;
+    dmResourceArchive::StoreLiveUpdateEntries(archive_container, bundled_archive_container, liveupdate_entries, lu_count);
+    ASSERT_EQ(1U, liveupdate_entries->m_Count);
+    FreeLiveUpdateEntries(liveupdate_entries);
+    FreeBundledArchive(bundled_archive_container, bundled_archive_index);
 
     dmResourceArchive::Delete(archive_container);
 }
