@@ -54,9 +54,9 @@ public class DefoldActivity extends NativeActivity {
     private InputMethodManager imm = null;
     private EditText mTextEdit = null;
     private boolean mUseHiddenInputField = false;
-    
+
     private boolean mImmersiveMode = false;
-    
+
     /**
      * Update immersive sticky mode based on current setting. This will only
      * be done if Android OS version is equal to or above KitKat
@@ -72,12 +72,6 @@ public class DefoldActivity extends NativeActivity {
                     | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-            }
-            else {
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
             }
         }
     }
@@ -238,7 +232,7 @@ public class DefoldActivity extends NativeActivity {
         super.onResume();
         activityVisible = true;
     }
-    
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -470,7 +464,7 @@ public class DefoldActivity extends NativeActivity {
             }
         });
     }
-    
+
     /**
      * Method to enable/disable immersive mode
      * Called from C (android_window.c)
