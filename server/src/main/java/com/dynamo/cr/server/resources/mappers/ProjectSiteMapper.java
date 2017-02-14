@@ -31,7 +31,7 @@ public class ProjectSiteMapper {
             builder.setProjectId(project.getId());
 
             if (projectSite.isPlayableUploaded()) {
-                builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable") + "/index.html");
+                builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable/index.html"));
             }
 
             if (projectSite.getName() != null) {
