@@ -308,8 +308,15 @@
   (run [project-graph] (g/undo! project-graph)))
 
 (handler/defhandler :redo :global
-    (enabled? [project-graph] (g/has-redo? project-graph))
-    (run [project-graph] (g/redo! project-graph)))
+  (enabled? [project-graph] (g/has-redo? project-graph))
+  (run [project-graph] (g/redo! project-graph)))
+
+(def ^:private bundle-targets ["iOS Application..."
+                               "Android Application..."
+                               "OSX Application..."
+                               "Windows Application..."
+                               "Linux Application..."
+                               "HTML5 Application..."])
 
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"
@@ -317,6 +324,8 @@
                   :children [{:label "Build"
                               :acc "Shortcut+B"
                               :command :build}
+                             {:label "Bundle"
+                              :children (mapv #(do {:label % :command :bundle}) bundle-targets)}
                              {:label "Fetch Libraries"
                               :command :fetch-libraries}
                              {:label "Sign iOS App..."
