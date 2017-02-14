@@ -2,28 +2,36 @@ package com.dynamo.cr.server.resources.mappers;
 
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.server.clients.magazine.MagazineClient;
-import com.dynamo.cr.server.model.AppStoreReference;
-import com.dynamo.cr.server.model.Project;
-import com.dynamo.cr.server.model.ProjectSite;
-import com.dynamo.cr.server.model.Screenshot;
+import com.dynamo.cr.server.model.*;
 
 import java.util.List;
 import java.util.Set;
 
 public class ProjectSiteMapper {
 
-    public static Protocol.ProjectSiteList map(List<Project> projects, MagazineClient magazineClient) {
+    public static Protocol.ProjectSiteList map(User user, List<Project> projects, MagazineClient magazineClient) {
         Protocol.ProjectSiteList.Builder builder = Protocol.ProjectSiteList.newBuilder();
 
         for (Project project : projects) {
-            builder.addSites(map(project, magazineClient));
+            builder.addSites(map(user, project, magazineClient));
         }
 
         return builder.build();
     }
 
-    public static Protocol.ProjectSite map(Project project, MagazineClient magazineClient) {
+    public static Protocol.ProjectSite map(User user, Project project, MagazineClient magazineClient) {
         Protocol.ProjectSite.Builder builder = Protocol.ProjectSite.newBuilder();
+
+        builder.setIsOwner(project.getOwner().getEmail().equals(user.getEmail()));
+
+        for (User member : project.getMembers()) {
+            Protocol.UserInfo.Builder userInfoBuilder = Protocol.UserInfo.newBuilder();
+            userInfoBuilder.setId(member.getId());
+            userInfoBuilder.setEmail(member.getEmail());
+            userInfoBuilder.setFirstName(member.getFirstName());
+            userInfoBuilder.setLastName(member.getLastName());
+            builder.addMembers(userInfoBuilder.build());
+        }
 
         if (project.getProjectSite() != null) {
             ProjectSite projectSite = project.getProjectSite();

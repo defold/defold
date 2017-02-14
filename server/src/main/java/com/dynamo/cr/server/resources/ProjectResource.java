@@ -116,25 +116,8 @@ public class ProjectResource extends BaseResource {
     @Path("/members")
     @RolesAllowed(value = {"member"})
     @Transactional
-    public void addMember(@PathParam("project") Long projectId,
-                          String memberEmail) {
-        User user = getUser();
-        User member = ModelUtil.findUserByEmail(em, memberEmail);
-        if (member == null) {
-            throw new ServerException("User not found", Status.NOT_FOUND);
-        }
-
-        // Connect new member to owner (used in e.g. auto-completion)
-        user.getConnections().add(member);
-
-        Project project = projectService.find(projectId)
-                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
-
-        project.getMembers().add(member);
-        member.getProjects().add(project);
-        em.persist(project);
-        em.persist(user);
-        em.persist(member);
+    public void addMember(@PathParam("project") Long projectId, String memberEmail) {
+        projectService.addMember(projectId, getUser(), memberEmail);
     }
 
     @DELETE

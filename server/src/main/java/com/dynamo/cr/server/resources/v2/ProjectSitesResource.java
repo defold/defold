@@ -36,7 +36,7 @@ public class ProjectSitesResource extends BaseResource {
     @RolesAllowed(value = {"member"})
     public Protocol.ProjectSiteList getProjectSites() throws Exception {
         List<Project> projects = projectService.findAll(getUser());
-        return ProjectSiteMapper.map(projects, getMagazineClient());
+        return ProjectSiteMapper.map(getUser(), projects, getMagazineClient());
     }
 
     @GET
@@ -45,7 +45,7 @@ public class ProjectSitesResource extends BaseResource {
         Project project = projectService.find(projectId)
                 .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
 
-        return ProjectSiteMapper.map(project, getMagazineClient());
+        return ProjectSiteMapper.map(getUser(), project, getMagazineClient());
     }
 
     private MagazineClient getMagazineClient() throws Exception {
