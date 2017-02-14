@@ -217,7 +217,8 @@ def _parse_comment(str):
             element.deprecated = md.convert(value)
         elif tag == 'replaces':
             element.replaces = md.convert(value)
-        elif tag == 'namespace':
+        elif tag == 'namespace' and document_comment:
+            # only care for @namespace in @document comments.
             element.namespace = value
             namespace_found = True
 
