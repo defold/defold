@@ -630,9 +630,10 @@
     project-id))
 
 (defn- read-dependencies [game-project-resource]
-  (-> (io/reader game-project-resource)
-      settings-core/parse-settings
-      (settings-core/get-setting ["project" "dependencies"])))
+  (with-open [game-project-reader (io/reader game-project-resource)]
+    (-> game-project-reader
+        settings-core/parse-settings
+        (settings-core/get-setting ["project" "dependencies"]))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [progress (atom (progress/make "Updating dependencies" 3))]
