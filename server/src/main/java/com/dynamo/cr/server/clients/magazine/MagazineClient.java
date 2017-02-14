@@ -62,4 +62,12 @@ public class MagazineClient {
         String jwt = jwtFactory.create("", Instant.now().plus(READ_EXPIRATION), resource, false);
         return magazineServiceUrl + "/" + jwt;
     }
+
+    public void delete(String userEmail, String resource) {
+        String writeToken = createWriteToken(userEmail, resource);
+
+        client.resource(magazineServiceUrl)
+                .path(writeToken)
+                .delete();
+    }
 }
