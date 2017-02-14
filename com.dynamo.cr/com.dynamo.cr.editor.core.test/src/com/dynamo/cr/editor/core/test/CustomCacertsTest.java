@@ -30,7 +30,6 @@ public class CustomCacertsTest {
         URL url = new URL("https://build.defold.com");
         HttpsURLConnection urlConnection = (HttpsURLConnection) url.openConnection();
         urlConnection.connect();
-
         assertEquals(200, urlConnection.getResponseCode());
     }
 }
