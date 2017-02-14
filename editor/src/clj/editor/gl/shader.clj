@@ -580,6 +580,10 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (defn- build-shader [self basis resource dep-resources user-data]
   {:resource resource :content (.getBytes ^String (:source user-data))})
 
+(g/defnk produce-save-data [resource code]
+  {:resource resource
+   :content code})
+
 (g/defnk produce-build-targets [_node-id resource full-source def]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
@@ -598,6 +602,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
+  (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any produce-build-targets)
   (output full-source g/Str (g/fnk [code def] (str (get def :prefix) code))))
 
