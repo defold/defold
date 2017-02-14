@@ -25,13 +25,14 @@ public class ProjectSiteMapper {
     public static Protocol.ProjectSite map(Project project, MagazineClient magazineClient) {
         Protocol.ProjectSite.Builder builder = Protocol.ProjectSite.newBuilder();
 
-        // TODO: Keep track of if a playable has been uploaded?
-        builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable") + "/index.html");
-
         if (project.getProjectSite() != null) {
             ProjectSite projectSite = project.getProjectSite();
 
             builder.setProjectId(project.getId());
+
+            if (projectSite.isPlayableUploaded()) {
+                builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable") + "/index.html");
+            }
 
             if (projectSite.getName() != null) {
                 builder.setName(projectSite.getName());

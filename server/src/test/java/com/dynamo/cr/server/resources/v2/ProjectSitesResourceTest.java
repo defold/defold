@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class ProjectSitesResourceTest extends AbstractResourceTest {
 
@@ -198,6 +199,11 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
     public void uploadPlayable() throws URISyntaxException {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
 
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+
+        // Project site should not have playable yet.
+        assertFalse(projectSite.hasPlayableUrl());
+
         File playableFile = new File(ClassLoader.getSystemResource("test_playable.zip").toURI());
 
         MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
@@ -209,7 +215,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .type(MediaType.MULTIPART_FORM_DATA_TYPE)
                 .put(multiPart);
 
-        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        projectSite = getProjectSite(TestUser.JAMES, project.getId());
         System.out.println(projectSite.getPlayableUrl());
     }
 }
