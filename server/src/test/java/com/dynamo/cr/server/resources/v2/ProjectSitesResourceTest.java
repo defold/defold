@@ -19,6 +19,7 @@ import java.net.URISyntaxException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ProjectSitesResourceTest extends AbstractResourceTest {
 
@@ -42,6 +43,15 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .build();
 
         return baseResource.path("/projects/-1/").post(Protocol.ProjectInfo.class, newProject);
+    }
+
+    private void addProjectMember(Long projectId, TestUser owner, TestUser newMember) {
+        WebResource baseResource = createBaseResource(owner.email, owner.password)
+                .path("/projects/-1")
+                .path(String.valueOf(projectId))
+                .path("members");
+
+        baseResource.post(newMember.email);
     }
 
     private WebResource projectSiteResource(TestUser user, Long projectId) {
@@ -101,6 +111,18 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals("devLogUrl", result.getDevLogUrl());
         assertEquals("reviewUrl", result.getReviewUrl());
         assertEquals(project.getId(), result.getProjectId());
+    }
+
+    @Test
+    public void ownerIsOnlyTrueForOwnerRequests() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+        addProjectMember(project.getId(), TestUser.JAMES, TestUser.CARL);
+
+        Protocol.ProjectSite result = getProjectSite(TestUser.JAMES, project.getId());
+        assertTrue(result.getIsOwner());
+
+        result = getProjectSite(TestUser.CARL, project.getId());
+        assertFalse(result.getIsOwner());
     }
 
     @Test
