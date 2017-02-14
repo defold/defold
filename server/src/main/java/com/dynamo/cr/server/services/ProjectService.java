@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
+import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.*;
@@ -27,6 +28,9 @@ public class ProjectService {
 
     @Inject
     private Config.Configuration configuration;
+
+    @Inject
+    private UserService userService;
 
     private MagazineClient magazineClient;
 
@@ -46,6 +50,22 @@ public class ProjectService {
                 .createQuery("select p from Project p where :user member of p.members", Project.class)
                 .setParameter("user", user)
                 .getResultList();
+    }
+
+    @Transactional
+    public void addMember(Long projectId, User user, String newMemberEmail) {
+
+        Project project = find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId), Response.Status.NOT_FOUND));
+
+        User member = userService.findByEmail(newMemberEmail)
+                .orElseThrow(() -> new ServerException("User not found", Response.Status.NOT_FOUND));
+
+        // Connect new member to owner (used in e.g. auto-completion)
+        user.getConnections().add(member);
+
+        project.getMembers().add(member);
+        member.getProjects().add(project);
     }
 
     @Transactional
