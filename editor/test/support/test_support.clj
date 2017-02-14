@@ -42,7 +42,7 @@
   [graph]
   (is/redo-stack (is/graph-history @g/*the-system* graph)))
 
-;; These *-until-new-mtime fns are hacks to support the fs-watch sync, which checks mtime
+;; These *-until-new-mtime fns are hacks to support the resource-watch sync, which checks mtime
 
 (defn write-until-new-mtime [write-fn f & args]
   (let [f (io/as-file f)
