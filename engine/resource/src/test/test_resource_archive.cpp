@@ -85,6 +85,7 @@ void FreeLiveUpdateEntries(dmResourceArchive::LiveUpdateEntries*& liveupdate_ent
     delete liveupdate_entries;
 }
 
+// Call to this should be free'd with FreeMutableIndexData(...)
 void GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
 {
     uint32_t index_alloc_size = RESOURCES_ARCI_SIZE + ENTRY_SIZE * num_entries_to_be_added;
@@ -92,6 +93,7 @@ void GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
     memcpy(arci_data, RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
 }
 
+// Call to this should be free'd with FreeMutableIndexData(...)
 void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t num_entries_to_keep)
 {
     uint32_t num_lu_entries = 2 - num_entries_to_keep; // 2 LiveUpdate resources in archive in total
@@ -201,7 +203,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
 
     // Insertion
     int index = -1;
-    dmResourceArchive::CalcInsertionIndex(archive, sorted_middle_hash, index);
+    dmResourceArchive::GetInsertionIndex(archive, sorted_middle_hash, &index);
     ASSERT_TRUE(index >= 0);
     dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, 0x0, sorted_middle_hash, 20, index, resource, 0x0);
     ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
@@ -221,7 +223,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
     FreeMutableIndexData((void*&)arci_copy);
 }
 
-TEST(dmResourceArchive, DeepCopyArchiveIndex)
+TEST(dmResourceArchive, NewArchiveIndexFromCopy)
 {
     uint32_t single_entry_offset = DMRESOURCE_MAX_HASH;
 
@@ -232,20 +234,20 @@ TEST(dmResourceArchive, DeepCopyArchiveIndex)
 
     // No extra allocation
     dmResourceArchive::HArchiveIndex dst_archive = 0;
-    dmResourceArchive::DeepCopyArchiveIndex(dst_archive, archive_container, 0);
+    dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 0);
     ASSERT_EQ(496U, dmResourceArchive::GetEntryDataOffset(dst_archive));
     dmResourceArchive::Delete(dst_archive);
     
     // Allocate space for 3 extra entries
     dst_archive = 0;
-    dmResourceArchive::DeepCopyArchiveIndex(dst_archive, archive_container, 3);
+    dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 3);
     ASSERT_EQ(496U + 3 * single_entry_offset, dmResourceArchive::GetEntryDataOffset(dst_archive));
     dmResourceArchive::Delete(dst_archive);
 
     dmResourceArchive::Delete(archive_container);
 }
 
-TEST(dmResourceArchive, StoreLiveUpdateEntries)
+TEST(dmResourceArchive, CacheLiveUpdateEntries)
 {
     dmResourceArchive::HArchiveIndexContainer bundled_archive_container;
     dmResourceArchive::ArchiveIndex* bundled_archive_index;
@@ -259,8 +261,7 @@ TEST(dmResourceArchive, StoreLiveUpdateEntries)
     // Create "bundled" archive container that does not contain any LiveUpdate resources
     CreateBundledArchive(bundled_archive_container, bundled_archive_index, 0);
     dmResourceArchive::LiveUpdateEntries* liveupdate_entries = new dmResourceArchive::LiveUpdateEntries;
-    uint32_t lu_count = 0;
-    dmResourceArchive::StoreLiveUpdateEntries(archive_container, bundled_archive_container, liveupdate_entries, lu_count);
+    dmResourceArchive::CacheLiveUpdateEntries(archive_container, bundled_archive_container, liveupdate_entries);
     ASSERT_EQ(2U, liveupdate_entries->m_Count);
     FreeLiveUpdateEntries(liveupdate_entries);
     FreeBundledArchive(bundled_archive_container, bundled_archive_index);
@@ -268,8 +269,7 @@ TEST(dmResourceArchive, StoreLiveUpdateEntries)
     // Create "bundled" archive container that has 1 LiveUpdate entry now in bundle instead
     CreateBundledArchive(bundled_archive_container, bundled_archive_index, 1);
     liveupdate_entries = new dmResourceArchive::LiveUpdateEntries;
-    lu_count = 0;
-    dmResourceArchive::StoreLiveUpdateEntries(archive_container, bundled_archive_container, liveupdate_entries, lu_count);
+    dmResourceArchive::CacheLiveUpdateEntries(archive_container, bundled_archive_container, liveupdate_entries);
     ASSERT_EQ(1U, liveupdate_entries->m_Count);
     FreeLiveUpdateEntries(liveupdate_entries);
     FreeBundledArchive(bundled_archive_container, bundled_archive_index);
@@ -277,7 +277,7 @@ TEST(dmResourceArchive, StoreLiveUpdateEntries)
     dmResourceArchive::Delete(archive_container);
 }
 
-TEST(dmResourceArchive, CalcInsertionIndex)
+TEST(dmResourceArchive, GetInsertionIndex)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
@@ -286,13 +286,13 @@ TEST(dmResourceArchive, CalcInsertionIndex)
 
     int index = -1;
 
-    dmResourceArchive::CalcInsertionIndex(archive, sorted_first_hash, index);
+    dmResourceArchive::GetInsertionIndex(archive, sorted_first_hash, &index);
     ASSERT_EQ(0, index);
 
-    dmResourceArchive::CalcInsertionIndex(archive, sorted_middle_hash, index);
+    dmResourceArchive::GetInsertionIndex(archive, sorted_middle_hash, &index);
     ASSERT_EQ(2, index);
 
-    dmResourceArchive::CalcInsertionIndex(archive, sorted_last_hash, index);
+    dmResourceArchive::GetInsertionIndex(archive, sorted_last_hash, &index);
     ASSERT_EQ(7, index);
 
     dmResourceArchive::Delete(archive);

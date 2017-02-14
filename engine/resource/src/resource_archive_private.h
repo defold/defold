@@ -17,7 +17,7 @@ namespace dmResourceArchive
         ENTRY_FLAG_COMPRESSED       = 1 << 1,
         ENTRY_FLAG_LIVEUPDATE_DATA  = 1 << 2,
     };
-    
+
     struct DM_ALIGNED(16) ArchiveIndex
     {
         ArchiveIndex()
@@ -82,11 +82,13 @@ namespace dmResourceArchive
 
 	Result WriteResourceToArchive(ArchiveIndexContainer*& archive, const uint8_t* buf, uint32_t buf_len, uint32_t& bytes_written, uint32_t& offset);
 
-	void DeepCopyArchiveIndex(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc);
-	
-    Result CalcInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int& index);
+	void NewArchiveIndexFromCopy(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc);
 
-    void StoreLiveUpdateEntries(const ArchiveIndexContainer* archive_container, const ArchiveIndexContainer* bundled_archive_container, LiveUpdateEntries* lu_hashes_entries, uint32_t& num_lu_entries);
+    Result GetInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int* index);
+	
+    Result GetInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int* index);
+
+    void CacheLiveUpdateEntries(const ArchiveIndexContainer* archive_container, const ArchiveIndexContainer* bundled_archive_container, LiveUpdateEntries* lu_hashes_entries);
 
     uint32_t GetEntryDataOffset(ArchiveIndexContainer* archive_container);
 

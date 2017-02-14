@@ -67,18 +67,18 @@ namespace dmResourceArchive
         return memcmp(archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, archive_id, len);
     }
 
-    void StoreLiveUpdateEntries(const ArchiveIndexContainer* lu_archive_container, const ArchiveIndexContainer* bundled_archive_container, LiveUpdateEntries* lu_hashes_entries, uint32_t& num_lu_entries)
+    uint32_t CountLiveUpdateEntries(const ArchiveIndexContainer* lu_archive_container, const ArchiveIndexContainer* bundled_archive_container)
     {
+        uint32_t count = 0;
         uint32_t entry_count = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
         uint32_t hash_length = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashLength);
         uint32_t hash_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashOffset);
-        uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
-        num_lu_entries = 0;
-        
+        uint32_t bundled_hash_offset = JAVA_TO_C(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
+
         uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
         EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
 
-        uint32_t bundled_hash_offset = JAVA_TO_C(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
         uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
 
         // Count number of liveupdate entries to cache
@@ -90,18 +90,37 @@ namespace dmResourceArchive
                 // Calc insertion index into bundled archive to see if entry now resides in bundled archive instead
                 uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
                 int insert_index = -1;
-                Result index_result = CalcInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, insert_index);
+                Result index_result = GetInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, &insert_index);
 
                 if (index_result == RESULT_OK)
                 {
-                    ++num_lu_entries;
+                    ++count;
                 }
             }
         }
 
+        return count;
+    }
+
+    // Looks for and caches liveupdate entries that are in the liveupdate archive index and NOT in the bundled archive
+    void CacheLiveUpdateEntries(const ArchiveIndexContainer* lu_archive_container, const ArchiveIndexContainer* bundled_archive_container, LiveUpdateEntries* lu_hashes_entries)
+    {
+        uint32_t entry_count = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t hash_length = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashLength);
+        uint32_t hash_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashOffset);
+        uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
+        
+        uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
+        EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
+
+        uint32_t bundled_hash_offset = JAVA_TO_C(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
+        uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
+
+        uint32_t lu_entry_count = CountLiveUpdateEntries(lu_archive_container, bundled_archive_container);
+
         // Cache liveupdate entries
-        uint8_t* lu_hashes = (uint8_t*)malloc(hash_length * num_lu_entries);
-        EntryData* lu_entries = (EntryData*)malloc(sizeof(EntryData) * num_lu_entries);
+        uint8_t* lu_hashes = (uint8_t*)malloc(hash_length * lu_entry_count);
+        EntryData* lu_entries = (EntryData*)malloc(sizeof(EntryData) * lu_entry_count);
         uint32_t lu_counter = 0;
         for (int i = 0; i < entry_count; ++i)
         {
@@ -110,7 +129,7 @@ namespace dmResourceArchive
             {
                 uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
                 int insert_index = -1;
-                Result index_result = CalcInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, insert_index);
+                Result index_result = GetInsertionIndex(bundled_archive_container->m_ArchiveIndex, entry_hash, bundled_hashes, &insert_index);
 
                 if (index_result == RESULT_OK)
                 {
@@ -124,9 +143,13 @@ namespace dmResourceArchive
         lu_hashes_entries->m_Hashes = lu_hashes;
         lu_hashes_entries->m_HashLen = hash_length;
         lu_hashes_entries->m_Entries = lu_entries;
-        lu_hashes_entries->m_Count = num_lu_entries;
+        lu_hashes_entries->m_Count = lu_entry_count;
     }
 
+    // * Cache all liveupdate entries that are NOT in the (new) bundled archive
+    // * Make a copy of the bundled archive with space allocated for the cached liveupdate entries
+    // * Insert liveupdate entries sorted on hash in the bundled archive copy
+    // * We now have the union of bundled archive entries and liveupdate entries (correct)
     Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resource_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info)
     {
         LiveUpdateEntries* lu_entries = new LiveUpdateEntries;
@@ -140,19 +163,17 @@ namespace dmResourceArchive
         if (mount_result != dmResource::RESULT_OK)
         {
             dmLogError("Failed to mount bundled archive index during reload, result = %i", mount_result);
-            free(lu_entries->m_Entries);
-            free((void*)lu_entries->m_Hashes);
             delete lu_entries;
             return RESULT_IO_ERROR;
         }
 
         // Cache liveupdate entries and unmount liveupdate index
-        StoreLiveUpdateEntries(lu_index_container, bundled_archive_container, lu_entries, num_lu_entries);
+        CacheLiveUpdateEntries(lu_index_container, bundled_archive_container, lu_entries);
         dmResource::UnmountArchiveInternal(lu_index_container, index_mount_info);
         index_mount_info = bundled_index_mount_info;
 
         // Construct reloaded index, which is union of bundled index and cached liveupdate entries
-        DeepCopyArchiveIndex(reloaded_index, bundled_archive_container, num_lu_entries);
+        NewArchiveIndexFromCopy(reloaded_index, bundled_archive_container, lu_entries->m_Count);
         uint32_t hash_len = lu_entries->m_HashLen;
         uint8_t* reloaded_hashes = (uint8_t*)(uintptr_t(reloaded_index) + JAVA_TO_C(reloaded_index->m_HashOffset));
         for (int i = 0; i < lu_entries->m_Count; ++i)
@@ -160,7 +181,7 @@ namespace dmResourceArchive
             int insert_index = -1;
             const uint8_t* hash = (const uint8_t*)((uintptr_t)lu_entries->m_Hashes + hash_len * i);
             const EntryData* entry = (EntryData*)((uintptr_t)lu_entries->m_Entries + sizeof(EntryData) * i);
-            Result index_result = CalcInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, insert_index);
+            Result index_result = GetInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, &insert_index);
 
             // Insert each liveupdate entry WITHOUT writing any resource data!
             Result insert_result = ShiftAndInsert(bundled_archive_container, reloaded_index, hash, hash_len, insert_index, 0x0, entry);
@@ -186,7 +207,7 @@ namespace dmResourceArchive
         // use it as runtime index, and write it to liveupdate.arci.tmp
         lu_index_container = bundled_archive_container;
 
-        // Write to temporary index file, filename liveupdate.arci.tmp
+        // Write to temporary index file, filename liveupdate.arci.tmp, to be used at next engine init
         char lu_temp_index_path[DMPATH_MAX_PATH];
         dmStrlCpy(lu_temp_index_path, lu_index_path, DMPATH_MAX_PATH);
         dmStrlCat(lu_temp_index_path, ".tmp", DMPATH_MAX_PATH);
@@ -400,7 +421,7 @@ namespace dmResourceArchive
         }
     }
 
-    Result CalcInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int& index)
+    Result GetInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int* out_index)
     {
         int first = 0;
         int last = JAVA_TO_C(archive->m_EntryDataCount);
@@ -426,21 +447,21 @@ namespace dmResourceArchive
             }
         }
 
-        index = mid;
+        *out_index = mid;
         return RESULT_OK;
     }
 
-    Result CalcInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int& index)
+    Result GetInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int* out_index)
     {
         uint8_t* hashes = 0;
         uint32_t hashes_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset);
         
         hashes = (archive->m_IsMemMapped) ? (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hashes_offset) : archive->m_Hashes;
 
-        return CalcInsertionIndex(archive->m_ArchiveIndex, hash_digest, hashes, index);
+        return GetInsertionIndex(archive->m_ArchiveIndex, hash_digest, hashes, out_index);
     }
 
-    void DeepCopyArchiveIndex(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc)
+    void NewArchiveIndexFromCopy(ArchiveIndex*& dst, ArchiveIndexContainer* src, uint32_t extra_entries_alloc)
     {
         ArchiveIndex* ai = src->m_ArchiveIndex;
         uint32_t hash_digests_size = JAVA_TO_C(ai->m_EntryDataCount) * DMRESOURCE_MAX_HASH;
@@ -618,7 +639,7 @@ namespace dmResourceArchive
         Result result = RESULT_OK;
 
         int idx = -1;
-        Result index_result = CalcInsertionIndex(archive_container, hash_digest, idx);
+        Result index_result = GetInsertionIndex(archive_container, hash_digest, &idx);
         if (index_result != RESULT_OK)
         {
             dmLogError("Could not calculate valid resource insertion index");
@@ -634,7 +655,7 @@ namespace dmResourceArchive
 
         // Make deep-copy. Operate on this and only overwrite when done inserting
         ArchiveIndex* ai_temp = 0x0;
-        DeepCopyArchiveIndex(ai_temp, archive_container, 1);
+        NewArchiveIndexFromCopy(ai_temp, archive_container, 1);
 
         // Shift buffers and insert index- and resource data
         Result insert_result = ShiftAndInsert(archive_container, ai_temp, hash_digest, hash_digest_len, idx, resource, 0x0);
