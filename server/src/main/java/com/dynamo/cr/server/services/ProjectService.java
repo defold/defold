@@ -6,6 +6,8 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.clients.magazine.MagazineClient;
 import com.dynamo.cr.server.model.*;
 import com.dynamo.inject.persist.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
@@ -18,6 +20,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class ProjectService {
+    private  static Logger LOGGER = LoggerFactory.getLogger(ProjectService.class);
+
     @Inject
     private EntityManager entityManager;
 
@@ -66,14 +70,21 @@ public class ProjectService {
     }
 
     @Transactional
-    public void deleteScreenshot(Long projectId, Long id) {
+    public void deleteScreenshot(User user, Long projectId, Long id) throws Exception {
         ProjectSite projectSite = getProjectSite(projectId);
 
         Optional<Screenshot> any = projectSite.getScreenshots().stream()
                 .filter(screenshot -> screenshot.getId().equals(id))
                 .findAny();
 
-        any.ifPresent(screenshot -> projectSite.getScreenshots().remove(screenshot));
+        any.ifPresent(screenshot -> {
+            projectSite.getScreenshots().remove(screenshot);
+            try {
+                getMagazineClient().delete(user.getEmail(), any.get().getUrl());
+            } catch (Exception e) {
+                LOGGER.warn("Failed to delete screenshot from Magazine service.", e);
+            }
+        });
     }
 
     private ProjectSite getProjectSite(Long projectId) {
