@@ -3,8 +3,6 @@
 
 (set! *warn-on-reflection* true)
 
-;; parse-error: invalid setting line instead of game.project line
-
 (def basic-meta-info (with-open [r (-> "meta.edn"
                                        settings-core/resource-reader
                                        settings-core/pushback-reader)]

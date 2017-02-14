@@ -149,8 +149,8 @@
     (mapv #(assoc % :type (:type (meta-settings-map (:path %)))) settings)))
 
 (defn load-settings-node [self resource initial-meta-info resource-setting-connections]
-  (let [raw-settings (-> (io/reader resource)
-                         settings-core/parse-settings)
+  (let [raw-settings (with-open [setting-reader (io/reader resource)]
+                       (settings-core/parse-settings setting-reader))
         meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
                       (update :settings resolve-resource-settings resource :default))
         meta-settings (:settings meta-info)

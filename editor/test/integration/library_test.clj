@@ -98,7 +98,8 @@
           (is (every? (fn [state] (= (:tag state) "tag")) (filter :file states))))))))
 
 (defn- write-deps! [game-project deps]
-  (let [settings (settings-core/parse-settings (io/reader game-project))]
+  (let [settings (with-open [game-project-reader (io/reader game-project)]
+                   (settings-core/parse-settings game-project-reader))]
     (spit-until-new-mtime game-project (-> settings
                                          (settings-core/set-setting ["project" "dependencies"] deps)
                                          settings-core/settings-with-value
