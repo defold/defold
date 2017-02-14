@@ -5,6 +5,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
+            [editor.game-project :as game-project]
             [editor.defold-project :as project]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
@@ -575,12 +576,12 @@
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
   (let [path-list (string/split path #"/")]
-    `(let [initial-settings# (g/node-value ~'game-project :raw-settings)]
-           (g/transact (g/update-property ~'game-project :raw-settings conj {:path ~path-list :value ~value}))
+    `(let [old-value# (game-project/get-setting ~'game-project ~path-list)]
+       (game-project/set-setting! ~'game-project ~path-list ~value)
            (try
              ~@body
              (finally
-               (g/set-property ~'game-project :raw-settings initial-settings#))))))
+               (game-project/set-setting! ~'game-project ~path-list old-value#))))))
 
 (defn- check-file-contents [workspace specs]
   (doseq [[path content] specs]
