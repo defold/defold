@@ -991,11 +991,17 @@
   (doseq [m (.getMenus menubar)]
     (refresh-menu-state m command-contexts)))
 
-(defn register-toolbar [^Scene scene toolbar-id menu-id ]
+(defn register-toolbar [^Scene scene ^Node context-node toolbar-id menu-id]
   (let [root (.getRoot scene)]
-    (if-let [toolbar (.lookup root toolbar-id)]
+    (if-let [toolbar (.lookup context-node toolbar-id)]
       (let [desc (make-desc toolbar menu-id)]
-        (user-data! root ::toolbars (assoc-in (user-data root ::toolbars) [toolbar-id] desc)))
+        (user-data! root ::toolbars (assoc (user-data root ::toolbars) [context-node toolbar-id] desc)))
+      (log/warn :message (format "toolbar %s not found" toolbar-id)))))
+
+(defn unregister-toolbar [^Scene scene ^Node context-node toolbar-id]
+  (let [root (.getRoot scene)]
+    (if-let [toolbar (.lookup context-node toolbar-id)]
+      (user-data! root ::toolbars (dissoc (user-data root ::toolbars) [context-node toolbar-id]))
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
 
 (defn- refresh-toolbar [td command-contexts]
@@ -1082,31 +1088,42 @@
               (when (not= item state)
                 (.select selection-model state)))))))))
 
-(defn refresh
-  ([^Scene scene] (refresh scene (contexts scene)))
-  ([^Scene scene command-contexts]
-   (let [root (.getRoot scene)
-         toolbar-descs (vals (user-data root ::toolbars))]
-     (when-let [md (user-data root ::menubar)]
-       (refresh-menubar md command-contexts)
-       (refresh-menubar-state (:control md) command-contexts))
-     (doseq [td toolbar-descs]
-       (refresh-toolbar td command-contexts)
-       (refresh-toolbar-state (:control td) command-contexts)))))
+(defn- in-hierarchy-of? [parent child]
+  (assert (instance? Node parent))
+  (assert (instance? Node child))
+  (loop [^Node node child]
+    (condp = node
+      nil false
+      parent true
+      (recur (.getParent node)))))
+
+(defn refresh [^Scene scene]
+  (let [root (.getRoot scene)
+        focus-owner (.getFocusOwner scene)]
+    (when-let [md (user-data root ::menubar)]
+      (let [menubar-command-contexts (node-contexts (or focus-owner root) true)]
+        (refresh-menubar md menubar-command-contexts)
+        (refresh-menubar-state (:control md) menubar-command-contexts)))
+    (doseq [[[context-node] toolbar-desc] (user-data root ::toolbars)]
+      (let [toolbar-command-contexts (if (and (some? focus-owner)
+                                              (in-hierarchy-of? context-node focus-owner))
+                                       (node-contexts focus-owner true)
+                                       (node-contexts context-node true))]
+        (refresh-toolbar toolbar-desc toolbar-command-contexts)
+        (refresh-toolbar-state (:control toolbar-desc) toolbar-command-contexts)))))
 
 (defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
   (let [pctg (progress/percentage progress)]
-    (.setProgress bar (if (nil? pctg) -1.0 (double pctg)))
+    (when bar
+      (.setProgress bar (if (nil? pctg) -1.0 (double pctg))))
     (when label
       (.setText label (progress/description progress)))))
 
 (defn- update-progress!
   [progress]
-  (let [root  (.. (main-stage) (getScene) (getRoot))
-         tb    (.lookup root "#toolbar-status")
-         bar   (.lookup tb ".progress-bar")
-         label (.lookup tb ".label")]
-    (update-progress-controls! progress bar label)))
+  (let [root (.. (main-stage) (getScene) (getRoot))
+        label (.lookup root "#progress-status-label")]
+    (update-progress-controls! progress nil label)))
 
 (defn default-render-progress! [progress]
   (run-later (update-progress! progress)))

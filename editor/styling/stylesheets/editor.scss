@@ -102,3 +102,9 @@ Links:
   -fx-border-width: 0px;
   -fx-text-fill: $bright-grey;
 }
+
+/* Status bar */
+#progress-status-label {
+  -fx-text-fill: $grey;
+  -fx-padding: 7 0 7 18;
+}
