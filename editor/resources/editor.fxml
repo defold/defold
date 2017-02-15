@@ -16,73 +16,6 @@
 <VBox prefHeight="774.0" prefWidth="1205.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <MenuBar id="menu-bar" />
-      <HBox id="topbar" alignment="CENTER_LEFT" spacing="0.0">
-         <children>
-            <Pane HBox.hgrow="ALWAYS" />
-            <BorderPane id="toolbar-status" maxHeight="35.0" prefHeight="35.0" prefWidth="234.0">
-               <bottom>
-                  <ProgressBar maxHeight="7.0" maxWidth="1.7976931348623157E308" minHeight="7.0" prefHeight="7.0" progress="0.25" BorderPane.alignment="CENTER" />
-               </bottom>
-               <center>
-                  <HBox BorderPane.alignment="CENTER">
-                     <children>
-                        <Label contentDisplay="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" text="Status: All Good" HBox.hgrow="ALWAYS">
-                           <HBox.margin>
-                              <Insets left="6.0" />
-                           </HBox.margin>
-                        </Label>
-                        <Separator orientation="VERTICAL" />
-                     </children>
-                  </HBox>
-               </center>
-               <right>
-                  <ImageView fitWidth="20.0" pickOnBounds="true" preserveRatio="true" BorderPane.alignment="CENTER">
-                     <image>
-                        <Image url="@icons/slask/ex.png" />
-                     </image>
-                     <BorderPane.margin>
-                        <Insets right="5.0" />
-                     </BorderPane.margin>
-                  </ImageView>
-               </right>
-               <left>
-                  <Pane maxHeight="-Infinity" maxWidth="-Infinity" prefHeight="10.0" prefWidth="10.0" styleClass="status-green" BorderPane.alignment="CENTER">
-                     <BorderPane.margin>
-                        <Insets left="8.0" />
-                     </BorderPane.margin>
-                  </Pane>
-               </left>
-            </BorderPane>
-            <HBox id="toolbar" alignment="TOP_LEFT" maxHeight="35.0" prefHeight="35.0" spacing="1.0">
-                    <children>
-                        <ToggleButton mnemonicParsing="false">
-                          <graphic>
-                              <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
-                                <image>
-                                    <Image url="@icons/45/Icons_T_01_Select.png" />
-                                </image>
-                              </ImageView>
-                          </graphic>
-                        </ToggleButton>
-                        <ToggleButton mnemonicParsing="false">
-                          <graphic>
-                              <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
-                                <image>
-                                    <Image url="@icons/45/Icons_T_02_Move.png" />
-                                </image>
-                              </ImageView>
-                          </graphic>
-                        </ToggleButton>
-                    </children>
-                  </HBox>
-            <Pane HBox.hgrow="ALWAYS">
-              <ProgressBar id="progress-bar" prefWidth="0" prefHeight="0" progress="0.0" />
-            </Pane>
-         </children>
-         <VBox.margin>
-            <Insets />
-         </VBox.margin>
-      </HBox>
       <SplitPane id="main-split" dividerPositions="0.228595178719867" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
         <items>
           <AnchorPane prefHeight="160.0" prefWidth="100.0">
@@ -301,5 +234,6 @@
             </AnchorPane>
         </items>
       </SplitPane>
+      <Label id="progress-status-label" text="Ready"/>
    </children>
 </VBox>
