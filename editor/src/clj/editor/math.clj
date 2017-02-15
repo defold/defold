@@ -137,6 +137,11 @@
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
 
+(defn ^Vector3d transform-vector [^Matrix4d mat ^Vector3d v]
+  (let [v' (Vector3d. v)]
+    (.transform mat v')
+    v'))
+
 (defn inv-transform
   ([^Point3d position ^Quat4d rotation ^Point3d p]
     (let [q (doto (Quat4d. rotation) (.conjugate))
