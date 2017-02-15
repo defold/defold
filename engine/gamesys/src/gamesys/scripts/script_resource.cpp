@@ -216,10 +216,15 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  * @examples
  *
  * ```lua
- * function update(self, dt)
- *     -- Update a sprite texture from a dynamically updated buffer (e.g. camera, or videoplayer)
- *     local resource_path = go.get("#sprite", "texture0")
- *     resource.set( resource_path, self.dynamicbuffer )
+ * function init(self)
+ *   local size = 128
+ *   local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+ *   local pixels = string.rep(orange, size * size * 3)
+ *   local image_buffer = buffer.create_from_string(pixels)
+ *   
+ *   local resource_path = go.get("#sprite", "texture0")
+ *   local header = { width=size, height=size, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   resource.set_texture( resource_path, header, image_buffer )
  * end
  * ```
  */

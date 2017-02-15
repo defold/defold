@@ -25,6 +25,9 @@ namespace dmScript
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
 
+    // Used for unspecified buffers
+    static uint64_t g_BufferStreamName = dmHashString64("data");
+
     bool IsBuffer(lua_State *L, int index)
     {
         int top = lua_gettop(L);
@@ -64,6 +67,61 @@ namespace dmScript
         }
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
         return 0x0;
+    }
+
+    /*# Creates a buffer from a string
+     *
+     * @name buffer.create_from_string
+     * @param data [type:string] the sprite that should flip its animations
+     * @examples
+     *
+     * How to update a texture of a sprite
+     *
+     * ```lua
+     * function init(self)
+     *   local size = 128
+     *   local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+     *   local pixels = string.rep(orange, size * size * 3)
+     *   local image_buffer = buffer.create_from_string(pixels)
+     *   
+     *   local resource_path = go.get("#sprite", "texture0")
+     *   local header = { width=size, height=size, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+     *   resource.set_texture( resource_path, header, image_buffer )
+     * end
+     * ```
+     */
+    static int CreateFromString(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        if (lua_type(L, 1) != LUA_TSTRING)
+        {
+            return luaL_typerror(L, 1, "string");
+        }
+
+        size_t length = 0;
+        const uint8_t* indata = (const uint8_t*)luaL_checklstring(L, 1, &length);
+        if (!indata || length == 0)
+        {
+            lua_pushnil(L);
+            assert(top + 1 == lua_gettop(L));
+        }
+
+        dmBuffer::HBuffer buffer = 0;
+        dmBuffer::StreamDeclaration streams_decl[] = {
+            {g_BufferStreamName, dmBuffer::VALUE_TYPE_UINT8, 1}
+        };
+        dmBuffer::Allocate((uint32_t)length, streams_decl, 1, &buffer);
+
+        uint8_t* outdata = 0;
+        uint32_t outdatasize = 0;
+        dmBuffer::GetBytes(buffer, (void**)&outdata, &outdatasize);
+
+        memcpy(outdata, indata, length);
+
+        PushBuffer(L, buffer);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     static int Buffer_gc(lua_State *L)
@@ -117,8 +175,9 @@ namespace dmScript
         {0,0}
     };
 
-    static const luaL_reg methods[] =
+    static const luaL_reg Module_methods[] =
     {
+        {"create_from_string", CreateFromString},
         {0, 0}
     };
 
@@ -155,7 +214,7 @@ namespace dmScript
 
             lua_pop(L, 2);
         }
-        luaL_register(L, SCRIPT_LIB_NAME, methods);
+        luaL_register(L, SCRIPT_LIB_NAME, Module_methods);
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
