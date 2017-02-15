@@ -1,0 +1,4 @@
+tile_set: "/scene_hierarchy/atlas.atlas"
+default_animation: "logo"
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA
