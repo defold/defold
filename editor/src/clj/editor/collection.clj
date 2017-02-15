@@ -141,8 +141,8 @@
                      [:id-counts :id-counts]]]
       (g/connect coll-id from child-id to))))
 
-(def EmbeddedGOInstanceNode nil)
-(def ReferencedGOInstanceNode nil)
+(declare EmbeddedGOInstanceNode)
+(declare ReferencedGOInstanceNode)
 
 (defn- go-id->node-ids [go-id]
   (let [collection (core/scope go-id)]
@@ -413,7 +413,7 @@
        :user-data {:name name :instance-data instance-data}
        :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
 
-(def CollectionInstanceNode nil)
+(declare CollectionInstanceNode)
 
 (g/defnk produce-coll-outline [_node-id child-outlines]
   (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]

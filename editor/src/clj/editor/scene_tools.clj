@@ -421,18 +421,20 @@
   (case manip
     (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen)
     (fn [start-pos pos]
-      (let [total-delta (doto (Vector3d.) (.sub pos start-pos))]
-        (for [[node _] original-values]
-          (manip-move basis node total-delta))))
+      (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))]
+        (for [[node _ parent-world-transform] original-values
+              :let [world->local (math/affine-inverse parent-world-transform)
+                    local-delta (math/transform-vector world->local manip-delta)]]
+          (manip-move basis node local-delta))))
     (:rot-x :rot-y :rot-z :rot-screen)
     (fn [start-pos pos]
       (let [[start-dir dir] (map #(doto (Vector3d.) (.sub % manip-pos) (.normalize)) [start-pos pos])
-            rotation (math/from-to->quat start-dir dir)]
+            manip-rotation (math/from-to->quat start-dir dir)]
         (for [[node ^Matrix4d world-transform] original-values
-              :let [world-rot (Quat4d.)
-                    _ (.get world-transform world-rot)
-                    rotation (doto (Quat4d. world-rot) (.conjugate) (.mul rotation) (.mul world-rot) (.normalize))]]
-          (manip-rotate basis node rotation))))
+              :let [world-rotation (Quat4d.)
+                    _ (.get world-transform world-rotation)
+                    local-rotation (doto (Quat4d. world-rotation) (.conjugate) (.mul manip-rotation) (.mul world-rotation) (.normalize))]]
+          (manip-rotate basis node local-rotation))))
     (:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz)
     (fn [start-pos pos]
       (let [start-delta (doto (Vector3d.) (.sub start-pos manip-pos))
@@ -467,7 +469,7 @@
                            tool                 (get transform-tools active-tool)
                            filter-fn            (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables {:basis basis}))
-                           original-values      (map #(do [(:node-id %) (:world-transform %)]) selected-renderables)]
+                           original-values      (map #(vector (:node-id %) (:world-transform %) (:parent-world-transform %)) selected-renderables)]
                        (when (not (empty? original-values))
                          (g/transact
                             (concat
