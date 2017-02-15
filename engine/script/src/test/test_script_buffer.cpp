@@ -103,6 +103,7 @@ TEST_F(ScriptBufferTest, PrintBuffer)
     int top = lua_gettop(L);
     dmScript::PushBuffer(L, buffer);
     dmBuffer::HBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
+    (void)buffer_ptr;
     lua_setglobal(L, "test_buffer");
 
     ASSERT_TRUE(RunString(L, "print(test_buffer)"));
@@ -122,10 +123,32 @@ TEST_F(ScriptBufferTest, GetElementCount)
     int top = lua_gettop(L);
     dmScript::PushBuffer(L, buffer);
     dmBuffer::HBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
+    (void)buffer_ptr;
     lua_setglobal(L, "test_buffer");
 
     ASSERT_TRUE(RunString(L, "assert(1337 == #test_buffer)"));
 
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+
+TEST_F(ScriptBufferTest, LuaCreateBufferFromString)
+{
+    int top = lua_gettop(L);
+
+    RunString(L, "test_buffer = buffer.create_from_string(\"hello\")");
+    lua_getglobal(L, "test_buffer");
+
+    dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, -1);
+
+    uint8_t* data = 0;
+    uint32_t datasize = 0;
+    dmBuffer::GetBytes(*buffer, (void**)&data, &datasize);
+
+    ASSERT_EQ(5, datasize);
+    ASSERT_TRUE(memcmp("hello", (const char*)data, datasize) == 0);
+
+    lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
 }
 
