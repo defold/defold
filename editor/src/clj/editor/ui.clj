@@ -821,19 +821,15 @@
                                          (handler/run handler-ctx)))))))))))))
 
 (defn- make-menu-items [^Scene scene menu command-contexts]
-  (let [menu-items (->> menu
-                        (map (fn [item] (make-menu-item scene item command-contexts)))
-                        (remove nil?))]
-    (when-let [head (first menu-items)]
-      (add-style! head "first-menu-item"))
-    (when-let [tail (last menu-items)]
-      (add-style! tail "last-menu-item"))
-    menu-items))
+  (keep (fn [item] (make-menu-item scene item command-contexts)) menu))
 
 (defn- ^ContextMenu make-context-menu [menu-items]
   (let [^ContextMenu context-menu (ContextMenu.)]
     (.addAll (.getItems context-menu) (to-array menu-items))
     context-menu))
+
+(declare refresh-separator-visibility)
+(declare refresh-menu-item-styles)
 
 (defn register-context-menu [^Control control menu-id]
   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
@@ -841,6 +837,9 @@
                    (when-not (.isConsumed event)
                      (let [^Scene scene (.getScene control)
                            cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false)))]
+                       (doto (.getItems cm)
+                         (refresh-separator-visibility)
+                         (refresh-menu-item-styles))
                        ;; Required for autohide to work when the event originates from the anchor/source control
                        ;; See RT-15160 and Control.java
                        (.setImpl_showRelativeToWindow cm true)
@@ -850,6 +849,7 @@
 (defn register-tab-context-menu [^Tab tab menu-id]
   (let [^Scene scene (.getScene (.getTabPane tab))
         cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene)))]
+    (refresh-menu-item-styles (.getItems cm))
     (.setImpl_showRelativeToWindow cm true)
     (.setContextMenu tab cm)))
 
@@ -964,32 +964,81 @@
      (user-data! control ::menu menu)
      (user-data! control ::command-contexts command-contexts))))
 
-(defn- refresh-menu-state [^Menu menu command-contexts]
-  (when (not (.isShowing menu))
-    (doseq [m (.getItems menu)]
-      (cond
-        (instance? Menu m)
-        (refresh-menu-state m command-contexts)
+(defn- refresh-separator-visibility [menu-items]
+  (loop [menu-items menu-items
+         ^MenuItem last-visible-non-separator-item nil
+         ^MenuItem pending-separator nil]
+    (when-let [^MenuItem child (first menu-items)]
+      (if (.isVisible child)
+        (condp instance? child
+          Menu
+          (do
+            (refresh-separator-visibility (.getItems ^Menu child))
+            (some-> pending-separator (.setVisible true))
+            (recur (rest menu-items)
+                   child
+                   nil))
 
-        (instance? CheckMenuItem m)
-        (let [m         ^CheckMenuItem m
-              command   (keyword (.getId ^MenuItem m))
-              user-data (user-data m ::menu-user-data)
-              handler-ctx (handler/active command command-contexts user-data)]
-          (doto m
-            (.setDisable (not (handler/enabled? handler-ctx)))
-            (.setSelected (boolean (handler/state handler-ctx)))))
+          SeparatorMenuItem
+          (do
+            (.setVisible child false)
+            (recur (rest menu-items)
+                   last-visible-non-separator-item
+                   (when last-visible-non-separator-item child)))
 
-        (instance? MenuItem m)
-        (let [m ^MenuItem m]
-          (.setDisable m (not (-> (handler/active (keyword (.getId m))
-                                                  command-contexts
-                                                  (user-data m ::menu-user-data))
-                                handler/enabled?))))))))
+          MenuItem
+          (do
+            (some-> pending-separator (.setVisible true))
+            (recur (rest menu-items)
+                   child
+                   nil)))
+        (recur (rest menu-items)
+               last-visible-non-separator-item
+               pending-separator)))))
 
+(defn- refresh-menu-item-state [^MenuItem menu-item command-contexts]
+  (condp instance? menu-item
+    Menu
+    (let [^Menu menu menu-item]
+      (when-not (.isShowing menu)
+        (let [child-menu-items (seq (.getItems menu))]
+          (doseq [child-menu-item child-menu-items]
+            (refresh-menu-item-state child-menu-item command-contexts))
+          (let [visible (boolean (some #(and (not (instance? SeparatorMenuItem %)) (.isVisible ^MenuItem %)) child-menu-items))]
+            (.setVisible menu visible)))))
+
+    CheckMenuItem
+    (let [^CheckMenuItem check-menu-item menu-item
+          command (keyword (.getId check-menu-item))
+          user-data (user-data check-menu-item ::menu-user-data)
+          handler-ctx (handler/active command command-contexts user-data)]
+      (doto check-menu-item
+        (.setDisable (not (handler/enabled? handler-ctx)))
+        (.setSelected (boolean (handler/state handler-ctx)))))
+
+    MenuItem
+    (.setDisable menu-item (not (-> (handler/active (keyword (.getId menu-item)) command-contexts (user-data menu-item ::menu-user-data))
+                                    handler/enabled?)))))
+
+(defn- refresh-menu-item-styles [menu-items]
+  (let [visible-menu-items (filter #(.isVisible ^MenuItem %) menu-items)]
+    (some-> (first visible-menu-items) (add-style! "first-menu-item"))
+    (doseq [middle-item (rest (butlast visible-menu-items))]
+      (remove-styles! middle-item ["first-menu-item" "last-menu-item"]))
+    (some-> (last visible-menu-items) (add-style! "last-menu-item"))
+    (doseq [^Menu menu (filter #(instance? Menu %) visible-menu-items)]
+      (refresh-menu-item-styles (.getItems menu)))))
+            
 (defn- refresh-menubar-state [^MenuBar menubar command-contexts]
-  (doseq [m (.getMenus menubar)]
-    (refresh-menu-state m command-contexts)))
+  (doseq [^Menu m (.getMenus menubar)]
+    (refresh-menu-item-state m command-contexts)
+    ;; The system menu bar on osx seems to handle consecutive
+    ;; separators and using .setVisible to hide a SeparatorMenuItem
+    ;; makes the entire containing submenu appear empty.
+    (when-not (and (eutil/is-mac-os?)
+                   (.isUseSystemMenuBar menubar))
+      (refresh-separator-visibility (.getItems m)))
+    (refresh-menu-item-styles (.getItems m))))
 
 (defn register-toolbar [^Scene scene toolbar-id menu-id ]
   (let [root (.getRoot scene)]
