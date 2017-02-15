@@ -1,7 +1,7 @@
 #tool-tabs {
     -fx-tab-min-height: 25px;
     -fx-tab-min-width: 40px;
-    -fx-padding: 0 0 17px 0;
+    -fx-padding: 0 0 $pane-padding-bottom 0;
 
     .tab {
         -fx-padding: 0 10 5 10;
