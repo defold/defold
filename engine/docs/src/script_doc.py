@@ -165,6 +165,10 @@ def _parse_comment(str):
             element_type = script_doc_ddf_pb2.MESSAGE
         elif tag == 'property':
             element_type = script_doc_ddf_pb2.PROPERTY
+        elif tag == 'struct':
+            element_type = script_doc_ddf_pb2.STRUCT
+        elif tag == 'macro':
+            element_type = script_doc_ddf_pb2.MACRO
         elif tag == 'document':
             document_comment = True
 
@@ -209,6 +213,13 @@ def _parse_comment(str):
             param = element.parameters.add()
             param.name = tmp[0]
             param.doc = md.convert(tmp[1])
+        elif tag == 'member':
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            mem = element.members.add()
+            mem.name = tmp[0]
+            mem.doc = md.convert(tmp[1])
         elif tag == 'note':
             element.note = md.convert(value)
         elif tag == 'examples':

@@ -9,6 +9,12 @@ message Parameter
     required string doc = 2;
 }
 
+message Member
+{
+    required string name = 1;
+    required string doc = 2;
+}
+
 message ReturnValue
 {
     required string name = 1;
@@ -23,6 +29,8 @@ enum Type
     NAMESPACE = 3;
     PROPERTY = 4;
     PACKAGE = 5;
+    STRUCT = 6;
+    MACRO = 7;
 }
 
 message Element
@@ -38,6 +46,7 @@ message Element
     optional string deprecated = 9 [default=""];
     optional string replaces = 10 [default=""];
     optional string error = 11 [default=""];
+    repeated Member members = 12;
 }
 
 message Info
