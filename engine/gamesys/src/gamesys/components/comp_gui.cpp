@@ -662,6 +662,10 @@ namespace dmGameSystem
         {
             dmGui::HNode node = entries[i].m_Node;
 
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
+
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
             const Vector4& shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
@@ -757,6 +761,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             uint32_t count = dmRig::GetVertexCount(rig_instance);
             vertex_count += count;
@@ -795,6 +802,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
             const dmRig::HRigContext rig_context = dmGui::GetRigContext(scene);
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             float opacity = node_opacities[i];
@@ -865,6 +875,11 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
+
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
+
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
@@ -1080,7 +1095,7 @@ namespace dmGameSystem
             const dmGui::HNode node = entries[i].m_Node;
             const Point3 size = dmGui::GetNodeSize(scene, node);
 
-            if (dmMath::Abs(size.getX()) < 0.001f)
+            if (dmGui::GetNodeIsBone(scene, node) || dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
@@ -1247,6 +1262,11 @@ namespace dmGameSystem
 
         while (i < node_count) {
             dmGui::HNode node = entries[i].m_Node;
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                ++i;
+                continue;
+            }
+
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
             void* texture = dmGui::GetNodeTexture(scene, node);
