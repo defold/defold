@@ -40,7 +40,6 @@ public class ProjectSitesResource extends BaseResource {
     }
 
     @GET
-    @RolesAllowed(value = {"member"})
     public Protocol.ProjectSite getProjectSite(@PathParam("project") Long projectId) throws Exception {
         Project project = projectService.find(projectId)
                 .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
