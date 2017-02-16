@@ -843,7 +843,8 @@ namespace dmGameSystem
 
         ApplyStencilClipping(stencil_scopes[0], ro);
 
-        const int vertex_count = 6*9;
+        const int verts_per_node = 6*9;
+        const uint32_t max_total_vertices = verts_per_node * node_count;
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
@@ -852,7 +853,6 @@ namespace dmGameSystem
         ro.m_VertexBuffer = gui_world->m_VertexBuffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-        ro.m_VertexCount = vertex_count * node_count;
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
 
         // Set default texture
@@ -862,8 +862,8 @@ namespace dmGameSystem
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
-        if (gui_world->m_ClientVertexBuffer.Remaining() < (vertex_count * node_count)) {
-            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count * node_count));
+        if (gui_world->m_ClientVertexBuffer.Remaining() < (max_total_vertices)) {
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, max_total_vertices));
         }
 
         // 9-slice values are specified with reference to the original graphics and not by
@@ -872,6 +872,7 @@ namespace dmGameSystem
         float org_height = (float)dmGraphics::GetOriginalTextureHeight(ro.m_Textures[0]);
         assert(org_width > 0 && org_height > 0);
 
+        int rendered_vert_count = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
@@ -879,6 +880,7 @@ namespace dmGameSystem
             if (dmGui::GetNodeIsBone(scene, node)) {
                 continue;
             }
+            rendered_vert_count += verts_per_node;
 
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
@@ -1017,6 +1019,7 @@ namespace dmGameSystem
                 }
             }
         }
+        ro.m_VertexCount = rendered_vert_count;
     }
 
     // Computes max vertices required in the vertex buffer to draw a pie node with a
