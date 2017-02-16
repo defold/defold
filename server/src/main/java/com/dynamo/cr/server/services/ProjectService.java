@@ -245,16 +245,19 @@ public class ProjectService {
         return Paths.get(contextPath, filename).toString();
     }
 
+    @Transactional
     public void addCoverImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
         String resourcePath = uploadImage(projectId, email, fileName, file);
         getProjectSite(projectId).setCoverImageUrl(resourcePath);
     }
 
+    @Transactional
     public void addStoreFrontImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
         String resourcePath = uploadImage(projectId, email, fileName, file);
         getProjectSite(projectId).setStoreFrontImageUrl(resourcePath);
     }
 
+    @Transactional
     public void addPlayableImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
         String resourcePath = uploadImage(projectId, email, fileName, file);
         getProjectSite(projectId).setPlayableImageUrl(resourcePath);
