@@ -31,7 +31,7 @@ public class ProjectSiteMapper {
         for (User member : project.getMembers()) {
             Protocol.UserInfo.Builder userInfoBuilder = Protocol.UserInfo.newBuilder();
             userInfoBuilder.setId(member.getId());
-            userInfoBuilder.setEmail(member.getEmail());
+            userInfoBuilder.setEmail(""); // Don't expose user e-mail on public sites.
             userInfoBuilder.setFirstName(member.getFirstName());
             userInfoBuilder.setLastName(member.getLastName());
             builder.addMembers(userInfoBuilder.build());
