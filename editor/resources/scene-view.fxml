@@ -1,32 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.image.*?>
-<?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
 <AnchorPane id="gl-view-anchor-pane" xmlns="http://javafx.com/javafx/8">
     <children>
-        <HBox id="toolbar" AnchorPane.topAnchor="10" AnchorPane.rightAnchor="20" maxHeight="35.0" prefHeight="35.0" spacing="1.0">
-            <children>
-                <ToggleButton mnemonicParsing="false">
-                    <graphic>
-                        <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
-                            <image>
-                                <Image url="@icons/45/Icons_T_01_Select.png" />
-                            </image>
-                        </ImageView>
-                    </graphic>
-                </ToggleButton>
-                <ToggleButton mnemonicParsing="false">
-                    <graphic>
-                        <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
-                            <image>
-                                <Image url="@icons/45/Icons_T_02_Move.png" />
-                            </image>
-                        </ImageView>
-                    </graphic>
-                </ToggleButton>
-            </children>
-        </HBox>
+        <HBox id="toolbar" AnchorPane.topAnchor="10" AnchorPane.rightAnchor="10" maxHeight="35.0" prefHeight="35.0" spacing="1.0" />
     </children>
 </AnchorPane>

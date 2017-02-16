@@ -1000,9 +1000,11 @@
 
 (defn unregister-toolbar [^Scene scene ^Node context-node toolbar-id]
   (let [root (.getRoot scene)]
-    (if-let [toolbar (.lookup context-node toolbar-id)]
+    (if (some? (.lookup context-node toolbar-id))
       (user-data! root ::toolbars (dissoc (user-data root ::toolbars) [context-node toolbar-id]))
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
+
+(declare refresh)
 
 (defn- refresh-toolbar [td command-contexts]
  (let [menu (menu/realize-menu (:menu-id td))
@@ -1031,10 +1033,12 @@
                                                                              (toString [v] (:label v)))))]
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
-                                                                                    (let [command-contexts (contexts (.getScene control))]
+                                                                                    (let [scene (.getScene control)
+                                                                                          command-contexts (contexts scene)]
                                                                                       (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
                                                                                         (when (handler/enabled? handler-ctx)
-                                                                                          (handler/run handler-ctx)))))))
+                                                                                          (handler/run handler-ctx)
+                                                                                          (refresh scene)))))))
                                                    (doseq [opt opts]
                                                      (.add (.getItems cb) opt))
                                                    (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 22.5))
@@ -1047,10 +1051,12 @@
                                                      (.setGraphic button (jfx/get-image-view icon 22.5)))
                                                    (when command
                                                      (on-action! button (fn [event]
-                                                                          (let [command-contexts (contexts (.getScene control))]
+                                                                          (let [scene (.getScene control)
+                                                                                command-contexts (contexts scene)]
                                                                             (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                                                               (when (handler/enabled? handler-ctx)
-                                                                                (handler/run handler-ctx)))))))
+                                                                                (handler/run handler-ctx)
+                                                                                (refresh scene)))))))
                                                    button)))]
                           (when command
                             (.setId child (name command)))
@@ -1088,29 +1094,15 @@
               (when (not= item state)
                 (.select selection-model state)))))))))
 
-(defn- in-hierarchy-of? [parent child]
-  (assert (instance? Node parent))
-  (assert (instance? Node child))
-  (loop [^Node node child]
-    (condp = node
-      nil false
-      parent true
-      (recur (.getParent node)))))
-
 (defn refresh [^Scene scene]
   (let [root (.getRoot scene)
-        focus-owner (.getFocusOwner scene)]
+        command-contexts (contexts scene)]
     (when-let [md (user-data root ::menubar)]
-      (let [menubar-command-contexts (node-contexts (or focus-owner root) true)]
-        (refresh-menubar md menubar-command-contexts)
-        (refresh-menubar-state (:control md) menubar-command-contexts)))
-    (doseq [[[context-node] toolbar-desc] (user-data root ::toolbars)]
-      (let [toolbar-command-contexts (if (and (some? focus-owner)
-                                              (in-hierarchy-of? context-node focus-owner))
-                                       (node-contexts focus-owner true)
-                                       (node-contexts context-node true))]
-        (refresh-toolbar toolbar-desc toolbar-command-contexts)
-        (refresh-toolbar-state (:control toolbar-desc) toolbar-command-contexts)))))
+      (refresh-menubar md command-contexts)
+      (refresh-menubar-state (:control md) command-contexts))
+    (doseq [td (vals (user-data root ::toolbars))]
+      (refresh-toolbar td command-contexts)
+      (refresh-toolbar-state (:control td) command-contexts))))
 
 (defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
   (let [pctg (progress/percentage progress)]
