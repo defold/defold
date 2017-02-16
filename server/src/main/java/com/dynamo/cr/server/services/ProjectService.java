@@ -141,14 +141,6 @@ public class ProjectService {
             existingProjectSite.setStudioUrl(projectSite.getStudioUrl());
         }
 
-        if (projectSite.hasCoverImageUrl()) {
-            existingProjectSite.setCoverImageUrl(projectSite.getCoverImageUrl());
-        }
-
-        if (projectSite.hasStoreFrontImageUrl()) {
-            existingProjectSite.setStoreFrontImageUrl(projectSite.getStoreFrontImageUrl());
-        }
-
         if (projectSite.hasDevLogUrl()) {
             existingProjectSite.setDevLogUrl(projectSite.getDevLogUrl());
         }
@@ -240,11 +232,31 @@ public class ProjectService {
     }
 
     public void addScreenshotImage(String user, long projectId, String originalFilename, InputStream file) throws Exception {
-        String contextPath = String.format("/projects/%d/screenshots", projectId);
+        String resourcePath = uploadImage(projectId, user, originalFilename, file);
+        addScreenshot(projectId, new Screenshot(resourcePath, Screenshot.MediaType.IMAGE));
+    }
+
+
+    private String uploadImage(long projectId, String user, String originalFilename, InputStream file) throws Exception {
+        String contextPath = String.format("/projects/%d/images", projectId);
         String writeToken = getMagazineClient().createWriteToken(user, contextPath);
         String filename = UUID.randomUUID().toString() + "-" + originalFilename;
         getMagazineClient().put(writeToken, "", file, filename);
+        return Paths.get(contextPath, filename).toString();
+    }
 
-        addScreenshot(projectId, new Screenshot(Paths.get(contextPath, filename).toString(), Screenshot.MediaType.IMAGE));
+    public void addCoverImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
+        String resourcePath = uploadImage(projectId, email, fileName, file);
+        getProjectSite(projectId).setCoverImageUrl(resourcePath);
+    }
+
+    public void addStoreFrontImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
+        String resourcePath = uploadImage(projectId, email, fileName, file);
+        getProjectSite(projectId).setStoreFrontImageUrl(resourcePath);
+    }
+
+    public void addPlayableImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
+        String resourcePath = uploadImage(projectId, email, fileName, file);
+        getProjectSite(projectId).setPlayableImageUrl(resourcePath);
     }
 }
