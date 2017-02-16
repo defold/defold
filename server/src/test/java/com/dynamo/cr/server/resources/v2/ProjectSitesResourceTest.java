@@ -92,8 +92,6 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .setDescription("description")
                 .setStudioUrl("studioUrl")
                 .setStudioName("studioName")
-                .setCoverImageUrl("coverImageUrl")
-                .setStoreFrontImageUrl("storeFrontImageUrl")
                 .setDevLogUrl("devLogUrl")
                 .setReviewUrl("reviewUrl")
                 .build();
@@ -106,8 +104,6 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals("description", result.getDescription());
         assertEquals("studioUrl", result.getStudioUrl());
         assertEquals("studioName", result.getStudioName());
-        assertEquals("coverImageUrl", result.getCoverImageUrl());
-        assertEquals("storeFrontImageUrl", result.getStoreFrontImageUrl());
         assertEquals("devLogUrl", result.getDevLogUrl());
         assertEquals("reviewUrl", result.getReviewUrl());
         assertEquals(project.getId(), result.getProjectId());
