@@ -9,7 +9,7 @@ public class StatusResourceTest extends AbstractResourceTest {
 
     @Test
     public void serverStatusShouldBeOk() throws Exception {
-        WebResource statusResource = createAnonymousResource("http://localhost/status");
+        WebResource statusResource = createAnonymousResource().path("status");
         String statusResponse = statusResource.get(String.class);
         assertEquals("OK", statusResponse);
     }

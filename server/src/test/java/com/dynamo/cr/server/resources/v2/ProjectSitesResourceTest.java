@@ -17,9 +17,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class ProjectSitesResourceTest extends AbstractResourceTest {
 
@@ -58,12 +56,20 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return createBaseResource(user.email, user.password).path("v2/projects").path(projectId.toString()).path("site");
     }
 
+    private WebResource projectSiteResource(Long projectId) {
+        return createAnonymousResource().path("v2/projects").path(projectId.toString()).path("site");
+    }
+
     private void updateProjectSite(TestUser testUser, Long projectId, Protocol.ProjectSite projectSite) {
         projectSiteResource(testUser, projectId).put(projectSite);
     }
 
     private Protocol.ProjectSite getProjectSite(TestUser testUser, Long projectId) {
         return projectSiteResource(testUser, projectId).get(Protocol.ProjectSite.class);
+    }
+
+    private Protocol.ProjectSite getProjectSite(Long projectId) {
+        return projectSiteResource(projectId).get(Protocol.ProjectSite.class);
     }
 
     private void addAppStoreReference(TestUser testUser, Long projectId, Protocol.NewAppStoreReference newAppStoreReference) {
@@ -181,6 +187,13 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         // Ensure that you get one reference back.
         projectSite = getProjectSite(TestUser.JAMES, project.getId());
         assertEquals(1, projectSite.getScreenshotsCount());
+    }
+
+    @Test
+    public void getProjectSiteAsUnauthorizedUser() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+        Protocol.ProjectSite projectSite = getProjectSite(project.getId());
+        assertNotNull(projectSite);
     }
 
     @Test
