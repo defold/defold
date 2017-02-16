@@ -60,6 +60,12 @@ $bright-grey:       #b0b0b0; // (icons)
 $bright-black:      #272b30; // (forms)
 $mid-black:         #1e2021; // (selected)
 
+/* Scene view colors */
+$scene-toolbar-background: $dark-grey-header;
+$scene-toolbar-button-selected-background: $input-background;
+$scene-toolbar-button-selected-foreground: $defold-white;
+$scene-toolbar-button-hovered-foreground: $defold-white;
+
 /* Lua script colors */
 $script-helper:         #33cccc;
 $script-self:           #E066FF;

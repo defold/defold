@@ -32,6 +32,11 @@
 (def bright-grey (hex-color->color "#8f9296"))
 (def bright-grey-light (hex-color->color "#a8abaf"))
 
+(def input-background (hex-color->color "#292a2f"))
+(def input-border (hex-color->color "#3e4147"))
+(def scene-background input-background)
+(def scene-grid input-border)
+
 (defn alpha [c a]
   (assoc c 3 a))
 

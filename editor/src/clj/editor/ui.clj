@@ -1041,14 +1041,14 @@
                                                                                           (refresh scene)))))))
                                                    (doseq [opt opts]
                                                      (.add (.getItems cb) opt))
-                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 22.5))
+                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
                                                        icon (:icon menu-item)
                                                        selection-provider (:selection-provider td)]
                                                    (when icon
-                                                     (.setGraphic button (jfx/get-image-view icon 22.5)))
+                                                     (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
                                                                           (let [scene (.getScene control)
