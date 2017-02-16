@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import javax.ws.rs.core.Response;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.*;
@@ -21,7 +22,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class ProjectService {
-    private  static Logger LOGGER = LoggerFactory.getLogger(ProjectService.class);
+    private static Logger LOGGER = LoggerFactory.getLogger(ProjectService.class);
 
     @Inject
     private EntityManager entityManager;
@@ -201,7 +202,40 @@ public class ProjectService {
         List<Path> playablePaths = Files.walk(playablePath).collect(Collectors.toList());
 
         for (Path path : playablePaths) {
-            getMagazineClient().put(writeToken, playablePath.relativize(path.getParent()).toString(), path);
+            if (path.getFileName().toString().equals("index.html")) {
+                String uploadedIndexHtml = new String(Files.readAllBytes(path), "UTF-8");
+
+                int insertionPoint = uploadedIndexHtml.indexOf("</style>");
+
+                String htmlAddition = "\n" +
+                        "      .canvas-app-container {\n" +
+                        "        overflow: hidden;\n" +
+                        "        text-align: center;\n" +
+                        "        background: initial;\n" +
+                        "      }\n" +
+                        "\n" +
+                        "      .canvas-app-progress {\n" +
+                        "        width: 100%;\n" +
+                        "      }\n" +
+                        "\n" +
+                        "      #canvas {\n" +
+                        "        outline: none;\n" +
+                        "        max-width: 100%;\n" +
+                        "        max-height: 95vh;\n" +
+                        "        background-color: black !important;\n" +
+                        "      }\n" +
+                        "\n" +
+                        "      #fullscreen {\n" +
+                        "        display: none;\n" +
+                        "      }\n";
+
+                String modifiedIndexHtml = uploadedIndexHtml.substring(0, insertionPoint) + htmlAddition + uploadedIndexHtml.substring(insertionPoint);
+
+                getMagazineClient().put(writeToken, playablePath.relativize(path.getParent()).toString(),
+                        new ByteArrayInputStream(modifiedIndexHtml.getBytes()), "index.html");
+            } else {
+                getMagazineClient().put(writeToken, playablePath.relativize(path.getParent()).toString(), path);
+            }
         }
     }
 
