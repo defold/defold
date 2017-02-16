@@ -42,6 +42,10 @@ public class ProjectSiteMapper {
                 builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable/index.html"));
             }
 
+            if (projectSite.getPlayableImageUrl() != null) {
+                builder.setPlayableImageUrl(magazineClient.createReadUrl(projectSite.getPlayableImageUrl()));
+            }
+
             if (projectSite.getName() != null) {
                 builder.setName(projectSite.getName());
             }
@@ -59,11 +63,11 @@ public class ProjectSiteMapper {
             }
 
             if (projectSite.getCoverImageUrl() != null) {
-                builder.setCoverImageUrl(projectSite.getCoverImageUrl());
+                builder.setCoverImageUrl(magazineClient.createReadUrl(projectSite.getCoverImageUrl()));
             }
 
             if (projectSite.getStoreFrontImageUrl() != null) {
-                builder.setStoreFrontImageUrl(projectSite.getStoreFrontImageUrl());
+                builder.setStoreFrontImageUrl(magazineClient.createReadUrl(projectSite.getStoreFrontImageUrl()));
             }
 
             if (projectSite.getDevLogUrl() != null) {
