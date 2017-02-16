@@ -29,6 +29,11 @@ public class BaseResource {
     public User getUser() {
         UserPrincipal p = (UserPrincipal) securityContext.getUserPrincipal();
 
+        // Return null on anonymous users.
+        if (p.getUser() == null || p.getUser().getId() == null) {
+            return null;
+        }
+
         // NOTE: We must re-fetch the user here and probably related to
         // different EntityManagers
         return em.find(User.class, p.getUser().getId());

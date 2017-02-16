@@ -22,7 +22,11 @@ public class ProjectSiteMapper {
     public static Protocol.ProjectSite map(User user, Project project, MagazineClient magazineClient) {
         Protocol.ProjectSite.Builder builder = Protocol.ProjectSite.newBuilder();
 
-        builder.setIsOwner(project.getOwner().getEmail().equals(user.getEmail()));
+        if (user != null) {
+            builder.setIsOwner(project.getOwner().getEmail().equals(user.getEmail()));
+        } else {
+            builder.setIsOwner(false);
+        }
 
         for (User member : project.getMembers()) {
             Protocol.UserInfo.Builder userInfoBuilder = Protocol.UserInfo.newBuilder();
