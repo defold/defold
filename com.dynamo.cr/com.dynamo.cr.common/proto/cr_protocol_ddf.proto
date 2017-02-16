@@ -127,7 +127,9 @@ message ProjectSite {
     repeated Screenshot screenshots = 10;
     repeated UserInfo members = 11;
     optional int64 project_id = 12;
-    optional string playableUrl = 13; 
+    optional string playable_url = 13;
+    optional bool is_owner = 14;
+    optional string playable_image_url = 15;
 
     message AppStoreReference {
         required int64 id = 1;
