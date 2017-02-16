@@ -2,52 +2,68 @@
  * Styling of toolbar that changes mouse action in scene editor.
  */
 #toolbar * {
-  -fx-focus-traversable: false; }
+    -fx-focus-traversable: false; }
 
 #toolbar {
-    -fx-background-color: $dark-grey;
-    -fx-border-color: $mid-grey;
-    -fx-border-width: 0;//1 1;
+    -fx-background-color: $scene-toolbar-background;
+    -fx-border-width: 0;
     -fx-border-insets: 0;
     -fx-background-insets: 0;
-    -fx-padding: 0 0 0 8px;
-    -fx-spacing: 0;
+    -fx-background-radius: 20px;
+    -fx-padding: 5px;
+    -fx-spacing: 10px;
 
     >.toggle-button {
-        -fx-background-color: $dark-black;
-        -fx-background-insets: 0, 0 0 0 0;
-        -fx-background-radius: 0;
-        -fx-border-radius: 0;
-        -fx-border-width: 0 0 2 0;
-        -fx-border-color: $dark-black;
+        -fx-background-color: transparent;
+        -fx-background-insets: 0;
+        -fx-background-radius: 15px;
+        -fx-pref-width: 30px;
+        -fx-pref-height: 30px;
+        -fx-border-width: 0;
         -fx-alignment: center;
-        -fx-padding: 4px 5px 4px 5px;
+
         &:hover {
             .image-view {
-                -fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, $scene-toolbar-button-hovered-foreground, 20, 0.3, 0, 0) !important;
             } 
         }
-        &:selected {     
-            -fx-border-color: $defold-orange;
-            -fx-border-width: 0 0 2 0;
+        &:selected {
+            -fx-background-color: $scene-toolbar-button-selected-background;
             .image-view {
-                -fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, $scene-toolbar-button-selected-foreground, 20, 0.3, 0, 0) !important;
             } 
         }
-    }
-
-    .separator {
-        visibility: hidden;
     }
 
     /* This is for the gui device picker that pops up when an .gui file is active */
     .cell {
-        -fx-padding: 4px 5px;
-        -fx-spacing: 4px;
+        -fx-alignment: center;
+        -fx-padding: 0;
+        -fx-spacing: 8px;
         -fx-border-width: 0;
         -fx-border-insets: 0;
-        -fx-background-color: $dark-black;
-        -fx-background-insets: 0 0 2 0;
-        -fx-height: 33;
+        -fx-background-color: transparent;
+        >.choice-box {
+            -fx-pref-width: 84px;
+            .label {
+                -fx-border-width: 0;
+                -fx-background-color: $scene-toolbar-background;
+                -fx-text-fill: $bright-grey;
+            }
+            .open-button {
+                -fx-background-color: $scene-toolbar-background;
+            }
+            &:hover, &:pressed, &:focused {
+                .label {
+                    -fx-text-fill: $defold-white;
+                }
+                .open-button {
+                    -fx-background-color: $scene-toolbar-background;
+                    .arrow {
+                        -fx-background-color: $defold-white;
+                    }
+                }
+            }
+        }
     }
 }

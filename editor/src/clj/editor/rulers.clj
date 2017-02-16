@@ -158,8 +158,8 @@
                    (and cursor-y (< cursor-y (- (:bottom viewport) height))) (into (map #(reduce conj % colors/defold-green) [[0 cursor-y 0] [width cursor-y 0]])))
          line-vcount (count line-vs)
          lines-vb (vb line-vs line-vcount)
-         tris-vs (-> (quad 0 0 width (:bottom viewport) colors/dark-black)
-                   (chain (quad 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) colors/dark-black)))
+         tris-vs (-> (quad 0 0 width (:bottom viewport) colors/scene-background)
+                   (chain (quad 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) colors/scene-background)))
          tris-vcount (count tris-vs)
          tris-vb (vb tris-vs tris-vcount)
          texts (-> []

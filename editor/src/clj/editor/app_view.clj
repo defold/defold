@@ -529,7 +529,8 @@
         (reify ChangeListener
           (changed [this observable old-val new-val]
             (->> (tab->resource-node new-val)
-              (on-selected-tab-changed app-view))))))
+              (on-selected-tab-changed app-view))
+            (ui/refresh (.getScene stage))))))
     (-> tab-pane
       (.getTabs)
       (.addListener
