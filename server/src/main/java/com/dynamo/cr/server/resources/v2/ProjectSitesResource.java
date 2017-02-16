@@ -112,4 +112,34 @@ public class ProjectSitesResource extends BaseResource {
                             @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
         projectService.uploadPlayableFiles(getUser().getEmail(), projectId, file);
     }
+
+    @POST
+    @RolesAllowed(value = {"owner"})
+    @Path("cover_image")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public void addCoverImage(@PathParam("project") Long projectId,
+                                   @FormDataParam("file") InputStream file,
+                                   @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+        projectService.addCoverImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
+    }
+
+    @POST
+    @RolesAllowed(value = {"owner"})
+    @Path("store_front_image")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public void addStoreFrontImage(@PathParam("project") Long projectId,
+                              @FormDataParam("file") InputStream file,
+                              @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+        projectService.addStoreFrontImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
+    }
+
+    @POST
+    @RolesAllowed(value = {"owner"})
+    @Path("playable_image")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public void addPlayableImage(@PathParam("project") Long projectId,
+                              @FormDataParam("file") InputStream file,
+                              @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+        projectService.addPlayableImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
+    }
 }
