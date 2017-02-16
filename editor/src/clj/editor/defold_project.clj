@@ -92,7 +92,7 @@
                       t)))))
 
 (defn load-resource-nodes [basis project node-ids render-progress!]
-  (let [progress (atom (progress/make "Loading resources" (count node-ids)))]
+  (let [progress (atom (progress/make "Loading resources..." (count node-ids)))]
     (doall
      (for [node-id node-ids
            :let [type (g/node-type* basis node-id)]
@@ -179,6 +179,7 @@
                                               basis            (g/now)
                                               cache            (g/cache)}
                                          :as opts}]
+  (render-progress! (progress/make "Saving..."))
   (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
     (if (g/error? save-data)
       (throw (Exception. ^String (properties/error-message save-data)))
@@ -636,7 +637,7 @@
         (settings-core/get-setting ["project" "dependencies"]))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
-  (let [progress (atom (progress/make "Updating dependencies" 3))]
+  (let [progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
     (workspace/set-project-dependencies! workspace-id (read-dependencies game-project-resource))
     (workspace/update-dependencies! workspace-id (progress/nest-render-progress render-progress! @progress) login-fn)

@@ -257,21 +257,27 @@
   (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
     (console/clear-console!)
-    (let [build (build-project project build-errors-view)]
-      (when (and (future? build) @build)
-        (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
-              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                (engine/reboot (:url target) local-url)))
-            (engine/launch project prefs))))))
+    (ui/default-render-progress-now! (progress/make "Building..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [build (build-project project build-errors-view)]
+                     (when (and (future? build) @build)
+                       (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
+                             (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                               (engine/reboot (:url target) local-url)))
+                           (engine/launch project prefs))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
             (g/node-value app-view :active-resource))
   (run [project app-view prefs build-errors-view]
     (when-let [resource (g/node-value app-view :active-resource)]
-      (let [build (build-project project build-errors-view)]
-        (when (and (future? build) @build)
-            (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))
+      (ui/default-render-progress-now! (progress/make "Building..."))
+      (ui/->future 0.01
+                   (fn []
+                     (let [build (build-project project build-errors-view)]
+                       (when (and (future? build) @build)
+                         (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
