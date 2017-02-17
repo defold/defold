@@ -1,39 +1,39 @@
 .context-menu {
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
-    -fx-background-color: $mid-grey;
+    -fx-background-color: $menu-background;
     -fx-border-width: 0;
     -fx-padding: 5px;
-    -fx-text-fill: $defold-white;
+    -fx-text-fill: $menu-foreground;
     .scroll-arrow {
         .menu-down-arrow, .menu-up-arrow {
-            -fx-fill: $mid-grey;
-            -fx-background-color: $defold-white; 
+            -fx-fill: $menu-background;
+            -fx-background-color: $menu-foreground;
         }
     }
     .menu-item {
-        -fx-background-color: $mid-grey;//$grey;
+        -fx-background-color: $menu-background;
         -fx-border-width: 0 0 0 2;
         -fx-border-color: transparent;
         .label {
-            -fx-text-fill: $bright-grey-light;
+            -fx-text-fill: $menu-foreground;
         }
         .image-view {
-            @include colorize-image-view($bright-grey-light);
+            @include colorize-image-view($menu-foreground);
         }
         &:hover {
-            -fx-background-color: $dark-grey-selected;
+            -fx-background-color: $menu-background-hover;
             .label {
-                -fx-text-fill: $defold-white;
+                -fx-text-fill: $menu-foreground-hover;
             }
         }
         &:focused {
-            -fx-background-color: $dark-grey-selected;
+            -fx-background-color: $menu-background-hover;
             .image-view {
                 @include effect-lighten-blue();
             }
             .label {
-                -fx-text-fill: $defold-white;
+                -fx-text-fill: $menu-foreground-hover;
             }
         }
     }
@@ -51,7 +51,7 @@
             -fx-min-height: 0;
             -fx-background-color: transparent;
             .line {
-                -fx-border-color: $dark-grey-light;//$mid-grey;
+                -fx-border-color: $menu-separator;
                 -fx-border-insets: 0;
                 -fx-border-width: 1 0 0; 
             }
