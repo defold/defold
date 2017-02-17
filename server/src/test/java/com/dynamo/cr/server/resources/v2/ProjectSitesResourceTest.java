@@ -116,15 +116,18 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void ownerIsOnlyTrueForOwnerRequests() {
+    public void projectMembersAreSiteAdmins() {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
         addProjectMember(project.getId(), TestUser.JAMES, TestUser.CARL);
 
         Protocol.ProjectSite result = getProjectSite(TestUser.JAMES, project.getId());
-        assertTrue(result.getIsOwner());
+        assertTrue(result.getIsAdmin());
 
         result = getProjectSite(TestUser.CARL, project.getId());
-        assertFalse(result.getIsOwner());
+        assertTrue(result.getIsAdmin());
+
+        result = getProjectSite(TestUser.JOE, project.getId());
+        assertFalse(result.getIsAdmin());
     }
 
     @Test
