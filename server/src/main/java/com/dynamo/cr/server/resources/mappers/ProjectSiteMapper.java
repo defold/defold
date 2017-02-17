@@ -25,9 +25,10 @@ public class ProjectSiteMapper {
         builder.setProjectId(project.getId());
 
         if (user != null) {
-            builder.setIsOwner(project.getOwner().getEmail().equals(user.getEmail()));
+            boolean isProjectMember = project.getMembers().stream().anyMatch(member -> member.getEmail().equals(user.getEmail()));
+            builder.setIsAdmin(isProjectMember);
         } else {
-            builder.setIsOwner(false);
+            builder.setIsAdmin(false);
         }
 
         for (User member : project.getMembers()) {
