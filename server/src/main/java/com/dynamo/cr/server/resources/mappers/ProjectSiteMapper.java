@@ -22,6 +22,8 @@ public class ProjectSiteMapper {
     public static Protocol.ProjectSite map(User user, Project project, MagazineClient magazineClient) {
         Protocol.ProjectSite.Builder builder = Protocol.ProjectSite.newBuilder();
 
+        builder.setProjectId(project.getId());
+
         if (user != null) {
             builder.setIsOwner(project.getOwner().getEmail().equals(user.getEmail()));
         } else {
@@ -39,8 +41,6 @@ public class ProjectSiteMapper {
 
         if (project.getProjectSite() != null) {
             ProjectSite projectSite = project.getProjectSite();
-
-            builder.setProjectId(project.getId());
 
             if (projectSite.isPlayableUploaded()) {
                 builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable/index.html"));
