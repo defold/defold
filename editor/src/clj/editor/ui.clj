@@ -1373,3 +1373,11 @@ command."
 (defn browse-url
   [url]
   (.browse (Desktop/getDesktop) (URI. url)))
+
+(defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
+  (let [scene (-> tab .getTabPane .getScene)
+        context-node (.getContent tab)]
+    (when (.lookup context-node toolbar-css-selector)
+      (register-toolbar scene context-node toolbar-css-selector menu-id)
+      (on-closed! tab (fn [_event]
+                        (unregister-toolbar scene context-node toolbar-css-selector))))))

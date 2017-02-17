@@ -560,7 +560,6 @@
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
                      (ui/user-data! ::view-type view-type))
-        _          (.add tabs tab)
         view-graph (g/make-graph! :history false :volatility 2)
         opts       (merge opts
                           (get (:view-opts resource-type) (:id view-type))
@@ -576,11 +575,13 @@
         (g/connect resource-node :node-id+resource view :node-id+resource)
         (g/connect view :view-data app-view :open-views)))
     (ui/user-data! tab ::view view)
+    (.add tabs tab)
     (g/transact
       (select app-view resource-node [resource-node]))
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-context-menu tab ::tab-menu)
+    (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
                          event
