@@ -274,12 +274,22 @@
 (s/defn rect->aabb :- AABB
   [^Rect bounds :- Rect]
   (assert bounds "rect->aabb require boundaries")
-  (let [x1 (.x bounds)
-        y1 (.y bounds)
-        x2 (+ x1 (* 0.5 (.width bounds)))
-        y2 (+ y1 (* 0.5 (.height bounds)))
-        x1 (- x1 (* 0.5 (.width bounds)))
-        y1 (- y1 (* 0.5 (.height bounds)))]
+  (let [x0 (.x bounds)
+        y0 (.y bounds)
+        x1 (+ x0 (.width bounds))
+        y1 (+ y0 (.height bounds))]
+    (-> (null-aabb)
+        (aabb-incorporate (Point3d. x0 y0 0))
+        (aabb-incorporate (Point3d. x1 y1 0)))))
+
+(s/defn centered-rect->aabb :- AABB
+  [^Rect centered-rect :- Rect]
+  (let [x1 (.x centered-rect)
+        y1 (.y centered-rect)
+        x2 (+ x1 (* 0.5 (.width centered-rect)))
+        y2 (+ y1 (* 0.5 (.height centered-rect)))
+        x1 (- x1 (* 0.5 (.width centered-rect)))
+        y1 (- y1 (* 0.5 (.height centered-rect)))]
     (-> (null-aabb)
         (aabb-incorporate (Point3d. x1 y1 0))
         (aabb-incorporate (Point3d. x2 y2 0)))))
