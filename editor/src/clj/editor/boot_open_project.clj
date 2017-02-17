@@ -99,7 +99,8 @@
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage      (ui/make-stage)
+        stage      (doto (ui/make-stage)
+                     (.. getIcons (add ui/application-icon-image)))
         scene      (Scene. root)]
     (ui/observe (.focusedProperty stage)
                 (fn [property old-val new-val]
