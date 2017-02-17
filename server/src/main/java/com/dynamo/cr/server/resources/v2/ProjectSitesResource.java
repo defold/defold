@@ -55,13 +55,13 @@ public class ProjectSitesResource extends BaseResource {
     }
 
     @PUT
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     public void updateProjectSite(@PathParam("project") Long projectId, Protocol.ProjectSite projectSite) {
         projectService.updateProjectSite(projectId, projectSite);
     }
 
     @POST
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("app_store_references")
     public void addAppStoreReference(@PathParam("project") Long projectId,
                                      Protocol.NewAppStoreReference newAppStoreReference) {
@@ -71,14 +71,14 @@ public class ProjectSitesResource extends BaseResource {
     }
 
     @DELETE
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("app_store_references/{appStoreReferenceId}")
     public void deleteAppStoreReference(@PathParam("project") Long projectId, @PathParam("appStoreReferenceId") Long id) {
         projectService.deleteAppStoreReference(projectId, id);
     }
 
     @POST
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("screenshots")
     public void addScreenshot(@PathParam("project") Long projectId, Protocol.NewScreenshot newScreenshot) {
         projectService.addScreenshot(
@@ -87,7 +87,7 @@ public class ProjectSitesResource extends BaseResource {
     }
 
     @POST
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("screenshots/images")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addScreenshotImage(@PathParam("project") Long projectId,
@@ -97,14 +97,14 @@ public class ProjectSitesResource extends BaseResource {
     }
 
     @DELETE
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("screenshots/{screenshotId}")
     public void deleteScreenshot(@PathParam("project") Long projectId, @PathParam("screenshotId") Long id) throws Exception {
         projectService.deleteScreenshot(getUser(), projectId, id);
     }
 
     @PUT
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("playable")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void putPlayable(@PathParam("project") Long projectId,
@@ -114,7 +114,7 @@ public class ProjectSitesResource extends BaseResource {
     }
 
     @POST
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("cover_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addCoverImage(@PathParam("project") Long projectId,
@@ -124,7 +124,7 @@ public class ProjectSitesResource extends BaseResource {
     }
 
     @POST
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("store_front_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addStoreFrontImage(@PathParam("project") Long projectId,
@@ -134,7 +134,7 @@ public class ProjectSitesResource extends BaseResource {
     }
 
     @POST
-    @RolesAllowed(value = {"owner"})
+    @RolesAllowed(value = {"member"})
     @Path("playable_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addPlayableImage(@PathParam("project") Long projectId,
