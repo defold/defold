@@ -334,9 +334,9 @@
 
 (defn ^Parent load-fxml [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))
-        css (io/file "editor.css")]
-    (when (and (.exists css) (seq (.getStylesheets root)))
-      (.setAll (.getStylesheets root) ^java.util.Collection (vec [(str (.toURI css))])))
+        css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
+    (when (.exists css)
+      (.. root getStylesheets (add (str (.toURI css)))))
     root))
 
 (extend-type Window

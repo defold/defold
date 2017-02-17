@@ -65,3 +65,9 @@
 
 (defn is-mac-os? []
   (= "Mac OS X" (System/getProperty "os.name")))
+
+(defn positions [pred coll]
+  (keep-indexed (fn [idx x]
+                  (when (pred x)
+                    idx))
+                coll))

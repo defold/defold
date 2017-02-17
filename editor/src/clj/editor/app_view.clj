@@ -736,6 +736,19 @@
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
 
+(defn- create-live-update-settings! [workspace]
+  (let [project-path (workspace/project-path workspace)
+        settings-file (io/file project-path "liveupdate.settings")]
+    (spit settings-file "[liveupdate]\n")
+    (workspace/resource-sync! workspace)
+    (workspace/find-resource workspace "/liveupdate.settings")))
+
+(handler/defhandler :live-update-settings :global
+  (run [app-view workspace project]
+    (some->> (or (workspace/find-resource workspace "/liveupdate.settings")
+                 (create-live-update-settings! workspace))
+      (open-resource app-view workspace project))))
+
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))
   (run [workspace project prefs]
