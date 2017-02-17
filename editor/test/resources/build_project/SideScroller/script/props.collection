@@ -1,46 +1,130 @@
 name: "props"
 instances {
-    id: "props"
-    prototype: "/script/props.go"
-    scale3 {x: 1.0 y: 1.0 z: 1.0}
-    component_properties {
-        id: "script"
-        properties {id: "number" value: "3.0" type: PROPERTY_TYPE_NUMBER}
-        properties {id: "hash" value: "hash3" type: PROPERTY_TYPE_HASH}
-        properties {id: "url" value: "/url2" type: PROPERTY_TYPE_URL}
-        properties {id: "vec3" value: "2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR3}
-        properties {id: "quat" value: "1.0,0.0,0.0,0.0" type: PROPERTY_TYPE_QUAT}
-        properties {id: "vec4" value: "1.0,2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR4}
-        properties {id: "bool" value: "true" type: PROPERTY_TYPE_BOOLEAN}
+  id: "props"
+  prototype: "/script/props.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  component_properties {
+    id: "script"
+    properties {
+      id: "number"
+      value: "3.0"
+      type: PROPERTY_TYPE_NUMBER
     }
+    properties {
+      id: "url"
+      value: "/url2"
+      type: PROPERTY_TYPE_URL
+    }
+    properties {
+      id: "hash"
+      value: "hash3"
+      type: PROPERTY_TYPE_HASH
+    }
+    properties {
+      id: "vec3"
+      value: "2.0,3.0,4.0"
+      type: PROPERTY_TYPE_VECTOR3
+    }
+    properties {
+      id: "vec4"
+      value: "1.0,2.0,3.0,4.0"
+      type: PROPERTY_TYPE_VECTOR4
+    }
+    properties {
+      id: "quat"
+      value: "1.0,0.0,0.0,0.0"
+      type: PROPERTY_TYPE_QUAT
+    }
+    properties {
+      id: "bool"
+      value: "true"
+      type: PROPERTY_TYPE_BOOLEAN
+    }
+  }
+  scale3 {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
 }
+scale_along_z: 0
 embedded_instances {
-    id: "embedded_props"
-    data: "components {\n"
-    "  id: \"script\"\n"
-    "  component: \"/script/props.script\"\n"
-    "  position {\n"
-    "    x: 0.0\n"
-    "    y: 0.0\n"
-    "    z: 0.0\n"
-    "  }\n"
-    "  rotation {\n"
-    "    x: 0.0\n"
-    "    y: 0.0\n"
-    "    z: 0.0\n"
-    "    w: 1.0\n"
-    "  }\n"
-    "}\n"
-    ""
-    scale3 {x: 1.0 y: 1.0 z: 1.0}
-    component_properties {
-        id: "script"
-        properties {id: "number" value: "3.0" type: PROPERTY_TYPE_NUMBER}
-        properties {id: "hash" value: "hash3" type: PROPERTY_TYPE_HASH}
-        properties {id: "url" value: "/url2" type: PROPERTY_TYPE_URL}
-        properties {id: "vec3" value: "2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR3}
-        properties {id: "quat" value: "1.0,0.0,0.0,0.0" type: PROPERTY_TYPE_QUAT}
-        properties {id: "vec4" value: "1.0,2.0,3.0,4.0" type: PROPERTY_TYPE_VECTOR4}
-        properties {id: "bool" value: "true" type: PROPERTY_TYPE_BOOLEAN}
-    }
+  id: "embedded_props"
+  data: "components {\n"
+  "  id: \"script\"\n"
+  "  component: \"/script/props.script\"\n"
+  "  position {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "    w: 1.0\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"number\"\n"
+  "    value: \"3.0\"\n"
+  "    type: PROPERTY_TYPE_NUMBER\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"url\"\n"
+  "    value: \"url2\"\n"
+  "    type: PROPERTY_TYPE_URL\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"hash\"\n"
+  "    value: \"hash3\"\n"
+  "    type: PROPERTY_TYPE_HASH\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"vec3\"\n"
+  "    value: \"2.0,3.0,4.0\"\n"
+  "    type: PROPERTY_TYPE_VECTOR3\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"vec4\"\n"
+  "    value: \"1.0,2.0,3.0,4.0\"\n"
+  "    type: PROPERTY_TYPE_VECTOR4\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"quat\"\n"
+  "    value: \"0.0087265,0.0,0.0,0.9999619\"\n"
+  "    type: PROPERTY_TYPE_QUAT\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"bool\"\n"
+  "    value: \"true\"\n"
+  "    type: PROPERTY_TYPE_BOOLEAN\n"
+  "  }\n"
+  "}\n"
+  ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale3 {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
 }
