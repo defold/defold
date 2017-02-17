@@ -19,6 +19,7 @@
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
+            [editor.system :as system]
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
@@ -310,23 +311,34 @@
   (run [project-graph] (g/undo! project-graph)))
 
 (handler/defhandler :redo :global
-    (enabled? [project-graph] (g/has-redo? project-graph))
-    (run [project-graph] (g/redo! project-graph)))
+  (enabled? [project-graph] (g/has-redo? project-graph))
+  (run [project-graph] (g/redo! project-graph)))
+
+(def ^:private bundle-targets ["iOS Application..."
+                               "Android Application..."
+                               "macOS Application..."
+                               "Windows Application..."
+                               "Linux Application..."
+                               "HTML5 Application..."
+                               "Facebook Application..."])
 
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"
                   :id ::project
-                  :children [{:label "Build"
-                              :acc "Shortcut+B"
-                              :command :build}
-                             {:label "Fetch Libraries"
-                              :command :fetch-libraries}
-                             {:label "Live Update settings"
-                              :command :live-update-settings}
-                             {:label "Sign iOS App..."
-                              :command :sign-ios-app}
-                             {:label :separator
-                              :id ::project-end}]}])
+                  :children (vec (remove nil? [{:label "Build"
+                                                :acc "Shortcut+B"
+                                                :command :build}
+                                               (when system/fake-it-til-you-make-it?
+                                                 {:label "Bundle"
+                                                  :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
+                                               {:label "Fetch Libraries"
+                                                :command :fetch-libraries}
+                                               {:label "Live Update settings"
+                                                :command :live-update-settings}
+                                               {:label "Sign iOS App..."
+                                                :command :sign-ios-app}
+                                               {:label :separator
+                                                :id ::project-end}]))}])
 
 (defn- outputs [node]
   (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
