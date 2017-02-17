@@ -697,29 +697,19 @@
     (g/set-property! view-id :image-view image-view)
     pane))
 
-(def stuff (atom {}))
-
-(defn- attach-scene-view-pane! [view-id ^Parent parent opts]
-  (swap! stuff assoc
-         :view-id view-id
-         :parent parent
-         :opts opts)
-  (let [scene (.getScene parent)
-        scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")
-        toolbar-css-selector "#gl-view-anchor-pane #toolbar"]
+(defn- make-scene-view-pane [view-id opts]
+  (let [scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")]
     (ui/fill-control scene-view-pane)
-    (ui/children! parent [scene-view-pane])
-    (ui/register-toolbar scene scene-view-pane toolbar-css-selector :toolbar)
     (ui/with-controls scene-view-pane [^AnchorPane gl-view-anchor-pane]
       (let [gl-pane (make-gl-pane! view-id gl-view-anchor-pane opts "update-scene-view" true)]
         (ui/fill-control gl-pane)
-        (.add (.getChildren scene-view-pane) 0 gl-pane))
-      (ui/on-closed! (:tab opts) (fn [_event]
-                                   (ui/unregister-toolbar scene scene-view-pane toolbar-css-selector))))))
+        (.add (.getChildren scene-view-pane) 0 gl-pane)))
+    scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
-  (let [view-id (g/make-node! scene-graph SceneView :select-buffer (make-select-buffer) :frame-version (atom 0))]
-    (attach-scene-view-pane! view-id parent opts)
+  (let [view-id (g/make-node! scene-graph SceneView :select-buffer (make-select-buffer) :frame-version (atom 0))
+        scene-view-pane (make-scene-view-pane view-id opts)]
+    (ui/children! parent [scene-view-pane])
     view-id))
 
 (g/defnk produce-frame [render-args ^GLAutoDrawable drawable]
