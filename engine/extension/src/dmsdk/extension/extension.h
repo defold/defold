@@ -13,17 +13,41 @@ extern "C"
 
 namespace dmExtension
 {
-    /**
-     * Results
+    /*# SDK Extension API documentation
+     * [file:<dmsdk/extension/extension.h>]
+     *
+     * Functions for creating and controlling engine native extension libraries.
+     *
+     * @document
+     * @name Extension
+     * @namespace dmExtension
+     */
+
+    /*# result enumeration
+     *
+     * Result enumeration.
+     *
+     * @enum
+     * @name dmExtension::Result
+     * @member dmExtension::RESULT_OK
+     * @member dmExtension::RESULT_INIT_ERROR
+     *
      */
     enum Result
     {
-        RESULT_OK = 0,          //!< RESULT_OK
-        RESULT_INIT_ERROR = -1, //!< RESULT_INIT_ERROR
+        RESULT_OK = 0,
+        RESULT_INIT_ERROR = -1,
     };
 
-    /**
-     * Application level initialization parameters
+    /*# application level callback data
+     *
+     * Extension application entry callback data.
+     * This is the data structure passed as parameter by extension Application entry callbacks (Init and Finalize) functions
+     *
+     * @struct
+     * @name dmExtension::AppParams
+     * @member m_ConfigFile [type:dmConfigFile::HConfig]
+     *
      */
     struct AppParams
     {
@@ -32,20 +56,33 @@ namespace dmExtension
         dmConfigFile::HConfig m_ConfigFile;
     };
 
-    /**
-     * Initialization parameters
+    /*# application level callback data
+     *
+     * Extension callback data.
+     * This is the data structure passed as parameter by extension callbacks (Init, Finalize, Update, OnEvent)
+     *
+     * @struct
+     * @name dmExtension::Params
+     * @member m_ConfigFile [type:dmConfigFile::HConfig]
+     * @member m_L [type:lua_State*]
+     *
      */
     struct Params
     {
         Params();
-        /// Config file
         dmConfigFile::HConfig m_ConfigFile;
-        /// Lua state
         lua_State*            m_L;
     };
 
-    /**
-     * Event id enum
+    /*# event id enumeration
+     *
+     * Event id enumeration.
+     *
+     * @enum
+     * @name dmExtension::EventID
+     * @member dmExtension::EVENT_ID_ACTIVATEAPP
+     * @member dmExtension::EVENT_ID_DEACTIVATEAPP
+     *
      */
     enum EventID
     {
@@ -53,8 +90,15 @@ namespace dmExtension
         EVENT_ID_DEACTIVATEAPP,
     };
 
-    /**
-     * Event callback data
+    /*# event callback data
+     *
+     * Extension event callback data.
+     * This is the data structure passed as parameter by extension event callbacks (OnEvent)
+     *
+     * @struct
+     * @name dmExtension::Event
+     * @member m_Event [type:dmExtension::EventID]
+     *
      */
     struct Event
     {
@@ -113,24 +157,55 @@ namespace dmExtension
     */
     #define DM_EXTENSION_PASTE_SYMREG(x, y) x ## y
 
-    /**
-     * Declare a new extension
-     * @param symbol external symbol extension description
-     * @param name extension name. human readble
-     * @param appinit app-init function. May be null.
-     * @param appfinal app-final function. May be null
-     * @param init init function. May not be 0
-     * @param update update function. May be null
-     * @param on_event event callback function. May be null
-     * @param final final function. May not be 0
+    /*# declare a new extension
      *
-     * Function signatures
-     * Result (*app_init)(AppParams*)
-     * Result (*app_finalize)(AppParams*)
-     * Result (*initialize)(Params*)
-     * Result (*finalize)(Params*)
-     * Result (*update)(Params*)
-     * void   (*on_event)(Params*, const Event*)
+     * Declare and register new extension to the engine.
+     * This macro is used to declare the extesion callback functions used by the engine to communicate with the extension.
+     *
+     * @macro
+     * @name DM_DECLARE_EXTENSION
+     * @param symbol [type:symbol] external extension symbol description (no quotes).
+     * @param name [type:string] extension name. Human readable.
+     * @param appinit [type:function(dmExtension::AppParams* app_params)] app-init function. May be null.
+     *
+     * `app_params`
+     * : [type:dmExtension::AppParams*] Pointer to an `AppParams` structure.
+     *
+     * @param appfinal [type:function(dmExtension::AppParams* app_params)] app-final function. May be null.
+     *
+     * `app_params`
+     * : [type:dmExtension::AppParams*] Pointer to an `AppParams` structure.
+     *
+     * @param init [type:function(dmExtension::Params* params)] init function. May not be null.
+     *
+     * `params`
+     * : [type:dmExtension::Params*] Pointer to a `Params` structure
+     *
+     * @param update [type:function(dmExtension::Params* params)] update function. May be null.
+     *
+     * `params`
+     * : [type:dmExtension::Params*] Pointer to a `Params` structure
+     *
+     * @param on_event [type:function(dmExtension::Params* params, const dmExtension::Event* event)] event callback function. May be null.
+     *
+     * `params`
+     * : [type:dmExtension::Params*] Pointer to a `Params` structure
+     *
+     * `event`
+     * : [type:dmExtension::Event*] const Pointer to an `Event` structure
+     *
+     * @param final [type:function(dmExtension::Params* params)] function. May not be null.
+     *
+     * `params`
+     * : [type:dmExtension::Params*] Pointer to an `Params` structure.
+     *
+     * @examples
+     *
+     * Register a new extension:
+     *
+     * ```cpp
+     * DM_DECLARE_EXTENSION(MyExt, "MyExt", AppInitializeMyExt, AppFinalizeMyExt, InitializeMyExt, UpdateMyExt, OnEventMyExt, FinalizeMyExt);
+     * ```
      */
     #define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
         uint8_t DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[dmExtension::m_ExtensionDescBufferSize]; \

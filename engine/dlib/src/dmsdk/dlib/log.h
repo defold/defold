@@ -3,6 +3,78 @@
 
 #include <stdint.h>
 
+/*# SDK Log API documentation
+ * [file:<dmsdk/dlib/log.h>]
+ *
+ * Logging functions.
+ * If DLIB_LOG_DOMAIN is defined the value of the defined is printed after severity.
+ *  Otherwise DEFAULT will be printed.
+ *
+ * ```cpp
+ * #define DLIB_LOG_DOMAIN "MyOwnDomain"
+ * #include <dmsdk/dlib/log.h>
+ * ```
+ *
+ * @document
+ * @name Log
+ * @namespace dmLog
+*/
+
+/*# macro for debug category logging
+ *
+ * Use dmLogOnceDebug for one-shot logging
+ *
+ * @macro
+ * @name dmLogDebug
+ * @param format [type:string] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
+/*# macro for info category logging
+ *
+ * Use dmLogOnceInfo for one-shot logging
+ *
+ * @macro
+ * @name dmLogInfo
+ * @param format [type:string] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
+/*# macro for warning category logging
+ *
+ * Use dmLogOnceWarning for one-shot logging
+ *
+ * @macro
+ * @name dmLogWarning
+ * @param format [type:string] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
+/*# macro for error category logging
+ *
+ * Use dmLogOnceError for one-shot logging
+ *
+ * @macro
+ * @name dmLogError
+ * @param format [type:string] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
+/*# macro for fatal category logging
+ *
+ * Use dmLogOnceFatal for one-shot logging
+ *
+ * @macro
+ * @name dmLogFatal
+ * @param format [type:string] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
 /**
  * Log severity
  */
@@ -15,15 +87,6 @@ enum dmLogSeverity
     DM_LOG_SEVERITY_ERROR       = 4,//!< DM_LOG_SEVERITY_ERROR
     DM_LOG_SEVERITY_FATAL       = 5,//!< DM_LOG_SEVERITY_FATAL
 };
-
-/**
- * dmLog, dmLogOnce functions for domain based logging
- * @param format Format string
- * @param args... Format args (variable arg list)
- *
- * Valid domain names are Debug, UserDebug, Info, Warning, Error, Fatal (ex. dmLogInfo or dmLogOnceInfo)
- *
- */
 
 #ifdef DM_LOG_DISABLE
 
