@@ -840,12 +840,17 @@
     (frame-selection view-id false)
     view-id))
 
+(defn- focus-view [view-id opts]
+  (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
+    (.requestFocus image-view)))
+
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
                                 :label "Scene"
                                 :make-view-fn make-view
-                                :make-preview-fn make-preview))
+                                :make-preview-fn make-preview
+                                :focus-fn focus-view))
 
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))
