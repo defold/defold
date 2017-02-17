@@ -12,6 +12,7 @@
     -fx-background-radius: 20px;
     -fx-padding: 5px;
     -fx-spacing: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
 
     >.toggle-button {
         -fx-background-color: transparent;
@@ -21,6 +22,10 @@
         -fx-pref-height: 30px;
         -fx-border-width: 0;
         -fx-alignment: center;
+
+        .image-view {
+            -fx-effect: innershadow(gaussian, $scene-toolbar-button-foreground, 20, 0.3, 0, 0) !important;
+        }
 
         &:hover {
             .image-view {
@@ -35,33 +40,47 @@
         }
     }
 
+    .separator {
+        &:horizontal {
+            .line {
+                -fx-border-color: $grey;
+            }
+        }
+
+        &:vertical {
+            .line {
+                -fx-border-color: $grey;
+            }
+        }
+    }
+
     /* This is for the gui device picker that pops up when an .gui file is active */
     .cell {
         -fx-alignment: center;
-        -fx-padding: 0;
+        -fx-padding: 0 0 0 8px;
         -fx-spacing: 8px;
         -fx-border-width: 0;
         -fx-border-insets: 0;
         -fx-background-color: transparent;
+        .image-view {
+            -fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0) !important;
+        }
         >.choice-box {
             -fx-pref-width: 84px;
             .label {
                 -fx-border-width: 0;
                 -fx-background-color: $scene-toolbar-background;
-                -fx-text-fill: $bright-grey;
+                -fx-text-fill: $defold-white;
             }
             .open-button {
                 -fx-background-color: $scene-toolbar-background;
+                .arrow {
+                    -fx-background-color: $defold-white;
+                }
             }
             &:hover, &:pressed, &:focused {
-                .label {
-                    -fx-text-fill: $defold-white;
-                }
                 .open-button {
                     -fx-background-color: $scene-toolbar-background;
-                    .arrow {
-                        -fx-background-color: $defold-white;
-                    }
                 }
             }
         }
