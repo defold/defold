@@ -8,7 +8,7 @@
   -fx-border-color: rgba($dark-grey, 0.8);
   -fx-border-width: 1;
   -fx-text-fill: rgba($defold-white, 0.8);
-  -fx-font-size: 12px;
+  -fx-font-size: $default-font-size;
   &:hover {
     -fx-background-color: $mid-grey-light;
   }
