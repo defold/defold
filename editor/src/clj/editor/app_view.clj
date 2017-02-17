@@ -724,7 +724,7 @@
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
 (handler/defhandler :bundle :global
-  (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use editor 1 for bundling.")))
+  (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
 
 (defn- fetch-libraries [workspace project prefs]
   (future

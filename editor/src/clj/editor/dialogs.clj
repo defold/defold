@@ -109,7 +109,7 @@
         stage (ui/make-stage)
         scene (Scene. root)]
     (ui/title! stage title)
-    (ui/with-controls root [message ok fa fo ka ko]
+    (ui/with-controls root [message ok]
       (ui/text! message text)
       (ui/on-action! ok (fn [_] (.close stage))))
     (.initModality stage Modality/APPLICATION_MODAL)
