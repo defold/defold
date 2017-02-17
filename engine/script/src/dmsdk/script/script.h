@@ -22,22 +22,20 @@ namespace dmScript
      * @namespace dmScript
      */
 
-    /*# LuaStackCheck struct
-     *
-     * LuaStackCheck utility to make sure we check the Lua stack state before leaving a function.
-     * m_Diff is the expected difference of the stack size.
-     *
-     * @struct
-     * @name dmScript::LuaStackCheck
-     * @member m_L [type:lua_State*] The Lua state to check
-     * @member m_Top [type:int] The current top of the Lua stack (from lua_gettop())
-     * @member m_Diff [type:int] The expected difference in stack size when this sctruct goes out of scope
-     *
-     */
+    /**
+    * LuaStackCheck struct. Internal
+    *
+    * LuaStackCheck utility to make sure we check the Lua stack state before leaving a function.
+    * m_Diff is the expected difference of the stack size.
+    *
+    */
     struct LuaStackCheck
     {
+        /// The Lua state to check
         lua_State* m_L;
+        /// The current top of the Lua stack (from lua_gettop())
         int m_Top;
+        /// The expected difference in stack size when this sctruct goes out of scope
         int m_Diff;
         LuaStackCheck(lua_State* L, int diff);
         ~LuaStackCheck();
@@ -47,6 +45,9 @@ namespace dmScript
     /*# helper macro to validate the Lua stack state before leaving a function.
      *
      * Diff is the expected difference of the stack size.
+     * If luaL_error, or another function that executes a long-jump, is part of the executed code,
+     * the stack guard cannot be guaranteed to execute at the end of the function.
+     * In that case you should manually check the stack using `lua_gettop`
      *
      * @macro
      * @name DM_LUA_STACK_CHECK

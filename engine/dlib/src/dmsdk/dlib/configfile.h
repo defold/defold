@@ -9,6 +9,7 @@ namespace dmConfigFile
      * [file:<dmsdk/dlib/configfile.h>]
      *
      * Configuration file access functions.
+     * The configuration file is compiled version of the [file:game.project] file.
      *
      * @document
      * @name ConfigFile
@@ -28,7 +29,7 @@ namespace dmConfigFile
 
     /*# get config value as string
      *
-     * Get config value as string or default if key isn't found
+     * Get config value as string, returns default if the key isn't found
      *
      * @name dmConfigFile::GetString
      * @param config [type:dmBuffer::HConfig] Config file handle
@@ -40,7 +41,7 @@ namespace dmConfigFile
 
     /*# get config value as int
      *
-     * Get config value as int or default if key isn't found.
+     * Get config value as int, returns default if the key isn't found
      * Note: default_value is returned for invalid integer values
      *
      * @name dmConfigFile::GetInt
@@ -53,7 +54,7 @@ namespace dmConfigFile
 
     /*# get config value as float
      *
-     * Get config value as float or default if key isn't found.
+     * Get config value as float, returns default if the key isn't found
      * Note: default_value is returned for invalid float values
      *
      * @name dmConfigFile::GetFloat

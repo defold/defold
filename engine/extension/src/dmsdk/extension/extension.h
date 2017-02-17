@@ -42,7 +42,7 @@ namespace dmExtension
     /*# application level callback data
      *
      * Extension application entry callback data.
-     * This is the data structure passed as parameter by extension Application entry callbacks (Init and Finalize) functions
+     * This is the data structure passed as parameter by extension Application entry callbacks (AppInit and AppFinalize) functions
      *
      * @struct
      * @name dmExtension::AppParams
@@ -56,7 +56,7 @@ namespace dmExtension
         dmConfigFile::HConfig m_ConfigFile;
     };
 
-    /*# application level callback data
+    /*# extension level callback data
      *
      * Extension callback data.
      * This is the data structure passed as parameter by extension callbacks (Init, Finalize, Update, OnEvent)
@@ -160,7 +160,7 @@ namespace dmExtension
     /*# declare a new extension
      *
      * Declare and register new extension to the engine.
-     * This macro is used to declare the extesion callback functions used by the engine to communicate with the extension.
+     * This macro is used to declare the extension callback functions used by the engine to communicate with the extension.
      *
      * @macro
      * @name DM_DECLARE_EXTENSION

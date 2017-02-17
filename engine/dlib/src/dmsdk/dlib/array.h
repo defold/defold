@@ -14,7 +14,7 @@
  * With exception of changing the size and capacity, all operations are guaranteed to be O(1).
  *
  * ```cpp
- * dmArray<int> a = new dmArray();
+ * dmArray<int>* a = new dmArray<int>();
  * a.Push(1);
  * ```
  *
@@ -55,7 +55,7 @@ public:
      * @examples
      *
      * ```cpp
-     * dmArray<int> a = new dmArray();
+     * dmArray<int>* a = new dmArray<int>();
      * ```
      */
     dmArray();
@@ -134,7 +134,7 @@ public:
      */
     const T& Back() const;
 
-    /*# array size
+    /*# size of array
      *
      * Size of the array in elements
      *
@@ -143,7 +143,7 @@ public:
      */
     uint32_t Size() const;
 
-    /*# array capacity
+    /*# capacity of array
      *
      * Capacity is currently allocated storage.
      *
@@ -172,12 +172,12 @@ public:
      */
     bool Empty() const;
 
-    /*# array remaining
+    /*# remaining size of array
      *
-     * Amount of elements that can be currently stored
+     * Amount of additional elements that can be stored
      *
      * @name dmArray::Remaining
-     * @return number [type:uint32_t] amount of elements that can be currently stored
+     * @return number [type:uint32_t] amount of additional elements that can be stored
      */
     uint32_t Remaining() const;
 
@@ -197,7 +197,7 @@ public:
      *
      * @name dmArray::operator[]
      * @param index [type:uint32_t] array index
-     * @return reference [type:T&] const-reference to the element at the specified index
+     * @return reference [type:const T&] const-reference to the element at the specified index
      */
     const T& operator[](uint32_t i) const;
 
@@ -237,6 +237,7 @@ public:
      *
      * Remove the element at the specified index.
      * The removed element is replaced by the element at the end (if any), thus potentially altering the order.
+     * While operation changes the array size, it is guaranteed to be O(1).
      *
      * @name dmArray::EraseSwap
      * @param index [type:uint32_t] index of the element to remove
@@ -248,9 +249,10 @@ public:
      *
      * Remove the element by reference
      * The removed element is replaced by the element at the end (if any), thus potentially altering the order.
+     * While operation changes the array size, it is guaranteed to be O(1).
      *
      * @name dmArray::EraseSwapRef
-     * @param index [type:uint32_t] index of the element to remove
+     * @param element [type:T&] reference to the element to remove.
      * @return reference [type:T&] reference to the new referenced element
      */
     T& EraseSwapRef(T& element);

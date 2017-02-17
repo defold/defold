@@ -152,7 +152,7 @@ namespace dmBuffer
 
     /*# free Buffer.
      *
-     * Free a HBuffer and its streams.
+     * Free a HBuffer and it's streams.
      *
      * @name dmBuffer::Free
      * @param buffer [type:dmBuffer::HBuffer] Buffer handle to the buffer to free
@@ -176,7 +176,7 @@ namespace dmBuffer
 
     /*# validate buffer.
      *
-     * Validate a buffer and its streams.
+     * Validate a buffer and it's streams.
      *
      * @name dmBuffer::ValidateBuffer
      * @param buffer [type:dmBuffer::HBuffer] Buffer handle to the buffer to validate

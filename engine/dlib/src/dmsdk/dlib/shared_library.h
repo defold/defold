@@ -21,7 +21,7 @@
  * @examples
  *
  * ```cpp
- * DM_DLLEXPORT void SomeFunction(const void* param);
+ * DM_DLLEXPORT uint64_t dmHashBuffer64(const void* buffer, uint32_t buffer_len);
  * ```
  *
  */
