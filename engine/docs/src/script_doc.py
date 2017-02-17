@@ -7,7 +7,7 @@ import StringIO
 from optparse import OptionParser
 from markdown import Markdown
 from markdown import Extension
-from markdown.util import etree
+from markdown.util import etree, AtomicString
 from markdown.inlinepatterns import Pattern
 
 import script_doc_ddf_pb2
@@ -39,7 +39,7 @@ class RefPattern(Pattern):
         else:
             refurl = ('#%s') % (s[0])
         el = etree.Element('a')
-        el.text = ref
+        el.text = AtomicString(ref)
         el.set('href', refurl)
         return el
 
@@ -93,7 +93,7 @@ class TypePattern(Pattern):
          # Make sure types are shown as type1 | type2
         types = re.sub(' or ', ' | ', types)
         types = re.sub(r'(?<=\w)[|](?=\w)', ' | ', types)
-        el.text = types
+        el.text = AtomicString(types)
         return el
 
 #
@@ -119,7 +119,7 @@ class ClassPattern(Pattern):
     def handleMatch(self, m):
         el = etree.Element('span')
         el.set('class', m.group(2).lower())
-        el.text = m.group(3)
+        el.text = AtomicString(m.group(3))
         return el
 
 
@@ -165,6 +165,14 @@ def _parse_comment(str):
             element_type = script_doc_ddf_pb2.MESSAGE
         elif tag == 'property':
             element_type = script_doc_ddf_pb2.PROPERTY
+        elif tag == 'struct':
+            element_type = script_doc_ddf_pb2.STRUCT
+        elif tag == 'macro':
+            element_type = script_doc_ddf_pb2.MACRO
+        elif tag == 'enum':
+            element_type = script_doc_ddf_pb2.ENUM
+        elif tag == 'typedef':
+            element_type = script_doc_ddf_pb2.TYPEDEF
         elif tag == 'document':
             document_comment = True
 
@@ -209,6 +217,13 @@ def _parse_comment(str):
             param = element.parameters.add()
             param.name = tmp[0]
             param.doc = md.convert(tmp[1])
+        elif tag == 'member':
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            mem = element.members.add()
+            mem.name = tmp[0]
+            mem.doc = md.convert(tmp[1])
         elif tag == 'note':
             element.note = md.convert(value)
         elif tag == 'examples':

@@ -353,7 +353,7 @@
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defn- pick-control-points [curves picking-rect camera viewport]
-  (let [aabb (geom/rect->aabb picking-rect)]
+  (let [aabb (geom/centered-rect->aabb picking-rect)]
     (->> curves
       (mapcat (fn [c]
                 (->> (:curve c)
@@ -367,7 +367,7 @@
       (keep identity))))
 
 (defn- pick-tangent [curves ^Rect picking-rect camera viewport sub-selection-map]
-  (let [aabb (geom/rect->aabb picking-rect)
+  (let [aabb (geom/centered-rect->aabb picking-rect)
         [scale-x scale-y] (camera/scale-factor camera viewport)]
     (some (fn [c]
             (when-let [sel (get sub-selection-map [(:node-id c) (:property c)])]

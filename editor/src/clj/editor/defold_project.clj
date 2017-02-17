@@ -16,6 +16,7 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
+            [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [editor.system :as system]
@@ -331,6 +332,8 @@
                                                   :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
+                                               {:label "Live Update settings"
+                                                :command :live-update-settings}
                                                {:label "Sign iOS App..."
                                                 :command :sign-ios-app}
                                                {:label :separator
@@ -639,10 +642,10 @@
     project-id))
 
 (defn- read-dependencies [game-project-resource]
-  (-> (slurp game-project-resource)
-    gpc/string-reader
-    gpc/parse-settings
-    (gpc/get-setting ["project" "dependencies"])))
+  (with-open [game-project-reader (io/reader game-project-resource)]
+    (-> game-project-reader
+        settings-core/parse-settings
+        (settings-core/get-setting ["project" "dependencies"]))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [progress (atom (progress/make "Updating dependencies" 3))]
