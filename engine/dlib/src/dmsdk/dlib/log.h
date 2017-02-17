@@ -3,6 +3,84 @@
 
 #include <stdint.h>
 
+/*# SDK Log API documentation
+ * [file:<dmsdk/dlib/log.h>]
+ *
+ * Logging functions.
+ * If DLIB_LOG_DOMAIN is defined the value of the defined is printed after severity.
+ * Otherwise DEFAULT will be printed.
+ * <br/>Log functions will be omitted (NOP) for release builds.<br/>
+ *
+ * ```cpp
+ * #define DLIB_LOG_DOMAIN "MyOwnDomain"
+ * #include <dmsdk/dlib/log.h>
+ * ```
+ *
+ * @document
+ * @name Log
+ * @namespace dmLog
+*/
+
+/*# macro for debug category logging
+ *
+ * Debug messages are temporary log instances used when debugging a certain behavior
+ * Use dmLogOnceDebug for one-shot logging
+ *
+ * @macro
+ * @name dmLogDebug
+ * @param format [type:const char*] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
+/*# macro for info category logging
+ *
+ * Info messages are used to inform the developers of relevant information
+ * Use dmLogOnceInfo for one-shot logging
+ *
+ * @macro
+ * @name dmLogInfo
+ * @param format [type:const char*] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
+/*# macro for warning category logging
+ *
+ * Warning messages are used to inform the developers about potential problems which can cause errors.
+ * Use dmLogOnceWarning for one-shot logging
+ *
+ * @macro
+ * @name dmLogWarning
+ * @param format [type:const char*] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
+/*# macro for error category logging
+ *
+ * Error messages are used in cases where an recoverable error has occurred.
+ * Use dmLogOnceError for one-shot logging
+ *
+ * @macro
+ * @name dmLogError
+ * @param format [type:const char*] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
+/*# macro for fatal category logging
+ *
+ * Fatal messages are used in cases where an unrecoverable error has occurred.
+ * Use dmLogOnceFatal for one-shot logging
+ *
+ * @macro
+ * @name dmLogFatal
+ * @param format [type:const char*] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
 /**
  * Log severity
  */
@@ -15,15 +93,6 @@ enum dmLogSeverity
     DM_LOG_SEVERITY_ERROR       = 4,//!< DM_LOG_SEVERITY_ERROR
     DM_LOG_SEVERITY_FATAL       = 5,//!< DM_LOG_SEVERITY_FATAL
 };
-
-/**
- * dmLog, dmLogOnce functions for domain based logging
- * @param format Format string
- * @param args... Format args (variable arg list)
- *
- * Valid domain names are Debug, UserDebug, Info, Warning, Error, Fatal (ex. dmLogInfo or dmLogOnceInfo)
- *
- */
 
 #ifdef DM_LOG_DISABLE
 
