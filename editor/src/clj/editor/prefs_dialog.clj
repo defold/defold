@@ -83,8 +83,6 @@
             {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}]}
    {:name  "Scene"
     :prefs [{:label "Selection Color" :type :color :key "scene-selection-color" :default (Color/web "#00ff00ff")}
-            {:label "Top Background Color" :type :color :key "scene-top-backgroundcolor" :default (Color/web "#ff0000ff")}
-            {:label "Bottom Background Color" :type :color :key "scene-bottom-backgroundcolor" :default (Color/web "#0000ffff")}
             {:label "Grid" :type :choicebox :key "scene-grid-type" :default :auto :options [[:auto "Auto"] [:manual "Manual"]]}
             {:label "Grid Size" :type :long :key "scene-grid-size" :default 100}
             {:label "Grid Color" :type :color :key "scene-grid-color" :default (Color/web "#999999ff")}]}

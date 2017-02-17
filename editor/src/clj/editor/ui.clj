@@ -1040,12 +1040,20 @@
       (refresh-separator-visibility (.getItems m)))
     (refresh-menu-item-styles (.getItems m))))
 
-(defn register-toolbar [^Scene scene toolbar-id menu-id ]
+(defn register-toolbar [^Scene scene ^Node context-node toolbar-id menu-id]
   (let [root (.getRoot scene)]
-    (if-let [toolbar (.lookup root toolbar-id)]
+    (if-let [toolbar (.lookup context-node toolbar-id)]
       (let [desc (make-desc toolbar menu-id)]
-        (user-data! root ::toolbars (assoc-in (user-data root ::toolbars) [toolbar-id] desc)))
+        (user-data! root ::toolbars (assoc (user-data root ::toolbars) [context-node toolbar-id] desc)))
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
+
+(defn unregister-toolbar [^Scene scene ^Node context-node toolbar-id]
+  (let [root (.getRoot scene)]
+    (if (some? (.lookup context-node toolbar-id))
+      (user-data! root ::toolbars (dissoc (user-data root ::toolbars) [context-node toolbar-id]))
+      (log/warn :message (format "toolbar %s not found" toolbar-id)))))
+
+(declare refresh)
 
 (defn- refresh-toolbar [td command-contexts]
  (let [menu (menu/realize-menu (:menu-id td))
@@ -1074,26 +1082,30 @@
                                                                              (toString [v] (:label v)))))]
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
-                                                                                    (let [command-contexts (contexts (.getScene control))]
+                                                                                    (let [scene (.getScene control)
+                                                                                          command-contexts (contexts scene)]
                                                                                       (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
                                                                                         (when (handler/enabled? handler-ctx)
-                                                                                          (handler/run handler-ctx)))))))
+                                                                                          (handler/run handler-ctx)
+                                                                                          (refresh scene)))))))
                                                    (doseq [opt opts]
                                                      (.add (.getItems cb) opt))
-                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 22.5))
+                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
                                                        icon (:icon menu-item)
                                                        selection-provider (:selection-provider td)]
                                                    (when icon
-                                                     (.setGraphic button (jfx/get-image-view icon 22.5)))
+                                                     (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
-                                                                          (let [command-contexts (contexts (.getScene control))]
+                                                                          (let [scene (.getScene control)
+                                                                                command-contexts (contexts scene)]
                                                                             (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                                                               (when (handler/enabled? handler-ctx)
-                                                                                (handler/run handler-ctx)))))))
+                                                                                (handler/run handler-ctx)
+                                                                                (refresh scene)))))))
                                                    button)))]
                           (when command
                             (.setId child (name command)))
@@ -1131,31 +1143,28 @@
               (when (not= item state)
                 (.select selection-model state)))))))))
 
-(defn refresh
-  ([^Scene scene] (refresh scene (contexts scene)))
-  ([^Scene scene command-contexts]
-   (let [root (.getRoot scene)
-         toolbar-descs (vals (user-data root ::toolbars))]
-     (when-let [md (user-data root ::menubar)]
-       (refresh-menubar md command-contexts)
-       (refresh-menubar-state (:control md) command-contexts))
-     (doseq [td toolbar-descs]
-       (refresh-toolbar td command-contexts)
-       (refresh-toolbar-state (:control td) command-contexts)))))
+(defn refresh [^Scene scene]
+  (let [root (.getRoot scene)
+        command-contexts (contexts scene)]
+    (when-let [md (user-data root ::menubar)]
+      (refresh-menubar md command-contexts)
+      (refresh-menubar-state (:control md) command-contexts))
+    (doseq [td (vals (user-data root ::toolbars))]
+      (refresh-toolbar td command-contexts)
+      (refresh-toolbar-state (:control td) command-contexts))))
 
 (defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
   (let [pctg (progress/percentage progress)]
-    (.setProgress bar (if (nil? pctg) -1.0 (double pctg)))
+    (when bar
+      (.setProgress bar (if (nil? pctg) -1.0 (double pctg))))
     (when label
       (.setText label (progress/description progress)))))
 
 (defn- update-progress!
   [progress]
-  (let [root  (.. (main-stage) (getScene) (getRoot))
-         tb    (.lookup root "#toolbar-status")
-         bar   (.lookup tb ".progress-bar")
-         label (.lookup tb ".label")]
-    (update-progress-controls! progress bar label)))
+  (let [root (.. (main-stage) (getScene) (getRoot))
+        label (.lookup root "#progress-status-label")]
+    (update-progress-controls! progress nil label)))
 
 (defn default-render-progress! [progress]
   (run-later (update-progress! progress)))
@@ -1413,3 +1422,11 @@ command."
 (defn browse-url
   [url]
   (.browse (Desktop/getDesktop) (URI. url)))
+
+(defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
+  (let [scene (-> tab .getTabPane .getScene)
+        context-node (.getContent tab)]
+    (when (.lookup context-node toolbar-css-selector)
+      (register-toolbar scene context-node toolbar-css-selector menu-id)
+      (on-closed! tab (fn [_event]
+                        (unregister-toolbar scene context-node toolbar-css-selector))))))

@@ -82,7 +82,7 @@
                           (:focused? new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
-                     (ui/default-render-progress-now! (progress/make "Reloading modified resources"))
+                     (ui/default-render-progress-now! (progress/make "Reloading modified resources..."))
                      (ui/->future 0.01
                                   #(try
                                      (ui/with-progress [render-fn ui/default-render-progress!]
