@@ -106,7 +106,7 @@
                   (filter (fn [[k v]] (when (nil? v) k)))
                   (map first))]
     (when (seq missing)
-      (throw (Exception. (format "controls %s are missing" missing))))
+      (throw (Exception. (format "controls %s are missing" (string/join ", " (map (comp str name) missing))))))
     controls))
 
 (defmacro with-controls [parent child-syms & body]
