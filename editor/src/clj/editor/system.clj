@@ -1,4 +1,5 @@
-(ns editor.system)
+(ns editor.system
+  (:require [clojure.java.io :as io]))
 
 (set! *warn-on-reflection* true)
 
@@ -33,6 +34,10 @@
   ^String []
   (System/getProperty "java.home"))
 
+(defn user-home
+  ^String []
+  (System/getProperty "user.home"))
+
 (defn java-runtime-version
   ^String []
   (System/getProperty "java.runtime.version"))
@@ -41,3 +46,5 @@
                   (.toLowerCase)
                   (.indexOf "mac")
                   (>= 0)))
+
+(defonce fake-it-til-you-make-it? (.exists (io/file (user-home) ".defold" ".demo")))
