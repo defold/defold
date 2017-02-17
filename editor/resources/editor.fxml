@@ -102,7 +102,7 @@
                                                                       <TextField id="search-console" promptText="Search" AnchorPane.leftAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="0" />
                                                                       <Button id="prev-console" styleClass="button-small" prefWidth="27" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="1" />
                                                                       <Button id="next-console" styleClass="button-small" prefWidth="27" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="2" />
-                                                                      <Button id="clear-console" styleClass="button-small" text="Clear console" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="3" />
+                                                                      <Button id="clear-console" styleClass="button-small" text="Clear Console" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="3" />
                                                                   
                                                                       <!-- Row 2 -->
                                                                       <TextArea id="console" editable="false" layoutX="91.0" layoutY="52.0" prefHeight="120.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="33.0" GridPane.columnSpan="2147483647" GridPane.rowIndex="1" />
@@ -112,7 +112,7 @@
                                                       </AnchorPane>
                                                   </content>
                                               </Tab>
-                                              <Tab id="curve-editor-tab" text="Curve editor">
+                                              <Tab id="curve-editor-tab" text="Curve Editor">
                                                 <content>
                                                   <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0">
                                                         <children>
@@ -129,7 +129,7 @@
                                                         </children></AnchorPane>
                                                 </content>
                                               </Tab>
-                                              <Tab id="build-errors-tab" text="Build errors">
+                                              <Tab id="build-errors-tab" text="Build Errors">
                                                   <content>
                                                     <AnchorPane id="build-errors-container" prefHeight="180.0" prefWidth="200.0">
                                                       <children>
