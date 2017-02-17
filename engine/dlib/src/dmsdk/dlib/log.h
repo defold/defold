@@ -26,7 +26,7 @@
  *
  * @macro
  * @name dmLogDebug
- * @param format [type:string] Format string
+ * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
  *
  */
@@ -37,7 +37,7 @@
  *
  * @macro
  * @name dmLogInfo
- * @param format [type:string] Format string
+ * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
  *
  */
@@ -48,7 +48,7 @@
  *
  * @macro
  * @name dmLogWarning
- * @param format [type:string] Format string
+ * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
  *
  */
@@ -59,7 +59,7 @@
  *
  * @macro
  * @name dmLogError
- * @param format [type:string] Format string
+ * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
  *
  */
@@ -70,7 +70,7 @@
  *
  * @macro
  * @name dmLogFatal
- * @param format [type:string] Format string
+ * @param format [type:const char*] Format string
  * @param args [type:...] Format string args (variable arg list)
  *
  */

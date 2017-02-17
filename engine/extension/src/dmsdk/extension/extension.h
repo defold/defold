@@ -165,7 +165,7 @@ namespace dmExtension
      * @macro
      * @name DM_DECLARE_EXTENSION
      * @param symbol [type:symbol] external extension symbol description (no quotes).
-     * @param name [type:string] extension name. Human readable.
+     * @param name [type:const char*] extension name. Human readable.
      * @param appinit [type:function(dmExtension::AppParams* app_params)] app-init function. May be null.
      *
      * `app_params`

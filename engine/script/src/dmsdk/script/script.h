@@ -50,7 +50,7 @@ namespace dmScript
      *
      * @macro
      * @name DM_LUA_STACK_CHECK
-     * @param L [type:lua_State] lua state
+     * @param L [type:lua_State*] lua state
      * @param diff [type:int] Number of expected items to be on the Lua stack once this struct goes out of scope
      *
      */
@@ -64,7 +64,7 @@ namespace dmScript
      * It also tracks number of global references kept.
      *
      * @name dmScript::Ref
-     * @param L [type:lua_State] lua state
+     * @param L [type:lua_State*] lua state
      * @param table [type:int] table the lua table that stores the references. E.g LUA_REGISTRYINDEX
      * @return reference [type:int] the new reference
      */
@@ -77,7 +77,7 @@ namespace dmScript
      * It also decreases the number of global references kept
      *
      * @name dmScript::Unref
-     * @param L [type:lua_State] lua state
+     * @param L [type:lua_State*] lua state
      * @param table [type:int] table the lua table that stores the references. E.g LUA_REGISTRYINDEX
      * @param reference [type:int] the reference to the object
      */
@@ -86,18 +86,18 @@ namespace dmScript
     /*# check if the value at #index is a HBuffer
      *
      * @name dmScript::IsBuffer
-     * @param L [type:lua_State] lua state
+     * @param L [type:lua_State*] lua state
      * @param index [type:int] Index of the value
      * @return boolean [type:boolean] true if value at #index is a HBuffer
      */
-    bool IsBuffer(lua_State *L, int index);
+    bool IsBuffer(lua_State* L, int index);
 
     /*# push a HBuffer onto the supplied lua state
      *
      * Will increase the stack by 1.
      *
      * @name dmScript::PushBuffer
-     * @param L [type:lua_State] lua state
+     * @param L [type:lua_State*] lua state
      * @param buffer [type:dmBuffer::HBuffer] buffer to push
      */
     void PushBuffer(lua_State* L, dmBuffer::HBuffer buffer);
@@ -107,7 +107,7 @@ namespace dmScript
      * Check if the value in the supplied index on the lua stack is a HBuffer and returns it.
      *
      * @name dmScript::CheckBuffer
-     * @param L [type:lua_State] lua state
+     * @param L [type:lua_State*] lua state
      * @param index [type:int] Index of the value
      * @return buffer [type:dmBuffer::HBuffer*] pointer to dmBuffer::HBuffer
      */

@@ -101,7 +101,7 @@ namespace dmBuffer
      * @struct
      * @name dmBuffer::StreamDeclaration
      * @member m_Name [type:dmhash_t] Hash of stream name
-     * @member m_ValueType [dmBuffer::ValueType] Stream ValueType type
+     * @member m_ValueType [type:dmBuffer::ValueType] Stream ValueType type
      * @member m_ValueCount [type:uint8_t] Value count of stream type
      * @examples
      *
