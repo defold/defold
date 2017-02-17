@@ -74,7 +74,7 @@
 
 (defn make-progress-dialog [title message]
   (let [root     ^Parent (ui/load-fxml "progress.fxml")
-        stage    (ui/make-stage)
+        stage    (ui/make-dialog-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["title" "message" "progress"])]
     (observe-focus stage)
@@ -82,7 +82,6 @@
     (ui/text! (:title controls) title)
     (ui/text! (:message controls) message)
     (.setProgress ^ProgressBar (:progress controls) 0)
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
     (.setAlwaysOnTop stage true)
     (.show stage)
@@ -92,27 +91,24 @@
 
 (defn make-alert-dialog [message]
   (let [root     ^Parent (ui/load-fxml "alert.fxml")
-        stage    (ui/make-stage)
+        stage    (ui/make-dialog-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "ok"])]
     (observe-focus stage)
     (ui/title! stage "Alert")
     (ui/text! (:message controls) message)
     (ui/on-action! (:ok controls) (fn [_] (.close stage)))
-
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
 (defn make-message-box [title text]
   (let [root ^Parent (ui/load-fxml "message.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)]
     (ui/title! stage title)
     (ui/with-controls root [message ok]
       (ui/text! message text)
       (ui/on-action! ok (fn [_] (.close stage))))
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
@@ -121,7 +117,7 @@
    (make-confirm-dialog text {}))
   ([text options]
    (let [root     ^Region (ui/load-fxml "confirm.fxml")
-         stage    (ui/make-stage)
+         stage    (ui/make-dialog-stage)
          scene    (Scene. root)
          result   (atom false)]
      (observe-focus stage)
@@ -137,7 +133,6 @@
      (when-let [pref-width (:pref-width options)]
        (.setPrefWidth root pref-width))
      (ui/title! stage (get options :title "Please Confirm"))
-     (.initModality stage Modality/APPLICATION_MODAL)
      (.setScene stage scene)
      (ui/show-and-wait! stage)
      @result)))
@@ -162,7 +157,7 @@
 (defn make-error-dialog
   [ex-map sentry-id-promise]
   (let [root     ^Parent (ui/load-fxml "error.fxml")
-        stage    (ui/make-stage)
+        stage    (ui/make-dialog-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "dismiss" "report"])]
     (observe-focus stage)
@@ -173,15 +168,13 @@
     (ui/bind-action! (:report controls) ::report-error)
     (ui/bind-keys! root {KeyCode/ESCAPE ::close})
     (ui/request-focus! (:report controls))
-    (.initModality stage Modality/APPLICATION_MODAL)
-    (.setResizable stage false)
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
         dialog-root ^Parent (ui/load-fxml dialog-fxml)
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["error" "ok" "dialog-area" "error-group" "progress-bar"])
 
@@ -202,7 +195,6 @@
     (ui/visible! (:error-group controls) false)
     (ui/managed! (:error-group controls) false)
 
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
     (let [functions (atom {:ready? (fn [] false)
                            :on-ok (fn [] nil)})
@@ -256,10 +248,8 @@
 (defn make-select-list-dialog [items options]
   (let [^Parent root (ui/load-fxml "select-list.fxml")
         scene (Scene. root)
-        ^Stage stage (doto (ui/make-stage)
+        ^Stage stage (doto (ui/make-dialog-stage (ui/main-stage))
                        (observe-focus)
-                       (.initOwner (ui/main-stage))
-                       (.initModality Modality/WINDOW_MODAL)
                        (ui/title! (or (:title options) "Select Item"))
                        (.setScene scene))
         controls (ui/collect-controls root ["filter" "item-list" "ok"])
@@ -441,7 +431,7 @@
 
 (defn make-search-in-files-dialog [project]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
-        stage     (ui/make-stage)
+        stage     (ui/make-dialog-stage (ui/main-stage))
         scene     (Scene. root)
         controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
         return    (atom nil)
@@ -456,7 +446,6 @@
         {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
         on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))]
     (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
     (ui/title! stage "Search in Files")
     (.setShowRoot tree-view false)
     (.setRoot tree-view (doto (TreeItem.)
@@ -488,7 +477,6 @@
                                   :else                   false)
                             (.close stage)))))
 
-    (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait-throwing! stage)
 
@@ -502,13 +490,12 @@
 
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "ok"])
         return (atom nil)
         close (fn [] (reset! return (ui/text (:name controls))) (.close stage))]
     (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
     (ui/title! stage "New Folder")
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
@@ -522,7 +509,6 @@
                                                  false)
                                            (.close stage)))))
 
-    (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)
 
@@ -530,12 +516,11 @@
 
 (defn make-target-ip-dialog []
   (let [root     ^Parent (ui/load-fxml "target-ip-dialog.fxml")
-        stage    (ui/make-stage)
+        stage    (ui/make-dialog-stage (ui/main-stage))
         scene    (Scene. root)
         controls (ui/collect-controls root ["add" "cancel" "ip"])
         return   (atom nil)]
     (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
     (ui/title! stage "Target IP")
 
     (ui/on-action! (:add controls)
@@ -554,7 +539,6 @@
                                                  false)
                                            (.close stage)))))
 
-    (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)
 
@@ -562,7 +546,7 @@
 
 (defn make-rename-dialog [title label placeholder typ]
   (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
-        stage    (ui/make-stage)
+        stage    (ui/make-dialog-stage (ui/main-stage))
         scene    (Scene. root)
         controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
         return   (atom nil)
@@ -573,8 +557,6 @@
                         (str/replace #"\\" "")
                         (str (when typ (str "." typ)))))]
     (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
-
     (ui/title! stage title)
     (when label
       (ui/text! (:name-label controls) label))
@@ -602,7 +584,6 @@
                                          (ui/text! (:path controls) (full-name txt))
                                          (ui/text! (:path controls) ""))))
 
-    (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)
 
@@ -618,7 +599,7 @@
 
 (defn make-new-file-dialog [^File base-dir ^File location type ext]
   (let [root ^Parent (ui/load-fxml "new-file-dialog.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "location" "browse" "path" "ok"])
         return (atom nil)
@@ -628,7 +609,6 @@
                 (.close stage))
         set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
     (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
     (ui/title! stage (str "New " type))
     (set-location location)
 
@@ -651,7 +631,6 @@
                                            KeyCode/ESCAPE (close false)
                                            false))))
 
-    (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)
 
@@ -659,12 +638,11 @@
 
 (defn make-goto-line-dialog [result]
   (let [root ^Parent (ui/load-fxml "goto-line-dialog.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)
         controls (ui/collect-controls root ["line"])
         close (fn [v] (do (deliver result v) (.close stage)))]
     (observe-focus stage)
-    (.initOwner stage (ui/main-stage))
     (ui/title! stage "Go to line")
     (.setOnKeyPressed scene
                       (ui/event-handler e
@@ -675,12 +653,11 @@
                                         (catch Exception _))))
                              (when (= key KeyCode/ESCAPE)
                                (close nil)))))
-    (.initModality stage Modality/NONE)
     (.setScene stage scene)
     (ui/show! stage)
     stage))
 
-(defn make-proposal-dialog [result screen-point proposals target text-area]
+(defn make-proposal-popup [result screen-point proposals target text-area]
   (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
         stage (ui/make-stage)
         scene (Scene. root)
@@ -768,10 +745,8 @@
   [src-dest-pairs]
   (let [^Parent root (ui/load-fxml "resolve-file-conflicts.fxml")
         scene (Scene. root)
-        ^Stage stage (doto (ui/make-stage)
+        ^Stage stage (doto (ui/make-dialog-stage (ui/main-stage))
                        (observe-focus)
-                       (.initOwner (ui/main-stage))
-                       (.initModality Modality/WINDOW_MODAL)
                        (ui/title! "Name Conflict")
                        (.setScene scene))
         controls (ui/collect-controls root ["message" "rename" "overwrite" "cancel"])]
