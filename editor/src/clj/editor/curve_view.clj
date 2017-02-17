@@ -595,7 +595,7 @@
                       (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{} :frame-version (atom 0)]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
-                                                       background background/Gradient
+                                                       background background/Background
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
                                                        grid       curve-grid/Grid
                                                        rulers     [rulers/Rulers]]
