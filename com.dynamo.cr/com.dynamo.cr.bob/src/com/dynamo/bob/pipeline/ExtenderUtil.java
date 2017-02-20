@@ -74,6 +74,8 @@ public class ExtenderUtil {
         project.findResourcePaths(path, paths);
         for (String p : paths) {
             IResource r = project.getResource(p);
+            // Note: findResourcePaths will return the supplied path even if it does not exist.
+            // We need to check if the resource actually exist before adding it to the list of paths found.
             if (r.exists()) {
                 resources.add(new FSExtenderResource(r));
             }
@@ -176,6 +178,8 @@ public class ExtenderUtil {
             String pathProjectAbsolute = "/" + p;
             if (!excludes.contains(pathProjectAbsolute)) {
                 IResource r = project.getResource(p);
+                // Note: findResourcePaths will return the supplied path even if it does not exist.
+                // We need to check if the resource actually exist before adding it to the list of paths found.
                 if (r.exists()) {
                     String bundleRelativePath = pathProjectAbsolute.substring(path.length());
                     resources.put(bundleRelativePath, r);
