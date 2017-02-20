@@ -29,6 +29,7 @@ import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
+import javax.vecmath.Vector4d;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -177,6 +178,7 @@ public class ColladaUtil {
         Vector3d bindS = new Vector3d();
         MathUtil.decompose(parentToLocal, bindP, bindR, bindS);
         bindR.inverse();
+        Quat4d lastR = null;
 
         int keyCount = animation.getInput().length;
         float[] time = animation.getInput();
@@ -192,6 +194,22 @@ public class ColladaUtil {
             Quat4d r = new Quat4d();
             Vector3d s = new Vector3d();
             MathUtil.decompose(m, p, r, s);
+
+            if (lastR == null) {
+                lastR = new Quat4d(r);
+            }
+
+            // Check if dot product of decomposed rotation and previous frame is < 0,
+            // if that is the case; flip rotation.
+            // This is to avoid a problem that can occur when we decompose the matrix and
+            // we get a quaternion representing the same rotation but in the opposite direction.
+            // See this answer on SO: http://stackoverflow.com/a/2887128
+            Vector4d a = new Vector4d(lastR);
+            Vector4d b = new Vector4d(r);
+            if (a.dot(b) < 0.0) {
+                r.scale(-1.0);
+            }
+            lastR = new Quat4d(r);
 
             // Get pose relative transform
             p.set(p.getX() - bindP.getX(), p.getY() - bindP.getY(), p.getZ() - bindP.getZ());
