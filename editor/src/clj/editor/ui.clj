@@ -33,7 +33,7 @@
    [javafx.scene.image Image]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-   [javafx.stage Stage Modality Window]
+   [javafx.stage Stage Modality Window StageStyle]
    [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
@@ -66,11 +66,6 @@
 (def application-icon-image (with-open [in (io/input-stream (io/resource "logo_blue.png"))]
                               (Image. in)))
 
-(defn make-stage
-  ^Stage []
-  (doto (Stage.)
-    (.. getIcons (add application-icon-image))))
-
 ; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
@@ -83,6 +78,36 @@
 
 (defn ^Node main-root []
   (.. (main-scene) (getRoot)))
+
+(defn make-stage
+  ^Stage []
+  (let [stage (Stage.)]
+    ;; We don't want icons in the title bar on macOS. The application bundle
+    ;; provides the .app icon when bundling and child windows are rendered
+    ;; as miniatures when minimized, so there is no need to assign an icon
+    ;; to each window on macOS unless we want the icon in the title bar.
+    (when-not (eutil/is-mac-os?)
+      (.. stage getIcons (add application-icon-image)))
+    stage))
+
+(defn make-dialog-stage
+  (^Stage []
+   ;; If a main stage exists, try to make our dialog stage window-modal to it.
+   ;; Otherwise fall back on an application-modal dialog. This is not preferred
+   ;; on macOS as maximizing an ownerless window will enter full-screen mode.
+   ;; TODO: Find a way to block application-modal dialogs from full-screen mode.
+   (if-let [owner (main-stage)]
+     (make-dialog-stage owner)
+     (doto (make-stage)
+       (.initStyle StageStyle/DECORATED)
+       (.initModality Modality/APPLICATION_MODAL)
+       (.setResizable false))))
+  (^Stage [^Window owner]
+   (doto (make-stage)
+     (.initStyle StageStyle/DECORATED)
+     (.initModality Modality/WINDOW_MODAL)
+     (.initOwner owner)
+     (.setResizable false))))
 
 (defn choose-file [title ^String ext-descr exts]
   (let [chooser (FileChooser.)
@@ -1186,7 +1211,7 @@
 (defn modal-progress [title total-work worker-fn]
   (run-now
    (let [root             ^Parent (load-fxml "progress.fxml")
-         stage            (make-stage)
+         stage            (make-dialog-stage (main-stage))
          scene            (Scene. root)
          title-control    ^Label (.lookup root "#title")
          progress-control ^ProgressBar (.lookup root "#progress")
@@ -1197,8 +1222,6 @@
                              (update-progress-controls! progress progress-control message-control)))]
       (.setText title-control title)
       (.setProgress progress-control 0)
-      (.initOwner stage @*main-stage*)
-      (.initModality stage Modality/WINDOW_MODAL)
       (.setScene stage scene)
       (future
         (try
