@@ -150,8 +150,13 @@
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
-      (.setVisible menu-bar-space (and (util/is-mac-os?)
-                                       (.isUseSystemMenuBar menu-bar)))
+
+      ;; The menu-bar-space element should only be present if the menu-bar element is not.
+      (let [collapse-menu-bar? (and (util/is-mac-os?)
+                                     (.isUseSystemMenuBar menu-bar))]
+        (.setVisible menu-bar-space collapse-menu-bar?)
+        (.setManaged menu-bar-space collapse-menu-bar?))
+
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ changes _]
                                                       (handle-resource-changes! changes changes-view editor-tabs))))
