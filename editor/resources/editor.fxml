@@ -16,7 +16,7 @@
 <VBox prefHeight="774.0" prefWidth="1205.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <MenuBar id="menu-bar" />
-      <AnchorPane id="menu-bar-space" />
+      <Region id="menu-bar-space" />
       <SplitPane id="main-split" dividerPositions="0.228595178719867" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
         <items>
           <AnchorPane prefHeight="160.0" prefWidth="100.0">
