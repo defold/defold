@@ -164,12 +164,16 @@
 
 (defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
-    (let [result (.makeCurrent context)]
-      (if (= result GLContext/CONTEXT_NOT_CURRENT)
-        (do
-          (prn "Failed to set gl context as current.")
-          nil)
-        context))))
+    (try
+      (let [result (.makeCurrent context)]
+        (if (= result GLContext/CONTEXT_NOT_CURRENT)
+          (do
+            (log/warn :message "Failed to set gl context as current.")
+            nil)
+          context))
+      (catch Exception e
+        (log/error :exception e)
+        nil))))
 
 (defmacro with-drawable-as-current [^GLAutoDrawable drawable & forms]
   `(when-let [^GLContext ~'gl-context (make-current ~drawable)]
