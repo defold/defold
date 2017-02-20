@@ -62,7 +62,7 @@
 
 (defn open-welcome [prefs cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")
         ^Button open-project (.lookup root "#open-project")
@@ -101,7 +101,6 @@
                    (into-array File))]
       (.addAll (.getItems recent-projects) ^"[Ljava.io.File;" recent))
     (.setScene stage scene)
-    (.setResizable stage false)
     (ui/show! stage)))
 
 (defn- load-namespaces-in-background
