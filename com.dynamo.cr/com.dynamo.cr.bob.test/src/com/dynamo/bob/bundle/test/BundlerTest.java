@@ -209,4 +209,16 @@ public class BundlerTest {
         entries = readDarcEntries(contentRoot);
         assertEquals(2, entries.size());
     }
+
+    // Historically it has been possible to include custom resources by both specifying project relative paths and absolute paths.
+    // (The only difference being a leading slash.) To keep backwards compatibility we need to support both.
+    @Test
+    public void testAbsoluteCustomResourcePath() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=/m.txt\n[display]\nwidth=640\nheight=480\n");
+        createFile(contentRoot, "m.txt", "dummy");
+        build();
+
+        Set<byte[]> entries = readDarcEntries(contentRoot);
+        assertEquals(1, entries.size());
+    }
 }
