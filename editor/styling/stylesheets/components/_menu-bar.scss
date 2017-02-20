@@ -22,7 +22,7 @@
     @include menu-elements();
 }
 
-.menu-bar-space {
+#menu-bar-space {
     -fx-background-color: $root-background;
-    -fx-min-height: $pane-padding-top;
+    -fx-pref-height: $pane-padding-top;
 }
