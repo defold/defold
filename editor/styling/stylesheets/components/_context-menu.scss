@@ -1,60 +1,16 @@
 .context-menu {
+    -fx-background-color: $menu-background;
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
-    -fx-background-color: $menu-background;
-    -fx-border-width: 0;
+    -fx-border-width: 0px;
     -fx-padding: 5px;
-    -fx-text-fill: $menu-foreground;
+
     .scroll-arrow {
         .menu-down-arrow, .menu-up-arrow {
             -fx-fill: $menu-background;
             -fx-background-color: $menu-foreground;
         }
     }
-    .menu-item {
-        -fx-background-color: $menu-background;
-        -fx-border-width: 0 0 0 2;
-        -fx-border-color: transparent;
-        .label {
-            -fx-text-fill: $menu-foreground;
-        }
-        .image-view {
-            @include colorize-image-view($menu-foreground);
-        }
-        &:hover {
-            -fx-background-color: $menu-background-hover;
-            .label {
-                -fx-text-fill: $menu-foreground-hover;
-            }
-        }
-        &:focused {
-            -fx-background-color: $menu-background-hover;
-            .image-view {
-                @include effect-lighten-blue();
-            }
-            .label {
-                -fx-text-fill: $menu-foreground-hover;
-            }
-        }
-    }
-    .first-menu-item {
-        -fx-background-radius: 0;
-        -fx-border-radius: 0;
-    }
-    .last-menu-item {
-        -fx-background-radius: 0;
-        -fx-border-radius: 0;
-    }
-    .separator {
-        &:horizontal {
-            -fx-padding: 3 0 3 0;
-            -fx-min-height: 0;
-            -fx-background-color: transparent;
-            .line {
-                -fx-border-color: $menu-separator;
-                -fx-border-insets: 0;
-                -fx-border-width: 1 0 0; 
-            }
-        }
-    }
+
+    @include menu-elements();
 }
