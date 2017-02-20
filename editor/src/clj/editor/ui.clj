@@ -81,21 +81,30 @@
 
 (defn make-stage
   ^Stage []
-  (Stage.))
+  (let [stage (Stage.)]
+    ;; We don't want icons in the title bar on macOS. The application bundle
+    ;; provides the .app icon when bundling and child windows are rendered
+    ;; as miniatures when minimized, so there is no need to assign an icon
+    ;; to each window on macOS unless we want the icon in the title bar.
+    (when-not (eutil/is-mac-os?)
+      (.. stage getIcons (add application-icon-image)))
+    stage))
 
 (defn make-dialog-stage
   (^Stage []
    ;; If a main stage exists, try to make our dialog stage window-modal to it.
    ;; Otherwise fall back on an application-modal dialog. This is not preferred
-   ;; on macOS as maximizing an unowned window will enter full-screen mode.
+   ;; on macOS as maximizing an ownerless window will enter full-screen mode.
    ;; TODO: Find a way to block application-modal dialogs from full-screen mode.
    (if-let [owner (main-stage)]
      (make-dialog-stage owner)
-     (doto (Stage. StageStyle/DECORATED)
+     (doto (make-stage)
+       (.initStyle StageStyle/DECORATED)
        (.initModality Modality/APPLICATION_MODAL)
        (.setResizable false))))
   (^Stage [^Window owner]
-   (doto (Stage. StageStyle/DECORATED)
+   (doto (make-stage)
+     (.initStyle StageStyle/DECORATED)
      (.initModality Modality/WINDOW_MODAL)
      (.initOwner owner)
      (.setResizable false))))
