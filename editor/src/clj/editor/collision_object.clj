@@ -324,9 +324,11 @@
   [_node-id transform diameter color]
   {:node-id _node-id
    :transform transform
-   :aabb (-> (geom/null-aabb)
-             (geom/aabb-incorporate diameter diameter diameter)
-             (geom/aabb-incorporate (- diameter) (- diameter) (- diameter)))
+   :aabb (let [d (* 0.5 diameter)]
+           (-> (geom/null-aabb)
+               (geom/aabb-incorporate d d d)
+               (geom/aabb-incorporate (- d) (- d) (- d))
+               (geom/aabb-transform transform)))
    :renderable {:render-fn render-sphere
                 :user-data {:sphere-diameter diameter
                             :color color}
@@ -342,7 +344,8 @@
                  ext-z (* 0.5 d)]
              (-> (geom/null-aabb)
                  (geom/aabb-incorporate ext-x ext-y ext-z)
-                 (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))))
+                 (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))
+                 (geom/aabb-transform transform)))
      :renderable {:render-fn render-box
                   :user-data {:box-width w
                               :box-height h
@@ -357,7 +360,8 @@
                ext-y (+ (* 0.5 height) r)]
            (-> (geom/null-aabb)
                (geom/aabb-incorporate r ext-y r)
-               (geom/aabb-incorporate (- r) (- ext-y) (- r))))
+               (geom/aabb-incorporate (- r) (- ext-y) (- r))
+               (geom/aabb-transform transform)))
    :renderable {:render-fn render-capsule
                 :user-data {:capsule-diameter diameter
                             :capsule-height height

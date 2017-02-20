@@ -19,6 +19,7 @@
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
+            [editor.system :as system]
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
@@ -92,7 +93,7 @@
                       t)))))
 
 (defn load-resource-nodes [basis project node-ids render-progress!]
-  (let [progress (atom (progress/make "Loading resources" (count node-ids)))]
+  (let [progress (atom (progress/make "Loading resources..." (count node-ids)))]
     (doall
      (for [node-id node-ids
            :let [type (g/node-type* basis node-id)]
@@ -179,6 +180,7 @@
                                               basis            (g/now)
                                               cache            (g/cache)}
                                          :as opts}]
+  (render-progress! (progress/make "Saving..."))
   (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
     (if (g/error? save-data)
       (throw (Exception. ^String (properties/error-message save-data)))
@@ -309,23 +311,34 @@
   (run [project-graph] (g/undo! project-graph)))
 
 (handler/defhandler :redo :global
-    (enabled? [project-graph] (g/has-redo? project-graph))
-    (run [project-graph] (g/redo! project-graph)))
+  (enabled? [project-graph] (g/has-redo? project-graph))
+  (run [project-graph] (g/redo! project-graph)))
+
+(def ^:private bundle-targets ["iOS Application..."
+                               "Android Application..."
+                               "macOS Application..."
+                               "Windows Application..."
+                               "Linux Application..."
+                               "HTML5 Application..."
+                               "Facebook Application..."])
 
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"
                   :id ::project
-                  :children [{:label "Build"
-                              :acc "Shortcut+B"
-                              :command :build}
-                             {:label "Fetch Libraries"
-                              :command :fetch-libraries}
-                             {:label "Live Update settings"
-                              :command :live-update-settings}
-                             {:label "Sign iOS App..."
-                              :command :sign-ios-app}
-                             {:label :separator
-                              :id ::project-end}]}])
+                  :children (vec (remove nil? [{:label "Build"
+                                                :acc "Shortcut+B"
+                                                :command :build}
+                                               (when system/fake-it-til-you-make-it?
+                                                 {:label "Bundle"
+                                                  :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
+                                               {:label "Fetch Libraries"
+                                                :command :fetch-libraries}
+                                               {:label "Live Update settings"
+                                                :command :live-update-settings}
+                                               {:label "Sign iOS App..."
+                                                :command :sign-ios-app}
+                                               {:label :separator
+                                                :id ::project-end}]))}])
 
 (defn- outputs [node]
   (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
@@ -636,7 +649,7 @@
         (settings-core/get-setting ["project" "dependencies"]))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
-  (let [progress (atom (progress/make "Updating dependencies" 3))]
+  (let [progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
     (workspace/set-project-dependencies! workspace-id (read-dependencies game-project-resource))
     (workspace/update-dependencies! workspace-id (progress/nest-render-progress render-progress! @progress) login-fn)
