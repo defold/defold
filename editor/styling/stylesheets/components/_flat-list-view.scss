@@ -17,7 +17,7 @@
                 -fx-text-fill: $defold-white; 
             }
             .image-view {
-                @include effect-lighten-grey();
+                @include effect-bright-grey();
             }
         }
 
