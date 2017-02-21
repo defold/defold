@@ -516,3 +516,29 @@
       (is (= (get options-by-label "Default") (test-util/handler-state :set-gui-layout [context] nil)))
       (g/set-property! node-id :visible-layout "Landscape")
       (is (= (get options-by-label "Landscape") (test-util/handler-state :set-gui-layout [context] nil))))))
+
+(deftest scene-hierarchy-test
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          gui (test-util/resource-node project "/scene_hierarchy/gui.gui")
+          gui-scene (g/node-value gui :scene)]
+      (testing "Gui scene"
+        (is (= gui (:node-id gui-scene)))
+        (is (= (:node-id gui-scene) (:pick-id gui-scene)))
+        (is (true? (contains? gui-scene :aabb)))
+        (is (true? (contains? gui-scene :renderable)))
+        (is (false? (contains? gui-scene :node-path)))
+        (is (= {} gui-scene))
+        (let [gui-children (:children gui-scene)]
+          (is (= 3 (count gui-children)))
+          (testing "Visual scenes"
+            (doseq [visual-node-type [gui/BoxNode
+                                      gui/PieNode
+                                      gui/TextNode]]
+              (let [visual-scene (test-util/find-child-scene visual-node-type gui-children)]
+                (is (some? visual-scene))
+                (is (true? (contains? visual-scene :aabb)))
+                (is (true? (contains? visual-scene :renderable)))
+                (is (= (:node-id visual-scene) (:pick-id visual-scene)))
+                (is (= [(:node-id visual-scene)] (:node-path visual-scene)))))))))))
