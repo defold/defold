@@ -62,7 +62,7 @@
 
 (defn open-welcome [prefs cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")
         ^Button open-project (.lookup root "#open-project")
@@ -101,7 +101,6 @@
                    (into-array File))]
       (.addAll (.getItems recent-projects) ^"[Ljava.io.File;" recent))
     (.setScene stage scene)
-    (.setResizable stage false)
     (ui/show! stage)))
 
 (defn- load-namespaces-in-background
@@ -116,10 +115,10 @@
   (ui/modal-progress
    "Loading project" 100
    (fn [render-progress!]
-     (let [progress (atom (progress/make "Loading project" 733))
+     (let [progress (atom (progress/make "Loading project..." 733))
            project-file (io/file project)]
        (reset! namespace-progress-reporter #(render-progress! (swap! progress %)))
-       (render-progress! (swap! progress progress/message "Initializing project"))
+       (render-progress! (swap! progress progress/message "Initializing project..."))
        ;; ensure that namespace loading has completed
        @namespace-loader
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])

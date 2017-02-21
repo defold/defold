@@ -43,30 +43,49 @@ namespace dmScript
     /*# perform a HTTP/HTTPS request
      * Perform a HTTP/HTTPS request.
      *
+     * [icon:attention] If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is `0` (which blocks indefinitely).
+     *
      * @name http.request
      * @replaces facebook.me
-     * @param url target url
-     * @param method HTTP/HTTPS method, e.g. GET/PUT/POST/DELETE/...
-     * @param callback response callback
-     * @param [headers] optional lua-table with custom headers
-     * @param [post_data] optional data to send
-     * @param [options] optional lua-table with request parameters. Supported entries: 'timeout'=<number> (in seconds)
-     * @note If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is 0. (0 == blocks indefinitely)
+     * @param url [type:string] target url
+     * @param method [type:string] HTTP/HTTPS method, e.g. "GET", "PUT", "POST" etc.
+     * @param callback [type:function(self, id, response)] response callback function
+     *
+     * `self`
+     * : [type:object] The current object
+     *
+     * `id`
+     * : [type:hash] Internal message identifier. Do not use!
+     *
+     * `response`
+     * : [type:table] The response data. Contains the fields:
+     *
+     * - [type:number] `status`: the status of the response
+     * - [type:string] `response`: the response data
+     * - [type:table] `headers`: all the returned headers
+     *
+     * @param [headers] [type:table] optional table with custom headers
+     * @param [post_data] [type:string] optional data to send
+     * @param [options] [type:table] optional table with request parameters. Supported entries:
+     *
+     * - [type:number] `timeout`: timeout in seconds
+     *
      * @examples
-     * <p>
+     *
      * Basic HTTP-GET request. The callback receives a table with the response
      * in the fields status, the response (the data) and headers (a table).
-     * </p>
-     * <pre>
-     * local function http_result(self, id, response)
+     *
+     * ```lua
+     * local function http_result(self, _, response)
      *     print(response.status)
      *     print(response.response)
      *     pprint(response.headers)
      * end
-     * function example(self)
+     *
+     * function init(self)
      *     http.request("http://www.google.com", "GET", http_result)
      * end
-     * </pre>
+     * ```
      */
     int Http_Request(lua_State* L)
     {

@@ -2,7 +2,8 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
-#include <liveupdate/manifest_ddf.h>
+#include "manifest_ddf.h"
+#include "resource_archive.h"
 
 namespace dmBuffer
 {
@@ -14,6 +15,8 @@ namespace dmResource
     const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
 
     const static uint32_t MANIFEST_VERSION = 0x01;
+
+    const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
     /**
      * Configuration key used to tweak the max number of resources allowed.
@@ -78,6 +81,17 @@ namespace dmResource
     {
         DATA_SHARE_STATE_NONE = 0,
         DATA_SHARE_STATE_SHALLOW = 1,
+    };
+
+    struct Manifest
+    {
+        Manifest()
+        {
+            memset(this, 0, sizeof(Manifest));
+        }
+
+        dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
+        dmLiveUpdateDDF::ManifestFile*              m_DDF;
     };
 
     /// Resource descriptor
@@ -518,11 +532,15 @@ namespace dmResource
      */
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
 
+    Manifest* GetManifest(HFactory factory);
+
     Result LoadArchiveIndex(const char* manifestPath, HFactory factory);
 
-    Result ParseManifest(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
+    Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
 
     Result LoadManifest(const char* manifestPath, HFactory factory);
+
+    Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
 
     /**
      * Determines if the resource could be unique
@@ -537,6 +555,18 @@ namespace dmResource
      * @param resource Resource
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
+
+    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
+
+    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
+
+    // Platform specific implementation of archive loading. Data written into mount_info must
+    // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
+    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info);
+    // Files mapped with this function should be unmapped with UnmapFile(...)
+    Result MapFile(const char* filename, void*& map, uint32_t& size);
+    Result UnmapFile(void*& map, uint32_t size);
 }
 
 #endif // RESOURCE_H

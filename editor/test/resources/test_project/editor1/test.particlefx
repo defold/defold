@@ -252,6 +252,7 @@ emitters {
       spread: 10.0
     }
   }
+  size_mode: SIZE_MODE_MANUAL
 }
 modifiers {
   type: MODIFIER_TYPE_DRAG

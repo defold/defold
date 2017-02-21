@@ -53,6 +53,44 @@ message ModelCancelAnimation
 {
 }
 
+/*# Model API documentation
+ *
+ * @document
+ * @name Model
+ * @namespace model
+ */
+
+/*# reports the completion of a Model animation
+ *
+ * This message is sent when a Model animation has finished playing back to the script
+ * that started the animation.
+ *
+ * [icon:attention] No message is sent if a completion callback function was supplied
+ * when the animation was started. No message is sent if the animation is cancelled with
+ * model.cancel(). This message is sent only for animations that play with
+ * the following playback modes:
+ *
+ * - `go.PLAYBACK_ONCE_FORWARD`
+ * - `go.PLAYBACK_ONCE_BACKWARD`
+ * - `go.PLAYBACK_ONCE_PINGPONG`
+ *
+ * @message
+ * @name model_animation_done
+ * @param animation_id [type:hash] the id of the completed animation
+ * @param playback [type:constant] the playback mode of the completed animation
+ * @examples
+ *
+ * ```lua
+ * function on_message(self, message_id, message, sender)
+ *   if message_id == hash("model_animation_done") then
+ *     if message.animation_id == hash("run") and message.playback == go.PLAYBACK_ONCE_FORWARD then
+ *       -- The animation "run" has finished running forward.
+ *     end
+ *   end
+ * end
+ * ```
+ */
+
 message ModelAnimationDone
 {
     required uint64 animation_id = 1;

@@ -199,7 +199,7 @@ ordinary paths."
                                              (resource/file->proj-path project-path trg)]) moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map      (resource-watch/make-resource-map old-snapshot)
-         _            (render-progress! (progress/make "Finding resources"))
+         _            (render-progress! (progress/make "Finding resources..."))
          new-snapshot (resource-watch/make-snapshot workspace
                                                     project-path
                                                     (g/node-value workspace :dependencies))

@@ -27,7 +27,7 @@
             <Button id="browse" alignment="BASELINE_LEFT" minHeight="28.0" minWidth="80.0" mnemonicParsing="false" text="Browse..." GridPane.columnIndex="2" GridPane.rowIndex="1" />
             <Label alignment="BASELINE_LEFT" minHeight="28.0" minWidth="58.0" prefHeight="28.0" prefWidth="58.0" text="Path" GridPane.rowIndex="2" />
             <TextField id="path" alignment="BASELINE_LEFT" editable="false" promptText="Specify" GridPane.columnIndex="1" GridPane.rowIndex="2" />
-      	  <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="Ok" GridPane.columnIndex="2" GridPane.rowIndex="2" />
+      	  <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" GridPane.columnIndex="2" GridPane.rowIndex="2" />
          </children>
       </GridPane>
    </children>

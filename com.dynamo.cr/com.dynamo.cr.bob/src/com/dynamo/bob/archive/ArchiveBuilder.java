@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
 import java.nio.channels.ShutdownChannelGroupException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,6 +32,7 @@ public class ArchiveBuilder {
     public static final int VERSION = 4;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
     public static final int HASH_LENGTH = 20;
+    public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
 
     private static final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
 
@@ -40,11 +42,17 @@ public class ArchiveBuilder {
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
+    private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
+    }
+    
+    private void add(String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
+        ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress, isLiveUpdate);
+        entries.add(e);
     }
 
     public void add(String fileName, boolean doCompress) throws IOException {
@@ -63,6 +71,10 @@ public class ArchiveBuilder {
 
     public int getArchiveEntrySize() {
         return this.entries.size();
+    }
+    
+    public byte[] getArchiveIndexHash() {
+        return this.archiveIndexMD5;
     }
 
     public byte[] loadResourceData(String filepath) throws IOException {
@@ -86,13 +98,20 @@ public class ArchiveBuilder {
         return Crypt.encryptCTR(buffer, KEY);
     }
 
-    public void writeResourcePack(String filename, String directory, byte[] buffer) throws IOException {
+    public void writeResourcePack(String filename, String directory, byte[] buffer, byte flags, int size) throws IOException {
         FileOutputStream outputStream = null;
         try {
             File fhandle = new File(directory, filename);
             if (!fhandle.exists()) {
+                byte[] padding = new byte[11];
+                byte[] size_bytes = ByteBuffer.allocate(4).putInt(size).array(); 
+                Arrays.fill(padding, (byte)0xED);
                 outputStream = new FileOutputStream(fhandle);
+                outputStream.write(size_bytes); // 4 bytes
+                outputStream.write(flags); // 1 byte
+                outputStream.write(padding); // 11 bytes
                 outputStream.write(buffer);
+                
             }
         } finally {
             IOUtils.closeQuietly(outputStream);
@@ -123,15 +142,19 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(0); // EntryOffset
         archiveIndex.writeInt(0); // HashOffset
         archiveIndex.writeInt(0); // HashLength
+        archiveIndex.write(new byte[MD5_HASH_DIGEST_BYTE_LENGTH]);
+        
+        int archiveIndexHeaderOffset = (int) archiveIndex.getFilePointer();
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
-
+            byte flags = (byte) entry.flags;
             if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
+                    flags = (byte)(flags | ArchiveEntry.FLAG_COMPRESSED);
                     buffer = compressed;
                     entry.compressedSize = compressed.length;
                 } else {
@@ -142,7 +165,8 @@ public class ArchiveBuilder {
             // Encrypt data
             String extension = FilenameUtils.getExtension(entry.fileName);
             if (ENCRYPTED_EXTS.indexOf(extension) != -1) {
-                entry.flags = ArchiveEntry.FLAG_ENCRYPTED;
+                flags = (byte) (flags | ArchiveEntry.FLAG_ENCRYPTED);
+                entry.flags = (entry.flags | ArchiveEntry.FLAG_ENCRYPTED);
                 buffer = this.encryptResourceData(buffer);
             }
 
@@ -161,11 +185,9 @@ public class ArchiveBuilder {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
 
-            // Write resource to resourcepack
-            this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer);
-
             // Write resource to data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
+                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, flags, entry.size);
                 entries.remove(i);
             } else {
                 alignBuffer(archiveData, 4);
@@ -190,8 +212,20 @@ public class ArchiveBuilder {
             archiveIndex.writeInt(entry.compressedSize);
             archiveIndex.writeInt(entry.flags);
         }
-
-        // Update index header with offsets.
+        
+        try {
+            // Calc index file MD5 hash
+            archiveIndex.seek(archiveIndexHeaderOffset);
+            int num_bytes = (int) archiveIndex.length() - archiveIndexHeaderOffset;
+            byte[] archiveIndexBytes = new byte[num_bytes];            
+            archiveIndex.readFully(archiveIndexBytes);
+            this.archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
+        } catch (NoSuchAlgorithmException e) {
+            System.err.println("The algorithm specified is not supported!");
+            e.printStackTrace();
+        }
+        
+        // Update index header with offsets
         archiveIndex.seek(0);
         archiveIndex.writeInt(VERSION);
         archiveIndex.writeInt(0); // Pad
@@ -200,6 +234,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
+        archiveIndex.write(this.archiveIndexMD5);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
@@ -253,7 +288,7 @@ public class ArchiveBuilder {
                 if (!currentInput.isFile()) {
                     printUsageAndTerminate("file does not exist: " + currentInput.getAbsolutePath());
                 }
-
+                
                 inputs.add(currentInput);
             }
         }
@@ -281,7 +316,11 @@ public class ArchiveBuilder {
         System.out.println("Adding " + Integer.toString(inputs.size()) + " entries to archive ...");
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
         for (File currentInput : inputs) {
-            archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
+            if (currentInput.getName().startsWith("liveupdate.")){
+                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, true);
+            } else {
+                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
+            }
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
             rootNode.addChild(currentNode);
         }
@@ -296,24 +335,25 @@ public class ArchiveBuilder {
         Path resourcePackDirectory = Files.createTempDirectory("tmp.defold.resourcepack_");
         FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
         try {
-        	System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
-        	System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
+            System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
+            System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-        	List<String> excludedResources = new ArrayList<String>();
-        	archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+            List<String> excludedResources = new ArrayList<String>();
+            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+            manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();
             outputStreamManifest.write(manifestFile);
         } finally {
-        	FileUtils.deleteDirectory(resourcePackDirectory.toFile());
-        	try {
-	        	archiveIndex.close();
-	        	archiveData.close();
-	        	outputStreamManifest.close();
-        	} catch (IOException exception) {
-        		// Nothing to do, moving on ...
-        	}
+            FileUtils.deleteDirectory(resourcePackDirectory.toFile());
+            try {
+                archiveIndex.close();
+                archiveData.close();
+                outputStreamManifest.close();
+            } catch (IOException exception) {
+                // Nothing to do, moving on ...
+            }
         }
 
         System.out.println("Done.");

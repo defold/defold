@@ -29,7 +29,7 @@
   (:import [javax.vecmath Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
-            Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType]
+            Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
            [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.defold.libs ParticleLibrary]
@@ -62,11 +62,9 @@
                                (update-in emitter [:modifiers] concat
                                           (mapv (fn [modifier]
                                                   (let [[mp mr] (xform modifier)]
-                                                    (math/inv-transform ep er mp)
-                                                    (math/inv-transform er mr)
                                                     (assoc modifier
-                                                           :position (math/vecmath->clj mp)
-                                                           :rotation (math/vecmath->clj mr))))
+                                                           :position (math/vecmath->clj (math/inv-transform ep er mp))
+                                                           :rotation (math/vecmath->clj (math/inv-transform er mr)))))
                                                 global-modifiers))))
                            (:emitters pb))]
     (-> pb
@@ -121,16 +119,25 @@
                            :modifier-type-radial [:modifier-key-magnitude :modifier-key-max-distance]
                            :modifier-type-vortex [:modifier-key-magnitude :modifier-key-max-distance]})
 
+(defn- get-curve-points [property-value]
+  (->> property-value
+       props/curve-vals
+       (sort-by first)
+       (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}))
+       not-empty))
+
 (g/defnk produce-modifier-pb
   [position rotation type magnitude max-distance use-direction]
   (let [values {:modifier-key-magnitude magnitude
                 :modifier-key-max-distance max-distance}
-        properties (->> (mod-type->properties type)
-                     (map (fn [key] [key (get values key)]))
-                     (mapv (fn [[key p]]
-                               {:key key
-                                :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals p))
-                                :spread (:spread p)})))]
+        properties (into []
+                         (keep (fn [kw]
+                                 (let [v (get values kw)]
+                                   (when-let [points (get-curve-points v)]
+                                     {:key kw
+                                      :points points
+                                      :spread (:spread v)}))))
+                         (mod-type->properties type))]
     {:position position
      :rotation rotation
      :type type
@@ -405,24 +412,23 @@
           (concat
             (map (fn [kw] [kw (get-property properties kw)])
                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                  :inherit-velocity :max-particle-count :type :start-delay])
-            [[:properties (->> (protobuf/enum-values Particle$EmitterKey)
-                            butlast
-                            (map first)
-                            (mapv (fn [kw] (let [v (get-in properties [kw :value])]
-                                            {:key kw
-                                             :points (->> (props/curve-vals v)
-                                                       (sort-by first)
-                                                       (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))
-                                             :spread (:spread v)}))))]
-             [:particle-properties (->> (protobuf/enum-values Particle$ParticleKey)
-                                     butlast
-                                     (map first)
-                                     (mapv (fn [kw] (let [v (get-in properties [kw :value])]
-                                                     {:key kw
-                                                      :points (->> (props/curve-vals v)
-                                                                (sort-by first)
-                                                                (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))}))))]]))))
+                  :inherit-velocity :max-particle-count :type :start-delay :size-mode])
+            [[:properties (into []
+                                (comp (map first)
+                                      (keep (fn [kw]
+                                              (let [v (get-in properties [kw :value])]
+                                                (when-let [points (get-curve-points v)]
+                                                  {:key kw
+                                                   :points points
+                                                   :spread (:spread v)})))))
+                                (butlast (protobuf/enum-values Particle$EmitterKey)))]
+             [:particle-properties (into []
+                                         (comp (map first)
+                                               (keep (fn [kw]
+                                                       (when-let [points (get-curve-points (get-in properties [kw :value]))]
+                                                         {:key kw
+                                                          :points points}))))
+                                         (butlast (protobuf/enum-values Particle$ParticleKey)))]]))))
 
 (defn- attach-modifier [self-id parent-id modifier-id]
   (concat
@@ -514,8 +520,11 @@
             (dynamic edit-type (g/constantly (->choicebox Particle$EmitterType)))
             (dynamic label (g/constantly "Emitter Type")))
   (property start-delay g/Num)
+  (property size-mode g/Keyword
+            (dynamic edit-type (g/constantly (->choicebox Particle$SizeMode)))
+            (dynamic label (g/constantly "Size Mode")))
 
-  (display-order [:id scene/SceneNode :mode :space :duration :start-delay :tile-source :animation :material :blend-mode
+  (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
@@ -781,7 +790,7 @@
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
-                                   :type (:type emitter) :start-delay (:start-delay emitter)]]
+                                   :type (:type emitter) :start-delay (:start-delay emitter) :size-mode (:size-mode emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (keys (g/declared-properties EmitterProperties))
                             :when (contains? emitter-properties key)

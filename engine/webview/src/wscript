@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os, re
+from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
     pass
@@ -37,13 +38,4 @@ def build(bld):
                                source = source,
                                target = 'webviewext')
 
-    bld.new_task_gen(source = 'webview_doc.h',
-                     target = 'webview_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-    bld.new_task_gen(source = 'webview_doc.h',
-                     target = 'webview_doc.json',
-                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
-
-    bld.install_files('${PREFIX}/share/doc', 'webview_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'webview_doc.json')
+    apidoc_extract_task(bld, ['webview_doc.h'])

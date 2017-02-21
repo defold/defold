@@ -2,26 +2,20 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.prefs :as prefs]
-            [editor
-             [dialogs :as dialogs]
-             [protobuf :as protobuf]
-             [resource :as resource]
-             [console :as console]
-             [ui :as ui]
-             [targets :as targets]
-             [workspace :as workspace]])
+            [editor.dialogs :as dialogs]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.console :as console]
+            [editor.ui :as ui]
+            [editor.targets :as targets]
+            [editor.defold-project :as project]
+            [editor.workspace :as workspace]
+            [editor.engine.native-extensions :as native-extensions])
   (:import [com.defold.editor Platform]
            [java.net HttpURLConnection URI URL]
            [java.io File InputStream]
            [java.lang Process ProcessBuilder]
-           [org.apache.commons.io IOUtils FileUtils]
-           [javax.ws.rs.core MediaType]
-           [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
-           [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
-           [com.sun.jersey.multipart FormDataMultiPart]
-           [com.sun.jersey.multipart.impl MultiPartWriter]
-           [com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider]
-           [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]))
+           [org.apache.commons.io IOUtils FileUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -100,86 +94,19 @@
           is (.getInputStream p)]
       (.start (Thread. (fn [] (pump-output is)))))))
 
-(defn- copy-file [source-path dest-path]
-  (io/copy (io/file source-path) (io/file dest-path)))
-
-;; TODO - prototype for cloud-building
-;; Should be re-written when we have the backend in place etc.
-(defn get-engine-compiled [workspace platform]
-  (let [server-url "http://localhost:9000"
-        cc (DefaultClientConfig.)
-        ;; TODO: Random errors wihtout this... Don't understand why random!
-        ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
-        _ (.add (.getClasses cc) MultiPartWriter)
-        _ (.add (.getClasses cc) InputStreamProvider)
-        _ (.add (.getClasses cc) StringProvider)
-        client (Client/create cc)
-        ^WebResource resource (.resource ^Client client (URI. server-url))
-        ;; TODO: Make sure we can have a debug mode using DYNAMO_HOME here -- bdbf6ddaefb79c22214c86f945ea91d7fa6171de
-        ^WebResource build-resource (.path resource (format "/build/%s/" platform))
-        ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-        resources (g/node-value workspace :resource-list)
-        manifests (filter #(= "ext.manifest" (resource/resource-name %)) resources)
-        all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
-
-    (with-open [form (FormDataMultiPart.)]
-      (doseq [r all-resources]
-        (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
-      ;; NOTE: We need at least one part..
-      (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
-      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
-            f (File/createTempFile "engine" "")]
-        (.deleteOnExit f)
-        (if (= 200 (.getStatus cr))
-          (do
-            (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-            f)
-          (throw (Exception. (str (.getEntity cr String) "\n"))))))))
-
-(defn- get-engine-bundled [workspace platform]
+(defn- bundled-engine [platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") platform suffix)]
     (io/file path)))
 
-(defn get-engine [workspace prefs platform]
-  (if (prefs/get-prefs prefs "enable-extensions" false)
-    (get-engine-compiled workspace platform)
-    (get-engine-bundled workspace platform)))
+(defn get-engine [project prefs platform]
+  (if-let [native-extension-roots (and (prefs/get-prefs prefs "enable-extensions" false)
+                                       (native-extensions/extension-roots project))]
+    (let [build-server (prefs/get-prefs prefs "extensions-server" native-extensions/defold-build-server-url)]
+      (native-extensions/get-engine project native-extension-roots platform build-server))
+    (bundled-engine platform)))
 
-(defn- launch-bundled [workspace launch-dir prefs]
-  (do-launch (.getAbsolutePath ^File (get-engine workspace prefs  (.getPair (Platform/getJavaPlatform)))) launch-dir prefs))
-
-(defn launch-compiled [workspace launch-dir prefs]
-  (let [server-url "http://localhost:9000"
-        cc (DefaultClientConfig.)
-        ; TODO: Random errors wihtout this... Don't understand why random!
-        ; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
-        _ (.add (.getClasses cc) MultiPartWriter)
-        _ (.add (.getClasses cc) InputStreamProvider)
-        _ (.add (.getClasses cc) StringProvider)
-        client (Client/create cc)
-        platform "x86_64-osx"
-        ^WebResource resource (.resource ^Client client (URI. server-url))
-        ; TODO: Make sure we can have a debug mode using DYNAMO_HOME here -- bdbf6ddaefb79c22214c86f945ea91d7fa6171de
-        ^WebResource build-resource (.path resource (format "/build/%s/" platform))
-        ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-        resources (g/node-value workspace :resource-list)
-        manifests (filter #(= "ext.manifest" (resource/resource-name %)) resources)
-        all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
-
-    (try
-      (let [^File f (get-engine workspace prefs "x86_64-osx")]
-        (let [out-path (format "%s%s/%s" (workspace/build-path workspace) platform "dmengine")]
-          (io/make-parents out-path)
-          (copy-file (.getPath f) out-path )
-          (.setExecutable (io/file out-path) true)
-          (do-launch out-path launch-dir prefs)))
-      (catch Throwable e
-        (throw (RuntimeException.
-                 "Unable to launch custom engine. You have selected \"Enable Extensions\" in preferences. This is currently an experimental feature that requires additional, not yet released software."
-                 e))))))
-
-(defn launch [prefs workspace launch-dir]
-  (if (prefs/get-prefs prefs "enable-extensions" false)
-    (launch-compiled workspace launch-dir prefs)
-    (launch-bundled workspace launch-dir prefs)))
+(defn launch [project prefs]
+  (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
+        ^File engine (get-engine project prefs (.getPair (Platform/getJavaPlatform)))]
+    (do-launch (.getAbsolutePath engine) launch-dir prefs)))

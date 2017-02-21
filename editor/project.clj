@@ -13,7 +13,8 @@
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]
                      [org.clojure/data.json                       "0.2.6"]
-                     [com.cognitect/transit-clj                   "0.8.285"]
+                     [com.cognitect/transit-clj                   "0.8.285"
+                      :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
                      [prismatic/schema                            "1.0.4"]
                      [prismatic/plumbing                          "0.5.2"]
                      [at.bestsolution.eclipse/org.eclipse.fx.code.editor.fx "2.2.0"]
@@ -22,7 +23,9 @@
                      [ch.qos.logback/logback-classic              "1.1.3"]
                      [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
-                     [commons-configuration/commons-configuration "1.10"]
+                     [commons-configuration/commons-configuration "1.10"
+                      :exclusions [commons-logging/commons-logging]] ; commons-configuration -> 1.1.1, amazonica -> 1.2
+                     [commons-codec/commons-codec                 "1.10"]
                      [org.clojure/data.json                       "0.2.6"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
@@ -34,13 +37,19 @@
                      [javax.vecmath/vecmath                       "1.5.2"]
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
-                     [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
+                     [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"
+                      :exclusions [org.apache.httpcomponents/httpclient]] ; jgit -> 4.3.6, amazonica -> 4.5.2
                      [clj-antlr                                   "0.2.2"]
 
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
                      [com.defold.lib/openmali                     "1.0"]
+
+                     [amazonica                                   "0.3.79"
+                      :exclusions [com.amazonaws/aws-java-sdk com.amazonaws/amazon-kinesis-client]]
+                     [com.amazonaws/aws-java-sdk-core             "1.11.63"]
+                     [com.amazonaws/aws-java-sdk-s3               "1.11.63"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]

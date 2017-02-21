@@ -397,13 +397,12 @@ int IAP_List(lua_State* L)
  *
  * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings.
  * @name iap.buy
- * @param id product to buy (identifier)
+ * @param id [type:string] product to buy
  * @param [options] [type:table] optional parameters as properties.
  *
  * The options table has the following members:
  *
- * request_id [icon:facebook]
- * : custom unique request id - only available for Facebook IAP transactions
+ * - request_id [icon:facebook]: optional custom unique request id to set for this transaction. The id becomes attached to the payment within the Graph API. Only available for Facebook IAP transactions.
  *
  * @examples
  *

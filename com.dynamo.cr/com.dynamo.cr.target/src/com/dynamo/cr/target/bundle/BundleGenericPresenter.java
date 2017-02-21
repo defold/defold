@@ -6,6 +6,7 @@ public class BundleGenericPresenter implements BundleGenericDialog.IPresenter {
     private IBundleGenericView view;
     private boolean releaseMode;
     private boolean generateReport;
+    private boolean publishLiveUpdate = false;
 
     @Inject
     public BundleGenericPresenter(IBundleGenericView view) {
@@ -31,7 +32,7 @@ public class BundleGenericPresenter implements BundleGenericDialog.IPresenter {
     }
 
     public boolean isReleaseMode() {
-    	return releaseMode;
+        return releaseMode;
     }
 
     @Override
@@ -53,6 +54,15 @@ public class BundleGenericPresenter implements BundleGenericDialog.IPresenter {
     @Override
     public void generateReportSelected(boolean selection) {
         this.generateReportSelected(selection, true);
+    }
+
+    @Override
+    public void publishLiveUpdateSelected(boolean selection) {
+        this.publishLiveUpdate = selection;
+    }
+
+    public boolean shouldPublishLiveUpdate() {
+        return this.publishLiveUpdate;
     }
 
     public void generateReportSelected(boolean selection, boolean validate) {

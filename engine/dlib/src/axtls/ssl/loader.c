@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -32,7 +32,7 @@
  * Load certificates/keys into memory. These can be in many different formats.
  * PEM support and other formats can be processed here.
  *
- * The PEM private keys may be optionally encrypted with AES128 or AES256. 
+ * The PEM private keys may be optionally encrypted with AES128 or AES256.
  * The encrypted PEM keys were generated with something like:
  *
  * openssl genrsa -aes128 -passout pass:abcd -out axTLS.key_aes128.pem 512
@@ -41,20 +41,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "os_port.h"
-#include "ssl.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/ssl/ssl.h>
 
-static int do_obj(SSL_CTX *ssl_ctx, int obj_type, 
+static int do_obj(SSL_CTX *ssl_ctx, int obj_type,
                     SSLObjLoader *ssl_obj, const char *password);
 #ifdef CONFIG_SSL_HAS_PEM
-static int ssl_obj_PEM_load(SSL_CTX *ssl_ctx, int obj_type, 
+static int ssl_obj_PEM_load(SSL_CTX *ssl_ctx, int obj_type,
                         SSLObjLoader *ssl_obj, const char *password);
 #endif
 
 /*
  * Load a file into memory that is in binary DER (or ascii PEM) format.
  */
-EXP_FUNC int STDCALL ssl_obj_load(SSL_CTX *ssl_ctx, int obj_type, 
+EXP_FUNC int STDCALL ssl_obj_load(SSL_CTX *ssl_ctx, int obj_type,
                             const char *filename, const char *password)
 {
 #ifndef CONFIG_SSL_SKELETON_MODE
@@ -69,7 +69,7 @@ EXP_FUNC int STDCALL ssl_obj_load(SSL_CTX *ssl_ctx, int obj_type,
     }
 
     ssl_obj = (SSLObjLoader *)calloc(1, sizeof(SSLObjLoader));
-    ssl_obj->len = get_file(filename, &ssl_obj->buf); 
+    ssl_obj->len = get_file(filename, &ssl_obj->buf);
     if (ssl_obj->len <= 0)
     {
         ret = SSL_ERROR_INVALID_KEY;
@@ -101,7 +101,7 @@ error:
 /*
  * Transfer binary data into the object loader.
  */
-EXP_FUNC int STDCALL ssl_obj_memory_load(SSL_CTX *ssl_ctx, int mem_type, 
+EXP_FUNC int STDCALL ssl_obj_memory_load(SSL_CTX *ssl_ctx, int mem_type,
         const uint8_t *data, int len, const char *password)
 {
     int ret;
@@ -117,9 +117,9 @@ EXP_FUNC int STDCALL ssl_obj_memory_load(SSL_CTX *ssl_ctx, int mem_type,
 }
 
 /*
- * Actually work out what we are doing 
+ * Actually work out what we are doing
  */
-static int do_obj(SSL_CTX *ssl_ctx, int obj_type, 
+static int do_obj(SSL_CTX *ssl_ctx, int obj_type,
                     SSLObjLoader *ssl_obj, const char *password)
 {
     int ret = SSL_OK;
@@ -201,11 +201,11 @@ static const char * const ends[NUM_PEM_TYPES] =
 static const char * const aes_str[2] =
 {
     "DEK-Info: AES-128-CBC,",
-    "DEK-Info: AES-256-CBC," 
+    "DEK-Info: AES-256-CBC,"
 };
 
 /**
- * Take a base64 blob of data and decrypt it (using AES) into its 
+ * Take a base64 blob of data and decrypt it (using AES) into its
  * proper ASN.1 form.
  */
 static int pem_decrypt(const char *where, const char *end,
@@ -237,7 +237,7 @@ static int pem_decrypt(const char *where, const char *end,
         is_aes_256 = 1;
         start += strlen(aes_str[1]);
     }
-    else 
+    else
     {
 #ifdef CONFIG_SSL_FULL_MODE
         printf("Error: Unsupported password cipher\n"); TTY_FLUSH();
@@ -284,13 +284,13 @@ static int pem_decrypt(const char *where, const char *end,
     ret = 0;
 
 error:
-    return ret; 
+    return ret;
 }
 
 /**
  * Take a base64 blob of data and turn it into its proper ASN.1 form.
  */
-static int new_pem_obj(SSL_CTX *ssl_ctx, int is_cacert, char *where, 
+static int new_pem_obj(SSL_CTX *ssl_ctx, int is_cacert, char *where,
                     int remain, const char *password)
 {
     int ret = SSL_ERROR_BAD_CERTIFICATE;
@@ -316,8 +316,8 @@ static int new_pem_obj(SSL_CTX *ssl_ctx, int is_cacert, char *where,
                 ssl_obj->buf = (uint8_t *)calloc(1, pem_size);
                 ssl_obj->len = pem_size;
 
-                if (i == IS_RSA_PRIVATE_KEY && 
-                            strstr(start, "Proc-Type:") && 
+                if (i == IS_RSA_PRIVATE_KEY &&
+                            strstr(start, "Proc-Type:") &&
                             strstr(start, "4,ENCRYPTED"))
                 {
                     /* check for encrypted PEM file */
@@ -327,10 +327,10 @@ static int new_pem_obj(SSL_CTX *ssl_ctx, int is_cacert, char *where,
                         goto error;
                     }
                 }
-                else 
+                else
                 {
                     ssl_obj->len = pem_size;
-                    if (base64_decode(start, pem_size, 
+                    if (base64_decode(start, pem_size,
                                 ssl_obj->buf, &ssl_obj->len) != 0)
                     {
                         ret = SSL_ERROR_BAD_CERTIFICATE;
@@ -389,7 +389,7 @@ error:
 /*
  * Load a file into memory that is in ASCII PEM format.
  */
-static int ssl_obj_PEM_load(SSL_CTX *ssl_ctx, int obj_type, 
+static int ssl_obj_PEM_load(SSL_CTX *ssl_ctx, int obj_type,
                         SSLObjLoader *ssl_obj, const char *password)
 {
     char *start;
@@ -406,16 +406,16 @@ static int ssl_obj_PEM_load(SSL_CTX *ssl_ctx, int obj_type,
 
 /**
  * Load the key/certificates in memory depending on compile-time and user
- * options. 
+ * options.
  */
 int load_key_certs(SSL_CTX *ssl_ctx)
 {
     int ret = SSL_OK;
     uint32_t options = ssl_ctx->options;
-#ifdef CONFIG_SSL_GENERATE_X509_CERT 
+#ifdef CONFIG_SSL_GENERATE_X509_CERT
     uint8_t *cert_data = NULL;
     int cert_size;
-    static const char *dn[] = 
+    static const char *dn[] =
     {
         CONFIG_SSL_X509_COMMON_NAME,
         CONFIG_SSL_X509_ORGANIZATION_NAME,
@@ -426,7 +426,7 @@ int load_key_certs(SSL_CTX *ssl_ctx)
     /* do the private key first */
     if (strlen(CONFIG_SSL_PRIVATE_KEY_LOCATION) > 0)
     {
-        if ((ret = ssl_obj_load(ssl_ctx, SSL_OBJ_RSA_KEY, 
+        if ((ret = ssl_obj_load(ssl_ctx, SSL_OBJ_RSA_KEY,
                                 CONFIG_SSL_PRIVATE_KEY_LOCATION,
                                 CONFIG_SSL_PRIVATE_KEY_PASSWORD)) < 0)
             goto error;
@@ -435,15 +435,15 @@ int load_key_certs(SSL_CTX *ssl_ctx)
     {
 #if defined(CONFIG_SSL_USE_DEFAULT_KEY) || defined(CONFIG_SSL_SKELETON_MODE)
         static const    /* saves a few more bytes */
-#include "private_key.h"
+#include <axtls/ssl/private_key.h>
 
         ssl_obj_memory_load(ssl_ctx, SSL_OBJ_RSA_KEY, default_private_key,
-                default_private_key_len, NULL); 
+                default_private_key_len, NULL);
 #endif
     }
 
     /* now load the certificate */
-#ifdef CONFIG_SSL_GENERATE_X509_CERT 
+#ifdef CONFIG_SSL_GENERATE_X509_CERT
     if ((cert_size = ssl_x509_create(ssl_ctx, 0, dn, &cert_data)) < 0)
     {
         ret = cert_size;
@@ -455,7 +455,7 @@ int load_key_certs(SSL_CTX *ssl_ctx)
 #else
     if (strlen(CONFIG_SSL_X509_CERT_LOCATION))
     {
-        if ((ret = ssl_obj_load(ssl_ctx, SSL_OBJ_X509_CERT, 
+        if ((ret = ssl_obj_load(ssl_ctx, SSL_OBJ_X509_CERT,
                                 CONFIG_SSL_X509_CERT_LOCATION, NULL)) < 0)
             goto error;
     }
@@ -463,8 +463,8 @@ int load_key_certs(SSL_CTX *ssl_ctx)
     {
 #if defined(CONFIG_SSL_USE_DEFAULT_KEY) || defined(CONFIG_SSL_SKELETON_MODE)
         static const    /* saves a few bytes and RAM */
-#include "cert.h"
-        ssl_obj_memory_load(ssl_ctx, SSL_OBJ_X509_CERT, 
+#include <axtls/ssl/cert.h>
+        ssl_obj_memory_load(ssl_ctx, SSL_OBJ_X509_CERT,
                     default_certificate, default_certificate_len, NULL);
 #endif
     }

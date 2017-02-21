@@ -13,19 +13,16 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
-            [editor.texture :as tex]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.pipeline :as pipeline]
-            [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
-            [editor.graph-util :as gu]
-            [editor.image :as image])
+            [editor.graph-util :as gu])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -403,7 +400,11 @@
   (input child-scenes g/Any :array)
 
   (output images           [Image]             :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
-  (output aabb             AABB                (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
+  (output aabb             AABB                (g/fnk [texture-set-data]
+                                                 (if (zero? (get-in texture-set-data [:texture-set :tile-count]))
+                                                   (geom/null-aabb)
+                                                   (let [^BufferedImage img (:image texture-set-data)]
+                                                     (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0))))))
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output packed-image     BufferedImage       (g/fnk [texture-set-data] (:image texture-set-data)))
@@ -457,10 +458,18 @@
   (let [graph-id (g/node-id->graph-id atlas-node)]
     (g/make-nodes
      graph-id
-     [atlas-anim [AtlasAnimation :flip-horizontal (not= 0 (:flip-horizontal anim)) :flip-vertical (not= 0 (:flip-vertical anim))
+     [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
                   :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
      (attach-animation atlas-node atlas-anim)
      (attach-image-nodes atlas-anim [[:image :frames]] (map :image (:images anim)) atlas-node))))
+
+(defn- update-int->bool [keys m]
+  (reduce (fn [m key]
+            (if (contains? m key)
+              (update m key (complement zero?))
+              m))
+            m
+            keys))
 
 (defn load-atlas [project self resources]
   (let [atlas         (protobuf/read-text AtlasProto$Atlas resources)
@@ -473,7 +482,9 @@
                           [[:animation :animations]
                            [:id :animation-ids]]
                           (map :image (:images atlas)) self)
-      (map (partial attach-atlas-animation self) (:animations atlas)))))
+      (map (comp (partial attach-atlas-animation self)
+                 (partial update-int->bool [:flip-horizontal :flip-vertical]))
+           (:animations atlas)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

@@ -47,7 +47,7 @@ namespace dmGameSystem
         ModelWorld* world = new ModelWorld();
 
         world->m_Components.SetCapacity(context->m_MaxModelCount);
-        world->m_RigContext = context->m_RigContext;
+        // world->m_RigContext = context->m_RigContext;
         world->m_RenderObjects.SetCapacity(context->m_MaxModelCount);
 
         dmGraphics::VertexElement ve[] =
@@ -281,7 +281,7 @@ namespace dmGameSystem
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = world->m_RigContext;
+        create_params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompModelPoseCallback;
@@ -319,11 +319,12 @@ namespace dmGameSystem
     static void DestroyComponent(ModelWorld* world, uint32_t index)
     {
         ModelComponent* component = world->m_Components.Get(index);
+        dmGameObject::DeleteBones(component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params = {0};
-        params.m_Context = world->m_RigContext;
+        params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
@@ -364,9 +365,10 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
+            dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(c->m_Instance));
             Matrix4 normal_matrix = inverse(c->m_World);
             normal_matrix = transpose(normal_matrix);
-            vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, c->m_World, normal_matrix, Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
+            vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, normal_matrix, Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -653,15 +655,17 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component)
     {
+        dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
-        destroy_params.m_Context = world->m_RigContext;
+        destroy_params.m_Context = rig_context;
         destroy_params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(destroy_params);
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = world->m_RigContext;
+        create_params.m_Context = rig_context;
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompModelPoseCallback;

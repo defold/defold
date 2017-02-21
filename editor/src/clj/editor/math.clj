@@ -139,12 +139,13 @@
 
 (defn inv-transform
   ([^Point3d position ^Quat4d rotation ^Point3d p]
-    (let [q (doto (Quat4d. rotation) (.conjugate))]
-      (.sub p position)
-      (rotate q p)))
+    (let [q (doto (Quat4d. rotation) (.conjugate))
+          p1 (doto (Point3d. p) (.sub position))]
+      (rotate q p1)))
   ([^Quat4d rotation ^Quat4d q]
     (let [q1 (doto (Quat4d. rotation) (.conjugate))]
-      (.mul q1 q))))
+      (.mul q1 q)
+      q1)))
 
 (defn from-to->quat [^Vector3d unit-from ^Vector3d unit-to]
   (let [dot (.dot unit-from unit-to)]

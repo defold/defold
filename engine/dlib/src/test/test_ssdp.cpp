@@ -224,7 +224,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 }
 
-#ifdef _WIN32
+#ifndef _WIN32
 
 TEST_F(dmSSDPTest, Search)
 {
@@ -295,7 +295,7 @@ TEST_F(dmSSDPTest, Expire)
     ASSERT_FALSE(TestDeviceDiscovered());
 }
 
-#ifdef _WIN32
+#ifndef _WIN32
 
 TEST_F(dmSSDPTest, Renew)
 {
