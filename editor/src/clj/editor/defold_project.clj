@@ -26,6 +26,7 @@
             [util.text-util :as text-util]
             ;; TODO - HACK
             [internal.graph.types :as gt]
+            [internal.graph :as ig]
             [clojure.string :as str])
   (:import [java.io File]
            [java.nio.file FileSystem FileSystems PathMatcher]
@@ -343,6 +344,9 @@
 (defn- outputs [node]
   (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
 
+(defn- explicit-outputs [node]
+  (mapv #(do [(second (gt/head %)) (gt/tail %)]) (ig/explicit-arcs-by-source (g/now) node)))
+
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
 
@@ -435,7 +439,7 @@
             to-reload-ext   (filterv (comp (complement loadable?) second) to-reload)
             old-outputs (reduce (fn [res [_ resource]]
                                   (let [nid (res->node resource)]
-                                    (assoc res nid (outputs nid))))
+                                    (assoc res nid (explicit-outputs nid))))
                                 {} to-reload-int)]
         ;; Internal resources to reload
         (let [in-use? (fn [resource-node-id]
@@ -471,7 +475,7 @@
             (concat
               (for [[old new] old->new
                     :when new
-                    :let [existing (set (outputs new))]
+                    :let [existing (set (explicit-outputs new))]
                     [src-label [tgt-id tgt-label]] (old-outputs old)
                     :let [tgt-id (get old->new tgt-id tgt-id)]
                     :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
