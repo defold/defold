@@ -213,7 +213,6 @@ public class ProjectService {
                         "      #canvas {\n" +
                         "        outline: none;\n" +
                         "        max-width: 100%;\n" +
-                        "        max-height: 95vh;\n" +
                         "        background-color: black !important;\n" +
                         "      }\n" +
                         "\n" +
