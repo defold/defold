@@ -11,7 +11,7 @@
  * @namespace dmAlign
  */
 
-/*# alignment macro
+/*# data structure alignment macro
  *
  * Data structure alignment
  *
