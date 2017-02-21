@@ -29,19 +29,14 @@ public class BaseResource {
     public User getUser() {
         UserPrincipal p = (UserPrincipal) securityContext.getUserPrincipal();
 
+        // Return null on anonymous users.
+        if (p.getUser() == null || p.getUser().getId() == null) {
+            return null;
+        }
+
         // NOTE: We must re-fetch the user here and probably related to
         // different EntityManagers
         return em.find(User.class, p.getUser().getId());
-    }
-
-    /**
-     * Determines if the request is from a logged in (as non-anonymous) user.
-     *
-     * @return True if logged in, false otherwise.
-     */
-    boolean isLoggedIn() {
-        UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
-        return userPrincipal.getUser() != null && userPrincipal.getUser().getRole() != User.Role.ANONYMOUS;
     }
 
     Response okResponse(String fmt, Object... args) {

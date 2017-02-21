@@ -31,11 +31,12 @@
                          :label "Collection"
                          :type :resource
                          :filter "collection"}]}]
-   :values {[:collection] (resource/resource->proj-path collection-resource)}})
+   :values {[:collection] collection-resource}})
 
 (g/defnk produce-pb-msg
-  [collection-resource]
-  {:collection (resource/resource->proj-path collection-resource)})
+  [collection-resource exclude]
+  (cond-> {:collection (resource/resource->proj-path collection-resource)}
+    (some? exclude) (assoc :exclude exclude)))
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
@@ -64,8 +65,9 @@
 (defn load-collection-proxy
   [project self resource]
   (let [collection-proxy (protobuf/read-text GameSystem$CollectionProxyDesc resource)]
-    (g/set-property self
-                    :collection (workspace/resolve-resource resource (:collection collection-proxy)))))
+    (concat 
+      (g/set-property self :collection (workspace/resolve-resource resource (:collection collection-proxy)))
+      (g/set-property self :exclude (boolean (:exclude collection-proxy))))))
 
 (g/defnode CollectionProxyNode
   (inherits project/ResourceNode)
@@ -84,6 +86,8 @@
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? collection-resource "Collection"))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource :ext "collection"})))
+
+  (property exclude g/Bool)
   
   (output form-data g/Any produce-form-data)
 

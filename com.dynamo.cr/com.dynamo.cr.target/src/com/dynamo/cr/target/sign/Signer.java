@@ -20,6 +20,8 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.target.core.TargetPlugin;
 import com.google.common.io.Files;
@@ -27,7 +29,7 @@ import com.google.common.io.Files;
 public class Signer {
     private static Logger logger = LoggerFactory.getLogger(Signer.class);
 
-    public String sign(String identity, String provisioningProfile, String exe, Map<String, String> properties) throws IOException, ConfigurationException {
+    public String sign(String identity, String provisioningProfile, String exe, Map<String, String> properties, Map<String, IResource> bundleResources) throws IOException, ConfigurationException {
         File packageDir = Files.createTempDir();
         File appDir = new File(packageDir, "Defold.app");
         appDir.mkdirs();
@@ -53,6 +55,9 @@ public class Signer {
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+
+        // Copy bundle resources into .app folder
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, FilenameUtils.getBaseName(exe)));

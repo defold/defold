@@ -322,13 +322,15 @@
                     :indices [0 1 2 2 1 3]
                     :weights (take 16 (cycle [1 0 0 0]))
                     :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))})
-                 ("mesh" "skinnedmesh")
+                 ("mesh" "skinnedmesh" "weightedmesh")
                  (let [vertices (get attachment "vertices" [])
                        uvs (get attachment "uvs" [])
-                       skinned? (= type "skinnedmesh")
+                       ; A mesh is weighted if the number of vertices > number of UVs.
+                       ; Both are x, y pairs if the mesh is not weighted.
+                       weighted? (> (count vertices) (count uvs))
                        ; Use uvs because vertices have a dynamic format
                        vertex-count (/ (count uvs) 2)]
-                   (if skinned?
+                   (if weighted?
                      (let [[positions
                             bone-indices
                             bone-weights] (loop [vertices vertices

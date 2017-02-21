@@ -1,7 +1,18 @@
 #ifndef RESOURCE_ARCHIVE_H
 #define RESOURCE_ARCHIVE_H
 
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 #include <dlib/align.h>
+
+#define C_TO_JAVA ntohl
+#define JAVA_TO_C htonl
+
+// Maximum hash length convention. This size should large enough.
+// If this length changes the VERSION needs to be bumped.
+#define DMRESOURCE_MAX_HASH (64) // Equivalent to 512 bits
 
 namespace dmResourceArchive
 {
@@ -14,6 +25,8 @@ namespace dmResourceArchive
 
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
 
+    typedef struct ArchiveIndex* HArchiveIndex;
+
     enum Result
     {
         RESULT_OK = 0,
@@ -22,6 +35,7 @@ namespace dmResourceArchive
         RESULT_IO_ERROR = -2,
         RESULT_MEM_ERROR = -3,
         RESULT_OUTBUFFER_TOO_SMALL = -4,
+        RESULT_ALREADY_STORED = -5,
         RESULT_UNKNOWN = -1000,
     };
 
@@ -39,16 +53,35 @@ namespace dmResourceArchive
         uint32_t m_Flags;
     };
 
+    struct DM_ALIGNED(16) LiveUpdateResourceHeader {
+        uint32_t m_Size;
+        uint8_t m_Flags;
+        uint8_t m_Padding[11];
+    };
+
+    struct LiveUpdateResource {
+        LiveUpdateResource(const uint8_t* buf, size_t buflen) {
+            m_Count = buflen - sizeof(LiveUpdateResourceHeader);
+            m_Data = (uint8_t*)((uintptr_t)buf + sizeof(LiveUpdateResourceHeader));
+            m_Header = (LiveUpdateResourceHeader*)((uintptr_t)buf);
+        }
+
+        const uint8_t* m_Data;
+        size_t m_Count;
+        LiveUpdateResourceHeader* m_Header;
+    };
+
     /**
      * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
      * archive is not needed.
      * @param index_buffer archive index memory to wrap
      * @param index_buffer_size archive index size
      * @param resource_data resource data
+     * @param lu_resource_data resource data acquired through liveupdate
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, HArchiveIndexContainer* archive);
+    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
 
     /**
      * Load archive from filename. Only the index data is loaded into memory.
@@ -57,7 +90,7 @@ namespace dmResourceArchive
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result LoadArchive(const char* file_name, HArchiveIndexContainer* archive);
+    Result LoadArchive(const char* index_file_name, const char* data_file_name, const char* lu_data_file_path, HArchiveIndexContainer* archive);
 
     /**
      * Find resource entry within archive
@@ -89,6 +122,25 @@ namespace dmResourceArchive
      * @return entry count
      */
     uint32_t GetEntryCount(HArchiveIndexContainer archive);
+
+    /**
+     * Insert a resource acquired with LiveUpdate in the archive
+     */
+    Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
+
+    /**
+     * Reload the liveupdate archive index using the bundled archive as starting point
+     * Find all liveupdate entries in current archive index and cache them
+     * Make a copy of the (new) bundled archive index with space allocated for the cached liveupdate entries
+     * Sorted insertion of liveupdate entries into the bundled archive copy
+     * The archive now has the entries from the bundled index, as well as the liveupdate entries
+     */
+    Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resource_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info);
+
+    /**
+     * Compare the archive container id, to decide if a reload is needed.
+     */
+    int CmpArchiveIdentifier(const HArchiveIndexContainer archive_container, uint8_t* archive_id, uint32_t len);
 
 }  // namespace dmResourceArchive
 

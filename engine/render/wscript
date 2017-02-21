@@ -3,7 +3,6 @@
 VERSION = '0.1'
 APPNAME = 'render'
 
-
 srcdir = '.'
 blddir = 'build'
 
@@ -23,7 +22,6 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
 
     waf_ddf.configure(conf)
-    conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
 
     conf.sub_config('src')
 
@@ -67,7 +65,6 @@ def configure(conf):
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')

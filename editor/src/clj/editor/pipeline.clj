@@ -13,10 +13,32 @@
 
 (defn- make-resource-props
   [dep-build-targets m resource-keys]
-  (let [deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))]
-    (map (fn [prop]
-           [prop (-> m prop deps-by-source)])
-         resource-keys)))
+  (let [deps-by-source (into {}
+                             (map (fn [build-target]
+                                    (let [build-resource (:resource build-target)
+                                          source-resource (:resource build-resource)]
+                                      (when-not (and (satisfies? resource/Resource build-resource)
+                                                     (satisfies? resource/Resource source-resource))
+                                        (throw (ex-info "dep-build-targets contains an invalid build target"
+                                                        {:build-target build-target
+                                                         :build-resource build-resource
+                                                         :source-resource source-resource})))
+                                      [source-resource build-resource])))
+                             dep-build-targets)]
+    (keep (fn [resource-key]
+            (when-let [source-resource (m resource-key)]
+              (when-not (satisfies? resource/Resource source-resource)
+                (throw (ex-info "value for resource key in m is not a Resource"
+                                {:key resource-key
+                                 :value source-resource
+                                 :resource-keys resource-keys})))
+              (if-let [build-resource (deps-by-source source-resource)]
+                [resource-key build-resource]
+                (throw (ex-info "deps-by-source is missing a referenced source-resource"
+                                {:key resource-key
+                                 :deps-by-source deps-by-source
+                                 :source-resource source-resource})))))
+          resource-keys)))
 
 (defn- build-protobuf
   [node-id basis resource dep-resources user-data]

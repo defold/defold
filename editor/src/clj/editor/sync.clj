@@ -20,8 +20,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *login* true)
-
 ;; =================================================================================
 
 ;; Flow state-diagram
@@ -107,22 +105,31 @@
     (.exists file)
     false))
 
+(defn- revert-to-stashed! [^Git git start-ref stash-info]
+  (git/revert-to-revision! git start-ref)
+  (when stash-info
+    (git/stash-apply! git stash-info)
+    (git/stash-drop! git stash-info)))
+
+(defn cancel-flow-in-progress! [^Git git]
+  (when-let [file (flow-journal-file git)]
+    (when (.exists file)
+      (let [data (with-open [reader (java.io.PushbackReader. (io/reader file))]
+                   (edn/read reader))
+            {:keys [start-ref stash-info]} (deserialize-flow data git nil)]
+        (io/delete-file file :silently)
+        (revert-to-stashed! git start-ref stash-info)))))
+
 (defn cancel-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
   (let [{:keys [git start-ref stash-info]} @!flow
         file (flow-journal-file git)]
     (when (.exists file)
       (io/delete-file file :silently))
-    (git/revert-to-revision! git start-ref)
-    (when stash-info
-      (git/stash-apply! git stash-info)
-      (git/stash-drop! git stash-info))))
+    (revert-to-stashed! git start-ref stash-info)))
 
-(defn begin-flow! [^Git git prefs]
-  (when *login*
-    (login/login prefs))
-  (let [creds (git/credentials prefs)
-        start-ref (git/get-current-commit-ref git)
+(defn begin-flow! [^Git git creds]
+  (let [start-ref (git/get-current-commit-ref git)
         stash-info (git/stash! git)
         flow (make-flow git creds start-ref stash-info)
         !flow (atom flow)]
@@ -134,11 +141,8 @@
         (cancel-flow! !flow)
         (throw e)))))
 
-(defn resume-flow [^Git git prefs]
-  (when *login*
-    (login/login prefs))
-  (let [creds (git/credentials prefs)
-        file  (flow-journal-file git)
+(defn resume-flow [^Git git creds]
+  (let [file  (flow-journal-file git)
         data  (with-open [reader (java.io.PushbackReader. (io/reader file))]
                 (edn/read reader))
         flow  (deserialize-flow data git creds)
@@ -336,7 +340,7 @@
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
-        stage           (ui/make-stage)
+        stage           (ui/make-dialog-stage (ui/main-stage))
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
@@ -440,7 +444,6 @@
 
                              nil)))]
     (dialogs/observe-focus stage)
-    (.initOwner stage (ui/main-stage))
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
@@ -522,8 +525,6 @@
                                          (when (= code KeyCode/ESCAPE) true
                                                (cancel-flow! !flow)
                                                (.close stage)))))
-
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
 
     (try

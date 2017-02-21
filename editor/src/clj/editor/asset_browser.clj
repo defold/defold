@@ -147,16 +147,25 @@
               (File. abs-path)))
           resources)))
 
+(defn- moved-files
+  [^File src-dir ^File dest-dir files]
+  (let [src-path (.toPath src-dir)]
+    (mapv (fn [^File f]
+            (let [dest-path (.relativize src-path (.toPath f))]
+              [f (io/file dest-dir (.toFile dest-path))]))
+          files)))
+
 (defn rename [resource ^String new-name]
   (when resource
-    (let [workspace        (resource/workspace resource)
-          srcf             (File. (resource/abs-path resource))
-          dstf             (and new-name (File. (.getParent srcf) new-name))]
-      (when dstf
-        (if (.isDirectory srcf)
-          (FileUtils/moveDirectory srcf dstf)
-          (FileUtils/moveFile srcf dstf))
-        (workspace/resource-sync! workspace true [[srcf dstf]])))))
+    (let [workspace (resource/workspace resource)
+          src-file  (File. (resource/abs-path resource))
+          src-files (vec (file-seq src-file))
+          dest-file (and new-name (File. (.getParent src-file) new-name))]
+      (when dest-file
+        (if (.isDirectory src-file)
+          (FileUtils/moveDirectory src-file dest-file)
+          (FileUtils/moveFile src-file dest-file))
+        (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files))))))
 
 (defn delete [resources]
   (when (not (empty? resources))
@@ -235,11 +244,36 @@
       (str original-basename "1")
       (str original-basename (str (inc (Integer/parseInt suffix)))))))
 
+(defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
+
+(defmethod resolve-conflicts :overwrite
+  [_ src-dest-pairs]
+  src-dest-pairs)
+
+(defmethod resolve-conflicts :rename
+  [_ src-dest-pairs]
+  (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
+
+(defn- resolve-any-conflicts
+  [src-dest-pairs]
+  (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
+        conflicts (get files-by-existence true)
+        non-conflicts (get files-by-existence false [])]
+    (if (seq conflicts)
+      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts)]
+        (into non-conflicts (resolve-conflicts strategy conflicts)))
+      non-conflicts)))
+
 (defn- select-files! [workspace tree-view files]
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
-(defn- allow-resource-transfer? [tgt-resource src-files]
+(defn allow-resource-move?
+  "Returns true if it is legal to move all the supplied source files to the
+  specified target resource. Disallows moves that would place a parent below
+  one of its own children, moves to a readonly destination, and moves to the
+  same path the file already resides in."
+  [tgt-resource src-files]
   (and (not (resource/read-only? tgt-resource))
        (let [^Path tgt-path (-> tgt-resource resource/abs-path File. util/to-folder .getAbsolutePath ->path)
              src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
@@ -254,7 +288,7 @@
             (let [cb (Clipboard/getSystemClipboard)]
               (and (.hasFiles cb)
                    (= 1 (count selection))
-                   (allow-resource-transfer? (first selection) (.getFiles cb)))))
+                   (not (resource/read-only? (first selection))))))
   (run [selection workspace asset-browser]
        (let [tree-view (g/node-value asset-browser :tree-view)
              resource (first selection)
@@ -299,10 +333,9 @@
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))
           next (-> (handler/succeeding-selection selection-provider)
                  (handler/adapt-single resource/Resource))]
-      (and (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
-           (delete selection))
-      (when next
-        (select-resource! asset-browser next)))))
+      (when (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
+        (when (and (delete selection) next)
+          (select-resource! asset-browser next))))))
 
 (handler/defhandler :new-file :global
   (label [user-data] (if-not user-data
@@ -322,14 +355,15 @@
                                  project-path)
                            util/to-folder)
              rt (:resource-type user-data)]
-         (when-let [new-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
-           (spit new-file (workspace/template rt))
-           (workspace/resource-sync! workspace)
-           (let [resource-map (g/node-value workspace :resource-map)
-                 new-resource-path (resource/file->proj-path project-path new-file)
-                 resource (resource-map new-resource-path)]
-             (app-view/open-resource app-view workspace project resource)
-             (select-resource! asset-browser resource)))))
+         (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
+           (let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
+             (spit new-file (workspace/template rt))
+             (workspace/resource-sync! workspace)
+             (let [resource-map (g/node-value workspace :resource-map)
+                   new-resource-path (resource/file->proj-path project-path new-file)
+                   resource (resource-map new-resource-path)]
+               (app-view/open-resource app-view workspace project resource)
+               (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
            (when (not user-data)
              (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
@@ -401,6 +435,10 @@
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)
         files (fileify resources)
+        ;; Note: It would seem we should use the TransferMode/COPY_OR_MOVE mode
+        ;; here in order to support making copies of non-readonly files, but
+        ;; that results in every drag operation becoming a copy on macOS due to
+        ;; https://bugs.openjdk.java.net/browse/JDK-8148025
         mode (if (empty? (filter resource/read-only? resources))
                TransferMode/MOVE
                TransferMode/COPY)
@@ -436,7 +474,7 @@
     (when-let [^TreeCell cell (target (.getTarget e))]
       (when (and (not (.isEmpty cell))
                  (.hasFiles db))
-       ; Auto scrolling
+       ;; Auto scrolling
        (let [view (.getTreeView cell)
              view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
              height (.getHeight (.getBoundsInLocal view))]
@@ -445,8 +483,11 @@
          (when (> view-y (- height 15))
            (.scrollTo view (inc (.getIndex cell)))))
        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
-         (when (allow-resource-transfer? tgt-resource (.getFiles db))
-           (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+         (when (allow-resource-move? tgt-resource (.getFiles db))
+           ;; Allow move only if the drag source was also the tree view.
+           (if (= (.getTreeView cell) (.getGestureSource e))
+             (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+             (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY])))
            (.consume e)))))))
 
 (defn- find-files [^File src ^File tgt]
@@ -459,26 +500,37 @@
             (filter (fn [^File f] (.isFile f)) (file-seq src))))
     [[src tgt]]))
 
+(defn- move-file
+  "Moves a file to the specified target location. Any existing file at the
+  target location will be overwritten. If it does not already exist, the path
+  leading up to the target location will be created. Returns true if the move
+  was successful, or false if the move failed for any reason."
+  [^File src ^File tgt]
+  (try
+    (if (.exists tgt)
+      (and (FileUtils/deleteQuietly tgt)
+           (.renameTo src tgt))
+      (do (io/make-parents tgt)
+          (.renameTo src tgt)))
+    (catch Exception _
+      false)))
 
-(defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
+(defn- drag-move-files [dragged-pairs]
+  (let [file-pairs (mapcat (fn [[src tgt]] (find-files src tgt)) dragged-pairs)
+        moved-file-pairs (filterv (fn [[src tgt]] (move-file src tgt)) file-pairs)]
+    ;; Delete any now-empty directories.
+    (doseq [[^File src] dragged-pairs]
+      (when (and (.isDirectory src)
+                 (empty? (.list src)))
+        (FileUtils/deleteQuietly src)))
+    moved-file-pairs))
 
-(defmethod resolve-conflicts :replace
-  [_ src-dest-pairs]
-  src-dest-pairs)
-
-(defmethod resolve-conflicts :rename
-  [_ src-dest-pairs]
-  (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
-
-(defn- resolve-any-conflicts
-  [src-dest-pairs]
-  (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
-        conflicts (get files-by-existence true)
-        non-conflicts (get files-by-existence false [])]
-    (if (seq conflicts)
-      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts)]
-        (into non-conflicts (resolve-conflicts strategy conflicts)))
-      non-conflicts)))
+(defn- drag-copy-files [dragged-pairs]
+  (doseq [[^File src ^File tgt] dragged-pairs]
+    (if (.isDirectory src)
+      (FileUtils/copyDirectory src tgt)
+      (FileUtils/copyFile src tgt)))
+  [])
 
 (defn- drag-dropped [^DragEvent e]
   (let [db (.getDragboard e)]
@@ -493,24 +545,13 @@
                        (mapv (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]))
                        (resolve-any-conflicts)
                        (vec))
-            moved (if move?
-                    (vec (mapcat (fn [[^File src ^File tgt]]
-                                   (find-files src tgt)) pairs))
-                    [])
             workspace (resource/workspace resource)]
-        (when pairs
-          (doseq [[^File src-file ^File tgt-file] pairs]
-            (if (= (.getTransferMode e) TransferMode/MOVE)
-              (do
-                (io/make-parents tgt-file)
-                (.renameTo src-file tgt-file))
-              (if (.isDirectory src-file)
-                (FileUtils/copyDirectory src-file tgt-file)
-                (FileUtils/copyFile src-file tgt-file))))
-          (select-files! workspace tree-view (mapv second pairs))
-          (workspace/resource-sync! workspace true moved))))
-    (.setDropCompleted e true)
-    (.consume e)))
+        (when (seq pairs)
+          (let [moved (if move? (drag-move-files pairs) (drag-copy-files pairs))]
+            (select-files! workspace tree-view (mapv second pairs))
+            (workspace/resource-sync! workspace true moved))))))
+  (.setDropCompleted e true)
+  (.consume e))
 
 (defrecord SelectionProvider [asset-browser]
   handler/SelectionProvider

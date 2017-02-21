@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 import os
+from waf_dynamo import apidoc_extract_task
+from waf_dynamo import dmsdk_add_files
 
 def configure(conf):
     pass
@@ -37,33 +39,16 @@ def build(bld):
     if bld.env.LUA_BYTECODE_ENABLE == 'yes':
         script.cxxflags = ['-DLUA_BYTECODE_ENABLE']
 
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above
     # in order to avoid installation of dummylib
     bld.install_files('${PREFIX}/lib/python', 'script/script_doc_ddf_pb2.py')
 
     bld.add_group()
 
-    for d, source in [('builtins', ('script_hash.cpp script.cpp')),
-                      ('sys', ('script_sys.cpp')),
-                      ('msg', ('script_msg.cpp')),
-                      ('json', ('script_json.cpp')),
-                      ('http', ('script_http.cpp')),
-                      ('vmath', ('script_vmath.cpp')),
-                      ('zlib', ('script_zlib.cpp')),
-                      ('image', ('script_image.cpp'))]:
-        bld.new_task_gen(source = source,
-                         target = '%s_doc.sdoc' % d,
-                         rule = 'python ${SCRIPT_DOC} ${SRC} ${TGT}')
-        bld.new_task_gen(source = source,
-                         target = '%s_doc.json' % d,
-                         rule = 'python ${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+    apidoc_extract_task(bld, ['script_hash.cpp', 'script.cpp', 'script_sys.cpp', 'script_msg.cpp', 'script_json.cpp', 'script_http.cpp', 'script_vmath.cpp', 'script_zlib.cpp', 'script_image.cpp', 'script_bitop.cpp'])
 
-        bld.install_files('${PREFIX}/share/doc', '%s_doc.sdoc' % d)
-        bld.install_files('${PREFIX}/share/doc', '%s_doc.json' % d)
-
-    bld.install_files('${PREFIX}/bin', 'script_doc', chmod=493)
-    bld.install_files('${PREFIX}/bin', 'script_doc.bat')
-    bld.install_files('${PREFIX}/lib/python', 'script_doc.py')
     bld.install_files('${PREFIX}/include/script', 'script.h')
 
     # for #imports to work for other projects

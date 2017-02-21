@@ -1,5 +1,7 @@
 #include "test_gamesys.h"
 
+#include "../../../../graphics/src/graphics_private.h"
+
 #include <stdio.h>
 
 #include <dlib/dstrings.h>
@@ -326,6 +328,37 @@ TEST_F(WindowEventTest, Test)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+/* Draw Count */
+
+TEST_P(DrawCountTest, DrawCount)
+{
+    const DrawCountParams& p = GetParam();
+    const char* go_path = p.m_GOPath;
+    const uint64_t expected_draw_count = p.m_ExpectedDrawCount;
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Make the render list that will be used later.
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
+
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_EQ(expected_draw_count, dmGraphics::GetDrawCount());
+    dmGraphics::Flip(m_GraphicsContext);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 /* Camera */
@@ -732,6 +765,15 @@ TexturePropParams texture_prop_params[] =
     {"/resource/model.goc", dmHashString64("model_1_1"), dmHashString64("model_1_2"), dmHashString64("model_2")},
 };
 INSTANTIATE_TEST_CASE_P(TextureProperty, TexturePropTest, ::testing::ValuesIn(texture_prop_params));
+
+/* Validate draw count for different GOs */
+
+DrawCountParams draw_count_params[] =
+{
+    {"/gui/draw_count_test.goc", 2},
+    {"/gui/draw_count_test2.goc", 1},
+};
+INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
 
 int main(int argc, char **argv)
 {

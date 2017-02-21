@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.changes-view :as changes-view]
+            [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.handler :as handler]
@@ -26,7 +27,8 @@
             [editor.view :as view]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
-  (:import [com.defold.editor EditorApplication]
+  (:import [com.defold.control TabPaneBehavior]
+           [com.defold.editor EditorApplication]
            [com.defold.editor Start]
            [java.awt Desktop]
            [java.util Collection]
@@ -40,7 +42,7 @@
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip SplitPane]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input KeyEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser WindowEvent]
@@ -253,22 +255,29 @@
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
-  (run [workspace project prefs web-server build-errors-view]
-    (let [build (build-project project build-errors-view)]
-      (when (and (future? build) @build)
-        (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
-              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                (engine/reboot (:url target) local-url)))
-            (engine/launch prefs workspace (io/file (workspace/project-path (g/node-value project :workspace)))))))))
+  (run [project prefs web-server build-errors-view]
+    (console/clear-console!)
+    (ui/default-render-progress-now! (progress/make "Building..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [build (build-project project build-errors-view)]
+                     (when (and (future? build) @build)
+                       (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
+                             (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                               (engine/reboot (:url target) local-url)))
+                           (engine/launch project prefs))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
             (g/node-value app-view :active-resource))
   (run [project app-view prefs build-errors-view]
     (when-let [resource (g/node-value app-view :active-resource)]
-      (let [build (build-project project build-errors-view)]
-        (when (and (future? build) @build)
-            (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))
+      (ui/default-render-progress-now! (progress/make "Building..."))
+      (ui/->future 0.01
+                   (fn []
+                     (let [build (build-project project build-errors-view)]
+                       (when (and (future? build) @build)
+                         (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -295,7 +304,7 @@
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["version" "sha1" "time"])]
     (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
@@ -520,7 +529,8 @@
         (reify ChangeListener
           (changed [this observable old-val new-val]
             (->> (tab->resource-node new-val)
-              (on-selected-tab-changed app-view))))))
+              (on-selected-tab-changed app-view))
+            (ui/refresh (.getScene stage))))))
     (-> tab-pane
       (.getTabs)
       (.addListener
@@ -528,7 +538,13 @@
           (onChanged [this change]
             (ui/restyle-tabs! tab-pane)))))
 
-    (ui/register-toolbar (.getScene stage) "#toolbar" :toolbar)
+    ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
+    ;; Consume key events that would select non-existing tabs in case we have none.
+    (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
+                                                     (when (and (empty? (.getTabs tab-pane))
+                                                                (TabPaneBehavior/isTraversalEvent event))
+                                                       (.consume event))))
+
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
     (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! stage project)))
@@ -565,6 +581,7 @@
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-context-menu tab ::tab-menu)
+    (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
                          event
@@ -582,7 +599,9 @@
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
      (if-let [make-view-fn (:make-view-fn view-type)]
-       (let [resource-node     (project/get-resource-node project resource)
+       (let [resource-node     (or (project/get-resource-node project resource)
+                                   (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                                   {})))
              ^TabPane tab-pane (g/node-value app-view :tab-pane)
              tabs              (.getTabs tab-pane)
              tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
@@ -711,6 +730,9 @@
 (handler/defhandler :search-in-files :global
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
+(handler/defhandler :bundle :global
+  (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
+
 (defn- fetch-libraries [workspace project prefs]
   (future
     (ui/with-disabled-ui
@@ -721,6 +743,20 @@
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
 
+(defn- create-live-update-settings! [workspace]
+  (let [project-path (workspace/project-path workspace)
+        settings-file (io/file project-path "liveupdate.settings")]
+    (spit settings-file "[liveupdate]\n")
+    (workspace/resource-sync! workspace)
+    (workspace/find-resource workspace "/liveupdate.settings")))
+
+(handler/defhandler :live-update-settings :global
+  (run [app-view workspace project]
+    (some->> (or (workspace/find-resource workspace "/liveupdate.settings")
+                 (create-live-update-settings! workspace))
+      (open-resource app-view workspace project))))
+
 (handler/defhandler :sign-ios-app :global
+  (active? [] (util/is-mac-os?))
   (run [workspace project prefs]
     (bundle/make-sign-dialog workspace prefs project)))

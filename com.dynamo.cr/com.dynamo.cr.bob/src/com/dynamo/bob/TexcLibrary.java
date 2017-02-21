@@ -14,6 +14,7 @@ public class TexcLibrary {
             if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
                 // TODO: sad with a platform specific hack and placing dependency knowledge here but...
                 Bob.getLib(platform, "PVRTexLib");
+                Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
             }
             System.setProperty("jna.library.path", lib.getParent());
             Bob.verbose("Added '%s' to 'jna.library.path'", lib.getParent());

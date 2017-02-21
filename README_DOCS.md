@@ -16,7 +16,7 @@ Fenced codeblocks
         local pos = go.get("player", "position")
     end
     ```
-    
+
     ```lua
     function init(self)
         local pos = go.get("player", "position")
@@ -59,6 +59,7 @@ Type information
 [type:table]
 [type:number]
 [type:string]
+[type:constant]
 
 // Multiple types possible
 [type:string|hash|url]
@@ -80,6 +81,25 @@ Icons
 [icon:facebook]
 [icon:google]
 [icon:amazon]
+```
+
+References
+: Cross references can be created by the following forms:
+
+```
+// Expands to a link to "get_id" in the current document
+[ref:get_id]
+
+// Expands to a link to "get_id" in the "go" document
+[ref:go.get_id]
+```
+
+Custom span classes
+: Generic forms `[name:text]` that does not match "icon", "type" or "ref" are expanded to span elements with class `name`:
+
+```
+// Expands to <span class="mark">READ ONLY</span>
+[mark:READ ONLY]
 ```
 
 ## Documentation formatting

@@ -110,8 +110,6 @@ namespace dmGameSystem
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_create_params);
         dmGraphics::SetTexture(gui_world->m_WhiteTexture, tex_params);
 
-        gui_world->m_RigContext = gui_context->m_RigContext;
-
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
 
@@ -510,6 +508,7 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
+        scene_params.m_RigContext = dmGameObject::GetRigContext(dmGameObject::GetCollection(params.m_Instance));
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
         scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
@@ -663,6 +662,10 @@ namespace dmGameSystem
         {
             dmGui::HNode node = entries[i].m_Node;
 
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
+
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
             const Vector4& shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
@@ -758,6 +761,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             uint32_t count = dmRig::GetVertexCount(rig_instance);
             vertex_count += count;
@@ -796,11 +802,15 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
+            const dmRig::HRigContext rig_context = dmGui::GetRigContext(scene);
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             float opacity = node_opacities[i];
             Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             color = Vector4(color.getXYZ() * opacity, opacity);
-            vb_end = (BoxVertex*)dmRig::GenerateVertexData(gui_world->m_RigContext, rig_instance, node_transforms[i], Matrix4::identity(), color, true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
+            vb_end = (BoxVertex*)dmRig::GenerateVertexData(rig_context, rig_instance, node_transforms[i], Matrix4::identity(), color, true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
@@ -833,7 +843,8 @@ namespace dmGameSystem
 
         ApplyStencilClipping(stencil_scopes[0], ro);
 
-        const int vertex_count = 6*9;
+        const int verts_per_node = 6*9;
+        const uint32_t max_total_vertices = verts_per_node * node_count;
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
@@ -842,7 +853,6 @@ namespace dmGameSystem
         ro.m_VertexBuffer = gui_world->m_VertexBuffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-        ro.m_VertexCount = vertex_count * node_count;
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
 
         // Set default texture
@@ -852,8 +862,8 @@ namespace dmGameSystem
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
-        if (gui_world->m_ClientVertexBuffer.Remaining() < (vertex_count * node_count)) {
-            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count * node_count));
+        if (gui_world->m_ClientVertexBuffer.Remaining() < (max_total_vertices)) {
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, max_total_vertices));
         }
 
         // 9-slice values are specified with reference to the original graphics and not by
@@ -862,9 +872,16 @@ namespace dmGameSystem
         float org_height = (float)dmGraphics::GetOriginalTextureHeight(ro.m_Textures[0]);
         assert(org_width > 0 && org_height > 0);
 
+        int rendered_vert_count = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
+
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
+            rendered_vert_count += verts_per_node;
+
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
@@ -1002,6 +1019,7 @@ namespace dmGameSystem
                 }
             }
         }
+        ro.m_VertexCount = rendered_vert_count;
     }
 
     // Computes max vertices required in the vertex buffer to draw a pie node with a
@@ -1080,7 +1098,7 @@ namespace dmGameSystem
             const dmGui::HNode node = entries[i].m_Node;
             const Point3 size = dmGui::GetNodeSize(scene, node);
 
-            if (dmMath::Abs(size.getX()) < 0.001f)
+            if (dmGui::GetNodeIsBone(scene, node) || dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
@@ -1247,6 +1265,11 @@ namespace dmGameSystem
 
         while (i < node_count) {
             dmGui::HNode node = entries[i].m_Node;
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                ++i;
+                continue;
+            }
+
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
             void* texture = dmGui::GetNodeTexture(scene, node);

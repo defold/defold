@@ -1,6 +1,7 @@
 package com.dynamo.bob.fs;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -55,6 +56,11 @@ public class ClassLoaderMountPoint implements IMountPoint {
         @Override
         public void setContent(InputStream stream) throws IOException {
             throw new IOException("Zip resources can't be removed.");
+        }
+
+        @Override
+        public long getLastModified() {
+            return 0; // Not possible to get last changed time for ClassLoaderMountPoint resources
         }
     }
 

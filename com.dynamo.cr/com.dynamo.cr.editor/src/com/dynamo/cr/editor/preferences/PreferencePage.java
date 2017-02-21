@@ -42,6 +42,8 @@ public class PreferencePage
         addField(enableTextureProfiles);
 
         addField(new BooleanFieldEditor(PreferenceConstants.P_QUIT_ON_ESC, "Quit application on Esc key press", getFieldEditorParent()));
+
+        addField(new StringFieldEditor(PreferenceConstants.P_NATIVE_EXT_SERVER_URI, "Native Extension Server URI:", getFieldEditorParent()));
 	}
 
 	@Override

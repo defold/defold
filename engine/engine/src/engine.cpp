@@ -27,6 +27,7 @@
 #include <particle/particle.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
+#include <liveupdate/liveupdate.h>
 
 #include "engine_service.h"
 #include "engine_version.h"
@@ -45,6 +46,7 @@ extern uint32_t CONNECT_PROJECT_SIZE;
 // the GLFW Android implementation.
 extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
+    extern void _glfwAndroidSetImmersiveMode(int);
 }
 #endif
 
@@ -151,7 +153,6 @@ namespace dmEngine
     , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
-    , m_RigContext(0x0)
     , m_SharedScriptContext(0x0)
     , m_GOScriptContext(0x0)
     , m_RenderScriptContext(0x0)
@@ -228,8 +229,6 @@ namespace dmEngine
         dmSound::Finalize();
 
         dmInput::DeleteContext(engine->m_InputContext);
-
-        dmRig::DeleteContext(engine->m_RigContext);
 
         dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
@@ -614,6 +613,13 @@ namespace dmEngine
             return false;
         }
 
+        go_result = dmGameObject::SetCollectionDefaultRigCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmRig::RIG_MAX_INSTANCES_KEY, dmRig::DEFAULT_MAX_RIG_CAPACITY));
+        if(go_result != dmGameObject::RESULT_OK)
+        {
+            dmLogFatal("Failed to set max rig instance count for collections (%d)", go_result);
+            return false;
+        }
+
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
@@ -635,16 +641,6 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
         engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
-
-        dmRig::NewContextParams rig_params = {0};
-        rig_params.m_Context = &engine->m_RigContext;
-        rig_params.m_MaxRigInstanceCount = dmConfigFile::GetInt(engine->m_Config, dmRig::MAX_RIG_INSTANCE_COUNT_KEY, 128);
-        dmRig::Result rr = dmRig::NewContext(rig_params);
-        if (rr != dmRig::RESULT_OK)
-        {
-            dmLogFatal("Unable to create rig context: %d", rr);
-            return false;
-        }
 
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
@@ -671,11 +667,9 @@ namespace dmEngine
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
         gui_params.m_HidContext = engine->m_HidContext;
-        gui_params.m_RigContext = engine->m_RigContext;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
-        engine->m_GuiContext.m_RigContext = engine->m_RigContext;
         engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -731,12 +725,10 @@ namespace dmEngine
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_ModelContext.m_RigContext = engine->m_RigContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
         engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
 
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpineModelContext.m_RigContext = engine->m_RigContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
 
@@ -858,6 +850,10 @@ namespace dmEngine
                 dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
 
             _glfwAndroidSetInputMethod(use_hidden_inputfield);
+        }
+        {
+            int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
+            _glfwAndroidSetImmersiveMode(immersive_mode);
         }
 #endif
 
@@ -1100,8 +1096,6 @@ bail:
                     dmGameObject::UpdateContext update_context;
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
-
-                    dmRig::Update(engine->m_RigContext, dt);
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);

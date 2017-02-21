@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -30,7 +30,7 @@
 
 /**
  * @file x509.c
- * 
+ *
  * Certificate processing.
  */
 
@@ -38,8 +38,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "os_port.h"
-#include "crypto_misc.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/ssl/crypto_misc.h>
 
 #ifdef CONFIG_SSL_CERT_VERIFICATION
 /**
@@ -50,7 +50,7 @@ static const uint8_t *get_signature(const uint8_t *asn1_sig, int *len)
     int offset = 0;
     const uint8_t *ptr = NULL;
 
-    if (asn1_next_obj(asn1_sig, &offset, ASN1_SEQUENCE) < 0 || 
+    if (asn1_next_obj(asn1_sig, &offset, ASN1_SEQUENCE) < 0 ||
             asn1_skip_obj(asn1_sig, &offset, ASN1_SEQUENCE))
         goto end_get_sig;
 
@@ -80,7 +80,7 @@ int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx)
     x509_ctx = *ctx;
 
     /* get the certificate size */
-    asn1_skip_obj(cert, &cert_size, ASN1_SEQUENCE); 
+    asn1_skip_obj(cert, &cert_size, ASN1_SEQUENCE);
 
     if (asn1_next_obj(cert, &offset, ASN1_SEQUENCE) < 0)
         goto end_cert;
@@ -98,7 +98,7 @@ int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx)
             goto end_cert;
     }
 
-    if (asn1_skip_obj(cert, &offset, ASN1_INTEGER) || /* serial number */ 
+    if (asn1_skip_obj(cert, &offset, ASN1_INTEGER) || /* serial number */
             asn1_next_obj(cert, &offset, ASN1_SEQUENCE) < 0)
         goto end_cert;
 
@@ -109,7 +109,7 @@ int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx)
         goto end_cert;
     }
 
-    if (asn1_name(cert, &offset, x509_ctx->ca_cert_dn) || 
+    if (asn1_name(cert, &offset, x509_ctx->ca_cert_dn) ||
             asn1_validity(cert, &offset, x509_ctx) ||
             asn1_name(cert, &offset, x509_ctx->cert_dn) ||
             asn1_public_key(cert, &offset, x509_ctx))
@@ -162,7 +162,7 @@ int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx)
             {
                 int altlen;
 
-                if ((altlen = asn1_next_obj(cert, 
+                if ((altlen = asn1_next_obj(cert,
                                             &suboffset, ASN1_SEQUENCE)) > 0)
                 {
                     int endalt = suboffset + altlen;
@@ -176,12 +176,12 @@ int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx)
                         if (type == ASN1_CONTEXT_DNSNAME)
                         {
                             x509_ctx->subject_alt_dnsnames = (char**)
-                                    realloc(x509_ctx->subject_alt_dnsnames, 
+                                    realloc(x509_ctx->subject_alt_dnsnames,
                                        (totalnames + 2) * sizeof(char*));
-                            x509_ctx->subject_alt_dnsnames[totalnames] = 
+                            x509_ctx->subject_alt_dnsnames[totalnames] =
                                     (char*)malloc(dnslen + 1);
                             x509_ctx->subject_alt_dnsnames[totalnames+1] = NULL;
-                            memcpy(x509_ctx->subject_alt_dnsnames[totalnames], 
+                            memcpy(x509_ctx->subject_alt_dnsnames[totalnames],
                                     cert + suboffset, dnslen);
                             x509_ctx->subject_alt_dnsnames[
                                     totalnames][dnslen] = 0;
@@ -196,7 +196,7 @@ int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx)
     }
 
     offset = end_tbs;   /* skip the rest of v3 data */
-    if (asn1_skip_obj(cert, &offset, ASN1_SEQUENCE) || 
+    if (asn1_skip_obj(cert, &offset, ASN1_SEQUENCE) ||
             asn1_signature(cert, &offset, x509_ctx))
         goto end_cert;
 #endif
@@ -239,7 +239,7 @@ void x509_free(X509_CTX *x509_ctx)
 
     free(x509_ctx->signature);
 
-#ifdef CONFIG_SSL_CERT_VERIFICATION 
+#ifdef CONFIG_SSL_CERT_VERIFICATION
     if (x509_ctx->digest)
     {
         bi_free(x509_ctx->rsa_ctx->bi_ctx, x509_ctx->digest);
@@ -314,7 +314,7 @@ static bigint *sig_verify(BI_CTX *ctx, const uint8_t *sig, int sig_len,
  * - The certificate chain is valid.
  * - The signature of the certificate is valid.
  */
-int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert) 
+int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert)
 {
     int ret = X509_OK, i = 0;
     bigint *cert_sig;
@@ -327,11 +327,11 @@ int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert)
 
     if (cert == NULL)
     {
-        ret = X509_VFY_ERROR_NO_TRUSTED_CERT;       
+        ret = X509_VFY_ERROR_NO_TRUSTED_CERT;
         goto end_verify;
     }
 
-    /* a self-signed certificate that is not in the CA store - use this 
+    /* a self-signed certificate that is not in the CA store - use this
        to check the signature */
     if (asn1_compare_dn(cert->ca_cert_dn, cert->cert_dn) == 0)
     {
@@ -362,7 +362,7 @@ int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert)
     /* last cert in the chain - look for a trusted cert */
     if (next_cert == NULL)
     {
-       if (ca_cert_ctx != NULL) 
+       if (ca_cert_ctx != NULL)
        {
             /* go thu the CA store */
             while (i < CONFIG_X509_MAX_CA_CERTS && ca_cert_ctx->cert[i])
@@ -382,11 +382,11 @@ int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert)
             }
         }
 
-        /* couldn't find a trusted cert (& let self-signed errors 
+        /* couldn't find a trusted cert (& let self-signed errors
            be returned) */
         if (!match_ca_cert && !is_self_signed)
         {
-            ret = X509_VFY_ERROR_NO_TRUSTED_CERT;       
+            ret = X509_VFY_ERROR_NO_TRUSTED_CERT;
             goto end_verify;
         }
     }
@@ -411,7 +411,7 @@ int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert)
     }
 
     /* check the signature */
-    cert_sig = sig_verify(ctx, cert->signature, cert->sig_len, 
+    cert_sig = sig_verify(ctx, cert->signature, cert->sig_len,
                         bi_clone(ctx, mod), bi_clone(ctx, expn));
 
     if (cert_sig && cert->digest)
@@ -446,7 +446,7 @@ end_verify:
  * Used for diagnostics.
  */
 static const char *not_part_of_cert = "<Not Part Of Certificate>";
-void x509_print(const X509_CTX *cert, CA_CERT_CTX *ca_cert_ctx) 
+void x509_print(const X509_CTX *cert, CA_CERT_CTX *ca_cert_ctx)
 {
     if (cert == NULL)
         return;

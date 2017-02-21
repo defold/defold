@@ -1,0 +1,7 @@
+mesh: "/model/treasure_chest.dae"
+material: "/builtins/materials/model.material"
+textures: "/model/book_of_defold_1024.png"
+skeleton: "/model/treasure_chest.dae"
+animations: "/model/treasure_chest.animationset"
+default_animation: ""
+name: "unnamed"

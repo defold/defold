@@ -19,7 +19,6 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
 
     waf_ddf.configure(conf)
-    conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
 
     conf.sub_config('src')
 
@@ -34,7 +33,6 @@ def configure(conf):
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
     platform = conf.env['PLATFORM']
 

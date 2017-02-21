@@ -45,7 +45,6 @@ protected:
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameSystem::LabelContext m_LabelContext;
-    dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
@@ -104,6 +103,18 @@ public:
     virtual ~WindowEventTest() {}
 };
 
+struct DrawCountParams
+{
+    const char* m_GOPath;
+    uint64_t m_ExpectedDrawCount;
+};
+
+class DrawCountTest : public GamesysTest<DrawCountParams>
+{
+public:
+    virtual ~DrawCountTest() {}
+};
+
 struct TexturePropParams
 {
     const char* go_path;
@@ -149,12 +160,6 @@ void GamesysTest<T>::SetUp()
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
 
-    // Create rig context
-    dmRig::NewContextParams rig_params;
-    rig_params.m_Context = &m_RigContext;
-    rig_params.m_MaxRigInstanceCount = 4;
-    assert(dmRig::RESULT_OK == dmRig::NewContext(rig_params));
-
     m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;
@@ -166,7 +171,6 @@ void GamesysTest<T>::SetUp()
     m_GuiContext.m_ScriptContext = m_ScriptContext;
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
-    gui_params.m_RigContext = m_RigContext;
     gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
     gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
@@ -200,7 +204,6 @@ void GamesysTest<T>::SetUp()
 
     m_SpineModelContext.m_RenderContext = m_RenderContext;
     m_SpineModelContext.m_Factory = m_Factory;
-    m_SpineModelContext.m_RigContext = m_RigContext;
     m_SpineModelContext.m_MaxSpineModelCount = 32;
 
     m_LabelContext.m_RenderContext = m_RenderContext;
@@ -208,7 +211,6 @@ void GamesysTest<T>::SetUp()
     m_LabelContext.m_Subpixels     = 0;
 
     m_ModelContext.m_RenderContext = m_RenderContext;
-    m_ModelContext.m_RigContext = m_RigContext;
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
 
@@ -221,7 +223,7 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext, &m_ModelContext, &m_LabelContext));
 
-    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 4);
 }
 
 template<typename T>
@@ -230,7 +232,6 @@ void GamesysTest<T>::TearDown()
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
-    dmRig::DeleteContext(m_RigContext);
     dmGui::DeleteContext(m_GuiContext.m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
