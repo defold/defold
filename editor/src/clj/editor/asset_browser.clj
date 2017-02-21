@@ -244,6 +244,26 @@
       (str original-basename "1")
       (str original-basename (str (inc (Integer/parseInt suffix)))))))
 
+(defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
+
+(defmethod resolve-conflicts :overwrite
+  [_ src-dest-pairs]
+  src-dest-pairs)
+
+(defmethod resolve-conflicts :rename
+  [_ src-dest-pairs]
+  (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
+
+(defn- resolve-any-conflicts
+  [src-dest-pairs]
+  (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
+        conflicts (get files-by-existence true)
+        non-conflicts (get files-by-existence false [])]
+    (if (seq conflicts)
+      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts)]
+        (into non-conflicts (resolve-conflicts strategy conflicts)))
+      non-conflicts)))
+
 (defn- select-files! [workspace tree-view files]
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
     (ui/user-data! tree-view ::pending-selection selected-paths)))
@@ -335,14 +355,15 @@
                                  project-path)
                            util/to-folder)
              rt (:resource-type user-data)]
-         (when-let [new-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
-           (spit new-file (workspace/template rt))
-           (workspace/resource-sync! workspace)
-           (let [resource-map (g/node-value workspace :resource-map)
-                 new-resource-path (resource/file->proj-path project-path new-file)
-                 resource (resource-map new-resource-path)]
-             (app-view/open-resource app-view workspace project resource)
-             (select-resource! asset-browser resource)))))
+         (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
+           (let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
+             (spit new-file (workspace/template rt))
+             (workspace/resource-sync! workspace)
+             (let [resource-map (g/node-value workspace :resource-map)
+                   new-resource-path (resource/file->proj-path project-path new-file)
+                   resource (resource-map new-resource-path)]
+               (app-view/open-resource app-view workspace project resource)
+               (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
            (when (not user-data)
              (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
@@ -478,27 +499,6 @@
                 [f (File. tgt rel-path)]))
             (filter (fn [^File f] (.isFile f)) (file-seq src))))
     [[src tgt]]))
-
-
-(defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
-
-(defmethod resolve-conflicts :overwrite
-  [_ src-dest-pairs]
-  src-dest-pairs)
-
-(defmethod resolve-conflicts :rename
-  [_ src-dest-pairs]
-  (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
-
-(defn- resolve-any-conflicts
-  [src-dest-pairs]
-  (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
-        conflicts (get files-by-existence true)
-        non-conflicts (get files-by-existence false [])]
-    (if (seq conflicts)
-      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts)]
-        (into non-conflicts (resolve-conflicts strategy conflicts)))
-      non-conflicts)))
 
 (defn- move-file
   "Moves a file to the specified target location. Any existing file at the
