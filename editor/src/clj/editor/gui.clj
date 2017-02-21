@@ -553,18 +553,23 @@
   (input gpu-texture g/Any)
 
   (output aabb-size g/Any (gu/passthrough size))
-  (output aabb g/Any :cached (g/fnk [pivot aabb-size]
+  (output aabb g/Any :cached (g/fnk [pivot aabb-size transform scene-children]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
                                           [min-x min-y _] (offset-fn [0 0 0])
-                                          [max-x max-y _] (offset-fn aabb-size)]
-                                      (-> (geom/null-aabb)
-                                        (geom/aabb-incorporate min-x min-y 0)
-                                        (geom/aabb-incorporate max-x max-y 0)))))
+                                          [max-x max-y _] (offset-fn aabb-size)
+                                          self-aabb (-> (geom/null-aabb)
+                                                        (geom/aabb-incorporate min-x min-y 0)
+                                                        (geom/aabb-incorporate max-x max-y 0)
+                                                        (geom/aabb-transform transform))]
+                                      (transduce (comp (keep :aabb)
+                                                       (map #(geom/aabb-transform % transform)))
+                                                 geom/aabb-union self-aabb scene-children))))
   (output scene-renderable-user-data g/Any :abstract)
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data]
+          (g/fnk [_node-id layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data aabb]
             (let [gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))]
               {:render-fn render-nodes
+               :aabb aabb
                :passes [pass/transparent pass/selection pass/outline]
                :user-data (assoc scene-renderable-user-data
                                  :gpu-texture gpu-texture
@@ -866,7 +871,7 @@
                                                               (:tx-data override)
                                                               (for [[from to] [[:node-ids :node-ids]
                                                                                [:node-outline :template-outline]
-                                                                               [:scene :template-scene]
+                                                                               [:template-scene :template-scene]
                                                                                [:build-targets :template-build-targets]
                                                                                [:resource :template-resource]
                                                                                [:pb-msg :scene-pb-msg]
@@ -929,7 +934,8 @@
                                                                     (filter (fn [[_ v]] (contains? v :original-value))
                                                                             (:properties _properties))))}
                                                 (merge template-overrides))))
-  (output aabb g/Any (g/fnk [template-scene] (:aabb template-scene (geom/null-aabb))))
+  (output aabb g/Any (g/fnk [template-scene transform]
+                       (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
   (output scene-children g/Any (g/fnk [template-scene] (:children template-scene [])))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
@@ -1574,6 +1580,8 @@
   (output child-scenes g/Any :cached (g/fnk [default-scene layout-scenes current-layout]
                                             [(get layout-scenes current-layout default-scene)]))
   (output scene g/Any :cached produce-scene)
+  (output template-scene g/Any :cached (g/fnk [scene child-scenes]
+                                         (assoc scene :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes)))))
   (output scene-dims g/Any :cached (g/fnk [project-settings current-layout display-profiles]
                                           (or (some #(and (= current-layout (:name %)) (first (:qualifiers %))) display-profiles)
                                               (let [w (get project-settings ["display" "width"])

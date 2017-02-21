@@ -13,19 +13,16 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
-            [editor.texture :as tex]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.pipeline :as pipeline]
-            [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
-            [editor.graph-util :as gu]
-            [editor.image :as image])
+            [editor.graph-util :as gu])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -403,7 +400,11 @@
   (input child-scenes g/Any :array)
 
   (output images           [Image]             :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
-  (output aabb             AABB                (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
+  (output aabb             AABB                (g/fnk [texture-set-data]
+                                                 (if (zero? (get-in texture-set-data [:texture-set :tile-count]))
+                                                   (geom/null-aabb)
+                                                   (let [^BufferedImage img (:image texture-set-data)]
+                                                     (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0))))))
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output packed-image     BufferedImage       (g/fnk [texture-set-data] (:image texture-set-data)))

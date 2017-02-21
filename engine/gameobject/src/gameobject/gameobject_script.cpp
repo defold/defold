@@ -963,10 +963,11 @@ namespace dmGameObject
     }
 
     /*# gets the id of an instance
-     * The instance id is a hash of the absolute path.
+     * Returns or constructs a game object instance identifier. The instance id is a hash
+     * of the absolute path to the instance.
      *
      * - If `path` is specified, it can either be absolute or relative to the instance of the calling script.
-     * - If `path` is not specified, the id of the instance of the calling script will be returned. See the examples below for more information.
+     * - If `path` is not specified, the id of the instance the script is attached to will be returned.
      *
      * @name go.get_id
      * @param [path] [type:string] path of the instance for which to return the id
@@ -976,15 +977,14 @@ namespace dmGameObject
      * For the instance with path `/my_sub_collection/my_instance`, the following calls are equivalent:
      *
      * ```lua
-     * local id = go.get_id() -- no path, defaults to the instance of the calling script
+     * local id = go.get_id() -- no path, defaults to the instance containing the calling script
+     * print(id) --> hash: [/my_sub_collection/my_instance]
+     *
      * local id = go.get_id("/my_sub_collection/my_instance") -- absolute path
-     * ```
+     * print(id) --> hash: [/my_sub_collection/my_instance]
      *
-     * From a script in another instance in the same collection, i.e. path `/my_sub_collection/my_other_instance`, the id of the first instance can be retrieved in two ways:
-     *
-     * ```lua
      * local id = go.get_id("my_instance") -- relative path
-     * local id = go.get_id("/my_sub_collection/my_instance") -- absolute path
+     * print(id) --> hash: [/my_sub_collection/my_instance]
      * ```
      */
     int Script_GetId(lua_State* L)
@@ -1460,7 +1460,7 @@ namespace dmGameObject
      * Note that you can only use this function outside any callback-functions like init and update.
      *
      * @name go.property
-     * @param property [type:string] the id of the property
+     * @param name [type:string] the id of the property
      * @param value [type:number|hash|url|vector3|vector4|quaternion] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed
      * @examples
      *

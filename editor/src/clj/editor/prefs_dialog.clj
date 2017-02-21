@@ -83,27 +83,22 @@
             {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}]}
    {:name  "Scene"
     :prefs [{:label "Selection Color" :type :color :key "scene-selection-color" :default (Color/web "#00ff00ff")}
-            {:label "Top Background Color" :type :color :key "scene-top-backgroundcolor" :default (Color/web "#ff0000ff")}
-            {:label "Bottom Background Color" :type :color :key "scene-bottom-backgroundcolor" :default (Color/web "#0000ffff")}
             {:label "Grid" :type :choicebox :key "scene-grid-type" :default :auto :options [[:auto "Auto"] [:manual "Manual"]]}
             {:label "Grid Size" :type :long :key "scene-grid-size" :default 100}
-            {:label "Grid Color" :type :color :key "scene-grid-color" :default (Color/web "#999999ff")}
-            {:label "Mouse Type" :type :choicebox :key "scene-mouse-type" :default :one-button :options [[:one-button "One Button"] [:three "Three Buttons"]]}]}
+            {:label "Grid Color" :type :color :key "scene-grid-color" :default (Color/web "#999999ff")}]}
    {:name  "Extensions"
     :prefs [{:label "Enable Extensions" :type :boolean :key "enable-extensions" :default false}
             {:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}])
 
 (defn open-prefs [prefs]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)]
 
     (doseq [p (pref-pages)]
       (add-page! prefs root p))
 
-    (.initOwner stage (ui/main-stage))
     (ui/title! stage "Preferences")
-    (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED

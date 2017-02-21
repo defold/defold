@@ -15,6 +15,8 @@
 
 using namespace Vectormath::Aos;
 
+uint64_t g_DrawCount = 0;
+
 namespace dmGraphics
 {
     uint16_t TYPE_SIZE[] =
@@ -231,6 +233,8 @@ namespace dmGraphics
                 CloseWindow(context);
             }
         }
+
+        g_DrawCount = 0;
     }
 
     void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
@@ -503,11 +507,19 @@ namespace dmGraphics
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
             }
         }
+
+        g_DrawCount++;
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         assert(context);
+        g_DrawCount++;
+    }
+
+    uint64_t GetDrawCount()
+    {
+        return g_DrawCount;
     }
 
     struct VertexProgram
