@@ -23,22 +23,29 @@ public class PublisherSettings {
     private boolean validInput(String val) {
         return val != null && val.length() > 0;
     }
-
-    public void setValue(String group, String key, String value) {
-        if (validInput(group) && validInput(key)) {
-            if (validInput(value)) {
-                if (!this.properties.containsKey(group)) {
-                    this.properties.put(group, new LinkedHashMap<String, String>());
-                }
-
-                this.properties.get(group).put(key.toLowerCase().trim(), value.trim());
-            } else {
-                this.removeValue(group, key);
-            }
-        }
+    
+    protected void setValue(String group, String key, String value) {
+    	if (group != null && group.length() > 0) {
+    		if (key != null && key.length() > 0) {
+    			if (value != null && value.length() > 0) {
+    				if (!this.properties.containsKey(group)) {
+    					this.properties.put(group, new LinkedHashMap<String, String>());
+    				}
+    				
+    				this.properties.get(group).put(key.toLowerCase(), value.trim());
+    			} else {
+    				if (this.properties.containsKey(group)) {
+    					this.properties.get(group).remove(key);
+    					if (this.properties.get(group).size() == 0) {
+    						this.properties.remove(group);
+    					}
+    				}
+    			}
+    		}
+    	}
     }
 
-    public String getValue(String group, String key) {
+    protected String getValue(String group, String key) {
         if (validInput(group) && validInput(key)) {
             if (this.properties.containsKey(group)) {
                 if (this.properties.get(group).containsKey(key)) {
@@ -50,41 +57,43 @@ public class PublisherSettings {
         return null;
     }
 
-    public void removeValue(String group, String key) {
-        if (validInput(group) && validInput(key)) {
-            if (this.properties.containsKey(group)) {
-                if (this.properties.get(group).containsKey(key)) {
-                    this.properties.get(group).remove(key);
-                }
-            }
-        }
+    public void setMode(PublishMode value) {
+    	this.setValue("liveupdate", "mode", value.toString());
     }
-
+    
     public PublishMode getMode() {
         String value = this.getValue("liveupdate", "mode");
-        if (value != null) {
-            return PublishMode.valueOf(value);
-        }
-
-        return null;
+        return value != null ? PublishMode.valueOf(value) : null;
+    }
+    
+    public void setAmazonCredentialProfile(String value) {
+    	this.setValue("liveupdate", "amazon-credential-profile", value);
     }
 
-    public String getAwsAccessKey() {
-        return this.getValue("liveupdate", "aws-access-key");
+    public String getAmazonCredentialProfile() {
+    	return this.getValue("liveupdate", "amazon-credential-profile");
+    }
+    
+    public void setAmazonBucket(String value) {
+    	this.setValue("liveupdate", "amazon-bucket", value);
+    }
+    
+    public String getAmazonBucket() {
+        return this.getValue("liveupdate", "amazon-bucket");
     }
 
-    public String getAwsSecretKey() {
-        return this.getValue("liveupdate", "aws-secret-key");
+    public void setAmazonPrefix(String value) {
+    	this.setValue("liveupdate", "amazon-prefix", value);
+    }
+    
+    public String getAmazonPrefix() {
+        return this.getValue("liveupdate", "amazon-prefix");
     }
 
-    public String getAwsBucket() {
-        return this.getValue("liveupdate", "aws-bucket");
+    public void setZipFilepath(String value) {
+    	this.setValue("liveupdate", "zip-filepath", value);
     }
-
-    public String getAwsPrefix() {
-        return this.getValue("liveupdate", "aws-prefix");
-    }
-
+    
     public String getZipFilepath() {
         return this.getValue("liveupdate", "zip-filepath");
     }

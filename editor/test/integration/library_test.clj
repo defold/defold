@@ -7,7 +7,8 @@
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [editor.progress :as progress]
-            [editor.game-project-core :as gpc]
+            [editor.settings-core :as settings-core]
+            [editor.game-project :as game-project]
             [editor.gui :as gui]
             [integration.test-util :as test-util]
             [service.log :as log])
@@ -97,14 +98,12 @@
           (is (every? (fn [state] (= (:tag state) "tag")) (filter :file states))))))))
 
 (defn- write-deps! [game-project deps]
-  (let [settings (-> (slurp game-project)
-                   gpc/string-reader
-                   gpc/parse-settings)]
-    (spit-until-new-mtime game-project (->
-                                         settings
-                                         (gpc/set-setting ["project" "dependencies"] deps)
-                                         gpc/settings-with-value
-                                         gpc/settings->str))))
+  (let [settings (with-open [game-project-reader (io/reader game-project)]
+                   (settings-core/parse-settings game-project-reader))]
+    (spit-until-new-mtime game-project (-> settings
+                                         (settings-core/set-setting ["project" "dependencies"] deps)
+                                         settings-core/settings-with-value
+                                         settings-core/settings->str))))
 
 (deftest open-project
   (with-clean-system
@@ -135,9 +134,8 @@
           game-project (project/get-resource-node project "/game.project")]
       ;; make sure we don't have library file to begin with
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
-
       ;; add dependency, fetch libraries, we should now have library file
-      (g/update-property! game-project :raw-settings gpc/set-setting ["project" "dependencies"] url)
+      (game-project/set-setting! game-project ["project" "dependencies"] url)
       (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
 
@@ -151,6 +149,6 @@
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
 
       ;; add dependency, fetch libraries, we should now have library file
-      (g/update-property! game-project :raw-settings gpc/set-setting ["project" "dependencies"] url)
+      (game-project/set-setting! game-project ["project" "dependencies"] url)
       (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))

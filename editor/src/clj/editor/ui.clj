@@ -33,7 +33,7 @@
    [javafx.scene.image Image]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-   [javafx.stage Stage Modality Window]
+   [javafx.stage Stage Modality Window StageStyle]
    [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
@@ -66,11 +66,6 @@
 (def application-icon-image (with-open [in (io/input-stream (io/resource "logo_blue.png"))]
                               (Image. in)))
 
-(defn make-stage
-  ^Stage []
-  (doto (Stage.)
-    (.. getIcons (add application-icon-image))))
-
 ; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
@@ -83,6 +78,36 @@
 
 (defn ^Node main-root []
   (.. (main-scene) (getRoot)))
+
+(defn make-stage
+  ^Stage []
+  (let [stage (Stage.)]
+    ;; We don't want icons in the title bar on macOS. The application bundle
+    ;; provides the .app icon when bundling and child windows are rendered
+    ;; as miniatures when minimized, so there is no need to assign an icon
+    ;; to each window on macOS unless we want the icon in the title bar.
+    (when-not (eutil/is-mac-os?)
+      (.. stage getIcons (add application-icon-image)))
+    stage))
+
+(defn make-dialog-stage
+  (^Stage []
+   ;; If a main stage exists, try to make our dialog stage window-modal to it.
+   ;; Otherwise fall back on an application-modal dialog. This is not preferred
+   ;; on macOS as maximizing an ownerless window will enter full-screen mode.
+   ;; TODO: Find a way to block application-modal dialogs from full-screen mode.
+   (if-let [owner (main-stage)]
+     (make-dialog-stage owner)
+     (doto (make-stage)
+       (.initStyle StageStyle/DECORATED)
+       (.initModality Modality/APPLICATION_MODAL)
+       (.setResizable false))))
+  (^Stage [^Window owner]
+   (doto (make-stage)
+     (.initStyle StageStyle/DECORATED)
+     (.initModality Modality/WINDOW_MODAL)
+     (.initOwner owner)
+     (.setResizable false))))
 
 (defn choose-file [title ^String ext-descr exts]
   (let [chooser (FileChooser.)
@@ -106,7 +131,7 @@
                   (filter (fn [[k v]] (when (nil? v) k)))
                   (map first))]
     (when (seq missing)
-      (throw (Exception. (format "controls %s are missing" missing))))
+      (throw (Exception. (format "controls %s are missing" (string/join ", " (map (comp str name) missing))))))
     controls))
 
 (defmacro with-controls [parent child-syms & body]
@@ -334,9 +359,9 @@
 
 (defn ^Parent load-fxml [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))
-        css (io/file "editor.css")]
-    (when (and (.exists css) (seq (.getStylesheets root)))
-      (.setAll (.getStylesheets root) ^java.util.Collection (vec [(str (.toURI css))])))
+        css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
+    (when (.exists css)
+      (.. root getStylesheets (add (str (.toURI css)))))
     root))
 
 (extend-type Window
@@ -821,19 +846,15 @@
                                          (handler/run handler-ctx)))))))))))))
 
 (defn- make-menu-items [^Scene scene menu command-contexts]
-  (let [menu-items (->> menu
-                        (map (fn [item] (make-menu-item scene item command-contexts)))
-                        (remove nil?))]
-    (when-let [head (first menu-items)]
-      (add-style! head "first-menu-item"))
-    (when-let [tail (last menu-items)]
-      (add-style! tail "last-menu-item"))
-    menu-items))
+  (keep (fn [item] (make-menu-item scene item command-contexts)) menu))
 
 (defn- ^ContextMenu make-context-menu [menu-items]
   (let [^ContextMenu context-menu (ContextMenu.)]
     (.addAll (.getItems context-menu) (to-array menu-items))
     context-menu))
+
+(declare refresh-separator-visibility)
+(declare refresh-menu-item-styles)
 
 (defn register-context-menu [^Control control menu-id]
   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
@@ -841,6 +862,9 @@
                    (when-not (.isConsumed event)
                      (let [^Scene scene (.getScene control)
                            cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false)))]
+                       (doto (.getItems cm)
+                         (refresh-separator-visibility)
+                         (refresh-menu-item-styles))
                        ;; Required for autohide to work when the event originates from the anchor/source control
                        ;; See RT-15160 and Control.java
                        (.setImpl_showRelativeToWindow cm true)
@@ -850,6 +874,7 @@
 (defn register-tab-context-menu [^Tab tab menu-id]
   (let [^Scene scene (.getScene (.getTabPane tab))
         cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene)))]
+    (refresh-menu-item-styles (.getItems cm))
     (.setImpl_showRelativeToWindow cm true)
     (.setContextMenu tab cm)))
 
@@ -964,39 +989,96 @@
      (user-data! control ::menu menu)
      (user-data! control ::command-contexts command-contexts))))
 
-(defn- refresh-menu-state [^Menu menu command-contexts]
-  (when (not (.isShowing menu))
-    (doseq [m (.getItems menu)]
-      (cond
-        (instance? Menu m)
-        (refresh-menu-state m command-contexts)
+(defn- refresh-separator-visibility [menu-items]
+  (loop [menu-items menu-items
+         ^MenuItem last-visible-non-separator-item nil
+         ^MenuItem pending-separator nil]
+    (when-let [^MenuItem child (first menu-items)]
+      (if (.isVisible child)
+        (condp instance? child
+          Menu
+          (do
+            (refresh-separator-visibility (.getItems ^Menu child))
+            (some-> pending-separator (.setVisible true))
+            (recur (rest menu-items)
+                   child
+                   nil))
 
-        (instance? CheckMenuItem m)
-        (let [m         ^CheckMenuItem m
-              command   (keyword (.getId ^MenuItem m))
-              user-data (user-data m ::menu-user-data)
-              handler-ctx (handler/active command command-contexts user-data)]
-          (doto m
-            (.setDisable (not (handler/enabled? handler-ctx)))
-            (.setSelected (boolean (handler/state handler-ctx)))))
+          SeparatorMenuItem
+          (do
+            (.setVisible child false)
+            (recur (rest menu-items)
+                   last-visible-non-separator-item
+                   (when last-visible-non-separator-item child)))
 
-        (instance? MenuItem m)
-        (let [m ^MenuItem m]
-          (.setDisable m (not (-> (handler/active (keyword (.getId m))
-                                                  command-contexts
-                                                  (user-data m ::menu-user-data))
-                                handler/enabled?))))))))
+          MenuItem
+          (do
+            (some-> pending-separator (.setVisible true))
+            (recur (rest menu-items)
+                   child
+                   nil)))
+        (recur (rest menu-items)
+               last-visible-non-separator-item
+               pending-separator)))))
 
+(defn- refresh-menu-item-state [^MenuItem menu-item command-contexts]
+  (condp instance? menu-item
+    Menu
+    (let [^Menu menu menu-item]
+      (when-not (.isShowing menu)
+        (let [child-menu-items (seq (.getItems menu))]
+          (doseq [child-menu-item child-menu-items]
+            (refresh-menu-item-state child-menu-item command-contexts))
+          (let [visible (boolean (some #(and (not (instance? SeparatorMenuItem %)) (.isVisible ^MenuItem %)) child-menu-items))]
+            (.setVisible menu visible)))))
+
+    CheckMenuItem
+    (let [^CheckMenuItem check-menu-item menu-item
+          command (keyword (.getId check-menu-item))
+          user-data (user-data check-menu-item ::menu-user-data)
+          handler-ctx (handler/active command command-contexts user-data)]
+      (doto check-menu-item
+        (.setDisable (not (handler/enabled? handler-ctx)))
+        (.setSelected (boolean (handler/state handler-ctx)))))
+
+    MenuItem
+    (.setDisable menu-item (not (-> (handler/active (keyword (.getId menu-item)) command-contexts (user-data menu-item ::menu-user-data))
+                                    handler/enabled?)))))
+
+(defn- refresh-menu-item-styles [menu-items]
+  (let [visible-menu-items (filter #(.isVisible ^MenuItem %) menu-items)]
+    (some-> (first visible-menu-items) (add-style! "first-menu-item"))
+    (doseq [middle-item (rest (butlast visible-menu-items))]
+      (remove-styles! middle-item ["first-menu-item" "last-menu-item"]))
+    (some-> (last visible-menu-items) (add-style! "last-menu-item"))
+    (doseq [^Menu menu (filter #(instance? Menu %) visible-menu-items)]
+      (refresh-menu-item-styles (.getItems menu)))))
+            
 (defn- refresh-menubar-state [^MenuBar menubar command-contexts]
-  (doseq [m (.getMenus menubar)]
-    (refresh-menu-state m command-contexts)))
+  (doseq [^Menu m (.getMenus menubar)]
+    (refresh-menu-item-state m command-contexts)
+    ;; The system menu bar on osx seems to handle consecutive
+    ;; separators and using .setVisible to hide a SeparatorMenuItem
+    ;; makes the entire containing submenu appear empty.
+    (when-not (and (eutil/is-mac-os?)
+                   (.isUseSystemMenuBar menubar))
+      (refresh-separator-visibility (.getItems m)))
+    (refresh-menu-item-styles (.getItems m))))
 
-(defn register-toolbar [^Scene scene toolbar-id menu-id ]
+(defn register-toolbar [^Scene scene ^Node context-node toolbar-id menu-id]
   (let [root (.getRoot scene)]
-    (if-let [toolbar (.lookup root toolbar-id)]
+    (if-let [toolbar (.lookup context-node toolbar-id)]
       (let [desc (make-desc toolbar menu-id)]
-        (user-data! root ::toolbars (assoc-in (user-data root ::toolbars) [toolbar-id] desc)))
+        (user-data! root ::toolbars (assoc (user-data root ::toolbars) [context-node toolbar-id] desc)))
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
+
+(defn unregister-toolbar [^Scene scene ^Node context-node toolbar-id]
+  (let [root (.getRoot scene)]
+    (if (some? (.lookup context-node toolbar-id))
+      (user-data! root ::toolbars (dissoc (user-data root ::toolbars) [context-node toolbar-id]))
+      (log/warn :message (format "toolbar %s not found" toolbar-id)))))
+
+(declare refresh)
 
 (defn- refresh-toolbar [td command-contexts]
  (let [menu (menu/realize-menu (:menu-id td))
@@ -1025,26 +1107,30 @@
                                                                              (toString [v] (:label v)))))]
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
-                                                                                    (let [command-contexts (contexts (.getScene control))]
+                                                                                    (let [scene (.getScene control)
+                                                                                          command-contexts (contexts scene)]
                                                                                       (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
                                                                                         (when (handler/enabled? handler-ctx)
-                                                                                          (handler/run handler-ctx)))))))
+                                                                                          (handler/run handler-ctx)
+                                                                                          (refresh scene)))))))
                                                    (doseq [opt opts]
                                                      (.add (.getItems cb) opt))
-                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 22.5))
+                                                   (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
                                                        icon (:icon menu-item)
                                                        selection-provider (:selection-provider td)]
                                                    (when icon
-                                                     (.setGraphic button (jfx/get-image-view icon 22.5)))
+                                                     (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
-                                                                          (let [command-contexts (contexts (.getScene control))]
+                                                                          (let [scene (.getScene control)
+                                                                                command-contexts (contexts scene)]
                                                                             (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                                                               (when (handler/enabled? handler-ctx)
-                                                                                (handler/run handler-ctx)))))))
+                                                                                (handler/run handler-ctx)
+                                                                                (refresh scene)))))))
                                                    button)))]
                           (when command
                             (.setId child (name command)))
@@ -1082,31 +1168,28 @@
               (when (not= item state)
                 (.select selection-model state)))))))))
 
-(defn refresh
-  ([^Scene scene] (refresh scene (contexts scene)))
-  ([^Scene scene command-contexts]
-   (let [root (.getRoot scene)
-         toolbar-descs (vals (user-data root ::toolbars))]
-     (when-let [md (user-data root ::menubar)]
-       (refresh-menubar md command-contexts)
-       (refresh-menubar-state (:control md) command-contexts))
-     (doseq [td toolbar-descs]
-       (refresh-toolbar td command-contexts)
-       (refresh-toolbar-state (:control td) command-contexts)))))
+(defn refresh [^Scene scene]
+  (let [root (.getRoot scene)
+        command-contexts (contexts scene)]
+    (when-let [md (user-data root ::menubar)]
+      (refresh-menubar md command-contexts)
+      (refresh-menubar-state (:control md) command-contexts))
+    (doseq [td (vals (user-data root ::toolbars))]
+      (refresh-toolbar td command-contexts)
+      (refresh-toolbar-state (:control td) command-contexts))))
 
 (defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
   (let [pctg (progress/percentage progress)]
-    (.setProgress bar (if (nil? pctg) -1.0 (double pctg)))
+    (when bar
+      (.setProgress bar (if (nil? pctg) -1.0 (double pctg))))
     (when label
       (.setText label (progress/description progress)))))
 
 (defn- update-progress!
   [progress]
-  (let [root  (.. (main-stage) (getScene) (getRoot))
-         tb    (.lookup root "#toolbar-status")
-         bar   (.lookup tb ".progress-bar")
-         label (.lookup tb ".label")]
-    (update-progress-controls! progress bar label)))
+  (let [root (.. (main-stage) (getScene) (getRoot))
+        label (.lookup root "#progress-status-label")]
+    (update-progress-controls! progress nil label)))
 
 (defn default-render-progress! [progress]
   (run-later (update-progress! progress)))
@@ -1128,7 +1211,7 @@
 (defn modal-progress [title total-work worker-fn]
   (run-now
    (let [root             ^Parent (load-fxml "progress.fxml")
-         stage            (make-stage)
+         stage            (make-dialog-stage (main-stage))
          scene            (Scene. root)
          title-control    ^Label (.lookup root "#title")
          progress-control ^ProgressBar (.lookup root "#progress")
@@ -1139,8 +1222,6 @@
                              (update-progress-controls! progress progress-control message-control)))]
       (.setText title-control title)
       (.setProgress progress-control 0)
-      (.initOwner stage @*main-stage*)
-      (.initModality stage Modality/WINDOW_MODAL)
       (.setScene stage scene)
       (future
         (try
@@ -1185,10 +1266,6 @@
        ~@body
        (finally
          (run-now (enable-ui focus-owner#))))))
-
-(defn mouse-type
-  []
-  :one-button)
 
 (defn- on-ui-thread?
   []
@@ -1368,3 +1445,11 @@ command."
 (defn browse-url
   [url]
   (.browse (Desktop/getDesktop) (URI. url)))
+
+(defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
+  (let [scene (-> tab .getTabPane .getScene)
+        context-node (.getContent tab)]
+    (when (.lookup context-node toolbar-css-selector)
+      (register-toolbar scene context-node toolbar-css-selector menu-id)
+      (on-closed! tab (fn [_event]
+                        (unregister-toolbar scene context-node toolbar-css-selector))))))

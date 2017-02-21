@@ -2,36 +2,54 @@ package com.dynamo.cr.server.resources.mappers;
 
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.server.clients.magazine.MagazineClient;
-import com.dynamo.cr.server.model.AppStoreReference;
-import com.dynamo.cr.server.model.Project;
-import com.dynamo.cr.server.model.ProjectSite;
-import com.dynamo.cr.server.model.Screenshot;
+import com.dynamo.cr.server.model.*;
 
 import java.util.List;
 import java.util.Set;
 
 public class ProjectSiteMapper {
 
-    public static Protocol.ProjectSiteList map(List<Project> projects, MagazineClient magazineClient) {
+    public static Protocol.ProjectSiteList map(User user, List<Project> projects, MagazineClient magazineClient) {
         Protocol.ProjectSiteList.Builder builder = Protocol.ProjectSiteList.newBuilder();
 
         for (Project project : projects) {
-            builder.addSites(map(project, magazineClient));
+            builder.addSites(map(user, project, magazineClient));
         }
 
         return builder.build();
     }
 
-    public static Protocol.ProjectSite map(Project project, MagazineClient magazineClient) {
+    public static Protocol.ProjectSite map(User user, Project project, MagazineClient magazineClient) {
         Protocol.ProjectSite.Builder builder = Protocol.ProjectSite.newBuilder();
 
-        // TODO: Keep track of if a playable has been uploaded?
-        builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable") + "/index.html");
+        builder.setProjectId(project.getId());
+
+        if (user != null) {
+            boolean isProjectMember = project.getMembers().stream().anyMatch(member -> member.getEmail().equals(user.getEmail()));
+            builder.setIsAdmin(isProjectMember);
+        } else {
+            builder.setIsAdmin(false);
+        }
+
+        for (User member : project.getMembers()) {
+            Protocol.UserInfo.Builder userInfoBuilder = Protocol.UserInfo.newBuilder();
+            userInfoBuilder.setId(member.getId());
+            userInfoBuilder.setEmail(""); // Don't expose user e-mail on public sites.
+            userInfoBuilder.setFirstName(member.getFirstName());
+            userInfoBuilder.setLastName(member.getLastName());
+            builder.addMembers(userInfoBuilder.build());
+        }
 
         if (project.getProjectSite() != null) {
             ProjectSite projectSite = project.getProjectSite();
 
-            builder.setProjectId(project.getId());
+            if (projectSite.isPlayableUploaded()) {
+                builder.setPlayableUrl(magazineClient.createReadUrl("/projects/" + project.getId() + "/playable/index.html"));
+            }
+
+            if (projectSite.getPlayableImageUrl() != null) {
+                builder.setPlayableImageUrl(magazineClient.createReadUrl(projectSite.getPlayableImageUrl()));
+            }
 
             if (projectSite.getName() != null) {
                 builder.setName(projectSite.getName());
@@ -50,11 +68,11 @@ public class ProjectSiteMapper {
             }
 
             if (projectSite.getCoverImageUrl() != null) {
-                builder.setCoverImageUrl(projectSite.getCoverImageUrl());
+                builder.setCoverImageUrl(magazineClient.createReadUrl(projectSite.getCoverImageUrl()));
             }
 
             if (projectSite.getStoreFrontImageUrl() != null) {
-                builder.setStoreFrontImageUrl(projectSite.getStoreFrontImageUrl());
+                builder.setStoreFrontImageUrl(magazineClient.createReadUrl(projectSite.getStoreFrontImageUrl()));
             }
 
             if (projectSite.getDevLogUrl() != null) {
@@ -81,7 +99,13 @@ public class ProjectSiteMapper {
                 for (Screenshot screenShot : screenShots) {
                     Protocol.ProjectSite.Screenshot.Builder screenShotBuilder = Protocol.ProjectSite.Screenshot.newBuilder();
                     screenShotBuilder.setId(screenShot.getId());
-                    screenShotBuilder.setUrl(screenShot.getUrl());
+
+                    if (screenShot.getMediaType() == Screenshot.MediaType.IMAGE) {
+                        // Sign URL for images hosted by Magazine
+                        screenShotBuilder.setUrl(magazineClient.createReadUrl(screenShot.getUrl()));
+                    } else {
+                        screenShotBuilder.setUrl(screenShot.getUrl());
+                    }
                     screenShotBuilder.setMediaType(Protocol.ScreenshotMediaType.valueOf(screenShot.getMediaType().name()));
                     builder.addScreenshots(screenShotBuilder.build());
                 }

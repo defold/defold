@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.interfaces.RSAPrivateKey;
 import java.time.Duration;
 import java.time.Instant;
@@ -36,11 +37,15 @@ public class MagazineClient {
             return;
         }
 
-        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
-
         InputStream inputStream = Files.newInputStream(path);
+        String filename = path.getFileName().toString();
 
-        StreamDataBodyPart streamDataBodyPart = new StreamDataBodyPart("file", inputStream, path.getFileName().toString());
+        put(token, relativePath, inputStream, filename);
+    }
+
+    public void put(String token, String relativePath, InputStream inputStream, String filename) {
+        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
+        StreamDataBodyPart streamDataBodyPart = new StreamDataBodyPart("file", inputStream, filename);
         multiPart.bodyPart(streamDataBodyPart);
 
         client.resource(magazineServiceUrl)
@@ -55,7 +60,17 @@ public class MagazineClient {
     }
 
     public String createReadUrl(String resource) {
-        String jwt = jwtFactory.create("", Instant.now().plus(READ_EXPIRATION), resource, false);
-        return magazineServiceUrl + "/" + jwt;
+        String fileName = Paths.get(resource).getFileName().toString();
+        String path = Paths.get(resource).getParent().toString();
+        String jwt = jwtFactory.create("", Instant.now().plus(READ_EXPIRATION), path, false);
+        return magazineServiceUrl + "/" + jwt + "/" + fileName;
+    }
+
+    public void delete(String userEmail, String resource) {
+        String writeToken = createWriteToken(userEmail, resource);
+
+        client.resource(magazineServiceUrl)
+                .path(writeToken)
+                .delete();
     }
 }

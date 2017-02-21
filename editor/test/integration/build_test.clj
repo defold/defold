@@ -5,6 +5,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
+            [editor.game-project :as game-project]
             [editor.defold-project :as project]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
@@ -54,12 +55,32 @@
                        :path path})))
     (protobuf/bytes->map pb-class (get targets path))))
 
+(defn- approx? [as bs]
+  (every? #(< % 0.00001)
+          (map #(Math/abs (- %1 %2))
+               as bs)))
+
 (def pb-cases {"/game.project"
                [{:label    "ParticleFX"
                  :path     "/main/blob.particlefx"
                  :pb-class Particle$ParticleFX
                  :test-fn  (fn [pb targets]
                              (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
+                {:label    "ParticleFX with complex setup"
+                 :path     "/main/tail.particlefx"
+                 :pb-class Particle$ParticleFX
+                 :test-fn  (fn [pb targets]
+                             (let [emitter (-> pb :emitters first)]
+                               (is (= :size-mode-auto (:size-mode emitter)))
+                               (is (not-empty (:properties emitter)))
+                               (is (not-empty (:particle-properties emitter)))
+                               (is (true? (every? (comp :points not-empty) (:properties emitter))))
+                               (is (true? (every? (comp :points not-empty) (:particle-properties emitter))))
+                               (let [modifier (-> emitter :modifiers first)]
+                                 (is (not-empty (:properties modifier)))
+                                 (is (true? (every? (comp :points not-empty) (:properties modifier))))
+                                 (is (approx? [-20.0 10.0 -30.0] (:position modifier)))
+                                 (is (approx? [0.0 0.0 -0.70710677 0.70710677] (:rotation modifier))))))}
                 {:label           "Sound"
                  :path            "/main/sound.sound"
                  :pb-class        Sound$SoundDesc
@@ -555,12 +576,12 @@
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
   (let [path-list (string/split path #"/")]
-    `(let [initial-settings# (g/node-value ~'game-project :raw-settings)]
-           (g/transact (g/update-property ~'game-project :raw-settings conj {:path ~path-list :value ~value}))
+    `(let [old-value# (game-project/get-setting ~'game-project ~path-list)]
+       (game-project/set-setting! ~'game-project ~path-list ~value)
            (try
              ~@body
              (finally
-               (g/set-property ~'game-project :raw-settings initial-settings#))))))
+               (game-project/set-setting! ~'game-project ~path-list old-value#))))))
 
 (defn- check-file-contents [workspace specs]
   (doseq [[path content] specs]

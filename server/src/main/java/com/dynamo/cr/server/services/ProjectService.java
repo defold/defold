@@ -6,22 +6,32 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.clients.magazine.MagazineClient;
 import com.dynamo.cr.server.model.*;
 import com.dynamo.inject.persist.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
+import javax.ws.rs.core.Response;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.*;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class ProjectService {
+    private static Logger LOGGER = LoggerFactory.getLogger(ProjectService.class);
+
     @Inject
     private EntityManager entityManager;
 
     @Inject
     private Config.Configuration configuration;
+
+    @Inject
+    private UserService userService;
 
     private MagazineClient magazineClient;
 
@@ -41,6 +51,22 @@ public class ProjectService {
                 .createQuery("select p from Project p where :user member of p.members", Project.class)
                 .setParameter("user", user)
                 .getResultList();
+    }
+
+    @Transactional
+    public void addMember(Long projectId, User user, String newMemberEmail) {
+
+        Project project = find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId), Response.Status.NOT_FOUND));
+
+        User member = userService.findByEmail(newMemberEmail)
+                .orElseThrow(() -> new ServerException("User not found", Response.Status.NOT_FOUND));
+
+        // Connect new member to owner (used in e.g. auto-completion)
+        user.getConnections().add(member);
+
+        project.getMembers().add(member);
+        member.getProjects().add(project);
     }
 
     @Transactional
@@ -65,14 +91,21 @@ public class ProjectService {
     }
 
     @Transactional
-    public void deleteScreenshot(Long projectId, Long id) {
+    public void deleteScreenshot(User user, Long projectId, Long id) throws Exception {
         ProjectSite projectSite = getProjectSite(projectId);
 
         Optional<Screenshot> any = projectSite.getScreenshots().stream()
                 .filter(screenshot -> screenshot.getId().equals(id))
                 .findAny();
 
-        any.ifPresent(screenshot -> projectSite.getScreenshots().remove(screenshot));
+        any.ifPresent(screenshot -> {
+            projectSite.getScreenshots().remove(screenshot);
+            try {
+                getMagazineClient().delete(user.getEmail(), any.get().getUrl());
+            } catch (Exception e) {
+                LOGGER.warn("Failed to delete screenshot from Magazine service.", e);
+            }
+        });
     }
 
     private ProjectSite getProjectSite(Long projectId) {
@@ -108,14 +141,6 @@ public class ProjectService {
             existingProjectSite.setStudioUrl(projectSite.getStudioUrl());
         }
 
-        if (projectSite.hasCoverImageUrl()) {
-            existingProjectSite.setCoverImageUrl(projectSite.getCoverImageUrl());
-        }
-
-        if (projectSite.hasStoreFrontImageUrl()) {
-            existingProjectSite.setStoreFrontImageUrl(projectSite.getStoreFrontImageUrl());
-        }
-
         if (projectSite.hasDevLogUrl()) {
             existingProjectSite.setDevLogUrl(projectSite.getDevLogUrl());
         }
@@ -125,6 +150,7 @@ public class ProjectService {
         }
     }
 
+    @Transactional
     public void uploadPlayableFiles(String username, Long projectId, InputStream file) throws Exception {
         Path tempFile = null;
 
@@ -137,6 +163,8 @@ public class ProjectService {
 
             uploadPlayableFiles(username, projectId, playablePath);
 
+            ProjectSite projectSite = getProjectSite(projectId);
+            projectSite.setPlayableUploaded(true);
         } finally {
             if (tempFile != null) {
                 Files.deleteIfExists(tempFile);
@@ -166,7 +194,71 @@ public class ProjectService {
         List<Path> playablePaths = Files.walk(playablePath).collect(Collectors.toList());
 
         for (Path path : playablePaths) {
-            getMagazineClient().put(writeToken, playablePath.relativize(path.getParent()).toString(), path);
+            if (path.getFileName().toString().equals("index.html")) {
+                String uploadedIndexHtml = new String(Files.readAllBytes(path), "UTF-8");
+
+                int insertionPoint = uploadedIndexHtml.indexOf("</style>");
+
+                String htmlAddition = "\n" +
+                        "      .canvas-app-container {\n" +
+                        "        overflow: hidden;\n" +
+                        "        text-align: center;\n" +
+                        "        background: initial;\n" +
+                        "      }\n" +
+                        "\n" +
+                        "      .canvas-app-progress {\n" +
+                        "        width: 100%;\n" +
+                        "      }\n" +
+                        "\n" +
+                        "      #canvas {\n" +
+                        "        outline: none;\n" +
+                        "        max-width: 100%;\n" +
+                        "        background-color: black !important;\n" +
+                        "      }\n" +
+                        "\n" +
+                        "      #fullscreen {\n" +
+                        "        display: none;\n" +
+                        "      }\n";
+
+                String modifiedIndexHtml = uploadedIndexHtml.substring(0, insertionPoint) + htmlAddition + uploadedIndexHtml.substring(insertionPoint);
+
+                getMagazineClient().put(writeToken, playablePath.relativize(path.getParent()).toString(),
+                        new ByteArrayInputStream(modifiedIndexHtml.getBytes()), "index.html");
+            } else {
+                getMagazineClient().put(writeToken, playablePath.relativize(path.getParent()).toString(), path);
+            }
         }
+    }
+
+    public void addScreenshotImage(String user, long projectId, String originalFilename, InputStream file) throws Exception {
+        String resourcePath = uploadImage(projectId, user, originalFilename, file);
+        addScreenshot(projectId, new Screenshot(resourcePath, Screenshot.MediaType.IMAGE));
+    }
+
+
+    private String uploadImage(long projectId, String user, String originalFilename, InputStream file) throws Exception {
+        String contextPath = String.format("/projects/%d/images", projectId);
+        String writeToken = getMagazineClient().createWriteToken(user, contextPath);
+        String filename = UUID.randomUUID().toString() + "-" + originalFilename;
+        getMagazineClient().put(writeToken, "", file, filename);
+        return Paths.get(contextPath, filename).toString();
+    }
+
+    @Transactional
+    public void addCoverImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
+        String resourcePath = uploadImage(projectId, email, fileName, file);
+        getProjectSite(projectId).setCoverImageUrl(resourcePath);
+    }
+
+    @Transactional
+    public void addStoreFrontImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
+        String resourcePath = uploadImage(projectId, email, fileName, file);
+        getProjectSite(projectId).setStoreFrontImageUrl(resourcePath);
+    }
+
+    @Transactional
+    public void addPlayableImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
+        String resourcePath = uploadImage(projectId, email, fileName, file);
+        getProjectSite(projectId).setPlayableImageUrl(resourcePath);
     }
 }

@@ -251,6 +251,7 @@ emitters {
       t_y: 0.0
     }
   }
+  size_mode: SIZE_MODE_MANUAL
 }
 emitters {
   id: "jetcore2"
@@ -505,4 +506,5 @@ emitters {
       t_y: 0.0
     }
   }
+  size_mode: SIZE_MODE_MANUAL
 }

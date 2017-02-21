@@ -33,6 +33,10 @@ public class ExtenderUtil {
             this.resource = resource;
         }
 
+        public IResource getResource() {
+            return resource;
+        }
+
         @Override
         public byte[] sha1() throws IOException {
             return resource.sha1();
@@ -62,7 +66,6 @@ public class ExtenderUtil {
         public String toString() {
             return resource.getPath();
         }
-
     }
 
     private static List<ExtenderResource> listFilesRecursive(Project project, String path) {
@@ -71,7 +74,11 @@ public class ExtenderUtil {
         project.findResourcePaths(path, paths);
         for (String p : paths) {
             IResource r = project.getResource(p);
-            resources.add(new FSExtenderResource(r));
+            // Note: findResourcePaths will return the supplied path even if it does not exist.
+            // We need to check if the resource actually exist before adding it to the list of paths found.
+            if (r.exists()) {
+                resources.add(new FSExtenderResource(r));
+            }
         }
 
         return resources;
@@ -171,8 +178,12 @@ public class ExtenderUtil {
             String pathProjectAbsolute = "/" + p;
             if (!excludes.contains(pathProjectAbsolute)) {
                 IResource r = project.getResource(p);
-                String bundleRelativePath = pathProjectAbsolute.substring(path.length());
-                resources.put(bundleRelativePath, r);
+                // Note: findResourcePaths will return the supplied path even if it does not exist.
+                // We need to check if the resource actually exist before adding it to the list of paths found.
+                if (r.exists()) {
+                    String bundleRelativePath = pathProjectAbsolute.substring(path.length());
+                    resources.put(bundleRelativePath, r);
+                }
             }
         }
 
@@ -255,6 +266,21 @@ public class ExtenderUtil {
             zipOutputStream.putNextEntry(ze);
             zipOutputStream.write(entry.getValue().getContent());
         }
+    }
+
+    /** Finds a resource given a relative path
+     * @param path  The relative path to the resource
+     * @param source A list of all source files
+     * @return The resource, or null if not found
+     */
+    public static IResource getResource(String path, List<ExtenderResource> source) {
+        for (ExtenderResource r : source) {
+            if (r.getPath().equals(path)) {
+                ExtenderUtil.FSExtenderResource fsr = (ExtenderUtil.FSExtenderResource)r;
+                return fsr.getResource();
+            }
+        }
+        return null;
     }
 
 }
