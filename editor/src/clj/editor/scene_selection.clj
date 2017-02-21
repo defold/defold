@@ -154,7 +154,7 @@
         max-p (Point2i. (reduce imax (map first ps)) (reduce imax (map second ps)))
         dims (doto (Point2i. max-p) (.sub min-p))
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
-    (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
+    (types/rect (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
 (g/deftype SelectionMode (s/enum :single :multi))
 

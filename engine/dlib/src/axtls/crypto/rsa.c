@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -37,10 +37,10 @@
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>
-#include "os_port.h"
-#include "crypto.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/crypto/crypto.h>
 
-void RSA_priv_key_new(RSA_CTX **ctx, 
+void RSA_priv_key_new(RSA_CTX **ctx,
         const uint8_t *modulus, int mod_len,
         const uint8_t *pub_exp, int pub_len,
         const uint8_t *priv_exp, int priv_len
@@ -75,7 +75,7 @@ void RSA_priv_key_new(RSA_CTX **ctx,
 #endif
 }
 
-void RSA_pub_key_new(RSA_CTX **ctx, 
+void RSA_pub_key_new(RSA_CTX **ctx,
         const uint8_t *modulus, int mod_len,
         const uint8_t *pub_exp, int pub_len)
 {
@@ -140,7 +140,7 @@ void RSA_free(RSA_CTX *rsa_ctx)
  * @return  The number of bytes that were originally encrypted. -1 on error.
  * @see http://www.rsasecurity.com/rsalabs/node.asp?id=2125
  */
-int RSA_decrypt(const RSA_CTX *ctx, const uint8_t *in_data, 
+int RSA_decrypt(const RSA_CTX *ctx, const uint8_t *in_data,
                             uint8_t *out_data, int is_decryption)
 {
     const int byte_size = ctx->num_octets;
@@ -170,7 +170,7 @@ int RSA_decrypt(const RSA_CTX *ctx, const uint8_t *in_data,
         while (block[i++] == 0xff && i < byte_size);
 
         if (block[i-2] != 0xff)
-            i = byte_size;     /*ensure size is 0 */   
+            i = byte_size;     /*ensure size is 0 */
     }
     else                    /* PKCS1.5 encryption padding is random */
 #endif
@@ -182,7 +182,7 @@ int RSA_decrypt(const RSA_CTX *ctx, const uint8_t *in_data,
     /* get only the bit we want */
     if (size > 0)
         memcpy(out_data, &block[i], size);
-    
+
     return size ? size : -1;
 }
 
@@ -204,7 +204,7 @@ bigint *RSA_private(const RSA_CTX *c, bigint *bi_msg)
 /**
  * Used for diagnostics.
  */
-void RSA_print(const RSA_CTX *rsa_ctx) 
+void RSA_print(const RSA_CTX *rsa_ctx)
 {
     if (rsa_ctx == NULL)
         return;
@@ -231,7 +231,7 @@ bigint *RSA_public(const RSA_CTX * c, bigint *bi_msg)
  * Use PKCS1.5 for encryption/signing.
  * see http://www.rsasecurity.com/rsalabs/node.asp?id=2125
  */
-int RSA_encrypt(const RSA_CTX *ctx, const uint8_t *in_data, uint16_t in_len, 
+int RSA_encrypt(const RSA_CTX *ctx, const uint8_t *in_data, uint16_t in_len,
         uint8_t *out_data, int is_signing)
 {
     int byte_size = ctx->num_octets;
@@ -246,7 +246,7 @@ int RSA_encrypt(const RSA_CTX *ctx, const uint8_t *in_data, uint16_t in_len,
         out_data[1] = 1;        /* PKCS1.5 signing pads with "0xff"'s */
         memset(&out_data[2], 0xff, num_pads_needed);
     }
-    else /* randomize the encryption padding with non-zero bytes */   
+    else /* randomize the encryption padding with non-zero bytes */
     {
         out_data[1] = 2;
         get_random_NZ(num_pads_needed, &out_data[2]);
@@ -257,7 +257,7 @@ int RSA_encrypt(const RSA_CTX *ctx, const uint8_t *in_data, uint16_t in_len,
 
     /* now encrypt it */
     dat_bi = bi_import(ctx->bi_ctx, out_data, byte_size);
-    encrypt_bi = is_signing ? RSA_private(ctx, dat_bi) : 
+    encrypt_bi = is_signing ? RSA_private(ctx, dat_bi) :
                               RSA_public(ctx, dat_bi);
     bi_export(ctx->bi_ctx, encrypt_bi, out_data, byte_size);
 

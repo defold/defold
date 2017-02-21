@@ -1,6 +1,7 @@
 (ns editor.git
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor
              [prefs :as prefs]
              [ui :as ui]]
@@ -25,12 +26,18 @@
     (.parseCommit walk (.resolve repository revision))))
 
 (defn- diff-entry->map [^DiffEntry de]
-  ; NOTE: We convert /dev/null to nil.
-  (let [f (fn [p] (when-not (= p "/dev/null") p))]
-    {:score (.getScore de)
-     :change-type (-> (.getChangeType de) str .toLowerCase keyword)
-     :old-path (f (.getOldPath de))
-     :new-path (f (.getNewPath de))}))
+  ; NOTE: We convert /dev/null paths to nil, and convert copies into adds.
+  (let [f (fn [p] (when-not (= p "/dev/null") p))
+        change-type (-> (.getChangeType de) str .toLowerCase keyword)]
+    (if (= :copy change-type)
+      {:score 0
+       :change-type :add
+       :old-path nil
+       :new-path (f (.getNewPath de))}
+      {:score (.getScore de)
+       :change-type change-type
+       :old-path (f (.getOldPath de))
+       :new-path (f (.getNewPath de))})))
 
 (defn- find-original-for-renamed [ustatus file]
   (->> ustatus
@@ -40,10 +47,31 @@
 
 ;; =================================================================================
 
+
 (defn credentials [prefs]
   (let [email (prefs/get-prefs prefs "email" nil)
         token (prefs/get-prefs prefs "token" nil)]
     (UsernamePasswordCredentialsProvider. ^String email ^String token)))
+
+(defn- git-name
+  [prefs]
+  (let [name (str (prefs/get-prefs prefs "first-name" nil)
+                  " "
+                  (prefs/get-prefs prefs "last-name" nil))]
+    (when-not (str/blank? name)
+      name)))
+
+(defn ensure-user-configured!
+  [^Git git prefs]
+  (let [email            (prefs/get-prefs prefs "email" nil)
+        name             (or (git-name prefs) email "Unknown")
+        config           (.. git getRepository getConfig)
+        configured-name  (.getString config "user" nil "name")
+        configured-email (.getString config "user" nil "email")]
+    (when (str/blank? configured-name)
+      (.setString config "user" nil "name" name))
+    (when (str/blank? configured-email)
+      (.setString config "user" nil "email" email))))
 
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))

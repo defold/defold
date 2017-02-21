@@ -12,19 +12,27 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
+import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
@@ -138,7 +146,36 @@ public class BundleHelper {
         return this;
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, File root, List<File> allSource, File logFile, File outputEngine) throws CompileExceptionError {
+    static class ResourceInfo
+    {
+        public String resource;
+        public String message;
+        public int lineNumber;
+
+        public ResourceInfo(String r, int l, String msg) {
+            resource = r;
+            lineNumber = l;
+            message = msg;
+        }
+    };
+
+    private static Pattern gccRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/(.*):([0-9]+):([0-9]+):\\s+(.*)");
+
+    private static void parseLog(String log, List<ResourceInfo> infos) {
+        String[] lines = log.split("\n");
+            for (String line : lines) {
+
+            Matcher m = BundleHelper.gccRe.matcher(line);
+            if (m.matches()) {
+                String resource = m.group(1);
+                int lineNumber = Integer.parseInt(m.group(2)); // column is group 3
+                String msg = m.group(4);
+                infos.add( new BundleHelper.ResourceInfo(resource, lineNumber, msg) );
+            }
+        }
+    }
+
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine) throws CompileExceptionError, MultipleCompileExceptionError {
         File zipFile = null;
 
         try {
@@ -149,12 +186,42 @@ public class BundleHelper {
         }
 
         try {
-            extender.build(platform, sdkVersion, root, allSource, zipFile, logFile);
+            extender.build(platform, sdkVersion, allSource, zipFile, logFile);
         } catch (ExtenderClientException e) {
             String buildError = "<no log file>";
             if (logFile != null) {
                 try {
                     buildError = FileUtils.readFileToString(logFile);
+
+                    List<ResourceInfo> infos = new ArrayList<>();
+                    parseLog(buildError, infos);
+
+                    MultipleCompileExceptionError exception = new MultipleCompileExceptionError("Build error", e);
+
+                    IResource firstresource = null;
+                    if (infos.size() > 0) {
+                        for (ResourceInfo info : infos) {
+                            IResource resource = ExtenderUtil.getResource(info.resource, allSource);
+                            if (resource != null) {
+                                exception.addError(resource, info.message, info.lineNumber);
+
+                                if (firstresource == null) {
+                                    firstresource = resource;
+                                }
+                            }
+                        }
+                    }
+
+                    // Trick to always supply the full log
+                    // 1. We pick a resource, the first one generating errors should be related.
+                    //    Otherwise we fall back on an ext.manifest (possibly the wrong one!)
+                    // 2. We put it first, because the list is reversed later when presented
+                    if (firstresource == null) {
+                        firstresource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
+                    }
+                    exception.addError(firstresource, buildError, 1);
+
+                    throw exception;
                 } catch (IOException ioe) {
                     buildError = "<failed reading log>";
                 }
@@ -171,10 +238,10 @@ public class BundleHelper {
         }
 
         try {
-            Path source = zip.getPath("dmengine");
+            Path source = zip.getPath(srcName);
             Files.copy(source, new FileOutputStream(outputEngine));
         } catch (IOException e) {
-            throw new CompileExceptionError(String.format("Failed to copy dmengine to %s", outputEngine.getAbsolutePath()), e.getCause());
+            throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());
         }
     }
 

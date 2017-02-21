@@ -2,6 +2,7 @@
 
 import os, sys
 import waf_graphics, waf_dynamo
+from waf_dynamo import apidoc_extract_task
 
 def set_options(opt):
     pass
@@ -31,15 +32,4 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/render/render_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../proto/render/font_ddf.proto')
 
-    doc_src = ['render/render_script.cpp',
-               '../proto/render/render_ddf.proto']
-    bld.new_task_gen(source = ' '.join(doc_src),
-                     target = 'render_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-    bld.new_task_gen(source = ' '.join(doc_src),
-                     target = 'render_doc.json',
-                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
-
-    bld.install_files('${PREFIX}/share/doc', 'render_doc.sdoc render_doc.json')
-
+    apidoc_extract_task(bld, ['../proto/render/render_ddf.proto', 'render/render_script.cpp'])

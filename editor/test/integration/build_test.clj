@@ -1,9 +1,11 @@
 (ns integration.build-test
   (:require [clojure.test :refer :all]
+            [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
+            [editor.game-project :as game-project]
             [editor.defold-project :as project]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
@@ -11,10 +13,8 @@
             [editor.resource :as resource]
             [util.murmur :as murmur]
             [integration.test-util :as test-util])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
-            GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
-           [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
@@ -22,18 +22,11 @@
            [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
            [com.dynamo.model.proto ModelProto$Model]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
-           [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
-           [editor.types Region]
-           [editor.workspace BuildResource]
-           [java.awt.image BufferedImage]
            [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -56,7 +49,16 @@
 (defn- target [path targets]
   (let [ext (FilenameUtils/getExtension path)
         pb-class (get target-pb-classes ext)]
+    (when (nil? pb-class)
+      (throw (ex-info (str "No target-pb-classes entry for extension \"" ext "\", path \"" path "\".")
+                      {:ext ext
+                       :path path})))
     (protobuf/bytes->map pb-class (get targets path))))
+
+(defn- approx? [as bs]
+  (every? #(< % 0.00001)
+          (map #(Math/abs (- %1 %2))
+               as bs)))
 
 (def pb-cases {"/game.project"
                [{:label    "ParticleFX"
@@ -64,6 +66,21 @@
                  :pb-class Particle$ParticleFX
                  :test-fn  (fn [pb targets]
                              (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
+                {:label    "ParticleFX with complex setup"
+                 :path     "/main/tail.particlefx"
+                 :pb-class Particle$ParticleFX
+                 :test-fn  (fn [pb targets]
+                             (let [emitter (-> pb :emitters first)]
+                               (is (= :size-mode-auto (:size-mode emitter)))
+                               (is (not-empty (:properties emitter)))
+                               (is (not-empty (:particle-properties emitter)))
+                               (is (true? (every? (comp :points not-empty) (:properties emitter))))
+                               (is (true? (every? (comp :points not-empty) (:particle-properties emitter))))
+                               (let [modifier (-> emitter :modifiers first)]
+                                 (is (not-empty (:properties modifier)))
+                                 (is (true? (every? (comp :points not-empty) (:properties modifier))))
+                                 (is (approx? [-20.0 10.0 -30.0] (:position modifier)))
+                                 (is (approx? [0.0 0.0 -0.70710677 0.70710677] (:rotation modifier))))))}
                 {:label           "Sound"
                  :path            "/main/sound.sound"
                  :pb-class        Sound$SoundDesc
@@ -94,6 +111,16 @@
                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+                {:label "Spine Scene with weighted mesh"
+                 :path "/ladder/ladder.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (let [mesh-set (-> pb :mesh-set (target targets))]
+                              (doseq [mesh-entry (:mesh-entries mesh-set)]
+                                (doseq [mesh (:meshes mesh-entry)]
+                                  (is (= (/ (count (:positions mesh)) 3)
+                                         (/ (count (:bone-indices mesh)) 4)))))))}
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc
@@ -117,27 +144,46 @@
                                    :shadow [0.0 0.0 0.0 1.0],
                                    :text "Label"}
                                  pb)))}
-               {:label "Collada Scene"
-                :path "/model/book_of_defold.dae"
-                :pb-class Rig$MeshSet
-                :test-fn (fn [pb targets]
-                           ;; TODO - id must be 0 currently because of the runtime
-                           ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
-                           (is (= 0 (get-in pb [:mesh-entries 0 :id]))))}
                {:label "Model"
                 :path "/model/book_of_defold.model"
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           ;; TODO - id must be 0 currently because of the runtime
-                           ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
-                           (is (= 0 (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))}
+                           (let [rig-scene (target (:rig-scene pb) targets)]
+                             (is (= "" (:animation-set rig-scene)))
+                             (is (= "" (:skeleton rig-scene)))
+                             (is (= "" (:texture-set rig-scene)))
+
+                             ;; TODO - id must be 0 currently because of the runtime
+                             ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
+                             (is (= 0 (-> rig-scene :mesh-set (target targets) :mesh-entries first :id)))))}
                {:label "Model with animations"
-                :path "/model/primary.model"
+                :path "/model/treasure_chest.model"
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           (is (< 0 (count (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :meshes first :indices)))))}]
+                           (let [rig-scene (target (:rig-scene pb) targets)
+                                 animation-set (target (:animation-set rig-scene) targets)
+                                 mesh-set (target (:mesh-set rig-scene) targets)
+                                 skeleton (target (:skeleton rig-scene) targets)]
+                             (is (= "" (:texture-set rig-scene)))
+
+                             (let [animations (-> animation-set :animations)]
+                               (is (= 2 (count animations)))
+                               (is (= #{(murmur/hash64 "treasure_chest")
+                                        (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
+                                      (set (map :id animations)))))
+
+                             (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                               (is (< 2 (-> mesh :indices count))))
+
+                             ;; TODO - id must be 0 currently because of the runtime
+                             ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
+                             (is (= 0 (-> mesh-set :mesh-entries first :id)))
+
+                             (is (= 3 (count (:bones skeleton))))
+                             (is (= (:bone-list mesh-set) (:bone-list animation-set)))
+                             (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
@@ -530,12 +576,12 @@
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
   (let [path-list (string/split path #"/")]
-    `(let [initial-settings# (g/node-value ~'game-project :raw-settings)]
-           (g/transact (g/update-property ~'game-project :raw-settings conj {:path ~path-list :value ~value}))
+    `(let [old-value# (game-project/get-setting ~'game-project ~path-list)]
+       (game-project/set-setting! ~'game-project ~path-list ~value)
            (try
              ~@body
              (finally
-               (g/set-property ~'game-project :raw-settings initial-settings#))))))
+               (game-project/set-setting! ~'game-project ~path-list old-value#))))))
 
 (defn- check-file-contents [workspace specs]
   (doseq [[path content] specs]

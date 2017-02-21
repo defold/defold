@@ -67,20 +67,35 @@
   (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
     (and resource (resource/resource-name resource))))
 
-(defn- find-errors [{:keys [user-data causes _node-id] :as error} labels]
-  (let [labels (conj labels (get-resource-name _node-id))]
-    (if causes
-      (recur (first causes) labels)
-      [(remove nil? labels) user-data])))
+(defn- root-causes
+  [error]
+  (->> (tree-seq :causes :causes error)
+       (filter :message)
+       (remove :causes)))
+
+(defn- render-error
+  [gl render-args renderables nrenderables]
+  (when (= pass/overlay (:pass render-args))
+    (let [errors (set (mapcat root-causes (map (comp :error :user-data) renderables)))]
+      (scene-text/overlay gl "Render error:" 24.0 -22.0)
+      (doseq [[n error] (partition 2 (interleave (range) errors))]
+        (let [message (format "- %s: %s"
+                              (or (get-resource-name (:_node-id error))
+                                  "unknown")
+                              (:message error))]
+          (scene-text/overlay gl message 24.0 (- -22.0 (* 14 (inc n)))))))))
+
+(defn substitute-render-data
+  [error]
+  [{pass/overlay [{:render-fn render-error
+                   :user-data {:error error}
+                   :batch-key ::error}]}])
 
 (defn substitute-scene [error]
   {:aabb       (geom/null-aabb)
-   :renderable {:render-fn (fn [gl render-args renderables count]
-                             (let [pass           (:pass render-args)
-                                   [labels cause] (find-errors error [])
-                                   message        (format "Render error [%s] '%s'" (last labels) cause)]
-                               (when (= pass pass/overlay)
-                                 (scene-text/overlay gl message 12.0 -22.0))))
+   :renderable {:render-fn render-error
+                :user-data {:error error}
+                :batch-key ::error
                 :passes    [pass/overlay]}})
 
 ;; Avoid recreating the image each frame
@@ -149,12 +164,16 @@
 
 (defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
-    (let [result (.makeCurrent context)]
-      (if (= result GLContext/CONTEXT_NOT_CURRENT)
-        (do
-          (prn "Failed to set gl context as current.")
-          nil)
-        context))))
+    (try
+      (let [result (.makeCurrent context)]
+        (if (= result GLContext/CONTEXT_NOT_CURRENT)
+          (do
+            (log/warn :message "Failed to set gl context as current.")
+            nil)
+          context))
+      (catch Exception e
+        (log/error :exception e)
+        nil))))
 
 (defmacro with-drawable-as-current [^GLAutoDrawable drawable & forms]
   `(when-let [^GLContext ~'gl-context (make-current ~drawable)]
@@ -418,7 +437,7 @@
 
   (input input-handlers Runnable :array)
   (input picking-rect Rect)
-  (input tool-renderables pass/RenderData :array)
+  (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
   (input active-tool g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
@@ -682,11 +701,19 @@
     (g/set-property! view-id :image-view image-view)
     pane))
 
+(defn- make-scene-view-pane [view-id opts]
+  (let [scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")]
+    (ui/fill-control scene-view-pane)
+    (ui/with-controls scene-view-pane [^AnchorPane gl-view-anchor-pane]
+      (let [gl-pane (make-gl-pane! view-id gl-view-anchor-pane opts "update-scene-view" true)]
+        (ui/fill-control gl-pane)
+        (.add (.getChildren scene-view-pane) 0 gl-pane)))
+    scene-view-pane))
+
 (defn- make-scene-view [scene-graph ^Parent parent opts]
   (let [view-id (g/make-node! scene-graph SceneView :select-buffer (make-select-buffer) :frame-version (atom 0))
-        gl-pane (make-gl-pane! view-id parent opts "update-scene-view" true)]
-    (ui/fill-control gl-pane)
-    (ui/children! parent [gl-pane])
+        scene-view-pane (make-scene-view-pane view-id opts)]
+    (ui/children! parent [scene-view-pane])
     view-id))
 
 (g/defnk produce-frame [render-args ^GLAutoDrawable drawable]
@@ -758,9 +785,9 @@
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (concat
       (g/make-nodes view-graph
-                    [background      background/Gradient
+                    [background      background/Background
                      selection       [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/select! app-view-id selection op-seq))]
-                     camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic))]
+                     camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                      grid            grid-type
                      tool-controller tool-controller-type
                      rulers          [rulers/Rulers]]
@@ -817,12 +844,17 @@
     (frame-selection view-id false)
     view-id))
 
+(defn- focus-view [view-id opts]
+  (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
+    (.requestFocus image-view)))
+
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
                                 :label "Scene"
                                 :make-view-fn make-view
-                                :make-preview-fn make-preview))
+                                :make-preview-fn make-preview
+                                :focus-fn focus-view))
 
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))

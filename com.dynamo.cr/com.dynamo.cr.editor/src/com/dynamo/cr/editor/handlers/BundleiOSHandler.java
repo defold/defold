@@ -59,21 +59,22 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         options.put("platform", "armv7-darwin");
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
 
-        if (EditorUtil.isDev()) {
-            options.put("native-ext", "true");
-        }
         EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
-    	String sdkVersion = corePlugin.getSha1();
-    	if (sdkVersion == "NO SHA1") {
-    		sdkVersion = "";
-    	}
-    	options.put("defoldsdk", sdkVersion);
+        String sdkVersion = corePlugin.getSha1();
+        if (sdkVersion == "NO SHA1") {
+            sdkVersion = "";
+        }
+        options.put("defoldsdk", sdkVersion);
 
         if(!presenter.isReleaseMode()) {
             options.put("debug", "true");
         }
         if(presenter.shouldGenerateReport()) {
             options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));
+        }
+
+        if (presenter.shouldPublishLiveUpdate()) {
+            options.put("liveupdate", "true");
         }
     }
 

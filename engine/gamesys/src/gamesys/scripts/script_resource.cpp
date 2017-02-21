@@ -6,6 +6,7 @@
 #include <graphics/graphics_ddf.h>
 #include <script/script.h>
 #include "../gamesys.h"
+#include "script_resource_liveupdate.h"
 
 
 namespace dmGameSystem
@@ -13,7 +14,7 @@ namespace dmGameSystem
 
 /*# Resource API documentation
  *
- * Functions and constants to access the resources
+ * Functions and constants to access resources.
  *
  * @document
  * @name Resource
@@ -47,7 +48,7 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
  *
  * @name resource.set
  *
- * @param path [type:hash|string] The path to the resource
+ * @param path [type:string|hash] The path to the resource
  * @param buffer [type:buffer] The buffer of precreated data, suitable for the intended resource type
  *
  * @examples
@@ -82,7 +83,7 @@ static int Set(lua_State* L)
  *
  * @name resource.load
  *
- * @param path [type:hash|string] The path to the resource
+ * @param path [type:string|hash] The path to the resource
  * @return buffer [type:buffer] Returns the buffer stored on disc
  *
  * @examples
@@ -98,7 +99,7 @@ static int Set(lua_State* L)
  * In order for the engine to include custom resources in the build process, you need
  * to specify them in the "game.project" settings file:
  *
- * ```
+ * ```ini
  * [project]
  * title = My project
  * version = 0.1
@@ -182,6 +183,46 @@ static int GraphicsTextureTypeToImageType(int texturetype)
     return -1;
 }
 
+
+/*# Set a texture
+ * Sets the pixel data for a specific texture.
+ *
+ * @name resource.set_texture
+ *
+ * @param path [type:hash|string] The path to the resource
+ * @param table [type:table] A table containing info about the texture. Supported entries:
+ *
+ * `type`
+ * : [type:number] The texture type. Supported values:
+ *
+ * - `resource.TEXTURE_TYPE_2D`
+ *
+ * `width`
+ * : [type:number] The width of the texture (in pixels)
+ *
+ * `height`
+ * : [type:number] The width of the texture (in pixels)
+ *
+ * `format`
+ * : [type:number] The texture format. Supported values:
+ *
+ * - `resource.TEXTURE_FORMAT_RGB`
+ * - `resource.TEXTURE_FORMAT_RGBA`
+ *
+ * @param buffer [type:buffer] The buffer of precreated pixel data
+ *
+ * [icon:attention] Currently, only 1 mipmap is generated.
+ *
+ * @examples
+ *
+ * ```lua
+ * function update(self, dt)
+ *     -- Update a sprite texture from a dynamically updated buffer (e.g. camera, or videoplayer)
+ *     local resource_path = go.get("#sprite", "texture0")
+ *     resource.set( resource_path, self.dynamicbuffer )
+ * end
+ * ```
+ */
 static int SetTexture(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -206,7 +247,7 @@ static int SetTexture(lua_State* L)
     texture_image->m_Alternatives.m_Data = new dmGraphics::TextureImage::Image[1];
     texture_image->m_Alternatives.m_Count = 1;
     texture_image->m_Type = (dmGraphics::TextureImage::Type)GraphicsTextureTypeToImageType(type);
-    
+
     for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
     {
         dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
@@ -261,6 +302,14 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
+
+    // LiveUpdate functionality in resource namespace
+    {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
+    {"create_manifest", dmLiveUpdate::Resource_CreateManifest},
+    {"destroy_manifest", dmLiveUpdate::Resource_DestroyManifest},
+    {"store_resource", dmLiveUpdate::Resource_StoreResource},
+    {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
+
     {0, 0}
 };
 

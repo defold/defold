@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -14,7 +15,6 @@ import java.util.Set;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 
 import javax.imageio.ImageIO;
@@ -31,13 +31,18 @@ import org.junit.runners.Parameterized.Parameters;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileExceptionError;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
 @RunWith(Parameterized.class)
 public class BundlerTest {
@@ -83,8 +88,9 @@ public class BundlerTest {
         FileUtils.deleteDirectory(new File(contentRootUnused));
     }
 
-    void build() throws IOException, CompileExceptionError {
+    void build() throws IOException, CompileExceptionError, MultipleCompileExceptionError {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
         project.scan(scanner, "com.dynamo.bob");
@@ -101,7 +107,7 @@ public class BundlerTest {
     }
 
     @SuppressWarnings("unused")
-	Set<byte[]> readDarcEntries(String root) throws IOException
+    Set<byte[]> readDarcEntries(String root) throws IOException
     {
         // Read the path entries in the resulting archive
         RandomAccessFile archiveIndex = new RandomAccessFile(root + "/build/game.arci", "r");
@@ -117,15 +123,15 @@ public class BundlerTest {
 
         Set<byte[]> entries = new HashSet<byte[]>();
         for (int i = 0; i < entryCount; ++i) {
-        	int offset = hashOffset + (i * ArchiveBuilder.HASH_MAX_LENGTH);
-        	archiveIndex.seek(offset);
-        	byte[] buffer = new byte[ArchiveBuilder.HASH_MAX_LENGTH];
+            int offset = hashOffset + (i * ArchiveBuilder.HASH_MAX_LENGTH);
+            archiveIndex.seek(offset);
+            byte[] buffer = new byte[ArchiveBuilder.HASH_MAX_LENGTH];
 
-        	for (int n = 0; n < buffer.length; ++n) {
-        		buffer[n] = archiveIndex.readByte();
-        	}
+            for (int n = 0; n < buffer.length; ++n) {
+                buffer[n] = archiveIndex.readByte();
+            }
 
-        	entries.add(buffer);
+            entries.add(buffer);
         }
 
         archiveIndex.close();
@@ -133,7 +139,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         createFile(contentRoot, "test.icns", "test_icon");
         build();
     }
@@ -146,11 +152,12 @@ public class BundlerTest {
     }
 
     @Test
-    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
         createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
 
         Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
 
         OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
         project.scan(scanner, "com.dynamo.bob");
@@ -171,7 +178,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
@@ -181,7 +188,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError {
+    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
         File sub1 = new File(cust, "sub1");
@@ -203,5 +210,29 @@ public class BundlerTest {
         build();
         entries = readDarcEntries(contentRoot);
         assertEquals(2, entries.size());
+    }
+
+    // Historically it has been possible to include custom resources by both specifying project relative paths and absolute paths.
+    // (The only difference being a leading slash.) To keep backwards compatibility we need to support both.
+    @Test
+    public void testAbsoluteCustomResourcePath() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError, NoSuchAlgorithmException {
+        final String expectedData = "dummy";
+        final HashAlgorithm hashAlgo = HashAlgorithm.HASH_SHA1;
+        final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
+        final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(hashAlgo);
+
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=/m.txt\n[display]\nwidth=640\nheight=480\n");
+        createFile(contentRoot, "m.txt", expectedData);
+        build();
+
+        Set<byte[]> entries = readDarcEntries(contentRoot);
+        assertEquals(1, entries.size());
+
+        // Verify that the entry contained in the darc has the same hash as m.txt
+        for (byte[] b : entries) {
+            for (int i = 0; i < hlen; ++i) {
+                assertEquals(expectedHash[i], b[i]);
+            }
+        }
     }
 }

@@ -19,6 +19,12 @@
     (io/make-parents f)
     (spit f content)))
 
+(defn copy-file [git old-path new-path]
+  (let [old-file (git/file git old-path)
+        new-file (git/file git new-path)]
+    (io/make-parents new-file)
+    (FileUtils/copyFile old-file new-file true)))
+
 (defn move-file [git old-path new-path]
   (let [old-file (git/file git old-path)
         new-file (git/file git new-path)]
@@ -168,6 +174,29 @@
       (is (= [{:score 0, :change-type :add, :old-path nil, :new-path "src/main.cpp"}] (git/unified-status git)))
       (add-src git)
       (is (= [{:score 0, :change-type :add, :old-path nil, :new-path "src/main.cpp"}] (git/unified-status git)))))
+
+  (testing "copied file; unstaged and staged"
+    (with-git [git (new-git)
+               expect [{:change-type :add
+                        :new-path "src/after/copy.cpp"
+                        :old-path nil
+                        :score 0}
+                       {:change-type :rename
+                        :new-path "src/after/original.cpp"
+                        :old-path "src/before/original.cpp"
+                        :score 100}]]
+
+      (create-file git "/src/before/original.cpp" "void main() {}")
+      (commit-src git)
+      (is (= [] (git/unified-status git)))
+
+      ;; In order to create a scenario where JGit detects a copy, we need to
+      ;; make a copy of a file below a directory and then rename the directory.
+      (copy-file git "/src/before/original.cpp" "/src/before/copy.cpp")
+      (move-file git "/src/before" "/src/after")
+      (is (= expect (git/unified-status git)))
+      (add-src git)
+      (is (= expect (git/unified-status git)))))
 
   (testing "changed file; unstaged and staged and partially staged"
     (with-git [git (new-git)
@@ -358,7 +387,7 @@
       (is (= #{"src/untracked" "src/new-location-unstaged" "src/empty-dir"} (:untracked-folders status-before))))
     start-ref))
 
-(defn- simple-status
+(defn simple-status
   "Calls git/status and filters out redundant info and empty collections."
   [git]
   (into {}

@@ -24,7 +24,7 @@
               (str/lower-case @term)
               ^Long (inc (or (first @positions) -1)))))
 
-(defn- clear-console! [_]
+(defn clear-console! []
   (when-let [^TextArea node @node]
     (reset! term "")
     (reset! positions '())
@@ -72,7 +72,7 @@
   (alt-selection [this] []))
 
 (defn setup-console! [{:keys [^TextArea text ^TextField search ^Button prev ^Button next ^Button clear]}]
-  (ui/on-action! clear clear-console!)
+  (ui/on-action! clear (fn [_] (clear-console!)))
   (ui/on-action! next next-console!)
   (ui/on-action! prev prev-console!)
   (ui/observe (.textProperty search) search-console)

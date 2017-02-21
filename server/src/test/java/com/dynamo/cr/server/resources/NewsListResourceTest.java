@@ -54,7 +54,7 @@ public class NewsListResourceTest extends AbstractResourceTest {
         joeUser = createUser("joe@foo.com", "joe", "Mr", "Joe", Role.USER);
         joeResource = createResource("http://localhost/news_list", joeUser, "joe");
 
-        anonymousResource = createAnonymousResource("http://localhost/news_list");
+        anonymousResource = createAnonymousResource().path("news_list");
 
         adminSubscription = createNewsSubscription(adminUser);
         bobSubscription = createNewsSubscription(bobUser);

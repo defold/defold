@@ -267,6 +267,7 @@ public class ManifestBuilder {
     private String publicKeyFilepath = null;
     private String projectIdentifier = null;
     private ResourceNode dependencies = null;
+    private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         private int compare(byte[] left, byte[] right) {
@@ -338,6 +339,12 @@ public class ManifestBuilder {
 
     public void setProjectIdentifier(String projectIdentifier) {
         this.projectIdentifier = projectIdentifier;
+    }
+    
+    public void setArchiveIdentifier(byte[] archiveIdentifier) {
+        if (archiveIdentifier.length == ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH) {
+            this.archiveIdentifier = archiveIdentifier;
+        }
     }
 
     public void addSupportedEngineVersion(String hash) {
@@ -492,7 +499,7 @@ public class ManifestBuilder {
 
         ManifestData manifestData = this.buildManifestData();
         builder.setData(manifestData);
-
+        builder.setArchiveIdentifier(ByteString.copyFrom(this.archiveIdentifier));
         PrivateKey privateKey = null;
         try {
             privateKey = CryptographicOperations.loadPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);

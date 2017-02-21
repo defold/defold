@@ -19,6 +19,8 @@
 #include "scripts/script_resource.h"
 #include "scripts/script_model.h"
 #include "scripts/script_window.h"
+#include "scripts/script_collectionproxy.h"
+#include <liveupdate/liveupdate.h>
 
 extern "C"
 {
@@ -55,6 +57,10 @@ namespace dmGameSystem
         ScriptResourceRegister(context);
         ScriptModelRegister(context);
         ScriptWindowRegister(context);
+        ScriptCollectionProxyRegister(context);
+
+
+        dmLiveUpdate::Initialize(context.m_Factory);
 
         assert(top == lua_gettop(L));
         return result;
@@ -62,6 +68,9 @@ namespace dmGameSystem
 
     void FinalizeScriptLibs(const ScriptLibContext& context)
     {
+        dmLiveUpdate::Finalize();
+
+        ScriptCollectionProxyFinalize(context);
         ScriptLabelFinalize(context);
         ScriptPhysicsFinalize(context);
         ScriptResourceFinalize(context);

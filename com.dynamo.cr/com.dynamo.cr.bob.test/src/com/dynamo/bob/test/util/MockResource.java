@@ -9,10 +9,12 @@ import com.dynamo.bob.fs.AbstractResource;
 public class MockResource extends AbstractResource<MockFileSystem> {
 
     private byte[] content;
+    private long modifiedTime;
 
-    public MockResource(MockFileSystem fileSystem, String path, byte[] content) {
+    public MockResource(MockFileSystem fileSystem, String path, byte[] content, long modifiedTime) {
         super(fileSystem, path);
         this.content = content;
+        this.modifiedTime = modifiedTime;
     }
 
     @Override
@@ -46,5 +48,10 @@ public class MockResource extends AbstractResource<MockFileSystem> {
     @Override
     public void setContent(InputStream stream) throws IOException {
         throw new RuntimeException("Not implemented");
+    }
+
+    @Override
+    public long getLastModified() {
+        return modifiedTime;
     }
 }

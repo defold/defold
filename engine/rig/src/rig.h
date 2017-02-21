@@ -19,7 +19,10 @@ using namespace Vectormath::Aos;
 namespace dmRig
 {
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
-    extern const char* MAX_RIG_INSTANCE_COUNT_KEY;
+    extern const char* RIG_MAX_INSTANCES_KEY;
+
+    /// Default max rig instances in each context
+    const uint32_t DEFAULT_MAX_RIG_CAPACITY = 128;
 
     using namespace dmRigDDF;
 

@@ -268,7 +268,7 @@
              (test-load))
            (let [elapsed (measure [i 20]
                                   (test-load))]
-         (is (< elapsed 900))))
+         (is (< elapsed 950))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
@@ -489,9 +489,11 @@
                (set-visible-layout! node-id "Landscape")
                (is (= "Testing Text" (gui-text node-id "scene/text"))))
       (testing "scene generation"
-               (is (= 1280.0 (max-x (g/node-value node-id :scene))))
-               (set-visible-layout! node-id "Portrait")
-               (is (= 720.0 (max-x (g/node-value node-id :scene))))))))
+        (is (= {:width 1280 :height 720}
+               (g/node-value node-id :scene-dims)))
+        (set-visible-layout! node-id "Portrait")
+        (is (= {:width 720 :height 1280}
+               (g/node-value node-id :scene-dims)))))))
 
 (deftest gui-legacy-alpha
   (with-clean-system

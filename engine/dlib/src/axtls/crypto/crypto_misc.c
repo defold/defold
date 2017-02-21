@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -36,8 +36,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include "os_port.h"
-#include "crypto_misc.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/ssl/crypto_misc.h>
 #ifdef CONFIG_WIN32_USE_CRYPTO_LIB
 #include "wincrypt.h"
 #endif
@@ -59,20 +59,20 @@ static uint8_t entropy_pool[ENTROPY_POOL_SIZE];
 const char * const unsupported_str = "Error: Feature not supported\n";
 
 #ifndef CONFIG_SSL_SKELETON_MODE
-/** 
+/**
  * Retrieve a file and put it into memory
  * @return The size of the file, or -1 on failure.
  */
 int get_file(const char *filename, uint8_t **buf)
 {
     int total_bytes = 0;
-    int bytes_read = 0; 
+    int bytes_read = 0;
     int filesize;
     FILE *stream = fopen(filename, "rb");
 
     if (stream == NULL)
     {
-#ifdef CONFIG_SSL_FULL_MODE         
+#ifdef CONFIG_SSL_FULL_MODE
         printf("file '%s' does not exist\n", filename); TTY_FLUSH();
 #endif
         return -1;
@@ -89,7 +89,7 @@ int get_file(const char *filename, uint8_t **buf)
         bytes_read = fread(*buf+total_bytes, 1, filesize-total_bytes, stream);
         total_bytes += bytes_read;
     } while (total_bytes < filesize && bytes_read > 0);
-    
+
     fclose(stream);
     return filesize;
 }
@@ -106,14 +106,14 @@ EXP_FUNC void STDCALL RNG_initialize()
 #if !defined(WIN32) && defined(CONFIG_USE_DEV_URANDOM)
     rng_fd = ax_open("/dev/urandom", O_RDONLY);
 #elif defined(WIN32) && defined(CONFIG_WIN32_USE_CRYPTO_LIB)
-    if (!CryptAcquireContext(&gCryptProv, 
+    if (!CryptAcquireContext(&gCryptProv,
                       NULL, NULL, PROV_RSA_FULL, 0))
     {
         if (GetLastError() == NTE_BAD_KEYSET &&
-                !CryptAcquireContext(&gCryptProv, 
-                       NULL, 
-                       NULL, 
-                       PROV_RSA_FULL, 
+                !CryptAcquireContext(&gCryptProv,
+                       NULL,
+                       NULL,
+                       PROV_RSA_FULL,
                        CRYPT_NEWKEYSET))
         {
             printf("CryptoLib: %x\n", unsupported_str, GetLastError());
@@ -124,7 +124,7 @@ EXP_FUNC void STDCALL RNG_initialize()
     /* start of with a stack to copy across */
     int i;
     memcpy(entropy_pool, &i, ENTROPY_POOL_SIZE);
-    srand((unsigned int)&i); 
+    srand((unsigned int)&i);
 #endif
 }
 
@@ -157,7 +157,7 @@ EXP_FUNC void STDCALL RNG_terminate(void)
  * Set a series of bytes with a random number. Individual bytes can be 0
  */
 EXP_FUNC void STDCALL get_random(int num_rand_bytes, uint8_t *rand_data)
-{   
+{
 #if !defined(WIN32) && defined(CONFIG_USE_DEV_URANDOM)
     /* use the Linux default */
     read(rng_fd, rand_data, num_rand_bytes);    /* read from /dev/urandom */
@@ -165,7 +165,7 @@ EXP_FUNC void STDCALL get_random(int num_rand_bytes, uint8_t *rand_data)
     /* use Microsoft Crypto Libraries */
     CryptGenRandom(gCryptProv, num_rand_bytes, rand_data);
 #else   /* nothing else to use, so use a custom RNG */
-    /* The method we use when we've got nothing better. Use RC4, time 
+    /* The method we use when we've got nothing better. Use RC4, time
        and a couple of random seeds to generate a random sequence */
     RC4_CTX rng_ctx;
     struct timeval tv;
@@ -175,10 +175,10 @@ EXP_FUNC void STDCALL get_random(int num_rand_bytes, uint8_t *rand_data)
     int i;
 
     /* A proper implementation would use counters etc for entropy */
-    gettimeofday(&tv, NULL);    
+    gettimeofday(&tv, NULL);
     ep = (uint64_t *)entropy_pool;
     ep[0] ^= ENTROPY_COUNTER1;
-    ep[1] ^= ENTROPY_COUNTER2; 
+    ep[1] ^= ENTROPY_COUNTER2;
 
     /* use a digested version of the entropy pool as a key */
     MD5_Init(&rng_digest_ctx);
@@ -263,7 +263,7 @@ static void print_hex(uint8_t hex)
  * @param data     [in]    The start of data to use
  * @param ...      [in]    Any additional arguments
  */
-EXP_FUNC void STDCALL print_blob(const char *format, 
+EXP_FUNC void STDCALL print_blob(const char *format,
         const uint8_t *data, int size, ...)
 {
     int i;
@@ -344,7 +344,7 @@ EXP_FUNC int STDCALL base64_decode(const char *in, int len,
         }
 
         /* check that we don't go past the output buffer */
-        if (z > *outlen) 
+        if (z > *outlen)
             goto error;
     }
 

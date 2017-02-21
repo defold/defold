@@ -26,3 +26,6 @@ Export-Package: com.dynamo.cr.target.bundle,
  com.dynamo.cr.target.sign
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
+Import-Package: com.dynamo.bob.fs,
+ com.dynamo.bob.pipeline,
+ com.dynamo.cr.client
