@@ -567,6 +567,43 @@ Task.task_type_from_func('app_bundle',
                          #color = 'RED',
                          after  = 'cxx_link cc_link static_link')
 
+def authenticode_sign(task):
+    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
+    move = 'move /Y' if sys.platform == 'win32' else 'mv'
+
+    exe_file = task.inputs[0].abspath(task.env)
+    exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
+    exe_file_signed = task.outputs[0].abspath(task.env)
+
+    ret = task.exec_command('%s %s %s' % (copy, exe_file, exe_file_to_sign), log=True)
+    if ret != 0:
+        error("Unable to copy file before signing")
+        return 1
+    
+    ret = task.exec_command('"%s" sign /sm /n "Midasplayer Technology AB" /td sha256 /fd sha256 /tr http://timestamp.comodoca.com/authenticode /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], exe_file_to_sign), log=True)
+    if ret != 0:
+        error("Unable to sign executable")
+        return 1
+
+    ret = task.exec_command('%s %s %s' % (move, exe_file_to_sign, exe_file_signed), log=True)
+    if ret != 0:
+        error("Unable to rename file after signing")
+        return 1
+
+    return 0
+
+Task.task_type_from_func('authenticode_sign',
+                         func = authenticode_sign,
+                         after = 'cxx_link cc_link static_link msvc_manifest')
+
+@taskgen
+@feature('authenticode')
+def authenticode(self):
+    exe_file = self.link_task.outputs[0].abspath(self.env)
+    sign_task = self.create_task('authenticode_sign', self.env)
+    sign_task.set_inputs(self.link_task.outputs)
+    sign_task.set_outputs([self.link_task.outputs[0].change_ext('_signed.exe')])
+
 @taskgen
 @after('apply_link')
 @feature('cprogram')
@@ -1270,13 +1307,26 @@ def detect(conf):
     if 'win32' in platform:
         target_map = {'win32': 'x86',
                       'x86_64-win32': 'x64'}
-
+        platform_map = {'win32': 'x86',
+                        'x86_64-win32': 'amd64'}
+        
         desired_version = 'msvc 14.0'
 
         versions = find_installed_msvc_versions(conf)
         conf.env['MSVC_INSTALLED_VERSIONS'] = versions
         conf.env['MSVC_TARGETS'] = target_map[platform]
         conf.env['MSVC_VERSIONS'] = [desired_version]
+        
+        search_path = None
+        for (msvc_version, targets) in conf.env['MSVC_INSTALLED_VERSIONS']:
+            if msvc_version == desired_version:
+                for (target, (target_platform, paths)) in targets:
+                    if target == target_map[platform] and target_platform == platform_map[platform]:
+                        search_path = paths[0]
+        if search_path == None:
+            error("Unable to determine search path for platform: %s" % platform)
+
+        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
     if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
