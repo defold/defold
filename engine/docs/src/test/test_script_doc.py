@@ -145,19 +145,24 @@ foobar
  * @name MY_NAME
  * @param param_x [type: type_a] DOCX
  * @param [param_y] [type:type_b] DOCY
+ * @param [param_z] [type:*type_c*] DOCZ
  */
 """
         elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
         self.assertEqual(u'<p>MY_DESC</p>', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
-        self.assertEqual(2, len(elements[0].parameters))
+        self.assertEqual(3, len(elements[0].parameters))
         p1 = elements[0].parameters[0]
         p2 = elements[0].parameters[1]
+        p3 = elements[0].parameters[2]
         self.assertEqual('param_x', p1.name)
         self.assertEqual(u'<p><span class="type"> type_a</span> DOCX</p>', p1.doc)
         self.assertEqual('[param_y]', p2.name)
         self.assertEqual(u'<p><span class="type">type_b</span> DOCY</p>', p2.doc)
+        self.assertEqual('[param_z]', p3.name)
+        self.assertEqual(u'<p><span class="type">*type_c*</span> DOCZ</p>', p3.doc)
+
 
     def test_missing_namespace(self):
         doc= """

@@ -69,6 +69,11 @@
         .number {
             -styled-text-color: $script-number;
         }
+
+	.control-flow-keyword {
+            -styled-text-color: $script-keyword;
+            -fx-font-weight: bold;
+	}
     }
 }
 
@@ -86,11 +91,6 @@
             -styled-text-color: $script-logic;
         }
 
-        .control-flow-keyword {
-            -styled-text-color: $script-keyword;
-            -fx-font-weight: bold;
-        }
-
         .constant {
             -styled-text-color: $script-constant;
         }
@@ -103,9 +103,22 @@
 
 .glsl {
     &.styled-text-area {
-        .keyword {
+	.directive, .macro-keyword, .precision-keyword,
+	.storage-modifier-keyword, .storage-type {
             -styled-text-color: $script-keyword;
         }
+
+	.support-function-keyword {
+	    -styled-text-color: $script-function;
+	}
+
+	.support-constant-keyword {
+	    -styled-text-color: $script-constant;
+	}
+
+	.support-variable-keyword {
+	    -styled-text-color: $script-constant;
+	}
     }
 }
 

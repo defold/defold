@@ -18,6 +18,7 @@
             [editor.image :as image]
             [editor.json :as json]
             [editor.label :as label]
+            [editor.live-update-settings :as live-update-settings]
             [editor.material :as material]
             [editor.model :as model]
             [editor.particlefx :as particlefx]
@@ -52,6 +53,7 @@
       (image/register-resource-types workspace)
       (json/register-resource-types workspace)
       (label/register-resource-types workspace)
+      (live-update-settings/register-resource-types workspace)
       (material/register-resource-types workspace)
       (model/register-resource-types workspace)
       (particlefx/register-resource-types workspace)

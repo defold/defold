@@ -77,13 +77,20 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, uint32_t index)
+    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index)
     {
         dmhash_t comp_url_hash = 0;
         for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
         {
             dmGameSystem::CollectionProxyComponent* c = &world->m_Components[i];
-            if (c->m_ComponentIndex == index)
+
+            if (c == 0x0)
+            {
+                continue;
+            }
+
+            dmhash_t component_instance_id = dmGameObject::GetIdentifier(c->m_Instance);
+            if (component_instance_id == instanceId && c->m_ComponentIndex == index)
             {
                 comp_url_hash = c->m_Resource->m_UrlHash;
                 break;
