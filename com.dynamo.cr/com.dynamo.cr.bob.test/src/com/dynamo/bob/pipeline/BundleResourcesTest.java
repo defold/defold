@@ -166,6 +166,19 @@ public class BundleResourcesTest {
         assertTrue(resourceMap.containsKey("collision.txt"));
     }
 
+    @Test
+    public void testInvalidPath() throws Exception {
+
+        // Add project property for bundle resources
+        project.getProjectProperties().putStringValue("project", "bundle_resources", "/does_not_exist/");
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
+
+        // Will only contain collision.txt and subdirtest.txt from the extension directory.
+        assertEquals(2, resourceMap.size());
+        assertTrue(resourceMap.containsKey("collision.txt"));
+        assertTrue(resourceMap.containsKey("subdir/subdirtest.txt"));
+    }
+
     @Test(expected=CompileExceptionError.class)
     public void testConflict() throws Exception {
 
