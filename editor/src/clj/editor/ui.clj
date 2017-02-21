@@ -1080,6 +1080,7 @@
                                                             (.setConverter (proxy [StringConverter] []
                                                                              (fromString [str] (some #{str} (map :label opts)))
                                                                              (toString [v] (:label v)))))]
+                                                   (.setAll (.getItems cb) ^java.util.Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
                                                                                     (let [scene (.getScene control)
@@ -1088,8 +1089,6 @@
                                                                                         (when (handler/enabled? handler-ctx)
                                                                                           (handler/run handler-ctx)
                                                                                           (refresh scene)))))))
-                                                   (doseq [opt opts]
-                                                     (.add (.getItems cb) opt))
                                                    (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
