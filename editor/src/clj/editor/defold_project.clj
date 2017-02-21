@@ -450,8 +450,7 @@
               should-create-node? (fn [[operation resource]]
                                     (or (not= :removed operation)
                                         (-> resource
-                                            resource/proj-path
-                                            nodes-by-path
+                                            res->node
                                             in-use?)))
               resources-to-create (into [] (comp (filter should-create-node?) (map second)) to-reload-int)
               new-nodes (make-nodes! project resources-to-create)
@@ -461,11 +460,8 @@
               old->new (into {} (map (fn [[p n]] [(nodes-by-path p) n]) new-nodes-by-path))]
           (g/transact
             (concat
-              (for [[_ r] to-reload-int
-                    :let [p (resource/proj-path r)]
-                    :when (contains? new-nodes-by-path p)
-                    :let [old-node (nodes-by-path p)]]
-                (g/transfer-overrides old-node (new-nodes-by-path p)))
+              (for [[old-node new-node] old->new]
+                (g/transfer-overrides old-node new-node))
               (for [[_ r] to-reload-int
                     :let [old-node (nodes-by-path (resource/proj-path r))]]
                 (g/delete-node old-node))))
@@ -474,7 +470,6 @@
           (g/transact
             (concat
               (for [[old new] old->new
-                    :when new
                     :let [existing (set (explicit-outputs new))]
                     [src-label [tgt-id tgt-label]] (old-outputs old)
                     :let [tgt-id (get old->new tgt-id tgt-id)]
