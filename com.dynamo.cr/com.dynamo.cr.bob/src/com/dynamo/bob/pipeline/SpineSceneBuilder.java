@@ -212,14 +212,17 @@ public class SpineSceneBuilder extends Builder<Void> {
     private static void toDDF(RigUtil.AnimationTrack track, AnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf) {
         switch (track.property) {
         case POSITION:
+            System.out.println("POSITION");
             RigUtil.PositionBuilder posBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
             RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true, false);
             break;
         case ROTATION:
+            System.out.println("ROTATION");
             RigUtil.RotationBuilder rotBuilder = new RigUtil.RotationBuilder(animTrackBuilder);
             RigUtil.sampleTrack(track, rotBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf, true, false);
             break;
         case SCALE:
+            System.out.println("SCALE");
             RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
             RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf, true, false);
             break;
@@ -234,16 +237,20 @@ public class SpineSceneBuilder extends Builder<Void> {
     }
 
     private static void toDDF(RigUtil.Slot slot, RigUtil.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf, String meshName) {
+        System.out.println("mesh name: " + meshName);
         switch (track.property) {
         case ATTACHMENT:
+            System.out.println("ATTACHMENT");
             RigUtil.VisibilityBuilder visibilityBuilder = new RigUtil.VisibilityBuilder(animTrackBuilder, meshName);
             RigUtil.sampleTrack(track, visibilityBuilder, new Boolean(meshName.equals(slot.attachment)), duration, sampleRate, spf, false, false);
             break;
         case COLOR:
+            System.out.println("COLOR");
             RigUtil.ColorBuilder colorBuilder = new RigUtil.ColorBuilder(animTrackBuilder);
             RigUtil.sampleTrack(track, colorBuilder, slot.color, duration, sampleRate, spf, true, false);
             break;
         case DRAW_ORDER:
+            System.out.println("DRAW_ORDER");
             RigUtil.DrawOrderBuilder drawOrderBuilder = new RigUtil.DrawOrderBuilder(animTrackBuilder);
             RigUtil.sampleTrack(track, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, false, false);
             break;
