@@ -736,7 +736,9 @@
   ([^Scene scene]
     (contexts scene true))
   ([^Scene scene all-selections?]
-    (node-contexts (or (.getFocusOwner scene) (.getRoot scene)) all-selections?)))
+    (if scene
+      (node-contexts (or (.getFocusOwner scene) (.getRoot scene)) all-selections?)
+      [])))
 
 (defn extend-menu [id location menu]
   (menu/extend-menu id location menu))
