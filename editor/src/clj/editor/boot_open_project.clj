@@ -28,12 +28,13 @@
             [editor.workspace :as workspace]
             [editor.sync :as sync]
             [editor.system :as system]
+            [editor.util :as util]
             [util.http-server :as http-server])
-  (:import  [com.defold.editor EditorApplication]
-            [java.io File]
-            [javafx.scene.layout Region VBox]
-            [javafx.scene Scene]
-            [javafx.scene.control TabPane Tab]))
+  (:import [com.defold.editor EditorApplication]
+           [java.io File]
+           [javafx.scene Node Scene]
+           [javafx.scene.layout Region VBox]
+           [javafx.scene.control MenuBar Tab TabPane TreeView]))
 
 (set! *warn-on-reflection* true)
 
@@ -43,7 +44,7 @@
 
 (def the-root (atom nil))
 
-;; inovked to control the timing of when the namepsaces load
+;; invoked to control the timing of when the namespaces load
 (defn load-namespaces []
   (println "loaded namespaces"))
 
@@ -116,6 +117,7 @@
     (targets/start)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
+          ^Node menu-bar-space (.lookup root "#menu-bar-space")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
@@ -148,6 +150,13 @@
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
+
+      ;; The menu-bar-space element should only be present if the menu-bar element is not.
+      (let [collapse-menu-bar? (and (util/is-mac-os?)
+                                     (.isUseSystemMenuBar menu-bar))]
+        (.setVisible menu-bar-space collapse-menu-bar?)
+        (.setManaged menu-bar-space collapse-menu-bar?))
+
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ changes _]
                                                       (handle-resource-changes! changes changes-view editor-tabs))))

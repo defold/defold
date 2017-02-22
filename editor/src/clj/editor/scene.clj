@@ -318,7 +318,7 @@
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
   (input camera Camera)
-  (input aux-renderables pass/RenderData :array)
+  (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
