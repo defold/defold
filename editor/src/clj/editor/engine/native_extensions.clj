@@ -149,8 +149,20 @@
     (IOUtils/toInputStream ^String content "UTF-8")
     (io/input-stream (g/node-value resource-node :resource))))
 
+(defn- without-leading-slash [^String s]
+  (if (.startsWith s "/")
+    (subs s 1)
+    s))
+
+(def ^:private proj-path-without-leading-slash (comp without-leading-slash resource/proj-path))
+
 (defn- build-engine-archive ^File
   [server-url platform sdk-version resource-nodes]
+  ;; NOTE:
+  ;; sdk-version is likely to be nil unless you're running a bundled editor.
+  ;; In this case things will only work correctly if you're running a local
+  ;; build server, as it will fall back on using the DYNAMO_HOME env variable.
+  ;; Otherwise, you will likely get an Internal Server Error response.
   (let [cc (DefaultClientConfig.)
         ;; TODO: Random errors wihtout this... Don't understand why random!
         ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
@@ -164,7 +176,7 @@
     (with-open [form (FormDataMultiPart.)]
       (doseq [node resource-nodes]
         (let [resource (g/node-value node :resource)]
-          (.bodyPart form (StreamDataBodyPart. (resource/proj-path resource) (resource-content-stream node)))))
+          (.bodyPart form (StreamDataBodyPart. (proj-path-without-leading-slash resource) (resource-content-stream node)))))
       (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)]
         (case (.getStatus cr)
           200 (let [f (doto (File/createTempFile "defold-engine" ".zip")
@@ -172,10 +184,10 @@
                 (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
                 f)
 
-          422  (throw (ex-info (format "Compilation error: %s" (.getEntity cr String))
-                               {:status (.getStatus cr)}))
+          422 (throw (ex-info (format "Compilation error: %s" (.getEntity cr String))
+                              {:status (.getStatus cr)}))
 
-          (throw (ex-info (format "Failed to build engine: %s" (.getEntity cr String))
+          (throw (ex-info (format "Failed to build engine: %s, status: %d" (.getEntity cr String) (.getStatus cr))
                           {:status (.getStatus cr)})))))))
 
 (defn- find-or-build-engine-archive
