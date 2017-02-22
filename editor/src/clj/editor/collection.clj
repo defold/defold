@@ -73,15 +73,6 @@
    :scale3 scale
    :component-properties ddf-component-properties})
 
-(defn- claim-scene [scene node-id]
-  (let [prev-node-id (:node-id scene)
-        new-scene (-> scene
-                    (assoc :node-id node-id)
-                    (update :node-path (fn [p] (into [prev-node-id] p))))]
-    (if (:children scene)
-      (assoc new-scene :children (mapv #(claim-scene % node-id) (:children scene)))
-      new-scene)))
-
 (defn- prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
@@ -211,11 +202,13 @@
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (claim-scene scene _node-id)
-                                         (assoc :transform transform
-                                                :aabb aabb
-                                                :renderable {:passes [pass/selection]})
-                                         (update :children (fn [s] (reduce conj (or s []) child-scenes)))))))
+                                       (-> scene
+                                         (assoc :node-id _node-id
+                                                :transform transform
+                                                :aabb aabb)
+                                         (update :children (fn [children]
+                                                             (mapv #(scene/prepend-node-path % _node-id)
+                                                                   (concat children child-scenes))))))))
   (output go-inst-ids g/Any :cached (g/fnk [_node-id id]
                                            {id _node-id}))
   (output ddf-properties g/Any :cached (g/fnk [id ddf-component-properties] {:id id :properties ddf-component-properties})))
@@ -592,10 +585,11 @@
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc (claim-scene scene _node-id)
+                                (-> scene
+                                    (assoc :node-id _node-id
                                            :transform transform
-                                           :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
-                                           :renderable {:passes [pass/selection]})))
+                                           :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform))
+                                    (update :children (partial mapv #(scene/prepend-node-path % _node-id))))))
   (output build-targets g/Any :cached produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
                                                   (map (fn [m] (update m :id (fn [s] (format "%s/%s" id s)))) ddf-properties)))

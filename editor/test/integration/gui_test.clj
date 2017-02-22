@@ -525,7 +525,6 @@
           gui-scene (g/node-value gui :scene)]
       (testing "Gui scene"
         (is (= gui (:node-id gui-scene)))
-        (is (= (:node-id gui-scene) (:pick-id gui-scene)))
         (is (true? (contains? gui-scene :aabb)))
         (is (true? (contains? gui-scene :renderable)))
         (is (false? (contains? gui-scene :node-path)))
@@ -540,5 +539,4 @@
                 (is (some? visual-scene))
                 (is (true? (contains? visual-scene :aabb)))
                 (is (true? (contains? visual-scene :renderable)))
-                (is (= (:node-id visual-scene) (:pick-id visual-scene)))
                 (is (= [(:node-id visual-scene)] (:node-path visual-scene)))))))))))

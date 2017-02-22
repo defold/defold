@@ -423,7 +423,7 @@
     (fn [start-pos pos]
       (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))]
         (for [[node _ parent-world-transform] original-values
-              :let [world->local (math/affine-inverse parent-world-transform)
+              :let [world->local (math/inverse parent-world-transform)
                     local-delta (math/transform-vector world->local manip-delta)]]
           (manip-move basis node local-delta))))
     (:rot-x :rot-y :rot-z :rot-screen)
