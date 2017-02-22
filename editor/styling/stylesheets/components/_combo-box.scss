@@ -19,12 +19,12 @@
             -fx-rotate: 180;
         }
         >.list-cell {
-            -fx-border-width: 1 1 1 1;
-            -fx-border-color: $bright-grey;
+            -fx-border-width: 0;
             -fx-text-fill: $defold-white;
         }
         .list-view {
             -fx-border-color: $bright-grey;
+            -fx-border-width: 0;
         }
     }
     .list-view {
@@ -82,4 +82,7 @@
 }
 .combo-box-base {
     -fx-border-width: 0;
+    &:selected {
+        -fx-border-width: 0;
+    }
 }

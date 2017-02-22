@@ -5,30 +5,30 @@
 .list-view {
   .list-cell {
     &.added-file {
-      @include colorize-image-view(rgba($defold-green, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-green);
+      @include colorize-image-view($tree-view-icon);
+      &:selected, &:hover {
+        @include colorize-image-view($bright-grey-light);
       }
     }
 
     &.deleted-file {
-      @include colorize-image-view(rgba($defold-red, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-red);
+      @include colorize-image-view($tree-view-icon);
+      &:selected, &:hover {
+        @include colorize-image-view($bright-grey-light);
       }
     }
 
     &.modified-file {
-      @include colorize-image-view(rgba($defold-blue, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-blue);
+      @include colorize-image-view($tree-view-icon);
+      &:selected, &:hover {
+        @include colorize-image-view($bright-grey-light);
       }
     }
 
     &.renamed-file {
-      @include colorize-image-view(rgba($defold-yellow, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-yellow);
+      @include colorize-image-view($tree-view-icon);
+      &:selected, &:hover {
+        @include colorize-image-view($bright-grey-light);
       }
     }
   }
