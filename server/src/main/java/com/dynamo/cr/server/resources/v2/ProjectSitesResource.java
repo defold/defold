@@ -118,8 +118,8 @@ public class ProjectSitesResource extends BaseResource {
     @Path("cover_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addCoverImage(@PathParam("project") Long projectId,
-                                   @FormDataParam("file") InputStream file,
-                                   @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+                              @FormDataParam("file") InputStream file,
+                              @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
         projectService.addCoverImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
     }
 
@@ -128,8 +128,8 @@ public class ProjectSitesResource extends BaseResource {
     @Path("store_front_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addStoreFrontImage(@PathParam("project") Long projectId,
-                              @FormDataParam("file") InputStream file,
-                              @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+                                   @FormDataParam("file") InputStream file,
+                                   @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
         projectService.addStoreFrontImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
     }
 
@@ -138,8 +138,18 @@ public class ProjectSitesResource extends BaseResource {
     @Path("playable_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addPlayableImage(@PathParam("project") Long projectId,
+                                 @FormDataParam("file") InputStream file,
+                                 @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+        projectService.addPlayableImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
+    }
+
+    @POST
+    @RolesAllowed(value = {"member"})
+    @Path("attachment")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public void addAttachment(@PathParam("project") Long projectId,
                               @FormDataParam("file") InputStream file,
                               @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
-        projectService.addPlayableImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
+        projectService.addAttachment(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
     }
 }
