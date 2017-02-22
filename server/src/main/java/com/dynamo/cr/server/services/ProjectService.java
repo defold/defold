@@ -148,6 +148,10 @@ public class ProjectService {
         if (projectSite.hasReviewUrl()) {
             existingProjectSite.setReviewUrl(projectSite.getReviewUrl());
         }
+
+        if (projectSite.hasLibraryUrl()) {
+            existingProjectSite.setLibraryUrl(projectSite.getLibraryUrl());
+        }
     }
 
     @Transactional
@@ -238,6 +242,15 @@ public class ProjectService {
 
     private String uploadImage(long projectId, String user, String originalFilename, InputStream file) throws Exception {
         String contextPath = String.format("/projects/%d/images", projectId);
+        return uploadFile(user, originalFilename, file, contextPath);
+    }
+
+    private String uploadAttachment(long projectId, String user, String originalFilename, InputStream file) throws Exception {
+        String contextPath = String.format("/projects/%d/attachments", projectId);
+        return uploadFile(user, originalFilename, file, contextPath);
+    }
+
+    private String uploadFile(String user, String originalFilename, InputStream file, String contextPath) throws Exception {
         String writeToken = getMagazineClient().createWriteToken(user, contextPath);
         String filename = UUID.randomUUID().toString() + "-" + originalFilename;
         getMagazineClient().put(writeToken, "", file, filename);
@@ -260,5 +273,11 @@ public class ProjectService {
     public void addPlayableImage(String email, Long projectId, String fileName, InputStream file) throws Exception {
         String resourcePath = uploadImage(projectId, email, fileName, file);
         getProjectSite(projectId).setPlayableImageUrl(resourcePath);
+    }
+
+    @Transactional
+    public void addAttachment(String email, Long projectId, String fileName, InputStream file) throws Exception {
+        String resourcePath = uploadAttachment(projectId, email, fileName, file);
+        getProjectSite(projectId).setAttachmentUrl(resourcePath);
     }
 }

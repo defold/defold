@@ -83,6 +83,14 @@ public class ProjectSiteMapper {
                 builder.setReviewUrl(projectSite.getReviewUrl());
             }
 
+            if (projectSite.getLibraryUrl() != null) {
+                builder.setLibraryUrl(projectSite.getLibraryUrl());
+            }
+
+            if (projectSite.getAttachmentUrl() != null) {
+                builder.setAttachmentUrl(magazineClient.createReadUrl(projectSite.getAttachmentUrl()));
+            }
+
             Set<AppStoreReference> appStoreReferences = projectSite.getAppStoreReferences();
             if (appStoreReferences != null) {
                 for (AppStoreReference appStoreReference : appStoreReferences) {

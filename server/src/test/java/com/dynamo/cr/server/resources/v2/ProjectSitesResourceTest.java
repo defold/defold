@@ -100,6 +100,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .setStudioName("studioName")
                 .setDevLogUrl("devLogUrl")
                 .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
                 .build();
 
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
@@ -112,6 +113,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals("studioName", result.getStudioName());
         assertEquals("devLogUrl", result.getDevLogUrl());
         assertEquals("reviewUrl", result.getReviewUrl());
+        assertEquals("libraryUrl", result.getLibraryUrl());
         assertEquals(project.getId(), result.getProjectId());
     }
 
@@ -251,5 +253,25 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
         projectSite = getProjectSite(TestUser.JAMES, project.getId());
         System.out.println(projectSite.getPlayableUrl());
+    }
+
+    @Test
+    @Ignore("Integration test to run explicitly.")
+    public void uploadAttachment() throws URISyntaxException {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        File playableFile = new File(ClassLoader.getSystemResource("test_playable.zip").toURI());
+
+        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
+        FileDataBodyPart fileDataBodyPart = new FileDataBodyPart("file", playableFile, MediaType.APPLICATION_OCTET_STREAM_TYPE);
+        multiPart.bodyPart(fileDataBodyPart);
+
+        projectSiteResource(TestUser.JAMES, project.getId())
+                .path("attachment")
+                .type(MediaType.MULTIPART_FORM_DATA_TYPE)
+                .post(multiPart);
+
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        System.out.println(projectSite.getAttachmentUrl());
     }
 }
