@@ -60,6 +60,13 @@ $bright-grey:       #b0b0b0; // (icons)
 $bright-black:      #272b30; // (forms)
 $mid-black:         #1e2021; // (selected)
 
+/* Menu colors */
+$menu-background: $mid-grey;//$grey;
+$menu-foreground: $bright-grey-light;
+$menu-background-hover: $grey;
+$menu-foreground-hover: $defold-white;
+$menu-separator: $dark-grey-light;//$mid-grey;
+
 /* Scene view colors */
 $scene-toolbar-background: $dark-grey-header;
 $scene-toolbar-button-foreground: $defold-white;
