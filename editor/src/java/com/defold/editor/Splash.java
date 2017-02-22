@@ -10,6 +10,7 @@ import javafx.event.EventHandler;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.WindowEvent;
@@ -31,16 +32,17 @@ public class Splash {
     public void show() throws IOException {
         Object root = FXMLLoader.load(this.getClass().getResource("/splash.fxml"));
         scene = new Scene((Parent) root);
+        scene.setFill(Color.TRANSPARENT);
         stage = new Stage();
-        stage.initStyle(StageStyle.UNDECORATED);
+        stage.initStyle(StageStyle.TRANSPARENT);
         stage.getIcons().add(new Image(Splash.class.getResourceAsStream("/logo_blue.png")));
         stage.setScene(scene);
 
-        Label launchErrorLabel = (Label) scene.lookup("#launchError");
+        Label launchErrorLabel = (Label) scene.lookup("#launch-error");
         launchErrorLabel.textProperty().bind(launchError);
         launchErrorLabel.visibleProperty().bind(errorShowing);
 
-        Button errorButton = (Button) scene.lookup("#errorButton");
+        Button errorButton = (Button) scene.lookup("#error-button");
         errorButton.visibleProperty().bind(errorShowing);
         errorButton.setOnAction((event) -> {
                 System.exit(1);
@@ -71,7 +73,7 @@ public class Splash {
         return launchError;
     }
 
-     public void setErrorShowing(boolean value) {
+    public void setErrorShowing(boolean value) {
         errorShowing.setValue(value);
     }
 
