@@ -80,7 +80,6 @@
 
       (testing "Collision object scene"
         (is (= collision-object (:node-id collision-object-scene)))
-        (is (= (:node-id collision-object-scene) (:pick-id collision-object-scene)))
         (is (true? (contains? collision-object-scene :aabb)))
         (is (true? (contains? collision-object-scene :renderable)))
         (is (false? (contains? collision-object-scene :node-path)))
@@ -94,5 +93,4 @@
                 (is (some? shape-scene))
                 (is (true? (contains? shape-scene :aabb)))
                 (is (true? (contains? shape-scene :renderable)))
-                (is (= (:node-id shape-scene) (:pick-id shape-scene)))
                 (is (= [(:node-id shape-scene)] (:node-path shape-scene)))))))))))

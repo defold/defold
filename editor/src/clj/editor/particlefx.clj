@@ -638,7 +638,7 @@
 
 (defn- render-pfx [^GL2 gl render-args renderables count]
   (doseq [renderable renderables
-          :let [node-id (last (:node-path renderable))]]
+          :let [node-id (last (scene/node-path renderable))]]
     (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
       (let [pfx-sim @pfx-sim-ref
             user-data (:user-data renderable)
@@ -651,7 +651,6 @@
 
 (g/defnk produce-scene [_node-id child-scenes render-emitter-fn scene-updatable]
   {:node-id _node-id
-   :node-path [_node-id]
    :updatable scene-updatable
    :renderable {:render-fn render-pfx
                 :batch-key nil

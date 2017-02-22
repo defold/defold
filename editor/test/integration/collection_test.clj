@@ -8,6 +8,7 @@
             [editor.handler :as handler]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
+            [editor.scene :as scene]
             [editor.types :as types]
             [editor.properties :as properties]
             [integration.test-util :as test-util])
@@ -214,11 +215,10 @@
           collection (test-util/resource-node project "/scene_hierarchy/collection.collection")
           collection-scene (g/node-value collection :scene)
           wrapper-collection (test-util/resource-node project "/scene_hierarchy/wrapper.collection")
-          wrapper-collection-scene (g/node-value collection :scene)]
+          wrapper-collection-scene (g/node-value wrapper-collection :scene)]
 
       (testing "Sprite scene"
         (is (= sprite (:node-id sprite-scene)))
-        (is (= (:node-id sprite-scene) (:pick-id sprite-scene)))
         (is (true? (contains? sprite-scene :aabb)))
         (is (true? (contains? sprite-scene :renderable)))
         (is (false? (contains? sprite-scene :node-path))))
@@ -235,15 +235,13 @@
               (is (some? embedded-sprite-scene))
               (is (true? (contains? embedded-sprite-scene :aabb)))
               (is (true? (contains? embedded-sprite-scene :renderable)))
-              (is (= (:node-id embedded-sprite-scene) (:pick-id embedded-sprite-scene)))
-              (is (= [(:node-id embedded-sprite-scene)] (:node-path embedded-sprite-scene)))))
+              (is (= [(:node-id embedded-sprite-scene)] (scene/node-path embedded-sprite-scene)))))
           (testing "Referenced sprite scene"
             (let [referenced-sprite-scene (test-util/find-child-scene game-object/ReferencedComponent game-object-children)]
               (is (some? referenced-sprite-scene))
               (is (= (:aabb sprite-scene) (:aabb referenced-sprite-scene)))
               (is (= (:renderable sprite-scene) (:renderable referenced-sprite-scene)))
-              (is (= (:node-id referenced-sprite-scene) (:pick-id referenced-sprite-scene)))
-              (is (= [(:node-id referenced-sprite-scene)] (:node-path referenced-sprite-scene)))))))
+              (is (= [(:node-id referenced-sprite-scene)] (scene/node-path referenced-sprite-scene)))))))
 
       (testing "Collection scene"
         (is (= collection (:node-id collection-scene)))
@@ -257,8 +255,7 @@
               (is (some? embedded-game-object-scene))
               (is (true? (contains? embedded-game-object-scene :aabb)))
               (is (false? (contains? embedded-game-object-scene :renderable)))
-              (is (= (:node-id embedded-game-object-scene) (:pick-id embedded-game-object-scene)))
-              (is (= [(:node-id embedded-game-object-scene)] (:node-path embedded-game-object-scene)))
+              (is (= [(:node-id embedded-game-object-scene)] (scene/node-path embedded-game-object-scene)))
               (let [game-object-children (:children embedded-game-object-scene)]
                 (is (= 2 (count game-object-children)))
                 (testing "Embedded sprite scene"
@@ -266,22 +263,19 @@
                     (is (some? embedded-sprite-scene))
                     (is (true? (contains? embedded-sprite-scene :aabb)))
                     (is (true? (contains? embedded-sprite-scene :renderable)))
-                    (is (= (:node-id embedded-game-object-scene) (:pick-id embedded-sprite-scene)))
-                    (is (= [(:node-id embedded-game-object-scene) (:node-id embedded-sprite-scene)] (:node-path embedded-sprite-scene)))))
+                    (is (= [(:node-id embedded-game-object-scene) (:node-id embedded-sprite-scene)] (scene/node-path embedded-sprite-scene)))))
                 (testing "Referenced sprite scene"
                   (let [referenced-sprite-scene (test-util/find-child-scene game-object/ReferencedComponent game-object-children)]
                     (is (some? referenced-sprite-scene))
                     (is (= (:aabb sprite-scene) (:aabb referenced-sprite-scene)))
                     (is (= (:renderable sprite-scene) (:renderable referenced-sprite-scene)))
-                    (is (= (:node-id embedded-game-object-scene) (:pick-id referenced-sprite-scene)))
-                    (is (= [(:node-id embedded-game-object-scene) (:node-id referenced-sprite-scene)] (:node-path referenced-sprite-scene))))))))
+                    (is (= [(:node-id embedded-game-object-scene) (:node-id referenced-sprite-scene)] (scene/node-path referenced-sprite-scene))))))))
           (testing "Referenced game object scene"
             (let [referenced-game-object-scene (test-util/find-child-scene collection/ReferencedGOInstanceNode collection-children)]
               (is (some? referenced-game-object-scene))
               (is (true? (contains? referenced-game-object-scene :aabb)))
               (is (false? (contains? referenced-game-object-scene :renderable)))
-              (is (= (:node-id referenced-game-object-scene) (:pick-id referenced-game-object-scene)))
-              (is (= [(:node-id referenced-game-object-scene)] (:node-path referenced-game-object-scene)))
+              (is (= [(:node-id referenced-game-object-scene)] (scene/node-path referenced-game-object-scene)))
               (let [game-object-children (:children referenced-game-object-scene)]
                 (is (= 2 (count game-object-children)))
                 (testing "Embedded sprite scene"
@@ -289,15 +283,13 @@
                     (is (some? embedded-sprite-scene))
                     (is (true? (contains? embedded-sprite-scene :aabb)))
                     (is (true? (contains? embedded-sprite-scene :renderable)))
-                    (is (= (:node-id referenced-game-object-scene) (:pick-id embedded-sprite-scene)))
-                    (is (= [(:node-id referenced-game-object-scene) (:node-id embedded-sprite-scene)] (:node-path embedded-sprite-scene)))))
+                    (is (= [(:node-id referenced-game-object-scene) (:node-id embedded-sprite-scene)] (scene/node-path embedded-sprite-scene)))))
                 (testing "Referenced sprite scene"
                   (let [referenced-sprite-scene (test-util/find-child-scene game-object/ReferencedComponent game-object-children)]
                     (is (some? referenced-sprite-scene))
                     (is (= (:aabb sprite-scene) (:aabb referenced-sprite-scene)))
                     (is (= (:renderable sprite-scene) (:renderable referenced-sprite-scene)))
-                    (is (= (:node-id referenced-game-object-scene) (:pick-id referenced-sprite-scene)))
-                    (is (= [(:node-id referenced-game-object-scene) (:node-id referenced-sprite-scene)] (:node-path referenced-sprite-scene))))))))))
+                    (is (= [(:node-id referenced-game-object-scene) (:node-id referenced-sprite-scene)] (scene/node-path referenced-sprite-scene))))))))))
 
       (testing "Wrapper collection scene"
         (is (= wrapper-collection (:node-id wrapper-collection-scene)))
@@ -311,8 +303,7 @@
               (is (some? referenced-collection-scene))
               (is (true? (contains? referenced-collection-scene :aabb)))
               (is (false? (contains? referenced-collection-scene :renderable)))
-              (is (= (:node-id referenced-collection-scene) (:pick-id referenced-collection-scene)))
-              (is (= [(:node-id referenced-collection-scene)] (:node-path referenced-collection-scene)))
+              (is (= [(:node-id referenced-collection-scene)] (scene/node-path referenced-collection-scene)))
               (let [collection-children (:children referenced-collection-scene)]
                 (is (= 2 (count collection-children)))
                 (testing "Embedded game object scene"
@@ -320,8 +311,7 @@
                     (is (some? embedded-game-object-scene))
                     (is (true? (contains? embedded-game-object-scene :aabb)))
                     (is (false? (contains? embedded-game-object-scene :renderable)))
-                    (is (= (:node-id referenced-collection-scene) (:pick-id embedded-game-object-scene)))
-                    (is (= [(:node-id referenced-collection-scene) (:node-id embedded-game-object-scene)] (:node-path embedded-game-object-scene)))
+                    (is (= [(:node-id referenced-collection-scene) (:node-id embedded-game-object-scene)] (scene/node-path embedded-game-object-scene)))
                     (let [game-object-children (:children embedded-game-object-scene)]
                       (is (= 2 (count game-object-children)))
                       (testing "Embedded sprite scene"
@@ -329,20 +319,19 @@
                           (is (some? embedded-sprite-scene))
                           (is (true? (contains? embedded-sprite-scene :aabb)))
                           (is (true? (contains? embedded-sprite-scene :renderable)))
-                          (is (= [(:node-id embedded-game-object-scene) (:node-id embedded-sprite-scene)] (:node-path embedded-sprite-scene)))))
+                          (is (= [(:node-id referenced-collection-scene) (:node-id embedded-game-object-scene) (:node-id embedded-sprite-scene)] (scene/node-path embedded-sprite-scene)))))
                       (testing "Referenced sprite scene"
                         (let [referenced-sprite-scene (test-util/find-child-scene game-object/ReferencedComponent game-object-children)]
                           (is (some? referenced-sprite-scene))
                           (is (= (:aabb sprite-scene) (:aabb referenced-sprite-scene)))
                           (is (= (:renderable sprite-scene) (:renderable referenced-sprite-scene)))
-                          (is (= [(:node-id embedded-game-object-scene) (:node-id referenced-sprite-scene)] (:node-path referenced-sprite-scene))))))))
+                          (is (= [(:node-id referenced-collection-scene) (:node-id embedded-game-object-scene) (:node-id referenced-sprite-scene)] (scene/node-path referenced-sprite-scene))))))))
                 (testing "Referenced game object scene"
                   (let [referenced-game-object-scene (test-util/find-child-scene collection/ReferencedGOInstanceNode collection-children)]
                     (is (some? referenced-game-object-scene))
                     (is (true? (contains? referenced-game-object-scene :aabb)))
                     (is (false? (contains? referenced-game-object-scene :renderable)))
-                    (is (= (:node-id referenced-collection-scene) (:pick-id referenced-game-object-scene)))
-                    (is (= [(:node-id referenced-collection-scene) (:node-id referenced-game-object-scene)] (:node-path referenced-game-object-scene)))
+                    (is (= [(:node-id referenced-collection-scene) (:node-id referenced-game-object-scene)] (scene/node-path referenced-game-object-scene)))
                     (let [game-object-children (:children referenced-game-object-scene)]
                       (is (= 2 (count game-object-children)))
                       (testing "Embedded sprite scene"
@@ -350,12 +339,10 @@
                           (is (some? embedded-sprite-scene))
                           (is (true? (contains? embedded-sprite-scene :aabb)))
                           (is (true? (contains? embedded-sprite-scene :renderable)))
-                          (is (= (:node-id referenced-collection-scene) (:pick-id embedded-sprite-scene)))
-                          (is (= [(:node-id referenced-collection-scene) (:node-id referenced-game-object-scene) (:node-id embedded-sprite-scene)] (:node-path embedded-sprite-scene)))))
+                          (is (= [(:node-id referenced-collection-scene) (:node-id referenced-game-object-scene) (:node-id embedded-sprite-scene)] (scene/node-path embedded-sprite-scene)))))
                       (testing "Referenced sprite scene"
                         (let [referenced-sprite-scene (test-util/find-child-scene game-object/ReferencedComponent game-object-children)]
                           (is (some? referenced-sprite-scene))
                           (is (= (:aabb sprite-scene) (:aabb referenced-sprite-scene)))
                           (is (= (:renderable sprite-scene) (:renderable referenced-sprite-scene)))
-                          (is (= (:node-id referenced-collection-scene) (:pick-id referenced-sprite-scene)))
-                          (is (= [(:node-id referenced-collection-scene) (:node-id referenced-game-object-scene) (:node-id referenced-sprite-scene)] (:node-path referenced-sprite-scene))))))))))))))))
+                          (is (= [(:node-id referenced-collection-scene) (:node-id referenced-game-object-scene) (:node-id referenced-sprite-scene)] (scene/node-path referenced-sprite-scene))))))))))))))))

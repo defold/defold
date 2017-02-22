@@ -203,7 +203,17 @@
       (.set out-rotation mat3)
       (.set out-scale scale))))
 
-(defn affine-inverse ^Matrix4d [^Matrix4d mat]
+(defn inverse
+  "Calculate the inverse of a matrix."
+  ^Matrix4d [^Matrix4d mat]
+  (doto (Matrix4d.)
+    (.invert mat)))
+
+(defn affine-inverse
+  "Efficiently calculate the inverse of an affine matrix.
+  Warning: Currently does not support scaled matrices,
+  which are technically affine matrices."
+  ^Matrix4d [^Matrix4d mat]
   (let [t (Vector3d.)
         rs (Matrix3d.)]
     (.get mat t)
