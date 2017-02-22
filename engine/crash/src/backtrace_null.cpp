@@ -9,8 +9,9 @@ namespace dmCrash
         WriteCrash(g_FilePath, &g_AppState);
     }
 
-    void InstallHandler()
+    void InstallHandler(const char* mini_dump_path)
     {
+    	(void)mini_dump_path;
 
     }
 

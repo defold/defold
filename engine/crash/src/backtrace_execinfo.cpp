@@ -77,8 +77,9 @@ namespace dmCrash
 
     static char stack_buffer[SIGSTKSZ];
 
-    void InstallHandler()
+    void InstallHandler(const char* mini_dump_path)
     {
+        (void)mini_dump_path;
         InstallOnSignal(SIGSEGV);
         InstallOnSignal(SIGBUS);
         InstallOnSignal(SIGTRAP);

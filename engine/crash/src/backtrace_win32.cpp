@@ -2,10 +2,43 @@
 #include "crash_private.h"
 #include <dlib/math.h>
 
-#include <windows.h>
+#include <stdio.h>
+#include <Windows.h>
+#include <Dbghelp.h>
 
 namespace dmCrash
 {
+    static const char* g_MiniDumpPath = 0;
+    static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep ) 
+    {
+        // Open the file 
+
+        HANDLE hFile = CreateFile( path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL ); 
+
+        if( ( hFile != NULL ) && ( hFile != INVALID_HANDLE_VALUE ) ) 
+        {
+            MINIDUMP_EXCEPTION_INFORMATION mdei; 
+
+            mdei.ThreadId           = GetCurrentThreadId(); 
+            mdei.ExceptionPointers  = pep; 
+            mdei.ClientPointers     = FALSE; 
+
+            MINIDUMP_TYPE mdt       = MiniDumpNormal; 
+
+            BOOL rv = MiniDumpWriteDump( GetCurrentProcess(), GetCurrentProcessId(), hFile, mdt, (pep != 0) ? &mdei : 0, 0, 0 ); 
+
+            if( !rv )
+            {
+                fprintf(stderr, "MiniDumpWriteDump failed. Error: %u \n", GetLastError() ); 
+            }
+
+            CloseHandle( hFile ); 
+        }
+        else 
+        {
+            fprintf(stderr, "CreateFile failed: %s. Error: %u \n", path, GetLastError() ); 
+        }
+    }
 
     void OnCrash()
     {
@@ -25,11 +58,13 @@ namespace dmCrash
     LONG WINAPI OnCrash(EXCEPTION_POINTERS *ptr)
     {
         WriteDump();
+        WriteMiniDump(g_MiniDumpPath, ptr);
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
-    void InstallHandler()
+    void InstallHandler(const char* mini_dump_path)
     {
+        g_MiniDumpPath = mini_dump_path;
         ::SetUnhandledExceptionFilter(OnCrash);
     }
 }

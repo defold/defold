@@ -8,7 +8,7 @@ def build(bld):
     libs = 'SCRIPT GTEST EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
     test_crash = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '..',
-                                     uselib = libs,
+                                     uselib = libs + ' DbgHelp',
                                      uselib_local = 'crashext',
                                      target = 'test_crash',
                                      source = 'test_crash.cpp')
@@ -17,7 +17,7 @@ def build(bld):
 
     test_script_crash = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '..',
-                                     uselib = libs,
+                                     uselib = libs + ' DbgHelp',
                                      uselib_local = 'crashext',
                                      target = 'test_script_crash',
                                      exported_symbols = 'CrashExt',

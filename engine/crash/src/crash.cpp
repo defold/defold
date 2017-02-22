@@ -20,6 +20,7 @@ namespace dmCrash
 
     // The default path is where the dumps are stored before the application configures a different path.
     static char g_FilePathDefault[AppState::FILEPATH_MAX];
+    static char g_MiniDumpFilePathDefault[AppState::FILEPATH_MAX];
     char g_FilePath[AppState::FILEPATH_MAX];
 
     bool IsInitialized()
@@ -39,7 +40,10 @@ namespace dmCrash
         if (r == dmSys::RESULT_OK)
         {
             dmStrlCat(g_FilePathDefault, "/", sizeof(g_FilePathDefault));
+            dmStrlCpy(g_MiniDumpFilePathDefault, g_FilePathDefault, sizeof(g_MiniDumpFilePathDefault));
+
             dmStrlCat(g_FilePathDefault, "_crash", sizeof(g_FilePathDefault));
+            dmStrlCat(g_MiniDumpFilePathDefault, "dmengine.dmp", sizeof(g_MiniDumpFilePathDefault));
 
             dmStrlCpy(g_FilePath, g_FilePathDefault, sizeof(g_FilePath));
 
@@ -61,7 +65,7 @@ namespace dmCrash
 
             SetLoadAddrs(&g_AppState);
 
-            InstallHandler();
+            InstallHandler(g_MiniDumpFilePathDefault);
         }
     }
 
