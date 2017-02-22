@@ -512,7 +512,7 @@
   (input resources g/Any)
   (input resource-map g/Any)
   (input resource-types g/Any)
-  (input save-data g/Any :array :substitute (fn [save-data] (vec (remove g/error? save-data))))
+  (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-resources resource/Resource :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
   (input display-profiles g/Any)
