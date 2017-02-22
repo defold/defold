@@ -642,6 +642,16 @@ $ openssl pkcs8 -topk8 -inform PEM -outform DER -in private.pem -out private.der
 $ openssl rsa -in private.pem -out public.der -outform DER -pubout
 $ rm -f private.pem # This is optional!
 
+### Amazon S3 credentials for defold-resources-qa
+
+In test projects such as Defold Examples and Defold Test where LiveUpdate content is used the aws credentials are encrypted and stored with the project.
+
+To encrypt a file, use the following command
+$ openssl enc -a -des3 -in <filename> -out <filename>.encrypted
+
+To decrypt a file, use the following command
+$ openssl enc -a -d -des3 -in <filename> -out <filename>.decrypted
+
 
 ## Porting to another compiler
 
