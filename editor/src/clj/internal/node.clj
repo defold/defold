@@ -101,6 +101,7 @@
 (defn input-type             [nt label]  (some-> nt deref (get-in [:input label :value-type])))
 (defn input-cardinality      [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
 (defn behavior               [nt label]  (some-> nt deref (get-in [:behavior label])))
+(defn property-behavior      [nt label]  (some-> nt deref (get-in [:property-behavior label])))
 (defn cascade-deletes        [nt]        (some-> nt deref :input (->> (filterm #(cascade-deletes? (val %))) util/key-set)))
 (defn output-type            [nt label]  (some-> nt deref (get-in [:output label :value-type])))
 (defn output-arguments       [nt label]  (some-> nt deref (get-in [:output label :arguments])))
@@ -328,7 +329,7 @@
 
 (defn- ordinary-property-labels
   [node-type]
-  (without (util/key-set (declared-properties node-type)) special-labels))
+  (util/key-set (:property node-type)))
 
 (defn- node-value*
   [node-or-node-id label evaluation-context]
@@ -358,6 +359,21 @@
   maybe cache the value that was produced, and return it."
   [node-or-node-id label options]
   (node-value* node-or-node-id label (make-evaluation-context options)))
+
+(defn- node-property-value* [node-or-node-id label evaluation-context]
+  (let [cache              (:cache evaluation-context)
+        basis              (:basis evaluation-context)
+        node               (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
+        node-type          (gt/node-type node basis)]
+    (when-let [behavior (property-behavior node-type label)]
+      (let [result ((:fn behavior) node evaluation-context)]
+        (when (and node cache)
+          (c/cache-hit cache @(:hits evaluation-context))
+          (c/cache-encache cache @(:local evaluation-context)))
+        result))))
+
+(defn node-property-value [node-or-node-id label options]
+  (node-property-value* node-or-node-id label (make-evaluation-context options)))
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
@@ -612,9 +628,20 @@
   [description]
   (assoc description :input-dependencies (description->input-dependencies description)))
 
+(declare node-property-value-function)
 (declare node-output-value-function)
 (declare declared-properties-function)
 (declare node-input-value-function)
+
+(defn transform-properties-plumbing-map [description]
+  (let [labels  (ordinary-property-labels description)]
+    (zipmap labels
+      (map (fn [label]
+             {:fn (node-property-value-function description label)}) labels))))
+
+(defn attach-property-behaviors
+  [description]
+  (update description :property-behavior merge (transform-properties-plumbing-map description)))
 
 (defn transform-outputs-plumbing-map [description]
   (let [labels  (ordinary-output-labels description)]
@@ -965,6 +992,7 @@
       apply-property-dependencies-to-outputs
       attach-declared-properties
       attach-input-dependencies
+      attach-property-behaviors
       attach-output-behaviors
       attach-input-behaviors
       attach-declared-properties-behavior
@@ -1374,6 +1402,12 @@
              (let [~output-sym (ie/error-aggregate output-errors# :_node-id ~nodeid-sym :_label ~transform)]
                ~forms)))))
     forms))
+
+(defn node-property-value-function [description property]
+  (gensyms [self-name ctx-name nodeid-sym]
+    `(fn [~self-name ~ctx-name]
+       (let [~nodeid-sym (gt/node-id ~self-name)]
+         ~(collect-property-value self-name ctx-name nodeid-sym description property)))))
 
 (defn node-output-value-function
   [description transform]
