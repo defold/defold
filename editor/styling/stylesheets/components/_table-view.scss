@@ -14,7 +14,7 @@
 
         .nested-column-header {
             .column-header {
-                -fx-background-color: #171B1E;
+                -fx-background-color: $table-header;
                 .label {
                     -fx-text-fill: $defold-white;
                 }
@@ -23,7 +23,7 @@
 
         .filler {
             -fx-background-insets: 0;
-            -fx-background-color: #171B1E;
+            -fx-background-color: $table-header;
         }
     }
     .table-row-cell {
