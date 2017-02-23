@@ -385,6 +385,18 @@
 ;;; ----------------------------------------
 ;; Type checking
 
+(def ^:private nothing-schema (s/pred (constantly false)))
+
+(defn- prop-type->schema [prop-type]
+  (cond
+    (util/schema? prop-type)
+    prop-type
+
+    (ref? prop-type)
+    (value-type-schema prop-type)
+
+    :else nothing-schema))
+
 (defn- check-single-type
   [out in]
   (or
@@ -1593,14 +1605,17 @@
                                            p))
                                        props orig-props)]
           (reduce (fn [props [k v]]
-                    (cond-> props
-                      (and (= :_properties output)
-                           (not (contains? static-props k)))
-                      (assoc-in [:properties k :value] v)
+                    (let [prop-type (get-in props [:properties k :type])]
+                      (if (nil? (s/check (prop-type->schema prop-type) v))
+                        (cond-> props
+                          (and (= :_properties output)
+                               (not (contains? static-props k)))
+                          (assoc-in [:properties k :value] v)
 
-                      (contains? orig-props k)
-                      (assoc-in [:properties k :original-value]
-                                (get-in orig-props [k :value]))))
+                          (contains? orig-props k)
+                          (assoc-in [:properties k :original-value]
+                                    (get-in orig-props [k :value])))
+                        props)))
                   props properties))
 
         (or (has-output? type output)
