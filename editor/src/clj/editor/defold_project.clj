@@ -334,7 +334,7 @@
                                                   :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
-                                               {:label "Live Update settings"
+                                               {:label "Live Update Settings"
                                                 :command :live-update-settings}
                                                {:label "Sign iOS App..."
                                                 :command :sign-ios-app}
