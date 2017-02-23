@@ -5,9 +5,9 @@
 .list-view {
   .list-cell {
     &.added-file {
-      @include colorize-image-view(rgba(#92D52E, 0.35));
+      @include colorize-image-view(rgba($added-file, 0.35));
       &:selected, &:hover {
-        @include colorize-image-view(#92D52E);
+        @include colorize-image-view($added-file);
       }
     }
 
@@ -26,9 +26,9 @@
     }
 
     &.renamed-file {
-      @include colorize-image-view(rgba(#FFC41C, 0.25));
+      @include colorize-image-view(rgba($renamed-file, 0.25));
       &:selected, &:hover {
-        @include colorize-image-view(#FFC41C);
+        @include colorize-image-view($renamed-file);
       }
     }
   }
