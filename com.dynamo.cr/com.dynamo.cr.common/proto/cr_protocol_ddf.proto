@@ -130,6 +130,8 @@ message ProjectSite {
     optional string playable_url = 13;
     optional bool is_admin = 14;
     optional string playable_image_url = 15;
+    optional string library_url = 16;
+    optional string attachment_url = 17;
 
     message AppStoreReference {
         required int64 id = 1;
