@@ -76,7 +76,6 @@ namespace dmScript
     {
         dmMessage::URL* requester = (dmMessage::URL*) context;
         SendResponse(requester, status, headers, strlen(headers), (const char*) content, content_size);
-        delete[] content;
         delete requester;
     }
 

@@ -17,6 +17,7 @@ var LibraryScript = {
               var b = allocate(ab, 'i8', ALLOC_NORMAL);
               var resp_headers_buffer = allocate(intArrayFromString(resp_headers), 'i8', ALLOC_NORMAL);
               Runtime.dynCall('viiiii', onload, [arg, xhr.status, b, ab.length, resp_headers_buffer]);
+              _free(b);
           } else {
               Runtime.dynCall('vii', onerror, [arg, xhr.status]);
           }
