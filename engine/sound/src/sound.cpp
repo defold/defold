@@ -1054,11 +1054,8 @@ namespace dmSound
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0)
             {
-                if (!dmSound::IsMuted(instance))
-                {
-                    MixInstance(mix_context, instance);
-                    result = RESULT_OK;
-                }
+                MixInstance(mix_context, instance);
+                result = dmSound::IsMuted(instance) ? RESULT_NOTHING_TO_PLAY : RESULT_OK;
             }
 
             if (instance->m_EndOfStream && instance->m_FrameCount == 0) {
@@ -1181,14 +1178,7 @@ namespace dmSound
                 Master(&mix_context);
                 sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
             }
-            else if (result == RESULT_NOTHING_TO_PLAY)
-            {
-                // Just continue
-            }
-            else
-            {
-                return result;
-            }
+
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;

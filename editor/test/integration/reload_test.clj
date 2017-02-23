@@ -5,6 +5,7 @@
             [support.test-support :refer [with-clean-system undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
             [editor.math :as math]
             [editor.defold-project :as project]
+            [editor.game-project :as game-project]
             [editor.protobuf :as protobuf]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
@@ -362,13 +363,12 @@
           p ["display" "display_profiles"]
           disp-profs (get (g/node-value node-id :settings-map) p)
           path "/render/default.display_profiles"
-          new-path "/render/default2.display_profiles"
-          resource-setting-node ((g/node-value node-id :resource-setting-nodes) p)]
+          new-path "/render/default2.display_profiles"]
       (write-file workspace path "")
-      (g/transact (g/set-property resource-setting-node :value (workspace/file-resource workspace path)))
+      (game-project/set-setting! node-id p (workspace/file-resource workspace path))
       (move-file workspace path new-path)
       (is (= new-path
-             (resource/resource->proj-path (get (g/node-value node-id :settings-map) p)))))))
+            (resource/resource->proj-path (get (g/node-value node-id :settings-map) p)))))))
 
 (deftest all-project-files
   (with-clean-system

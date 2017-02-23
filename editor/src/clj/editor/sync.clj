@@ -340,7 +340,7 @@
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
-        stage           (ui/make-stage)
+        stage           (ui/make-dialog-stage (ui/main-stage))
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
@@ -444,7 +444,6 @@
 
                              nil)))]
     (dialogs/observe-focus stage)
-    (.initOwner stage (ui/main-stage))
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
@@ -526,8 +525,6 @@
                                          (when (= code KeyCode/ESCAPE) true
                                                (cancel-flow! !flow)
                                                (.close stage)))))
-
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
 
     (try

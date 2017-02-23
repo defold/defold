@@ -103,6 +103,18 @@ public:
     virtual ~WindowEventTest() {}
 };
 
+struct DrawCountParams
+{
+    const char* m_GOPath;
+    uint64_t m_ExpectedDrawCount;
+};
+
+class DrawCountTest : public GamesysTest<DrawCountParams>
+{
+public:
+    virtual ~DrawCountTest() {}
+};
+
 struct TexturePropParams
 {
     const char* go_path;

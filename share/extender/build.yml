@@ -60,15 +60,6 @@ main: |
     #endif
 
 
-whitelist:
-  defineRe:       "[A-Za-z]+[A-Za-z0-9_]+=?[A-Za-z0-9_]+"
-
-  context:
-    arg:                  "[a-zA-Z][a-zA-Z0-9-_]+"
-    comma_separated_arg:  "[a-zA-Z][a-zA-Z0-9-_]+"
-    number:               "[0-9]+"
-    warning:              "[a-zA-Z][a-zA-Z0-9-_]+"
-
 platforms:
   x86_64-osx:
     context:

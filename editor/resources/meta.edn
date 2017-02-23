@@ -1,5 +1,5 @@
 {:settings
- ({:type :string,
+ [{:type :string,
    :help "the title of the application",
    :default "unnamed",
    :path ["project" "title"]}
@@ -552,6 +552,14 @@
    "Specify which input method to use. Supported options are 'KeyEvent' and 'HiddenInputField'",
    :default "KeyEvent",
    :path ["android" "input_method"]}
+  {:type :string
+   :help "Private key"
+   :default nil
+   :path ["liveupdate" "privatekey"]}
+  {:type :string
+   :help "Public key"
+   :default nil
+   :path ["liveupdate" "publickey"]}  
   {:type :resource,
    :filter "icns",
    :preserve-extension true,
@@ -611,7 +619,7 @@
   {:type :string,
    :help "the application id as issued by Facebook",
    :default "",
-   :path ["facebook" "appid"]}),
+   :path ["facebook" "appid"]}],
  :categories
  {"sound" {:help "Sound related settings"},
   "html5" {:help "HTML5 related settings"},
@@ -641,4 +649,5 @@
   "ios" {:help "iOS related settings"},
   "iap" {:help "In App Purchase related settings"},
   "particle_fx" {:help "Particle FX related settings"},
-  "android" {:help "Android related settings"}}}
+  "android" {:help "Android related settings"}
+  "liveupdate" {:help "LiveUpdate settings"}}}

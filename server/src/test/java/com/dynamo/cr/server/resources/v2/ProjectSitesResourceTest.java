@@ -17,8 +17,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.*;
 
 public class ProjectSitesResourceTest extends AbstractResourceTest {
 
@@ -44,8 +43,21 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return baseResource.path("/projects/-1/").post(Protocol.ProjectInfo.class, newProject);
     }
 
+    private void addProjectMember(Long projectId, TestUser owner, TestUser newMember) {
+        WebResource baseResource = createBaseResource(owner.email, owner.password)
+                .path("/projects/-1")
+                .path(String.valueOf(projectId))
+                .path("members");
+
+        baseResource.post(newMember.email);
+    }
+
     private WebResource projectSiteResource(TestUser user, Long projectId) {
         return createBaseResource(user.email, user.password).path("v2/projects").path(projectId.toString()).path("site");
+    }
+
+    private WebResource projectSiteResource(Long projectId) {
+        return createAnonymousResource().path("v2/projects").path(projectId.toString()).path("site");
     }
 
     private void updateProjectSite(TestUser testUser, Long projectId, Protocol.ProjectSite projectSite) {
@@ -54,6 +66,10 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
     private Protocol.ProjectSite getProjectSite(TestUser testUser, Long projectId) {
         return projectSiteResource(testUser, projectId).get(Protocol.ProjectSite.class);
+    }
+
+    private Protocol.ProjectSite getProjectSite(Long projectId) {
+        return projectSiteResource(projectId).get(Protocol.ProjectSite.class);
     }
 
     private void addAppStoreReference(TestUser testUser, Long projectId, Protocol.NewAppStoreReference newAppStoreReference) {
@@ -82,10 +98,9 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .setDescription("description")
                 .setStudioUrl("studioUrl")
                 .setStudioName("studioName")
-                .setCoverImageUrl("coverImageUrl")
-                .setStoreFrontImageUrl("storeFrontImageUrl")
                 .setDevLogUrl("devLogUrl")
                 .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
                 .build();
 
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
@@ -96,11 +111,25 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals("description", result.getDescription());
         assertEquals("studioUrl", result.getStudioUrl());
         assertEquals("studioName", result.getStudioName());
-        assertEquals("coverImageUrl", result.getCoverImageUrl());
-        assertEquals("storeFrontImageUrl", result.getStoreFrontImageUrl());
         assertEquals("devLogUrl", result.getDevLogUrl());
         assertEquals("reviewUrl", result.getReviewUrl());
+        assertEquals("libraryUrl", result.getLibraryUrl());
         assertEquals(project.getId(), result.getProjectId());
+    }
+
+    @Test
+    public void projectMembersAreSiteAdmins() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+        addProjectMember(project.getId(), TestUser.JAMES, TestUser.CARL);
+
+        Protocol.ProjectSite result = getProjectSite(TestUser.JAMES, project.getId());
+        assertTrue(result.getIsAdmin());
+
+        result = getProjectSite(TestUser.CARL, project.getId());
+        assertTrue(result.getIsAdmin());
+
+        result = getProjectSite(TestUser.JOE, project.getId());
+        assertFalse(result.getIsAdmin());
     }
 
     @Test
@@ -166,6 +195,13 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void getProjectSiteAsUnauthorizedUser() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+        Protocol.ProjectSite projectSite = getProjectSite(project.getId());
+        assertNotNull(projectSite);
+    }
+
+    @Test
     @Ignore("Integration test to run explicitly.")
     public void updateScreenshotImages() throws URISyntaxException {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
@@ -217,5 +253,25 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
         projectSite = getProjectSite(TestUser.JAMES, project.getId());
         System.out.println(projectSite.getPlayableUrl());
+    }
+
+    @Test
+    @Ignore("Integration test to run explicitly.")
+    public void uploadAttachment() throws URISyntaxException {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        File playableFile = new File(ClassLoader.getSystemResource("test_playable.zip").toURI());
+
+        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
+        FileDataBodyPart fileDataBodyPart = new FileDataBodyPart("file", playableFile, MediaType.APPLICATION_OCTET_STREAM_TYPE);
+        multiPart.bodyPart(fileDataBodyPart);
+
+        projectSiteResource(TestUser.JAMES, project.getId())
+                .path("attachment")
+                .type(MediaType.MULTIPART_FORM_DATA_TYPE)
+                .post(multiPart);
+
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        System.out.println(projectSite.getAttachmentUrl());
     }
 }

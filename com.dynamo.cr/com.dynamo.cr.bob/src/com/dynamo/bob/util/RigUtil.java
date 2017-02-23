@@ -499,7 +499,7 @@ public class RigUtil {
         return BezierUtil.curve(t, 0.0, curve.y0, curve.y1, 1.0);
     }
 
-    private static void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1, double spf) {
+    private static void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
@@ -507,12 +507,11 @@ public class RigUtil {
         }
         for (int i = 0; i < v0.length; ++i) {
             double v = (1.0 - t) * v0[i] + t * v1[i];
-            System.out.println("sampleCurve: " + v);
             builder.add(v);
         }
     }
 
-    private static Quat4d sampleCurveSlerp(RigUtil.AnimationCurve curve, double cursor, double t0, Quat4d q0, double t1, Quat4d q1, double spf) {
+    private static Quat4d sampleCurveSlerp(RigUtil.AnimationCurve curve, double cursor, double t0, Quat4d q0, double t1, Quat4d q1) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         Quat4d qOut = new Quat4d();
@@ -530,87 +529,7 @@ public class RigUtil {
         int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
         int keyIndex = 0;
         int keyCount = track.keys.size();
-        Key key0 = track.keys.get(0);
-        Key key1 = key0;
-        
-        int dbg_add_val_count = 0;
-        if (keyCount == 3)
-        {
-            System.out.println("Break here!");
-        }
-        
-        T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
-        System.out.println("------------");
-        System.out.println("Duration: " + duration + ", keyCount: " + keyCount + ", sampleCount: " + sampleCount + ", endValue: " + endValue);
-        
-        if (propertyBuilder.getClass() == ColorBuilder.class) {
-            float[] color_val = (float[]) endValue;
-            System.out.println("Endvalue: ("+color_val[0]+", "+color_val[1]+", "+color_val[2]+", "+color_val[3]+")");
-        }
-        
-        for (int i=0; i<sampleCount; ++i) {
-            System.out.println("keyIndex: " + keyIndex);
-            key0 = key1;
-            /*if (key1 != null) {
-                key0 = key1;
-            }*/
-            ++keyIndex;
-            
-            if (keyIndex < keyCount) {
-                key1 = track.keys.get(keyIndex);
-            } else {
-                key1 = null;
-            }
-            
-            float keyDuration = 0.0f;
-            int numSamplesKey = 0;
-            if (key1 != null) {
-                keyDuration = key1.t - key0.t;
-                numSamplesKey = (int) ((keyDuration / duration) * sampleCount);
-            } else {
-                // Last key reached, just add endValue for each sample until done
-                System.out.println("Adding end value2: " + endValue);
-                propertyBuilder.addComposite(endValue); 
-                dbg_add_val_count += 3;
-                continue;
-            }
-            
-            System.out.println(numSamplesKey); // number of samples to take for key0
-            for(int j=0; j<numSamplesKey; ++j) {
-                if (key0.stepped || !interpolate) {
-                    T val = propertyBuilder.toComposite(key0);
-                    System.out.println("Stepped, val = " + val);
-                    propertyBuilder.addComposite(val);
-                    ++dbg_add_val_count;
-                } else {
-                    // Normal sampling
-                    //double localCursor = (double)j / (double)numSamplesKey;
-                    //double cursor = key0.t + localCursor*keyDuration;
-                    double cursor = (i+j)*spf;
-                    System.out.println("Cursor: " + cursor);
-                    if (shouldSlerp) {
-                        System.out.println("Slerp");
-                        Quat4d q0 = new Quat4d(new double[]{key0.value[0], key0.value[1], key0.value[2], key0.value[3]});
-                        Quat4d q1 = new Quat4d(new double[]{key1.value[0], key1.value[1], key1.value[2], key1.value[3]});
-                        Quat4d q2 = sampleCurveSlerp(key0.curve, cursor, key0.t, q0, key1.t, q1, spf);
-                        propertyBuilder.add(q2.x);
-                        propertyBuilder.add(q2.y);
-                        propertyBuilder.add(q2.z);
-                        propertyBuilder.add(q2.w);
-                    } else {
-                        System.out.println("i: " + i);
-                        sampleCurve(key0.curve, propertyBuilder, cursor, key0.t, key0.value, key1.t, key1.value, spf);
-                        dbg_add_val_count += 3;
-                    }
-                }
-            }
-            if (numSamplesKey > 0) {
-                i += numSamplesKey - 1;
-            }   
-        }
-        
-        System.out.println("Num added samples: " + dbg_add_val_count);
-        /*Key key = null;
+        Key key = null;
         Key next = track.keys.get(keyIndex);
         T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
         for (int i = 0; i < sampleCount; ++i) {
@@ -628,20 +547,27 @@ public class RigUtil {
             if (key != null) {
                 if (next != null) {
                     if (key.stepped || !interpolate) {
-                        // Stepped sampling only uses current key
-                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                        // Calc midpoint between key.t and next.t
+                        // Check if cursor is past midpoint, in that case sample next instead
+                        double midpoint = next.t - key.t;
+                        midpoint = key.t + (midpoint / 2.0);
+                        if (cursor > midpoint) {
+                            propertyBuilder.addComposite(propertyBuilder.toComposite(next));
+                        } else {
+                            propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                        }
                     } else {
                         // Normal sampling
                         if (shouldSlerp) {
                             Quat4d q0 = new Quat4d(new double[]{key.value[0], key.value[1], key.value[2], key.value[3]});
                             Quat4d q1 = new Quat4d(new double[]{next.value[0], next.value[1], next.value[2], next.value[3]});
-                            Quat4d q2 = sampleCurveSlerp(key.curve, cursor, key.t, q0, next.t, q1, spf);
+                            Quat4d q2 = sampleCurveSlerp(key.curve, cursor, key.t, q0, next.t, q1);
                             propertyBuilder.add(q2.x);
                             propertyBuilder.add(q2.y);
                             propertyBuilder.add(q2.z);
                             propertyBuilder.add(q2.w);
                         } else {
-                            sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
+                            sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value);
                         }
                     }
                 } else {
@@ -652,6 +578,6 @@ public class RigUtil {
                 // No valid key yet, use default value
                 propertyBuilder.addComposite(defaultValue);
             }
-        }*/
+        }
     }
 }

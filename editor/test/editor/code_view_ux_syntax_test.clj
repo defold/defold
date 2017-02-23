@@ -136,7 +136,7 @@
 
 (deftest lua-completions-propose-test
   (are [init completions] (completions? init completions)
-    "asser|"                                       [["assert"        "assert(v[,message])"     "assert(v)"]]
+    "asser|"                                       [["assert"        "assert(v,[message])"     "assert(v)"]]
     "if|"                                          [["if"
                                                      "if                                if cond then"
                                                      "if cond then\n\t--do things\nend"]]

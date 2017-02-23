@@ -9,6 +9,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.configuration.ConfigurationException;
@@ -170,7 +171,11 @@ public class SignHandler extends AbstractHandler {
                 }
                 tmpProject.setOption("defoldsdk", sdkVersion);
 
-                tmpProject.buildEngine(new ProgressDelegate(monitor));
+                List<String> extensionPaths = ExtenderUtil.getExtensionFolders(tmpProject);
+                boolean hasNativeExtensions = extensionPaths.size() > 0;
+                if (hasNativeExtensions) {
+                    tmpProject.buildEngine(new ProgressDelegate(monitor));
+                }
 
                 // Get engine executables
                 // armv7 exe

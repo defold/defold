@@ -408,6 +408,14 @@ proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('emitter', '.emitter', '.emitterc')
 
+# Copy prebuilt spine scenes
+new_copy_task('copy prebuilt animationsetc', '.prebuilt_animationsetc', '.animationsetc')
+new_copy_task('copy prebuilt meshsetc', '.prebuilt_meshsetc', '.meshsetc')
+new_copy_task('copy prebuilt rigscenec', '.prebuilt_rigscenec', '.rigscenec')
+new_copy_task('copy prebuilt skeletonc', '.prebuilt_skeletonc', '.skeletonc')
+new_copy_task('copy prebuilt texturec', '.prebuilt_texturec', '.texturec')
+new_copy_task('copy prebuilt texturesetc', '.prebuilt_texturesetc', '.texturesetc')
+
 from cStringIO import StringIO
 def strip_single_lua_comments(str):
     str = str.replace("\r", "");

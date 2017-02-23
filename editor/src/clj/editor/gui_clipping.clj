@@ -77,11 +77,11 @@
   (let [clipping-state (-> (get-in scene [:renderable :user-data :clipping-state])
                          (assoc :write-mask 0 :color-mask [true true true true]))]
     (-> scene
-     (update :renderable assoc :index 1)
-     (update-in [:renderable :batch-key] assoc :clipping-state clipping-state)
-     (update-in [:renderable :user-data] dissoc :clipping)
-     (update-in [:renderable :user-data] assoc :clipping-state clipping-state)
-     (dissoc scene :children :transform))))
+        (update :renderable assoc :index 1)
+        (update-in [:renderable :batch-key] assoc :clipping-state clipping-state)
+        (update-in [:renderable :user-data] dissoc :clipping)
+        (update-in [:renderable :user-data] assoc :clipping-state clipping-state)
+        (dissoc scene :children :transform :aabb))))
 
 (def update-scope)
 

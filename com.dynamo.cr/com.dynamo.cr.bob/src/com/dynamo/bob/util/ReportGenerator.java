@@ -115,24 +115,24 @@ public class ReportGenerator {
         String manifest = FilenameUtils.concat(rootDir, "game.dmanifest");
 
         ArchiveReader ar = new ArchiveReader(archiveIndex, archiveData, manifest);
-        
+
         ar.read();
 
         List<ArchiveEntry> archiveEntries = ar.getEntries();
         for (int i = 0; i < archiveEntries.size(); i++) {
             ArchiveEntry archiveEntry = archiveEntries.get(i);
-
+            long compressedSize = archiveEntry.compressedSize != -1 ? archiveEntry.compressedSize : archiveEntry.size;
             boolean encrypted = (archiveEntry.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED;
 
             if (this.resources.containsKey(archiveEntry.fileName)) {
                 ResourceEntry resEntry = this.resources.get(archiveEntry.fileName);
-                resEntry.compressedSize = archiveEntry.compressedSize;
+                resEntry.compressedSize = compressedSize;
                 resEntry.size = archiveEntry.size;
                 resEntry.encrypted = encrypted;
             } else {
                 ResourceEntry resEntry = new ResourceEntry(archiveEntry.fileName,
                         archiveEntry.size,
-                        archiveEntry.compressedSize,
+                        compressedSize,
                         encrypted);
 
                 this.resources.put(archiveEntry.fileName, resEntry);

@@ -257,21 +257,27 @@
   (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
     (console/clear-console!)
-    (let [build (build-project project build-errors-view)]
-      (when (and (future? build) @build)
-        (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
-              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                (engine/reboot (:url target) local-url)))
-            (engine/launch project prefs))))))
+    (ui/default-render-progress-now! (progress/make "Building..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [build (build-project project build-errors-view)]
+                     (when (and (future? build) @build)
+                       (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
+                             (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                               (engine/reboot (:url target) local-url)))
+                           (engine/launch project prefs))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
             (g/node-value app-view :active-resource))
   (run [project app-view prefs build-errors-view]
     (when-let [resource (g/node-value app-view :active-resource)]
-      (let [build (build-project project build-errors-view)]
-        (when (and (future? build) @build)
-            (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))
+      (ui/default-render-progress-now! (progress/make "Building..."))
+      (ui/->future 0.01
+                   (fn []
+                     (let [build (build-project project build-errors-view)]
+                       (when (and (future? build) @build)
+                         (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -298,7 +304,7 @@
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["version" "sha1" "time"])]
     (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
@@ -523,7 +529,8 @@
         (reify ChangeListener
           (changed [this observable old-val new-val]
             (->> (tab->resource-node new-val)
-              (on-selected-tab-changed app-view))))))
+              (on-selected-tab-changed app-view))
+            (ui/refresh (.getScene stage))))))
     (-> tab-pane
       (.getTabs)
       (.addListener
@@ -538,7 +545,6 @@
                                                                 (TabPaneBehavior/isTraversalEvent event))
                                                        (.consume event))))
 
-    (ui/register-toolbar (.getScene stage) "#toolbar" :toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
 
     (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! stage project)))
@@ -575,6 +581,7 @@
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-context-menu tab ::tab-menu)
+    (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
                          event
@@ -723,6 +730,9 @@
 (handler/defhandler :search-in-files :global
   (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
 
+(handler/defhandler :bundle :global
+  (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
+
 (defn- fetch-libraries [workspace project prefs]
   (future
     (ui/with-disabled-ui
@@ -732,6 +742,19 @@
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
+
+(defn- create-live-update-settings! [workspace]
+  (let [project-path (workspace/project-path workspace)
+        settings-file (io/file project-path "liveupdate.settings")]
+    (spit settings-file "[liveupdate]\n")
+    (workspace/resource-sync! workspace)
+    (workspace/find-resource workspace "/liveupdate.settings")))
+
+(handler/defhandler :live-update-settings :global
+  (run [app-view workspace project]
+    (some->> (or (workspace/find-resource workspace "/liveupdate.settings")
+                 (create-live-update-settings! workspace))
+      (open-resource app-view workspace project))))
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))

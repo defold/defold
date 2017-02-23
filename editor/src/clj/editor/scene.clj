@@ -164,12 +164,16 @@
 
 (defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
-    (let [result (.makeCurrent context)]
-      (if (= result GLContext/CONTEXT_NOT_CURRENT)
-        (do
-          (prn "Failed to set gl context as current.")
-          nil)
-        context))))
+    (try
+      (let [result (.makeCurrent context)]
+        (if (= result GLContext/CONTEXT_NOT_CURRENT)
+          (do
+            (log/warn :message "Failed to set gl context as current.")
+            nil)
+          context))
+      (catch Exception e
+        (log/error :exception e)
+        nil))))
 
 (defmacro with-drawable-as-current [^GLAutoDrawable drawable & forms]
   `(when-let [^GLContext ~'gl-context (make-current ~drawable)]
@@ -314,7 +318,7 @@
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
   (input camera Camera)
-  (input aux-renderables pass/RenderData :array)
+  (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -697,11 +701,19 @@
     (g/set-property! view-id :image-view image-view)
     pane))
 
+(defn- make-scene-view-pane [view-id opts]
+  (let [scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")]
+    (ui/fill-control scene-view-pane)
+    (ui/with-controls scene-view-pane [^AnchorPane gl-view-anchor-pane]
+      (let [gl-pane (make-gl-pane! view-id gl-view-anchor-pane opts "update-scene-view" true)]
+        (ui/fill-control gl-pane)
+        (.add (.getChildren scene-view-pane) 0 gl-pane)))
+    scene-view-pane))
+
 (defn- make-scene-view [scene-graph ^Parent parent opts]
   (let [view-id (g/make-node! scene-graph SceneView :select-buffer (make-select-buffer) :frame-version (atom 0))
-        gl-pane (make-gl-pane! view-id parent opts "update-scene-view" true)]
-    (ui/fill-control gl-pane)
-    (ui/children! parent [gl-pane])
+        scene-view-pane (make-scene-view-pane view-id opts)]
+    (ui/children! parent [scene-view-pane])
     view-id))
 
 (g/defnk produce-frame [render-args ^GLAutoDrawable drawable]
@@ -773,7 +785,7 @@
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (concat
       (g/make-nodes view-graph
-                    [background      background/Gradient
+                    [background      background/Background
                      selection       [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/select! app-view-id selection op-seq))]
                      camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                      grid            grid-type
@@ -832,12 +844,17 @@
     (frame-selection view-id false)
     view-id))
 
+(defn- focus-view [view-id opts]
+  (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
+    (.requestFocus image-view)))
+
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
                                 :label "Scene"
                                 :make-view-fn make-view
-                                :make-preview-fn make-preview))
+                                :make-preview-fn make-preview
+                                :focus-fn focus-view))
 
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))

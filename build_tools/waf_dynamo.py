@@ -136,6 +136,29 @@ def apidoc_extract_task(bld, src):
         return bld.new_task_gen(rule=write_docs, name='apidoc_extract', source = src, target = target)
 
 
+# Add single dmsdk file.
+# * 'source' file is installed into 'target' directory
+# * 'source' file is added to documentation pipeline
+def dmsdk_add_file(bld, target, source):
+    bld.install_files(target, source)
+    apidoc_extract_task(bld, source)
+
+# Add dmsdk files from 'source' recusrively.
+# * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
+# * 'source' files are added to documentation pipeline
+def dmsdk_add_files(bld, target, source):
+    bld_sdk_files = bld.path.find_dir(source).abspath()
+    bld_path = bld.path.abspath()
+    doc_files = []
+    for root, dirs, files in os.walk(bld_sdk_files):
+        for f in files:
+            f = os.path.relpath(os.path.join(root, f), bld_path)
+            doc_files.append(f)
+            sdk_dir = os.path.dirname(os.path.relpath(f, source))
+            bld.install_files(os.path.join(target, sdk_dir), f)
+    apidoc_extract_task(bld, doc_files)
+
+
 IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
 IOS_SDK_VERSION="9.3"

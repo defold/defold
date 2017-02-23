@@ -1,0 +1,30 @@
+{:settings
+ [{:type :string
+   :help "Target"
+   :default "Amazon"
+   :path ["liveupdate" "mode"]}
+  {:type :string,
+   :help "Amazon credentials profile",
+   :default "",
+   :presentation-category "Amazon"
+   :path ["liveupdate" "amazon-credential-profile"]}
+  {:type :string,
+   :help "Amazon Bucket",
+   :default "",
+   :presentation-category "Amazon"
+   :path ["liveupdate" "amazon-bucket"]}
+  {:type :string,
+   :help "Amazon Prefix",
+   :default "",
+   :presentation-category "Amazon"
+   :path ["liveupdate" "amazon-prefix"]}
+  {:type :string
+   :help "Zip directory"
+   :default ""
+   :presentation-category "Zip"
+   :path ["liveupdate" "zip-filepath"]}]
+ :categories
+ {"liveupdate" {:title "LiveUpdate"}
+  "Amazon" {}
+  "Zip" {}}}
+
