@@ -47,7 +47,7 @@
 (set! *warn-on-reflection* true)
 
 (def grid-hgap 4)
-(def grid-vgap 20)
+(def grid-vgap 15)
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 

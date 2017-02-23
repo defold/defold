@@ -1,34 +1,34 @@
 @mixin colorize-image-view($color) {
-  .image-view { -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0); }
+  .image-view { -fx-effect: innershadow(gaussian, $color, 127, 1.0, 0, 0); }
 }
 
 .list-view {
   .list-cell {
     &.added-file {
-      @include colorize-image-view($tree-view-icon);
+      @include colorize-image-view(rgba(#92D52E, 0.35));
       &:selected, &:hover {
-        @include colorize-image-view($bright-grey-light);
+        @include colorize-image-view(#92D52E);
       }
     }
 
     &.deleted-file {
-      @include colorize-image-view($tree-view-icon);
+      @include colorize-image-view(rgba($defold-red, 0.35));
       &:selected, &:hover {
-        @include colorize-image-view($bright-grey-light);
+        @include colorize-image-view(rgba($defold-red, 0.70));
       }
     }
 
     &.modified-file {
-      @include colorize-image-view($tree-view-icon);
+      @include colorize-image-view(rgba($defold-blue, 0.30));
       &:selected, &:hover {
-        @include colorize-image-view($bright-grey-light);
+        @include colorize-image-view(rgba($defold-blue, 0.70));
       }
     }
 
     &.renamed-file {
-      @include colorize-image-view($tree-view-icon);
+      @include colorize-image-view(rgba(#FFC41C, 0.25));
       &:selected, &:hover {
-        @include colorize-image-view($bright-grey-light);
+        @include colorize-image-view(#FFC41C);
       }
     }
   }
