@@ -329,8 +329,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		});
 		contentView.setMinHeight(0);
 		contentView.setMinWidth(0);
-		// this.contentView.setFixedCellSize(value);
-		// this.contentView.setFixedCellSize(15);
+		contentView.setFixedCellSize(0); // size cells after content
 		contentView.setOnMousePressed(new EventHandler<MouseEvent>() {
 
 			@Override

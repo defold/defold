@@ -19,12 +19,14 @@
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
+            [editor.system :as system]
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             ;; TODO - HACK
             [internal.graph.types :as gt]
+            [internal.graph :as ig]
             [clojure.string :as str])
   (:import [java.io File]
            [java.nio.file FileSystem FileSystems PathMatcher]
@@ -92,7 +94,7 @@
                       t)))))
 
 (defn load-resource-nodes [basis project node-ids render-progress!]
-  (let [progress (atom (progress/make "Loading resources" (count node-ids)))]
+  (let [progress (atom (progress/make "Loading resources..." (count node-ids)))]
     (doall
      (for [node-id node-ids
            :let [type (g/node-type* basis node-id)]
@@ -179,6 +181,7 @@
                                               basis            (g/now)
                                               cache            (g/cache)}
                                          :as opts}]
+  (render-progress! (progress/make "Saving..."))
   (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
     (if (g/error? save-data)
       (throw (Exception. ^String (properties/error-message save-data)))
@@ -309,26 +312,40 @@
   (run [project-graph] (g/undo! project-graph)))
 
 (handler/defhandler :redo :global
-    (enabled? [project-graph] (g/has-redo? project-graph))
-    (run [project-graph] (g/redo! project-graph)))
+  (enabled? [project-graph] (g/has-redo? project-graph))
+  (run [project-graph] (g/redo! project-graph)))
+
+(def ^:private bundle-targets ["iOS Application..."
+                               "Android Application..."
+                               "macOS Application..."
+                               "Windows Application..."
+                               "Linux Application..."
+                               "HTML5 Application..."
+                               "Facebook Application..."])
 
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"
                   :id ::project
-                  :children [{:label "Build"
-                              :acc "Shortcut+B"
-                              :command :build}
-                             {:label "Fetch Libraries"
-                              :command :fetch-libraries}
-                             {:label "Live Update settings"
-                              :command :live-update-settings}
-                             {:label "Sign iOS App..."
-                              :command :sign-ios-app}
-                             {:label :separator
-                              :id ::project-end}]}])
+                  :children (vec (remove nil? [{:label "Build"
+                                                :acc "Shortcut+B"
+                                                :command :build}
+                                               (when system/fake-it-til-you-make-it?
+                                                 {:label "Bundle"
+                                                  :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
+                                               {:label "Fetch Libraries"
+                                                :command :fetch-libraries}
+                                               {:label "Live Update settings"
+                                                :command :live-update-settings}
+                                               {:label "Sign iOS App..."
+                                                :command :sign-ios-app}
+                                               {:label :separator
+                                                :id ::project-end}]))}])
 
 (defn- outputs [node]
   (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
+
+(defn- explicit-outputs [node]
+  (mapv #(do [(second (gt/head %)) (gt/tail %)]) (ig/explicit-arcs-by-source (g/now) node)))
 
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
@@ -422,7 +439,7 @@
             to-reload-ext   (filterv (comp (complement loadable?) second) to-reload)
             old-outputs (reduce (fn [res [_ resource]]
                                   (let [nid (res->node resource)]
-                                    (assoc res nid (outputs nid))))
+                                    (assoc res nid (explicit-outputs nid))))
                                 {} to-reload-int)]
         ;; Internal resources to reload
         (let [in-use? (fn [resource-node-id]
@@ -433,8 +450,7 @@
               should-create-node? (fn [[operation resource]]
                                     (or (not= :removed operation)
                                         (-> resource
-                                            resource/proj-path
-                                            nodes-by-path
+                                            res->node
                                             in-use?)))
               resources-to-create (into [] (comp (filter should-create-node?) (map second)) to-reload-int)
               new-nodes (make-nodes! project resources-to-create)
@@ -444,11 +460,8 @@
               old->new (into {} (map (fn [[p n]] [(nodes-by-path p) n]) new-nodes-by-path))]
           (g/transact
             (concat
-              (for [[_ r] to-reload-int
-                    :let [p (resource/proj-path r)]
-                    :when (contains? new-nodes-by-path p)
-                    :let [old-node (nodes-by-path p)]]
-                (g/transfer-overrides old-node (new-nodes-by-path p)))
+              (for [[old-node new-node] old->new]
+                (g/transfer-overrides old-node new-node))
               (for [[_ r] to-reload-int
                     :let [old-node (nodes-by-path (resource/proj-path r))]]
                 (g/delete-node old-node))))
@@ -457,8 +470,7 @@
           (g/transact
             (concat
               (for [[old new] old->new
-                    :when new
-                    :let [existing (set (outputs new))]
+                    :let [existing (set (explicit-outputs new))]
                     [src-label [tgt-id tgt-label]] (old-outputs old)
                     :let [tgt-id (get old->new tgt-id tgt-id)]
                     :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
@@ -500,7 +512,7 @@
   (input resources g/Any)
   (input resource-map g/Any)
   (input resource-types g/Any)
-  (input save-data g/Any :array :substitute (fn [save-data] (vec (remove g/error? save-data))))
+  (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-resources resource/Resource :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
   (input display-profiles g/Any)
@@ -636,7 +648,7 @@
         (settings-core/get-setting ["project" "dependencies"]))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
-  (let [progress (atom (progress/make "Updating dependencies" 3))]
+  (let [progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
     (workspace/set-project-dependencies! workspace-id (read-dependencies game-project-resource))
     (workspace/update-dependencies! workspace-id (progress/nest-render-progress render-progress! @progress) login-fn)
