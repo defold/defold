@@ -2,3 +2,7 @@ key_trigger {
   input: KEY_ENTER
   action: "ok"
 }
+mouse_trigger {
+  input: MOUSE_BUTTON_1
+  action: "touch"
+}
