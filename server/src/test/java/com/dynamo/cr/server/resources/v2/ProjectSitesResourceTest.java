@@ -56,6 +56,10 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return createBaseResource(user.email, user.password).path("v2/projects").path(projectId.toString()).path("site");
     }
 
+    private WebResource projectSitesResource(TestUser user) {
+        return createBaseResource(user.email, user.password).path("v2/projects").path("sites");
+    }
+
     private WebResource projectSiteResource(Long projectId) {
         return createAnonymousResource().path("v2/projects").path(projectId.toString()).path("site");
     }
@@ -66,6 +70,10 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
     private Protocol.ProjectSite getProjectSite(TestUser testUser, Long projectId) {
         return projectSiteResource(testUser, projectId).get(Protocol.ProjectSite.class);
+    }
+
+    private Protocol.ProjectSiteList getProjectSites(TestUser testUser) {
+        return projectSitesResource(testUser).get(Protocol.ProjectSiteList.class);
     }
 
     private Protocol.ProjectSite getProjectSite(Long projectId) {
@@ -86,6 +94,32 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
     private void deleteScreenshot(TestUser testUser, Long projectId, Long screenshotId) {
         projectSiteResource(testUser, projectId).path("screenshots").path(screenshotId.toString()).delete();
+    }
+
+    @Test
+    public void listProjectSites() {
+        int originalSitesCount = getProjectSites(TestUser.JAMES).getSitesCount();
+
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSite projectSite = Protocol.ProjectSite.newBuilder()
+                .setName("name")
+                .setDescription("description")
+                .setStudioUrl("studioUrl")
+                .setStudioName("studioName")
+                .setDevLogUrl("devLogUrl")
+                .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
+
+        Protocol.ProjectInfo projectWithoutSite = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSiteList result = getProjectSites(TestUser.JAMES);
+
+        assertEquals(originalSitesCount + 1, result.getSitesCount());
     }
 
     @Test
@@ -114,13 +148,54 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals("devLogUrl", result.getDevLogUrl());
         assertEquals("reviewUrl", result.getReviewUrl());
         assertEquals("libraryUrl", result.getLibraryUrl());
+        assertEquals(false, result.getIsPublicSite()); // Project site should be private by default.
         assertEquals(project.getId(), result.getProjectId());
+    }
+
+    @Test
+    public void privateSiteShouldNotBeAccessibleForNonMembers() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSite projectSite = Protocol.ProjectSite.newBuilder()
+                .setName("name")
+                .setDescription("description")
+                .setStudioUrl("studioUrl")
+                .setStudioName("studioName")
+                .setDevLogUrl("devLogUrl")
+                .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setIsPublicSite(false)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
+
+        assertNotNull(getProjectSite(TestUser.JAMES, project.getId()));
+
+        try {
+            getProjectSite(TestUser.CARL, project.getId());
+        } catch (Exception e) {
+            return;
+        }
+        fail();
     }
 
     @Test
     public void projectMembersAreSiteAdmins() {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
         addProjectMember(project.getId(), TestUser.JAMES, TestUser.CARL);
+
+        Protocol.ProjectSite projectSite = Protocol.ProjectSite.newBuilder()
+                .setName("name")
+                .setDescription("description")
+                .setStudioUrl("studioUrl")
+                .setStudioName("studioName")
+                .setDevLogUrl("devLogUrl")
+                .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
 
         Protocol.ProjectSite result = getProjectSite(TestUser.JAMES, project.getId());
         assertTrue(result.getIsAdmin());
@@ -197,8 +272,21 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
     @Test
     public void getProjectSiteAsUnauthorizedUser() {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
-        Protocol.ProjectSite projectSite = getProjectSite(project.getId());
-        assertNotNull(projectSite);
+
+        Protocol.ProjectSite projectSite = Protocol.ProjectSite.newBuilder()
+                .setName("name")
+                .setDescription("description")
+                .setStudioUrl("studioUrl")
+                .setStudioName("studioName")
+                .setDevLogUrl("devLogUrl")
+                .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
+
+        assertNotNull(getProjectSite(project.getId()));
     }
 
     @Test
