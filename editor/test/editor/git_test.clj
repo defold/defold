@@ -1,5 +1,6 @@
 (ns editor.git-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.git :as git])
   (:import java.nio.file.attribute.FileAttribute
@@ -34,9 +35,11 @@
 (defn- temp-dir []
   (.toFile (Files/createTempDirectory "foo" (into-array FileAttribute []))))
 
+(defn init-git []
+  (-> (Git/init) (.setDirectory (temp-dir)) (.call)))
+
 (defn new-git []
-  (let [f (temp-dir)
-        git (-> (Git/init) (.setDirectory f) (.call))]
+  (let [git (init-git)]
     ;; We must have a HEAD in general
     (create-file git "/dummy" "")
     (-> git (.add) (.addFilepattern "dummy") (.call))
@@ -68,7 +71,7 @@
 (defn- all-files [status]
   (reduce (fn [acc [k v]] (clojure.set/union acc v)) #{} (dissoc status :untracked-folders)))
 
-(defn- autostage [^Git git]
+(defn autostage [^Git git]
   (let [s (git/status git)]
     (doseq [f (:modified s)]
       (-> git (.add) (.addFilepattern f) (.call)))
@@ -269,6 +272,8 @@
   (with-git [git (new-git)]
     (create-file git "/src/main.cpp" "void main() {}")
     (let [ref (commit-src git)]
+      (is (nil? (git/show-file git "src/missing.cpp")))
+      (is (nil? (git/show-file git "src/missing.cpp" (.name ref))))
       (is (= "void main() {}" (String. (git/show-file git "src/main.cpp"))))
       (is (= "void main() {}" (String. (git/show-file git "src/main.cpp" (.name ref))))))))
 
@@ -460,7 +465,9 @@
   "Commit some files to the remote, then create a local clone.
   We will then make conflicting modifications to the working
   directories of both repositories"
-  [^Git remote-git]
+  [^Git remote-git gitignore-patterns]
+  (when-let [gitignore-contents (not-empty (string/join "\n" gitignore-patterns))]
+    (create-file remote-git ".gitignore" gitignore-contents))
   (create-file remote-git "src/both_deleted.txt" "both_deleted")
   (create-file remote-git "src/both_modified_conflicting.txt" "both_modified_conflicting")
   (create-file remote-git "src/both_modified_same.txt" "both_modified_same")
@@ -476,7 +483,7 @@
   (create-file remote-git "src/remote_deleted.txt" "remote_deleted")
   (create-file remote-git "src/remote_modified.txt" "remote_modified")
   (create-file remote-git "src/remote_moved.txt" "remote_moved")
-  (add-src remote-git)
+  (-> remote-git .add (.addFilepattern ".") .call)
   (-> remote-git .commit (.setMessage "Initial commit") .call)
   (is (= {} (simple-status remote-git)))
 
@@ -617,7 +624,7 @@
 
 (deftest stash-apply-conflicting-test
   (with-git [remote-git (new-git)
-             local-git (create-conflict-zoo! remote-git)]
+             local-git (create-conflict-zoo! remote-git [])]
     ; Commit conflicting changes on remote.
     (autostage remote-git)
     (is (= {:added #{"src/moved/both_moved_conflicting_b.txt"
