@@ -130,8 +130,9 @@
 (defn tmp-file [^File dir resource]
   (let [f (File. dir (resource/resource-name resource))]
     (if (= :file (resource/source-type resource))
-      (with-open [out (io/writer f)]
-        (IOUtils/copy (io/input-stream resource) out))
+      (with-open [in (io/input-stream resource)
+                  out (io/output-stream f)]
+        (IOUtils/copy in out))
       (do
         (.mkdirs f)
         (doseq [c (:children resource)]

@@ -8,11 +8,6 @@
         -fx-background-insets: 0;
         -fx-background-color: $panel-background;
     }
-    &:hover {
-        >.list-cell {
-            -fx-border-width: 0;
-        }
-    }
     &:showing {
         .arrow {
             -fx-background-color: $defold-white;
@@ -62,9 +57,9 @@
         }
     }
     >.list-cell {
-        -fx-border-width: 0;
-        -fx-border-color: transparent;
-        -fx-text-fill: $bright-grey;
+        -fx-border-width: 1;
+        -fx-border-color: $input-border;
+        -fx-text-fill: $defold-white;
     }
     .text-field, .text-input {
         /*-fx-border-width: 0;*/
@@ -82,7 +77,11 @@
 }
 .combo-box-base {
     -fx-border-width: 0;
+<<<<<<< HEAD
     &:selected {
         -fx-border-width: 0;
     }
 }
+=======
+}
+>>>>>>> dev
