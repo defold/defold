@@ -38,6 +38,7 @@ namespace dmScript
         /// The expected difference in stack size when this sctruct goes out of scope
         int m_Diff;
         LuaStackCheck(lua_State* L, int diff);
+        void Verify(int diff);
         ~LuaStackCheck();
     };
 
@@ -56,6 +57,27 @@ namespace dmScript
      *
      */
     #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);
+
+
+    /*# helper macro to validate the Lua stack state and throw a lua error.
+     *
+     * This macro will verify that the Lua stack size hasn't been changed before
+     * throwing a Lua error, which will long-jump out of the current function.
+     * This macro can only be used together with `DM_LUA_STACK_CHECK` and should
+     * be prefered over manual checking of the stack.
+     *
+     * @macro
+     * @name DM_LUA_ERROR
+     * @param L [type:lua_State*] lua state
+     * @param fmt [type:const char*] C string that contains the error. It can
+     * optionally contain embedded format specifiers that are replaced by the
+     * values specified in subsequent additional arguments and formatted as requested.
+     * @param args [type:mixed] Depending on the format string, the function may
+     * expect a sequence of additional arguments
+     *
+     */
+    #define DM_LUA_ERROR(_L_, _fmt_, ...)    lua_stack_check.Verify(0); \
+                                             luaL_error(_L_, _fmt_, __VA_ARGS__);
 
 
     /*# wrapper for luaL_ref.
