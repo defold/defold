@@ -234,34 +234,39 @@ namespace dmGameObject
             }
             // Adjust cursor
             bool completed = false;
-            switch (anim.m_Playback)
+
+            if (anim.m_Duration > 0)
             {
-            case PLAYBACK_ONCE_FORWARD:
-            case PLAYBACK_ONCE_BACKWARD:
-            case PLAYBACK_ONCE_PINGPONG:
-                if (anim.m_Cursor >= anim.m_Duration)
+                switch (anim.m_Playback)
                 {
-                    anim.m_Cursor = anim.m_Duration;
-                    completed = true;
+                case PLAYBACK_ONCE_FORWARD:
+                case PLAYBACK_ONCE_BACKWARD:
+                case PLAYBACK_ONCE_PINGPONG:
+                    if (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor = anim.m_Duration;
+                        completed = true;
+                    }
+                    break;
+                case PLAYBACK_LOOP_FORWARD:
+                case PLAYBACK_LOOP_BACKWARD:
+                    while (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor -= anim.m_Duration;
+                    }
+                    break;
+                case PLAYBACK_LOOP_PINGPONG:
+                    while (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor -= anim.m_Duration;
+                        anim.m_Backwards = ~anim.m_Backwards;
+                    }
+                    break;
+                default:
+                    break;
                 }
-                break;
-            case PLAYBACK_LOOP_FORWARD:
-            case PLAYBACK_LOOP_BACKWARD:
-                while (anim.m_Cursor >= anim.m_Duration)
-                {
-                    anim.m_Cursor -= anim.m_Duration;
-                }
-                break;
-            case PLAYBACK_LOOP_PINGPONG:
-                while (anim.m_Cursor >= anim.m_Duration)
-                {
-                    anim.m_Cursor -= anim.m_Duration;
-                    anim.m_Backwards = ~anim.m_Backwards;
-                }
-                break;
-            default:
-                break;
             }
+
             // Evaluate animation
             if (!anim.m_Composite)
             {
