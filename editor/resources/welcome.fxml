@@ -28,8 +28,8 @@
       <VBox spacing="4" id="welcome-right-pane">
         <children>
           <Label id="open-project-label" text="Open project"></Label>
-          <Button id="import-project" mnemonicParsing="false" text="From Dashboard" prefWidth="120" />
-          <Button id="open-project" mnemonicParsing="false" text="From Disk" prefWidth="120" />
+          <Button id="import-project" mnemonicParsing="false" text="From Dashboard" prefWidth="130" />
+          <Button id="open-project" mnemonicParsing="false" text="From Disk" prefWidth="130" />
         </children>
       </VBox>
    </children>
