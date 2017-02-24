@@ -1,8 +1,28 @@
 .menu-bar {
     -fx-background-color: $root-background;
-     .menu-item {
-         &:hover {
-             -fx-background-color: $tree-view-icon;
-         }
+
+    .menu {
+        >.label {
+            -fx-text-fill: $bright-grey;
+        }
+
+        &:hover {
+            >.label {
+                -fx-text-fill: $menu-foreground-hover;
+            }
+        }
+        &:showing {
+            -fx-background-color: $menu-background-hover;
+            >.label {
+                -fx-text-fill: $menu-foreground-hover;
+            }
+        }
     }
+
+    @include menu-elements();
+}
+
+#menu-bar-space {
+    -fx-background-color: $root-background;
+    -fx-pref-height: $pane-padding-top;
 }
