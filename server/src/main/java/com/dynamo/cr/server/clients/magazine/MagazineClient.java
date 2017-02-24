@@ -18,7 +18,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 public class MagazineClient {
-    private static final Duration READ_EXPIRATION = Duration.of(5, ChronoUnit.HOURS);
+    private static final Duration READ_EXPIRATION = Duration.of(14, ChronoUnit.DAYS);
     private static final Duration WRITE_EXPIRATION = Duration.of(10, ChronoUnit.MINUTES);
 
     private final JwtFactory jwtFactory;
