@@ -1,8 +1,11 @@
 [bootstrap]
-# This field does not support replacements.
-# It will probably only be used for testing purposes.
+# These fields do not support replacements.
+# They are only here for testing purposes.
+
 # If left unset, it defaults to the installation resources path.
 resourcespath =
+# If left unset, it defaults to the platform application support path
+supportpath = 
 [build]
 # These fields are filled in by bundle.py
 version = 2.0.0
@@ -13,9 +16,9 @@ jre = ${bootstrap.resourcespath}/packages/jre
 java = ${launcher.jre}/bin/java
 jar = ${bootstrap.resourcespath}/packages/defold-${build.sha1}.jar
 main = com.defold.editor.Start
-log =
+log = ${bootstrap.supportpath}/editor2.log
 debug = 1
-vmargs = -Ddefold.editor2.log=${launcher.log},-Ddefold.resourcespath=${bootstrap.resourcespath},-Ddefold.version=${build.version},-Ddefold.sha1=${build.sha1},-Ddefold.buildtime=${build.time},-Djava.ext.dirs=${launcher.jre}/lib/ext,-Djava.net.preferIPv4Stack=true,-Dsun.net.client.defaultConnectTimeout=30000,-Dsun.net.client.defaultReadTimeout=30000,-Djogl.texture.notexrect=true
+vmargs = -Ddefold.editor2.log=${launcher.log},-Ddefold.resourcespath=${bootstrap.resourcespath},-Ddefold.supportpath=${bootstrap.supportpath},-Ddefold.version=${build.version},-Ddefold.sha1=${build.sha1},-Ddefold.buildtime=${build.time},-Djava.ext.dirs=${launcher.jre}/lib/ext,-Djava.net.preferIPv4Stack=true,-Dsun.net.client.defaultConnectTimeout=30000,-Dsun.net.client.defaultReadTimeout=30000,-Djogl.texture.notexrect=true
 [platform]
 osx = -Xdock:icon=${bootstrap.resourcespath}/logo.icns,-Xdock:name=Defold
 windows =
