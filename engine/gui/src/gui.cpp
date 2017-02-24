@@ -1309,7 +1309,7 @@ namespace dmGui
         {
             Animation* anim = &(*animations)[i];
 
-            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            if (anim->m_Elapsed > anim->m_Duration || anim->m_Cancelled)
             {
                 continue;
             }
@@ -1327,6 +1327,14 @@ namespace dmGui
                     anim->m_FirstUpdate = 0;
                     // Compensate Elapsed with Delay underflow
                     anim->m_Elapsed = -anim->m_Delay;
+
+                    if (anim->m_Duration == 0.0f)
+                    {
+                        // This will allow an animation to complete instantly
+                        // if duration has been set to 0, which is the same
+                        // behaviour as go.animate.
+                        anim->m_Duration = dt;
+                    }
                 }
 
                 // NOTE: We add dt to elapsed before we calculate t.
