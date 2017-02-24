@@ -668,9 +668,9 @@
 
 
 (defn- create-field-label [name]
-  (let [label (Label. name)]
-    (.setMinWidth label Control/USE_PREF_SIZE)
-    label))
+  (doto (Label. name)
+    (ui/add-style! "property-label")
+    (.setMinWidth Control/USE_PREF_SIZE)))
 
 (defn- field-label-valign [field-info]
   (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER))
