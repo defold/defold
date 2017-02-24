@@ -42,6 +42,15 @@ public class ProjectSite {
     @Column
     private String playableImageUrl;
 
+    @Column
+    private String libraryUrl;
+
+    @Column
+    private String attachmentUrl;
+
+    @Column
+    private boolean publicSite;
+
     @OneToMany(cascade = CascadeType.ALL)
     private Set<AppStoreReference> appStoreReferences = new HashSet<>();
 
@@ -142,5 +151,29 @@ public class ProjectSite {
 
     public void setPlayableImageUrl(String playableImageUrl) {
         this.playableImageUrl = playableImageUrl;
+    }
+
+    public String getLibraryUrl() {
+        return libraryUrl;
+    }
+
+    public void setLibraryUrl(String libraryUrl) {
+        this.libraryUrl = libraryUrl;
+    }
+
+    public String getAttachmentUrl() {
+        return attachmentUrl;
+    }
+
+    public void setAttachmentUrl(String attachmentUrl) {
+        this.attachmentUrl = attachmentUrl;
+    }
+
+    public boolean isPublicSite() {
+        return publicSite;
+    }
+
+    public void setPublicSite(boolean publicSite) {
+        this.publicSite = publicSite;
     }
 }
