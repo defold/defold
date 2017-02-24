@@ -306,6 +306,14 @@ public class ColladaUtil {
                 Matrix4d upAxisMatrix = null;
                 if (bi == 0) {
                     upAxisMatrix = MathUtil.floatToDouble(createUpAxisMatrix(collada.asset.upAxis));
+
+                    // Check if there is any transform on the skeleton/armature node in the scene.
+                    if (collada.libraryVisualScenes.size() > 0) {
+                        Matrix4f skeletonTransform = new Matrix4f();
+                        skeletonTransform.setIdentity();
+                        findSkeletonNode(collada, skeletonTransform);
+                        upAxisMatrix.mul(upAxisMatrix, MathUtil.floatToDouble(skeletonTransform));
+                    }
                 }
 
                 // search the animations for each bone
@@ -730,15 +738,9 @@ public class ColladaUtil {
             return null;
         }
 
-        XMLNode rootNode = null;
-        for ( XMLVisualScene scene : collada.libraryVisualScenes.get(0).scenes.values() ) {
-            for ( XMLNode node : scene.nodes.values() ) {
-                rootNode = findFirstSkeleton(node);
-                if(rootNode != null) {
-                    break;
-                }
-            }
-        }
+        Matrix4f skeletonTransform = new Matrix4f();
+        skeletonTransform.setIdentity();
+        XMLNode rootNode = findSkeletonNode(collada, skeletonTransform);
 
         if (rootNode == null) {
             return null;
@@ -751,8 +753,10 @@ public class ColladaUtil {
         /*
          * Create the Bone hierarchy based on depth first recursion of the skeleton tree.
          */
+        Matrix4f upAxisMatrix = createUpAxisMatrix(collada.asset.upAxis);
+        upAxisMatrix.mul(upAxisMatrix, skeletonTransform);
         ArrayList<Bone> boneList = new ArrayList<Bone>();
-        loadBone(rootNode, boneList, boneIds, createUpAxisMatrix(collada.asset.upAxis));
+        loadBone(rootNode, boneList, boneIds, upAxisMatrix);
         return boneList;
     }
 
@@ -772,14 +776,31 @@ public class ColladaUtil {
         skeletonBuilder.addAllBones(ddfBones);
     }
 
-    private static XMLNode findFirstSkeleton(XMLNode node) {
+    private static XMLNode findFirstSkeleton(XMLNode node, Matrix4f transform) {
         if(node.type == XMLNode.Type.JOINT) {
             return node;
         }
+        Matrix4f nodeTrans = new Matrix4f(MathUtil.vecmath2ToVecmath1(node.matrix.matrix4f));
+        Matrix4f t = new Matrix4f(transform);
+        t.mul(nodeTrans);
         XMLNode rootNode = null;
         if(!node.childrenList.isEmpty()) {
             for(XMLNode childNode : node.childrenList) {
-                rootNode = findFirstSkeleton(childNode);
+                rootNode = findFirstSkeleton(childNode, t);
+                if(rootNode != null) {
+                    transform.set(t);
+                    break;
+                }
+            }
+        }
+        return rootNode;
+    }
+
+    private static XMLNode findSkeletonNode(XMLCOLLADA collada, Matrix4f transform) {
+        XMLNode rootNode = null;
+        for ( XMLVisualScene scene : collada.libraryVisualScenes.get(0).scenes.values() ) {
+            for ( XMLNode node : scene.nodes.values() ) {
+                rootNode = findFirstSkeleton(node, transform);
                 if(rootNode != null) {
                     break;
                 }
