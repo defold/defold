@@ -76,7 +76,11 @@
 (defn- render-error
   [gl render-args renderables nrenderables]
   (when (= pass/overlay (:pass render-args))
-    (let [errors (set (mapcat root-causes (map (comp :error :user-data) renderables)))]
+    (let [errors (->> renderables
+                      (map (comp :error :user-data))
+                      (mapcat root-causes)
+                      (map #(select-keys % [:_node-id :message]))
+                      set)]
       (scene-text/overlay gl "Render error:" 24.0 -22.0)
       (doseq [[n error] (partition 2 (interleave (range) errors))]
         (let [message (format "- %s: %s"
@@ -318,7 +322,7 @@
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
   (input camera Camera)
-  (input aux-renderables pass/RenderData :array)
+  (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
