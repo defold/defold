@@ -2,11 +2,13 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [editor.git-test :refer :all]
-            [editor.prefs :as prefs]
             [editor.git :as git]
-            [editor.sync :as sync]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
-            [integration.test-util :as test-util]))
+            [editor.resource :as resource]
+            [editor.sync :as sync]
+            [integration.test-util :as test-util])
+  (:import [java.io File]))
 
 (defn- make-prefs []
   (let [p (prefs/make-prefs "unit-test")]
@@ -315,6 +317,49 @@
       (sync/finish-flow! !flow)
       (is (false? (sync/flow-in-progress? git))))))
 
+(defn- contents-by-file-path [^File root-dir]
+  (let [visible-file? (fn [^File file] (and (.isFile file) (not (.isHidden file))))
+        visible-directory? (fn [^File file] (and (.isDirectory file) (not (.isHidden file))))
+        list-files (fn [^File directory] (.listFiles directory))
+        file->pair (juxt (partial resource/relative-path root-dir) slurp)
+        files (tree-seq visible-directory? list-files root-dir)]
+    (into {} (comp (filter visible-file?) (map file->pair)) files)))
+
+(defn- test-conflict-resolution [resolve! expected-status expected-contents-by-file-path]
+  (with-git [remote-git (init-git)
+             local-git (create-conflict-zoo! remote-git [".internal"])]
+    (autostage remote-git)
+    (-> remote-git .commit (.setMessage "Remote commit with conflicting changes") .call)
+    (let [prefs (make-prefs)
+          creds (git/credentials prefs)
+          !flow (sync/begin-flow! local-git creds)
+          advance! (fn [] (swap! !flow sync/advance-flow progress/null-render-progress!))
+          resumable? (fn [] (is (flow-equal? @!flow @(sync/resume-flow local-git creds))))]
+      (testing "Advances to conflicts stage"
+        (is (= :pull/start (:state @!flow)))
+        (advance!)
+        (is (= :pull/conflicts (:state @!flow)))
+        (is (resumable?)))
+
+      (let [status-before (simple-status local-git)]
+        (testing "Conflicts match expectations"
+          (is (= (:conflicting-stage-state expected-status) (:conflicting-stage-state status-before))))
+
+        (testing "Conflict resolution"
+          (doseq [[file-path] (:conflicting-stage-state status-before)]
+            (resolve! !flow file-path)
+            (is (resumable?)))
+          (is (= (:conflicting-stage-state expected-status) (:resolved @!flow)))
+          (is (= #{} (:staged @!flow)))
+          (advance!)
+          (is (= :pull/done (:state @!flow)))
+          (is (resumable?)))
+
+        (testing "Project state after conflict resolution"
+          (let [status-after (simple-status local-git)]
+            (is (= (dissoc expected-status :conflicting-stage-state) status-after))
+            (is (= expected-contents-by-file-path (contents-by-file-path (git/worktree local-git))))))))))
+
 (deftest advance-flow-test
   (testing ":pull/done"
     (with-git [git       (new-git)
@@ -328,51 +373,76 @@
       (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))))
 
   (testing ":pull/conflicts"
-    (with-git [git (new-git)]
-      (create-file git "/src/conflicting_file.cpp" "void conflicting_file() {}")
-      (commit-src git)
-      (with-git [local-git (clone git)]
-        (create-file git "/src/conflicting_file.cpp" "void conflicting_file() {FOO}")
-        (commit-src git)
-        (create-file local-git "/src/conflicting_file.cpp" "void conflicting_file() {BAR}")
-        (create-file local-git "/src/untracked_file.cpp" "void untracked_file() {}")
-        (create-file local-git "/src/untracked_folder/file.cpp" "void untracked_folder_file() {}")
-        (is (.exists (git/file local-git "/src/untracked_folder/file.cpp")))
-        (let [prefs (make-prefs)
-              creds (git/credentials prefs)
-              !flow (sync/begin-flow! local-git creds)
-              res   (swap! !flow sync/advance-flow progress/null-render-progress!)]
-          (is (.exists (git/file local-git "/src/conflicting_file.cpp")))
-          (is (.exists (git/file local-git "/src/untracked_file.cpp")))
-          (is (.exists (git/file local-git "/src/untracked_folder/file.cpp")))
-          (is (= #{"src/conflicting_file.cpp"} (:conflicting (git/status local-git))))
-          (is (= :pull/conflicts (:state res)))
-          (is (flow-equal? res @(sync/resume-flow local-git creds)))
-          (let [flow2 @!flow]
-            (testing "theirs"
-              (create-file local-git "/src/conflicting_file.cpp" (sync/get-theirs @!flow "src/conflicting_file.cpp"))
-              (sync/resolve-file! !flow "src/conflicting_file.cpp")
-              (is (= {"src/conflicting_file.cpp" :both-modified} (:resolved @!flow)))
-              (is (= #{} (:staged @!flow)))
-              (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
-              (swap! !flow sync/advance-flow progress/null-render-progress!)
-              (is (= :pull/done (:state @!flow)))
-              (is (= "void conflicting_file() {FOO}" (slurp-file local-git "/src/conflicting_file.cpp")))
-              (is (flow-equal? @!flow @(sync/resume-flow local-git creds))))
-            (testing "ours"
-              (reset! !flow flow2)
-              (create-file local-git "/src/conflicting_file.cpp" (sync/get-ours @!flow "src/conflicting_file.cpp"))
-              (sync/resolve-file! !flow "src/conflicting_file.cpp")
-              (is (= {"src/conflicting_file.cpp" :both-modified} (:resolved @!flow)))
-              (is (= #{} (:staged @!flow)))
-              (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
-              (swap! !flow sync/advance-flow progress/null-render-progress!)
-              (is (= :pull/done (:state @!flow)))
-              (is (= "void conflicting_file() {BAR}" (slurp-file local-git "/src/conflicting_file.cpp")))
-              (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))))
-          (testing "untracked files remain"
-            (is (= "void untracked_file() {}" (slurp-file local-git "/src/untracked_file.cpp")))
-            (is (= "void untracked_folder_file() {}" (slurp-file local-git "/src/untracked_folder/file.cpp"))))))))
+    (testing "Use ours"
+      (test-conflict-resolution sync/use-ours!
+                                {:changed                #{"src/local_modified.txt"}
+                                 :conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
+                                                           "src/local_deleted_remote_modified.txt" :deleted-by-them
+                                                           "src/local_modified_remote_deleted.txt" :deleted-by-us
+                                                           "src/local_modified_remote_moved.txt"   :deleted-by-us
+                                                           "src/local_moved_remote_modified.txt"   :deleted-by-them
+                                                           "src/new/both_added_conflicting.txt"    :both-added}
+                                 :missing                #{"src/local_deleted_remote_modified.txt"
+                                                           "src/local_moved_remote_modified.txt"}
+                                 :modified               #{"src/both_modified_conflicting.txt"
+                                                           "src/new/both_added_conflicting.txt"}
+                                 :removed                #{"src/local_deleted.txt"
+                                                           "src/local_moved.txt"}
+                                 :untracked              #{"src/local_modified_remote_deleted.txt"
+                                                           "src/local_modified_remote_moved.txt"
+                                                           "src/moved/both_moved_conflicting_a.txt"
+                                                           "src/moved/local_moved.txt"
+                                                           "src/moved/local_moved_remote_modified.txt"
+                                                           "src/new/local_added.txt"}}
+                                {"src/both_modified_conflicting.txt"         "both_modified_conflicting, modified by local."
+                                 "src/both_modified_same.txt"                "both_modified_same, modified identically by both."
+                                 "src/local_modified.txt"                    "local_modified, modified by local."
+                                 "src/local_modified_remote_deleted.txt"     "local_modified_remote_deleted modified by local."
+                                 "src/local_modified_remote_moved.txt"       "local_modified_remote_moved, modified by local."
+                                 "src/moved/both_moved_conflicting_a.txt"    "both_moved_conflicting"
+                                 "src/moved/both_moved_conflicting_b.txt"    "both_moved_conflicting"
+                                 "src/moved/both_moved_same.txt"             "both_moved_same"
+                                 "src/moved/local_modified_remote_moved.txt" "local_modified_remote_moved"
+                                 "src/moved/local_moved.txt"                 "local_moved"
+                                 "src/moved/local_moved_remote_modified.txt" "local_moved_remote_modified"
+                                 "src/moved/remote_moved.txt"                "remote_moved"
+                                 "src/new/both_added_conflicting.txt"        "both_added_conflicting, added by local."
+                                 "src/new/both_added_same.txt"               "both_added_same, added identically by both."
+                                 "src/new/local_added.txt"                   "local_added, added only by local."
+                                 "src/new/remote_added.txt"                  "remote_added, added only by remote."
+                                 "src/remote_modified.txt"                   "remote_modified, modified by remote."}))
+    (testing "Use theirs"
+      (test-conflict-resolution sync/use-theirs!
+                                {:changed                #{"src/local_modified.txt"}
+                                 :conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
+                                                           "src/local_deleted_remote_modified.txt" :deleted-by-them
+                                                           "src/local_modified_remote_deleted.txt" :deleted-by-us
+                                                           "src/local_modified_remote_moved.txt"   :deleted-by-us
+                                                           "src/local_moved_remote_modified.txt"   :deleted-by-them
+                                                           "src/new/both_added_conflicting.txt"    :both-added}
+                                 :removed                #{"src/local_deleted.txt"
+                                                           "src/local_moved.txt"}
+                                 :untracked              #{"src/moved/both_moved_conflicting_a.txt"
+                                                           "src/moved/local_moved.txt"
+                                                           "src/moved/local_moved_remote_modified.txt"
+                                                           "src/new/local_added.txt"}}
+                                {"src/both_modified_conflicting.txt"         "both_modified_conflicting, modified by remote."
+                                 "src/both_modified_same.txt"                "both_modified_same, modified identically by both."
+                                 "src/local_deleted_remote_modified.txt"     "local_deleted_remote_modified modified by remote."
+                                 "src/local_modified.txt"                    "local_modified, modified by local."
+                                 "src/local_moved_remote_modified.txt"       "local_moved_remote_modified modified by remote."
+                                 "src/moved/both_moved_conflicting_a.txt"    "both_moved_conflicting"
+                                 "src/moved/both_moved_conflicting_b.txt"    "both_moved_conflicting"
+                                 "src/moved/both_moved_same.txt"             "both_moved_same"
+                                 "src/moved/local_modified_remote_moved.txt" "local_modified_remote_moved"
+                                 "src/moved/local_moved.txt"                 "local_moved"
+                                 "src/moved/local_moved_remote_modified.txt" "local_moved_remote_modified"
+                                 "src/moved/remote_moved.txt"                "remote_moved"
+                                 "src/new/both_added_conflicting.txt"        "both_added_conflicting, added by remote."
+                                 "src/new/both_added_same.txt"               "both_added_same, added identically by both."
+                                 "src/new/local_added.txt"                   "local_added, added only by local."
+                                 "src/new/remote_added.txt"                  "remote_added, added only by remote."
+                                 "src/remote_modified.txt"                   "remote_modified, modified by remote."})))
 
   (testing ":push-staging -> :push/done"
     (with-git [git (new-git)]

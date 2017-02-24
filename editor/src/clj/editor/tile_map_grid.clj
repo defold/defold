@@ -105,7 +105,7 @@
 
 (g/defnode TileMapGrid
   (input camera Camera)
-  (input grid-size g/Any)
+  (input grid-size g/Any :substitute nil)
 
   (output grid       g/Any :cached update-grid)
   (output renderable pass/RenderData :cached grid-renderable))
