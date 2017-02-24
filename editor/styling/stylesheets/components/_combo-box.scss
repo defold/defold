@@ -75,4 +75,7 @@
 }
 .combo-box-base {
     -fx-border-width: 0;
+    &:selected {
+        -fx-border-width: 0;
+    }
 }
