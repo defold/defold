@@ -26,6 +26,7 @@
             [util.text-util :as text-util]
             ;; TODO - HACK
             [internal.graph.types :as gt]
+            [internal.graph :as ig]
             [clojure.string :as str])
   (:import [java.io File]
            [java.nio.file FileSystem FileSystems PathMatcher]
@@ -333,7 +334,7 @@
                                                   :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
-                                               {:label "Live Update settings"
+                                               {:label "Live Update Settings"
                                                 :command :live-update-settings}
                                                {:label "Sign iOS App..."
                                                 :command :sign-ios-app}
@@ -342,6 +343,9 @@
 
 (defn- outputs [node]
   (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
+
+(defn- explicit-outputs [node]
+  (mapv #(do [(second (gt/head %)) (gt/tail %)]) (ig/explicit-arcs-by-source (g/now) node)))
 
 (defn- loadable? [resource]
   (not (nil? (:load-fn (resource/resource-type resource)))))
@@ -435,7 +439,7 @@
             to-reload-ext   (filterv (comp (complement loadable?) second) to-reload)
             old-outputs (reduce (fn [res [_ resource]]
                                   (let [nid (res->node resource)]
-                                    (assoc res nid (outputs nid))))
+                                    (assoc res nid (explicit-outputs nid))))
                                 {} to-reload-int)]
         ;; Internal resources to reload
         (let [in-use? (fn [resource-node-id]
@@ -446,8 +450,7 @@
               should-create-node? (fn [[operation resource]]
                                     (or (not= :removed operation)
                                         (-> resource
-                                            resource/proj-path
-                                            nodes-by-path
+                                            res->node
                                             in-use?)))
               resources-to-create (into [] (comp (filter should-create-node?) (map second)) to-reload-int)
               new-nodes (make-nodes! project resources-to-create)
@@ -457,11 +460,8 @@
               old->new (into {} (map (fn [[p n]] [(nodes-by-path p) n]) new-nodes-by-path))]
           (g/transact
             (concat
-              (for [[_ r] to-reload-int
-                    :let [p (resource/proj-path r)]
-                    :when (contains? new-nodes-by-path p)
-                    :let [old-node (nodes-by-path p)]]
-                (g/transfer-overrides old-node (new-nodes-by-path p)))
+              (for [[old-node new-node] old->new]
+                (g/transfer-overrides old-node new-node))
               (for [[_ r] to-reload-int
                     :let [old-node (nodes-by-path (resource/proj-path r))]]
                 (g/delete-node old-node))))
@@ -470,8 +470,7 @@
           (g/transact
             (concat
               (for [[old new] old->new
-                    :when new
-                    :let [existing (set (outputs new))]
+                    :let [existing (set (explicit-outputs new))]
                     [src-label [tgt-id tgt-label]] (old-outputs old)
                     :let [tgt-id (get old->new tgt-id tgt-id)]
                     :when (not (contains? existing [src-label [tgt-id tgt-label]]))]
@@ -513,7 +512,7 @@
   (input resources g/Any)
   (input resource-map g/Any)
   (input resource-types g/Any)
-  (input save-data g/Any :array :substitute (fn [save-data] (vec (remove g/error? save-data))))
+  (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-resources resource/Resource :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
   (input display-profiles g/Any)
