@@ -1309,7 +1309,9 @@ namespace dmGui
         {
             Animation* anim = &(*animations)[i];
 
-            if (anim->m_Elapsed > anim->m_Duration || anim->m_Cancelled)
+            if (anim->m_Elapsed > anim->m_Duration
+                || anim->m_Cancelled
+                || (anim->m_Elapsed == anim->m_Duration && anim->m_Duration != 0))
             {
                 continue;
             }
@@ -1327,14 +1329,6 @@ namespace dmGui
                     anim->m_FirstUpdate = 0;
                     // Compensate Elapsed with Delay underflow
                     anim->m_Elapsed = -anim->m_Delay;
-
-                    if (anim->m_Duration == 0.0f)
-                    {
-                        // This will allow an animation to complete instantly
-                        // if duration has been set to 0, which is the same
-                        // behaviour as go.animate.
-                        anim->m_Duration = dt;
-                    }
                 }
 
                 // NOTE: We add dt to elapsed before we calculate t.
@@ -1343,7 +1337,11 @@ namespace dmGui
                 // Clamp elapsed to duration if we are closer than half a time step
                 anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
                 // Calculate normalized time if elapsed has not yet reached duration, otherwise it's set to 1 (animation complete)
-                float t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
+                float t = 1.0f;
+                if (anim->m_Duration != 0)
+                {
+                    t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
+                }
                 float t2 = t;
                 if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;
