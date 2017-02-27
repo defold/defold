@@ -568,14 +568,11 @@ Task.task_type_from_func('app_bundle',
                          after  = 'cxx_link cc_link static_link')
 
 def authenticode_sign(task):
-    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
-    move = 'move /Y' if sys.platform == 'win32' else 'mv'
-
     exe_file = task.inputs[0].abspath(task.env)
     exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
     exe_file_signed = task.outputs[0].abspath(task.env)
 
-    ret = task.exec_command('%s %s %s' % (copy, exe_file, exe_file_to_sign), log=True)
+    ret = task.exec_command('copy /Y %s %s' % (exe_file, exe_file_to_sign), log=True)
     if ret != 0:
         error("Unable to copy file before signing")
         return 1
@@ -585,7 +582,7 @@ def authenticode_sign(task):
         error("Unable to sign executable")
         return 1
 
-    ret = task.exec_command('%s %s %s' % (move, exe_file_to_sign, exe_file_signed), log=True)
+    ret = task.exec_command('move /Y %s %s' % (exe_file_to_sign, exe_file_signed), log=True)
     if ret != 0:
         error("Unable to rename file after signing")
         return 1
@@ -1324,7 +1321,7 @@ def detect(conf):
                     if target == target_map[platform] and target_platform == platform_map[platform]:
                         search_path = paths[0]
         if search_path == None:
-            error("Unable to determine search path for platform: %s" % platform)
+            conf.fatal("Unable to determine search path for platform: %s" % platform)
 
         conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
