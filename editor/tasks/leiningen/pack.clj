@@ -2,7 +2,9 @@
   (:require
    [clojure.java.io :as io]
    [clojure.java.shell :as shell]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [cemerick.pomegranate.aether :as aether]
+   [leiningen.core.main :as main])
   (:import
    (java.io File)
    (java.util.zip ZipFile ZipEntry)
@@ -95,6 +97,12 @@
                          (io/file (dynamo-home) dir platform file))]
                [src (io/file platform dir file)]))))
 
+(defn bob-artifact-file
+  [sha]
+  (if sha
+    (download (io/as-url (format "http://d.defold.com/archive/%s/bob/bob.jar" sha)))
+    (io/file (dynamo-home) "share/java/bob-engine.jar")))
+
 (defn artifact-files
   []
   (let [subst (fn [s] (.replace s "${DYNAMO-HOME}" (dynamo-home)))]
@@ -157,7 +165,11 @@
           (println "skipping non-existent" (str src))
           (if (.isDirectory src)
             (FileUtils/copyDirectory src dest)
-            (FileUtils/copyFile src dest)))))))
+            (FileUtils/copyFile src dest)))))
+    (let [jar-file (bob-artifact-file git-sha)]
+      (main/info (format "Installing %s" jar-file))
+      (aether/install-artifacts
+        :files {[(symbol "com.defold.lib" "bob") "1.0"] jar-file}))))
 
 (defn pack
   "Pack all files that need to be unpacked at runtime into `pack-path`.

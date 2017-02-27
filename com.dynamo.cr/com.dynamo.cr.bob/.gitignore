@@ -15,6 +15,7 @@
 /lib/dlib.jar
 /libexec/*/*.so
 /libexec/*/*.js
+/libexec/*/*.swf
 /libexec/*/*dmengine*
 /libexec/*/*luajit*
 /libexec/*/*apkc*
