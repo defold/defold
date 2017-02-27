@@ -75,7 +75,6 @@
   (path [this] (if (= "" (.getName file)) "" (resource/relative-path (File. ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
-  (url [this] (resource/relative-path (File. ^String root) file))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (resource/proj-path this)))

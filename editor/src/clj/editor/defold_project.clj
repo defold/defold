@@ -329,6 +329,9 @@
                   :children (vec (remove nil? [{:label "Build"
                                                 :acc "Shortcut+B"
                                                 :command :build}
+                                               {:label "Build HTML5"
+                                                :acc "Shortcut+Shift+B"
+                                                :command :build-html5}
                                                (when system/fake-it-til-you-make-it?
                                                  {:label "Bundle"
                                                   :children (mapv #(do {:label % :command :bundle}) bundle-targets)})

@@ -390,7 +390,6 @@
   (path [this]          (resource/path parent-resource))
   (abs-path [this]      (resource/abs-path parent-resource))
   (proj-path [this]     (resource/proj-path parent-resource))
-  (url [this]           (resource/url parent-resource))
   (workspace [this]     (resource/workspace parent-resource))
   (resource-hash [this] (resource/resource-hash parent-resource)))
 
