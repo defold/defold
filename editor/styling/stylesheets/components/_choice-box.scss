@@ -19,13 +19,13 @@
     }
     >.label {
         -fx-border-color: $input-border;
-        -fx-border-width: 1;
+        -fx-border-width: 1px;
     }
     .open-button {
         -fx-background-insets: 0;
-        -fx-padding: 10 7;
+        -fx-padding: 11px 7px;
         -fx-background-color: $mid-grey;
-        -fx-border-width: 0 1px 0 0;
+        -fx-border-width: 0 0 0 1px;
         -fx-border-color: $input-border;
         &:hover {
             -fx-background-color: $mid-grey-light;
