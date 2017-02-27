@@ -5,11 +5,18 @@
     </encoder>
   </appender>
 
-  <appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <file>${defold.supportpath:-.}/editor2.log</file>
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <append>true</append>
+    <prudent>true</prudent>
+
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${defold.supportpath:-.}/editor2.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>30</maxHistory>
+      <totalSizeCap>1GB</totalSizeCap>
+    </rollingPolicy>
+
     <encoder>
-	<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
     </encoder>
   </appender>
 
