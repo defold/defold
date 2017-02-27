@@ -930,6 +930,15 @@ instructions.configure=\
                     if re.match('.*(/bob.jar)$', x.name):
                         name = os.path.relpath(x.name, base_prefix)
                         files.append({'name': name, 'path': '/' + x.name})
+
+            prefix = os.path.join(base_prefix, self.channel, 'editor')
+            for x in bucket.list(prefix = prefix):
+                if x.name[-1] != '/':
+                    # Skip directory "keys". When creating empty directories
+                    # a psudeo-key is created. Directories isn't a first-class object on s3
+                    if re.match('.*(/Defold-*)$', x.name):
+                        name = os.path.relpath(x.name, base_prefix)
+                        files.append({'name': name, 'path': '/' + x.name})
             return files
 
         tags = self.exec_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
