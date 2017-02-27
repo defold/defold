@@ -46,19 +46,10 @@ public class Updater {
             FileUtils.copyFile(from, to);
         }
 
-        private boolean apply(Map<String, File> files) throws IOException {
-            for (Entry<String, File> entry : files.entrySet()) {
-                File to = packageFile(entry.getKey());
-                if (to.exists()) {
-                    logger.error("update failed. file {} already exists", to);
-                    return false;
-                }
-            }
-
+        private void apply(Map<String, File> files) throws IOException {
             for (Entry<String, File> entry : files.entrySet()) {
                 copyFile(entry.getValue(), entry.getKey());
             }
-            return true;
         }
 
         /**
@@ -66,11 +57,10 @@ public class Updater {
          * @throws IOException
          */
         public void install() throws IOException {
-            if (apply(files)) {
-                File toConfig = new File(resourcesPath, "config");
-                logger.info("copying {} -> {}", new Object[] {config, toConfig});
-                FileUtils.copyFile(config, toConfig);
-            }
+            apply(files);
+            File toConfig = new File(resourcesPath, "config");
+            logger.info("copying {} -> {}", new Object[] {config, toConfig});
+            FileUtils.copyFile(config, toConfig);
         }
     }
 
