@@ -13,6 +13,7 @@
             [editor.defold-project :as project]
             [editor.defold-project-search :as project-search]
             [editor.github :as github]
+            [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
@@ -30,7 +31,8 @@
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor EditorApplication]
            [com.defold.editor Start]
-           [java.awt Desktop]
+           [java.awt Desktop Desktop$Action]
+           [java.net URI]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -244,14 +246,14 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
-(defn- build-project [project build-errors-view]
+(defn- build-project [project build-fn build-errors-view]
   (let [build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
                        :render-error! (fn [errors]
                                         (ui/run-later
                                           (build-errors-view/update-build-errors
                                             build-errors-view
                                             errors)))}]
-    (project/build-and-save-project project build-options)))
+    (build-fn project build-options)))
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -260,12 +262,29 @@
     (ui/default-render-progress-now! (progress/make "Building..."))
     (ui/->future 0.01
                  (fn []
-                   (let [build (build-project project build-errors-view)]
+                   (let [build (build-project project project/build-and-save-project build-errors-view)]
                      (when (and (future? build) @build)
                        (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
                              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
                                (engine/reboot (:url target) local-url)))
                            (engine/launch project prefs))))))))
+
+(handler/defhandler :build-html5 :global
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [project prefs web-server build-errors-view changes-view]
+    (console/clear-console!)
+    ;; We need to save because bob reads from FS
+    (project/save-all! project
+      (fn []
+        (changes-view/refresh! changes-view)
+        (ui/default-render-progress-now! (progress/make "Building..."))
+        (ui/->future 0.01
+          (fn []
+            (let [build (build-project project bob/build-html5 build-errors-view)]
+              (when (and (future? build) @build)
+                (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
+                  (when (.isSupported desktop Desktop$Action/BROWSE)
+                    (.browse desktop (URI. (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]

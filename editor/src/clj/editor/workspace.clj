@@ -46,8 +46,6 @@ ordinary paths."
                    (str prefix "_generated_" suffix "." ext))))
   (abs-path [this] (.getAbsolutePath (File. (str (build-path (resource/workspace this)) (resource/path this)))))
   (proj-path [this] (str "/" (resource/path this)))
-  ; TODO
-  (url [this] nil)
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))

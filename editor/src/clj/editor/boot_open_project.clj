@@ -15,6 +15,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.login :as login]
             [editor.outline-view :as outline-view]
+            [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
@@ -133,7 +134,8 @@
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)})
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)
+                                                            bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id opts]
