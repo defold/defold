@@ -354,10 +354,10 @@
                                    resource/abs-path
                                    (File.))
                                  project-path)
-                           util/to-folder)
+                             util/to-folder)
              rt (:resource-type user-data)]
          (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
-           (let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
+           (when-let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
              (spit new-file (workspace/template rt))
              (workspace/resource-sync! workspace)
              (let [resource-map (g/node-value workspace :resource-map)
