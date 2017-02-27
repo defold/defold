@@ -453,8 +453,7 @@
   (with-build-results "/script/props.collection"
     (doseq [[res-path pb decl-path] [["/script/props.script" Lua$LuaModule [:properties]]
                                      ["/script/props.go" GameObject$PrototypeDesc [:components 0 :property-decls]]
-                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]
-                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
+                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map pb content)
             decl (get-in desc decl-path)]
@@ -467,7 +466,24 @@
         (is (not-empty (:bool-entries decl)))
         (is (not-empty (:float-values decl)))
         (is (not-empty (:hash-values decl)))
-        (is (not-empty (:string-values decl))))))
+        (is (not-empty (:string-values decl)))))
+    (let [collection-content (get content-by-source "/script/props.collection")
+          collection-desc (protobuf/bytes->map GameObject$CollectionDesc collection-content)
+          instance-map (into {} (map (juxt :id identity) (:instances collection-desc)))
+          embedded-props-target (:prototype (instance-map "/embedded_props"))
+          embedded-content (content-by-target embedded-props-target)
+          embedded-desc (protobuf/bytes->map GameObject$PrototypeDesc embedded-content)
+          decl (get-in embedded-desc [:components 0 :property-decls])]
+      (is (not-empty (:number-entries decl)))
+      (is (not-empty (:hash-entries decl)))
+      (is (not-empty (:url-entries decl)))
+      (is (not-empty (:vector3-entries decl)))
+      (is (not-empty (:vector4-entries decl)))
+      (is (not-empty (:quat-entries decl)))
+      (is (not-empty (:bool-entries decl)))
+      (is (not-empty (:float-values decl)))
+      (is (not-empty (:hash-values decl)))
+      (is (not-empty (:string-values decl)))))
   (with-build-results "/script/sub_props.collection"
     (doseq [[res-path pb decl-path] [["/script/sub_props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
