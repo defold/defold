@@ -1,34 +1,34 @@
 @mixin colorize-image-view($color) {
-  .image-view { -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0); }
+  .image-view { -fx-effect: innershadow(gaussian, $color, 127, 1.0, 0, 0); }
 }
 
 .list-view {
   .list-cell {
     &.added-file {
-      @include colorize-image-view(rgba($defold-green, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-green);
+      @include colorize-image-view(rgba($added-file, 0.35));
+      &:selected, &:hover {
+        @include colorize-image-view($added-file);
       }
     }
 
     &.deleted-file {
-      @include colorize-image-view(rgba($defold-red, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-red);
+      @include colorize-image-view(rgba($defold-red, 0.35));
+      &:selected, &:hover {
+        @include colorize-image-view(rgba($defold-red, 0.70));
       }
     }
 
     &.modified-file {
-      @include colorize-image-view(rgba($defold-blue, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-blue);
+      @include colorize-image-view(rgba($defold-blue, 0.30));
+      &:selected, &:hover {
+        @include colorize-image-view(rgba($defold-blue, 0.70));
       }
     }
 
     &.renamed-file {
-      @include colorize-image-view(rgba($defold-yellow, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-yellow);
+      @include colorize-image-view(rgba($renamed-file, 0.25));
+      &:selected, &:hover {
+        @include colorize-image-view($renamed-file);
       }
     }
   }

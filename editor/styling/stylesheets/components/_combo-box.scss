@@ -14,10 +14,12 @@
             -fx-rotate: 180;
         }
         >.list-cell {
+            -fx-border-width: 0;
             -fx-text-fill: $defold-white;
         }
         .list-view {
             -fx-border-color: $bright-grey;
+            -fx-border-width: 0;
         }
     }
     .list-view {

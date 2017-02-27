@@ -8,16 +8,27 @@
         -fx-border-width: 0 1 0 0;
         -fx-border-color: $mid-grey;
     }
-    .filler {
-        -fx-background-insets: 0;
-    }
     .column-header-background {
         -fx-border-width: 0 0 1 0;
         -fx-border-color: $mid-grey;
+
+        .nested-column-header {
+            .column-header {
+                -fx-background-color: $table-header;
+                .label {
+                    -fx-text-fill: $defold-white;
+                }
+            }
+        }
+
+        .filler {
+            -fx-background-insets: 0;
+            -fx-background-color: $table-header;
+        }
     }
     .table-row-cell {
-        -fx-border-width: 0;
-        -fx-border-color: transparent;
+        -fx-border-width: 0 0 1 0;
+        -fx-border-color: $mid-grey;
         &:selected {
             -fx-background-color: $dark-grey-selected;
             .table-cell {
