@@ -99,7 +99,7 @@ public class ResourceUnpacker {
     private static Path getUnpackPath() throws IOException {
         if (System.getProperty(DEFOLD_UNPACK_PATH_KEY) != null) {
             return ensureEmptyDirectory(Paths.get(System.getProperty(DEFOLD_UNPACK_PATH_KEY)));
-        } else if (System.getProperty(DEFOLD_SUPPORT_PATH_KEY) != null && System.getProperty(DEFOLD_SHA1_KEY) != null)) {
+        } else if (System.getProperty(DEFOLD_SUPPORT_PATH_KEY) != null && System.getProperty(DEFOLD_SHA1_KEY) != null) {
             return ensureEmptyDirectory(Paths.get(System.getProperty(DEFOLD_SUPPORT_PATH_KEY),
                                                   "unpack",
                                                   System.getProperty(DEFOLD_SHA1_KEY)));
