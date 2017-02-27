@@ -25,7 +25,8 @@
         -fx-background-insets: 0;
         -fx-padding: 10 7;
         -fx-background-color: $mid-grey;
-        -fx-border-width: 0;
+        -fx-border-width: 0 1px 0 0;
+        -fx-border-color: $input-border;
         &:hover {
             -fx-background-color: $mid-grey-light;
             -fx-background-insets: 0;
