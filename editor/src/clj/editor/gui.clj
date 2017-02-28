@@ -1065,7 +1065,7 @@
                                   (prop-resource-error _node-id :texture texture "Texture")))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
-                                  :ext ["atlas" "png"]})))
+                                  :ext ["atlas" "tilesource"]})))
 
   (input texture-resource resource/Resource)
   (input image BufferedImage)
