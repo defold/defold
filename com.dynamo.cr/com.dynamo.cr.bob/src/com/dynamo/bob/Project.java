@@ -529,9 +529,15 @@ public class Project {
             String defaultName = platform.formatBinaryName("dmengine");
             File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
 
+            // If we are building for Android, we expect a classes.dex file to be returned as well.
+            File classesDexFile = null;
+            if (platform.equals(Platform.Armv7Android)) {
+                classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
+            }
+
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform);
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe);
+            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe, classesDexFile);
 
             m.worked(1);
         }
