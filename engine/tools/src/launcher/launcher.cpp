@@ -20,6 +20,10 @@
 
 #ifdef _WIN32
 #include <dlib/safe_windows.h>
+#include <Shlobj.h>
+#include <Shellapi.h>
+#include <io.h>
+#include <direct.h>
 #endif
 
 // bootstrap.resourcespath must default to resourcespath of the installation
@@ -85,6 +89,38 @@ static bool ConfigGetString(ReplaceContext* context, const char* key, char* buf,
     }
     dmStrlCpy(buf, "", buf_len);
     return false;
+}
+
+static dmSys::Result GetLocalApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+{
+#ifdef _WIN32
+    char tmp_path[MAX_PATH];
+
+    if(SUCCEEDED(SHGetFolderPath(NULL,
+                                 CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE,
+                                 NULL,
+                                 0,
+                                 tmp_path)))
+    {
+        if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
+            return dmSys::RESULT_INVAL;
+        if (dmStrlCat(path, "\\", path_len) >= path_len)
+            return dmSys::RESULT_INVAL;
+        if (dmStrlCat(path, application_name, path_len) >= path_len)
+            return dmSys::RESULT_INVAL;
+
+        if (mkdir(path) == 0)
+            return dmSys::RESULT_OK;
+        else
+	    return dmSys::RESULT_IO;
+    }
+    else
+    {
+        return dmSys::RESULT_UNKNOWN;
+    }
+#else
+    return dmSys::GetApplicationSupportPath(application_name, path, path_len);
+#endif
 }
 
 int Launch(int argc, char **argv) {
