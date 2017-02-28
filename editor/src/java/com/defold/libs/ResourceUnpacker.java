@@ -81,8 +81,12 @@ public class ResourceUnpacker {
                     if (dest.equals(target)) {
                         continue;
                     }
-                    logger.debug("unpacking '{}' to '{}'", source, dest);
-                    Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+                    if (Files.exists(dest)) {
+                        logger.debug("skipping already unpacked '{}'", source);
+                    } else {
+                        logger.debug("unpacking '{}' to '{}'", source, dest);
+                        Files.copy(source, dest);
+                    }
                 }
             }
         }
@@ -98,21 +102,19 @@ public class ResourceUnpacker {
 
     private static Path getUnpackPath() throws IOException {
         if (System.getProperty(DEFOLD_UNPACK_PATH_KEY) != null) {
-            return ensureEmptyDirectory(Paths.get(System.getProperty(DEFOLD_UNPACK_PATH_KEY)));
+            return ensureDirectory(Paths.get(System.getProperty(DEFOLD_UNPACK_PATH_KEY)));
         } else if (System.getProperty(DEFOLD_SUPPORT_PATH_KEY) != null && System.getProperty(DEFOLD_SHA1_KEY) != null) {
-            return ensureEmptyDirectory(Paths.get(System.getProperty(DEFOLD_SUPPORT_PATH_KEY),
-                                                  "unpack",
-                                                  System.getProperty(DEFOLD_SHA1_KEY)));
+            return ensureDirectory(Paths.get(System.getProperty(DEFOLD_SUPPORT_PATH_KEY),
+                                             "unpack",
+                                             System.getProperty(DEFOLD_SHA1_KEY)));
         } else {
             return Files.createTempDirectory("defold-unpack");
         }
     }
 
-    private static Path ensureEmptyDirectory(Path path) throws IOException {
+    private static Path ensureDirectory(Path path) throws IOException {
         File f = path.toFile();
-        if (f.exists()) {
-            FileUtils.cleanDirectory(f);
-        } else {
+        if (!f.exists()) {
             f.mkdirs();
         }
         return path;
