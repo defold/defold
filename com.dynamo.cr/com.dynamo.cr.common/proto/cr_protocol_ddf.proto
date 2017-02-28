@@ -132,6 +132,7 @@ message ProjectSite {
     optional string playable_image_url = 15;
     optional string library_url = 16;
     optional string attachment_url = 17;
+    optional bool is_public_site = 18;
 
     message AppStoreReference {
         required int64 id = 1;

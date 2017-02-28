@@ -6,6 +6,10 @@
     -fx-border-color: $mid-grey;
     -fx-border-width: 0;
     -fx-padding: 0;
+    .label {
+        -fx-padding: 4px 8px;
+        -fx-background-insets: 0;
+    }
     &:showing {
         -fx-background-color: $dark-grey;
         -fx-color: $defold-white;
@@ -18,10 +22,10 @@
         -fx-border-width: 1;
     }
     .open-button {
-        -fx-padding: 11 7 !important;
+        -fx-background-insets: 0;
+        -fx-padding: 10 7;
         -fx-background-color: $mid-grey;
-        -fx-border-width: 1px 1px 1px 0;
-        -fx-border-color: $input-border;
+        -fx-border-width: 0;
         &:hover {
             -fx-background-color: $mid-grey-light;
             -fx-background-insets: 0;
