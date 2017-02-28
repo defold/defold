@@ -491,40 +491,57 @@
              (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY])))
            (.consume e)))))))
 
-(defn- find-files [^File src ^File tgt]
-  (if (.isDirectory src)
-    (let [base (.getAbsolutePath src)
-          base-count (inc (count base))]
-      (mapv (fn [^File f]
-              (let [rel-path (subs (.getAbsolutePath f) base-count)]
-                [f (File. tgt rel-path)]))
-            (filter (fn [^File f] (.isFile f)) (file-seq src))))
-    [[src tgt]]))
+(defn- find-entries [^File src-dir ^File tgt-dir]
+  (let [base (.getAbsolutePath src-dir)
+        base-count (inc (count base))]
+    (mapv (fn [^File src-entry]
+            (let [rel-path (subs (.getAbsolutePath src-entry) base-count)
+                  tgt-entry (File. tgt-dir rel-path)]
+              [src-entry tgt-entry]))
+          (.listFiles src-dir))))
 
-(defn- move-file
-  "Moves a file to the specified target location. Any existing file at the
-  target location will be overwritten. If it does not already exist, the path
-  leading up to the target location will be created. Returns true if the move
-  was successful, or false if the move failed for any reason."
-  [^File src ^File tgt]
+(declare move-entry!)
+
+(defn- move-directory! [^File src ^File tgt]
   (try
-    (if (.exists tgt)
-      (and (FileUtils/deleteQuietly tgt)
-           (.renameTo src tgt))
-      (do (io/make-parents tgt)
-          (.renameTo src tgt)))
-    (catch Exception _
-      false)))
+    (.mkdirs tgt)
+    (catch SecurityException _))
+  (let [moved-file-pairs (into []
+                               (mapcat (fn [[child-src child-tgt]]
+                                         (move-entry! child-src child-tgt)))
+                               (find-entries src tgt))]
+    (when (empty? (.listFiles src))
+      (try
+        (when-not (.canWrite src)
+          (.setWritable src true))
+        (FileUtils/deleteQuietly src)
+        (catch SecurityException _)))
+    moved-file-pairs))
+
+(defn- move-file! [^File src ^File tgt]
+  (if (try
+        (if (.exists tgt)
+          (when-not (.canWrite tgt)
+            (.setWritable tgt true))
+          (io/make-parents tgt))
+        (FileUtils/deleteQuietly tgt)
+        (.renameTo src tgt)
+        (catch SecurityException _))
+    [[src tgt]]
+    []))
+
+(defn move-entry!
+  "Moves a file system entry to the specified target location. Any existing
+  files at the target location will be overwritten. If it does not already
+  exist, the path leading up to the target location will be created. Returns
+  a sequence of [source, destination] File pairs that were successfully moved."
+  [^File src ^File tgt]
+  (if (.isDirectory src)
+    (move-directory! src tgt)
+    (move-file! src tgt)))
 
 (defn- drag-move-files [dragged-pairs]
-  (let [file-pairs (mapcat (fn [[src tgt]] (find-files src tgt)) dragged-pairs)
-        moved-file-pairs (filterv (fn [[src tgt]] (move-file src tgt)) file-pairs)]
-    ;; Delete any now-empty directories.
-    (doseq [[^File src] dragged-pairs]
-      (when (and (.isDirectory src)
-                 (empty? (.list src)))
-        (FileUtils/deleteQuietly src)))
-    moved-file-pairs))
+  (into [] (mapcat (fn [[src tgt]] (move-entry! src tgt)) dragged-pairs)))
 
 (defn- drag-copy-files [dragged-pairs]
   (doseq [[^File src ^File tgt] dragged-pairs]
