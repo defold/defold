@@ -434,7 +434,10 @@
   (let [basis (:basis ctx)]
     (when (nil? node-id) (println "NIL NODE ID: update-property " tx-step))
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-      (let [old-value (gt/get-property node basis property)
+      (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
+            ;; The context is intentionally bare, i.e. only :basis, for this reason
+            ;; Normally value production within a tx will set :in-transaction? on the context
+            old-value (in/node-property-value node property {:basis basis})
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
@@ -634,7 +637,7 @@
                         (let [node-type (:name @(:node-type (gt/node-by-id-at (:basis ctx) node-id)))]
                           (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
                   ctx setters)
-          recur))))
+        recur))))
 
 (defn transact*
   [ctx actions]

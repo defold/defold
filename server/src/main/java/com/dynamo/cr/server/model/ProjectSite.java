@@ -48,6 +48,9 @@ public class ProjectSite {
     @Column
     private String attachmentUrl;
 
+    @Column
+    private boolean publicSite;
+
     @OneToMany(cascade = CascadeType.ALL)
     private Set<AppStoreReference> appStoreReferences = new HashSet<>();
 
@@ -164,5 +167,13 @@ public class ProjectSite {
 
     public void setAttachmentUrl(String attachmentUrl) {
         this.attachmentUrl = attachmentUrl;
+    }
+
+    public boolean isPublicSite() {
+        return publicSite;
+    }
+
+    public void setPublicSite(boolean publicSite) {
+        this.publicSite = publicSite;
     }
 }
