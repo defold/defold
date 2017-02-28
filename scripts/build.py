@@ -862,8 +862,11 @@ instructions.configure=\
     def archive_editor2(self):
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'editor2')
-        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.zip')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
+        for ext in ['zip', 'dmg']:
+            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
+                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
         for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
