@@ -57,10 +57,9 @@
     (str build-path "__htmlLaunchDir")))
 
 (defn- task->error [project ^TaskResult r]
-  (let [node-id (if-let [bob-resource ^IResource (first (.getInputs (.getTask r)))]
+  (let [node-id (when-let [bob-resource ^IResource (first (.getInputs (.getTask r)))]
                   (let [path (str "/" (.getPath bob-resource))]
-                    (project/get-resource-node project path))
-                  0)]
+                    (project/get-resource-node project path)))]
     {:_node-id node-id
      :value (reify clojure.lang.IExceptionInfo
               (getData [this]
@@ -68,10 +67,9 @@
      :message (.getMessage r)}))
 
 (defn- exc->error [project ^CompileExceptionError e]
-  (let [node-id (if-let [bob-resource ^IResource (.getResource e)]
+  (let [node-id (when-let [bob-resource ^IResource (.getResource e)]
                   (let [path (str "/" (.getPath bob-resource))]
-                    (project/get-resource-node project path))
-                  0)]
+                    (project/get-resource-node project path)))]
     {:_node-id node-id
      :value (reify clojure.lang.IExceptionInfo
               (getData [this]
