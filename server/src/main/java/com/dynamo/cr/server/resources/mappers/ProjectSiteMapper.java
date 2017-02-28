@@ -91,6 +91,8 @@ public class ProjectSiteMapper {
                 builder.setAttachmentUrl(magazineClient.createReadUrl(projectSite.getAttachmentUrl()));
             }
 
+            builder.setIsPublicSite(projectSite.isPublicSite());
+
             Set<AppStoreReference> appStoreReferences = projectSite.getAppStoreReferences();
             if (appStoreReferences != null) {
                 for (AppStoreReference appStoreReference : appStoreReferences) {
