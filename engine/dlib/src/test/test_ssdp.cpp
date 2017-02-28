@@ -226,6 +226,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
 
 #ifndef _WIN32
 
+// (╯°□°)╯︵ ┻━┻
 TEST_F(dmSSDPTest, Search)
 {
     // To search for devices we must invoke client -> server -> client
