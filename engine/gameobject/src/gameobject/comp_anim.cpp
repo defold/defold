@@ -235,36 +235,39 @@ namespace dmGameObject
             // Adjust cursor
             bool completed = false;
 
-            if (anim.m_Duration > 0)
+            switch (anim.m_Playback)
             {
-                switch (anim.m_Playback)
+            case PLAYBACK_ONCE_FORWARD:
+            case PLAYBACK_ONCE_BACKWARD:
+            case PLAYBACK_ONCE_PINGPONG:
+                if (anim.m_Cursor >= anim.m_Duration)
                 {
-                case PLAYBACK_ONCE_FORWARD:
-                case PLAYBACK_ONCE_BACKWARD:
-                case PLAYBACK_ONCE_PINGPONG:
-                    if (anim.m_Cursor >= anim.m_Duration)
-                    {
-                        anim.m_Cursor = anim.m_Duration;
-                        completed = true;
-                    }
-                    break;
-                case PLAYBACK_LOOP_FORWARD:
-                case PLAYBACK_LOOP_BACKWARD:
+                    anim.m_Cursor = anim.m_Duration;
+                    completed = true;
+                }
+                break;
+            case PLAYBACK_LOOP_FORWARD:
+            case PLAYBACK_LOOP_BACKWARD:
+                if (anim.m_Duration > 0)
+                {
                     while (anim.m_Cursor >= anim.m_Duration)
                     {
                         anim.m_Cursor -= anim.m_Duration;
                     }
-                    break;
-                case PLAYBACK_LOOP_PINGPONG:
+                }
+                break;
+            case PLAYBACK_LOOP_PINGPONG:
+                if (anim.m_Duration > 0)
+                {
                     while (anim.m_Cursor >= anim.m_Duration)
                     {
                         anim.m_Cursor -= anim.m_Duration;
                         anim.m_Backwards = ~anim.m_Backwards;
                     }
-                    break;
-                default:
-                    break;
                 }
+                break;
+            default:
+                break;
             }
 
             // Evaluate animation
