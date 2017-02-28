@@ -345,7 +345,6 @@
    [:scene :child-scenes]
    [:node-msgs :node-msgs]
    [:node-rt-msgs :node-rt-msgs]
-   [:node-ids :node-ids]
    [:node-overrides :node-overrides]
    [:build-errors :build-errors]
    [:template-build-targets :template-build-targets]])
@@ -1014,9 +1013,9 @@
           (not= :clipping-mode-none clipping-mode)
           (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
   (output node-rt-msgs g/Any :cached
-    (g/fnk [node-msgs spine-scene-structure adjust-mode spine-skin-ids]
+    (g/fnk [node-msgs node-rt-msgs spine-scene-structure adjust-mode spine-skin-ids]
       (let [pb-msg (first node-msgs)
-            rt-pb-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))]
+            rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])
             gui-node-id (:id pb-msg)
             bones (tree-seq :children :children (:skeleton spine-scene-structure))
             child-to-parent (reduce (fn [m b] (into m (map (fn [c] [(:name c) b]) (:children b)))) {} bones)

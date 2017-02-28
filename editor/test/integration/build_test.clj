@@ -195,10 +195,10 @@
                  :pb-class Gui$SceneDesc
                  :resource-fields [[:spine-scenes :spine-scene]]
                  :test-fn (fn [pb targets]
-                            (let [main-node (first (:nodes pb))
+                            (let [main-node (first (filter #(= "spine" (:id %)) (:nodes pb)))
                                   nodes (into #{} (map :id (:nodes pb)))]
                               (is (= "default" (:spine-skin main-node)))
-                              (is (every? nodes ["spine" "spine/root"]))))}]})
+                              (is (every? nodes ["spine" "spine/root" "box"]))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
