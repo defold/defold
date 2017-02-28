@@ -73,7 +73,7 @@ def download(url, use_cache = True):
 
 def exec_command(args):
     print('[EXEC] %s' % args)
-    process = subprocess.Popen(args, shell = False)
+    process = subprocess.Popen(args, stdout=subprocess.PIPE, shell = False)
     output = process.communicate()[0]
     if process.returncode != 0:
         print(output)
@@ -112,6 +112,26 @@ def remove_readonly_retry(function, path, excinfo):
 def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
+
+def create_dmg(bundle_dir, dmg_file):
+    # This certificate must be installed on the computer performing the operation
+    certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
+
+    certificate_found = exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0
+
+    if not certificate_found:
+        print("Warning: Codesigning certificate not found, DMG will not be signed")
+
+    # sign files in bundle
+    if certificate_found:
+        exec_command(['codesign', '--deep', '-s', certificate, bundle_dir])
+
+    # create dmg
+    exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', bundle_dir, dmg_file])
+
+    # sign dmg
+    if certificate_found:
+        exec_command(['codesign', '-s', certificate, dmg_file])
 
 def bundle(platform, jar_file, options):
     rmtree('tmp')
@@ -195,6 +215,9 @@ def bundle(platform, jar_file, options):
         shutil.move(p, '%s/jre' % packages_dir)
 
     ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
+
+    if is_mac:
+        create_dmg(bundle_dir, 'target/editor/Defold-%s.dmg' % platform)
 
 if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)'''
