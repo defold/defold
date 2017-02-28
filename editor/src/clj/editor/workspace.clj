@@ -195,8 +195,13 @@ ordinary paths."
    (resource-sync! workspace notify-listeners? moved-files progress/null-render-progress!))
   ([workspace notify-listeners? moved-files render-progress!]
    (let [project-path (project-path workspace)
-         moved-paths  (mapv (fn [[src trg]] [(resource/file->proj-path project-path src)
-                                             (resource/file->proj-path project-path trg)]) moved-files)
+         moved-paths  (mapv (fn [[src trg]]
+                              (let [src-path (resource/file->proj-path project-path src)
+                                    trg-path (resource/file->proj-path project-path trg)]
+                                (assert (some? src-path) (str "project does not contain src " (pr-str src)))
+                                (assert (some? trg-path) (str "project does not contain trg " (pr-str trg)))
+                                [src-path trg-path]))
+                            moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map      (resource-watch/make-resource-map old-snapshot)
          _            (render-progress! (progress/make "Finding resources..."))
@@ -225,7 +230,13 @@ ordinary paths."
                move-adjusted-changes        {:removed non-moved-removed
                                              :added   added-with-changed-move-srcs
                                              :changed non-moved-changed
-                                             :moved   (mapv (fn [[src trg]] [(old-map src) (new-map trg)]) moved-paths)}]
+                                             :moved   (mapv (fn [[src trg]]
+                                                              (let [src-resource (old-map src)
+                                                                    trg-resource (new-map trg)]
+                                                                (assert (some? src-resource) (str "old-map does not contain src " (pr-str src)))
+                                                                (assert (some? trg-resource) (str "new-map does not contain trg " (pr-str trg)))
+                                                                [src-resource trg-resource]))
+                                                            moved-paths)}]
            (doseq [listener @(g/node-value workspace :resource-listeners)]
              (resource/handle-changes listener move-adjusted-changes render-progress!)))))
      changes)))
