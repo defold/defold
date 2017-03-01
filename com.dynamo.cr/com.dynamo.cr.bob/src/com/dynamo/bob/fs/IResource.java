@@ -48,6 +48,12 @@ public interface IResource {
     boolean exists();
 
     /**
+     * Check if the resource is a file
+     * @return true if the resource is a file
+     */
+    boolean isFile();
+
+    /**
      * Get abs-path for resource
      * @return path
      */
