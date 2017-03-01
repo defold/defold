@@ -8,21 +8,17 @@
 
 (set! *warn-on-reflection* true)
 
-(def grad-top-color    colors/dark-grey-light)
-(def grad-bottom-color colors/bright-black)
-
-(defn render-gradient [^GL2 gl pass renderables count]
+(defn render-background [^GL2 gl pass renderables count]
   (let [x0           (float -1.0)
         x1           (float 1.0)
         y0           (float -1.0)
         y1           (float 1.0)]
     (gl/gl-quads gl
-      (gl/gl-color grad-top-color)
+      (gl/gl-color colors/scene-background)
       (gl/gl-vertex-2f x0 y1)
       (gl/gl-vertex-2f x1 y1)
-      (gl/gl-color grad-bottom-color)
       (gl/gl-vertex-2f x1 y0)
       (gl/gl-vertex-2f x0 y0))))
 
-(g/defnode Gradient
-  (output renderable p/RenderData (g/fnk [] {p/background [{:world-transform geom/Identity4d :render-fn render-gradient}]})))
+(g/defnode Background
+  (output renderable p/RenderData (g/fnk [] {p/background [{:world-transform geom/Identity4d :render-fn render-background}]})))

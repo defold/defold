@@ -67,9 +67,7 @@
                                           #(assoc %
                                                   :type :choicebox
                                                   :options [["Zip" "Zip"] ["Amazon" "Amazon"]])))))
-  (output outline g/Any :cached
-          (g/fnk [_node-id] {:node-id _node-id :label "LiveUpdate settings" :icon live-update-icon}))
-  
+
   (input save-data-content g/Any)
   (output save-data g/Any :cached
           (g/fnk [resource save-data-content]
@@ -96,7 +94,7 @@
   (workspace/register-resource-type workspace
                                     :textual? true
                                     :ext "settings"
-                                    :label "LiveUpdate settings"
+                                    :label "Live Update Settings"
                                     :node-type LiveUpdateSettingsNode
                                     :load-fn load-live-update-settings
                                     :icon live-update-icon

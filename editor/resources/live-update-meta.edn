@@ -24,7 +24,7 @@
    :presentation-category "Zip"
    :path ["liveupdate" "zip-filepath"]}]
  :categories
- {"liveupdate" {:title "LiveUpdate"}
+ {"liveupdate" {:title "Live Update"}
   "Amazon" {}
   "Zip" {}}}
 

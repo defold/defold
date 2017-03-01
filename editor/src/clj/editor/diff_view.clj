@@ -122,7 +122,8 @@
 
 (defn make-diff-viewer [left-name raw-str-left right-name raw-str-right]
   (let [root ^Parent (ui/load-fxml "diff.fxml")
-        stage (ui/make-stage)
+        stage (doto (ui/make-stage)
+                (.initOwner (ui/main-stage)))
         scene (Scene. root)
         str-left (text-util/crlf->lf raw-str-left)
         str-right (text-util/crlf->lf raw-str-right)

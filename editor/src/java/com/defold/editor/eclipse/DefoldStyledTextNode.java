@@ -409,7 +409,7 @@ public class DefoldStyledTextNode extends Region {
 				}
 			}
 			idx -= toRemove;
-			return idx;
+			return Math.min(idx, originalText.length());
 		}
 		return -1;
 	}

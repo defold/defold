@@ -568,3 +568,20 @@
   (with-clean-system
     (let [[resource-node] (tx-nodes (g/make-node world PlaceholderNode))]
       (is (= "Hello" (g/node-value resource-node :resource))))))
+
+(g/defnode GetterFromSetter
+  (property old-foo g/Int)
+  (property foo g/Int
+            (value (g/fnk [foo] (inc foo)))
+            (set (fn [basis self old-value new-value]
+                   (g/set-property self :old-foo old-value))))
+  (output foo g/Int (g/fnk [] 100)))
+
+(deftest test-getter-from-setter
+  (with-clean-system
+    (let [[nid] (tx-nodes (g/make-node world GetterFromSetter :foo 1))]
+      ;; (set ...) will have been called with old = nil, new = 1 since it's the constructor
+      (is (= nil (g/node-value nid :old-foo)))
+      (g/transact (g/set-property nid :foo 3))
+      ;; (set ...) will have been called with old = (inc 1), new = 3 since it's the constructor
+      (is (= 2 (g/node-value nid :old-foo))))))
