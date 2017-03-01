@@ -456,7 +456,7 @@
 
 (g/defnk produce-tile-source-attributes
   [_node-id image-content tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-content]
-  (or (validation/prop-error :info _node-id :image validation/prop-nil? image-content "Image")
+  (or (validation/prop-error :fatal _node-id :image validation/prop-nil? image-content "Image")
       (let [properties {:width tile-width
                         :height tile-height
                         :margin tile-margin

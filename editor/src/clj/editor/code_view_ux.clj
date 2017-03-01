@@ -1429,7 +1429,7 @@
           result (promise)
           current-line (line source-viewer)
           target (completion-pattern nil (line-offset source-viewer) current-line offset)
-          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals target (text-area source-viewer))
+          ^Stage stage (dialogs/make-proposal-popup result screen-position proposals target (text-area source-viewer))
           replace-text-fn (fn [] (when (and (realized? result) @result)
                                    (do-proposal-replacement source-viewer (first @result))
                                    (typing-changes! source-viewer)))]

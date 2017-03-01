@@ -31,7 +31,6 @@ extern uint32_t GUI_FPC_SIZE;
 
 namespace dmGameSystem
 {
-    dmRender::HRenderType g_GuiRenderType = dmRender::INVALID_RENDER_TYPE_HANDLE;
     dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
     bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
 
@@ -50,14 +49,6 @@ namespace dmGameSystem
             m_Table[dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG;
         }
     } ddf_playback_map;
-
-    struct GuiWorld;
-    struct GuiRenderNode
-    {
-        dmGui::HNode m_GuiNode;
-        GuiWorld*   m_GuiWorld;
-        GuiRenderNode(dmGui::HNode node, GuiWorld* gui_world) : m_GuiNode(node), m_GuiWorld(gui_world) {}
-    };
 
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -582,6 +573,9 @@ namespace dmGameSystem
         // draw order will follow the order objects are generated in,
         // and to allow font rendering to be sorted into the right place.
         uint32_t                    m_NextSortOrder;
+
+        // true if the stencil is the first rendered (per scene)
+        bool                        m_FirstStencil;
     };
 
     inline uint32_t MakeFinalRenderOrder(uint32_t scene_order, uint32_t sub_order)
@@ -616,7 +610,7 @@ namespace dmGameSystem
         }
     }
 
-    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::StencilTestParams& stp) {
+    static void ApplyStencilClipping(RenderGuiContext* gui_context, const dmGui::StencilScope* state, dmRender::StencilTestParams& stp) {
         if (state != 0x0) {
             stp.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
             stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
@@ -626,6 +620,15 @@ namespace dmGameSystem
             stp.m_RefMask = state->m_TestMask;
             stp.m_BufferMask = state->m_WriteMask;
             stp.m_ColorBufferMask = state->m_ColorMask;
+            if (gui_context->m_FirstStencil)
+            {
+                // Set the m_ClearBuffer for the first stencil of each scene so that scenes (and components) can share the stencil buffer.
+                // This will result in a stencil buffer clear call before the batch is drawn.
+                // The render module will internally disregard/optimise this clear request if the stencil buffer
+                // has been cleared by the renderscript clear command prior to this buffer clear request.
+                gui_context->m_FirstStencil = false;
+                stp.m_ClearBuffer = 1;
+            }
         } else {
             stp.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
             stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
@@ -638,14 +641,14 @@ namespace dmGameSystem
         }
     }
 
-    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::RenderObject& ro) {
+    static void ApplyStencilClipping(RenderGuiContext* gui_context, const dmGui::StencilScope* state, dmRender::RenderObject& ro) {
         ro.m_SetStencilTest = 1;
-        ApplyStencilClipping(state, ro.m_StencilTestParams);
+        ApplyStencilClipping(gui_context, state, ro.m_StencilTestParams);
     }
 
-    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::DrawTextParams& params) {
+    static void ApplyStencilClipping(RenderGuiContext* gui_context, const dmGui::StencilScope* state, dmRender::DrawTextParams& params) {
         params.m_StencilTestParamsSet = 1;
-        ApplyStencilClipping(state, params.m_StencilTestParams);
+        ApplyStencilClipping(gui_context, state, params.m_StencilTestParams);
     }
 
     void RenderTextNodes(dmGui::HScene scene,
@@ -688,7 +691,7 @@ namespace dmGameSystem
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
-            ApplyStencilClipping(stencil_scopes[i], params);
+            ApplyStencilClipping(gui_context, stencil_scopes[i], params);
             dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
             switch (pivot)
             {
@@ -782,7 +785,7 @@ namespace dmGameSystem
         SetBlendMode(ro, blend_mode);
         ro.m_SetBlendFactors = 1;
 
-        ApplyStencilClipping(stencil_scopes[0], ro);
+        ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);
@@ -841,7 +844,7 @@ namespace dmGameSystem
         // See case 2264
         ro.Init();
 
-        ApplyStencilClipping(stencil_scopes[0], ro);
+        ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
 
         const int verts_per_node = 6*9;
         const uint32_t max_total_vertices = verts_per_node * node_count;
@@ -1064,7 +1067,7 @@ namespace dmGameSystem
         // See case 2264
         ro.Init();
 
-        ApplyStencilClipping(stencil_scopes[0], ro);
+        ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
@@ -1251,6 +1254,8 @@ namespace dmGameSystem
 
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
+
+        gui_context->m_FirstStencil = true;
 
         dmGui::HNode first_node = entries[0].m_Node;
 

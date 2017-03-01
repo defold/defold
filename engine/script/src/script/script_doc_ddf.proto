@@ -31,6 +31,8 @@ enum Type
     PACKAGE = 5;
     STRUCT = 6;
     MACRO = 7;
+    ENUM = 8;
+    TYPEDEF = 9;
 }
 
 message Element

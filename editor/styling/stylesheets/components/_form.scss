@@ -2,7 +2,7 @@
     >.viewport {
     }
     .section-label {
-        -fx-font-size: 14px;
+        -fx-font-size: $default-font-size + 2px;
         -fx-font-weight: bold;
         -fx-text-fill: $defold-white;
     }

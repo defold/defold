@@ -118,7 +118,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				}
 				
 				int oldLineIndex = getSkinnable().getContent().getLineAtOffset(oldValue.intValue());
-				if (lineIndex < 0){
+				if (oldLineIndex < 0){
 					return;
 				}
 				Line oldLineObject = DefoldStyledTextSkin.this.lineList.get(oldLineIndex);
@@ -329,8 +329,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 		});
 		contentView.setMinHeight(0);
 		contentView.setMinWidth(0);
-		// this.contentView.setFixedCellSize(value);
-		// this.contentView.setFixedCellSize(15);
+		contentView.setFixedCellSize(0); // size cells after content
 		contentView.setOnMousePressed(new EventHandler<MouseEvent>() {
 
 			@Override

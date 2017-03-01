@@ -109,20 +109,20 @@
 
   (let [root (Pane.)
         scene (ui/run-now (Scene. root))
-        selection-provider (TestSelectionProvider. [])
-        command-context {:name :global :env {:selection []}}]
+        selection-provider (TestSelectionProvider. [])]
     (.setId root "toolbar")
-    (ui/register-toolbar scene "#toolbar" ::my-menu)
-    (ui/run-now (ui/refresh scene [command-context]))
-    (let [c1 (ui/run-now (ui/refresh scene [command-context]) (.getChildren root))
-          c2 (ui/run-now (ui/refresh scene [command-context]) (.getChildren root))]
+    (ui/context! root :global {} selection-provider)
+    (ui/register-toolbar scene root "#toolbar" ::my-menu)
+    (ui/run-now (ui/refresh scene))
+    (let [c1 (ui/run-now (ui/refresh scene) (.getChildren root))
+          c2 (ui/run-now (ui/refresh scene) (.getChildren root))]
       (is (= 1 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))
 
     (ui/extend-menu ::extra ::open
                     [{:label "Save"
                       :command :save}])
-    (ui/run-now (ui/refresh scene [command-context]))
+    (ui/run-now (ui/refresh scene))
     (is (= 2 (count (.getChildren root))))))
 
 (deftest menubar-test
@@ -144,22 +144,22 @@
   (let [root (Pane.)
         scene (ui/run-now (Scene. root))
         selection-provider (TestSelectionProvider. [])
-        command-context {:name :global :env {:selection []}}
         menubar (MenuBar.)]
+    (ui/context! root :global {} selection-provider)
     (ui/run-now (.add (.getChildren root) menubar))
     (.setId menubar "menubar")
     (ui/register-menubar scene "#menubar" ::my-menu)
-    (ui/run-now (ui/refresh scene [command-context]))
-    (let [c1 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))
-          c2 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))]
+    (ui/run-now (ui/refresh scene))
+    (let [c1 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))
+          c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
       (is (= 1 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))
     (ui/extend-menu ::extra ::open
                     [{:label "Save"
                       :command :save}])
-    (ui/run-now (ui/refresh scene [command-context]))
-    (let [c1 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))
-          c2 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))]
+    (ui/run-now (ui/refresh scene))
+    (let [c1 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))
+          c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
       (is (= 2 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))))
 

@@ -14,10 +14,10 @@
 (set! *warn-on-reflection* true)
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
-(def grid-color colors/mid-grey)
-(def x-axis-color colors/defold-red)
-(def y-axis-color colors/defold-green)
-(def z-axis-color colors/defold-blue)
+(def grid-color colors/scene-grid)
+(def x-axis-color colors/scene-grid-x-axis)
+(def y-axis-color colors/scene-grid-y-axis)
+(def z-axis-color colors/scene-grid-z-axis)
 
 (defn render-grid-axis
   [^GL2 gl ^doubles vx uidx start stop size vidx min max]

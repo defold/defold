@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os
 from waf_dynamo import apidoc_extract_task
+from waf_dynamo import dmsdk_add_files
 
 def configure(conf):
     pass
@@ -38,7 +39,7 @@ def build(bld):
     if bld.env.LUA_BYTECODE_ENABLE == 'yes':
         script.cxxflags = ['-DLUA_BYTECODE_ENABLE']
 
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/script', 'dmsdk/script/script.h')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above
     # in order to avoid installation of dummylib

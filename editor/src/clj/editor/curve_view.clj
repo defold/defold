@@ -353,7 +353,7 @@
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defn- pick-control-points [curves picking-rect camera viewport]
-  (let [aabb (geom/rect->aabb picking-rect)]
+  (let [aabb (geom/centered-rect->aabb picking-rect)]
     (->> curves
       (mapcat (fn [c]
                 (->> (:curve c)
@@ -367,7 +367,7 @@
       (keep identity))))
 
 (defn- pick-tangent [curves ^Rect picking-rect camera viewport sub-selection-map]
-  (let [aabb (geom/rect->aabb picking-rect)
+  (let [aabb (geom/centered-rect->aabb picking-rect)
         [scale-x scale-y] (camera/scale-factor camera viewport)]
     (some (fn [c]
             (when-let [sel (get sub-selection-map [(:node-id c) (:property c)])]
@@ -595,7 +595,7 @@
                       (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{} :frame-version (atom 0)]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
-                                                       background background/Gradient
+                                                       background background/Background
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
                                                        grid       curve-grid/Grid
                                                        rulers     [rulers/Rulers]]

@@ -21,6 +21,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.ButtonBase;
 import javafx.stage.Modality;
+import javafx.stage.StageStyle;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,8 +111,10 @@ public class Start extends Application {
             stage.close();
         });
 
-        stage.setTitle("Update Available");
+        stage.initStyle(StageStyle.DECORATED);
         stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setTitle("Update Available");
+        stage.setResizable(false);
         stage.setScene(scene);
         stage.showAndWait();
 
