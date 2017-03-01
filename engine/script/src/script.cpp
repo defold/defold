@@ -652,7 +652,7 @@ namespace dmScript
 
     void LuaStackCheck::Verify(int diff)
     {
-        uint32_t expected = m_Top - diff;
+        uint32_t expected = diff - m_Top;
         uint32_t actual = lua_gettop(m_L);
         if (expected != actual)
         {

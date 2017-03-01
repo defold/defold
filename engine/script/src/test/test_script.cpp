@@ -269,16 +269,16 @@ TEST_F(ScriptTest, TestErrorHandler) {
 
 TEST_F(ScriptTest, TestStackCheck) {
 
-    DM_LUA_STACK_CHECK(L, lua_gettop(L));
+    DM_LUA_STACK_CHECK(L, 0);
     {
-        DM_LUA_STACK_CHECK(L, lua_gettop(L)-1);
+        DM_LUA_STACK_CHECK(L, 1);
         lua_pushnumber(L, 0);
     }
     lua_pop(L, 1);
 }
 
 static int TestStackCheckErrorFunc(lua_State* L) {
-    DM_LUA_STACK_CHECK(L, lua_gettop(L));
+    DM_LUA_STACK_CHECK(L, 0);
     DM_LUA_ERROR(L, "this function does not work");
 }
 
