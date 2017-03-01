@@ -22,6 +22,9 @@ import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
+import com.dynamo.bob.util.RigUtil;
+import com.dynamo.bob.util.RigUtil.Slot;
+import com.dynamo.bob.util.RigUtil.SlotAnimationTrack;
 import com.dynamo.bob.util.SpineSceneUtil;
 import com.dynamo.bob.util.RigUtil.Animation;
 import com.dynamo.bob.util.RigUtil.AnimationCurve;
@@ -32,6 +35,8 @@ import com.dynamo.bob.util.RigUtil.EventTrack;
 import com.dynamo.bob.util.RigUtil.Mesh;
 import com.dynamo.bob.util.RigUtil.Transform;
 import com.dynamo.bob.util.RigUtil.UVTransformProvider;
+import com.dynamo.rig.proto.Rig;
+import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
 
 public class SpineSceneTest {
     private static final double EPSILON = 0.000001;
@@ -89,6 +94,19 @@ public class SpineSceneTest {
             assertEquals(expected[i], actual[i]);
         }
     }
+    
+    private static void assertPoint3dEquals(Point3d v0, Point3d v1, double delta) {
+        assertEquals(v0.getX(), v1.getX(), delta);
+        assertEquals(v0.getY(), v1.getY(), delta);
+        assertEquals(v0.getZ(), v1.getZ(), delta);
+    }
+
+    private static void assertQuat4dEquals(Quat4d v0, Quat4d v1, double delta) {
+        assertEquals(v0.getX(), v1.getX(), delta);
+        assertEquals(v0.getY(), v1.getY(), delta);
+        assertEquals(v0.getZ(), v1.getZ(), delta);
+        assertEquals(v0.getW(), v1.getW(), delta);
+    }
 
     @Test
     public void testTransformRot() {
@@ -127,12 +145,12 @@ public class SpineSceneTest {
         assertTuple4(0.0, 0.0, 0.0, 1.0, identity.rotation);
         assertTuple3(1.0, 1.0, 1.0, identity.scale);
     }
-
-    private SpineSceneUtil load() throws Exception {
+    
+    private SpineSceneUtil load(String filename) throws Exception {
         InputStream input = null;
         try {
             Bundle bundle = FrameworkUtil.getBundle(getClass());
-            Enumeration<URL> entries = bundle.findEntries("/test", "skeleton.json", false);
+            Enumeration<URL> entries = bundle.findEntries("/test", filename, false);
             if (entries.hasMoreElements()) {
                 input = entries.nextElement().openStream();
                 return SpineSceneUtil.loadJson(input, new TestUVTProvider());
@@ -147,7 +165,7 @@ public class SpineSceneTest {
 
     @Test
     public void testLoadingBones() throws Exception {
-        SpineSceneUtil scene = load();
+        SpineSceneUtil scene = load("skeleton.json");
         assertEquals(9, scene.bones.size());
         Bone root = scene.getBone("root");
         Bone animated = scene.getBone("bone_animated");
@@ -188,7 +206,7 @@ public class SpineSceneTest {
 
     @Test
     public void testLoadingMeshes() throws Exception {
-        SpineSceneUtil scene = load();
+        SpineSceneUtil scene = load("skeleton.json");
         assertEquals(3, scene.meshes.size());
         assertMesh(scene.meshes.get(0), "test_sprite",
                 new float[] {
@@ -298,7 +316,7 @@ public class SpineSceneTest {
 
     @Test
     public void testLoadingAnims() throws Exception {
-        SpineSceneUtil scene = load();
+        SpineSceneUtil scene = load("skeleton.json");
         assertEquals(8, scene.animations.size());
 
         assertSimpleAnim(scene, "anim_pos", Property.POSITION, new float[][] {new float[] {0.0f, 0.0f, 0.0f}, new float[] {100.0f, 0.0f, 0.0f}});
@@ -321,6 +339,119 @@ public class SpineSceneTest {
         assertTrue(animStepped.tracks.get(0).keys.get(0).stepped);
 
         assertEvents(scene, "anim_event", "test_event", new Object[] {1, 0.5f, "test_string"});
+    }
+    
+    @Test
+    public void testSampleRotAnim() throws Exception {
+        SpineSceneUtil scene = load("simple_spine.json");
+        Animation idle2 = scene.getAnimation("idle2");
+        AnimationTrack track = idle2.tracks.get(0);
+
+        double sampleRate = 30.0;
+        double spf = 1.0/sampleRate;
+        double duration = idle2.duration;
+        
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        MockRotationBuilder rotBuilder = new MockRotationBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, rotBuilder, new Quat4d(0.0, 0.0, 0.0, 0.0), duration, sampleRate, spf, true, false);
+        
+        double halfSqrt2 = Math.sqrt(2.0) / 2.0;
+        int expectedNumRotSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 4; // Quaternions
+        Quat4d expectedInitRot = new Quat4d(0.0, 0.0, 0.0, 1.0);
+        Quat4d expectedEndRot = new Quat4d(0.0, 0.0, halfSqrt2, halfSqrt2);
+        
+        assertEquals(expectedNumRotSamples, rotBuilder.GetRotationsCount());
+        assertQuat4dEquals(expectedInitRot, rotBuilder.GetRotations(0), EPSILON);
+        assertQuat4dEquals(expectedEndRot, rotBuilder.GetRotations(expectedNumRotSamples - 4), EPSILON);
+    }
+    
+    @Test
+    public void testSamplePosAnim() throws Exception {
+        SpineSceneUtil scene = load("curve_skeleton.json");
+        Animation anim = scene.getAnimation("animation");
+        AnimationTrack track = anim.tracks.get(0);
+
+        double sampleRate = 30.0;
+        double spf = 1.0/sampleRate;
+        double duration = anim.duration;
+        
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        MockPositionBuilder posBuilder = new MockPositionBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true, false);
+        
+        int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 3; // Point3d
+        Point3d expectedInitPos = new Point3d(0.0, 0.0, 0.0);
+        Point3d expectedEndPos = new Point3d(100.0, 0.0, 0.0);
+        
+        assertEquals(expectedNumPosSamples, posBuilder.GetPositionsCount());
+        assertPoint3dEquals(expectedInitPos, posBuilder.GetPositions(0), EPSILON);
+        assertPoint3dEquals(expectedEndPos, posBuilder.GetPositions(expectedNumPosSamples - 3), EPSILON);
+    }
+    
+    @Test
+    public void testSamplePosSteppedAnim() throws Exception {
+        SpineSceneUtil scene = load("step_skeleton.json");
+        Animation anim = scene.getAnimation("animation");
+        AnimationTrack track = anim.tracks.get(0);
+
+        double sampleRate = 30.0;
+        double spf = 1.0/sampleRate;
+        double duration = anim.duration;
+        boolean interpolate = true;
+        boolean shouldSlerp = false;
+        
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        MockPositionBuilder posBuilder = new MockPositionBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, interpolate, shouldSlerp);
+        
+        int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 3; // Point3d
+        Point3d expectedInitPos = new Point3d(0.0, 0.0, 0.0);
+        Point3d expectedLowMidPos = new Point3d(0.0, 0.0, 0.0);
+        Point3d expectedHighMidPos = new Point3d(100.0, 0.0, 0.0);
+        Point3d expectedEndPos = new Point3d(100.0, 0.0, 0.0);
+        
+        int lowMidIndex = (int) expectedNumPosSamples / 2;
+        lowMidIndex -= (lowMidIndex % 3);
+        lowMidIndex -= 3; // "before" the mid point
+        int highMidIndex = lowMidIndex + 6; // "after" the midpoint 
+        System.out.println("expectedNumPosSamples: " + expectedNumPosSamples + ", lowMidIndex: " + lowMidIndex);
+        assertEquals(expectedNumPosSamples, posBuilder.GetPositionsCount());
+        
+        assertPoint3dEquals(expectedInitPos, posBuilder.GetPositions(0), EPSILON);
+        assertPoint3dEquals(expectedLowMidPos, posBuilder.GetPositions(lowMidIndex), EPSILON);
+        assertPoint3dEquals(expectedHighMidPos, posBuilder.GetPositions(highMidIndex), EPSILON);
+        assertPoint3dEquals(expectedEndPos, posBuilder.GetPositions(expectedNumPosSamples - 3), EPSILON);
+    }
+    
+    @Test
+    public void testSampleVisibilityAnim() throws Exception {
+        SpineSceneUtil scene = load("visibility_skeleton.json");
+        Animation anim = scene.getAnimation("animation");
+        SlotAnimationTrack track = anim.slotTracks.get(0);
+        Slot slot = scene.getSlot(track.slot.name);
+
+        double sampleRate = 30.0;
+        double spf = 1.0/sampleRate;
+        double duration = anim.duration;
+        boolean interpolate = false;
+        boolean shouldSlerp = false;
+        
+        int expectedSampleCountPerMesh = 5;
+        
+        String[] meshNames = {"_1", "_2", "_3", "_4", "_5"};
+        
+        for (int i=0; i < meshNames.length; ++i) {
+            MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
+            trackBuilder.setMeshId(1337);
+            trackBuilder.setMeshIndex(666);
+            MockVisibilityBuilder visibilityBuilder = new MockVisibilityBuilder(trackBuilder, meshNames[i]);
+            RigUtil.sampleTrack(track, visibilityBuilder, new Boolean(meshNames[i].equals(slot.attachment)), duration, sampleRate, spf, interpolate, shouldSlerp);
+            assertEquals(expectedSampleCountPerMesh, visibilityBuilder.GetVisibleCount());
+            
+            for (int j=0; j < expectedSampleCountPerMesh; ++j) {
+                assertEquals(i == j, visibilityBuilder.GetVisible(j));
+            }
+        }
     }
 
     @Test
