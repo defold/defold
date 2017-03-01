@@ -214,6 +214,7 @@ namespace dmRender
         dmMessage::HSocket          m_Socket;
 
         uint32_t                    m_OutOfResources : 1;
+        uint32_t                    m_StencilBufferCleared : 1;
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);
