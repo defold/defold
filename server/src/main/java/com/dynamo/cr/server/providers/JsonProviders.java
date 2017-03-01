@@ -96,7 +96,7 @@ public class JsonProviders {
                 return false;
 
             case VALUE_TRUE:
-                return false;
+                return true;
 
             case VALUE_NULL:
                 throw new IOException("null values not supported");
