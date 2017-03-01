@@ -620,9 +620,12 @@ namespace dmGameSystem
             stp.m_RefMask = state->m_TestMask;
             stp.m_BufferMask = state->m_WriteMask;
             stp.m_ColorBufferMask = state->m_ColorMask;
-
-            if(gui_context->m_FirstStencil)
+            if (gui_context->m_FirstStencil)
             {
+                // Set the m_ClearBuffer for the first stencil of each scene so that scenes (and components) can share the stencil buffer.
+                // This will result in a stencil buffer clear call before the batch is drawn.
+                // The render module will internally disregard/optimise this clear request if the stencil buffer
+                // has been cleared by the renderscript clear command prior to this buffer clear request.
                 gui_context->m_FirstStencil = false;
                 stp.m_ClearBuffer = 1;
             }

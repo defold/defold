@@ -318,10 +318,13 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         const StencilTestParams& stp = ro->m_StencilTestParams;
-        if(stp.m_ClearBuffer)
+        if (stp.m_ClearBuffer)
         {
-            if(render_context->m_StencilBufferCleared)
+            if (render_context->m_StencilBufferCleared)
             {
+                // render.clear command will set context m_StencilBufferCleared to 1 if stencil clear flag is set.
+                // We skip clear and reset context m_StencilBufferCleared to 0, indicating that the stencil is no longer cleared.
+                // Concecutive calls with m_ClearBuffer option will result in a clear until render.clear is called with stencil clear flag set.
                 render_context->m_StencilBufferCleared = 0;
             }
             else
