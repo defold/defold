@@ -118,6 +118,8 @@ namespace dmRender
 
         context->m_OutOfResources = 0;
 
+        context->m_StencilBufferCleared = 0;
+
         context->m_RenderListDispatch.SetCapacity(255);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
@@ -318,8 +320,15 @@ namespace dmRender
         const StencilTestParams& stp = ro->m_StencilTestParams;
         if(stp.m_ClearBuffer)
         {
-            dmGraphics::SetStencilMask(graphics_context, 0xff);
-            dmGraphics::Clear(graphics_context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+            if(render_context->m_StencilBufferCleared)
+            {
+                render_context->m_StencilBufferCleared = 0;
+            }
+            else
+            {
+                dmGraphics::SetStencilMask(graphics_context, 0xff);
+                dmGraphics::Clear(graphics_context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+            }
         }
         dmGraphics::SetColorMask(graphics_context, stp.m_ColorBufferMask & (1<<3), stp.m_ColorBufferMask & (1<<2), stp.m_ColorBufferMask & (1<<1), stp.m_ColorBufferMask & (1<<0));
         dmGraphics::SetStencilMask(graphics_context, stp.m_BufferMask);

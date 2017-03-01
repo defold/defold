@@ -31,13 +31,6 @@ extern uint32_t GUI_FPC_SIZE;
 
 namespace dmGameSystem
 {
-    // The stencil buffer is a global shared (hardware) resource which we want to clear if stencil clipping is used cross scenes (and cross gui components).
-    // Since the stencil scope currently resets on a scene scope, we need to clear the stencil buffer before the first stencil used in a scene.
-    // We assume a clean stencil buffer when the gui starts rendering, so we don't want this behaviour for the first scene using stencil clipping.
-    // For the first scene we instead set g_DirtyGuiStencil to true, so we have this information when deciding to clear in subsequent scenes.
-    // This is purely an optimisation.
-    static bool g_DirtyGuiStencil;
-
     dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
     bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
 
@@ -1464,7 +1457,6 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        g_DirtyGuiStencil = false;
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
@@ -1486,14 +1478,6 @@ namespace dmGameSystem
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
                 dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
-                if(ro->m_StencilTestParams.m_ClearBuffer)
-                {
-                    if(!g_DirtyGuiStencil)
-                    {
-                        ro->m_StencilTestParams.m_ClearBuffer = false;
-                        g_DirtyGuiStencil = true;
-                    }
-                }
                 dmRender::AddToRender(params.m_Context, ro);
             }
         }
