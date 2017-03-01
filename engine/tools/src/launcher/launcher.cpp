@@ -108,11 +108,12 @@ static dmSys::Result GetLocalApplicationSupportPath(const char* application_name
             return dmSys::RESULT_INVAL;
         if (dmStrlCat(path, application_name, path_len) >= path_len)
             return dmSys::RESULT_INVAL;
-
-        if (mkdir(path) == 0)
+        
+        dmSys::Result r =  dmSys::Mkdir(path, 0755);
+        if (r == dmSys::RESULT_EXIST)
             return dmSys::RESULT_OK;
         else
-	    return dmSys::RESULT_IO;
+            return r;
     }
     else
     {
@@ -141,7 +142,7 @@ int Launch(int argc, char **argv) {
     dmStrlCpy(config_path, default_resources_path, sizeof(config_path));
     dmStrlCat(config_path, "/config", sizeof(config_path));
 
-    r = dmSys::GetApplicationSupportPath("Defold", application_support_path, sizeof(application_support_path));
+    r = GetLocalApplicationSupportPath("Defold", application_support_path, sizeof(application_support_path));
     if (r != dmSys::RESULT_OK) {
         dmLogFatal("Failed to locate application support path (%d)", r);
         return 5;
