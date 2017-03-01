@@ -18,13 +18,58 @@
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
-           [java.nio.file Files attribute.FileAttribute]
+           [java.nio.file Files]
+           [java.nio.file.attribute FileAttribute]
+           [java.util UUID]
            [javax.imageio ImageIO]
            [javafx.scene.control Tab]
            [org.apache.commons.io FileUtils FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
 (def project-path "test/resources/test_project")
+
+(defn make-dir!
+  ^File [^File dir]
+  (.toFile (Files/createDirectory (.toPath dir) (make-array FileAttribute 0))))
+
+(defn make-temp-dir!
+  ^File []
+  (.toFile (Files/createTempDirectory "foo" (make-array FileAttribute 0))))
+
+(defmacro with-temp-dir!
+  "Creates a temporary directory and binds it to name as a File. Executes body
+  in a try block and finally deletes the temporary directory."
+  [name & body]
+  `(let [~name (make-temp-dir!)]
+     (try
+       ~@body
+       (finally
+         (FileUtils/deleteQuietly ~name)))))
+
+(defn- file-tree-helper [^File entry]
+  (if (.isDirectory entry)
+    {(.getName entry)
+     (mapv file-tree-helper (filter #(not (.isHidden %)) (.listFiles entry)))}
+    (.getName entry)))
+
+(defn file-tree [^File dir]
+  "Returns a vector of file tree entries below dir. A file entry is represented
+  as a String file name. A directory entry is represented as a single-entry map
+  where the key is the directory name and the value is a vector of tree entries."
+  (second (first (file-tree-helper dir))))
+
+(defn make-file-tree!
+  "Takes a vector of file tree entries and creates a mock directory structure
+  below the specified directory entry. A random UUID string will be written to
+  each file."
+  [^File entry file-tree]
+  (doseq [decl file-tree]
+    (if (map? decl)
+      (let [[^String dir-name children] (first decl)
+            dir-entry (make-dir! (io/file entry dir-name))]
+        (make-file-tree! dir-entry children))
+      (let [^String file-name decl]
+        (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
 
 (defn setup-workspace!
   ([graph]
