@@ -34,6 +34,7 @@ namespace dmRender
         m_RefMask = 0xff;
         m_BufferMask = 0xff;
         m_ColorBufferMask = 0xf;
+        m_ClearBuffer = 0;
         m_Padding = 0;
     }
 
@@ -116,6 +117,8 @@ namespace dmRender
         InitializeTextContext(context, params.m_MaxCharacters);
 
         context->m_OutOfResources = 0;
+
+        context->m_StencilBufferCleared = 0;
 
         context->m_RenderListDispatch.SetCapacity(255);
 
@@ -315,6 +318,21 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         const StencilTestParams& stp = ro->m_StencilTestParams;
+        if (stp.m_ClearBuffer)
+        {
+            if (render_context->m_StencilBufferCleared)
+            {
+                // render.clear command will set context m_StencilBufferCleared to 1 if stencil clear flag is set.
+                // We skip clear and reset context m_StencilBufferCleared to 0, indicating that the stencil is no longer cleared.
+                // Concecutive calls with m_ClearBuffer option will result in a clear until render.clear is called with stencil clear flag set.
+                render_context->m_StencilBufferCleared = 0;
+            }
+            else
+            {
+                dmGraphics::SetStencilMask(graphics_context, 0xff);
+                dmGraphics::Clear(graphics_context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+            }
+        }
         dmGraphics::SetColorMask(graphics_context, stp.m_ColorBufferMask & (1<<3), stp.m_ColorBufferMask & (1<<2), stp.m_ColorBufferMask & (1<<1), stp.m_ColorBufferMask & (1<<0));
         dmGraphics::SetStencilMask(graphics_context, stp.m_BufferMask);
         dmGraphics::SetStencilFunc(graphics_context, stp.m_Func, stp.m_Ref, stp.m_RefMask);
