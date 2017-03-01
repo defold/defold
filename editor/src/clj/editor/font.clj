@@ -256,18 +256,20 @@
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
 
-(g/defnk produce-scene [_node-id aabb gpu-texture font font-map material-shader type preview-text]
-  {:node-id _node-id
-   :aabb aabb
-   :renderable {:render-fn render-font
-                :batch-key gpu-texture
-                :select-batch-key _node-id
-                :user-data {:type type
-                            :texture gpu-texture
-                            :font-map font-map
-                            :shader material-shader
-                            :text preview-text}
-                :passes [pass/transparent]}})
+(g/defnk produce-scene [_node-id aabb gpu-texture font-map material-shader type preview-text]
+  (cond-> {:node-id _node-id
+           :aabb aabb}
+
+          (and (some? font-map) (not-empty preview-text))
+          (assoc :renderable {:render-fn render-font
+                              :batch-key gpu-texture
+                              :select-batch-key _node-id
+                              :user-data {:type type
+                                          :texture gpu-texture
+                                          :font-map font-map
+                                          :shader material-shader
+                                          :text preview-text}
+                              :passes [pass/transparent]})))
 
 (g/defnk produce-pb-msg [pb font material size antialias alpha outline-alpha outline-width
                          shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
