@@ -77,7 +77,7 @@ namespace dmScript
      *
      */
     #define DM_LUA_ERROR(_L_, _fmt_, ...)   lua_stack_check.Verify(0); \
-                                            luaL_error(_L_, _fmt_, __VA_ARGS__);
+                                            luaL_error(_L_, _fmt_, ##__VA_ARGS__);
 
 
     /*# wrapper for luaL_ref.
