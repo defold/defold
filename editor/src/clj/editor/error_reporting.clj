@@ -1,10 +1,11 @@
 (ns editor.error-reporting
   (:require
-   [clojure.string :as str]
    [editor.sentry :as sentry]
+   [editor.system :as system]
    [service.log :as log])
   (:import
-   (java.util.concurrent LinkedBlockingQueue)))
+   (java.util.concurrent LinkedBlockingQueue)
+   (org.apache.commons.lang.exception ExceptionUtils)))
 
 (set! *warn-on-reflection* true)
 
@@ -87,13 +88,15 @@
 (defn report-exception!
   ([exception]
    (report-exception! exception (Thread/currentThread)))
-  ([exception thread]
+  ([^Throwable exception thread]
    (try
-     (log/error :exception exception)
      (let [{:keys [ex-map suppressed?]} (record-exception! exception)]
-       (when-not suppressed?
-         (let [sentry-id-promise (sentry-reporter exception thread)]
-           (exception-notifier ex-map sentry-id-promise))))
+       (if suppressed?
+         (when (system/defold-dev?)
+           (println "Suppressed unhandled" (ExceptionUtils/getFullStackTrace exception)))
+         (do (log/error :exception exception)
+             (let [sentry-id-promise (sentry-reporter exception thread)]
+               (exception-notifier ex-map sentry-id-promise)))))
      (catch Throwable t
        (println (format "Fatal error reporting unhandled exception: '%s'\n%s" (.getMessage t) (pr-str (Throwable->map t))))))))
 
