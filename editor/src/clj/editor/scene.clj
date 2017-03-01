@@ -676,36 +676,43 @@
                  (let [this ^com.defold.control.Region this
                        w (.getWidth this)
                        h (.getHeight this)]
-                   (.setFitWidth image-view w)
-                   (.setFitHeight image-view h)
-                   (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
-                   (when (and (> w 0) (> h 0))
-                     (let [viewport (types/->Region 0 w 0 h)]
-                       (g/transact (g/set-property view-id :viewport viewport))
-                       (if-let [view-id (ui/user-data image-view ::view-id)]
-                         (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                           (doto drawable
-                             (.setSurfaceSize w h))
-                           (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                             (.setSize w h)))
-                         (do
-                           (register-event-handler! parent view-id)
-                           (ui/user-data! image-view ::view-id view-id)
-                           (let [drawable (make-drawable w h)
-                                 async-copier (make-copier viewport)
-                                 ^Tab tab      (:tab opts)
-                                 repainter     (ui/->timer timer-name
-                                                 (fn [_ dt]
-                                                   (when (.isSelected tab)
-                                                     (update-image-view! image-view drawable async-copier dt main-frame?))))]
-                             (ui/on-closed! tab
-                               (fn [e]
-                                 (ui/timer-stop! repainter)
-                                 (scene-view-dispose view-id)
-                                 (scene-cache/drop-context! nil true)))
-                             (ui/timer-start! repainter)
-                             (g/set-property! view-id :drawable drawable :async-copier async-copier))
-                           (frame-selection view-id false)))))
+                   (try
+                     (.setFitWidth image-view w)
+                     (.setFitHeight image-view h)
+                     (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
+                     (when (and (> w 0) (> h 0))
+                       (let [viewport (types/->Region 0 w 0 h)]
+                         (g/transact (g/set-property view-id :viewport viewport))
+                         (if-let [view-id (ui/user-data image-view ::view-id)]
+                           (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
+                             (doto drawable
+                               (.setSurfaceSize w h))
+                             (doto ^AsyncCopier (g/node-value view-id :async-copier)
+                               (.setSize w h)))
+                           (do
+                             (register-event-handler! parent view-id)
+                             (ui/user-data! image-view ::view-id view-id)
+                             (let [drawable (make-drawable w h)
+                                   async-copier (make-copier viewport)
+                                   ^Tab tab      (:tab opts)
+                                   repainter     (ui/->timer timer-name
+                                                             (fn [^AnimationTimer timer dt]
+                                                               (when (.isSelected tab)
+                                                                 (try
+                                                                   (update-image-view! image-view drawable async-copier dt main-frame?)
+                                                                   (catch Throwable error
+                                                                     (.stop timer)
+                                                                     (error-reporting/report-exception! error))))))]
+                               (ui/on-closed! tab
+                                              (fn [e]
+                                                (ui/timer-stop! repainter)
+                                                (scene-view-dispose view-id)
+                                                (scene-cache/drop-context! nil true)))
+                               (ui/timer-start! repainter)
+                               (g/set-property! view-id :drawable drawable :async-copier async-copier))
+                             (frame-selection view-id false)))))
+                     (catch Throwable error
+                       (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
     (.setFocusTraversable pane true)
     (.add (.getChildren pane) image-view)
