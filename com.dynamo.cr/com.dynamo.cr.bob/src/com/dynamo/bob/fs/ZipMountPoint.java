@@ -74,8 +74,7 @@ public class ZipMountPoint implements IMountPoint {
         @Override
         public boolean isFile() {
             boolean isDir = entry.isDirectory();
-            long size = entry.getSize();
-            return !isDir && size != 0;
+            return !isDir;
         }
     }
 
