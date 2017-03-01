@@ -98,7 +98,8 @@ namespace dmRender
         uint32_t m_RefMask : 8;
         uint32_t m_BufferMask : 8;
         uint8_t m_ColorBufferMask : 4;
-        uint8_t m_Padding : 4;
+        uint8_t m_ClearBuffer : 1;
+        uint8_t m_Padding : 3;
     };
 
     struct MaterialConstant
