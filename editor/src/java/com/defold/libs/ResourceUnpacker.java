@@ -25,8 +25,6 @@ import com.defold.editor.Platform;
 public class ResourceUnpacker {
 
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
-    public static final String DEFOLD_SUPPORT_PATH_KEY = "defold.supportpath";
-    public static final String DEFOLD_SHA1_KEY = "defold.sha1";
 
     private static boolean isInitialized = false;
     private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
@@ -81,12 +79,8 @@ public class ResourceUnpacker {
                     if (dest.equals(target)) {
                         continue;
                     }
-                    if (Files.exists(dest)) {
-                        logger.debug("skipping already unpacked '{}'", source);
-                    } else {
-                        logger.debug("unpacking '{}' to '{}'", source, dest);
-                        Files.copy(source, dest);
-                    }
+                    logger.debug("unpacking '{}' to '{}'", source, dest);
+                    Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
                 }
             }
         }
@@ -101,22 +95,18 @@ public class ResourceUnpacker {
     }
 
     private static Path getUnpackPath() throws IOException {
-        if (System.getProperty(DEFOLD_UNPACK_PATH_KEY) != null) {
-            return ensureDirectory(Paths.get(System.getProperty(DEFOLD_UNPACK_PATH_KEY)));
-        } else if (System.getProperty(DEFOLD_SUPPORT_PATH_KEY) != null && System.getProperty(DEFOLD_SHA1_KEY) != null) {
-            return ensureDirectory(Paths.get(System.getProperty(DEFOLD_SUPPORT_PATH_KEY),
-                                             "unpack",
-                                             System.getProperty(DEFOLD_SHA1_KEY)));
+        String unpackPath = System.getProperty(DEFOLD_UNPACK_PATH_KEY);
+        if (unpackPath != null) {
+            Path p = Paths.get(unpackPath);
+            File f = p.toFile();
+            if (f.exists()) {
+                FileUtils.cleanDirectory(f);
+            } else {
+                f.mkdirs();
+            }
+            return p;
         } else {
             return Files.createTempDirectory("defold-unpack");
         }
-    }
-
-    private static Path ensureDirectory(Path path) throws IOException {
-        File f = path.toFile();
-        if (!f.exists()) {
-            f.mkdirs();
-        }
-        return path;
     }
 }
