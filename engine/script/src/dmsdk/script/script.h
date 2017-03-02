@@ -84,7 +84,7 @@ namespace dmScript
      */
     void Unref(lua_State* L, int table, int reference);
 
-    /**
+    /*#
      * Retrieve current script instance from the global table and place it on the top of the stack, only valid when set.
      * (see [ref:dmScript::GetMainThread])
      * @name dmScript::GetInstance
@@ -92,7 +92,7 @@ namespace dmScript
      */
     void GetInstance(lua_State* L);
 
-    /**
+    /*#
      * Sets the current script instance
      * Set the value on the top of the stack as the instance into the global table and pops it from the stack.
      * (see [ref:dmScript::GetMainThread])
@@ -101,7 +101,7 @@ namespace dmScript
      */
     void SetInstance(lua_State* L);
 
-    /**
+    /*#
      * Check if the script instance in the lua state is valid. The instance is assumed to have been previously set by [ref:dmScript::SetInstance].
      * @name dmScript::IsInstanceValid
      * @param L [type:lua_State*] lua state
@@ -109,9 +109,9 @@ namespace dmScript
      */
     bool IsInstanceValid(lua_State* L);
 
-    /**
+    /*#
      * Retrieve the main thread lua state from any lua state (main thread or coroutine).
-     * @name dmScript::GetInstance
+     * @name dmScript::GetMainThread
      * @param L [type:lua_State*] lua state
      * @return [type:lua_State*] the main thread lua state
      *
