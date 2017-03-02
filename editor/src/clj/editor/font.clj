@@ -304,7 +304,10 @@
       (let [project (project/get-project _node-id)
             workspace (project/workspace project)
             resolver (partial workspace/resolve-workspace-resource workspace)]
-        (font-gen/generate pb-msg font resolver))))
+        (try
+          (font-gen/generate pb-msg font resolver)
+          (catch Exception _
+            (g/->error _node-id :font :fatal font "Failed to generate bitmap from Font. Unsupported format?"))))))
 
 (defn- build-font [self basis resource dep-resources user-data]
   (let [project (project/get-project self)
