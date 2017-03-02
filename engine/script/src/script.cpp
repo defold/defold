@@ -650,6 +650,17 @@ namespace dmScript
     {
     }
 
+    int LuaStackCheck::Error(const char* fmt, ... )
+    {
+        Verify(0);
+        va_list args;
+        char buf[512];
+        va_start(args, fmt);
+        vsnprintf(buf, sizeof(buf), fmt, args );
+        va_end(args);
+        return luaL_error(m_L, buf);
+    }
+
     void LuaStackCheck::Verify(int diff)
     {
         uint32_t expected = m_Top + diff;

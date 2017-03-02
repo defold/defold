@@ -279,7 +279,7 @@ TEST_F(ScriptTest, TestStackCheck) {
 
 static int TestStackCheckErrorFunc(lua_State* L) {
     DM_LUA_STACK_CHECK(L, 0);
-    DM_LUA_ERROR(L, "this function does not work");
+    return DM_LUA_ERROR("this function does not work");
 }
 
 TEST_F(ScriptTest, TestStackCheckError) {
