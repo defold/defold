@@ -653,12 +653,13 @@ namespace dmScript
     int LuaStackCheck::Error(const char* fmt, ... )
     {
         Verify(0);
-        va_list args;
-        char buf[512];
-        va_start(args, fmt);
-        vsnprintf(buf, sizeof(buf), fmt, args );
-        va_end(args);
-        return luaL_error(m_L, buf);
+        va_list argp;
+        va_start(argp, fmt);
+        luaL_where(m_L, 1);
+        lua_pushvfstring(m_L, fmt, argp);
+        va_end(argp);
+        lua_concat(m_L, 2);
+        return lua_error(m_L);
     }
 
     void LuaStackCheck::Verify(int diff)
