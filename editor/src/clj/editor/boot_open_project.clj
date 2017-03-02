@@ -28,6 +28,7 @@
             [editor.workspace :as workspace]
             [editor.sync :as sync]
             [editor.system :as system]
+            [editor.updater :as updater]
             [editor.util :as util]
             [util.http-server :as http-server])
   (:import [com.defold.editor EditorApplication]
@@ -106,7 +107,7 @@
                 (fn [property old-val new-val]
                   (dialogs/record-focus-change! new-val)))
     (watch-focus-state! workspace)
-
+    (updater/install-pending-update-check! stage project)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
@@ -233,21 +234,6 @@
     (reset! the-root root)
     root))
 
-(defn- make-blocking-save-action
-  "Returns a function that when called will save the specified project and block
-  until the operation completes. Used as a pre-update action to ensure the
-  project is saved before installing updates and restarting the editor."
-  [project]
-  (fn []
-    ; If a build or save was in progress, wait for it to complete.
-    (while (project/ongoing-build-save?)
-      (Thread/sleep 300))
-
-    ; Save the project and block until complete.
-    (let [save-future (project/save-all! project nil)]
-      (when (future? save-future)
-        (deref save-future)))))
-
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [project-path (.getPath (.getParentFile game-project-file))
@@ -256,5 +242,4 @@
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
         ^VBox root   (ui/run-now (load-stage workspace project prefs))]
     (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)
-    (EditorApplication/registerPreUpdateAction (make-blocking-save-action project))))
+    (g/reset-undo! *project-graph*)))
