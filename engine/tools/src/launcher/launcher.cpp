@@ -20,11 +20,15 @@
 
 #ifdef _WIN32
 #include <dlib/safe_windows.h>
+#include <Shlobj.h>
+#include <Shellapi.h>
+#include <io.h>
+#include <direct.h>
 #endif
 
 // bootstrap.resourcespath must default to resourcespath of the installation
 #define RESOURCES_PATH_KEY ("bootstrap.resourcespath")
-#define LOG_PATH_KEY ("launcher.log")
+#define SUPPORT_PATH_KEY ("bootstrap.supportpath")
 #define MAX_ARGS_SIZE (10 * DMPATH_MAX_PATH)
 
 struct ReplaceContext
@@ -32,8 +36,8 @@ struct ReplaceContext
     dmConfigFile::HConfig m_Config;
     // Will be set to either bootstrap.resourcespath (if set) or the default installation resources path
     const char* m_ResourcesPath;
-    // Will be set to launcher.log or default log path
-    const char* m_LogPath;
+    // Will be set to either bootstrap.supportpath (if set) or the platform application support path
+    const char* m_SupportPath;
 };
 
 static const char* ReplaceCallback(void* user_data, const char* key)
@@ -44,9 +48,9 @@ static const char* ReplaceCallback(void* user_data, const char* key)
     {
         return context->m_ResourcesPath;
     }
-    else if (dmStrCaseCmp(key, LOG_PATH_KEY) == 0)
+    else if (dmStrCaseCmp(key, SUPPORT_PATH_KEY) == 0)
     {
-        return context->m_LogPath;
+        return context->m_SupportPath;
     }
 
     return dmConfigFile::GetString(context->m_Config, key, 0x0);
@@ -87,11 +91,43 @@ static bool ConfigGetString(ReplaceContext* context, const char* key, char* buf,
     return false;
 }
 
+static dmSys::Result GetLocalApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+{
+#ifdef _WIN32
+    char tmp_path[MAX_PATH];
+
+    if(SUCCEEDED(SHGetFolderPath(NULL,
+                                 CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE,
+                                 NULL,
+                                 0,
+                                 tmp_path)))
+    {
+        if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
+            return dmSys::RESULT_INVAL;
+        if (dmStrlCat(path, "\\", path_len) >= path_len)
+            return dmSys::RESULT_INVAL;
+        if (dmStrlCat(path, application_name, path_len) >= path_len)
+            return dmSys::RESULT_INVAL;
+        
+        dmSys::Result r =  dmSys::Mkdir(path, 0755);
+        if (r == dmSys::RESULT_EXIST)
+            return dmSys::RESULT_OK;
+        else
+            return r;
+    }
+    else
+    {
+        return dmSys::RESULT_UNKNOWN;
+    }
+#else
+    return dmSys::GetApplicationSupportPath(application_name, path, path_len);
+#endif
+}
+
 int Launch(int argc, char **argv) {
     char default_resources_path[DMPATH_MAX_PATH];
     char config_path[DMPATH_MAX_PATH];
     char application_support_path[DMPATH_MAX_PATH];
-    char default_logfile_path[DMPATH_MAX_PATH];
     char java_path[DMPATH_MAX_PATH];
     char jar_path[DMPATH_MAX_PATH];
     char os_args[MAX_ARGS_SIZE];
@@ -106,14 +142,11 @@ int Launch(int argc, char **argv) {
     dmStrlCpy(config_path, default_resources_path, sizeof(config_path));
     dmStrlCat(config_path, "/config", sizeof(config_path));
 
-    r = dmSys::GetApplicationSupportPath("Defold", application_support_path, sizeof(application_support_path));
+    r = GetLocalApplicationSupportPath("Defold", application_support_path, sizeof(application_support_path));
     if (r != dmSys::RESULT_OK) {
         dmLogFatal("Failed to locate application support path (%d)", r);
         return 5;
     }
-
-    dmStrlCpy(default_logfile_path, application_support_path, sizeof(default_logfile_path));
-    dmStrlCat(default_logfile_path, "/editor2.log", sizeof(default_logfile_path));
 
     dmConfigFile::HConfig config;
     dmConfigFile::Result cr = dmConfigFile::Load(config_path, argc, (const char**) argv, &config);
@@ -135,10 +168,10 @@ int Launch(int argc, char **argv) {
         context.m_ResourcesPath = default_resources_path;
     }
 
-    context.m_LogPath = dmConfigFile::GetString(config, LOG_PATH_KEY, default_logfile_path);
-    if (*context.m_LogPath == '\0')
+    context.m_SupportPath = dmConfigFile::GetString(config, SUPPORT_PATH_KEY, application_support_path);
+    if (*context.m_SupportPath == '\0')
     {
-        context.m_LogPath = default_logfile_path;
+        context.m_SupportPath = application_support_path;
     }
 
     const char* main = dmConfigFile::GetString(config, "launcher.main", "Main");
@@ -259,4 +292,5 @@ int main(int argc, char **argv) {
 }
 
 #undef RESOURCES_PATH_KEY
+#undef SUPPORT_PATH_KEY
 #undef MAX_ARGS_SIZE
