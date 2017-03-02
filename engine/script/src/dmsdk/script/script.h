@@ -105,7 +105,7 @@ namespace dmScript
      * Check if the script instance in the lua state is valid. The instance is assumed to have been previously set by [ref:dmScript::SetInstance].
      * @name dmScript::IsInstanceValid
      * @param L [type:lua_State*] lua state
-     * @return [type:bool] Returns true if the instance is valid
+     * @return boolean [type:bool] Returns true if the instance is valid
      */
     bool IsInstanceValid(lua_State* L);
 
@@ -113,9 +113,12 @@ namespace dmScript
      * Retrieve the main thread lua state from any lua state (main thread or coroutine).
      * @name dmScript::GetMainThread
      * @param L [type:lua_State*] lua state
-     * @return [type:lua_State*] the main thread lua state
+     * @return lua_State [type:lua_State*] the main thread lua state
      *
-     * @example
+     * @examples
+     * 
+     * How to create a Lua callback
+     *
      * ```cpp
      * struct LuaCallbackInfo
      * {
