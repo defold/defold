@@ -14,6 +14,7 @@
   (:import [java.io File]
            [java.nio.file Path Paths]
            [java.util Collection List]
+           [java.util.regex Pattern]
            [javafx.animation AnimationTimer]
            [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
@@ -290,17 +291,24 @@
 
     (ui/user-data stage ::selected-items)))
 
+(defn- quote [^String s]
+  (Pattern/quote s))
+
 (defn- text-filter-fn [filter-value items]
-  (let [search-str (str/lower-case filter-value)
-        parts (-> search-str
-                (str/replace #"\*" "")
-                (str/split #"\."))
-        pattern-str (if (> (count parts) 1)
-                      (apply str (concat ["^.*"]
-                                         (butlast parts)
-                                         [".*\\." (last parts) ".*$"]))
-                      (str "^" (str/replace search-str #"\*" ".*")))
-                                        pattern (re-pattern pattern-str)]
+  (let [parts (str/split (str/lower-case filter-value) #"\.")
+        wildcard-parts (map #(str/split % #"\*") parts)
+        quoted-parts (map #(str/join ".*" (map quote %)) wildcard-parts)
+        quoted-prefix-parts (if (> (count quoted-parts) 1)
+                              (butlast quoted-parts)
+                              quoted-parts)
+        quoted-suffix (last (rest quoted-parts))
+        pattern-str (apply str
+                           (concat ["(?i)^.*"]
+                                   (when (seq quoted-prefix-parts)
+                                     [(str/join "\\." quoted-prefix-parts) ".*"])
+                                   (when quoted-suffix
+                                     ["\\." ".*" quoted-suffix ".*" "$"])))
+        pattern (re-pattern pattern-str)]
     (filter (fn [r] (re-find pattern (resource/resource-name r))) items)))
 
 (defn- override-seq [node-id]
