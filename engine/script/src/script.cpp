@@ -650,14 +650,31 @@ namespace dmScript
     {
     }
 
-    LuaStackCheck::~LuaStackCheck()
+    int LuaStackCheck::Error(const char* fmt, ... )
     {
-        uint32_t expected = m_Top + m_Diff;
+        Verify(0);
+        va_list argp;
+        va_start(argp, fmt);
+        luaL_where(m_L, 1);
+        lua_pushvfstring(m_L, fmt, argp);
+        va_end(argp);
+        lua_concat(m_L, 2);
+        return lua_error(m_L);
+    }
+
+    void LuaStackCheck::Verify(int diff)
+    {
+        uint32_t expected = m_Top + diff;
         uint32_t actual = lua_gettop(m_L);
         if (expected != actual)
         {
             dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
             assert(expected == actual);
         }
+    }
+
+    LuaStackCheck::~LuaStackCheck()
+    {
+        Verify(m_Diff);
     }
 }
