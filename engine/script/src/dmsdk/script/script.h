@@ -2,6 +2,7 @@
 #define DMSDK_SCRIPT_H
 
 #include <stdint.h>
+#include <stdarg.h>
 #include <dmsdk/dlib/buffer.h>
 
 extern "C"
@@ -31,14 +32,17 @@ namespace dmScript
     */
     struct LuaStackCheck
     {
+        LuaStackCheck(lua_State* L, int diff);
+        ~LuaStackCheck();
+        void Verify(int diff);
+        int Error(const char* fmt, ...);
+
         /// The Lua state to check
         lua_State* m_L;
         /// The current top of the Lua stack (from lua_gettop())
         int m_Top;
         /// The expected difference in stack size when this sctruct goes out of scope
         int m_Diff;
-        LuaStackCheck(lua_State* L, int diff);
-        ~LuaStackCheck();
     };
 
 
@@ -55,7 +59,26 @@ namespace dmScript
      * @param diff [type:int] Number of expected items to be on the Lua stack once this struct goes out of scope
      *
      */
-    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);
+    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck _DM_LuaStackCheck(_L_, _diff_);
+
+
+    /*# helper macro to validate the Lua stack state and throw a lua error.
+     *
+     * This macro will verify that the Lua stack size hasn't been changed before
+     * throwing a Lua error, which will long-jump out of the current function.
+     * This macro can only be used together with `DM_LUA_STACK_CHECK` and should
+     * be prefered over manual checking of the stack.
+     *
+     * @macro
+     * @name DM_LUA_ERROR
+     * @param fmt [type:const char*] C string that contains the error. It can
+     * optionally contain embedded format specifiers that are replaced by the
+     * values specified in subsequent additional arguments and formatted as requested.
+     * @param args [type:mixed] Depending on the format string, the function may
+     * expect a sequence of additional arguments
+     *
+     */
+    #define DM_LUA_ERROR(_fmt_, ...)   _DM_LuaStackCheck.Error(_fmt_,  ##__VA_ARGS__); \
 
 
     /*# wrapper for luaL_ref.
@@ -83,6 +106,136 @@ namespace dmScript
      * @param reference [type:int] the reference to the object
      */
     void Unref(lua_State* L, int table, int reference);
+
+    /*#
+     * Retrieve current script instance from the global table and place it on the top of the stack, only valid when set.
+     * (see [ref:dmScript::GetMainThread])
+     * @name dmScript::GetInstance
+     * @param L [type:lua_State*] lua state
+     */
+    void GetInstance(lua_State* L);
+
+    /*#
+     * Sets the current script instance
+     * Set the value on the top of the stack as the instance into the global table and pops it from the stack.
+     * (see [ref:dmScript::GetMainThread])
+     * @name dmScript::SetInstance
+     * @param L [type:lua_State*] lua state
+     */
+    void SetInstance(lua_State* L);
+
+    /*#
+     * Check if the script instance in the lua state is valid. The instance is assumed to have been previously set by [ref:dmScript::SetInstance].
+     * @name dmScript::IsInstanceValid
+     * @param L [type:lua_State*] lua state
+     * @return boolean [type:bool] Returns true if the instance is valid
+     */
+    bool IsInstanceValid(lua_State* L);
+
+    /*#
+     * Retrieve the main thread lua state from any lua state (main thread or coroutine).
+     * @name dmScript::GetMainThread
+     * @param L [type:lua_State*] lua state
+     * @return lua_State [type:lua_State*] the main thread lua state
+     *
+     * @examples
+     * 
+     * How to create a Lua callback
+     *
+     * ```cpp
+     * struct LuaCallbackInfo
+     * {
+     *     LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+     *     lua_State* m_L;
+     *     int        m_Callback;
+     *     int        m_Self;
+     * };
+     * 
+     * static void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+     * {
+     *     if(cbk->m_Callback != LUA_NOREF)
+     *     {
+     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+     *     }
+     * 
+     *     cbk->m_L = dmScript::GetMainThread(L);
+     * 
+     *     luaL_checktype(L, index, LUA_TFUNCTION);
+     *     lua_pushvalue(L, index);
+     *     cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+     * 
+     *     dmScript::GetInstance(L);
+     *     cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+     * }
+     * 
+     * static void UnregisterCallback(LuaCallbackInfo* cbk)
+     * {
+     *     if(cbk->m_Callback != LUA_NOREF)
+     *     {
+     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+     *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+     *         cbk->m_Callback = LUA_NOREF;
+     *     }
+     * }
+     * 
+     * LuaCallbackInfo g_MyCallbackInfo;
+     * 
+     * static void InvokeCallback(LuaCallbackInfo* cbk)
+     * {
+     *     if(cbk->m_Callback == LUA_NOREF)
+     *     {
+     *         return;
+     *     }
+     * 
+     *     lua_State* L = cbk->m_L;
+     *     int top = lua_gettop(L);
+     * 
+     *     lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
+     * 
+     *     // Setup self (the script instance)
+     *     lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self);
+     *     lua_pushvalue(L, -1);
+     * 
+     *     dmScript::SetInstance(L);
+     * 
+     *     lua_pushstring(L, "Hello from extension!");
+     *     lua_pushnumber(L, 76);
+     * 
+     *     int number_of_arguments = 3; // instance + 2
+     *     int ret = lua_pcall(L, number_of_arguments, 0, 0);
+     *     if(ret != 0) {
+     *         dmLogError("Error running callback: %s", lua_tostring(L, -1));
+     *         lua_pop(L, 1);
+     *     }
+     *     assert(top == lua_gettop(L));
+     * }
+     * 
+     * static int Start(lua_State* L)
+     * {
+     *     DM_LUA_STACK_CHECK(L, 0);
+     * 
+     *     RegisterCallback(L, 1, &g_MyCallbackInfo);
+     * 
+     *     return 0;
+     * }
+     * 
+     * static int Update(lua_State* L)
+     * {
+     *     DM_LUA_STACK_CHECK(L, 0);
+     * 
+     *     static int count = 0;
+     *     if( count++ == 5 )
+     *     {
+     *         InvokeCallback(&g_MyCallbackInfo);
+     *         UnregisterCallback(&g_MyCallbackInfo);
+     *     }
+     *     return 0;
+     * }
+     * ```
+     */
+    lua_State* GetMainThread(lua_State* L);
+
 
     /*# check if the value at #index is a HBuffer
      *
