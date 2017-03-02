@@ -78,6 +78,10 @@ public class Updater {
         this.resourcesPath = new File(resourcesPath);
         this.currentSha1 = currentSha1;
         this.mapper = new ObjectMapper();
+
+        // Delete temp files at shutdown.
+        File tempDirectory = this.tempDirectory.toFile();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(tempDirectory)));
     }
 
     private File download(String packagesUrl, String url) throws IOException {

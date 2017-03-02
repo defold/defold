@@ -15,13 +15,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.scene.control.ButtonBase;
-import javafx.stage.Modality;
-import javafx.stage.StageStyle;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,9 +51,13 @@ public class Start extends Application {
         return urls;
     }
 
+    public PendingUpdate getPendingUpdate() {
+        return this.pendingUpdate.get();
+    }
+
     private LinkedBlockingQueue<Object> pool;
     private ThreadPoolExecutor threadPool;
-    private LinkedBlockingQueue<Runnable> preUpdateActions;
+    private AtomicReference<PendingUpdate> pendingUpdate;
     private Timer updateTimer;
     private Updater updater;
     private static boolean createdFromMain = false;
@@ -71,19 +69,12 @@ public class Start extends Application {
         threadPool = new ThreadPoolExecutor(1, 1, 3000, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>());
         threadPool.allowCoreThreadTimeOut(true);
-        preUpdateActions = new LinkedBlockingQueue<>();
+        pendingUpdate = new AtomicReference<>();
 
         if (System.getProperty("defold.resourcespath") != null && System.getProperty("defold.sha1") != null)  {
             logger.debug("automatic updates enabled");
             installUpdater();
         }
-    }
-
-    public void registerPreUpdateAction(Runnable action) throws Exception {
-        if (action == null) {
-            throw new IllegalArgumentException("action cannot be null");
-        }
-        preUpdateActions.add(action);
     }
 
     private void installUpdater() throws IOException {
@@ -93,89 +84,20 @@ public class Start extends Application {
         updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
     }
 
-    private Boolean showRestartDialog() throws IOException {
-        Parent root = FXMLLoader.load(Thread.currentThread().getContextClassLoader().getResource("update-alert.fxml"));
-        Stage stage = new Stage();
-        Scene scene = new Scene(root);
-        ButtonBase ok = (ButtonBase) root.lookup("#ok");
-        ButtonBase cancel = (ButtonBase) root.lookup("#cancel");
-        final Boolean[] result = {false};
-
-        ok.setOnAction(event -> {
-            result[0] = true;
-            stage.close();
-        });
-
-        cancel.setOnAction(event -> {
-            result[0] = false;
-            stage.close();
-        });
-
-        stage.initStyle(StageStyle.DECORATED);
-        stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setTitle("Update Available");
-        stage.setResizable(false);
-        stage.setScene(scene);
-        stage.showAndWait();
-
-        return result[0];
-    }
-
     private TimerTask newCheckForUpdateTask() {
         return new TimerTask() {
             @Override
             public void run() {
                 try {
                     logger.debug("checking for updates");
-                    PendingUpdate pendingUpdate = updater.check();
-                    if (pendingUpdate != null) {
-                        javafx.application.Platform.runLater(() -> {
-                            try {
-                                // We found a pending update. Ask the user if we should install it.
-                                // If not, we won't check for further updates during this session.
-                                if (showRestartDialog()) {
-                                    updateTimer.schedule(newInstallUpdateTask(pendingUpdate), 0);
-                                }
-                            } catch (IOException e) {
-                                logger.error("unable to open update alert dialog");
-                            }
-                        });
+                    PendingUpdate update = updater.check();
+                    if (update != null) {
+                        pendingUpdate.compareAndSet(null, update);
                     } else {
                         updateTimer.schedule(newCheckForUpdateTask(), updateDelay);
                     }
                 } catch (IOException e) {
                     logger.debug("update check failed", e);
-                }
-            }
-        };
-    }
-
-    private TimerTask newInstallUpdateTask(PendingUpdate pendingUpdate) {
-        return new TimerTask() {
-            @Override
-            public void run() {
-                // User has requested we install the update.
-                // Before proceeding, run any registered pre-update actions.
-                // For example, we might want to save the project before
-                // applying the update and restarting the editor.
-                try {
-                    Runnable action;
-                    while (null != (action = preUpdateActions.poll())) {
-                        action.run();
-                    }
-                } catch (Exception e) {
-                    logger.error("an exception was thrown from a pre-update action", e);
-                    return;
-                }
-
-                // All the pre-update actions completed successfully.
-                // Apply the update and restart the editor.
-                try {
-                    pendingUpdate.install();
-                    logger.info("update installed - restarting");
-                    System.exit(17);
-                } catch (IOException e) {
-                    logger.debug("update installation failed", e);
                 }
             }
         };
