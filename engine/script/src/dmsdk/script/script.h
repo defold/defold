@@ -51,13 +51,23 @@ namespace dmScript
      * Diff is the expected difference of the stack size.
      * If luaL_error, or another function that executes a long-jump, is part of the executed code,
      * the stack guard cannot be guaranteed to execute at the end of the function.
-     * In that case you should manually check the stack using `lua_gettop`
+     * In that case you should manually check the stack using `lua_gettop`.
+     * In the case of luaL_error, see [ref:DM_LUA_ERROR].
      *
      * @macro
      * @name DM_LUA_STACK_CHECK
      * @param L [type:lua_State*] lua state
      * @param diff [type:int] Number of expected items to be on the Lua stack once this struct goes out of scope
+     * @examples
      *
+     * ```cpp
+     * DM_LUA_STACK_CHECK(L, 0);
+     * {
+     *     DM_LUA_STACK_CHECK(L, 1);
+     *     lua_pushnumber(L, 0);
+     * }
+     * lua_pop(L, 1);
+     * ```
      */
     #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck _DM_LuaStackCheck(_L_, _diff_);
 
@@ -66,17 +76,22 @@ namespace dmScript
      *
      * This macro will verify that the Lua stack size hasn't been changed before
      * throwing a Lua error, which will long-jump out of the current function.
-     * This macro can only be used together with `DM_LUA_STACK_CHECK` and should
+     * This macro can only be used together with [ref:DM_LUA_STACK_CHECK] and should
      * be prefered over manual checking of the stack.
      *
      * @macro
      * @name DM_LUA_ERROR
-     * @param fmt [type:const char*] C string that contains the error. It can
-     * optionally contain embedded format specifiers that are replaced by the
-     * values specified in subsequent additional arguments and formatted as requested.
-     * @param args [type:mixed] Depending on the format string, the function may
-     * expect a sequence of additional arguments
+     * @param fmt [type:const char*] Format string that contains error information.
+     * @param args [type:...] Format string args (variable arg list)
+     * @examples
      *
+     * ```cpp
+     * DM_LUA_STACK_CHECK(L, 0);
+     * if (true)
+     * {
+     *     DM_LUA_ERROR("some error message");
+     * }
+     * ```
      */
     #define DM_LUA_ERROR(_fmt_, ...)   _DM_LuaStackCheck.Error(_fmt_,  ##__VA_ARGS__); \
 
@@ -139,7 +154,7 @@ namespace dmScript
      * @return lua_State [type:lua_State*] the main thread lua state
      *
      * @examples
-     * 
+     *
      * How to create a Lua callback
      *
      * ```cpp
@@ -150,7 +165,7 @@ namespace dmScript
      *     int        m_Callback;
      *     int        m_Self;
      * };
-     * 
+     *
      * static void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
      * {
      *     if(cbk->m_Callback != LUA_NOREF)
@@ -158,17 +173,17 @@ namespace dmScript
      *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
      *         dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
      *     }
-     * 
+     *
      *     cbk->m_L = dmScript::GetMainThread(L);
-     * 
+     *
      *     luaL_checktype(L, index, LUA_TFUNCTION);
      *     lua_pushvalue(L, index);
      *     cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
-     * 
+     *
      *     dmScript::GetInstance(L);
      *     cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
      * }
-     * 
+     *
      * static void UnregisterCallback(LuaCallbackInfo* cbk)
      * {
      *     if(cbk->m_Callback != LUA_NOREF)
@@ -178,30 +193,30 @@ namespace dmScript
      *         cbk->m_Callback = LUA_NOREF;
      *     }
      * }
-     * 
+     *
      * LuaCallbackInfo g_MyCallbackInfo;
-     * 
+     *
      * static void InvokeCallback(LuaCallbackInfo* cbk)
      * {
      *     if(cbk->m_Callback == LUA_NOREF)
      *     {
      *         return;
      *     }
-     * 
+     *
      *     lua_State* L = cbk->m_L;
      *     int top = lua_gettop(L);
-     * 
+     *
      *     lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
-     * 
+     *
      *     // Setup self (the script instance)
      *     lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self);
      *     lua_pushvalue(L, -1);
-     * 
+     *
      *     dmScript::SetInstance(L);
-     * 
+     *
      *     lua_pushstring(L, "Hello from extension!");
      *     lua_pushnumber(L, 76);
-     * 
+     *
      *     int number_of_arguments = 3; // instance + 2
      *     int ret = lua_pcall(L, number_of_arguments, 0, 0);
      *     if(ret != 0) {
@@ -210,20 +225,20 @@ namespace dmScript
      *     }
      *     assert(top == lua_gettop(L));
      * }
-     * 
+     *
      * static int Start(lua_State* L)
      * {
      *     DM_LUA_STACK_CHECK(L, 0);
-     * 
+     *
      *     RegisterCallback(L, 1, &g_MyCallbackInfo);
-     * 
+     *
      *     return 0;
      * }
-     * 
+     *
      * static int Update(lua_State* L)
      * {
      *     DM_LUA_STACK_CHECK(L, 0);
-     * 
+     *
      *     static int count = 0;
      *     if( count++ == 5 )
      *     {
