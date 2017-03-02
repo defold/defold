@@ -2,8 +2,7 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.error-reporting :as error-reporting]
-            [service.log :as log]))
+            [editor.error-reporting :as error-reporting]))
 
 (set! *warn-on-reflection* true)
 
