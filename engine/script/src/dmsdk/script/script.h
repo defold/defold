@@ -2,6 +2,7 @@
 #define DMSDK_SCRIPT_H
 
 #include <stdint.h>
+#include <stdarg.h>
 #include <dmsdk/dlib/buffer.h>
 
 extern "C"
@@ -31,14 +32,17 @@ namespace dmScript
     */
     struct LuaStackCheck
     {
+        LuaStackCheck(lua_State* L, int diff);
+        ~LuaStackCheck();
+        void Verify(int diff);
+        int Error(const char* fmt, ...);
+
         /// The Lua state to check
         lua_State* m_L;
         /// The current top of the Lua stack (from lua_gettop())
         int m_Top;
         /// The expected difference in stack size when this sctruct goes out of scope
         int m_Diff;
-        LuaStackCheck(lua_State* L, int diff);
-        ~LuaStackCheck();
     };
 
 
@@ -55,7 +59,26 @@ namespace dmScript
      * @param diff [type:int] Number of expected items to be on the Lua stack once this struct goes out of scope
      *
      */
-    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);
+    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck _DM_LuaStackCheck(_L_, _diff_);
+
+
+    /*# helper macro to validate the Lua stack state and throw a lua error.
+     *
+     * This macro will verify that the Lua stack size hasn't been changed before
+     * throwing a Lua error, which will long-jump out of the current function.
+     * This macro can only be used together with `DM_LUA_STACK_CHECK` and should
+     * be prefered over manual checking of the stack.
+     *
+     * @macro
+     * @name DM_LUA_ERROR
+     * @param fmt [type:const char*] C string that contains the error. It can
+     * optionally contain embedded format specifiers that are replaced by the
+     * values specified in subsequent additional arguments and formatted as requested.
+     * @param args [type:mixed] Depending on the format string, the function may
+     * expect a sequence of additional arguments
+     *
+     */
+    #define DM_LUA_ERROR(_fmt_, ...)   _DM_LuaStackCheck.Error(_fmt_,  ##__VA_ARGS__); \
 
 
     /*# wrapper for luaL_ref.
