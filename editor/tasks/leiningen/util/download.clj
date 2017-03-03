@@ -1,15 +1,34 @@
-(ns leiningen.pack
+(ns leiningen.util.download
   (:require
    [clojure.java.io :as io]
    [clojure.java.shell :as shell]
    [clojure.string :as str]
    [cemerick.pomegranate.aether :as aether]
-   [leiningen.core.main :as main]
-   [leiningen.util.download :as dl])
+   [leiningen.core.main :as main])
   (:import
    (java.io File)
    (java.util.zip ZipFile ZipEntry)
    (org.apache.commons.io FileUtils)))
+
+(defn sha1
+  [s]
+  (.toString (BigInteger. 1 (-> (java.security.MessageDigest/getInstance "SHA1")
+                                (.digest (.getBytes s)))) 16))
+
+(defn download
+  [url]
+  (let [cache-file (io/file ".cache" (sha1 (str url)))]
+    (if (.exists cache-file)
+      (do
+        (println (format "using cached file '%s' for '%s'" cache-file url))
+        cache-file)
+      (do
+        (println (format "downloading file '%s' to '%s'" url cache-file))
+        (let [tmp-file (File/createTempFile "defold-download-cache" nil)]
+          (FileUtils/copyURLToFile url tmp-file (* 10 1000) (* 30 1000))
+          (FileUtils/moveFile tmp-file cache-file)
+          cache-file)))))
+
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
@@ -74,9 +93,15 @@
                  [dir files] dirs
                  file files]
              (let [src (if git-sha
-                         (dl/download (engine-archive-url git-sha platform file))
+                         (download (engine-archive-url git-sha platform file))
                          (io/file (dynamo-home) dir platform file))]
                [src (io/file platform dir file)]))))
+
+(defn bob-artifact-file
+  [sha]
+  (if sha
+    (download (io/as-url (format "http://d.defold.com/archive/%s/bob/bob.jar" sha)))
+    (io/file (dynamo-home) "share/java/bob.jar")))
 
 (defn artifact-files
   []
@@ -140,7 +165,11 @@
           (println "skipping non-existent" (str src))
           (if (.isDirectory src)
             (FileUtils/copyDirectory src dest)
-            (FileUtils/copyFile src dest)))))))
+            (FileUtils/copyFile src dest)))))
+    (let [jar-file (bob-artifact-file git-sha)]
+      (main/info (format "Installing %s" jar-file))
+      (aether/install-artifacts
+        :files {[(symbol "com.defold.lib" "bob") "1.0"] jar-file}))))
 
 (defn pack
   "Pack all files that need to be unpacked at runtime into `pack-path`.
