@@ -139,3 +139,13 @@ See `styling/README.md` for details.
 ### JavaFX Styling
 
 The best way to understand how JavaFX styling works is by studying the default stylesheet `modena.css` included in `jfxrt.jar`
+
+## Bundling games and running in browser
+
+As a temporary solution, we use bob (from Editor1) as the content pipeline for bundling and running in the browser.
+In order to setup bob locally, you need to:
+
+- Build the engine for the specific platform, e.g. python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests
+  - For android, you also need to build_go through build.py to obtain apkc
+- Build bob with local artefacts, python scripts/build.py build_go --skip-sync-archive
+- lein init, which will install bob.jar as a local maven package
