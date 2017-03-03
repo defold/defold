@@ -1,7 +1,6 @@
 (ns leiningen.pack
   (:require
    [clojure.java.io :as io]
-   [clojure.java.shell :as shell]
    [clojure.string :as str]
    [cemerick.pomegranate.aether :as aether]
    [leiningen.core.main :as main]
