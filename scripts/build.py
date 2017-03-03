@@ -27,11 +27,11 @@ PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1".split()
 PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223a67482df2226622be372921847".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
-PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
+PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "1.35.23"
+EMSCRIPTEN_VERSION_STR = "1.35.0"
 # The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
 EMSCRIPTEN_VERSION_STR_LINUX = "master"
 EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -44,6 +44,7 @@ SHELL = os.environ.get('SHELL', 'bash')
 def is_64bit_machine():
     return platform.machine().endswith('64')
 
+# Legacy format, should be removed eventually
 def get_host_platform():
     if sys.platform == 'linux2':
         arch = platform.architecture()[0]
@@ -55,6 +56,53 @@ def get_host_platform():
         return 'x86_64-win32'
     else:
         return sys.platform
+
+def get_host_platform2():
+    if sys.platform == 'linux2':
+        arch = platform.architecture()[0]
+        if arch == '64bit':
+            return 'x86_64-linux'
+        else:
+            return 'x86-linux'
+    elif sys.platform == 'win32':
+        if is_64bit_machine():
+            return 'x86_64-win32'
+        else:
+            return 'x86-win32'
+    elif sys.platform == 'darwin':
+        if is_64bit_machine():
+            return 'x86_64-darwin'
+        else:
+            return 'x86-darwin'
+    else:
+        raise Exception("Unknown host platform: %s" % sys.platform)
+
+def format_exe(name, platform):
+    prefix = ''
+    suffix = ''
+    if 'win32' in platform:
+        suffix = '.exe'
+    elif 'android' in platform:
+        prefix = 'lib'
+        suffix = '.so'
+    elif 'js-web' in platform:
+        prefix = ''
+        suffix = '.js'
+    else:
+        suffix = ''
+    return '%s%s%s' % (prefix, name, suffix)
+
+def format_lib(name, platform):
+    prefix = 'lib'
+    suffix = ''
+    if 'darwin' in platform:
+        suffix = '.dylib'
+    elif 'win32' in platform:
+        prefix = ''
+        suffix = '.dll'
+    else:
+        suffix = '.so'
+    return '%s%s%s' % (prefix, name, suffix)
 
 class ThreadPool(object):
     def __init__(self, worker_count):
@@ -103,6 +151,7 @@ class Configuration(object):
                  eclipse_home = None,
                  skip_tests = False,
                  skip_codesign = False,
+                 skip_sync_archive = False,
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
@@ -124,6 +173,7 @@ class Configuration(object):
         self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
+        self.host2 = get_host_platform2()
         self.target_platform = target_platform
 
         # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
@@ -133,6 +183,7 @@ class Configuration(object):
 
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
+        self.skip_sync_archive = skip_sync_archive
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
@@ -352,7 +403,7 @@ class Configuration(object):
         return path
 
     def install_ems(self):
-        url = '%s/emsdk-%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, EMSCRIPTEN_VERSION_STR, self.host)
+        url = '%s/%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_EMSCRIPTEN_SDK, self.host)
         dlpath = self._download(url)
         if dlpath is None:
             print("Error. Could not download %s" % url)
@@ -378,7 +429,9 @@ class Configuration(object):
             f.write('int main() { return 0; }')
 
         self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
-        self.exec_env_command(['%s/emcc' % self._form_ems_path(), c_file, '-o%s' % exe_file])
+        # This sporadically fails on OS X by inability to create the ~/.emscripten_cache dir.
+        # Does not seem to help to pre-create it or explicitly setting the --cache flag
+        self.exec_env_command(['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
 
     def check_ems(self):
         home = os.path.expanduser('~')
@@ -488,29 +541,11 @@ class Configuration(object):
         else:
             print "Wrote %s" % path
 
+    def build_builtins(self):
+        with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'w') as f:
+            self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
+
     def archive_engine(self):
-        exe_prefix = ''
-        if 'win32' in self.target_platform:
-            exe_ext = '.exe'
-        elif 'android' in self.target_platform:
-            exe_prefix = 'lib'
-            exe_ext = '.so'
-        elif 'js-web' in self.target_platform:
-            exe_prefix = ''
-            exe_ext = '.js'
-        else:
-            exe_ext = ''
-
-        lib_ext = ''
-        lib_prefix = 'lib'
-        if 'darwin' in self.target_platform:
-            lib_ext = '.dylib'
-        elif 'win32' in self.target_platform:
-            lib_ext = '.dll'
-            lib_prefix = ''
-        else:
-            lib_ext = '.so'
-
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
@@ -522,25 +557,24 @@ class Configuration(object):
 
         # upload editor 2.0 launcher
         if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']:
-            launcherbin = join(bin_dir, "launcher" + exe_ext)
-            self.upload_file(launcherbin, '%s/%s%s' % (full_archive_path, "launcher", exe_ext))
+            launcher_name = format_exe("launcher", self.target_platform)
+            launcherbin = join(bin_dir, launcher_name)
+            self.upload_file(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
-            engine = join(bin_dir, exe_prefix + n + exe_ext)
-            self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
+            engine_name = format_exe(n, self.target_platform)
+            engine = join(bin_dir, engine_name)
+            self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
             if self.target_platform == 'js-web':
                 self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
-                engine_mem = join(bin_dir, exe_prefix + n + exe_ext + '.mem')
+                engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
-                    self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
+                    self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
 
         if self.target_platform == 'linux':
             # NOTE: It's arbitrary for which platform we archive builtins and doc. Currently set to linux
-            builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
-            self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
-
-            doc = self._ziptree(join(dynamo_home, 'share', 'doc'), directory = join(dynamo_home, 'share'))
-            self.upload_file(doc, '%s/ref-doc.zip' % (share_archive_path))
+            for zip_arch in ['builtins.zip', 'ref-doc.zip']:
+                self.upload_file(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
             self.upload_file(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
 
@@ -562,8 +596,9 @@ class Configuration(object):
         if self.is_desktop_target():
             libs.append('texc')
         for lib in libs:
-            lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
-            self.upload_file(lib_path, '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext))
+            lib_name = format_lib('%s_shared' % (lib), self.target_platform)
+            lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
+            self.upload_file(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath = self._package_platform_sdk(self.target_platform)
         self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
@@ -648,6 +683,7 @@ class Configuration(object):
         self._build_engine_libs(**build_flags)
         self._build_extender_libs(**build_flags)
         self.build_docs()
+        self.build_builtins()
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
@@ -679,17 +715,79 @@ class Configuration(object):
         for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
-    def build_bob(self):
-        # NOTE: A bit expensive to sync everything
-        self._sync_archive()
+    def copy_local_bob_artefacts(self):
+        apkc_name = format_exe('apkc', self.host2)
+        texc_name = format_lib('texc_shared', self.host2)
+        luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        missing = {}
+        def add_missing(plf, txt):
+            txts = []
+            txts = missing.setdefault(plf, txts)
+            txts = txts.append(txt)
+        # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
+        for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86-darwin']]:
+            luajit_path = join(cwd, '../../packages/luajit-2.0.3-%s.tar.gz' % (plf[0]))
+            if not os.path.exists(luajit_path):
+                add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
+            else:
+                self.exec_env_command(['tar', 'xf', luajit_path, '-C', luajit_dir], cwd = cwd)
+                luajit_exe = format_exe('luajit', plf[1])
+                self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
+        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
+        js_files = {'bin/js-web/defold_sound.swf': 'libexec/js-web/defold_sound.swf'}
+        # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
+        haxx_host = self.host2 if self.host2 != 'x86_64-darwin' else 'x86-darwin'
+        android_files = {'bin/%s' % (apkc_name): 'libexec/%s/%s' % (haxx_host, apkc_name),
+                         'share/java/classes.dex': 'lib/classes.dex',
+                         'ext/share/java/android.jar': 'lib/android.jar'}
+        artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
+                                 'share/builtins.zip': 'lib/builtins.zip',
+                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name)},
+                     'android-bundling': android_files,
+                     'win32-bundling': win32_files,
+                     'js-bundling': js_files,
+                     'ios-bundling': {},
+                     'osx-bundling': {},
+                     'linux-bundling': {}}
+        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android']],
+                           'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
+                           'js-bundling': [['js-web', 'js-web']],
+                           'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin']],
+                           # Haxx to deal with the incorrect usage of x86-darwin in editor1
+                           'osx-bundling': [['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86-darwin']],
+                           'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
+            for plf in plfs:
+                artefacts[type].update(dict([['bin/%s/%s' % (plf[0], format_exe(name, plf[1])), 'libexec/%s/%s' % (plf[1], format_exe(name, plf[1]))] for name in ['dmengine', 'dmengine_release']]))
+        for type, files in artefacts.iteritems():
+            m = []
+            for src, dst in files.iteritems():
+                src_path = join(self.dynamo_home, src)
+                if not os.path.exists(src_path):
+                    m.append(src_path)
+                else:
+                    dst_path = join(cwd, dst)
+                    self._mkdirs(os.path.dirname(dst_path))
+                    self._copy(src_path, dst_path)
+            if m:
+                add_missing(type, m)
+        self.exec_env_command(['jar', 'cfM', 'lib/android-res.zip', '-C', '%s/ext/share/java/' % (self.dynamo_home), 'res'], cwd = cwd)
+        if missing:
+            print('*** NOTE! There are missing artefacts.')
+            print(json.dumps(missing, indent=2))
 
-        for s in ["copy.sh"]:
-            self.exec_env_command("./scripts/%s" % s, cwd = cwd, shell = True)
+    def build_bob(self):
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        if not self.skip_sync_archive:
+            # NOTE: A bit expensive to sync everything
+            self._sync_archive()
+            self.exec_env_command("./scripts/copy.sh", cwd = cwd, shell = True)
+        else:
+            self.copy_local_bob_artefacts()
 
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
-                          cwd = cwd,
-                          shell = True)
+                              cwd = cwd,
+                              shell = True)
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -735,10 +833,13 @@ class Configuration(object):
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
         self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
+        with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'w') as f:
+            self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
     def test_cr(self):
         # NOTE: A bit expensive to sync everything
-        self._sync_archive()
+        if not self.skip_sync_archive:
+            self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-Declipse-version=%s' % self.eclipse_version],
                               cwd = cwd)
@@ -829,7 +930,8 @@ instructions.configure=\
             self.upload_file(p, full_archive_path)
 
     def _build_cr(self, product):
-        self._sync_archive()
+        if not self.skip_sync_archive:
+            self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
@@ -1473,6 +1575,7 @@ archive_server  - Archive server to path specified with --archive-path
 build_bob       - Build bob with native libraries included for cross platform deployment
 archive_bob     - Archive bob to path specified with --archive-path
 build_docs      - Build documentation
+build_builtins  - Build builtin content archive
 bump            - Bump version number
 release         - Release editor
 shell           - Start development shell
@@ -1506,6 +1609,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'force disable of ccache. Default is false')
+
+    parser.add_option('--skip-sync-archive', dest='skip_sync_archive',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Skip syncing archive from S3 and use local artefacts instead. Default is false')
 
     parser.add_option('--no-colors', dest='no_colors',
                       action = 'store_true',
@@ -1553,6 +1661,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       eclipse_home = options.eclipse_home,
                       skip_tests = options.skip_tests,
                       skip_codesign = options.skip_codesign,
+                      skip_sync_archive = options.skip_sync_archive,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
