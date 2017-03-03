@@ -535,7 +535,7 @@ public class RigUtil {
         for (int i = 0; i < sampleCount; ++i) {
             double cursor = i * spf;
             // Skip passed keys
-            while (next != null && next.t <= cursor) {
+            while ((next != null && next.t <= cursor) || (key == null && Math.abs(next.t - cursor) < 0.0001)) {
                 key = next;
                 ++keyIndex;
                 if (keyIndex < keyCount) {
