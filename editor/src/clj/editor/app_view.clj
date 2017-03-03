@@ -9,9 +9,9 @@
             [editor.engine :as engine]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
+            [editor.library :as library]
             [editor.login :as login]
             [editor.defold-project :as project]
-            [editor.defold-project-search :as project-search]
             [editor.github :as github]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -24,6 +24,7 @@
             [editor.targets :as targets]
             [editor.build-errors-view :as build-errors-view]
             [editor.hot-reload :as hot-reload]
+            [editor.url :as url]
             [editor.view :as view]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
@@ -31,6 +32,7 @@
            [com.defold.editor EditorApplication]
            [com.defold.editor Start]
            [java.awt Desktop]
+           [java.net URL]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -734,11 +736,19 @@
   (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
 
 (defn- fetch-libraries [workspace project prefs]
-  (future
-    (ui/with-disabled-ui
-      (ui/with-progress [render-fn ui/default-render-progress!]
-        (let [library-urls (project/project-dependencies project)]
-          (workspace/fetch-libraries! workspace library-urls render-fn (partial login/login prefs)))))))
+  (let [library-url-string (project/project-dependencies project)
+        library-urls (library/parse-library-urls library-url-string)
+        hosts (into #{} (map url/strip-path) library-urls)]
+    (if-let [unreachable-hosts (seq (remove url/reachable? hosts))]
+      (dialogs/make-alert-dialog (string/join "\n" (concat ["Fetch was aborted because the following hosts could not be reached:"]
+                                                           (map #(str "  \u2022 " %) ; "  * " (BULLET)
+                                                                (sort-by #(.toString ^URL %) unreachable-hosts))
+                                                           [""
+                                                            "Please verify internet connection and try again."])))
+      (future
+        (ui/with-disabled-ui
+          (ui/with-progress [render-fn ui/default-render-progress!]
+            (workspace/fetch-libraries! workspace library-url-string render-fn (partial login/login prefs))))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
