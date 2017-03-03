@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
     [dynamo.graph :as g]
     [editor.defold-project :as project]
+    [editor.login :as login]
     [editor.resource :as resource]
     [editor.ui :as ui]
     [editor.workspace :as workspace])
@@ -76,41 +77,50 @@
                 {:line (.getLineNumber e)}))
      :message (.getMessage e)}))
 
-(defn build-html5 [project {:keys [clear-errors! render-error!] :as build-options}]
+(defn- run-commands [project ^Project bob-project {:keys [render-error!] :as build-options} commands]
+  (try
+    (let [progress (->progress)
+          result (.build bob-project progress (into-array String commands))
+          failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
+      (if (seq failed-tasks)
+        (let [errors {:causes (map (partial task->error project) failed-tasks)}]
+          (render-error! errors)
+          false)
+        true))
+    (catch CompileExceptionError error
+      (render-error! {:causes [(exc->error project error)]})
+      false)))
+
+(defn build-html5 [project prefs {:keys [clear-errors! render-error!] :as build-options}]
   (future
     (ui/run-later (clear-errors!))
-    (let [progress (->progress)
-          ws (project/workspace project)
+    (let [ws (project/workspace project)
           proj-path (str (workspace/project-path ws))
           output-path (output-path project)
           proj-settings (project/settings project)
+          [email auth] (login/credentials prefs)
           bob-args (cond-> {"archive" "true"
                             "platform" "js-web"
                             "bundle-output" output-path
-                            "local-launch" "true"}
+                            "local-launch" "true"
+                            "email" email
+                            "auth" auth}
                      (get proj-settings ["project" "compress_archive"])
                      (assoc "compress" "true"))
-          bob-project (Project. (DefaultFileSystem.) proj-path "build/default")
-          commands (into-array String ["distclean" "build" "bundle"])]
+          bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
       (doseq [[key val] bob-args]
         (.setOption bob-project key val))
       (.createPublisher bob-project (.hasOption bob-project "liveupdate"))
       (let [scanner (ClassLoaderScanner.)]
         (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
           (.scan bob-project scanner pkg)))
-      (.mount bob-project (->graph-resource-scanner ws))
-      (.findSources bob-project proj-path skip-dirs)
-      (try
-        (let [result (.build bob-project progress commands)
-              failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
-          (if (seq failed-tasks)
-            (let [errors {:causes (map (partial task->error project) failed-tasks)}]
-              (render-error! errors)
-              false)
-            true))
-        (catch CompileExceptionError error
-          (render-error! {:causes [(exc->error project error)]})
-          false)))))
+      (let [deps (workspace/dependencies ws)]
+        (.setLibUrls bob-project deps)
+        (when (seq deps)
+          (.resolveLibUrls bob-project (->progress)))
+        (.mount bob-project (->graph-resource-scanner ws))
+        (.findSources bob-project proj-path skip-dirs)
+        (run-commands project bob-project build-options ["distclean" "build" "bundle"])))))
 
 (defn- handler [project {:keys [url method headers]}]
   (if (= method "GET")

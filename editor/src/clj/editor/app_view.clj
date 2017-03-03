@@ -246,14 +246,14 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
-(defn- build-project [project build-fn build-errors-view]
+(defn- build-project [project prefs build-fn build-errors-view]
   (let [build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
                        :render-error! (fn [errors]
                                         (ui/run-later
                                           (build-errors-view/update-build-errors
                                             build-errors-view
                                             errors)))}]
-    (build-fn project build-options)))
+    (build-fn project prefs build-options)))
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -262,7 +262,7 @@
     (ui/default-render-progress-now! (progress/make "Building..."))
     (ui/->future 0.01
                  (fn []
-                   (let [build (build-project project project/build-and-save-project build-errors-view)]
+                   (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
                      (when (and (future? build) @build)
                        (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
                              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
@@ -280,7 +280,7 @@
         (ui/default-render-progress-now! (progress/make "Building..."))
         (ui/->future 0.01
           (fn []
-            (let [build (build-project project bob/build-html5 build-errors-view)]
+            (let [build (build-project project prefs bob/build-html5 build-errors-view)]
               (when (and (future? build) @build)
                 (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
                   (when (.isSupported desktop Desktop$Action/BROWSE)
