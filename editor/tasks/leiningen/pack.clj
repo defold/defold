@@ -101,7 +101,7 @@
   [sha]
   (if sha
     (download (io/as-url (format "http://d.defold.com/archive/%s/bob/bob.jar" sha)))
-    (io/file (dynamo-home) "share/java/bob-engine.jar")))
+    (io/file (dynamo-home) "share/java/bob.jar")))
 
 (defn artifact-files
   []
