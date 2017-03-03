@@ -173,8 +173,11 @@ ordinary paths."
     (g/set-property! workspace :dependencies library-urls)
     library-urls))
 
+(defn dependencies [workspace]
+  (g/node-value workspace :dependencies))
+
 (defn- has-dependencies? [workspace]
-  (not-empty (g/node-value workspace :dependencies)))
+  (not-empty (dependencies workspace)))
 
 (defn update-dependencies! [workspace render-progress! login-fn]
   (when (and (has-dependencies? workspace) login-fn)
