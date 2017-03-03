@@ -13,10 +13,12 @@
             [editor.render :as render]
             [editor.resource :as resource]
             [editor.rig :as rig]
+            [editor.math :as math]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
   (:import [com.jogamp.opengl GL GL2]
-           [editor.types AABB]))
+           [editor.types AABB]
+           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -54,12 +56,51 @@
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 (def shader-pos-nrm-tex-passthrough (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex-passthrough))
 
+(defn- mesh->vb [^Matrix4d world-transform mesh]
+  (let [positions         (vec (partition 3 (:positions mesh)))
+        normals           (vec (partition 3 (:normals mesh)))
+        texcoords         (vec (partition 2 (:texcoord0 mesh)))
+        positions-indices (vec (:indices mesh))
+        normals-indices   (vec (:normals-indices mesh))
+        texcoords-indices (vec (:texcoord0-indices mesh))
+        vcount (count positions-indices)
+        normal-transform (let [tmp (Matrix3d.)]
+                           (.getRotationScale world-transform tmp)
+                           (.invert tmp)
+                           (.transpose tmp)
+                           tmp)
+        world-point (Point3d.)
+        world-normal (Vector3d.)]
+    (loop [vb (->vtx-pos-nrm-tex vcount)
+           vi 0]
+      (if (< vi vcount)
+        (let [[model-px model-py model-pz] (nth positions (nth positions-indices vi 0) [0.0 0.0 0.0])
+              [model-nx model-ny model-nz] (nth normals   (nth normals-indices vi 0)   [0.0 0.0 1.0])
+              [tu tv]    (nth texcoords (nth texcoords-indices vi 0) [0.0 0.0])]
+          (.set world-point model-px model-py model-pz)
+          (.transform world-transform world-point)
+          (.set world-normal model-nx model-ny model-nz)
+          (.transform normal-transform world-normal)
+          (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
+          (recur (conj! vb [(.x world-point) (.y world-point) (.z world-point)
+                            (.x world-normal) (.y world-normal) (.z world-normal)
+                            tu tv]) (inc vi)))
+        (persistent! vb)))))
+
+(defn mesh-set->vbs [world-transform mesh-set]
+  (into []
+        (comp (mapcat :meshes)
+              (remove (comp :positions empty?))
+              (map (partial mesh->vb world-transform)))
+        (:mesh-entries mesh-set)))
+
 (defn render-mesh [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)
         renderable (first renderables)
         node-id (:node-id renderable)
         user-data (:user-data renderable)
-        vbs (:vbs user-data)
+        world-transform (:world-transform renderable)
+        vbs (try (mesh-set->vbs world-transform (:mesh-set user-data)) (catch Exception _ []))
         shader (:shader user-data)
         textures (:textures user-data)]
     (cond
@@ -119,41 +160,20 @@
     (catch NumberFormatException _
       (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter."))))
 
-(g/defnk produce-scene [_node-id aabb vbs]
-  {:node-id _node-id
-   :aabb aabb
-   :renderable {:render-fn render-mesh
-                :batch-key _node-id
-                :select-batch-key _node-id
-                :user-data {:vbs vbs
-                            :shader shader-pos-nrm-tex
-                            :textures {"texture" texture/white-pixel}}
-                :passes [pass/opaque pass/selection pass/outline]}})
-
-(defn- mesh->vb [mesh]
-  (let [positions         (vec (partition 3 (:positions mesh)))
-        normals           (vec (partition 3 (:normals mesh)))
-        texcoords         (vec (partition 2 (:texcoord0 mesh)))
-        positions-indices (vec (:indices mesh))
-        normals-indices   (vec (:normals-indices mesh))
-        texcoords-indices (vec (:texcoord0-indices mesh))
-        vcount (count positions-indices)]
-    (loop [vb (->vtx-pos-nrm-tex vcount)
-           vi 0]
-      (if (< vi vcount)
-        (let [[px py pz] (nth positions (nth positions-indices vi 0) [0.0 0.0 0.0])
-              [nx ny nz] (nth normals   (nth normals-indices vi 0)   [0.0 0.0 1.0])
-              [tu tv]    (nth texcoords (nth texcoords-indices vi 0) [0.0 0.0])]
-          (recur (conj! vb [px py pz nx ny nz tu tv]) (inc vi)))
-        (persistent! vb)))))
-
-(g/defnk produce-vbs [mesh-set]
+(g/defnk produce-scene [_node-id aabb mesh-set]
   (try
-    (into []
-          (comp (mapcat :meshes)
-                (remove (comp :positions empty?))
-                (map mesh->vb))
-          (:mesh-entries mesh-set))
+    ;; Provoke errors that would occur during vb creation.
+    ;; Can't reuse for rendering, need to apply world transform.
+    (mesh-set->vbs (math/->mat4) mesh-set)
+    {:node-id _node-id
+     :aabb aabb
+     :renderable {:render-fn render-mesh
+                  :batch-key _node-id
+                  :select-batch-key _node-id
+                  :user-data {:mesh-set mesh-set
+                              :shader shader-pos-nrm-tex
+                              :textures {"texture" texture/white-pixel}}
+                  :passes [pass/opaque pass/selection pass/outline]}}
     (catch Exception _
       (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
 
@@ -172,7 +192,6 @@
   (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)
   (output skeleton g/Any produce-skeleton)
   (output skeleton-build-target g/Any :cached produce-skeleton-build-target)
-  (output vbs g/Any :cached produce-vbs)
   (output scene g/Any :cached produce-scene))
 
 (defn register-resource-types [workspace]
