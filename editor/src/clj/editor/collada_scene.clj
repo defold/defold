@@ -18,7 +18,7 @@
             [internal.graph.error-values :as error-values])
   (:import [com.jogamp.opengl GL GL2]
            [editor.types AABB]
-           [javax.vecmath Matrix4d Point3d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -56,7 +56,7 @@
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 (def shader-pos-nrm-tex-passthrough (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex-passthrough))
 
-(defn- mesh->vb [^Matrix4d transform mesh]
+(defn- mesh->vb [^Matrix4d world-transform mesh]
   (let [positions         (vec (partition 3 (:positions mesh)))
         normals           (vec (partition 3 (:normals mesh)))
         texcoords         (vec (partition 2 (:texcoord0 mesh)))
@@ -64,23 +64,34 @@
         normals-indices   (vec (:normals-indices mesh))
         texcoords-indices (vec (:texcoord0-indices mesh))
         vcount (count positions-indices)
-        world-point (Point3d.)]
+        normal-transform (let [tmp (Matrix3d.)]
+                           (.getRotationScale world-transform tmp)
+                           (.invert tmp)
+                           (.transpose tmp)
+                           tmp)
+        world-point (Point3d.)
+        world-normal (Vector3d.)]
     (loop [vb (->vtx-pos-nrm-tex vcount)
            vi 0]
       (if (< vi vcount)
         (let [[model-px model-py model-pz] (nth positions (nth positions-indices vi 0) [0.0 0.0 0.0])
-              [nx ny nz] (nth normals   (nth normals-indices vi 0)   [0.0 0.0 1.0])
+              [model-nx model-ny model-nz] (nth normals   (nth normals-indices vi 0)   [0.0 0.0 1.0])
               [tu tv]    (nth texcoords (nth texcoords-indices vi 0) [0.0 0.0])]
           (.set world-point model-px model-py model-pz)
-          (.transform transform world-point)
-          (recur (conj! vb [(.x world-point) (.y world-point) (.z world-point) nx ny nz tu tv]) (inc vi)))
+          (.transform world-transform world-point)
+          (.set world-normal model-nx model-ny model-nz)
+          (.transform normal-transform world-normal)
+          (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
+          (recur (conj! vb [(.x world-point) (.y world-point) (.z world-point)
+                            (.x world-normal) (.y world-normal) (.z world-normal)
+                            tu tv]) (inc vi)))
         (persistent! vb)))))
 
-(defn mesh-set->vbs [transform mesh-set]
+(defn mesh-set->vbs [world-transform mesh-set]
   (into []
         (comp (mapcat :meshes)
               (remove (comp :positions empty?))
-              (map (partial mesh->vb transform)))
+              (map (partial mesh->vb world-transform)))
         (:mesh-entries mesh-set)))
 
 (defn render-mesh [^GL2 gl render-args renderables rcount]
