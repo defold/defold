@@ -147,5 +147,5 @@ In order to setup bob locally, you need to:
 
 - Build the engine for the specific platform, e.g. python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests
   - For android, you also need to build_go through build.py to obtain apkc
-- Build bob with local artefacts, python scripts/build.py build_go --skip-sync-archive
+- Build bob with local artefacts, python scripts/build.py build_bob --skip-sync-archive
 - lein init, which will install bob.jar as a local maven package

@@ -45,6 +45,7 @@ def is_64bit_machine():
     return platform.machine().endswith('64')
 
 # Legacy format, should be removed eventually
+# Returns: [linux|x86_64-linux|win32|x86_64-win32|darwin]
 def get_host_platform():
     if sys.platform == 'linux2':
         arch = platform.architecture()[0]
@@ -57,6 +58,8 @@ def get_host_platform():
     else:
         return sys.platform
 
+# The difference from get_host_platform is that it returns the correct platform
+# Returns: [x86|x86_64][win32|linux|darwin]
 def get_host_platform2():
     if sys.platform == 'linux2':
         arch = platform.architecture()[0]
@@ -741,6 +744,9 @@ class Configuration(object):
         android_files = {'bin/%s' % (apkc_name): 'libexec/%s/%s' % (haxx_host, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
+        # This dict is being built up and will eventually be used for copying in the end
+        # - "type" - what the files are needed for, for error reporting
+        #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
                                  'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name)},
@@ -750,6 +756,7 @@ class Configuration(object):
                      'ios-bundling': {},
                      'osx-bundling': {},
                      'linux-bundling': {}}
+        # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web']],
@@ -757,8 +764,11 @@ class Configuration(object):
                            # Haxx to deal with the incorrect usage of x86-darwin in editor1
                            'osx-bundling': [['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86-darwin']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
+            # plfs is pairs of src-platform -> dst-platform
+            # The haxx above makes sure that x86_64-darwin is noted as x86-darwin for dst-platform (because of Ed1 reasons)
             for plf in plfs:
                 artefacts[type].update(dict([['bin/%s/%s' % (plf[0], format_exe(name, plf[1])), 'libexec/%s/%s' % (plf[1], format_exe(name, plf[1]))] for name in ['dmengine', 'dmengine_release']]))
+        # Perform the actual copy, or list which files are missing
         for type, files in artefacts.iteritems():
             m = []
             for src, dst in files.iteritems():
