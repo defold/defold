@@ -19,6 +19,8 @@ import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
  * Should preferably have been an extension to Bob rather than located inside it.
  */
 public class RigUtil {
+    static double EPSILON = 0.0001;
+    
     @SuppressWarnings("serial")
     public static class LoadException extends Exception {
         public LoadException(String msg) {
@@ -534,8 +536,8 @@ public class RigUtil {
         T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
         for (int i = 0; i < sampleCount; ++i) {
             double cursor = i * spf;
-            // Skip passed keys
-            while (next != null && next.t <= cursor) {
+            // Skip passed keys. Also handles corner case where the cursor is sufficiently close to the very first key frame.
+            while ((next != null && next.t <= cursor) || (key == null && Math.abs(next.t - cursor) < EPSILON)) {
                 key = next;
                 ++keyIndex;
                 if (keyIndex < keyCount) {

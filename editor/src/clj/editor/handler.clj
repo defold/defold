@@ -2,8 +2,7 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.error-reporting :as error-reporting]
-            [service.log :as log]))
+            [editor.error-reporting :as error-reporting]))
 
 (set! *warn-on-reflection* true)
 
@@ -42,20 +41,27 @@
 (defn- get-fnk [handler fsym]
   (get-in handler [:fns fsym]))
 
-(defn- invoke-fnk [handler fsym command-context default]
-  (if-let [f (get-in handler [:fns fsym])]
-    (binding [*adapters* (:adapters command-context)]
-      (try
-        (f (:env command-context))
-        (catch Exception e
-          (error-reporting/report-exception!
-            (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
-                             (:command handler) (:context handler) fsym (.getMessage e))
-                     {:handler handler
-                      :command-context command-context}
-                     e))
-          nil)))
-    default))
+(def ^:private invoke-fnk
+  (let [throwing-handlers (atom #{})]
+    (fn invoke-fnk [handler fsym command-context default]
+      (let [env (:env command-context)
+            throwing-id [(:command handler) (:context handler) fsym (:active-resource env)]]
+        (if (contains? @throwing-handlers throwing-id)
+          nil
+          (if-let [f (get-fnk handler fsym)]
+            (binding [*adapters* (:adapters command-context)]
+              (try
+                (f env)
+                (catch Exception e
+                  (swap! throwing-handlers conj throwing-id)
+                  (error-reporting/report-exception!
+                    (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
+                                     (:command handler) (:context handler) fsym (.getMessage e))
+                             {:handler handler
+                              :command-context command-context}
+                             e))
+                  nil)))
+            default))))))
 
 (defn- get-active-handler [command command-context]
   (let [ctx-name (:name command-context)]
