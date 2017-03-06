@@ -453,6 +453,60 @@ public class SpineSceneTest {
             }
         }
     }
+    
+    @Test
+    public void testSampleDrawOrderAnim() throws Exception {
+        SpineSceneUtil scene = load("draw_order_skeleton.json");
+        Animation anim = scene.getAnimation("animation");
+        
+        assertEquals(3, anim.slotTracks.size()); // should only contain 3 draw_order slot tracks
+        
+        SlotAnimationTrack track_4 = anim.slotTracks.get(0);
+        SlotAnimationTrack track_3 = anim.slotTracks.get(1);
+        SlotAnimationTrack track_5 = anim.slotTracks.get(2);
+
+        double sampleRate = 30.0;
+        double spf = 1.0/sampleRate;
+        double duration = anim.duration;
+        boolean interpolate = false;
+        boolean shouldSlerp = false;
+
+        int expectedSampleCountPerMesh = 5;
+        
+        MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
+        
+        // Mesh "_3" [0, 2, 1, 0, 0]
+        MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
+        RigUtil.sampleTrack(track_3, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, interpolate, shouldSlerp);
+        assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
+        trackBuilder.clear();
+
+        // Mesh "_4" [0, 2, 1, 0, 0]
+        drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, interpolate, shouldSlerp);
+        assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
+        trackBuilder.clear();
+        
+        // Mesh "_5" [0, 0, 4, 4, 0]
+        drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
+        RigUtil.sampleTrack(track_5, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, interpolate, shouldSlerp);
+        assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(4, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(4, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
+    }
 
     @Test
     public void testEmptyScene() throws Exception {
