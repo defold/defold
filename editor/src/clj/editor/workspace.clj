@@ -190,6 +190,14 @@ ordinary paths."
                                  render-progress!)
       true)))
 
+(defn missing-dependencies [workspace]
+  (let [project-directory (project-path workspace)
+        dependencies (g/node-value workspace :dependencies)]
+    (into #{}
+          (comp (remove :file)
+                (map :url))
+          (library/current-library-state project-directory dependencies))))
+
 (defn resource-sync!
   ([workspace]
    (resource-sync! workspace true []))
