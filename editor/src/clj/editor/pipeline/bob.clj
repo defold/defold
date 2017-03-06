@@ -7,7 +7,7 @@
     [editor.ui :as ui]
     [editor.workspace :as workspace])
   (:import
-    [com.dynamo.bob ClassLoaderScanner ClassLoaderResourceScanner CompileExceptionError IProgress IResourceScanner Project TaskResult]
+    [com.dynamo.bob ClassLoaderScanner ClassLoaderResourceScanner CompileExceptionError IProgress IResourceScanner Project Task TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem IResource]
     [com.dynamo.bob.util BobProjectProperties PathUtil]
     [java.io File]
@@ -56,8 +56,14 @@
         build-path (workspace/build-path ws)]
     (str build-path "__htmlLaunchDir")))
 
+(defn- root-task ^Task [^Task task]
+  (if-let [parent (.getProductOf task)]
+    (recur parent)
+    task))
+
 (defn- task->error [project ^TaskResult r]
-  (let [node-id (when-let [bob-resource ^IResource (first (.getInputs (.getTask r)))]
+  (let [task (root-task (.getTask r))
+        node-id (when-let [bob-resource ^IResource (first (.getInputs task))]
                   (let [path (str "/" (.getPath bob-resource))]
                     (project/get-resource-node project path)))]
     {:_node-id node-id
