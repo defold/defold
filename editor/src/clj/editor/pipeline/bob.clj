@@ -11,7 +11,7 @@
     [com.dynamo.bob.fs DefaultFileSystem IResource]
     [com.dynamo.bob.util BobProjectProperties PathUtil]
     [java.io File]
-    [java.net URL URLEncoder]))
+    [java.net URL URLDecoder]))
 
 (set! *warn-on-reflection* true)
 
@@ -47,10 +47,9 @@
                     set)]
           res)))))
 
-(defn- escaped-title [project]
-  (let [proj-settings (project/settings project)
-        title (get proj-settings ["project" "title"] "Unnamed")]
-    (.replace (URLEncoder/encode title "UTF-8") "+" "%20")))
+(defn- project-title [project]
+  (let [proj-settings (project/settings project)]
+    (get proj-settings ["project" "title"] "Unnamed")))
     
 (defn- output-path [project]
   (let [ws (project/workspace project)
@@ -124,8 +123,10 @@
 
 (defn- handler [project {:keys [url method headers]}]
   (if (= method "GET")
-    (let [path (subs url (count html5-url-prefix))
-          path (format "%s/%s%s" (output-path project) (escaped-title project) path)
+    (let [path (-> url
+                 (subs (count html5-url-prefix))
+                 (URLDecoder/decode "UTF-8"))
+          path (format "%s/%s%s" (output-path project) (project-title project) path)
           f (io/file path)]
       (if (.exists f)
         (let [length (.length f)
