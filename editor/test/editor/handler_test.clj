@@ -3,8 +3,8 @@
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.core :as core]
-            [support.test-support :refer [with-clean-system tx-nodes]]
             [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system tx-nodes]]
             [service.log :as log])
   (:import [clojure.lang Keyword]))
 
@@ -97,13 +97,29 @@
 
 (deftest erroneous-handler
   (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
-    (handler/defhandler :c1 :global
+    (handler/defhandler :erroneous :global
       (active? [does-not-exist] true)
       (enabled? [does-not-exist] true)
       (run [does-not-exist] (throw (Exception. "should never happen"))))
     (log/without-logging
-      (is (not (enabled? :c1 [global] {})))
-      (is (nil? (run :c1 [global] {}))))))
+      (is (not (enabled? :erroneous [global] {})))
+      (is (nil? (run :erroneous [global] {}))))))
+
+(deftest throwing-handler
+  (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
+        throwing-enabled? (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
+        throwing-run (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
+    (handler/defhandler :throwing :global
+      (active? [selection] true)
+      (enabled? [selection] (throwing-enabled? selection))
+      (run [selection] (throwing-run selection)))
+    (log/without-logging
+      (is (not (enabled? :throwing [global] {})))
+      (is (not (enabled? :throwing [global] {})))
+      (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+      (is (nil? (run :throwing [global] {})))
+      (is (nil? (run :throwing [global] {})))
+      (is (= 1 (count (test-util/call-logger-calls throwing-run)))))))
 
 (defprotocol AProtocol)
 
