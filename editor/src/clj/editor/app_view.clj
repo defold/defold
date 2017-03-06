@@ -32,7 +32,6 @@
            [com.defold.editor EditorApplication]
            [com.defold.editor Start]
            [java.awt Desktop]
-           [java.net URL]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -741,8 +740,8 @@
         hosts (into #{} (map url/strip-path) library-urls)]
     (if-let [unreachable-hosts (seq (remove url/reachable? hosts))]
       (dialogs/make-alert-dialog (string/join "\n" (concat ["Fetch was aborted because the following hosts could not be reached:"]
-                                                           (map #(str "  \u2022 " %) ; "  * " (BULLET)
-                                                                (sort-by #(.toString ^URL %) unreachable-hosts))
+                                                           (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                                                                (sort-by str unreachable-hosts))
                                                            [""
                                                             "Please verify internet connection and try again."])))
       (future
