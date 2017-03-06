@@ -85,6 +85,10 @@ public class BundleResourcesTest {
         this.fileSystem.addFile(file, content, modifiedTime);
     }
 
+    private void addDirectory(String path) {
+        this.fileSystem.addDirectory(path);
+    }
+
     private void addResourceDirectory(String dir) {
         Bundle bundle = FrameworkUtil.getBundle(getClass());
         Enumeration<URL> entries = bundle.findEntries(dir, "*", true);
@@ -92,21 +96,25 @@ public class BundleResourcesTest {
             while (entries.hasMoreElements()) {
                 final URL url = entries.nextElement();
                 IPath path = new Path(url.getPath()).removeFirstSegments(1);
+                String p = "/" + path.toString();
 
-                // Make sure to only add files and not directory entries.
+                // Make sure the filesystem know if the resource is a file or a directory.
                 if (path.toString().lastIndexOf('/') != path.toString().length() - 1) {
                     InputStream is = null;
                     try {
                         is = url.openStream();
                         ByteArrayOutputStream os = new ByteArrayOutputStream();
                         IOUtils.copy(is, os);
-                        String p = "/" + path.toString();
                         addFile(p, os.toByteArray());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     } finally {
                         IOUtils.closeQuietly(is);
                     }
+                } else {
+                    // Explicitly add directories as well, the tests need to verify that they
+                    // are not included when collecting sources/bundle resources.
+                    addDirectory(p);
                 }
             }
         }
@@ -164,6 +172,19 @@ public class BundleResourcesTest {
         Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
         assertEquals(2, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
+    }
+
+    @Test
+    public void testInvalidPath() throws Exception {
+
+        // Add project property for bundle resources
+        project.getProjectProperties().putStringValue("project", "bundle_resources", "/does_not_exist/");
+        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
+
+        // Will only contain collision.txt and subdirtest.txt from the extension directory.
+        assertEquals(2, resourceMap.size());
+        assertTrue(resourceMap.containsKey("collision.txt"));
+        assertTrue(resourceMap.containsKey("subdir/subdirtest.txt"));
     }
 
     @Test(expected=CompileExceptionError.class)

@@ -15,9 +15,9 @@
 
 (set! *warn-on-reflection* true)
 
-(def grid-color colors/mid-grey)
-(def x-axis-color colors/defold-red)
-(def y-axis-color colors/defold-green)
+(def grid-color colors/scene-grid)
+(def x-axis-color colors/scene-grid-x-axis)
+(def y-axis-color colors/scene-grid-y-axis)
 
 (defn render-xy-axes
   [^GL2 gl ^AABB aabb]
@@ -105,7 +105,7 @@
 
 (g/defnode TileMapGrid
   (input camera Camera)
-  (input grid-size g/Any)
+  (input grid-size g/Any :substitute nil)
 
   (output grid       g/Any :cached update-grid)
   (output renderable pass/RenderData :cached grid-renderable))

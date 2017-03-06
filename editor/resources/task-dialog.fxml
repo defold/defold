@@ -16,7 +16,7 @@
       <HBox BorderPane.alignment="CENTER">
          <children>
             <Pane HBox.hgrow="ALWAYS" />
-            <Button id="ok" defaultButton="true" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="Ok" />
+            <Button id="ok" defaultButton="true" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="OK" />
          </children>
          <padding>
             <Insets bottom="16.0" left="16.0" right="16.0" top="16.0" />

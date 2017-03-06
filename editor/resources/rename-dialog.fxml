@@ -11,7 +11,7 @@
       <TextField id="path" editable="false"/>
       <AnchorPane>
 	<children>
-	  <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="Ok" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
+	  <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
         </children>
       </AnchorPane>
    </children>

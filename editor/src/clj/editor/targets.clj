@@ -212,7 +212,6 @@
 (defn make-target-log-dialog []
   (let [root        ^Parent (ui/load-fxml "target-log.fxml")
         stage       (doto (ui/make-stage)
-                      (.setAlwaysOnTop true)
                       (.initOwner (ui/main-stage)))
         scene       (Scene. root)
         controls    (ui/collect-controls root ["message" "ok" "clear" "restart"])

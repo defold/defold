@@ -71,12 +71,18 @@
     {:last-seen now
      :suppressed? (and last-seen (< (- now last-seen) suppress-exception-threshold-ms))}))
 
+(defn- ex-identity
+  [{:keys [cause trace]}]
+  {:cause cause
+   :trace (when (and trace (pos? (count trace)))
+            (subvec trace 0 1))})
+
 (defn- record-exception!
   [exception]
   (let [ex-map (Throwable->map exception)
-        ex-identity (select-keys ex-map [:cause :trace])
-        ret (swap! exception-stats update ex-identity update-stats)]
-    (assoc (get ret ex-identity) :ex-map ex-map)))
+        ex-id (ex-identity ex-map)
+        ret (swap! exception-stats update ex-id update-stats)]
+    (assoc (get ret ex-id) :ex-map ex-map)))
 
 (defn report-exception!
   ([exception]

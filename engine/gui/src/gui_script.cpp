@@ -2803,7 +2803,7 @@ namespace dmGui
     }
 
     /*# gets the node size mode
-     * Returns the size node of a node.
+     * Returns the size of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
      * size mode alters the node size based on the node's content.
      *

@@ -1,8 +1,6 @@
 package com.dynamo.bob.test.util;
 
-import java.io.File;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
@@ -12,7 +10,6 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.fs.AbstractFileSystem;
 import com.dynamo.bob.fs.IMountPoint;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.IFileSystem.IWalker;
 
 public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResource> {
 
@@ -29,6 +26,14 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
 
     public void addFile(String path, byte[] content) {
         addFile(path, content, System.currentTimeMillis());
+    }
+
+    public void addDirectory(String path) {
+        path = FilenameUtils.normalize(path, true);
+        // Paths are always root relative.
+        if (path.startsWith("/"))
+            path = path.substring(1);
+        resources.put(path, new MockResource(this, path));
     }
 
     @Override

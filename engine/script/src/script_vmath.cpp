@@ -1191,7 +1191,7 @@ namespace dmScript
      * local rot_y = vmath.vector3(1, 0, 0)
      * local z = vmath.vector3(0, 0, 1)
      * local rot1 = vmath.quat_basis(rot_x, rot_y, z)
-     * local rot2 = vmath.quat_from_to(vmath.vector3(0, 1, 0), vmath.vector3(1, * 0, 0))
+     * local rot2 = vmath.quat_from_to(vmath.vector3(0, 1, 0), vmath.vector3(1, 0, 0))
      * if rot1 == rot2 then
      *     -- These quaternions are equal!
      *     print(rot2) --> vmath.quat(0, 0, -0.70710676908493, 0.70710676908493)

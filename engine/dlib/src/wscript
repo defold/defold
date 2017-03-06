@@ -2,6 +2,7 @@
 
 import os, re, sys
 from TaskGen import feature, after
+from waf_dynamo import dmsdk_add_files
 
 def set_options(opt):
     pass
@@ -10,14 +11,7 @@ def build(bld):
     bld.add_subdirs('test')
     bld.add_subdirs('examples')
 
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/align.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/array.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/buffer.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/configfile.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/hash.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/shared_library.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/dlib', 'dmsdk/dlib/log.h')
-
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')

@@ -1309,7 +1309,9 @@ namespace dmGui
         {
             Animation* anim = &(*animations)[i];
 
-            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            if (anim->m_Elapsed > anim->m_Duration
+                || anim->m_Cancelled
+                || (anim->m_Elapsed == anim->m_Duration && anim->m_Duration != 0))
             {
                 continue;
             }
@@ -1335,7 +1337,11 @@ namespace dmGui
                 // Clamp elapsed to duration if we are closer than half a time step
                 anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
                 // Calculate normalized time if elapsed has not yet reached duration, otherwise it's set to 1 (animation complete)
-                float t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
+                float t = 1.0f;
+                if (anim->m_Duration != 0)
+                {
+                    t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
+                }
                 float t2 = t;
                 if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;

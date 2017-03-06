@@ -19,7 +19,7 @@
  */
 
 $defold-light-blue:   #60C1FF;
-$defold-blue:         #2268e6;
+$defold-blue:         #0084ff;//#2268e6;
 $selected-blue:       #264a8b;
 $bright-black:        #292c30;
 $bright-black-light:  #2e3236;
@@ -39,10 +39,10 @@ $bright-grey:         #8f9296;
 $bright-grey-light:   #a2b0be;
 $defold-white:        #dddddd;
 $defold-white-light:  #f8f8fb;
-$defold-red:          #ff4646;
+$defold-red:          #ff0000;//#ff4646;
 $defold-yellow:       #fbce2f;
 $defold-turquoise:    #00e6e1;
-$defold-green:        #00df64;
+$defold-green:        #3cff00;//#00df64;
 $defold-orange:       #fa6731;
 
 /* Revamp */
@@ -59,6 +59,20 @@ $defold-dark-white: #cccfd3; // (text)
 $bright-grey:       #b0b0b0; // (icons)
 $bright-black:      #272b30; // (forms)
 $mid-black:         #1e2021; // (selected)
+
+/* Menu colors */
+$menu-background: $mid-grey;//$grey;
+$menu-foreground: $bright-grey-light;
+$menu-background-hover: $grey;
+$menu-foreground-hover: $defold-white;
+$menu-separator: $dark-grey-light;//$mid-grey;
+
+/* Scene view colors */
+$scene-toolbar-background: $dark-grey-header;
+$scene-toolbar-button-foreground: $defold-white;
+$scene-toolbar-button-selected-background: $input-background;
+$scene-toolbar-button-selected-foreground: $defold-white;
+$scene-toolbar-button-hovered-foreground: $defold-white;
 
 /* Lua script colors */
 $script-helper:         #33cccc;

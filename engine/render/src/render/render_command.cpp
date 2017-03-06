@@ -89,6 +89,7 @@ namespace dmRender
                     float_to_uint32_t ftoi;
                     ftoi.i = c->m_Operands[2];
                     dmGraphics::Clear(context, c->m_Operands[0], r, g, b, a, ftoi.f, c->m_Operands[3]);
+                    render_context->m_StencilBufferCleared = (c->m_Operands[0] & dmGraphics::BUFFER_TYPE_STENCIL_BIT) != 0;
                     break;
                 }
                 case COMMAND_TYPE_SET_VIEWPORT:

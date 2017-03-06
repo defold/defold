@@ -6,6 +6,10 @@
     -fx-border-color: $mid-grey;
     -fx-border-width: 0;
     -fx-padding: 0;
+    .label {
+        -fx-padding: 4px 8px;
+        -fx-background-insets: 0;
+    }
     &:showing {
         -fx-background-color: $dark-grey;
         -fx-color: $defold-white;
@@ -13,14 +17,15 @@
     &:showing .arrow {
         -fx-background-color: $defold-white; 
     }
-    .label {
-        -fx-text-fill: $input-background;
+    >.label {
         -fx-border-color: $input-border;
         -fx-border-width: 1;
     }
     .open-button {
-        -fx-padding: 10 7 !important;
+        -fx-background-insets: 0;
+        -fx-padding: 10 7;
         -fx-background-color: $mid-grey;
+        -fx-border-width: 0;
         &:hover {
             -fx-background-color: $mid-grey-light;
             -fx-background-insets: 0;

@@ -862,8 +862,11 @@ instructions.configure=\
     def archive_editor2(self):
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'editor2')
-        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.zip')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
+        for ext in ['zip', 'dmg']:
+            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
+                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
         for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
@@ -928,6 +931,15 @@ instructions.configure=\
                     # Skip directory "keys". When creating empty directories
                     # a psudeo-key is created. Directories isn't a first-class object on s3
                     if re.match('.*(/bob.jar)$', x.name):
+                        name = os.path.relpath(x.name, base_prefix)
+                        files.append({'name': name, 'path': '/' + x.name})
+
+            prefix = os.path.join(base_prefix, self.channel, 'editor')
+            for x in bucket.list(prefix = prefix):
+                if x.name[-1] != '/':
+                    # Skip directory "keys". When creating empty directories
+                    # a psudeo-key is created. Directories isn't a first-class object on s3
+                    if re.match('.*(/Defold-*)$', x.name):
                         name = os.path.relpath(x.name, base_prefix)
                         files.append({'name': name, 'path': '/' + x.name})
             return files

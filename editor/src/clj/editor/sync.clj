@@ -271,14 +271,16 @@
                  {:label "Unstage Change"
                   :command :unstage-change}])
 
-(defn get-theirs [{:keys [git] :as flow} file]
-  (String. ^bytes (git/show-file git file)))
+(defn- get-theirs [{:keys [git] :as flow} file]
+  (when-let [their-bytes (git/show-file git file)]
+    (String. their-bytes)))
 
-(defn get-ours [{:keys [git stash-info] :as flow} file]
+(defn- get-ours [{:keys [git stash-info] :as flow} file]
   (when-let [stash-ref ^RevCommit (:ref stash-info)]
-    (String. ^bytes (git/show-file git file (.name stash-ref)))))
+    (when-let [our-bytes (git/show-file git file (.name stash-ref))]
+      (String. our-bytes))))
 
-(defn resolve-file! [!flow file]
+(defn- resolve-file! [!flow file]
   (let [{:keys [^Git git conflicts]} @!flow]
     (when-let [entry (get conflicts file)]
       (if (.exists (git/file git file))
@@ -288,6 +290,18 @@
       (swap! !flow #(-> %
                         (update :conflicts dissoc file)
                         (update :resolved assoc file entry))))))
+
+(defn use-ours! [!flow file]
+  (if-let [ours (get-ours @!flow file)]
+    (spit (git/file (:git @!flow) file) ours)
+    (.delete (git/file (:git @!flow) file)))
+  (resolve-file! !flow file))
+
+(defn use-theirs! [!flow file]
+  (if-let [theirs (get-theirs @!flow file)]
+    (spit (git/file (:git @!flow) file) theirs)
+    (.delete (git/file (:git @!flow) file)))
+  (resolve-file! !flow file))
 
 (handler/defhandler :show-diff :sync
   (enabled? [selection] (= 1 (count selection)))
@@ -308,17 +322,13 @@
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
     (doseq [f selection]
-      (when-let [ours (get-ours @!flow f)]
-        (spit (io/file (git/worktree (:git @!flow)) f) ours)
-        (resolve-file! !flow f)))))
+      (use-ours! !flow f))))
 
 (handler/defhandler :use-theirs :sync
   (enabled? [selection] (pos? (count selection)))
   (run [selection !flow]
     (doseq [f selection]
-      (when-let [theirs (get-theirs @!flow f)]
-        (spit (io/file (git/worktree (:git @!flow)) f) theirs)
-        (resolve-file! !flow f)))))
+      (use-theirs! !flow f))))
 
 (handler/defhandler :stage-change :sync
   (enabled? [selection] (pos? (count selection)))
@@ -340,7 +350,7 @@
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
-        stage           (ui/make-stage)
+        stage           (ui/make-dialog-stage (ui/main-stage))
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
@@ -444,7 +454,6 @@
 
                              nil)))]
     (dialogs/observe-focus stage)
-    (.initOwner stage (ui/main-stage))
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
@@ -526,8 +535,6 @@
                                          (when (= code KeyCode/ESCAPE) true
                                                (cancel-flow! !flow)
                                                (.close stage)))))
-
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setScene stage scene)
 
     (try
