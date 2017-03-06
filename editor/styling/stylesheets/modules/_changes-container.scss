@@ -1,5 +1,5 @@
 #changes-container {
-    -fx-padding: 0 0 17 0;
+    -fx-padding: 0 0 $pane-padding-bottom 0;
     >.tool-bar {
         -fx-background-color: $dark-grey-light;
         -fx-border-width: 0;

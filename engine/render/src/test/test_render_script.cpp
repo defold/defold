@@ -437,6 +437,36 @@ TEST_F(dmRenderScriptTest, TestLuaClear)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestStencilBufferCleared)
+{
+    const char* script_no_stencil_clear =
+    "function update(self)\n"
+    "    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_DEPTH_BIT] = 1})\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_no_stencil_clear));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(0u, m_Context->m_StencilBufferCleared);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(0u, m_Context->m_StencilBufferCleared);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+
+
+    const char* script_stencil_clear =
+    "function update(self)\n"
+    "    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_DEPTH_BIT] = 1, [render.BUFFER_STENCIL_BIT] = 0})\n"
+    "end\n";
+    render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_stencil_clear));
+    render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(0u, m_Context->m_StencilBufferCleared);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(1u, m_Context->m_StencilBufferCleared);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaTransform)
 {
     const char* script =

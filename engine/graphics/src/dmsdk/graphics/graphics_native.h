@@ -41,78 +41,139 @@
 
 namespace dmGraphics
 {
-    /**
-     * Get iOS UVWindow native handle (id)
-     * @return UVWindow or zero on other platforms than iOS
+    /*# SDK Graphics API documentation
+     * [file:<dmsdk/graphics/graphics_native.h>]
+     *
+     * Platform specific native graphics functions.
+     *
+     * @document
+     * @name Graphics
+     * @namespace dmGraphics
+     */
+
+    /*# get iOS UVWindow
+     *
+     * Get iOS UVWindow native handle (id). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeiOSUVWindow
+     * @return id [type:id] native handle
      */
     id GetNativeiOSUVWindow(void);
-    /**
-     * Get iOS UIView native handle (id)
-     * @return UIView or zero on other platforms than iOS
+
+    /*# get iOS UIView
+     *
+     * Get iOS UIView native handle (id). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeiOSUIView
+     * @return id [type:id] native handle
      */
     id GetNativeiOSUIView(void);
-    /**
-     * Get iOS EAGLContext native handle (id)
-     * @return EAGLContext ior zero on other platforms than iOS
+
+    /*# get iOS EAGLContext
+     *
+     * Get iOS EAGLContext native handle (id). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeiOSEAGLContext
+     * @return id [type:id] native handle
      */
     id GetNativeiOSEAGLContext(void);
 
-    /**
-     * Get OSX NSWindow native handle (id)
-     * @return NSWindow or zero on other platforms than OSX
+    /*# get OSX NSWindow
+     *
+     * Get OSX NSWindow native handle (id). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeOSXNSWindow
+     * @return id [type:id] native handle
      */
     id GetNativeOSXNSWindow(void);
-    /**
-     * Get OSX NSView native handle (id)
-     * @return NSView or zero on other platforms than OSX
+
+    /*# get OSX NSView
+     *
+     * Get OSX NSView native handle (id). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeOSXNSView
+     * @return id [type:id] native handle
      */
     id GetNativeOSXNSView(void);
-    /**
-     * Get OSX NSOpenGLContext native handle (id)
-     * @return NSOpenGLContext or zero on other platforms than OSX
+
+    /*# get OSX NSOpenGLContext
+     *
+     * Get OSX NSOpenGLContext native handle (id). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeOSXNSOpenGLContext
+     * @return id [type:id] native handle
      */
     id GetNativeOSXNSOpenGLContext(void);
 
-    /**
-     * Get Win32 native windows handle (HWND)
-     * @return HWND or zero on other platforms than Win32
+    /*# get Win32 HWND
+     *
+     * Get Win32 windows native handle (HWND). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeWindowsHWND
+     * @return HWND [type:HWND] native handle
      */
     HWND GetNativeWindowsHWND(void);
-    /**
-     * Get Win32 native windows gl render context handle (HGLRC)
-     * @return HGLRC or zero on other platforms than Win32
+
+    /*# get Win32 HGLRC
+     *
+     * Get Win32 gl rendercontext native handle (HGLRC). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeWindowsHGLRC
+     * @return HGLRC [type:HGLRC] native handle
      */
     HGLRC GetNativeWindowsHGLRC(void);
 
-    /**
-     * Get Android native EGLContext
-     * @return EGLContext or zero on other platforms than Android
+    /*# get Android EGLContext
+     *
+     * Get Android EGLContext native handle (EGLContext). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeAndroidEGLContext
+     * @return EGLContext [type:EGLContext] native handle
      */
     EGLContext GetNativeAndroidEGLContext(void);
-    /**
-     * Get Android native EGLSurface
-     * @return EGLSurface or zero on other platforms than Android
+
+    /*# get Android EGLSurface
+     *
+     * Get Android EGLSurface native handle (EGLSurface). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeAndroidEGLSurface
+     * @return EGLSurface [type:EGLSurface] native handle
      */
     EGLSurface GetNativeAndroidEGLSurface(void);
-    /**
-     * Get Android native JavaVM
-     * @return JavaVM ptr or zero on other platforms than Android
+
+    /*# get Android native JavaVM
+     *
+     * Get Android JavaVM ptr. Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeAndroidJavaVM
+     * @return JavaVM* [type:JavaVM*] native handle
      */
     JavaVM* GetNativeAndroidJavaVM(void);
-    /**
-     * Get Android native jobject
-     * @return jobject or zero on other platforms than Android
+
+    /*# get Android native jobject
+     *
+     * Get Android native jobject. Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeAndroidActivity
+     * @return jobject [type:jobject] native handle
      */
     jobject GetNativeAndroidActivity(void);
 
-    /**
-     * Get Linux X11Window native handle (Window)
-     * @return Window handle or zero on other platforms than Linux
+    /*# get Linux X11Window
+     *
+     * Get Linux X11Window windows native handle (Window). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeX11Window
+     * @return Window [type:Window] native handle
      */
     Window GetNativeX11Window(void);
-    /**
-     * Get Linux X11GLXContext native handle (GLXContext)
-     * @return GLXContext or zero on other platforms than Linux
+
+    /*# get Linux X11GLXContext
+     *
+     * Get Linux X11GLXContext native handle (GLXContext). Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeX11GLXContext
+     * @return GLXContext [type:GLXContext] native handle
      */
     GLXContext GetNativeX11GLXContext(void);
 }

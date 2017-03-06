@@ -5,11 +5,11 @@ def configure(conf):
     pass
 
 def build(bld):
-    script = bld.new_task_gen(features = 'cc cxx cprogram',
-                              includes = ['.'],
-                              uselib = 'DLIB',
-                              source = ['launcher.cpp', 'launcher_util.cpp'],
-                              target = 'launcher')
+    exe = bld.new_task_gen(features = ['cc', 'cxx', 'cprogram'],
+                           includes = ['.'],
+                           uselib = 'DLIB',
+                           source = ['launcher.cpp', 'launcher_util.cpp'],
+                           target = 'launcher')
 
     lib = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['.'],
@@ -17,7 +17,10 @@ def build(bld):
                            source = ['launcher_util.cpp'])
 
     if 'win32' in bld.env.BUILD_PLATFORM:
-        script.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']
-        script.source.append('launcher.rc')
+        exe.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']
+        exe.source.append('launcher.rc')
+        exe.features.append('authenticode')
+        exe.install_path = None
+        bld.install_as("${PREFIX}/bin/${PLATFORM}/launcher.exe", "launcher_signed.exe")
 
     bld.add_subdirs('test')

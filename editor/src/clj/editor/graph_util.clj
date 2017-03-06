@@ -17,3 +17,7 @@
 (defn disconnect-all [basis node-id label]
   (for [[src-node-id src-label] (g/sources-of basis node-id label)]
     (g/disconnect src-node-id src-label node-id label)))
+
+(defn array-subst-remove-errors [arr]
+  (vec (remove g/error? arr)))
+

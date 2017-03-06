@@ -10,13 +10,13 @@
      1.0]))
 
 (def defold-light-blue (hex-color->color "#60a8ff"))
-(def defold-blue (hex-color->color "#2268e6"))
+(def defold-blue (hex-color->color "#0084ff"))
 (def defold-white (hex-color->color "#f0f2f6"))
 (def defold-white-light (hex-color->color "#f8f8fb"))
-(def defold-red (hex-color->color "#ff4646"))
+(def defold-red (hex-color->color "#ff0000"))
 (def defold-yellow (hex-color->color "#fbce2f"))
 (def defold-turquoise (hex-color->color "#00e6e1"))
-(def defold-green (hex-color->color "#00df64"))
+(def defold-green (hex-color->color "#3cff00"))
 (def defold-orange (hex-color->color "#fd6623"))
 (def selected-blue (hex-color->color "#264a8b"))
 (def bright-black (hex-color->color "#292c30"))
@@ -34,6 +34,15 @@
 
 (defn alpha [c a]
   (assoc c 3 a))
+
+(def input-background (hex-color->color "#292a2f"))
+(def scene-background input-background)
+(def scene-grid dark-grey)
+(def scene-grid-x-axis (alpha defold-red 0.4))
+(def scene-grid-y-axis (alpha defold-green 0.4))
+(def scene-grid-z-axis (alpha defold-blue 0.4))
+(def scene-ruler-label bright-grey)
+(def scene-ruler-marker bright-grey)
 
 ; https://en.wikipedia.org/wiki/HSL_and_HSV
 

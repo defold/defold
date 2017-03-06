@@ -2,6 +2,7 @@
 import os
 
 from waf_dynamo import apidoc_extract_task
+from waf_dynamo import dmsdk_add_files
 
 def set_options(opt):
     pass
@@ -15,6 +16,4 @@ def build(bld):
                             'lua_package.doc_h', 'lua_table.doc_h'])
     bld.add_subdirs('lua')
 
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/lua', 'dmsdk/lua/lua.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/lua', 'dmsdk/lua/lauxlib.h')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/lua', 'dmsdk/lua/luaconf.h')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
