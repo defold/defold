@@ -13,6 +13,7 @@
             [editor.input :as i]
             [editor.math :as math]
             [editor.defold-project :as project]
+            [editor.error-reporting :as error-reporting]
             [util.profiler :as profiler]
             [editor.resource :as resource]
             [editor.scene-cache :as scene-cache]
@@ -627,27 +628,33 @@
               (.setImage image-view image))))))))
 
 (defn register-event-handler! [^Parent parent view-id]
-  (let [event-handler   (ui/event-handler e
-                          (profiler/profile "input-event" -1
-                            (let [action (augment-action view-id (i/action-from-jfx e))
-                                  x (:x action)
-                                  y (:y action)
-                                  pos [x y 0.0]
-                                  picking-rect (selection/calc-picking-rect pos pos)]
-                              (when (= :mouse-pressed (:type action))
-                                ;; request focus and consume event to prevent someone else from stealing focus
-                                (.requestFocus parent)
-                                (.consume e))
-                              ; Only look for tool selection when the mouse is moving with no button pressed
-                              (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
-                                (let [s (g/node-value view-id :selected-tool-renderables)
-                                      tool-user-data (g/node-value view-id :tool-user-data)]
-                                  (reset! tool-user-data s)))
-                              (g/transact
-                                (concat
-                                  (g/set-property view-id :cursor-pos [x y])
-                                  (g/set-property view-id :tool-picking-rect picking-rect)
-                                  (g/update-property view-id :input-action-queue conj action))))))]
+  (let [process-events? (atom true)
+        event-handler   (ui/event-handler e
+                          (when @process-events?
+                            (try
+                              (profiler/profile "input-event" -1
+                                (let [action (augment-action view-id (i/action-from-jfx e))
+                                      x (:x action)
+                                      y (:y action)
+                                      pos [x y 0.0]
+                                      picking-rect (selection/calc-picking-rect pos pos)]
+                                  (when (= :mouse-pressed (:type action))
+                                    ;; Request focus and consume event to prevent someone else from stealing focus
+                                    (.requestFocus parent)
+                                    (.consume e))
+                                  ;; Only look for tool selection when the mouse is moving with no button pressed
+                                  (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
+                                    (let [s (g/node-value view-id :selected-tool-renderables)
+                                          tool-user-data (g/node-value view-id :tool-user-data)]
+                                      (reset! tool-user-data s)))
+                                  (g/transact
+                                    (concat
+                                      (g/set-property view-id :cursor-pos [x y])
+                                      (g/set-property view-id :tool-picking-rect picking-rect)
+                                      (g/update-property view-id :input-action-queue conj action)))))
+                              (catch Throwable error
+                                (reset! process-events? false)
+                                (error-reporting/report-exception! error)))))]
     (ui/on-mouse! parent (fn [type e] (cond
                                         (= type :exit)
                                         (g/set-property! view-id :cursor-pos nil))))
@@ -669,36 +676,43 @@
                  (let [this ^com.defold.control.Region this
                        w (.getWidth this)
                        h (.getHeight this)]
-                   (.setFitWidth image-view w)
-                   (.setFitHeight image-view h)
-                   (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
-                   (when (and (> w 0) (> h 0))
-                     (let [viewport (types/->Region 0 w 0 h)]
-                       (g/transact (g/set-property view-id :viewport viewport))
-                       (if-let [view-id (ui/user-data image-view ::view-id)]
-                         (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                           (doto drawable
-                             (.setSurfaceSize w h))
-                           (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                             (.setSize w h)))
-                         (do
-                           (register-event-handler! parent view-id)
-                           (ui/user-data! image-view ::view-id view-id)
-                           (let [drawable (make-drawable w h)
-                                 async-copier (make-copier viewport)
-                                 ^Tab tab      (:tab opts)
-                                 repainter     (ui/->timer timer-name
-                                                 (fn [_ dt]
-                                                   (when (.isSelected tab)
-                                                     (update-image-view! image-view drawable async-copier dt main-frame?))))]
-                             (ui/on-closed! tab
-                               (fn [e]
-                                 (ui/timer-stop! repainter)
-                                 (scene-view-dispose view-id)
-                                 (scene-cache/drop-context! nil true)))
-                             (ui/timer-start! repainter)
-                             (g/set-property! view-id :drawable drawable :async-copier async-copier))
-                           (frame-selection view-id false)))))
+                   (try
+                     (.setFitWidth image-view w)
+                     (.setFitHeight image-view h)
+                     (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
+                     (when (and (> w 0) (> h 0))
+                       (let [viewport (types/->Region 0 w 0 h)]
+                         (g/transact (g/set-property view-id :viewport viewport))
+                         (if-let [view-id (ui/user-data image-view ::view-id)]
+                           (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
+                             (doto drawable
+                               (.setSurfaceSize w h))
+                             (doto ^AsyncCopier (g/node-value view-id :async-copier)
+                               (.setSize w h)))
+                           (do
+                             (register-event-handler! parent view-id)
+                             (ui/user-data! image-view ::view-id view-id)
+                             (let [drawable (make-drawable w h)
+                                   async-copier (make-copier viewport)
+                                   ^Tab tab      (:tab opts)
+                                   repainter     (ui/->timer timer-name
+                                                             (fn [^AnimationTimer timer dt]
+                                                               (when (.isSelected tab)
+                                                                 (try
+                                                                   (update-image-view! image-view drawable async-copier dt main-frame?)
+                                                                   (catch Throwable error
+                                                                     (.stop timer)
+                                                                     (error-reporting/report-exception! error))))))]
+                               (ui/on-closed! tab
+                                              (fn [e]
+                                                (ui/timer-stop! repainter)
+                                                (scene-view-dispose view-id)
+                                                (scene-cache/drop-context! nil true)))
+                               (ui/timer-start! repainter)
+                               (g/set-property! view-id :drawable drawable :async-copier async-copier))
+                             (frame-selection view-id false)))))
+                     (catch Throwable error
+                       (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
     (.setFocusTraversable pane true)
     (.add (.getChildren pane) image-view)
