@@ -10,11 +10,19 @@ public class MockResource extends AbstractResource<MockFileSystem> {
 
     private byte[] content;
     private long modifiedTime;
+    private boolean isFile = true;
 
     public MockResource(MockFileSystem fileSystem, String path, byte[] content, long modifiedTime) {
         super(fileSystem, path);
         this.content = content;
         this.modifiedTime = modifiedTime;
+    }
+
+    public MockResource(MockFileSystem fileSystem, String directory) {
+        super(fileSystem, directory);
+        this.content = "".getBytes();
+        this.modifiedTime = 0;
+        this.isFile = false;
     }
 
     @Override
@@ -53,5 +61,10 @@ public class MockResource extends AbstractResource<MockFileSystem> {
     @Override
     public long getLastModified() {
         return modifiedTime;
+    }
+
+    @Override
+    public boolean isFile() {
+        return this.isFile;
     }
 }

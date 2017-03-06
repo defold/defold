@@ -408,29 +408,6 @@ namespace dmScript
      */
     bool ModuleLoaded(HContext context, dmhash_t path_hash);
 
-    /**
-     * Retrieve current instance from the global table and place it on the top of the stack, only valid when set.
-     * @param lua state
-     */
-    void GetInstance(lua_State* L);
-    /**
-     * Set the value on the top of the stack as the instance into the global table and pops it from the stack.
-     * @param lua state
-     */
-    void SetInstance(lua_State* L);
-    /**
-     * Check if the instance in the lua state is valid. The instance is assumed to have been previously set by SetInstance.
-     * @param lua state
-     * @return whether the instance is valid
-     */
-    bool IsInstanceValid(lua_State* L);
-
-    /**
-     * Retrieve the main thread lua state from any lua state (main thread or coroutine).
-     * @param lua state
-     * @return the main thread lua state
-     */
-    lua_State* GetMainThread(lua_State* L);
 
     /**
      * Check if the object at the given index is of the specified user type.

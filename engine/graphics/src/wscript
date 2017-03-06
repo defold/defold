@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import os, sys
+from waf_dynamo import dmsdk_add_files
 
 def set_options(opt):
     pass
@@ -39,7 +40,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
 
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/graphics', 'dmsdk/graphics/graphics_native.h')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/bin', 'texc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')

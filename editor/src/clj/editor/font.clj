@@ -298,10 +298,11 @@
    :content (protobuf/map->str Font$FontDesc pb-msg)})
 
 (g/defnk produce-font-map [_node-id font pb-msg]
-  (let [project (project/get-project _node-id)
-        workspace (project/workspace project)
-        resolver (partial workspace/resolve-workspace-resource workspace)]
-    (font-gen/generate pb-msg font resolver)))
+  (or (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font "Font")
+      (let [project (project/get-project _node-id)
+            workspace (project/workspace project)
+            resolver (partial workspace/resolve-workspace-resource workspace)]
+        (font-gen/generate pb-msg font resolver))))
 
 (defn- build-font [self basis resource dep-resources user-data]
   (let [project (project/get-project self)

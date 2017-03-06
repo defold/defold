@@ -1,0 +1,6 @@
+font: "/builtins/fonts/vera_mo_bd.ttf"
+material: "/builtins/fonts/font-df.material"
+size: 34
+shadow_alpha: 1.0
+shadow_blur: 2
+output_format: TYPE_DISTANCE_FIELD

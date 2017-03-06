@@ -345,7 +345,6 @@
    [:scene :child-scenes]
    [:node-msgs :node-msgs]
    [:node-rt-msgs :node-rt-msgs]
-   [:node-ids :node-ids]
    [:node-overrides :node-overrides]
    [:build-errors :build-errors]
    [:template-build-targets :template-build-targets]])
@@ -553,18 +552,23 @@
   (input gpu-texture g/Any)
 
   (output aabb-size g/Any (gu/passthrough size))
-  (output aabb g/Any :cached (g/fnk [pivot aabb-size]
+  (output aabb g/Any :cached (g/fnk [pivot aabb-size transform scene-children]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
                                           [min-x min-y _] (offset-fn [0 0 0])
-                                          [max-x max-y _] (offset-fn aabb-size)]
-                                      (-> (geom/null-aabb)
-                                        (geom/aabb-incorporate min-x min-y 0)
-                                        (geom/aabb-incorporate max-x max-y 0)))))
+                                          [max-x max-y _] (offset-fn aabb-size)
+                                          self-aabb (-> (geom/null-aabb)
+                                                        (geom/aabb-incorporate min-x min-y 0)
+                                                        (geom/aabb-incorporate max-x max-y 0)
+                                                        (geom/aabb-transform transform))]
+                                      (transduce (comp (keep :aabb)
+                                                       (map #(geom/aabb-transform % transform)))
+                                                 geom/aabb-union self-aabb scene-children))))
   (output scene-renderable-user-data g/Any :abstract)
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data]
+          (g/fnk [_node-id layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data aabb]
             (let [gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))]
               {:render-fn render-nodes
+               :aabb aabb
                :passes [pass/transparent pass/selection pass/outline]
                :user-data (assoc scene-renderable-user-data
                                  :gpu-texture gpu-texture
@@ -866,7 +870,7 @@
                                                               (:tx-data override)
                                                               (for [[from to] [[:node-ids :node-ids]
                                                                                [:node-outline :template-outline]
-                                                                               [:scene :template-scene]
+                                                                               [:template-scene :template-scene]
                                                                                [:build-targets :template-build-targets]
                                                                                [:resource :template-resource]
                                                                                [:pb-msg :scene-pb-msg]
@@ -929,7 +933,8 @@
                                                                     (filter (fn [[_ v]] (contains? v :original-value))
                                                                             (:properties _properties))))}
                                                 (merge template-overrides))))
-  (output aabb g/Any (g/fnk [template-scene] (:aabb template-scene (geom/null-aabb))))
+  (output aabb g/Any (g/fnk [template-scene transform]
+                       (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
   (output scene-children g/Any (g/fnk [template-scene] (:children template-scene [])))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
@@ -1008,9 +1013,9 @@
           (not= :clipping-mode-none clipping-mode)
           (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
   (output node-rt-msgs g/Any :cached
-    (g/fnk [node-msgs spine-scene-structure adjust-mode spine-skin-ids]
+    (g/fnk [node-msgs node-rt-msgs spine-scene-structure adjust-mode spine-skin-ids]
       (let [pb-msg (first node-msgs)
-            rt-pb-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))]
+            rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])
             gui-node-id (:id pb-msg)
             bones (tree-seq :children :children (:skeleton spine-scene-structure))
             child-to-parent (reduce (fn [m b] (into m (map (fn [c] [(:name c) b]) (:children b)))) {} bones)
@@ -1056,7 +1061,10 @@
                                                 [:anim-ids :anim-ids]
                                                 [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
-                                  (prop-resource-error _node-id :texture texture "Texture"))))
+                                  (prop-resource-error _node-id :texture texture "Texture")))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["atlas" "tilesource"]})))
 
   (input texture-resource resource/Resource)
   (input image BufferedImage)
@@ -1101,7 +1109,10 @@
                     [:material-shader :font-shader]
                     [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id font]
-                                  (prop-resource-error _node-id :font font "Font"))))
+                                  (prop-resource-error _node-id :font font "Font")))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["font"]})))
 
   (input font-resource resource/Resource)
   (input font-map g/Any)
@@ -1150,7 +1161,10 @@
                      [:scene :spine-scene-scene]
                      [:scene-structure :spine-scene-structure])))
             (dynamic error (g/fnk [_node-id spine-scene]
-                                  (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
+                                  (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["spinescene"]})))
 
   (input spine-scene-resource resource/Resource)
   (input spine-anim-ids g/Any)
@@ -1477,7 +1491,10 @@
             [:samplers :samplers]
             [:build-targets :dep-build-targets])))
     (dynamic error (g/fnk [_node-id material]
-                          (prop-resource-error _node-id :material material "Material"))))
+                          (prop-resource-error _node-id :material material "Material")))
+    (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["material"]})))
 
   (property adjust-reference g/Keyword (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/constantly false)))
@@ -1574,6 +1591,8 @@
   (output child-scenes g/Any :cached (g/fnk [default-scene layout-scenes current-layout]
                                             [(get layout-scenes current-layout default-scene)]))
   (output scene g/Any :cached produce-scene)
+  (output template-scene g/Any :cached (g/fnk [scene child-scenes]
+                                         (assoc scene :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes)))))
   (output scene-dims g/Any :cached (g/fnk [project-settings current-layout display-profiles]
                                           (or (some #(and (= current-layout (:name %)) (first (:qualifiers %))) display-profiles)
                                               (let [w (get project-settings ["display" "width"])
@@ -1854,12 +1873,11 @@
                                                                                   (comp tmpl-children first)
                                                                                   [r nil]))))])
                                          tmpl-roots))
-        template-resources (map (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
-        texture-resources  (map (comp resolve-fn :texture) (:textures scene))
+        template-resources (keep (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
+        texture-resources  (keep (comp resolve-fn :texture) (:textures scene))
         scene-load-data  (project/load-resource-nodes (g/now) project
                                                       (->> (concat template-resources texture-resources)
-                                                           (map #(project/get-resource-node project %))
-                                                           (remove nil?))
+                                                           (keep #(project/get-resource-node project %)))
                                                       progress/null-render-progress!)]
     (concat
       scene-load-data
@@ -1891,10 +1909,13 @@
                     (g/connect textures-node :node-outline self :child-outlines)
                     (for [texture-desc (:textures scene)]
                       (let [resource (workspace/resolve-resource resource (:texture texture-desc))
-                            type (resource/resource-type resource)
-                            outputs (g/output-labels (:node-type type))]
+                            outputs (some-> resource
+                                            resource/resource-type
+                                            :node-type
+                                            g/output-labels)]
                         ;; Messy because we need to deal with legacy standalone image files
-                        (if (outputs :anim-data)
+                        (if (or (nil? resource) ;; i.e. :texture field not set
+                                (outputs :anim-data))
                           ;; TODO: have no tests for this
                           (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
                                         (attach-texture self textures-node texture))
