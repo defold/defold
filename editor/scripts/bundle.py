@@ -184,6 +184,7 @@ def bundle(platform, jar_file, options):
     if is_mac:
         shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
         shutil.copy('bundle-resources/dmg_ds_store', '%s/.DS_Store' % dmg_dir)
+        shutil.copytree('bundle-resources/dmg_background', '%s/.background' % dmg_dir)
         exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
     if icon:
         shutil.copy('bundle-resources/%s' % icon, resources_dir)
