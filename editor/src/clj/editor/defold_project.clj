@@ -9,7 +9,6 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -329,6 +328,9 @@
                   :children (vec (remove nil? [{:label "Build"
                                                 :acc "Shortcut+B"
                                                 :command :build}
+                                               {:label "Build HTML5"
+                                                :acc "Shortcut+Shift+B"
+                                                :command :build-html5}
                                                (when system/fake-it-til-you-make-it?
                                                  {:label "Bundle"
                                                   :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
@@ -559,7 +561,7 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-save-project [project build-options]
+(defn build-and-save-project [project prefs build-options]
   (when-not @ongoing-build-save-atom
     (reset! ongoing-build-save-atom true)
     (let [game-project  (get-resource-node project "/game.project")

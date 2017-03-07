@@ -1,5 +1,6 @@
 (ns util.http-server
-  (:import [java.io IOException OutputStream ByteArrayOutputStream]
+  (:require [clojure.java.io :as io])
+  (:import [java.io IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
            [java.net InetSocketAddress]
            [org.apache.commons.io IOUtils]
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]))
@@ -17,20 +18,20 @@
 (defn- response->exchange! [response ^HttpExchange e]
   (let [code       (:code response 200)
         body       (:body response)
-        body-bytes (if (string? body)
-                     (.getBytes ^String (:body response "") "UTF-8")
-                     body)
-        length     (if body
-                     (count body)
-                     -1)
-        headers    (.getResponseHeaders e)]
-    (doseq [[key value] (:headers response {})]
+        headers    (.getResponseHeaders e)
+        in-headers (:headers response {})
+        length     (if-let [content-length (get in-headers "Content-Length")]
+                     (Long/parseLong content-length)
+                     0)]
+    (doseq [[key value] in-headers]
       (.add headers key value))
     (.sendResponseHeaders e code length)
     (when body
-      (let [out (.getResponseBody e)]
-        (.write out ^bytes body-bytes)
-        (.close out)))
+      (with-open [out (BufferedOutputStream. (.getResponseBody e))
+                  in (io/input-stream (if (string? body)
+                                        (.getBytes ^String (:body response "") "UTF-8")
+                                        body))]
+        (IOUtils/copy in out)))
     (.close e)))
 
 (defn ->server [port handlers]
