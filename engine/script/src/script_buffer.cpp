@@ -22,13 +22,75 @@ namespace dmScript
      * @namespace buffer
      */
 
+    /*# uint8
+     * Unsigned integer, 1 byte
+     * @name buffer.VALUE_TYPE_UINT8
+     * @variable
+    */
+    /*# uint16
+     * Unsigned integer, 2 bytes
+     * @name buffer.VALUE_TYPE_UINT16
+     * @variable
+    */
+    /*# uint32
+     * Unsigned integer, 4 bytes
+     * @name buffer.VALUE_TYPE_UINT32
+     * @variable
+    */
+    /*# uint64
+     * Unsigned integer, 8 bytes
+     * @name buffer.VALUE_TYPE_UINT64
+     * @variable
+    */
+    /*# int8
+     * Signed integer, 1 byte
+     * @name buffer.VALUE_TYPE_INT8
+     * @variable
+    */
+    /*# int16
+     * Signed integer, 2 bytes
+     * @name buffer.VALUE_TYPE_INT16
+     * @variable
+    */
+    /*# int32
+     * Signed integer, 4 bytes
+     * @name buffer.VALUE_TYPE_INT32
+     * @variable
+    */
+    /*# int64
+     * Signed integer, 8 bytes
+     * @name buffer.VALUE_TYPE_INT64
+     * @variable
+    */
+    /*# float32
+     * Float, single precision, 4 bytes
+     * @name buffer.VALUE_TYPE_FLOAT32
+     * @variable
+    */
+    /*# int64
+     * Float, double precision, 8 bytes
+     * @name buffer.VALUE_TYPE_FLOAT64
+     * @variable
+    */
+
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
+#define SCRIPT_TYPE_NAME_BUFFERSTREAM "bufferstream"
 
-    // Used for unspecified buffers
-    static uint64_t g_BufferStreamName = dmHashString64("data");
+    // The stream concept as a struct, only exists here in the Lua world
+    struct BufferStream
+    {
+        dmBuffer::HBuffer   m_Buffer;
+        dmhash_t            m_Name;     // The stream name
+        void*               m_Data;
+        uint32_t            m_DataSize;
+        uint32_t            m_Count;    // bytes / sizeof(type)
+        uint32_t            m_TypeCount;// number of values that make up an "element". E.g. 3 in a Vec3
+        dmBuffer::ValueType m_Type;
+        int                 m_BufferRef; // Holds a reference to the Lua object
+    };
 
-    bool IsBuffer(lua_State *L, int index)
+    static bool IsBufferType(lua_State *L, int index, const char* type_name)
     {
         int top = lua_gettop(L);
         void *p = lua_touserdata(L, index);
@@ -37,7 +99,7 @@ namespace dmScript
         {  /* value is a userdata? */
             if (lua_getmetatable(L, index))
             {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_BUFFER);  /* get correct metatable */
+                lua_getfield(L, LUA_REGISTRYINDEX, type_name);  /* get correct metatable */
                 if (lua_rawequal(L, -1, -2))
                 {  /* does it have the correct mt? */
                     result = true;
@@ -47,6 +109,11 @@ namespace dmScript
         }
         assert(top == lua_gettop(L));
         return result;
+    }
+
+    bool IsBuffer(lua_State *L, int index)
+    {
+        return IsBufferType(L, index, SCRIPT_TYPE_NAME_BUFFER);
     }
 
     void PushBuffer(lua_State* L, dmBuffer::HBuffer v)
@@ -69,64 +136,442 @@ namespace dmScript
         return 0x0;
     }
 
-    /*# Creates a buffer from a string
-     *
-     * @name buffer.create_from_string
-     * @param data [type:string] the sprite that should flip its animations
-     * @examples
-     *
-     * How to update a texture of a sprite
-     *
-     * ```lua
-     * function init(self)
-     *   local size = 128
-     *   local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
-     *   local pixels = string.rep(orange, size * size * 3)
-     *   local image_buffer = buffer.create_from_string(pixels)
-     *   
-     *   local resource_path = go.get("#sprite", "texture0")
-     *   local header = { width=size, height=size, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
-     *   resource.set_texture( resource_path, header, image_buffer )
-     * end
-     * ```
-     */
-    static int CreateFromString(lua_State* L)
+    static bool IsStream(lua_State *L, int index)
     {
+        return IsBufferType(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+    }
+
+    static int PushStream(lua_State* L, int bufferindex, dmBuffer::HBuffer buffer, dmhash_t stream_name)
+    {
+        dmBuffer::ValueType type;
+        uint32_t typecount;
+        dmBuffer::Result r = dmBuffer::GetStreamType(buffer, stream_name, &type, &typecount);
+        if( r != dmBuffer::RESULT_OK )
+        {
+            return luaL_error(L, "Failed to get stream type: %s", dmBuffer::GetResultString(r));
+        }
+
+        void** data;
+        uint32_t datasize;
+        r = dmBuffer::GetStream(buffer, stream_name, (void**)&data, &datasize);
+        if( r != dmBuffer::RESULT_OK )
+        {
+            return luaL_error(L, "Failed to get stream bytes: %s", dmBuffer::GetResultString(r));
+        }
+
         int top = lua_gettop(L);
+        BufferStream* p = (BufferStream*)lua_newuserdata(L, sizeof(BufferStream));
+        p->m_Buffer = buffer;
+        p->m_Name = stream_name;
+        p->m_Data = data;
+        p->m_DataSize = datasize;
+        p->m_Type = type;
+        p->m_TypeCount = typecount;
+        p->m_Count = datasize / dmBuffer::GetSizeForValueType(type);
 
-        if (lua_type(L, 1) != LUA_TSTRING)
-        {
-            return luaL_typerror(L, 1, "string");
-        }
+        // Push the Lua object and increase its ref count
+        lua_pushvalue(L, bufferindex);
+        p->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-        size_t length = 0;
-        const uint8_t* indata = (const uint8_t*)luaL_checklstring(L, 1, &length);
-        if (!indata || length == 0)
-        {
-            lua_pushnil(L);
-            assert(top + 1 == lua_gettop(L));
-        }
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        lua_setmetatable(L, -2);
 
-        dmBuffer::HBuffer buffer = 0;
-        dmBuffer::StreamDeclaration streams_decl[] = {
-            {g_BufferStreamName, dmBuffer::VALUE_TYPE_UINT8, 1}
-        };
-        dmBuffer::Allocate((uint32_t)length, streams_decl, 1, &buffer);
-
-        uint8_t* outdata = 0;
-        uint32_t outdatasize = 0;
-        dmBuffer::GetBytes(buffer, (void**)&outdata, &outdatasize);
-
-        memcpy(outdata, indata, length);
-
-        PushBuffer(L, buffer);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
+    static BufferStream* CheckStream(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TUSERDATA)
+        {
+            return (BufferStream*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        }
+        luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        return 0x0;
+    }
+
+    ////////////////////////////////////////////////////////
+    // Buffer Module
+
+    static int ParseStreamDeclaration(lua_State* L, int index, dmBuffer::StreamDeclaration* decl, int current_decl)
+    {
+        if( !lua_istable(L, index) )
+        {
+            free(decl);
+            return luaL_error(L, "buffer.create: Expected table, got %s", lua_typename(L, lua_type(L, index)));
+        }
+
+        lua_pushvalue(L, index);
+
+        lua_pushnil(L);
+        while (lua_next(L, -2) != 0)
+        {
+            if( lua_type(L, -2) != LUA_TSTRING )
+            {
+                free(decl);
+                return luaL_error(L, "buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
+            }
+
+            const char* key = lua_tostring(L, -2);
+            if( strcmp(key, "name") == 0)
+            {
+                decl[current_decl].m_Name = dmScript::CheckHashOrString(L, -1);
+            }
+            else if( strcmp(key, "type") == 0)
+            {
+                decl[current_decl].m_ValueType = (dmBuffer::ValueType) luaL_checkint(L, -1);
+            }
+            else if( strcmp(key, "count") == 0)
+            {
+                decl[current_decl].m_ValueCount = (uint32_t) luaL_checkint(L, -1);
+            } else
+            {
+                free(decl);
+                return luaL_error(L, "buffer.create: Unknown index name: %s", key);
+            }
+
+            lua_pop(L, 1);
+        }
+
+        lua_pop(L, 1);
+        return 0;
+    }
+
+    /*# Creates a buffer
+     *
+     * @name buffer.create
+     * @param element_count [type:number] The number of elements the buffer should hold
+     * @param declaration [type:table] A table where each entry (table) describes a stream
+     *
+     * - [type:dmhash_t|string] `name`: The name of the stream
+     * - [type:constant] `type`: The data type of the stream
+     * - [type:number] `count`: The number of values each element should hold
+     * 
+     * @examples
+     * How to create and initialize a buffer
+     * 
+     * ```lua
+     * function init(self)
+     *   local size = 128
+     *   self.image = buffer.create( size * size, { {name=hash("rgb"), type=buffer.VALUE_TYPE_UINT8, count=3 } })
+     *   self.imagestream = buffer.get_stream(self.image, hash("rgb"))
+     *
+     *   for y=0,self.height-1 do
+     *      for x=0,self.width-1 do
+     *          local index = y * self.width * 3 + x * 3 + 1
+     *          self.stream[index + 0] = self.r
+     *          self.stream[index + 1] = self.g
+     *          self.stream[index + 2] = self.b
+     *      end
+     *   end
+     * ```
+     */
+    static int Create(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        int num_elements = luaL_checkint(L, 1);
+        if( num_elements < 1 )
+        {
+            return luaL_error(L, "buffer.create: Number of elements must be positive: %d", num_elements);
+        }
+        if( !lua_istable(L, 2) )
+        {
+            return luaL_error(L, "buffer.create: Second argument must be a table");
+        }
+
+        int num_decl = lua_objlen(L, 2);
+        if( num_decl < 1 )
+        {
+            return luaL_error(L, "buffer.create: You must specify at least one stream declaration");
+        }
+
+        dmBuffer::StreamDeclaration* decl = (dmBuffer::StreamDeclaration*)malloc(num_decl * sizeof(dmBuffer::StreamDeclaration));
+
+        uint32_t count = 0;
+        lua_pushvalue(L, 2);
+
+        lua_pushnil(L);
+        while (lua_next(L, -2) != 0)
+        {
+            ParseStreamDeclaration(L, -1, decl, count);
+            count++;
+
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+
+        dmBuffer::HBuffer buffer = 0;
+        dmBuffer::Result r = dmBuffer::Allocate((uint32_t)num_elements, decl, num_decl, &buffer);
+
+        free(decl);
+
+        if( r != dmBuffer::RESULT_OK )
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
+        }
+
+        PushBuffer(L, buffer);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*#
+     * Gets a stream from a buffer
+     *
+     * @name buffer.get_stream
+     * @param buffer [type:buffer]
+     * @param stream_name [type:hash|string]
+     * @return stream [type:bufferstream] Returns the stream
+    */
+    static int GetStream(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 1);
+        dmhash_t stream_name = dmScript::CheckHashOrString(L, 2);
+        PushStream(L, 1, *buffer, stream_name);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*#
+     * Copies data from one stream to another.
+     *
+     * Some notes:
+     *
+     * - The value type must match in both streams
+     *
+     * - The source and destination streams can be the same.
+     *
+     * @name buffer.copy_stream
+     * @param dst       [type:bufferstream] The destination stream
+     * @param dstoffset [type:number] The offset to start copying data to
+     * @param src       [type:bufferstream] The input data
+     * @param srcoffset [type:number] The offset to start copying data from
+     * @param count     [type:number] The number of values to copy
+     *
+     * @examples
+     * How to update a texture of a sprite
+     *
+     * ```lua
+     * -- copy entire stream
+     * local srcstream = buffer.get_stream(srcbuffer, hash("luminance"))
+     * local dststream = buffer.get_stream(dstbuffer, hash("a"))
+     * buffer.copy(dststream, 0, srcstream, 0, #srcstream)
+     * ```
+    */
+    static int CopyStream(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        BufferStream* dststream = dmScript::CheckStream(L, 1);
+        int dstoffset = luaL_checkint(L, 2);
+
+        BufferStream* srcstream = 0;
+        if( dmScript::IsStream(L, 3) )
+        {
+            srcstream = dmScript::CheckStream(L, 3);
+        }
+        else
+        {
+            return luaL_typerror(L, 3, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        }
+
+        int srcoffset = luaL_checkint(L, 4);
+        int count = luaL_checkint(L, 5);
+
+        if(srcstream)
+        {
+            if( dststream->m_Type != srcstream->m_Type )
+            {
+                luaL_error(L, "The types of the streams differ. Expected 'buffer.%s', got 'buffer.%s'",
+                                        dmBuffer::GetValueTypeString(dststream->m_Type), dmBuffer::GetValueTypeString(srcstream->m_Type) );
+            }
+
+            // Check overruns
+            uint32_t valuesize = dmBuffer::GetSizeForValueType(dststream->m_Type);
+            uint32_t bytes_to_copy      = valuesize * count;
+            uint32_t dstoffset_in_bytes = dstoffset * valuesize;
+            uint32_t srcoffset_in_bytes = srcoffset * valuesize;
+
+            if( (dstoffset_in_bytes + bytes_to_copy) > dststream->m_DataSize )
+            {
+                luaL_error(L, "Trying to write too many values: Stream length: %d, Offset: %d, Values to copy: %d",
+                        dststream->m_DataSize/valuesize, dstoffset, count);
+            }
+            if( (srcoffset_in_bytes + bytes_to_copy) > srcstream->m_DataSize )
+            {
+                luaL_error(L, "Trying to read too many values: Stream length: %d, Offset: %d, Values to copy: %d",
+                        srcstream->m_DataSize/valuesize, srcoffset, count);
+            }
+
+            memmove( ((uint8_t*)dststream->m_Data) + dstoffset_in_bytes, ((uint8_t*)srcstream->m_Data) + srcoffset_in_bytes, bytes_to_copy);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*#
+     * Copies data from one buffer to another, element wise (e.g. vertices)
+     * Each of the source streams must exist in the destination buffer.
+     * Each stream is matched with both type and type count.
+     *
+     * Some notes
+     *
+     * - The source and destination buffer can be the same.
+     *
+     * @name buffer.copy_buffer
+     * @param dst       [type:buffer] The destination stream
+     * @param dstoffset [type:number] The offset to start copying data to
+     * @param src       [type:buffer] The input data
+     * @param srcoffset [type:number] The offset to start copying data from
+     * @param count     [type:number] The number of elements to copy
+     *
+     * @examples
+     * How to copy elements (e.g. vertices) from one buffer to another
+     *
+     * ```lua
+     * -- copy entire buffer
+     * buffer.copy(dstbuffer, 0, srcbuffer, 0, #srcbuffer)
+     *
+     * -- copy last 10 elements to the front of another buffer
+     * buffer.copy(dstbuffer, 0, srcbuffer, #srcbuffer - 10, 10)
+     * ```
+    */
+    static int CopyBuffer(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmBuffer::HBuffer* dstbuffer = dmScript::CheckBuffer(L, 1);
+        dmBuffer::HBuffer* srcbuffer = dmScript::CheckBuffer(L, 3);
+        int dstoffset = luaL_checkint(L, 2);
+        int srcoffset = luaL_checkint(L, 4);
+        int count = luaL_checkint(L, 5);
+
+        // Validate first
+        dmBuffer::Result r;
+        uint32_t dstcount;
+        uint32_t srccount;
+        dmBuffer::GetElementCount(*dstbuffer, &dstcount);
+        dmBuffer::GetElementCount(*srcbuffer, &srccount);
+        if( (dstoffset + count) > dstcount )
+        {
+            return luaL_error(L, "Trying to write too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
+        }
+        if( (srcoffset + count) > srccount )
+        {
+            return luaL_error(L, "Trying to read too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
+        }
+
+        // Validate that target buffer has those stream names
+        uint32_t num_streams = dmBuffer::GetNumStreams(*srcbuffer);
+
+        // Simple optimisation: Reusing this struct to hold some data between the validation step and the actual copy step
+        BufferStream* stream_info = (BufferStream*)alloca( num_streams * 2 * sizeof(BufferStream) );
+
+        for( uint32_t i = 0; i < num_streams; ++i )
+        {
+            BufferStream* dststream = &stream_info[i*2 + 0];
+            BufferStream* srcstream = &stream_info[i*2 + 1];
+
+            dmBuffer::GetStreamName(*srcbuffer, i, &srcstream->m_Name);
+            dmhash_t stream_name = srcstream->m_Name;
+
+            r = dmBuffer::GetStream(*dstbuffer, stream_name, (void**)&dststream->m_Data, &dststream->m_DataSize);
+            if( r == dmBuffer::RESULT_STREAM_MISSING )
+            {
+                assert(top == lua_gettop(L));
+                const char* name = (const char*)dmHashReverse64(stream_name, 0);
+                return luaL_error(L, "buffer.copy_buffer: Destination buffer has no stream named: %llu  %s", stream_name, name?name:"");
+            }
+            else if( r != dmBuffer::RESULT_OK )
+            {
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "buffer.copy_buffer: Failed getting destination byte array: %s", dmBuffer::GetResultString(r));
+            }
+
+            dmBuffer::GetStream(*srcbuffer,  stream_name, (void**)&srcstream->m_Data, &srcstream->m_DataSize);
+            GetStreamType(*dstbuffer, stream_name, &dststream->m_Type, &dststream->m_TypeCount);
+            GetStreamType(*srcbuffer, stream_name, &srcstream->m_Type, &srcstream->m_TypeCount);
+
+            if( dststream->m_Type != srcstream->m_Type )
+            {
+                assert(top == lua_gettop(L));
+                const char* name = (const char*)dmHashReverse64(stream_name, 0);
+                return luaL_error(L, "buffer.copy_buffer: The streams (%llu %s) have mismatching types: %s != %s", stream_name, name?name:"", dmBuffer::GetValueTypeString(dststream->m_Type), dmBuffer::GetValueTypeString(srcstream->m_Type));
+            }
+
+            if( dststream->m_TypeCount != srcstream->m_TypeCount )
+            {
+                assert(top == lua_gettop(L));
+                const char* name = (const char*)dmHashReverse64(stream_name, 0);
+                return luaL_error(L, "buffer.copy_buffer: The streams (%llu %s) have mismatching type count: %d != %d", stream_name, name?name:"", dststream->m_TypeCount, srcstream->m_TypeCount);
+            }
+        }
+
+        // Now, do the copy
+        for( uint32_t i = 0; i < num_streams; ++i )
+        {
+            BufferStream* dststream = &stream_info[i*2 + 0];
+            BufferStream* srcstream = &stream_info[i*2 + 1];
+
+            uint32_t valuesize = dmBuffer::GetSizeForValueType(dststream->m_Type) * dststream->m_TypeCount;
+            uint32_t bytes_to_copy      = valuesize * count;
+            uint32_t dstoffset_in_bytes = dstoffset * valuesize;
+            uint32_t srcoffset_in_bytes = srcoffset * valuesize;
+
+            memmove( ((uint8_t*)dststream->m_Data) + dstoffset_in_bytes, ((uint8_t*)srcstream->m_Data) + srcoffset_in_bytes, bytes_to_copy);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+
+    /*#
+     * Copies data from one stream to another.
+     *
+     * Some notes:
+     *
+     * - The value type must match in both streams
+     *
+     * - The source and destination streams can be the same.
+     *
+     * @name buffer.get_bytes
+     * @param buffer        [type:buffer] The source buffer
+     * @param stream_name   [type:hash] The name of the stream
+     * @return string       [type:string] The buffer as a Lua string
+    */
+    static int GetBytes(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 1);
+        dmhash_t stream_name = dmScript::CheckHashOrString(L, -1);
+
+        uint8_t* data;
+        uint32_t datasize;
+        dmBuffer::Result r = dmBuffer::GetStream(*buffer, stream_name, (void**)&data, &datasize);
+        if( r != dmBuffer::RESULT_OK )
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
+        }
+
+        lua_pushlstring(L, (const char*)data, datasize);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    //////////////////////////////////////////////////////////////////
+    // BUFFER
+
     static int Buffer_gc(lua_State *L)
     {
         dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
+        printf("FREE BUFFER\n");
         dmBuffer::Free(*buffer);
         *buffer = 0x0;
         return 0;
@@ -136,13 +581,45 @@ namespace dmScript
     {
         int top = lua_gettop(L);
         dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
+
+        uint32_t num_streams = dmBuffer::GetNumStreams(*buffer);
+
         uint32_t out_element_count = 0;
         dmBuffer::Result r = dmBuffer::GetElementCount(*buffer, &out_element_count);
-        if (r == dmBuffer::RESULT_OK) {
-            lua_pushfstring(L, "buffer.%s(elements=%d)", SCRIPT_TYPE_NAME_BUFFER, out_element_count);
-        } else {
+        if( r != dmBuffer::RESULT_OK )
+        {
+            assert(top + 1 == lua_gettop(L));
             lua_pushfstring(L, "buffer.%s(invalid)", SCRIPT_TYPE_NAME_BUFFER);
+            return 1;
         }
+
+        char buf[128];
+        uint32_t maxlen = 64 + num_streams * sizeof(buf);
+        char* s = (char*)malloc( maxlen );
+        *s = 0;
+        DM_SNPRINTF(buf, sizeof(buf), "buffer.%s(count = %d, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count);
+        dmStrlCat(s, buf, maxlen);
+
+        for( uint32_t i = 0; i < num_streams; ++i )
+        {
+            dmhash_t stream_name = 0;
+            dmBuffer::GetStreamName(*buffer, i, &stream_name);
+
+            const char* string_name = (const char*)dmHashReverse64(stream_name, 0);
+
+            dmBuffer::ValueType type;
+            uint32_t type_count = 0;
+            GetStreamType(*buffer, stream_name, &type, &type_count);
+
+            const char* comma = i<(num_streams-1)?", ":"";
+            const char* typestring = dmBuffer::GetValueTypeString(type);
+            DM_SNPRINTF(buf, sizeof(buf), "{ hash(\"%s\"), buffer.%s, %d }%s", string_name?string_name:"null", typestring, type_count, comma );
+            dmStrlCat(s, buf, maxlen);
+        }
+        dmStrlCat(s, ")", maxlen);
+
+        lua_pushstring(L, s);
+
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -162,7 +639,7 @@ namespace dmScript
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
-
+    
     static const luaL_reg Buffer_methods[] =
     {
         {0,0}
@@ -175,9 +652,149 @@ namespace dmScript
         {0,0}
     };
 
+
+    //////////////////////////////////////////////////////////////////
+    // STREAM
+    
+    static int Stream_gc(lua_State* L)
+    {
+        BufferStream* stream = CheckStream(L, 1);
+        // decrease ref to buffer
+
+        //dmBuffer::DecRef(stream->m_Buffer);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, stream->m_BufferRef);
+        printf("FREE STREAM\n");
+        return 0;
+    }
+
+    static int Stream_tostring(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        BufferStream* stream = CheckStream(L, 1);
+        const char* string_name = (const char*)dmHashReverse64(stream->m_Name, 0);
+        dmBuffer::ValueType type;
+        uint32_t type_count;
+        dmBuffer::Result r = GetStreamType(stream->m_Buffer, stream->m_Name, &type, &type_count);
+        if( r == dmBuffer::RESULT_OK )
+            lua_pushfstring(L, "%s.%s({ hash(\"%s\"), buffer.%s, %d })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, string_name?string_name:"null", dmBuffer::GetValueTypeString(type), type_count );
+        else
+            lua_pushfstring(L, "%s.%s({ hash(\"%s\"), unknown, unknown })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, string_name?string_name:"null" );
+        return 1;
+    }
+
+    static int Stream_len(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        BufferStream* stream = CheckStream(L, 1);
+        lua_pushnumber(L, stream->m_Count);
+        return 1;
+    }
+
+    static lua_Number GetStreamValue(BufferStream* stream, int index)
+    {
+        switch(stream->m_Type)
+        {
+        case dmBuffer::VALUE_TYPE_UINT8:    return ((uint8_t*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_UINT16:   return ((uint16_t*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_UINT32:   return ((uint32_t*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_UINT64:   return ((uint64_t*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_INT8:     return ((int8_t*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_INT16:    return ((int16_t*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_INT32:    return ((int32_t*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_INT64:    return ((int64_t*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_FLOAT32:  return ((float*)stream->m_Data)[index];
+        case dmBuffer::VALUE_TYPE_FLOAT64:  return ((double*)stream->m_Data)[index];
+        default:
+            assert(false && "buffer.stream has unknown data type");
+            break;
+        }
+        return 0;
+    }
+
+
+    static void SetStreamValue(BufferStream* stream, int index, lua_Number v)
+    {
+        switch(stream->m_Type)
+        {
+        case dmBuffer::VALUE_TYPE_UINT8:    ((uint8_t*)stream->m_Data)[index] = (uint8_t)v; break;
+        case dmBuffer::VALUE_TYPE_UINT16:   ((uint16_t*)stream->m_Data)[index] = (uint16_t)v; break;
+        case dmBuffer::VALUE_TYPE_UINT32:   ((uint32_t*)stream->m_Data)[index] = (uint32_t)v; break;
+        case dmBuffer::VALUE_TYPE_UINT64:   ((uint64_t*)stream->m_Data)[index] = (uint64_t)v; break;
+        case dmBuffer::VALUE_TYPE_INT8:     ((int8_t*)stream->m_Data)[index] = (int8_t)v; break;
+        case dmBuffer::VALUE_TYPE_INT16:    ((int16_t*)stream->m_Data)[index] = (int16_t)v; break;
+        case dmBuffer::VALUE_TYPE_INT32:    ((int32_t*)stream->m_Data)[index] = (int32_t)v; break;
+        case dmBuffer::VALUE_TYPE_INT64:    ((int64_t*)stream->m_Data)[index] = (int64_t)v; break;
+        case dmBuffer::VALUE_TYPE_FLOAT32:  ((float*)stream->m_Data)[index] = (float)v; break;
+        case dmBuffer::VALUE_TYPE_FLOAT64:  ((double*)stream->m_Data)[index] = (double)v; break;
+        default:
+            assert(false && "buffer.stream has unknown data type");
+            break;
+        }
+    }
+
+    static int Stream_index(lua_State* L)
+    {
+        BufferStream* stream = CheckStream(L, 1);
+
+        int key = luaL_checkinteger(L, 2);
+        if (key > 0 && key <= stream->m_Count)
+        {
+            lua_pushnumber(L, GetStreamValue(stream, key - 1));
+            return 1;
+        }
+        else
+        {
+            if (stream->m_Count > 0)
+            {
+                return luaL_error(L, "%s.%s only has valid indices between 1 and %d.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, stream->m_Count);
+            }
+            return luaL_error(L, "%s.%s has no addressable indices, size is 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        }
+    }
+
+    static int Stream_newindex(lua_State* L)
+    {
+        BufferStream* stream = CheckStream(L, 1);
+
+        int key = luaL_checkinteger(L, 2);
+        if (key > 0 && key <= stream->m_Count)
+        {
+            SetStreamValue(stream, key - 1, luaL_checknumber(L, 3));
+        }
+        else
+        {
+            if (stream->m_Count > 0)
+            {
+                return luaL_error(L, "%s.%s only has valid indices between 1 and %d.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, stream->m_Count);
+            }
+            return luaL_error(L, "%s.%s has no addressable indices, size is 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        }
+        return 0;
+    }
+
+    static const luaL_reg Stream_methods[] =
+    {
+        {0,0}
+    };
+    static const luaL_reg Stream_meta[] =
+    {
+        {"__gc",        Stream_gc},
+        {"__tostring",  Stream_tostring},
+        {"__len",       Stream_len},
+        {"__index",     Stream_index},
+        {"__newindex",  Stream_newindex},
+        {0,0}
+    };
+
+    /////////////////////////////////////////////////////////////////////////////
+
     static const luaL_reg Module_methods[] =
     {
-        {"create_from_string", CreateFromString},
+        {"create", Create},
+        {"get_stream", GetStream},
+        {"get_bytes", GetBytes},
+        {"copy_stream", CopyStream},
+        {"copy_buffer", CopyBuffer},
         {0, 0}
     };
 
@@ -191,10 +808,11 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        const uint32_t type_count = 1;
+        const uint32_t type_count = 2;
         BufferTypeStruct types[type_count] =
         {
             {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta},
+            {SCRIPT_TYPE_NAME_BUFFERSTREAM, Stream_methods, Stream_meta},
         };
 
         for (uint32_t i = 0; i < type_count; ++i)
@@ -215,8 +833,25 @@ namespace dmScript
             lua_pop(L, 2);
         }
         luaL_register(L, SCRIPT_LIB_NAME, Module_methods);
-        lua_pop(L, 1);
 
+#define SETCONSTANT(name) \
+        lua_pushnumber(L, (lua_Number) dmBuffer::name); \
+        lua_setfield(L, -2, #name);\
+
+        SETCONSTANT(VALUE_TYPE_UINT8);
+        SETCONSTANT(VALUE_TYPE_UINT16);
+        SETCONSTANT(VALUE_TYPE_UINT32);
+        SETCONSTANT(VALUE_TYPE_UINT64);
+        SETCONSTANT(VALUE_TYPE_INT8);
+        SETCONSTANT(VALUE_TYPE_INT16);
+        SETCONSTANT(VALUE_TYPE_INT32);
+        SETCONSTANT(VALUE_TYPE_INT64);
+        SETCONSTANT(VALUE_TYPE_FLOAT32);
+        SETCONSTANT(VALUE_TYPE_FLOAT64);
+
+#undef SETCONSTANT
+
+        lua_pop(L, 1);
         assert(top == lua_gettop(L));
     }
 

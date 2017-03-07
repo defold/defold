@@ -1,6 +1,7 @@
-#include "buffer.h"
+#include <dmsdk/dlib/buffer.h>
 
 #include <dlib/memory.h>
+#include <dlib/math.h>
 
 #include <string.h>
 #include <assert.h>
@@ -20,49 +21,78 @@ namespace dmBuffer
     {
         struct Stream
         {
-            dmhash_t  m_Name;
-            uint32_t  m_Offset; // ~4gb addressable space
-            ValueType m_ValueType;
-            uint8_t   m_ValueCount;
+            dmhash_t    m_Name;
+            uint32_t    m_Offset; // ~4gb addressable space
+            uint8_t     m_ValueType;
+            uint8_t     m_ValueCount;
         };
 
-        uint8_t  m_NumStreams;
+        void*    m_Data; // All stream data, including guard bytes after each stream and 16 byte aligned.
         Stream*  m_Streams;
         uint32_t m_NumElements;
-        void*    m_Data; // All stream data, including guard bytes after each stream and 16 byte aligned.
+        uint16_t m_RefCount;
+        uint8_t  m_NumStreams;
     };
 
-    static uint32_t GetSizeForValueType(ValueType value_type)
+    uint32_t GetSizeForValueType(ValueType value_type)
     {
         switch (value_type) {
-            case VALUE_TYPE_UINT8:
-                return sizeof(uint8_t);
-            case VALUE_TYPE_UINT16:
-                return sizeof(uint16_t);
-            case VALUE_TYPE_UINT32:
-                return sizeof(uint32_t);
-            case VALUE_TYPE_UINT64:
-                return sizeof(uint64_t);
-
-            case VALUE_TYPE_INT8:
-                return sizeof(int8_t);
-            case VALUE_TYPE_INT16:
-                return sizeof(int16_t);
-            case VALUE_TYPE_INT32:
-                return sizeof(int32_t);
-            case VALUE_TYPE_INT64:
-                return sizeof(int64_t);
-
-            case VALUE_TYPE_FLOAT32:
-                return sizeof(float);
-            case VALUE_TYPE_FLOAT64:
-                return sizeof(double);
+            case VALUE_TYPE_UINT8:      return sizeof(uint8_t);
+            case VALUE_TYPE_UINT16:     return sizeof(uint16_t);
+            case VALUE_TYPE_UINT32:     return sizeof(uint32_t);
+            case VALUE_TYPE_UINT64:     return sizeof(uint64_t);
+            case VALUE_TYPE_INT8:       return sizeof(int8_t);
+            case VALUE_TYPE_INT16:      return sizeof(int16_t);
+            case VALUE_TYPE_INT32:      return sizeof(int32_t);
+            case VALUE_TYPE_INT64:      return sizeof(int64_t);
+            case VALUE_TYPE_FLOAT32:    return sizeof(float);
+            case VALUE_TYPE_FLOAT64:    return sizeof(double);
+            default:
+                break;
         }
 
         // Should never happen, need to implement all value types above.
         assert(0 && "Unknown value type!");
         return 0;
     }
+
+#define _TOSTRING(_NAME) case _NAME: return #_NAME;
+    const char* GetResultString(Result result)
+    {
+        switch(result)
+        {
+            _TOSTRING(RESULT_OK)
+            _TOSTRING(RESULT_GUARD_INVALID)
+            _TOSTRING(RESULT_ALLOCATION_ERROR)
+            _TOSTRING(RESULT_BUFFER_INVALID)
+            _TOSTRING(RESULT_BUFFER_SIZE_ERROR)
+            _TOSTRING(RESULT_STREAM_SIZE_ERROR)
+            _TOSTRING(RESULT_STREAM_MISSING)
+            _TOSTRING(RESULT_STREAM_TYPE_MISMATCH)
+            _TOSTRING(RESULT_STREAM_COUNT_MISMATCH)
+            default: return "buffer.cpp: Unknown result";
+        }
+
+    }
+
+    const char* GetValueTypeString(ValueType value)
+    {
+        switch(value)
+        {
+            _TOSTRING(VALUE_TYPE_UINT8)
+            _TOSTRING(VALUE_TYPE_UINT16)
+            _TOSTRING(VALUE_TYPE_UINT32)
+            _TOSTRING(VALUE_TYPE_UINT64)
+            _TOSTRING(VALUE_TYPE_INT8)
+            _TOSTRING(VALUE_TYPE_INT16)
+            _TOSTRING(VALUE_TYPE_INT32)
+            _TOSTRING(VALUE_TYPE_INT64)
+            _TOSTRING(VALUE_TYPE_FLOAT32)
+            _TOSTRING(VALUE_TYPE_FLOAT64)
+            default: return "buffer.cpp: Unknown value type";
+        }
+    }
+#undef _TOSTRING
 
     static void WriteGuard(void* ptr)
     {
@@ -72,7 +102,7 @@ namespace dmBuffer
     static bool ValidateStream(HBuffer buffer, const Buffer::Stream& stream)
     {
         const uintptr_t stream_buffer = (uintptr_t)buffer->m_Data + stream.m_Offset;
-        uint32_t stream_size = stream.m_ValueCount * buffer->m_NumElements * GetSizeForValueType(stream.m_ValueType);
+        uint32_t stream_size = stream.m_ValueCount * buffer->m_NumElements * GetSizeForValueType((dmBuffer::ValueType)stream.m_ValueType);
         return (memcmp((void*)(stream_buffer + stream_size), GUARD_VALUES, GUARD_SIZE) == 0);
     }
 
@@ -107,7 +137,7 @@ namespace dmBuffer
             stream.m_Offset     = ptr - data_start;
 
             // Write guard bytes after stream data
-            uint32_t stream_size = num_elements * decl.m_ValueCount * GetSizeForValueType(decl.m_ValueType);
+            uint32_t stream_size = num_elements * decl.m_ValueCount * GetSizeForValueType((dmBuffer::ValueType)decl.m_ValueType);
             ptr += stream_size;
             WriteGuard((void*)ptr);
             ptr += GUARD_SIZE;
@@ -178,6 +208,23 @@ namespace dmBuffer
         }
     }
 
+    uint32_t GetNumStreams(dmBuffer::HBuffer buffer)
+    {
+        return buffer ? buffer->m_NumStreams : 0xFFFFFFFF;
+    }
+
+    Result GetStreamName(dmBuffer::HBuffer buffer, uint32_t index, dmhash_t* stream_name)
+    {
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+        if (index >= buffer->m_NumStreams) {
+            return RESULT_STREAM_MISSING;
+        }
+        *stream_name = buffer->m_Streams[index].m_Name;
+        return RESULT_OK;
+    }
+
     static Buffer::Stream* GetStream(HBuffer buffer, dmhash_t stream_name)
     {
         if (!buffer) {
@@ -194,7 +241,7 @@ namespace dmBuffer
         return 0x0;
     }
 
-    Result GetStream(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType type, uint32_t type_count, void **out_stream, uint32_t *out_stride, uint32_t *out_element_count)
+    Result CheckStreamType(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType type, uint32_t type_count)
     {
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
@@ -212,14 +259,27 @@ namespace dmBuffer
         } else if (stream->m_ValueCount != type_count) {
             return dmBuffer::RESULT_STREAM_COUNT_MISMATCH;
         }
+        return RESULT_OK;
+    }
+
+    Result GetStream(HBuffer buffer, dmhash_t stream_name, void **out_stream, uint32_t *out_size)
+    {
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+
+        // Get stream
+        Buffer::Stream* stream = GetStream(buffer, stream_name);
+        if (stream == 0x0) {
+            return RESULT_STREAM_MISSING;
+        }
 
         // Validate guards
         if (!dmBuffer::ValidateStream(buffer, *stream)) {
             return RESULT_GUARD_INVALID;
         }
 
-        *out_stride = type_count;
-        *out_element_count = buffer->m_NumElements;
+        *out_size = buffer->m_NumElements * stream->m_ValueCount * GetSizeForValueType((dmBuffer::ValueType)stream->m_ValueType);
         *out_stream = (void*)((uintptr_t)buffer->m_Data + stream->m_Offset);
 
         return RESULT_OK;
@@ -239,7 +299,7 @@ namespace dmBuffer
             return RESULT_GUARD_INVALID;
         }
 
-        uint32_t stream_size = stream->m_ValueCount * buffer->m_NumElements * GetSizeForValueType(stream->m_ValueType);
+        uint32_t stream_size = stream->m_ValueCount * buffer->m_NumElements * GetSizeForValueType((dmBuffer::ValueType)stream->m_ValueType);
 
         *out_size = stream_size;
         *out_buffer = (void*)((uintptr_t)buffer->m_Data + stream->m_Offset);
@@ -253,6 +313,22 @@ namespace dmBuffer
             return RESULT_BUFFER_INVALID;
         }
         *out_element_count = buffer->m_NumElements;
+        return RESULT_OK;
+    }
+
+    Result GetStreamType(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType* type, uint32_t* type_count)
+    {
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+
+        Buffer::Stream* stream = GetStream(buffer, stream_name);
+        if (stream == 0x0) {
+            return RESULT_STREAM_MISSING;
+        }
+
+        *type = (dmBuffer::ValueType)stream->m_ValueType;
+        *type_count = stream->m_ValueCount;
         return RESULT_OK;
     }
 }

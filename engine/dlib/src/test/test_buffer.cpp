@@ -17,8 +17,7 @@ public:
     dmBuffer::HBuffer buffer;
     uint32_t          element_count;
     void*             out_stream;
-    uint32_t          out_stride;
-    uint32_t          out_element_count;
+    uint32_t          out_size;
 
 protected:
     virtual void SetUp() {
@@ -48,8 +47,7 @@ class AlignmentTest : public ::testing::TestWithParam<AlignmentTestParams>
 public:
     dmBuffer::HBuffer buffer;
     void*             out_stream;
-    uint32_t          out_stride;
-    uint32_t          out_element_count;
+    uint32_t          out_size;
 
 protected:
     virtual void SetUp() {
@@ -61,10 +59,9 @@ protected:
     }
 };
 
-#define CLEAR_OUT_VARS(out_stream, out_stride, out_element_count)\
+#define CLEAR_OUT_VARS(out_stream, out_size)\
     out_stream = 0x0;\
-    out_stride = 0;\
-    out_element_count = 0;\
+    out_size = 0;\
 
 TEST_F(BufferTest, InvalidAllocation)
 {
@@ -171,13 +168,12 @@ TEST_F(BufferTest, ValidateBuffer)
 
     // Get and write outside buffer
     void *out_stream = 0x0;
-    uint32_t out_stride = 0;
-    uint32_t out_element_count = 0;
-    r = dmBuffer::GetStream(buffer, dmHashString64("dummy"), dmBuffer::VALUE_TYPE_UINT8, 1, &out_stream, &out_stride, &out_element_count);
+    uint32_t out_size = 0;
+    r = dmBuffer::GetStream(buffer, dmHashString64("dummy"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     // Get address outside stream boundry
-    uint8_t* ptr = (uint8_t*)((uintptr_t)out_stream + out_stride);
+    uint8_t* ptr = (uint8_t*)((uintptr_t)out_stream + out_size);
     ptr[0] = 0xBA;
     ptr[1] = 0xDC;
     ptr[2] = 0x0D;
@@ -190,7 +186,30 @@ TEST_F(BufferTest, ValidateBuffer)
     dmBuffer::Free(buffer);
 }
 
+/*
+TEST_F(BufferTest, CheckStreamType)
+{
+    dmBuffer::HBuffer buffer = 0x0;
+    dmBuffer::StreamDeclaration streams_decl[] = {
+        {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
+        {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2}
+    };
+    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 2, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
+    /////////////////////////////////////////////
+
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::CheckStreamType(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::CheckStreamType(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2));
+
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING, dmBuffer::CheckStreamType(buffer, dmHashString64("foobar"), dmBuffer::VALUE_TYPE_FLOAT32, 3));
+
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_TYPE_MISMATCH, dmBuffer::CheckStreamType(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT64, 3));
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_COUNT_MISMATCH, dmBuffer::CheckStreamType(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 2));
+
+    dmBuffer::Free(buffer);
+}
+*/
 
 TEST_F(BufferTest, InvalidGetData)
 {
@@ -201,43 +220,24 @@ TEST_F(BufferTest, InvalidGetData)
     };
 
     void *out_stream = 0x0;
-    uint32_t out_stride = 0;
-    uint32_t out_element_count = 0;
+    uint32_t out_size = 0;
 
     dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     // Invalid buffer pointer
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(0, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 8, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    r = dmBuffer::GetStream(0, dmHashString64("texcoord"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_INVALID, r);
     ASSERT_EQ(0x0, out_stream);
-    ASSERT_EQ(0, out_stride);
-    ASSERT_EQ(0, out_element_count);
+    ASSERT_EQ(0, out_size);
 
     // Get unknown stream
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(buffer, dmHashString64("unknown"), dmBuffer::VALUE_TYPE_UINT8, 2, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    r = dmBuffer::GetStream(buffer, dmHashString64("unknown"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING, r);
     ASSERT_EQ(0x0, out_stream);
-    ASSERT_EQ(0, out_stride);
-    ASSERT_EQ(0, out_element_count);
-
-    // Correct stream, but wrong type
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_UINT16, 3, &out_stream, &out_stride, &out_element_count);
-    ASSERT_EQ(dmBuffer::RESULT_STREAM_TYPE_MISMATCH, r);
-    ASSERT_EQ(0x0, out_stream);
-    ASSERT_EQ(0, out_stride);
-    ASSERT_EQ(0, out_element_count);
-
-    // Correct stream, but wrong value count
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 8, &out_stream, &out_stride, &out_element_count);
-    ASSERT_EQ(dmBuffer::RESULT_STREAM_COUNT_MISMATCH, r);
-    ASSERT_EQ(0x0, out_stream);
-    ASSERT_EQ(0, out_stride);
-    ASSERT_EQ(0, out_element_count);
+    ASSERT_EQ(0, out_size);
 
     dmBuffer::Free(buffer);
 }
@@ -245,36 +245,36 @@ TEST_F(BufferTest, InvalidGetData)
 TEST_F(GetDataTest, ValidGetData)
 {
     // Get texcoord stream
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
-    ASSERT_EQ(2, out_stride);
-    ASSERT_EQ(4, out_element_count);
+    ASSERT_EQ(4*sizeof(uint16_t)*2, out_size);
 
     uint16_t* ptr = (uint16_t*)out_stream;
-    for (int i = 0; i < out_element_count; ++i)
+    uint32_t count = out_size / (sizeof(uint16_t) * 2);
+    for (int i = 0; i < count; ++i)
     {
         ptr[0] = i;
         ptr[1] = i;
-        ptr += out_stride;
+        ptr += 2;
     }
 
     // Get stream again
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
-    ASSERT_EQ(2, out_stride);
-    ASSERT_EQ(4, out_element_count);
+    ASSERT_EQ(4*sizeof(uint16_t)*2, out_size);
 
     // Verify the previously written data
     ptr = (uint16_t*)out_stream;
-    for (int i = 0; i < out_element_count; ++i)
+    count = out_size / (sizeof(uint16_t)*2);
+    for (int i = 0; i < count; ++i)
     {
         ASSERT_EQ(i, ptr[0]);
         ASSERT_EQ(i, ptr[1]);
-        ptr += out_stride;
+        ptr += 2;
     }
 }
 
@@ -282,15 +282,14 @@ TEST_F(GetDataTest, ValidGetData)
 TEST_F(GetDataTest, ValidGetBytes)
 {
     // Get texcoord stream
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
-    ASSERT_EQ(3, out_stride);
-    ASSERT_EQ(4, out_element_count);
+    ASSERT_EQ(4*3*sizeof(float), out_size);
 
     uint8_t* ptr = (uint8_t*)out_stream;
-    for (uint8_t i = 0; i < out_element_count*3*sizeof(float); ++i)
+    for (uint8_t i = 0; i < out_size; ++i)
     {
         ptr[0] = (uint8_t)(i & 0xff);
         ++ptr;
@@ -303,7 +302,7 @@ TEST_F(GetDataTest, ValidGetBytes)
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, data);
     ASSERT_EQ(out_stream, data);
-    ASSERT_EQ(element_count * sizeof(float) * 3, datasize);
+    ASSERT_EQ(out_size, datasize);
 
     // Verify the previously written data
     ptr = (uint8_t*)out_stream;
@@ -314,46 +313,101 @@ TEST_F(GetDataTest, ValidGetBytes)
     }
 }
 
-
 TEST_F(GetDataTest, WriteOutsideStream)
 {
     // Get texcoord stream
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE((void*)0x0, out_stream);
-    ASSERT_EQ(2, out_stride);
-    ASSERT_EQ(4, out_element_count);
+    ASSERT_EQ(4*2*sizeof(uint16_t), out_size);
 
     // Write past the number of elements
-    out_element_count = out_element_count + 3;
+    uint32_t count = out_size / (sizeof(uint16_t) * 2);
+    count += 3;
     uint16_t* ptr = (uint16_t*)out_stream;
-    for (int i = 0; i < out_element_count; ++i)
+    for (int i = 0; i < count; ++i)
     {
         ptr[0] = i;
         ptr[1] = i;
-        ptr += out_stride;
+        ptr += 2;
     }
 
     // Get stream again, expecting invalid guard
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_GUARD_INVALID, r);
     ASSERT_EQ((void*)0x0, out_stream);
 }
+
+/*
+TEST_F(GetDataTest, SetStream)
+{
+    // Get texcoord stream
+    CLEAR_OUT_VARS(out_stream, out_size);
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    const uint32_t datasize = 4 * 2;
+    uint16_t data[4 * 2];
+
+    // Set whole buffer
+    memset(out_stream, 0, out_size);
+    memset(data, 0, sizeof(data));
+    for( int i = 0; i < datasize; ++i)
+    {
+        data[i] = i;
+    }
+
+    r = dmBuffer::SetStream(buffer, dmHashString64("texcoord"), (void*)data, 0, 0, 4);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    uint16_t* ptr = (uint16_t*)out_stream;
+    for (int i = 0; i < datasize; ++i)
+    {
+        ASSERT_EQ( i, ptr[0] );
+        ++ptr;
+    }
+
+    // Set last two elements
+    memset(out_stream, 0, sizeof(uint16_t)*out_size*out_element_count);
+    memset(data, 0, sizeof(data));
+    for( int i = 0; i < datasize/2; ++i)
+    {
+        data[i] = i;
+    }
+
+    r = dmBuffer::SetStream(buffer, dmHashString64("texcoord"), (void*)data, 0, 2, 2);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    ptr = (uint16_t*)out_stream;
+    for (int i = 0; i < datasize; ++i)
+    {
+        if( i < datasize/2 )
+        {
+            ASSERT_EQ( 0, ptr[0] );
+        }
+        else
+        {
+            ASSERT_EQ( i - datasize/2, ptr[0] );
+        }
+        ++ptr;
+    }
+}
+*/
 
 TEST_F(GetDataTest, CheckUniquePointers)
 {
 
     // Get position stream
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     void* position_ptr = out_stream;
 
     // Get texcoord again
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     void* texcoord_ptr = out_stream;
 
@@ -365,46 +419,49 @@ TEST_F(GetDataTest, CheckOverwrite)
     const uint16_t magic_number = 0xC0DE;
 
     // Get texcoord stream
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     // Write magic number to texcoord stream
     uint16_t* ptr_u16 = (uint16_t*)out_stream;
-    for (int i = 0; i < out_element_count; ++i)
+    uint32_t count = out_size / (sizeof(uint16_t) * 2);
+    for (int i = 0; i < count; ++i)
     {
         ptr_u16[0] = magic_number;
         ptr_u16[1] = magic_number;
-        ptr_u16 += out_stride;
+        ptr_u16 += 2;
     }
 
     // Get position stream
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    r = dmBuffer::GetStream(buffer, dmHashString64("position"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     // Write different data to position stream
     float* ptr_f32 = (float*)out_stream;
-    for (int i = 0; i < out_element_count; ++i)
+    count = out_size / (sizeof(float) * 3);
+    for (int i = 0; i < count; ++i)
     {
         ptr_f32[0] = 1.0f;
         ptr_f32[1] = 2.0f;
         ptr_f32[1] = -3.0f;
-        ptr_f32 += out_stride;
+        ptr_f32 += 2;
     }
 
     // Read back texcoord stream and verify magic number
-    CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
-    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2, &out_stream, &out_stride, &out_element_count);
+    CLEAR_OUT_VARS(out_stream, out_size);
+    r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     // Write magic number to texcoord stream
     ptr_u16 = (uint16_t*)out_stream;
-    for (int i = 0; i < out_element_count; ++i)
+    count = out_size / (sizeof(uint16_t) * 2);
+    for (int i = 0; i < count; ++i)
     {
         ASSERT_EQ(magic_number, ptr_u16[0]);
         ASSERT_EQ(magic_number, ptr_u16[1]);
-        ptr_u16 += out_stride;
+        ptr_u16 += 2;
     }
 }
 
@@ -418,9 +475,9 @@ TEST_P(AlignmentTest, CheckAlignment)
 
     for (uint32_t i = 0; i < p.streams_decl_count; ++i)
     {
-        CLEAR_OUT_VARS(out_stream, out_stride, out_element_count);
+        CLEAR_OUT_VARS(out_stream, out_size);
         const dmBuffer::StreamDeclaration& stream_decl = p.streams_decl[i];
-        r = dmBuffer::GetStream(buffer, stream_decl.m_Name, stream_decl.m_ValueType, stream_decl.m_ValueCount, &out_stream, &out_stride, &out_element_count);
+        r = dmBuffer::GetStream(buffer, stream_decl.m_Name, &out_stream, &out_size);
         ASSERT_EQ(dmBuffer::RESULT_OK, r);
         ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
     }

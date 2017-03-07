@@ -203,20 +203,16 @@ namespace dmBuffer
      * @name dmBuffer::GetStream
      * @param buffer [type:dmBuffer::HBuffer] buffer handle.
      * @param stream_name [type:dmhash_t] Hash of stream name to get
-     * @param type Value [type:dmBuffer::ValueType] type of expected stream
-     * @param type_count [type:uint32_t] Count of values per entry in stream
      * @param out_stream [type:void**] Pointer to void* where to store the stream
-     * @param out_stride [type:uint32_t*] Pointer to uint32_t where to store the stride, where stride is of unit sizeof(type)
-     * @param out_element_count [type:uint32_t*]  Pointer to uint32_t where to store the element count
+     * @param out_size [type:uint32_t*] Pointer to uint32_t where to store the size (in bytes)
      * @return result [type:dmBuffer::Result] BUFFER_OK if the stream was successfully accessed
      * @examples
      *
      * ```cpp
      * uint16_t* stream = 0x0;
-     * uint32_t stride = 0;
-     * uint32_t element_count = 0;
-     *
-     * dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("numbers"), dmBuffer::VALUE_TYPE_UINT16, 2, (void*)&stream, &stride, &element_count);
+     * uint32_t size = 0;
+     * uint32_t 
+     * dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("numbers"), (void**)&stream, &size);
      *
      * if (r == dmBuffer::RESULT_OK) {
      *     for (int i = 0; i < element_count; ++i)
@@ -230,7 +226,7 @@ namespace dmBuffer
      * }
      * ```
      */
-    Result GetStream(HBuffer buffer, dmhash_t stream_name, ValueType type, uint32_t type_count, void** out_stream, uint32_t* out_stride, uint32_t* out_element_count);
+    Result GetStream(HBuffer buffer, dmhash_t stream_name, void** out_stream, uint32_t* out_bytes);
 
 
     /*# get buffer as a byte array.
@@ -285,6 +281,37 @@ namespace dmBuffer
      */
     Result GetElementCount(HBuffer buffer, uint32_t* out_element_count);
 
+    /*#
+     * Gets the stream type 
+     * @param buffer [type:dmBuffer::HBuffer] Pointer to a buffer.
+     * @param stream_name [type:dmhash_t] Hash of stream name to get
+     * @param type [type:dmBuffer::ValueType] The value type
+     * @param type_count [type:uint32_t] The number of values
+     * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
+    */
+    Result GetStreamType(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType* type, uint32_t* type_count);
+
+    /*#
+     * Gets the size of a value type
+     * @name dmBuffer::GetSizeForValueType
+     * @param type [type:dmBuffer::ValueType] The value type
+     * @return size [type:uint32_t] The size in bytes
+    */
+    uint32_t GetSizeForValueType(dmBuffer::ValueType type);
+
+    /*#
+     * Converts result to string
+     * @param result [type:dmBuffer::Result] The result
+     * @return result [type:string] The result as a string
+    */
+    const char* GetResultString(Result result);
+
+    /*#
+     * Converts a value type to string
+     * @param result [type:dmBuffer::ValueType] The result
+     * @return result [type:string] The result as a string
+    */
+    const char* GetValueTypeString(ValueType value);
 }
 
 #endif // DMSDK_BUFFER_H
