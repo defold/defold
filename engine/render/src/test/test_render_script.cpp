@@ -404,6 +404,69 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
+{
+    const char* script =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    //"        format = render.FORMAT_RGBA,\n"
+    "        width = 1,\n"
+    "        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+
+    script =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    "        format = render.FORMAT_RGBA,\n"
+    //"        width = 1,\n"
+    "        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "end\n";
+
+    render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+
+    script =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    "        format = render.FORMAT_RGBA,\n"
+    "        width = 1,\n"
+    //"        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "end\n";
+
+    render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaClear)
 {
     const char* script =
@@ -578,6 +641,19 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaDraw_NoPredicate)
+{
+    const char* script =
+    "function init(self)\n"
+    "    render.draw()\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
 }
 
 TEST_F(dmRenderScriptTest, TestLuaWindowSize)
