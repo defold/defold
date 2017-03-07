@@ -56,11 +56,15 @@
 
 (set! *warn-on-reflection* true)
 
+(defn get-prefs [app-view]
+  (g/node-value app-view :prefs))
+
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
+  (property prefs g/Any)
 
   (input open-views g/Any :array)
   (input outline g/Any)
@@ -540,7 +544,7 @@
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
   (force desktop-supported?)
-  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
+  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move :prefs prefs))))]
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -609,35 +613,53 @@
                            (.handle close-handler event)))))
     tab))
 
+(defn- substitute-args [tmpl args]
+  (reduce (fn [tmpl [key val]]
+            (string/replace tmpl (format "{%s}" (name key)) (str val)))
+    tmpl args))
+
 (defn open-resource
   ([app-view workspace project resource]
    (open-resource app-view workspace project resource {}))
   ([app-view workspace project resource opts]
-   (let [resource-type (resource/resource-type resource)
+   (let [prefs (get-prefs app-view)
+         resource-type (resource/resource-type resource)
          view-type     (or (:selected-view-type opts)
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
-     (if-let [make-view-fn (:make-view-fn view-type)]
-       (let [resource-node     (or (project/get-resource-node project resource)
+     (if-let [custom-editor (and (= (:id view-type) :code)
+                              (let [ed-pref (string/trim (prefs/get-prefs prefs "code-custom-editor" ""))]
+                                (and (not (string/blank? ed-pref)) ed-pref)))]
+       (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
+             arg-sub (cond-> {:file (resource/abs-path resource)}
+                       (:line opts) (assoc :line (:line opts)))
+             args (-> arg-tmpl
+                    (substitute-args arg-sub)
+                    (string/split #" "))]
+         (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
+           (.directory (workspace/project-path workspace))
+           (.start)))
+       (if-let [make-view-fn (:make-view-fn view-type)]
+         (let [resource-node     (or (project/get-resource-node project resource)
                                    (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
-                                                   {})))
-             ^TabPane tab-pane (g/node-value app-view :tab-pane)
-             tabs              (.getTabs tab-pane)
-             tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
-                                                  (= view-type (ui/user-data % ::view-type)))
-                                            %)
-                                     tabs)
-                                 (make-tab! app-view workspace project resource resource-node
-                                   resource-type view-type make-view-fn tabs opts))]
-         (.select (.getSelectionModel tab-pane) tab)
-         (when-let [focus (:focus-fn view-type)]
-           (focus (ui/user-data tab ::view) opts)))
-       (let [^String path (or (resource/abs-path resource)
-                            (resource/temp-path resource))]
-         (try
-           (.open (Desktop/getDesktop) (File. path))
-           (catch Exception _
-             (dialogs/make-alert-dialog (str "Unable to open external editor for " path)))))))))
+                                            {})))
+               ^TabPane tab-pane (g/node-value app-view :tab-pane)
+               tabs              (.getTabs tab-pane)
+               tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
+                                                    (= view-type (ui/user-data % ::view-type)))
+                                              %)
+                                       tabs)
+                                   (make-tab! app-view workspace project resource resource-node
+                                     resource-type view-type make-view-fn tabs opts))]
+           (.select (.getSelectionModel tab-pane) tab)
+           (when-let [focus (:focus-fn view-type)]
+             (focus (ui/user-data tab ::view) opts)))
+         (let [^String path (or (resource/abs-path resource)
+                              (resource/temp-path resource))]
+           (try
+             (.open (Desktop/getDesktop) (File. path))
+             (catch Exception _
+               (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))))))))
 
 (defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
