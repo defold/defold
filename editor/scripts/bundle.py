@@ -33,11 +33,19 @@ def mkdirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def extract(file, path):
+def extract(file, path, is_mac):
     print('Extracting %s to %s' % (file, path))
-    tf = tarfile.TarFile.open(file, 'r:gz')
-    tf.extractall(path)
-    tf.close()
+
+    if is_mac:
+        # We use the system tar command for macOSX because tar (and
+        # others) on macOS has special handling of ._ files that
+        # contain additional HFS+ attributes. See for example:
+        # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
+        exec_command(['tar', '-C', path, '-xzf', file])
+    else:
+        tf = tarfile.TarFile.open(file, 'r:gz')
+        tf.extractall(path)
+        tf.close()
 
 def download(url, use_cache = True):
     name = os.path.basename(urlparse.urlparse(url).path)
@@ -204,7 +212,8 @@ def bundle(platform, jar_file, options):
     if 'win32' in platform:
         exec_command(['java', '-cp', 'target/classes', 'com.defold.util.IconExe', '%s/Defold%s' % (exe_dir, exe_suffix), 'bundle-resources/logo.ico'])
 
-    extract(jre, 'tmp')
+    extract(jre, 'tmp', is_mac)
+
     print 'Creating bundle'
     if is_mac:
         jre_glob = 'tmp/jre1.8.0_%s.jre/Contents/Home/*' % (jre_minor)
