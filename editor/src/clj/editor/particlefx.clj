@@ -476,7 +476,7 @@
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :tile-source-resource]
                                                 [:build-targets :dep-build-targets]
-                                                [:texture-set-data :texture-set-data]
+                                                [:texture-set :texture-set]
                                                 [:gpu-texture :gpu-texture]
                                                 [:anim-ids :anim-ids])))
             (dynamic edit-type (g/constantly
@@ -529,7 +529,7 @@
 
   (input tile-source-resource resource/Resource)
   (input material-resource resource/Resource)
-  (input texture-set-data g/Any)
+  (input texture-set g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
   (output build-targets g/Any (g/fnk [_node-id tile-source material animation anim-ids dep-build-targets]
@@ -570,10 +570,9 @@
                                (geom/aabb-incorporate (- w) (- h) (- d))
                                (geom/aabb-incorporate w h d)))))
   (output emitter-sim-data g/Any :cached
-          (g/fnk [animation texture-set-data gpu-texture]
-                 (let [tex-set (:texture-set texture-set-data)
-                       texture-set-anim (first (filter #(= animation (:id %)) (:animations tex-set)))
-                       ^ByteString tex-coords (:tex-coords tex-set)
+          (g/fnk [animation texture-set gpu-texture]
+                 (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
+                       ^ByteString tex-coords (:tex-coords texture-set)
                        tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))]
                    (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
                    (.flip tex-coords-buffer)
