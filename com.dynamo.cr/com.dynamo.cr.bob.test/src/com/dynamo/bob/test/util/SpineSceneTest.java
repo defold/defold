@@ -407,7 +407,7 @@ public class SpineSceneTest {
         int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 3; // Point3d
         Point3d expectedInitPos = new Point3d(0.0, 0.0, 0.0);
         Point3d expectedLowMidPos = new Point3d(0.0, 0.0, 0.0);
-        Point3d expectedHighMidPos = new Point3d(100.0, 0.0, 0.0);
+        Point3d expectedHighMidPos = new Point3d(0.0, 0.0, 0.0);
         Point3d expectedEndPos = new Point3d(100.0, 0.0, 0.0);
         
         int lowMidIndex = (int) expectedNumPosSamples / 2;
