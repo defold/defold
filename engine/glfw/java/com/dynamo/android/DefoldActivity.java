@@ -2,6 +2,7 @@
 package com.dynamo.android;
 
 import android.app.NativeActivity;
+import android.content.res.Configuration;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
@@ -241,6 +242,13 @@ public class DefoldActivity extends NativeActivity {
         }
     }
 
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (newConfig.keyboardHidden == Configuration.KEYBOARDHIDDEN_YES) {
+            updateImmersiveMode();
+        }
+    }
 
     private Object m_AdGuard = new Object();
     private boolean m_GotAdInfo = false;
@@ -461,6 +469,7 @@ public class DefoldActivity extends NativeActivity {
             public void run() {
                 IBinder windowToken = getWindow().getDecorView().getWindowToken();
                 imm.hideSoftInputFromWindow(windowToken, 0);
+                updateImmersiveMode();
             }
         });
     }
