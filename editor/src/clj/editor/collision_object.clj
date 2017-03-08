@@ -176,15 +176,15 @@
           (gl/gl-draw-arrays gl GL/GL_LINE_LOOP 0 (count vbuf))))
 
       pass/transparent
-      (let [vbuf (gen-vertex-buffer renderables n  gen-disc-vertex-buffer)
+      (let [vbuf (gen-vertex-buffer renderables n gen-disc-vertex-buffer)
             vbuf-binding (vtx/use-with ::box vbuf shader)]
         (gl/with-gl-bindings gl render-args [shader vbuf-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf))))
 
       pass/selection
-      (let [vbuf (gen-vertex-buffer renderables n  gen-disc-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
+      (let [vbuf (gen-vertex-buffer renderables n gen-disc-vertex-buffer)
+            vbuf-binding (vtx/use-with ::box vbuf)]
+        (gl/with-gl-bindings gl render-args [vbuf-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
 
 
@@ -237,8 +237,8 @@
 
       pass/selection
       (let [vbuf (gen-vertex-buffer renderables n gen-box-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
+            vbuf-binding (vtx/use-with ::box vbuf)]
+        (gl/with-gl-bindings gl render-args [vbuf-binding]
           (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))
 
 
@@ -315,8 +315,8 @@
 
       pass/selection
       (let [vbuf (gen-vertex-buffer renderables n gen-capsule-vbuf)
-            vertex-binding (vtx/use-with ::capsule vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+            vertex-binding (vtx/use-with ::capsule vbuf)]
+        (gl/with-gl-bindings gl render-args [vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
 
 

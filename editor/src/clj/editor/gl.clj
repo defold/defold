@@ -117,10 +117,10 @@
 
 (defmacro with-gl-bindings
   [glsymb render-args-symb gl-stuff & body]
-  (assert (vector? gl-stuff) (str "GL objects must be a vector of values that satisfy GlBind" gl-stuff))
   `(let [gl# ~glsymb
          render-args# ~render-args-symb
          items# ~gl-stuff]
+     (assert (vector? items#) (str "GL objects must be a vector of values that satisfy GlBind " items#))
      (doseq [b# items#]
        (when (satisfies? p/GlBind b#)
          (p/bind b# gl# render-args#)))

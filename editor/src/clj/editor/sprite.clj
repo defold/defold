@@ -168,8 +168,8 @@
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
       (= pass pass/selection)
-      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count))]
+        (gl/with-gl-bindings gl render-args [vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
 
 ; Node defs

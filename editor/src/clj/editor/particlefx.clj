@@ -169,8 +169,13 @@
             vs (geom/transf-p world-transform (concat
                                                 (geom/scale scale-f vs-screen)
                                                 vs-world))
-            vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
-        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+            selection-pass? (types/selection? (:pass render-args))
+            vertex-binding (if selection-pass?
+                             (vtx/use-with ::lines (->vb vs vcount color))
+                             (vtx/use-with ::lines (->vb vs vcount color) line-shader))]
+        (gl/with-gl-bindings gl render-args (if selection-pass?
+                                              [vertex-binding]
+                                              [line-shader vertex-binding])
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 ; Modifier geometry
@@ -625,7 +630,9 @@
 (defn- render-emitter [emitter-sim-data ^GL gl render-args vtx-binding view-proj emitter-index blend-mode v-index v-count]
   (let [gpu-texture (:gpu-texture (get emitter-sim-data emitter-index))
         blend-mode (convert-blend-mode blend-mode)]
-    (gl/with-gl-bindings gl render-args [gpu-texture plib/shader vtx-binding]
+    (gl/with-gl-bindings gl render-args (if (types/selection? (:pass render-args))
+                                          [gpu-texture vtx-binding]
+                                          [gpu-texture plib/shader vtx-binding])
       (case blend-mode
         :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
         (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)

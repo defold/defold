@@ -123,15 +123,20 @@
         user-data (:user-data renderable)
         manip (:manip user-data)
         color (:color user-data)
-        vertex-buffers (:vertex-buffers user-data)]
+        vertex-buffers (:vertex-buffers user-data)
+        selection-pass? true #_(types/selection? (:pass render-args))] ; TEST! REMOVE!
     (when (manip-visible? manip (c/camera-view-matrix camera))
       (gl/gl-push-matrix gl
         (gl/gl-mult-matrix-4d gl world-transform)
         (doseq [[mode vertex-buffer vertex-count] vertex-buffers
-                :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
+                :let [vertex-binding (if selection-pass?
+                                       (vtx/use-with mode vertex-buffer)
+                                       (vtx/use-with mode vertex-buffer shader))
                       color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
                 :when (> vertex-count 0)]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding]
+          (gl/with-gl-bindings gl render-args (if selection-pass?
+                                                [vertex-binding]
+                                                [shader vertex-binding])
             (shader/set-uniform shader gl "color" color)
             (gl/gl-draw-arrays gl mode 0 vertex-count)))))))
 
