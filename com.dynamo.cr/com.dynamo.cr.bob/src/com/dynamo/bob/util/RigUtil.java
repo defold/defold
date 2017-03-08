@@ -550,10 +550,10 @@ public class RigUtil {
             if (key != null) {
                 if (next != null) {
                     if (key.stepped || !interpolate) {
-                        // Calc midpoint between key.t and next.t
-                        // Check if cursor is past midpoint, in that case sample next instead
-                        double midpoint = next.t - halfSample;
-                        if (cursor > midpoint) {
+                        // Calculate point where we should sample next instead of key
+                        // Check if cursor is past keyChangePoint, in that case sample next instead
+                        double keyChangePoint = next.t - halfSample;
+                        if (cursor > keyChangePoint) {
                             propertyBuilder.addComposite(propertyBuilder.toComposite(next));
                         } else {
                             propertyBuilder.addComposite(propertyBuilder.toComposite(key));
