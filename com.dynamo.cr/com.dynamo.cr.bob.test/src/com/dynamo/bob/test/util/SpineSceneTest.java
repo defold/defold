@@ -507,6 +507,87 @@ public class SpineSceneTest {
         assertEquals(4, drawOrderBuilder.GetOrderOffset(3));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
     }
+    
+    @Test
+    public void testSampleSparseDrawOrderAnim() throws Exception {
+        SpineSceneUtil scene = load("draw_order_skeleton_sparse.json");
+        Animation anim = scene.getAnimation("animation");
+        
+        assertEquals(3, anim.slotTracks.size());
+        
+        SlotAnimationTrack track_4 = anim.slotTracks.get(0);
+        SlotAnimationTrack track_3 = anim.slotTracks.get(1);
+        SlotAnimationTrack track_5 = anim.slotTracks.get(2);
+
+        double sampleRate = 30.0;
+        double spf = 1.0/sampleRate;
+        double duration = anim.duration;
+        boolean interpolate = false;
+        boolean shouldSlerp = false;
+
+        int expectedSampleCountPerMesh = 14;
+        
+        MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
+
+        // Mesh "_3" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
+        MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
+        RigUtil.sampleTrack(track_3, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, interpolate, shouldSlerp);
+        assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
+        trackBuilder.clear();
+
+        // Mesh "_4" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
+        drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, interpolate, shouldSlerp);
+        assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
+        trackBuilder.clear();
+        
+        // Mesh "_5" [0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 0, 0]
+        drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
+        RigUtil.sampleTrack(track_5, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, interpolate, shouldSlerp);
+        assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(4, drawOrderBuilder.GetOrderOffset(6));
+        assertEquals(4, drawOrderBuilder.GetOrderOffset(7));
+        assertEquals(4, drawOrderBuilder.GetOrderOffset(8));
+        assertEquals(4, drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(4, drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(4, drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
+    }
 
     @Test
     public void testEmptyScene() throws Exception {

@@ -529,6 +529,7 @@ public class RigUtil {
             return;
         }
         int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();
         Key key = null;
@@ -551,8 +552,7 @@ public class RigUtil {
                     if (key.stepped || !interpolate) {
                         // Calc midpoint between key.t and next.t
                         // Check if cursor is past midpoint, in that case sample next instead
-                        double midpoint = next.t - key.t;
-                        midpoint = key.t + (midpoint / 2.0);
+                        double midpoint = next.t - halfSample;
                         if (cursor > midpoint) {
                             propertyBuilder.addComposite(propertyBuilder.toComposite(next));
                         } else {
