@@ -67,21 +67,6 @@
              :resource-fields [:script :material [:fonts :font] [:textures :texture] [:spine-scenes :spine-scene]]
              :tags #{:component :non-embeddable}})
 
-; Selection shader
-
-(shader/defshader selection-vert
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader selection-frag
-  (defn void main []
-    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
-
-; TODO - macro of this
-(def selection-shader (shader/make-shader ::selection-shader selection-vert selection-frag))
-
-
 ; Fallback shader
 
 (vtx/defvertex color-vtx
@@ -205,11 +190,14 @@
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (if (types/selection? (:pass render-args))
-                     selection-shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
-                     (or material-shader shader))
-            vertex-binding (vtx/use-with ::tris vb shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+      (let [shader (or material-shader shader)
+            selection-pass? (types/selection? (:pass render-args))
+            vertex-binding (if selection-pass?
+                             (vtx/use-with ::tris vb)
+                             (vtx/use-with ::tris vb shader))]
+        (gl/with-gl-bindings gl render-args (if selection-pass?
+                                              [vertex-binding gpu-texture]
+                                              [shader vertex-binding gpu-texture])
           (clipping/setup-gl gl clipping-state)
           (case blend-mode
             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)

@@ -110,11 +110,14 @@
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (if (types/selection? (:pass render-args))
-                     shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
-                     (or material-shader shader))
-            vertex-binding (vtx/use-with ::tris vb shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+      (let [shader (or material-shader shader)
+            selection-pass? (types/selection? (:pass render-args))
+            vertex-binding (if selection-pass?
+                             (vtx/use-with ::tris vb)
+                             (vtx/use-with ::tris vb shader))]
+        (gl/with-gl-bindings gl render-args (if selection-pass?
+                                              [vertex-binding gpu-texture]
+                                              [shader vertex-binding gpu-texture])
           (case blend-mode
             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
             (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)

@@ -27,7 +27,8 @@ the `do-gl` macro from `editor.gl`."
             [editor.gl.shader :as shader]
             [editor.scene-cache :as scene-cache]
             [dynamo.graph :as g]
-            [editor.buffers :as b])
+            [editor.buffers :as b]
+            [internal.util :as util])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
            [com.google.protobuf ByteString]
            [com.jogamp.common.nio Buffers]
@@ -480,7 +481,30 @@ the `do-gl` macro from `editor.gl`."
    [:dynamic :copy] GL2/GL_DYNAMIC_COPY
    [:stream :copy] GL2/GL_STREAM_COPY})
 
-(defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
+(defn- find-attribute-index [attribute-name attributes]
+  (util/find-index (fn [[name-sym]] (= attribute-name (name name-sym)))
+                   attributes))
+
+(defrecord VertexBufferBinding [request-id ^PersistentVertexBuffer vertex-buffer]
+  GlBind
+  (bind [_this gl _]
+    (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
+      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER vbo)
+      (let [attributes (:attributes (.layout vertex-buffer))
+            offsets (reductions + 0 (attribute-sizes attributes))
+            stride (vertex-size attributes)]
+        (when-let [position-index (find-attribute-index "position" attributes)]
+          (let [position-attribute (nth attributes position-index)
+                position-offset (nth offsets position-index)
+                [_ sz tp] position-attribute]
+            (.glVertexPointer ^GL2 gl ^int sz ^int (gl-types tp) ^int stride ^long position-offset)
+            (.glEnableClientState ^GL2 gl GL2/GL_VERTEX_ARRAY))))))
+
+  (unbind [_this gl]
+    (.glDisableClientState ^GL2 gl GL2/GL_VERTEX_ARRAY)
+    (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
+
+(defrecord VertexBufferShaderBinding [request-id ^PersistentVertexBuffer vertex-buffer shader enabled-attribs-atom]
   GlBind
   (bind [this gl _]
     (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
@@ -488,9 +512,12 @@ the `do-gl` macro from `editor.gl`."
       (let [attributes  (:attributes (.layout vertex-buffer))
             attrib-locs (vertex-locate-attribs gl shader attributes)]
         (vertex-attrib-pointers gl shader attributes)
-        (vertex-enable-attribs gl attrib-locs))))
+        (vertex-enable-attribs gl attrib-locs)
+        (reset! enabled-attribs-atom attrib-locs))))
 
   (unbind [this gl]
+    (vertex-disable-attribs gl @enabled-attribs-atom)
+    (reset! enabled-attribs-atom nil)
     (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
 
 (defn use-with
@@ -504,8 +531,10 @@ the `do-gl` macro from `editor.gl`."
 
   This function returns an object that satisfies editor.gl.protocols/GlEnable,
   editor.gl.protocols/GlDisable."
-  [request-id ^PersistentVertexBuffer vertex-buffer shader]
-  (->VertexBufferShaderLink request-id vertex-buffer shader))
+  ([request-id ^PersistentVertexBuffer vertex-buffer]
+   (->VertexBufferBinding request-id vertex-buffer))
+  ([request-id ^PersistentVertexBuffer vertex-buffer shader]
+   (->VertexBufferShaderBinding request-id vertex-buffer shader (atom nil))))
 
 (defn- update-vbo [^GL2 gl vbo data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)

@@ -6,7 +6,8 @@
    [editor.gl.shader :as shader]
    [editor.scene-cache :as scene-cache]
    [dynamo.graph :as g]
-   [editor.buffers :as b])
+   [editor.buffers :as b]
+   [internal.util :as util])
   (:import
    [clojure.lang Counted]
    [com.google.protobuf ByteString]
@@ -172,7 +173,30 @@
           :when (not= l -1)]
     (gl/gl-disable-vertex-attrib-array gl l)))
 
-(defrecord VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader]
+(defn- find-attribute-index [attribute-name attributes]
+  (util/find-index (fn [[name-sym]] (= attribute-name (name name-sym)))
+                   attributes))
+
+(defrecord VertexBufferBinding [request-id ^VertexBuffer vertex-buffer]
+  GlBind
+  (bind [_this gl _]
+    (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)]
+      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER vbo)
+      (let [attributes (:attributes (.vertex-description vertex-buffer))
+            offsets (reductions + 0 (attribute-sizes attributes))
+            stride (vertex-size attributes)]
+        (when-let [position-index (find-attribute-index "position" attributes)]
+          (let [position-attribute (nth attributes position-index)
+                position-offset (nth offsets position-index)
+                [_ sz tp] position-attribute]
+            (.glVertexPointer ^GL2 gl ^int sz ^int (gl-types tp) ^int stride ^long position-offset)
+            (.glEnableClientState ^GL2 gl GL2/GL_VERTEX_ARRAY))))))
+
+  (unbind [_this gl]
+    (.glDisableClientState ^GL2 gl GL2/GL_VERTEX_ARRAY)
+    (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
+
+(defrecord VertexBufferShaderBinding [request-id ^VertexBuffer vertex-buffer shader enabled-attribs-atom]
   GlBind
   (bind [this gl _]
         (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)]
@@ -180,14 +204,19 @@
           (let [attributes  (:attributes (.vertex-description vertex-buffer))
                 attrib-locs (vertex-locate-attribs gl shader attributes)]
             (vertex-attrib-pointers gl shader attributes)
-            (vertex-enable-attribs gl attrib-locs))))
+            (vertex-enable-attribs gl attrib-locs)
+            (reset! enabled-attribs-atom attrib-locs))))
 
   (unbind [this gl]
+          (vertex-disable-attribs gl @enabled-attribs-atom)
+          (reset! enabled-attribs-atom nil)
           (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
 
 (defn use-with
-  [request-id vertex-buffer shader]
-  (->VertexBufferShaderLink request-id vertex-buffer shader))
+  ([request-id vertex-buffer]
+   (->VertexBufferBinding request-id vertex-buffer))
+  ([request-id vertex-buffer shader]
+   (->VertexBufferShaderBinding request-id vertex-buffer shader (atom nil))))
 
 (defn- update-vbo [^GL2 gl vbo data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
