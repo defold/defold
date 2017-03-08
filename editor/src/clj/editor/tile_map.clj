@@ -160,12 +160,11 @@
               (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
       pass/selection
-      (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
+      (let [{:keys [^Matrix4d user-data]} (first renderables)
             {:keys [node-id vbuf]} user-data]
         (when vbuf
-          (let [vertex-binding (vtx/use-with node-id vbuf selection-shader)]
-            (gl/with-gl-bindings gl render-args [selection-shader vertex-binding]
-              (shader/set-uniform selection-shader gl "world" world-transform)
+          (let [vertex-binding (vtx/use-with node-id vbuf)]
+            (gl/with-gl-bindings gl render-args [vertex-binding]
               (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))))
 
 
