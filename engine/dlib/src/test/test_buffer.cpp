@@ -8,7 +8,13 @@
 
 class BufferTest : public ::testing::Test
 {
+    virtual void SetUp() {
+        dmBuffer::Init();
+    }
 
+    virtual void TearDown() {
+        dmBuffer::Exit();
+    }
 };
 
 class GetDataTest : public ::testing::Test
@@ -21,6 +27,8 @@ public:
 
 protected:
     virtual void SetUp() {
+        dmBuffer::Init();
+
         dmBuffer::StreamDeclaration streams_decl[] = {
             {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
             {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2}
@@ -32,6 +40,7 @@ protected:
 
     virtual void TearDown() {
         dmBuffer::Free(buffer);
+        dmBuffer::Exit();
     }
 };
 
@@ -51,11 +60,13 @@ public:
 
 protected:
     virtual void SetUp() {
+        dmBuffer::Init();
         buffer = 0x0;
     }
 
     virtual void TearDown() {
         dmBuffer::Free(buffer);
+        dmBuffer::Exit();
     }
 };
 
@@ -75,32 +86,32 @@ TEST_F(BufferTest, InvalidAllocation)
     // Empty declaration, zero elements
     dmBuffer::Result r = dmBuffer::Allocate(0, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
-    ASSERT_EQ(0x0, buffer);
+    ASSERT_EQ(0, buffer);
 
     // Empty declaration, 1 element
     r = dmBuffer::Allocate(1, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
-    ASSERT_EQ(0x0, buffer);
+    ASSERT_EQ(0, buffer);
 
     // Valid declaration, zero elements
     r = dmBuffer::Allocate(0, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
-    ASSERT_EQ(0x0, buffer);
+    ASSERT_EQ(0, buffer);
 
     // Valid sizes, but invalid valuetype count (see "dummy3" above)
     r = dmBuffer::Allocate(1, streams_decl, 3, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
-    ASSERT_EQ(0x0, buffer);
+    ASSERT_EQ(0, buffer);
 
     // Valid sizes, but buffer is NULL-pointer
     r = dmBuffer::Allocate(1, streams_decl, 1, 0x0);
     ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
-    ASSERT_EQ(0x0, buffer);
+    ASSERT_EQ(0, buffer);
 
     // Valid sizes, but declaration is NULL-pointer
     r = dmBuffer::Allocate(1, 0x0, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
-    ASSERT_EQ(0x0, buffer);
+    ASSERT_EQ(0, buffer);
 }
 
 TEST_F(BufferTest, ValidAllocation)
@@ -114,27 +125,27 @@ TEST_F(BufferTest, ValidAllocation)
     // Declaration of 2 streams, with 4 elements
     dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_NE((void*)0x0, buffer);
+    ASSERT_NE(0, buffer);
     dmBuffer::Free(buffer);
-    buffer = 0x0;
+    buffer = 0;
 
     // Allocation with only the first stream declaration
     r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_NE((void*)0x0, buffer);
+    ASSERT_NE(0, buffer);
     dmBuffer::Free(buffer);
-    buffer = 0x0;
+    buffer = 0;
 
     // Larger allocation
     r = dmBuffer::Allocate(1024*1024, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_NE((void*)0x0, buffer);
+    ASSERT_NE(0, buffer);
     dmBuffer::Free(buffer);
 }
 
 TEST_F(BufferTest, ValueTypes)
 {
-    dmBuffer::HBuffer buffer = 0x0;
+    dmBuffer::HBuffer buffer = 0;
     dmBuffer::StreamDeclaration streams_decl[] = {
         {dmHashString64("dummy"), dmBuffer::VALUE_TYPE_UINT8, 3}
     };
@@ -144,7 +155,7 @@ TEST_F(BufferTest, ValueTypes)
 
         dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
         ASSERT_EQ(dmBuffer::RESULT_OK, r);
-        ASSERT_NE((void*)0x0, buffer);
+        ASSERT_NE(0, buffer);
         dmBuffer::Free(buffer);
         buffer = 0x0;
     }
@@ -186,44 +197,33 @@ TEST_F(BufferTest, ValidateBuffer)
     dmBuffer::Free(buffer);
 }
 
-/*
-TEST_F(BufferTest, CheckStreamType)
+TEST_F(GetDataTest, GetStreamType)
 {
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
-        {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2}
-    };
-    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 2, &buffer);
+    dmBuffer::Result r;
+    dmBuffer::ValueType type;
+    uint32_t typecount;
+    r = GetStreamType(buffer, dmHashString64("position"), &type, &typecount);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
+    ASSERT_EQ(3, typecount);
 
-    /////////////////////////////////////////////
+    r = GetStreamType(buffer, dmHashString64("texcoord"), &type, &typecount);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT16, type);
+    ASSERT_EQ(2, typecount);
 
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::CheckStreamType(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3));
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::CheckStreamType(buffer, dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2));
+    r = GetStreamType(buffer, dmHashString64("foobar"), &type, &typecount);
+    ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING, r);
 
-    ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING, dmBuffer::CheckStreamType(buffer, dmHashString64("foobar"), dmBuffer::VALUE_TYPE_FLOAT32, 3));
-
-    ASSERT_EQ(dmBuffer::RESULT_STREAM_TYPE_MISMATCH, dmBuffer::CheckStreamType(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT64, 3));
-    ASSERT_EQ(dmBuffer::RESULT_STREAM_COUNT_MISMATCH, dmBuffer::CheckStreamType(buffer, dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 2));
-
-    dmBuffer::Free(buffer);
+    r = GetStreamType(0, dmHashString64("foobar"), &type, &typecount);
+    ASSERT_EQ(dmBuffer::RESULT_BUFFER_INVALID, r);
 }
-*/
 
-TEST_F(BufferTest, InvalidGetData)
+TEST_F(GetDataTest, InvalidGetData)
 {
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
-        {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT16, 2}
-    };
-
     void *out_stream = 0x0;
     uint32_t out_size = 0;
-
-    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 2, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    dmBuffer::Result r;
 
     // Invalid buffer pointer
     CLEAR_OUT_VARS(out_stream, out_size);
@@ -238,8 +238,6 @@ TEST_F(BufferTest, InvalidGetData)
     ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING, r);
     ASSERT_EQ(0x0, out_stream);
     ASSERT_EQ(0, out_size);
-
-    dmBuffer::Free(buffer);
 }
 
 TEST_F(GetDataTest, ValidGetData)
@@ -339,62 +337,6 @@ TEST_F(GetDataTest, WriteOutsideStream)
     ASSERT_EQ(dmBuffer::RESULT_GUARD_INVALID, r);
     ASSERT_EQ((void*)0x0, out_stream);
 }
-
-/*
-TEST_F(GetDataTest, SetStream)
-{
-    // Get texcoord stream
-    CLEAR_OUT_VARS(out_stream, out_size);
-    dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_size);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
-    const uint32_t datasize = 4 * 2;
-    uint16_t data[4 * 2];
-
-    // Set whole buffer
-    memset(out_stream, 0, out_size);
-    memset(data, 0, sizeof(data));
-    for( int i = 0; i < datasize; ++i)
-    {
-        data[i] = i;
-    }
-
-    r = dmBuffer::SetStream(buffer, dmHashString64("texcoord"), (void*)data, 0, 0, 4);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
-    uint16_t* ptr = (uint16_t*)out_stream;
-    for (int i = 0; i < datasize; ++i)
-    {
-        ASSERT_EQ( i, ptr[0] );
-        ++ptr;
-    }
-
-    // Set last two elements
-    memset(out_stream, 0, sizeof(uint16_t)*out_size*out_element_count);
-    memset(data, 0, sizeof(data));
-    for( int i = 0; i < datasize/2; ++i)
-    {
-        data[i] = i;
-    }
-
-    r = dmBuffer::SetStream(buffer, dmHashString64("texcoord"), (void*)data, 0, 2, 2);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
-    ptr = (uint16_t*)out_stream;
-    for (int i = 0; i < datasize; ++i)
-    {
-        if( i < datasize/2 )
-        {
-            ASSERT_EQ( 0, ptr[0] );
-        }
-        else
-        {
-            ASSERT_EQ( i - datasize/2, ptr[0] );
-        }
-        ++ptr;
-    }
-}
-*/
 
 TEST_F(GetDataTest, CheckUniquePointers)
 {

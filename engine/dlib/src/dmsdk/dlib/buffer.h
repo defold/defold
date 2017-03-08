@@ -28,7 +28,7 @@ namespace dmBuffer
      * @name dmBuffer::HBuffer
      *
      */
-    typedef struct Buffer* HBuffer;
+    typedef uint32_t HBuffer;
 
     /*# valueType enumeration
      *
@@ -174,6 +174,15 @@ namespace dmBuffer
      */
     void Free(HBuffer buffer);
 
+    /*# check buffer handle
+     * 
+     * Checks if a handle is still valid
+     * @name dmBuffer::IsBufferValid
+     * @param buffer [type:dmBuffer::HBuffer] The buffer
+     * @return result [type:bool] True if the handle is valid
+     */
+    bool IsBufferValid(HBuffer buffer);
+
     /*# validate buffer.
      *
      * Validate a buffer and it's streams.
@@ -281,8 +290,11 @@ namespace dmBuffer
      */
     Result GetElementCount(HBuffer buffer, uint32_t* out_element_count);
 
-    /*#
-     * Gets the stream type 
+    /*# get stream type and type count
+     * 
+     * Gets the stream type
+     *
+     * @name dmBuffer::GetStreamType
      * @param buffer [type:dmBuffer::HBuffer] Pointer to a buffer.
      * @param stream_name [type:dmhash_t] Hash of stream name to get
      * @param type [type:dmBuffer::ValueType] The value type
@@ -291,25 +303,33 @@ namespace dmBuffer
     */
     Result GetStreamType(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType* type, uint32_t* type_count);
 
-    /*#
+    /*# get size of a value type
+     *
      * Gets the size of a value type
+      *
      * @name dmBuffer::GetSizeForValueType
      * @param type [type:dmBuffer::ValueType] The value type
      * @return size [type:uint32_t] The size in bytes
     */
     uint32_t GetSizeForValueType(dmBuffer::ValueType type);
 
-    /*#
+    /*# result to string
+     * 
      * Converts result to string
+     *
+     * @name dmBuffer::GetResultString
      * @param result [type:dmBuffer::Result] The result
-     * @return result [type:string] The result as a string
+     * @return result [type:const char*] The result as a string
     */
     const char* GetResultString(Result result);
 
-    /*#
+    /*# value type to string
+     * 
      * Converts a value type to string
-     * @param result [type:dmBuffer::ValueType] The result
-     * @return result [type:string] The result as a string
+     *
+     * @name dmBuffer::GetValueTypeString
+     * @param result [type:dmBuffer::ValueType] The value type
+     * @return result [type:const char*] The value type as a string
     */
     const char* GetValueTypeString(ValueType value);
 }

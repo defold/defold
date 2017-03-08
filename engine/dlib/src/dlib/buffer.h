@@ -6,6 +6,20 @@
 namespace dmBuffer
 {
 
+// Used by the engine
+
+/*#
+ * Initializes the buffer context
+ */
+void Init();
+
+
+/*#
+ * Destroys the buffer context
+ */
+void Exit();
+
+
 // These functions are used by our scripting bindings
 
 /*#
@@ -14,7 +28,7 @@ namespace dmBuffer
  * @param buffer [type:dmBuffer::HBuffer] The buffer
  * @return count [type:uint32_t] The number of streams
 */
-uint32_t GetNumStreams(dmBuffer::HBuffer buffer);
+uint32_t GetNumStreams(HBuffer buffer);
 
 /*#
  * Gets the hashed name of the stream
@@ -24,7 +38,7 @@ uint32_t GetNumStreams(dmBuffer::HBuffer buffer);
  * @param stream_name [type:dmhash_t*] The out variable that receives the name
  * @return result [type:dmBuffer::Result] RESULT_OK if the stream exists
 */
-Result GetStreamName(dmBuffer::HBuffer buffer, uint32_t index, dmhash_t* stream_name);
+Result GetStreamName(HBuffer buffer, uint32_t index, dmhash_t* stream_name);
 
 }
 

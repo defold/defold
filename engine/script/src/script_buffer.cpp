@@ -82,7 +82,7 @@ namespace dmScript
     {
         dmBuffer::HBuffer   m_Buffer;
         dmhash_t            m_Name;     // The stream name
-        void*               m_Data;
+        void*               m_Data;     // Easy access to the buffer data
         uint32_t            m_DataSize;
         uint32_t            m_Count;    // bytes / sizeof(type)
         uint32_t            m_TypeCount;// number of values that make up an "element". E.g. 3 in a Vec3
@@ -130,7 +130,11 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            return (dmBuffer::HBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
+            dmBuffer::HBuffer* buffer = (dmBuffer::HBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
+            if( dmBuffer::IsBufferValid( *buffer ) ) {
+                return buffer;
+            }
+            luaL_error(L, "The buffer handle is invalid");
         }
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
         return 0x0;
@@ -184,7 +188,11 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            return (BufferStream*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+            BufferStream* stream = (BufferStream*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+            if( dmBuffer::IsBufferValid( stream->m_Buffer ) ) {
+                return stream;
+            }
+            luaL_error(L, "The buffer handle is invalid");
         }
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
         return 0x0;
@@ -451,6 +459,11 @@ namespace dmScript
         int count = luaL_checkint(L, 5);
 
         // Validate first
+        if( count <= 0 )
+        {
+            return luaL_error(L, "Invalid elements to copy: %u", count);
+        }
+
         dmBuffer::Result r;
         uint32_t dstcount;
         uint32_t srccount;
@@ -660,8 +673,6 @@ namespace dmScript
     {
         BufferStream* stream = CheckStream(L, 1);
         // decrease ref to buffer
-
-        //dmBuffer::DecRef(stream->m_Buffer);
         dmScript::Unref(L, LUA_REGISTRYINDEX, stream->m_BufferRef);
         printf("FREE STREAM\n");
         return 0;
