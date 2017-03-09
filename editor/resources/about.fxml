@@ -54,7 +54,7 @@
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label text="Copyright (c) 2011-2016" GridPane.rowIndex="5">
+            <Label text="Copyright (c) 2011-2017" GridPane.rowIndex="5">
                <font>
                   <Font size="11.0" />
                </font>
