@@ -104,7 +104,7 @@ namespace dmBuffer
         uint32_t version = hbuffer >> 16;
         uint32_t index = hbuffer & 0xFFFF;
         Buffer* b = ctx->m_Buffers[index];
-        if (version != b->m_Version)
+        if (b == 0 || version != b->m_Version)
         {
             dmLogError("Stale buffer handle");
             return 0;

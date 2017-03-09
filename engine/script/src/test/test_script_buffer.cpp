@@ -28,10 +28,19 @@ protected:
         m_Context = dmScript::NewContext(0, 0);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
+
+        const dmBuffer::StreamDeclaration streams_decl[] = {
+            {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
+            {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
+        };
+
+        m_Count = 256;
+        dmBuffer::Create(m_Count, streams_decl, 2, &m_Buffer);
     }
 
     virtual void TearDown()
     {
+        dmBuffer::Destroy(m_Buffer);
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
 
@@ -40,6 +49,8 @@ protected:
 
     dmScript::HContext m_Context;
     lua_State* L;
+    dmBuffer::HBuffer m_Buffer;
+    uint32_t m_Count;
 };
 
 bool RunString(lua_State* L, const char* script)
@@ -54,37 +65,19 @@ bool RunString(lua_State* L, const char* script)
 
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
-    const dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
-        {dmHashString64("velocity"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
-        {dmHashString64("color"), dmBuffer::VALUE_TYPE_UINT8, 4},
-    };
-
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 3, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
     int top = lua_gettop(L);
-    dmScript::PushBuffer(L, buffer);
+    dmScript::PushBuffer(L, m_Buffer);
     dmBuffer::HBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
-    ASSERT_EQ(buffer, *buffer_ptr);
+    ASSERT_EQ(m_Buffer, *buffer_ptr);
     lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, IsBuffer)
 {
-    const dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3}
-    };
-
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 1, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
     int top = lua_gettop(L);
-    dmScript::PushBuffer(L, buffer);
+    dmScript::PushBuffer(L, m_Buffer);
     lua_pushstring(L, "not_a_buffer");
     lua_pushnumber(L, 1337);
     ASSERT_FALSE(dmScript::IsBuffer(L, -1));
@@ -96,43 +89,26 @@ TEST_F(ScriptBufferTest, IsBuffer)
 
 TEST_F(ScriptBufferTest, PrintBuffer)
 {
-    const dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3}
-    };
-
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 1, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
     int top = lua_gettop(L);
-    dmScript::PushBuffer(L, buffer);
+    dmScript::PushBuffer(L, m_Buffer);
     dmBuffer::HBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     (void)buffer_ptr;
     lua_setglobal(L, "test_buffer");
 
     ASSERT_TRUE(RunString(L, "print(test_buffer)"));
 
-    ASSERT_TRUE(RunString(L, "local stream = buffer.get_stream(test_buffer, \"position\"); print(stream)"));
+    ASSERT_TRUE(RunString(L, "local stream = buffer.get_stream(test_buffer, \"rgb\"); print(stream)"));
 
     ASSERT_EQ(top, lua_gettop(L));
 }
 
 TEST_F(ScriptBufferTest, GetElementCount)
 {
-    const dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3}
-    };
-
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Create(1337, streams_decl, 1, &buffer);
-
     int top = lua_gettop(L);
-    dmScript::PushBuffer(L, buffer);
-    dmBuffer::HBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
-    (void)buffer_ptr;
+    dmScript::PushBuffer(L, m_Buffer);
     lua_setglobal(L, "test_buffer");
 
-    ASSERT_TRUE(RunString(L, "assert(1337 == #test_buffer)"));
+    ASSERT_TRUE(RunString(L, "assert(256 == #test_buffer)"));
 
     ASSERT_EQ(top, lua_gettop(L));
 }
@@ -186,36 +162,53 @@ TEST_F(ScriptBufferTest, CreateBuffer)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptBufferTest, GetBytes)
+{
+    int top = lua_gettop(L);
+    uint8_t* data;
+    uint32_t datasize;
+    dmBuffer::GetBytes(m_Buffer, (void**)&data, &datasize);
+
+    for( uint32_t i = 0; i < datasize; ++i )
+    {
+        data[i] = i+1;
+    }
+
+    dmScript::PushBuffer(L, m_Buffer);
+    lua_setglobal(L, "test_buffer");
+
+    char str[1024];
+    DM_SNPRINTF(str, sizeof(str), " local bytes = buffer.get_bytes(test_buffer, \"rgb\") \
+                                    assert(#bytes == %u) \
+                                    for i=1,#bytes do \
+                                        assert( (i %% 256) == string.byte(bytes, i) )\
+                                    end \
+                                  ", datasize);
+    bool run = RunString(L, str);
+    ASSERT_TRUE(run);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
 
 TEST_F(ScriptBufferTest, Indexing)
 {
     int top = lua_gettop(L);
 
-    const dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
-        {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
-    };
-
-    uint32_t size = 16;
-
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Create(size*size, streams_decl, 2, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
+    dmBuffer::Result r;
     uint8_t* stream_rgb = 0;
     uint32_t size_rgb = 0;
-    r = dmBuffer::GetStream(buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_EQ(size * size * sizeof(uint16_t) * 3u, size_rgb);
+    ASSERT_EQ(m_Count * sizeof(uint16_t) * 3u, size_rgb);
 
     uint8_t* stream_a = 0;
     uint32_t size_a = 0;
-    r = dmBuffer::GetStream(buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_EQ(size * size * sizeof(float) * 1u, size_a);
+    ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
 
 
-    dmScript::PushBuffer(L, buffer);
+    dmScript::PushBuffer(L, m_Buffer);
     lua_setglobal(L, "test_buffer");
 
     // Set full buffer (uint16)
@@ -227,10 +220,10 @@ TEST_F(ScriptBufferTest, Indexing)
                   end \
                   ");
 
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
     uint16_t* rgb = (uint16_t*)stream_rgb;
-    for( uint32_t i = 1; i <= size*size; ++i )
+    for( uint32_t i = 1; i <= m_Count; ++i )
     {
         ASSERT_EQ(i*3 + i, (uint32_t)rgb[i-1]);
     }
@@ -244,10 +237,10 @@ TEST_F(ScriptBufferTest, Indexing)
                   end \
                   ");
 
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
     float* a = (float*)stream_a;
-    for( uint32_t i = 1; i <= size*size; ++i )
+    for( uint32_t i = 1; i <= m_Count; ++i )
     {
         ASSERT_EQ(i*5.0f + 0.5f, a[i-1]);
     }
@@ -259,31 +252,21 @@ TEST_F(ScriptBufferTest, CopyStream)
 {
     int top = lua_gettop(L);
 
-    const dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
-        {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
-    };
-
-    uint32_t size = 16;
-
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Create(size*size, streams_decl, 2, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
+    dmBuffer::Result r;
     uint8_t* stream_rgb = 0;
     uint32_t size_rgb = 0;
-    r = dmBuffer::GetStream(buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_EQ(size * size * sizeof(uint16_t) * 3u, size_rgb);
+    ASSERT_EQ(m_Count * sizeof(uint16_t) * 3u, size_rgb);
 
     uint8_t* stream_a = 0;
     uint32_t size_a = 0;
-    r = dmBuffer::GetStream(buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_EQ(size * size * sizeof(float) * 1u, size_a);
+    ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
 
 
-    dmScript::PushBuffer(L, buffer);
+    dmScript::PushBuffer(L, m_Buffer);
     lua_setglobal(L, "test_buffer");
 
     // Copy one stream to another
@@ -298,10 +281,10 @@ TEST_F(ScriptBufferTest, CopyStream)
                         local dststream = buffer.get_stream(test_buffer, hash(\"a\")) \
                         buffer.copy_stream(dststream, 0, srcstream, 0, #srcstream) \
                       ");
-        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
         float* a = (float*)stream_a;
-        for( uint32_t i = 1; i <= size*size; ++i )
+        for( uint32_t i = 1; i <= m_Count; ++i )
         {
             ASSERT_EQ(i*4.0f + 1.5f, a[i-1]);
         }
@@ -318,9 +301,9 @@ TEST_F(ScriptBufferTest, CopyStream)
                         local dststream = buffer.get_stream(test_buffer, hash(\"a\")) \
                         buffer.copy_stream(dststream, 0, srcstream, 0, #srcstream + 10) \
                       ");
-        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
         uint8_t* a = (uint8_t*)stream_a;
-        for( uint32_t i = 1; i <= size*size; ++i )
+        for( uint32_t i = 1; i <= m_Count; ++i )
         {
             ASSERT_EQ('X', a[i-1]);
         }
@@ -336,11 +319,11 @@ TEST_F(ScriptBufferTest, CopyStream)
                         local dststream = buffer.get_stream(test_buffer, hash(\"a\")) \
                         buffer.copy_stream(dststream, 5, srcstream, 0, #srcstream) \
                       ");
-        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
-        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
         uint8_t* a = (uint8_t*)stream_a;
-        for( uint32_t i = 1; i <= size*size; ++i )
+        for( uint32_t i = 1; i <= m_Count; ++i )
         {
             ASSERT_EQ('X', a[i-1]);
         }
@@ -357,11 +340,11 @@ TEST_F(ScriptBufferTest, CopyStream)
                         local dststream = buffer.get_stream(test_buffer, hash(\"a\")) \
                         buffer.copy_stream(dststream, 0, srcstream, 5, #srcstream) \
                       ");
-        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
-        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
         uint8_t* a = (uint8_t*)stream_a;
-        for( uint32_t i = 1; i <= size*size; ++i )
+        for( uint32_t i = 1; i <= m_Count; ++i )
         {
             ASSERT_EQ('X', a[i-1]);
         }
@@ -391,10 +374,21 @@ protected:
         m_Context = dmScript::NewContext(0, 0);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
+
+
+        const dmBuffer::StreamDeclaration streams_decl[] = {
+            {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
+            {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
+        };
+
+        const CopyBufferTestParams& p = GetParam();
+        dmBuffer::Create(p.m_Count, streams_decl, 2, &m_Buffer);
     }
 
     virtual void TearDown()
     {
+        dmBuffer::Destroy(m_Buffer);
+
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
 
@@ -403,6 +397,7 @@ protected:
 
     dmScript::HContext m_Context;
     lua_State* L;
+    dmBuffer::HBuffer m_Buffer;
 };
 
 
@@ -412,28 +407,20 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
 
     int top = lua_gettop(L);
 
-    const dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
-        {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
-    };
-
-    dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Create(p.m_Count, streams_decl, 2, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-
+    dmBuffer::Result r;
     uint16_t* stream_rgb = 0;
     uint32_t size_rgb = 0;
-    r = dmBuffer::GetStream(buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(p.m_Count * sizeof(uint16_t) * 3u, size_rgb);
 
     float* stream_a = 0;
     uint32_t size_a = 0;
-    r = dmBuffer::GetStream(buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(p.m_Count * sizeof(float) * 1u, size_a);
 
-    dmScript::PushBuffer(L, buffer);
+    dmScript::PushBuffer(L, m_Buffer);
     lua_setglobal(L, "dstbuffer");
 
         // Copy one stream to another
@@ -462,20 +449,17 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
 
         bool run = RunString(L, str);
         ASSERT_EQ(p.m_ExpectedOk, run);
-        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(buffer));
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
         if( p.m_ExpectedOk )
         {
             int j = 0;
 
-            printf("\n");
             j = 0;
             for( uint32_t i = 1; i <= p.m_DstOffset; ++i )
             {
                 ASSERT_EQ(0, stream_rgb[i-1]);
                 ASSERT_EQ(0, stream_a[i-1]);
-                
-                //printf("%d: A dst i: %u  -> a: %f\n", j++, i, stream_a[i-1]);
             }
 
             for( uint32_t i = p.m_DstOffset+1; i <= p.m_DstOffset + p.m_CopyCount; ++i )
@@ -485,14 +469,10 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
                 ASSERT_EQ( srci*5, stream_rgb[(i-1)*3 + 1]);
                 ASSERT_EQ( srci*7, stream_rgb[(i-1)*3 + 2]);
                 ASSERT_EQ( srci*3 + srci*5 + srci*7, stream_a[(i-1)]);
-
-                //printf("%d: B dst i: %u  -> rgb: %d, %d, %d  a: %f\n", j++, i, stream_rgb[(i-1)*3 + 0], stream_rgb[(i-1)*3 + 1], stream_rgb[(i-1)*3 + 2], stream_a[i-1]);
             }
 
             for( uint32_t i = p.m_DstOffset + p.m_CopyCount + 1; i <= p.m_Count; ++i )
             {
-                //printf("%d: C dst i: %u  -> rgb: %d, %d, %d  a: %f\n", j++, i, stream_rgb[(i-1)*3 + 0], stream_rgb[(i-1)*3 + 1], stream_rgb[(i-1)*3 + 2], stream_a[i-1]);
-                
                 ASSERT_EQ(0, stream_rgb[(i-1)*3 + 0]);
                 ASSERT_EQ(0, stream_rgb[(i-1)*3 + 1]);
                 ASSERT_EQ(0, stream_rgb[(i-1)*3 + 2]);
@@ -552,7 +532,6 @@ TEST_F(ScriptBufferTest, RefCount)
 
     // Create a buffer, store it globally, test that it works, remove buffer, test that the script usage throws an error
 }
-
 
 int main(int argc, char **argv)
 {
