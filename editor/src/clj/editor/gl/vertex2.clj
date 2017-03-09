@@ -5,12 +5,9 @@
    [editor.gl.protocols :refer [GlBind]]
    [editor.gl.shader :as shader]
    [editor.scene-cache :as scene-cache]
-   [dynamo.graph :as g]
-   [editor.buffers :as b]
+   [editor.types :as types]
    [internal.util :as util])
   (:import
-   [clojure.lang Counted]
-   [com.google.protobuf ByteString]
    [com.jogamp.common.nio Buffers]
    [java.nio ByteBuffer ByteOrder]
    [com.jogamp.opengl GL GL2]))
@@ -174,49 +171,52 @@
     (gl/gl-disable-vertex-attrib-array gl l)))
 
 (defn- find-attribute-index [attribute-name attributes]
-  (util/find-index (fn [[name-sym]] (= attribute-name (name name-sym)))
+  (util/find-index (fn [attribute] (= attribute-name (:name attribute)))
                    attributes))
 
-(defrecord VertexBufferBinding [request-id ^VertexBuffer vertex-buffer]
+(defn- bind-vertex-buffer! [request-id ^GL2 gl ^VertexBuffer vertex-buffer]
+  (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)]
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
+    (let [attributes (:attributes (.vertex-description vertex-buffer))
+          offsets (reductions + 0 (attribute-sizes attributes))
+          stride (vertex-size attributes)]
+      (when-let [position-index (find-attribute-index "position" attributes)]
+        (let [position-attribute (nth attributes position-index)
+              position-offset (nth offsets position-index)
+              {:keys [components type]} position-attribute]
+          (.glVertexPointer gl ^int components ^int (gl-types type) ^int stride ^long position-offset)
+          (.glEnableClientState gl GL2/GL_VERTEX_ARRAY)
+          (fn unbind-vertex-buffer! [^GL2 gl]
+            (.glDisableClientState gl GL2/GL_VERTEX_ARRAY)
+            (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))))))
+
+(defn- bind-vertex-buffer-with-shader! [request-id ^GL2 gl ^VertexBuffer vertex-buffer shader]
+  (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)]
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
+    (let [attributes (:attributes (.vertex-description vertex-buffer))
+          attrib-locs (vertex-locate-attribs gl shader attributes)]
+      (vertex-attrib-pointers gl shader attributes)
+      (vertex-enable-attribs gl attrib-locs)
+      (fn unbind-vertex-buffer-with-shader! [^GL2 gl]
+        (vertex-disable-attribs gl attrib-locs)
+        (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))))
+
+(defrecord VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader unbind-fn-atom]
   GlBind
-  (bind [_this gl _]
-    (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)]
-      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER vbo)
-      (let [attributes (:attributes (.vertex-description vertex-buffer))
-            offsets (reductions + 0 (attribute-sizes attributes))
-            stride (vertex-size attributes)]
-        (when-let [position-index (find-attribute-index "position" attributes)]
-          (let [position-attribute (nth attributes position-index)
-                position-offset (nth offsets position-index)
-                [_ sz tp] position-attribute]
-            (.glVertexPointer ^GL2 gl ^int sz ^int (gl-types tp) ^int stride ^long position-offset)
-            (.glEnableClientState ^GL2 gl GL2/GL_VERTEX_ARRAY))))))
+  (bind [_this gl render-args]
+    (let [unbind-fn (if (types/selection? (:pass render-args))
+                      (bind-vertex-buffer! request-id gl vertex-buffer)
+                      (bind-vertex-buffer-with-shader! request-id gl vertex-buffer shader))]
+      (reset! unbind-fn-atom unbind-fn)))
 
   (unbind [_this gl]
-    (.glDisableClientState ^GL2 gl GL2/GL_VERTEX_ARRAY)
-    (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
-
-(defrecord VertexBufferShaderBinding [request-id ^VertexBuffer vertex-buffer shader enabled-attribs-atom]
-  GlBind
-  (bind [this gl _]
-        (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)]
-          (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER vbo)
-          (let [attributes  (:attributes (.vertex-description vertex-buffer))
-                attrib-locs (vertex-locate-attribs gl shader attributes)]
-            (vertex-attrib-pointers gl shader attributes)
-            (vertex-enable-attribs gl attrib-locs)
-            (reset! enabled-attribs-atom attrib-locs))))
-
-  (unbind [this gl]
-          (vertex-disable-attribs gl @enabled-attribs-atom)
-          (reset! enabled-attribs-atom nil)
-          (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
+    (when-let [unbind-fn @unbind-fn-atom]
+      (unbind-fn gl)
+      (reset! unbind-fn-atom nil))))
 
 (defn use-with
-  ([request-id vertex-buffer]
-   (->VertexBufferBinding request-id vertex-buffer))
-  ([request-id vertex-buffer shader]
-   (->VertexBufferShaderBinding request-id vertex-buffer shader (atom nil))))
+  [request-id vertex-buffer shader]
+  (->VertexBufferShaderLink request-id vertex-buffer shader (atom nil)))
 
 (defn- update-vbo [^GL2 gl vbo data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)

@@ -89,13 +89,13 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.code :as code]
           [editor.geom :as geom]
           [editor.gl :as gl]
-          [editor.gl.protocols :refer [GlBind]]
+          [editor.gl.protocols :as p :refer [GlBind ShaderVariables]]
           [editor.types :as types]
           [editor.workspace :as workspace]
           [editor.defold-project :as project]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
-         [com.jogamp.opengl GL GL2 GLContext]
+         [com.jogamp.opengl GL GL2]
          [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -266,6 +266,11 @@ There are some examples in the testcases in dynamo.shader.translate-test."
   (walk/walk inner-walk outer-walk form))
 
 ;; ======================================================================
+;; The ShaderVariables protocol was moved from here to gl.protocols
+(defmacro get-attrib-location [this gl name] `(p/get-attrib-location ~this ~gl ~name))
+(defmacro set-uniform [this gl name val] `(p/set-uniform ~this ~gl ~name ~val))
+
+;; ======================================================================
 ;; Public API
 (defn create-shader
   "Returns a string in GLSL suitable for compilation. Takes a list of forms.
@@ -281,10 +286,6 @@ This must be submitted to the driver for compilation before you can use it. See
 `make-shader`"
   [name & body]
   `(def ~name ~(create-shader body)))
-
-(defprotocol ShaderVariables
-  (get-attrib-location [this gl name])
-  (set-uniform [this gl name val]))
 
 (defmulti set-uniform-at-index (fn [_ _ _ val] (class val)))
 
