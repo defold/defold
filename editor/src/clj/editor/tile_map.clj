@@ -160,11 +160,13 @@
               (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
       pass/selection
-      (let [{:keys [^Matrix4d user-data]} (first renderables)
+      (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
             {:keys [node-id vbuf]} user-data]
         (when vbuf
-          (let [vertex-binding (vtx/use-with node-id vbuf)]
-            (gl/with-gl-bindings gl render-args [vertex-binding]
+          (let [vertex-binding (vtx/use-with node-id vbuf selection-shader)]
+            (gl/with-gl-bindings gl render-args [selection-shader vertex-binding]
+              ;; TODO: Need to feed transform to fixed-function pipeline too.
+              (shader/set-uniform selection-shader gl "world" world-transform)
               (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))))
 
 

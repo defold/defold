@@ -608,8 +608,8 @@
 
       (= pass pass/selection)
       (when-let [vb (gen-vb renderables)]
-        (let [vertex-binding (vtx/use-with ::spine-selection vb)]
-          (gl/with-gl-bindings gl render-args [vertex-binding]
+        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
+          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture spine-scene-pb scene-structure]
