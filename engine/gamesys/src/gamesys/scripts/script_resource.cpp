@@ -126,7 +126,7 @@ static int Load(lua_State* L)
     };
 
     dmBuffer::HBuffer buffer = 0;
-    dmBuffer::Allocate(resourcesize, streams_decl, 1, &buffer);
+    dmBuffer::Create(resourcesize, streams_decl, 1, &buffer);
 
     uint8_t* data = 0;
     uint32_t datasize = 0;

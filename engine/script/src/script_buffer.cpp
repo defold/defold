@@ -310,7 +310,7 @@ namespace dmScript
         lua_pop(L, 1);
 
         dmBuffer::HBuffer buffer = 0;
-        dmBuffer::Result r = dmBuffer::Allocate((uint32_t)num_elements, decl, num_decl, &buffer);
+        dmBuffer::Result r = dmBuffer::Create((uint32_t)num_elements, decl, num_decl, &buffer);
 
         free(decl);
 
@@ -585,7 +585,7 @@ namespace dmScript
     {
         dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
         printf("FREE BUFFER\n");
-        dmBuffer::Free(*buffer);
+        dmBuffer::Destroy(*buffer);
         *buffer = 0x0;
         return 0;
     }

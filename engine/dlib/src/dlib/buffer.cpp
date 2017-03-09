@@ -68,9 +68,9 @@ namespace dmBuffer
 
     void Exit()
     {
-        assert(g_BufferContext != 0 && "Buffer context was not created");
-        free( (void*)g_BufferContext );
-        g_BufferContext = 0; // for unit tests
+        if( g_BufferContext )
+            free( (void*)g_BufferContext );
+        g_BufferContext = 0;
     }
 
     static uint32_t FindEmptySlot(BufferContext* ctx)
@@ -258,9 +258,10 @@ namespace dmBuffer
         return buffer != 0;
     }
 
-    Result Allocate(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer)
+    Result Create(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer)
     {
         BufferContext* ctx = g_BufferContext;
+        assert(ctx && "Buffer context not initialized");
 
         if (!streams_decl || !out_buffer) {
             return RESULT_ALLOCATION_ERROR;
@@ -327,7 +328,7 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
-    void Free(HBuffer hbuffer)
+    void Destroy(HBuffer hbuffer)
     {
         if (hbuffer) {
             FreeBuffer(g_BufferContext, hbuffer);

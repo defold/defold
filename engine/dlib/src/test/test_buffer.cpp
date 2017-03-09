@@ -35,11 +35,11 @@ protected:
         };
 
         element_count = 4;
-        dmBuffer::Allocate(element_count, streams_decl, 2, &buffer);
+        dmBuffer::Create(element_count, streams_decl, 2, &buffer);
     }
 
     virtual void TearDown() {
-        dmBuffer::Free(buffer);
+        dmBuffer::Destroy(buffer);
         dmBuffer::Exit();
     }
 };
@@ -65,7 +65,7 @@ protected:
     }
 
     virtual void TearDown() {
-        dmBuffer::Free(buffer);
+        dmBuffer::Destroy(buffer);
         dmBuffer::Exit();
     }
 };
@@ -84,32 +84,32 @@ TEST_F(BufferTest, InvalidAllocation)
     };
 
     // Empty declaration, zero elements
-    dmBuffer::Result r = dmBuffer::Allocate(0, streams_decl, 0, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(0, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
     ASSERT_EQ(0, buffer);
 
     // Empty declaration, 1 element
-    r = dmBuffer::Allocate(1, streams_decl, 0, &buffer);
+    r = dmBuffer::Create(1, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
     ASSERT_EQ(0, buffer);
 
     // Valid declaration, zero elements
-    r = dmBuffer::Allocate(0, streams_decl, 2, &buffer);
+    r = dmBuffer::Create(0, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
     ASSERT_EQ(0, buffer);
 
     // Valid sizes, but invalid valuetype count (see "dummy3" above)
-    r = dmBuffer::Allocate(1, streams_decl, 3, &buffer);
+    r = dmBuffer::Create(1, streams_decl, 3, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
     ASSERT_EQ(0, buffer);
 
     // Valid sizes, but buffer is NULL-pointer
-    r = dmBuffer::Allocate(1, streams_decl, 1, 0x0);
+    r = dmBuffer::Create(1, streams_decl, 1, 0x0);
     ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
     ASSERT_EQ(0, buffer);
 
     // Valid sizes, but declaration is NULL-pointer
-    r = dmBuffer::Allocate(1, 0x0, 1, &buffer);
+    r = dmBuffer::Create(1, 0x0, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
     ASSERT_EQ(0, buffer);
 }
@@ -123,24 +123,24 @@ TEST_F(BufferTest, ValidAllocation)
     };
 
     // Declaration of 2 streams, with 4 elements
-    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 2, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE(0, buffer);
-    dmBuffer::Free(buffer);
+    dmBuffer::Destroy(buffer);
     buffer = 0;
 
     // Allocation with only the first stream declaration
-    r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
+    r = dmBuffer::Create(4, streams_decl, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE(0, buffer);
-    dmBuffer::Free(buffer);
+    dmBuffer::Destroy(buffer);
     buffer = 0;
 
     // Larger allocation
-    r = dmBuffer::Allocate(1024*1024, streams_decl, 2, &buffer);
+    r = dmBuffer::Create(1024*1024, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_NE(0, buffer);
-    dmBuffer::Free(buffer);
+    dmBuffer::Destroy(buffer);
 }
 
 TEST_F(BufferTest, ValueTypes)
@@ -153,10 +153,10 @@ TEST_F(BufferTest, ValueTypes)
     {
         streams_decl[0].m_ValueType = (dmBuffer::ValueType)i;
 
-        dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
+        dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 1, &buffer);
         ASSERT_EQ(dmBuffer::RESULT_OK, r);
         ASSERT_NE(0, buffer);
-        dmBuffer::Free(buffer);
+        dmBuffer::Destroy(buffer);
         buffer = 0x0;
     }
 }
@@ -174,7 +174,7 @@ TEST_F(BufferTest, ValidateBuffer)
 
     // Create valid buffer, but write outside stream boundry
     // Should not be a valid buffer after.
-    r = dmBuffer::Allocate(1, streams_decl, 1, &buffer);
+    r = dmBuffer::Create(1, streams_decl, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     // Get and write outside buffer
@@ -194,7 +194,7 @@ TEST_F(BufferTest, ValidateBuffer)
     r = dmBuffer::ValidateBuffer(buffer);
     ASSERT_EQ(dmBuffer::RESULT_GUARD_INVALID, r);
 
-    dmBuffer::Free(buffer);
+    dmBuffer::Destroy(buffer);
 }
 
 TEST_F(GetDataTest, GetStreamType)
@@ -411,7 +411,7 @@ TEST_P(AlignmentTest, CheckAlignment)
 {
     const AlignmentTestParams& p = GetParam();
 
-    dmBuffer::Result r = dmBuffer::Allocate(p.element_count, p.streams_decl, p.streams_decl_count, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(p.element_count, p.streams_decl, p.streams_decl_count, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(0, ((uintptr_t)buffer) % 16);
 

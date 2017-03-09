@@ -61,7 +61,7 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
     };
 
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 3, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 3, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     int top = lua_gettop(L);
@@ -80,7 +80,7 @@ TEST_F(ScriptBufferTest, IsBuffer)
     };
 
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     int top = lua_gettop(L);
@@ -101,7 +101,7 @@ TEST_F(ScriptBufferTest, PrintBuffer)
     };
 
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     int top = lua_gettop(L);
@@ -124,7 +124,7 @@ TEST_F(ScriptBufferTest, GetElementCount)
     };
 
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Allocate(1337, streams_decl, 1, &buffer);
+    dmBuffer::Create(1337, streams_decl, 1, &buffer);
 
     int top = lua_gettop(L);
     dmScript::PushBuffer(L, buffer);
@@ -199,7 +199,7 @@ TEST_F(ScriptBufferTest, Indexing)
     uint32_t size = 16;
 
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Allocate(size*size, streams_decl, 2, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(size*size, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     uint8_t* stream_rgb = 0;
@@ -267,7 +267,7 @@ TEST_F(ScriptBufferTest, CopyStream)
     uint32_t size = 16;
 
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Allocate(size*size, streams_decl, 2, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(size*size, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     uint8_t* stream_rgb = 0;
@@ -418,7 +418,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
     };
 
     dmBuffer::HBuffer buffer = 0x0;
-    dmBuffer::Result r = dmBuffer::Allocate(p.m_Count, streams_decl, 2, &buffer);
+    dmBuffer::Result r = dmBuffer::Create(p.m_Count, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
 
     uint16_t* stream_rgb = 0;

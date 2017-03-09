@@ -120,11 +120,11 @@ namespace dmBuffer
         uint8_t   m_ValueCount;
     };
 
-    /*# allocate Buffer
+    /*# create Buffer
      *
-     * Allocate a new HBuffer with a number of different streams.
+     * Creates a new HBuffer with a number of different streams.
      *
-     * @name dmBuffer::Allocate
+     * @name dmBuffer::Create
      * @param num_elements [type:uint32_t]  The number of elements the buffer should hold
      * @param streams_decl [type:const dmBuffer::StreamDeclaration*] Array of stream declarations
      * @param streams_decl_count [type:uint8_t] Number of stream declarations inside the decl array (max 256)
@@ -139,7 +139,7 @@ namespace dmBuffer
      *     {dmHashString64("color"), dmBuffer::VALUE_TYPE_UINT8, 4},
      * };
      * dmBuffer::HBuffer buffer = 0x0;
-     * dmBuffer::Result r = dmBuffer::Allocate(1024, streams_decl, 3, &buffer);
+     * dmBuffer::Result r = dmBuffer::Create(1024, streams_decl, 3, &buffer);
      *
      * if (r == dmBuffer::RESULT_OK) {
      *     // success
@@ -148,13 +148,13 @@ namespace dmBuffer
      * }
      * ```
      */
-    Result Allocate(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
+    Result Create(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
 
-    /*# free Buffer.
+    /*# destroy Buffer.
      *
-     * Free a HBuffer and it's streams.
+     * Destroys a HBuffer and it's streams.
      *
-     * @name dmBuffer::Free
+     * @name dmBuffer::Destroy
      * @param buffer [type:dmBuffer::HBuffer] Buffer handle to the buffer to free
      * @examples
      *
@@ -163,16 +163,16 @@ namespace dmBuffer
      *     {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
      * };
      * dmBuffer::HBuffer buffer = 0x0;
-     * dmBuffer::Result r = dmBuffer::Allocate(4, streams_decl, 1, &buffer);
+     * dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 1, &buffer);
      *
      * if (r == dmBuffer::RESULT_OK) {
-     *     dmBuffer::Free(buffer);
+     *     dmBuffer::Destroy(buffer);
      * } else {
      *     // handle error
      * }
      * ```
      */
-    void Free(HBuffer buffer);
+    void Destroy(HBuffer buffer);
 
     /*# check buffer handle
      * 
