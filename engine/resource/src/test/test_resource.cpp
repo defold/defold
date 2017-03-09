@@ -44,6 +44,34 @@ protected:
     dmResource::HFactory factory;
 };
 
+class DynamicResourceTest : public ::testing::Test
+{
+protected:
+    virtual void SetUp()
+    {
+        const char* test_dir = "build/default/src/test";
+
+        dmBuffer::Init();
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 16;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        factory = dmResource::NewFactory(&params, test_dir);
+        ASSERT_NE((void*) 0, factory);
+    }
+
+    virtual void TearDown()
+    {
+        if (factory != NULL)
+        {
+            dmResource::DeleteFactory(factory);
+        }
+        dmBuffer::Exit();
+    }
+
+    dmResource::HFactory factory;
+};
+
+
 dmResource::Result DummyCreate(const dmResource::ResourceCreateParams& params)
 {
     return dmResource::RESULT_OK;
@@ -1179,6 +1207,8 @@ TEST(DynamicResources, GetPath)
 {
     const char* test_dir = "build/default/src/test";
 
+
+
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 8;
     dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
@@ -1235,15 +1265,8 @@ TEST(DynamicResources, GetPath)
     dmResource::DeleteFactory(factory);
 }
 
-TEST(DynamicResources, Set)
+TEST_F(DynamicResourceTest, Set)
 {
-    const char* test_dir = "build/default/src/test";
-
-    dmResource::NewFactoryParams params;
-    params.m_MaxResources = 8;
-    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
-    ASSERT_NE((void*) 0, factory);
-
     dmResource::Result e;
     e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
@@ -1270,7 +1293,7 @@ TEST(DynamicResources, Set)
 
     uint32_t element_count = 32;
     dmBuffer::HBuffer buffer = 0;
-    dmBuffer::Allocate(element_count, streams_decl, 1, &buffer);
+    dmBuffer::Create(element_count, streams_decl, 1, &buffer);
 
     uint8_t* data = 0;
     uint32_t datasize = 0;
@@ -1310,23 +1333,14 @@ TEST(DynamicResources, Set)
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
 
-
-    dmBuffer::Free(buffer);
+    dmBuffer::Destroy(buffer);
     dmResource::Release(factory, resource2);
     dmResource::Release(factory, resource1);
-    dmResource::DeleteFactory(factory);
 }
 
 
-TEST(DynamicResources, RefCount)
+TEST_F(DynamicResourceTest, RefCount)
 {
-    const char* test_dir = "build/default/src/test";
-
-    dmResource::NewFactoryParams params;
-    params.m_MaxResources = 8;
-    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
-    ASSERT_NE((void*) 0, factory);
-
     dmResource::Result e;
     e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
@@ -1343,7 +1357,6 @@ TEST(DynamicResources, RefCount)
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, hash));
 
     dmResource::Release(factory, resource1);
-    dmResource::DeleteFactory(factory);
 }
 
 
