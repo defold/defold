@@ -1,8 +1,7 @@
 (ns editor.gl
   "Expose some GL functions and constants with Clojure-ish flavor"
   (:refer-clojure :exclude [repeat])
-  (:require [editor.gl.protocols :as p]
-            [editor.types :as types])
+  (:require [editor.gl.protocols :as p])
   (:import [java.awt Font]
            [java.nio IntBuffer]
            [com.jogamp.opengl GL GL2 GLDrawableFactory GLProfile]
@@ -114,11 +113,6 @@
        (finally
          (.swapBuffers ~canvas)))))
 
-(defn should-bind? [gl-bind render-args]
-  (and (satisfies? p/GlBind gl-bind)
-       (not (and (types/selection? (:pass render-args))
-                 (satisfies? p/ShaderVariables gl-bind)))))
-
 (defmacro with-gl-bindings
   [glsymb render-args-symb gl-stuff & body]
   (assert (vector? gl-stuff) (str "GL objects must be a vector of values that satisfy GlBind" gl-stuff))
@@ -126,13 +120,19 @@
          render-args# ~render-args-symb
          items# ~gl-stuff]
      (doseq [b# items#]
-       (when (should-bind? b# render-args#)
+       (when (satisfies? p/GlBind b#)
          (p/bind b# gl# render-args#)))
      (let [res# (do ~@body)]
        (doseq [b# (reverse items#)]
-         (when (should-bind? b# render-args#)
-           (p/unbind b# gl#)))
+         (when (satisfies? p/GlBind b#)
+           (p/unbind b# gl# render-args#)))
        res#)))
+
+(defn bind [^GL2 gl bindable render-args]
+  (p/bind bindable gl render-args))
+
+(defn unbind [^GL2 gl bindable render-args]
+  (p/unbind bindable gl render-args))
 
 (defmacro do-gl
   [glsymb render-args bindings & body]
