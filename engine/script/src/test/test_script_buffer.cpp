@@ -53,7 +53,7 @@ protected:
     uint32_t m_Count;
 };
 
-bool RunString(lua_State* L, const char* script)
+static bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
     {
@@ -66,10 +66,11 @@ bool RunString(lua_State* L, const char* script)
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::PushBuffer(L, m_Buffer);
-    dmBuffer::HBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
+    dmScript::LuaHBuffer luabuf = {m_Buffer, false};
+    dmScript::PushBuffer(L, luabuf);
+    dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
-    ASSERT_EQ(m_Buffer, *buffer_ptr);
+    ASSERT_EQ(m_Buffer, buffer_ptr->m_Buffer);
     lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
 }
@@ -77,7 +78,8 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
 TEST_F(ScriptBufferTest, IsBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::PushBuffer(L, m_Buffer);
+    dmScript::LuaHBuffer luabuf = {m_Buffer, false};
+    dmScript::PushBuffer(L, luabuf);
     lua_pushstring(L, "not_a_buffer");
     lua_pushnumber(L, 1337);
     ASSERT_FALSE(dmScript::IsBuffer(L, -1));
@@ -90,9 +92,8 @@ TEST_F(ScriptBufferTest, IsBuffer)
 TEST_F(ScriptBufferTest, PrintBuffer)
 {
     int top = lua_gettop(L);
-    dmScript::PushBuffer(L, m_Buffer);
-    dmBuffer::HBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
-    (void)buffer_ptr;
+    dmScript::LuaHBuffer luabuf = {m_Buffer, false};
+    dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
     ASSERT_TRUE(RunString(L, "print(test_buffer)"));
@@ -105,7 +106,8 @@ TEST_F(ScriptBufferTest, PrintBuffer)
 TEST_F(ScriptBufferTest, GetElementCount)
 {
     int top = lua_gettop(L);
-    dmScript::PushBuffer(L, m_Buffer);
+    dmScript::LuaHBuffer luabuf = {m_Buffer, false};
+    dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
     ASSERT_TRUE(RunString(L, "assert(256 == #test_buffer)"));
@@ -117,7 +119,7 @@ TEST_F(ScriptBufferTest, CreateBuffer)
 {
     int top = lua_gettop(L);
 
-    dmBuffer::HBuffer* buffer = 0;
+    dmScript::LuaHBuffer* buffer = 0;
     uint32_t element_count = 0;
 
     dmBuffer::ValueType type;
@@ -126,9 +128,9 @@ TEST_F(ScriptBufferTest, CreateBuffer)
     RunString(L, "test_buffer = buffer.create( 12, { {name=hash(\"rgba\"), type=buffer.VALUE_TYPE_UINT8, count=4 } } )");
     lua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(*buffer, &element_count));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(12, element_count);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(*buffer, dmHashString64("rgba"), &type, &typecount ) );
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("rgba"), &type, &typecount ) );
     ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT8, type);
     ASSERT_EQ(4, typecount);
     lua_pop(L, 1);
@@ -136,9 +138,9 @@ TEST_F(ScriptBufferTest, CreateBuffer)
     RunString(L, "test_buffer = buffer.create( 24, { {name=hash(\"position\"), type=buffer.VALUE_TYPE_FLOAT32, count=3 } } )");
     lua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(*buffer, &element_count));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(24, element_count);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(*buffer, dmHashString64("position"), &type, &typecount ) );
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("position"), &type, &typecount ) );
     ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
     ASSERT_EQ(3, typecount);
     lua_pop(L, 1);
@@ -147,13 +149,13 @@ TEST_F(ScriptBufferTest, CreateBuffer)
                                                     {name=hash(\"normal\"), type=buffer.VALUE_TYPE_FLOAT32, count=3 } } )");
     lua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(*buffer, &element_count));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(10, element_count);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(*buffer, dmHashString64("position"), &type, &typecount ) );
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("position"), &type, &typecount ) );
     ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT64, type);
     ASSERT_EQ(4, typecount);
 
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(*buffer, dmHashString64("normal"), &type, &typecount ) );
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("normal"), &type, &typecount ) );
     ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
     ASSERT_EQ(3, typecount);
 
@@ -174,7 +176,8 @@ TEST_F(ScriptBufferTest, GetBytes)
         data[i] = i+1;
     }
 
-    dmScript::PushBuffer(L, m_Buffer);
+    dmScript::LuaHBuffer luabuf = {m_Buffer, false};
+    dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
     char str[1024];
@@ -208,7 +211,8 @@ TEST_F(ScriptBufferTest, Indexing)
     ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
 
 
-    dmScript::PushBuffer(L, m_Buffer);
+    dmScript::LuaHBuffer luabuf = {m_Buffer, false};
+    dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
     // Set full buffer (uint16)
@@ -266,7 +270,8 @@ TEST_F(ScriptBufferTest, CopyStream)
     ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
 
 
-    dmScript::PushBuffer(L, m_Buffer);
+    dmScript::LuaHBuffer luabuf = {m_Buffer, false};
+    dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
     // Copy one stream to another
@@ -420,7 +425,8 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(p.m_Count * sizeof(float) * 1u, size_a);
 
-    dmScript::PushBuffer(L, m_Buffer);
+    dmScript::LuaHBuffer luabuf = {m_Buffer, false};
+    dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "dstbuffer");
 
         // Copy one stream to another
