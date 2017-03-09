@@ -89,7 +89,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.code :as code]
           [editor.geom :as geom]
           [editor.gl :as gl]
-          [editor.gl.protocols :as p :refer [GlBind ShaderVariables]]
+          [editor.gl.protocols :refer [GlBind]]
           [editor.types :as types]
           [editor.workspace :as workspace]
           [editor.defold-project :as project]
@@ -266,11 +266,6 @@ There are some examples in the testcases in dynamo.shader.translate-test."
   (walk/walk inner-walk outer-walk form))
 
 ;; ======================================================================
-;; The ShaderVariables protocol was moved from here to gl.protocols
-(defmacro get-attrib-location [this gl name] `(p/get-attrib-location ~this ~gl ~name))
-(defmacro set-uniform [this gl name val] `(p/set-uniform ~this ~gl ~name ~val))
-
-;; ======================================================================
 ;; Public API
 (defn create-shader
   "Returns a string in GLSL suitable for compilation. Takes a list of forms.
@@ -286,6 +281,10 @@ This must be submitted to the driver for compilation before you can use it. See
 `make-shader`"
   [name & body]
   `(def ~name ~(create-shader body)))
+
+(defprotocol ShaderVariables
+  (get-attrib-location [this gl name])
+  (set-uniform [this gl name val]))
 
 (defmulti set-uniform-at-index (fn [_ _ _ val] (class val)))
 
@@ -380,18 +379,20 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defrecord ShaderLifecycle [request-id verts frags uniforms]
   GlBind
-  (bind [this gl render-args]
-    (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-      (.glUseProgram ^GL2 gl program)
-      (doseq [[name val] uniforms
-              :let [val (if (keyword? val)
-                          (get render-args val)
-                          val)
-                    loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
-        (set-uniform-at-index gl program loc val))))
+  (bind [_this gl render-args]
+    (when-not (types/selection? (:pass render-args))
+      (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
+        (.glUseProgram ^GL2 gl program)
+        (doseq [[name val] uniforms
+                :let [val (if (keyword? val)
+                            (get render-args val)
+                            val)
+                      loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
+          (set-uniform-at-index gl program loc val)))))
 
-  (unbind [this gl]
-    (.glUseProgram ^GL2 gl 0))
+  (unbind [_this gl render-args]
+    (when-not (types/selection? (:pass render-args))
+      (.glUseProgram ^GL2 gl 0)))
 
   ShaderVariables
   (get-attrib-location [this gl name]
