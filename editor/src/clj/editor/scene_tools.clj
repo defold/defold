@@ -124,7 +124,7 @@
         manip (:manip user-data)
         color (:color user-data)
         vertex-buffers (:vertex-buffers user-data)
-        selection-pass? true #_(types/selection? (:pass render-args))] ; TEST! REMOVE!
+        selection-pass? (types/selection? (:pass render-args))]
     (when (manip-visible? manip (c/camera-view-matrix camera))
       (gl/gl-push-matrix gl
         (gl/gl-mult-matrix-4d gl world-transform)
