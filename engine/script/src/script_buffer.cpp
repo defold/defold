@@ -9,6 +9,7 @@
 #include <dlib/log.h>
 
 #if defined(_WIN32)
+#include <malloc.h>
 #define alloca(_SIZE) _alloca(_SIZE)
 #endif
 
@@ -120,22 +121,23 @@ namespace dmScript
         return IsBufferType(L, index, SCRIPT_TYPE_NAME_BUFFER);
     }
 
-    void PushBuffer(lua_State* L, dmBuffer::HBuffer v)
+    void PushBuffer(lua_State* L, const dmScript::LuaHBuffer& v)
     {
         int top = lua_gettop(L);
-        dmBuffer::HBuffer* vp = (dmBuffer::HBuffer*)lua_newuserdata(L, sizeof(dmBuffer::HBuffer));
-        *vp = v;
+        dmScript::LuaHBuffer* luabuf = (dmScript::LuaHBuffer*)lua_newuserdata(L, sizeof(dmScript::LuaHBuffer));
+        luabuf->m_Buffer = v.m_Buffer;
+        luabuf->m_UseLuaGC = v.m_UseLuaGC;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
         lua_setmetatable(L, -2);
         assert(top + 1 == lua_gettop(L));
     }
 
-    dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index)
+    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            dmBuffer::HBuffer* buffer = (dmBuffer::HBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
-            if( dmBuffer::IsBufferValid( *buffer ) ) {
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
+            if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
                 return buffer;
             }
             luaL_error(L, "The buffer handle is invalid");
@@ -324,7 +326,8 @@ namespace dmScript
             return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
         }
 
-        PushBuffer(L, buffer);
+        dmScript::LuaHBuffer luabuf = { buffer, true };
+        PushBuffer(L, luabuf);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -341,9 +344,9 @@ namespace dmScript
     static int GetStream(lua_State* L)
     {
         int top = lua_gettop(L);
-        dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 1);
+        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
         dmhash_t stream_name = dmScript::CheckHashOrString(L, 2);
-        PushStream(L, 1, *buffer, stream_name);
+        PushStream(L, 1, buffer->m_Buffer, stream_name);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -456,8 +459,10 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        dmBuffer::HBuffer* dstbuffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer* srcbuffer = dmScript::CheckBuffer(L, 3);
+        dmScript::LuaHBuffer* _dstbuffer = dmScript::CheckBuffer(L, 1);
+        dmScript::LuaHBuffer* _srcbuffer = dmScript::CheckBuffer(L, 3);
+        dmBuffer::HBuffer dstbuffer = _dstbuffer->m_Buffer;
+        dmBuffer::HBuffer srcbuffer = _srcbuffer->m_Buffer;
         int dstoffset = luaL_checkint(L, 2);
         int srcoffset = luaL_checkint(L, 4);
         int count = luaL_checkint(L, 5);
@@ -471,8 +476,8 @@ namespace dmScript
         dmBuffer::Result r;
         uint32_t dstcount;
         uint32_t srccount;
-        dmBuffer::GetElementCount(*dstbuffer, &dstcount);
-        dmBuffer::GetElementCount(*srcbuffer, &srccount);
+        dmBuffer::GetElementCount(dstbuffer, &dstcount);
+        dmBuffer::GetElementCount(srcbuffer, &srccount);
         if( (dstoffset + count) > dstcount )
         {
             return luaL_error(L, "Trying to write too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
@@ -483,7 +488,7 @@ namespace dmScript
         }
 
         // Validate that target buffer has those stream names
-        uint32_t num_streams = dmBuffer::GetNumStreams(*srcbuffer);
+        uint32_t num_streams = dmBuffer::GetNumStreams(srcbuffer);
 
         // Simple optimisation: Reusing this struct to hold some data between the validation step and the actual copy step
         BufferStream* stream_info = (BufferStream*)alloca( num_streams * 2 * sizeof(BufferStream) );
@@ -493,10 +498,10 @@ namespace dmScript
             BufferStream* dststream = &stream_info[i*2 + 0];
             BufferStream* srcstream = &stream_info[i*2 + 1];
 
-            dmBuffer::GetStreamName(*srcbuffer, i, &srcstream->m_Name);
+            dmBuffer::GetStreamName(srcbuffer, i, &srcstream->m_Name);
             dmhash_t stream_name = srcstream->m_Name;
 
-            r = dmBuffer::GetStream(*dstbuffer, stream_name, (void**)&dststream->m_Data, &dststream->m_DataSize);
+            r = dmBuffer::GetStream(dstbuffer, stream_name, (void**)&dststream->m_Data, &dststream->m_DataSize);
             if( r == dmBuffer::RESULT_STREAM_MISSING )
             {
                 assert(top == lua_gettop(L));
@@ -509,9 +514,9 @@ namespace dmScript
                 return luaL_error(L, "buffer.copy_buffer: Failed getting destination byte array: %s", dmBuffer::GetResultString(r));
             }
 
-            dmBuffer::GetStream(*srcbuffer,  stream_name, (void**)&srcstream->m_Data, &srcstream->m_DataSize);
-            GetStreamType(*dstbuffer, stream_name, &dststream->m_Type, &dststream->m_TypeCount);
-            GetStreamType(*srcbuffer, stream_name, &srcstream->m_Type, &srcstream->m_TypeCount);
+            dmBuffer::GetStream(srcbuffer,  stream_name, (void**)&srcstream->m_Data, &srcstream->m_DataSize);
+            GetStreamType(dstbuffer, stream_name, &dststream->m_Type, &dststream->m_TypeCount);
+            GetStreamType(srcbuffer, stream_name, &srcstream->m_Type, &srcstream->m_TypeCount);
 
             if( dststream->m_Type != srcstream->m_Type )
             {
@@ -564,12 +569,12 @@ namespace dmScript
     static int GetBytes(lua_State* L)
     {
         int top = lua_gettop(L);
-        dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 1);
+        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
         dmhash_t stream_name = dmScript::CheckHashOrString(L, -1);
 
         uint8_t* data;
         uint32_t datasize;
-        dmBuffer::Result r = dmBuffer::GetStream(*buffer, stream_name, (void**)&data, &datasize);
+        dmBuffer::Result r = dmBuffer::GetStream(buffer->m_Buffer, stream_name, (void**)&data, &datasize);
         if( r != dmBuffer::RESULT_OK )
         {
             assert(top == lua_gettop(L));
@@ -587,22 +592,24 @@ namespace dmScript
 
     static int Buffer_gc(lua_State *L)
     {
-        dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
-        printf("FREE BUFFER\n");
-        dmBuffer::Destroy(*buffer);
-        *buffer = 0x0;
+        dmScript::LuaHBuffer* buffer = CheckBuffer(L, 1);
+        if( buffer->m_UseLuaGC )
+        {
+            printf("FREE BUFFER\n");
+            dmBuffer::Destroy(buffer->m_Buffer);
+        }
         return 0;
     }
 
     static int Buffer_tostring(lua_State *L)
     {
         int top = lua_gettop(L);
-        dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
+        dmScript::LuaHBuffer* buffer = CheckBuffer(L, 1);
 
-        uint32_t num_streams = dmBuffer::GetNumStreams(*buffer);
+        uint32_t num_streams = dmBuffer::GetNumStreams(buffer->m_Buffer);
 
         uint32_t out_element_count = 0;
-        dmBuffer::Result r = dmBuffer::GetElementCount(*buffer, &out_element_count);
+        dmBuffer::Result r = dmBuffer::GetElementCount(buffer->m_Buffer, &out_element_count);
         if( r != dmBuffer::RESULT_OK )
         {
             assert(top + 1 == lua_gettop(L));
@@ -620,13 +627,13 @@ namespace dmScript
         for( uint32_t i = 0; i < num_streams; ++i )
         {
             dmhash_t stream_name = 0;
-            dmBuffer::GetStreamName(*buffer, i, &stream_name);
+            dmBuffer::GetStreamName(buffer->m_Buffer, i, &stream_name);
 
             const char* string_name = (const char*)dmHashReverse64(stream_name, 0);
 
             dmBuffer::ValueType type;
             uint32_t type_count = 0;
-            GetStreamType(*buffer, stream_name, &type, &type_count);
+            GetStreamType(buffer->m_Buffer, stream_name, &type, &type_count);
 
             const char* comma = i<(num_streams-1)?", ":"";
             const char* typestring = dmBuffer::GetValueTypeString(type);
@@ -644,9 +651,9 @@ namespace dmScript
     static int Buffer_len(lua_State *L)
     {
         int top = lua_gettop(L);
-        dmBuffer::HBuffer* buffer = CheckBuffer(L, 1);
+        dmScript::LuaHBuffer* buffer = CheckBuffer(L, 1);
         uint32_t out_element_count = 0;
-        dmBuffer::Result r = dmBuffer::GetElementCount(*buffer, &out_element_count);
+        dmBuffer::Result r = dmBuffer::GetElementCount(buffer->m_Buffer, &out_element_count);
         if (r != dmBuffer::RESULT_OK) {
             assert(top == lua_gettop(L));
             return luaL_error(L, "%s.%s could not get buffer length", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFER);

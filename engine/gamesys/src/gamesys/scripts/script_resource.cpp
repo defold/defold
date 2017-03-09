@@ -66,9 +66,9 @@ static int Set(lua_State* L)
     int top = lua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-    dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 2);
+    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 2);
 
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, *buffer);
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, buffer->m_Buffer);
     if( r != dmResource::RESULT_OK )
     {
         assert(top == lua_gettop(L));
@@ -134,7 +134,8 @@ static int Load(lua_State* L)
 
     memcpy(data, resource, resourcesize);
 
-    dmScript::PushBuffer(L, buffer);
+    dmScript::LuaHBuffer luabuf = {buffer, true};
+    dmScript::PushBuffer(L, luabuf);
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
@@ -242,11 +243,11 @@ static int SetTexture(lua_State* L)
 
     uint32_t num_mip_maps = 1;
 
-    dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 3);
+    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
 
     uint8_t* data = 0;
     uint32_t datasize = 0;
-    dmBuffer::GetBytes(*buffer, (void**)&data, &datasize);
+    dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
 
     dmGraphics::TextureImage* texture_image = new dmGraphics::TextureImage;
     texture_image->m_Alternatives.m_Data = new dmGraphics::TextureImage::Image[1];
