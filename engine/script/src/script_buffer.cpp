@@ -8,6 +8,10 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 
+#if defined(_WIN32)
+#define alloca(_SIZE) _alloca(_SIZE)
+#endif
+
 extern "C"
 {
 #include <lua/lauxlib.h>

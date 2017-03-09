@@ -69,7 +69,10 @@ namespace dmBuffer
     void Exit()
     {
         if( g_BufferContext )
+        {
+            free( g_BufferContext->m_Buffers );
             free( (void*)g_BufferContext );
+        }
         g_BufferContext = 0;
     }
 

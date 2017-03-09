@@ -423,6 +423,8 @@ TEST_P(AlignmentTest, CheckAlignment)
         ASSERT_EQ(dmBuffer::RESULT_OK, r);
         ASSERT_EQ(0, ((uintptr_t)out_stream) % 16);
     }
+
+    // No destroy of buffer, it's handled by the AlignmentTest class
 }
 
 #undef CLEAR_OUT_VARS
