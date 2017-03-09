@@ -9,7 +9,6 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
             [editor.gl.pass :as pass]
-            [editor.gl.protocols :as p]
             [editor.geom :as geom]
             [editor.render :as render]
             [editor.resource :as resource]
@@ -108,7 +107,7 @@
         (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (doseq [[name t] textures]
-              (p/bind t gl render-args)
+              (gl/bind gl t render-args)
               (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
             (gl/gl-enable gl GL/GL_CULL_FACE)
             (gl/gl-cull-face gl GL/GL_BACK)
@@ -117,7 +116,7 @@
             (gl/gl-disable gl GL/GL_CULL_FACE)
             (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
             (doseq [[name t] textures]
-              (p/unbind t gl)))))
+              (gl/unbind gl t render-args)))))
 
       (= pass pass/selection)
       (doseq [vb vbs]

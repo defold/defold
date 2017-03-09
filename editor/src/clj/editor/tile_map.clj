@@ -156,7 +156,6 @@
                 (gl/gl-mult-matrix-4d gl world-transform)
                 (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))))))
 
-
 (defn make-tile-uv-lookup-cache
   [tile-count uv-transforms]
   (let [uv-cache (object-array tile-count)]
