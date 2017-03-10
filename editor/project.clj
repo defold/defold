@@ -12,6 +12,7 @@
                      [org.clojure/core.cache                      "0.6.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]
+                     [org.clojure/tools.nrepl                     "0.2.12"]
                      [org.clojure/data.json                       "0.2.6"]
                      [com.cognitect/transit-clj                   "0.8.285"
                       :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6

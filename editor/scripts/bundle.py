@@ -274,11 +274,11 @@ if __name__ == '__main__':
     exec_command(['bash', './scripts/lein', 'clean'])
 
     if options.pack_local:
-        exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'pack'])
+        exec_command(['bash', './scripts/lein', 'with-profile', '+dev', 'pack'])
     else:
-        exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'pack', options.git_sha1])
+        exec_command(['bash', './scripts/lein', 'with-profile', '+dev', 'pack', options.git_sha1])
 
-    exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
+    exec_command(['bash', './scripts/lein', 'with-profile', '+dev', 'uberjar'])
 
     jar_file = 'defold-%s.jar' % options.git_sha1
 

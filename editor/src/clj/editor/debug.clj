@@ -1,5 +1,6 @@
 (ns editor.debug
-  (:require [editor.system :as system]))
+  (:require [editor.system :as system])
+  (:import [java.net InetAddress ServerSocket]))
 
 (set! *warn-on-reflection* true)
 
@@ -34,7 +35,7 @@
       (let [srv (if config
                   (apply start-server (mapcat identity config))
                   (start-server))]
-        (println (format "Started REPL at nrepl://127.0.0.1:%s\n" (:port srv)))
+        (println (format "Started REPL at nrepl://%s:%s\n" (.getHostName (.getInetAddress ^ServerSocket (:server-socket srv))) (:port srv)))
         (write-nrepl-port-file (:port srv))
         srv)
       (catch Exception e
@@ -57,12 +58,15 @@
         (assoc repl-config :handler cider-handler))
     repl-config))
 
+(def ^:private server-port (atom 56344))
+
 (defn start-server
   [port]
   (let [repl-config (cond-> {}
                       true (maybe-load-cider)
                       true (maybe-load-refactor-nrepl)
-                      port (assoc :port port))]
+                      true (assoc :bind (.getHostName (InetAddress/getLocalHost)))
+                      true (assoc :port (swap! server-port inc)))]
     (send repl-server (constantly repl-config))
     (send repl-server start-and-print)))
 
