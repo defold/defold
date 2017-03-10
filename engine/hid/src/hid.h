@@ -581,29 +581,37 @@ namespace dmHID
 
     /**
      * Convenience function to retrieve the position of a specific touch.
+     * Used in unit tests (test_input.cpp)
      *
      * @param touch_index which touch to get the position from
      * @param x x-coordinate as out-parameter
      * @param y y-coordinate as out-parameter
+     * @param id identifier of touch as out-parameter
+     * @param pressed boolean indicating if touch is pressed as out-parameter
+     * @param released boolean indicating if touch is released as out-parameter
      * @return if the position could be retrieved
      */
-    bool GetTouchPosition(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y);
+    bool GetTouch(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y, uint32_t* id, bool* pressed = 0x0, bool* released = 0x0);
 
     /**
-     * Adds the position of a touch.
+     * Adds of a touch.
+     * Used in unit tests (test_input.cpp)
      *
      * @param context context handle
      * @param x x-coordinate of the position
      * @param y y-coordinate of the position
+     * @param phase phase of touch
+     * @param id identifier of touch
      */
-    void AddTouchPosition(HContext context, int32_t x, int32_t y);
+    void AddTouch(HContext context, int32_t x, int32_t y, uint32_t id, Phase phase);
 
     /**
      * Clears all touches.
+     * Used in unit tests (test_input.cpp)
      *
      * @param context context handle
      */
-    void ClearTouchPositions(HContext context);
+    void ClearTouches(HContext context);
 
     /**
      * Get the name of a keyboard key.
