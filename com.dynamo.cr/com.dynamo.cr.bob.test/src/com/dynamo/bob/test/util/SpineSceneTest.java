@@ -509,6 +509,47 @@ public class SpineSceneTest {
     }
     
     @Test
+    public void testSampleDrawOrderResetKey() throws Exception {
+        SpineSceneUtil scene = load("draw_order_skeleton_sparse_duplicates.json");
+        Animation anim = scene.getAnimation("animation");
+        
+        assertEquals(3, anim.slotTracks.size());
+        
+        SlotAnimationTrack track_4 = anim.slotTracks.get(0);
+
+        double sampleRate = 30.0;
+        double spf = 1.0/sampleRate;
+        double duration = anim.duration;
+        boolean interpolate = false;
+        boolean shouldSlerp = false;
+        int expectedSampleCountPerMesh = 14;
+        int signal_done = 0xDEAD;
+        
+        MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
+        MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
+        
+        // Mesh "_4" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0xDEAD, 0xDEAD, 0xDEAD, 0, 0]
+        drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, interpolate, shouldSlerp);
+        assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
+        assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
+        assertEquals(signal_done, drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(signal_done, drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(signal_done, drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
+        trackBuilder.clear();
+    }
+    
+    @Test
     public void testSampleSparseDrawOrderAnim() throws Exception {
         SpineSceneUtil scene = load("draw_order_skeleton_sparse.json");
         Animation anim = scene.getAnimation("animation");
