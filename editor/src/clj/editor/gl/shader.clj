@@ -95,7 +95,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.defold-project :as project]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
-         [com.jogamp.opengl GL GL2 GLContext]
+         [com.jogamp.opengl GL GL2]
          [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -379,18 +379,20 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defrecord ShaderLifecycle [request-id verts frags uniforms]
   GlBind
-  (bind [this gl render-args]
-    (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-      (.glUseProgram ^GL2 gl program)
-      (doseq [[name val] uniforms
-              :let [val (if (keyword? val)
-                          (get render-args val)
-                          val)
-                    loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
-        (set-uniform-at-index gl program loc val))))
+  (bind [_this gl render-args]
+    (when-not (types/selection? (:pass render-args))
+      (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
+        (.glUseProgram ^GL2 gl program)
+        (doseq [[name val] uniforms
+                :let [val (if (keyword? val)
+                            (get render-args val)
+                            val)
+                      loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
+          (set-uniform-at-index gl program loc val)))))
 
-  (unbind [this gl]
-    (.glUseProgram ^GL2 gl 0))
+  (unbind [_this gl render-args]
+    (when-not (types/selection? (:pass render-args))
+      (.glUseProgram ^GL2 gl 0)))
 
   ShaderVariables
   (get-attrib-location [this gl name]

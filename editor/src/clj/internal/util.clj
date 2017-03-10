@@ -233,3 +233,15 @@
       false
       (and (= (first coll) (first subcoll))
            (recur (next coll) (next subcoll))))))
+
+(defn find-index
+  "Returns the index of the first element in coll where pred returns true,
+  or nil if there was no matching element. If coll is a map, key-value
+  pairs are passed to pred."
+  [pred coll]
+  (loop [index 0
+         elems coll]
+    (cond
+      (empty? elems) nil
+      (pred (first elems)) index
+      :else (recur (inc index) (next elems)))))
