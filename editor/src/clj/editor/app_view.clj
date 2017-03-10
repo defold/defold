@@ -627,15 +627,14 @@
          view-type     (or (:selected-view-type opts)
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
-     (if-let [custom-editor (and (= (:id view-type) :code)
+     (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
                               (let [ed-pref (string/trim (prefs/get-prefs prefs "code-custom-editor" ""))]
                                 (and (not (string/blank? ed-pref)) ed-pref)))]
        (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
              arg-sub (cond-> {:file (resource/abs-path resource)}
                        (:line opts) (assoc :line (:line opts)))
-             args (-> arg-tmpl
-                    (substitute-args arg-sub)
-                    (string/split #" "))]
+             args (->> (string/split arg-tmpl #" ")
+                    (map #(substitute-args % arg-sub)))]
          (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
            (.directory (workspace/project-path workspace))
            (.start)))
