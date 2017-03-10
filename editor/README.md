@@ -40,6 +40,7 @@ Consider putting it in an alias in your bash profile.
 ## Setup
 * Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
   from the `defold` directory
+* Build builtins with `scripts/build.py build_builtins`
 * Build Bob with `scripts/build.py build_bob --skip-sync-archive`
   from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
