@@ -741,13 +741,13 @@
 (handler/defhandler :open-asset :global
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
-(defn- make-search-in-files-dialog [workspace project app-view]
-  (let [[resource opts] (dialogs/make-search-in-files-dialog project)]
-    (when resource
-      (open-resource app-view workspace project resource opts))))
+(defn- show-search-in-files-dialog! [workspace project app-view]
+  (let [open-fn (fn [resource opts] (open-resource app-view workspace project resource opts))
+        show-matches-fn (fn [] (println "Open Find Results Tab!"))]
+    (dialogs/show-search-in-files-dialog! project open-fn show-matches-fn)))
 
 (handler/defhandler :search-in-files :global
-  (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
+  (run [workspace project app-view] (show-search-in-files-dialog! workspace project app-view)))
 
 (handler/defhandler :bundle :global
   (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))

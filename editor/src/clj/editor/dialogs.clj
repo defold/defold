@@ -19,7 +19,7 @@
            [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button Label ListView ProgressBar TextField TreeItem TreeView]
+           [javafx.scene.control Button Label ListView ProgressBar SelectionMode TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout Region]
@@ -436,13 +436,14 @@
     (ui/timer-start! timer)
     timer))
 
-(defn make-search-in-files-dialog [project]
+(defn show-search-in-files-dialog! [project open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
-        stage     (ui/make-dialog-stage (ui/main-stage))
+        stage     (doto (ui/make-stage)
+                    (.initStyle StageStyle/DECORATED)
+                    (.initOwner (ui/main-stage))
+                    (.setResizable false))
         scene     (Scene. root)
         controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
-        return    (atom nil)
-        close     (fn [] (reset! return (ui/selection (:resources-tree controls))) (.close stage))
         term-field ^TextField (:search controls)
         exts-field ^TextField (:types controls)
         tree-view ^TreeView (:resources-tree controls)
@@ -451,49 +452,69 @@
         report-error! (fn [error] (ui/run-later (throw error)))
         file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
         {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
-        on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))]
+        on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))
+        dismiss-and-show-find-results! (fn []
+                                         (show-find-results-fn)
+                                         (ui/close! stage))
+        open-selected! (fn []
+                         (let [selection (ui/selection tree-view)
+                               resource-opts-pairs (mapv (fn [resource]
+                                                           (cond
+                                                             (instance? MatchContextResource resource)
+                                                             [(:parent-resource resource) {:caret-position (:caret-position resource)}]
+
+                                                             :else
+                                                             [resource {}]))
+                                                         selection)]
+                           (doseq [[resource opts] resource-opts-pairs]
+                             (open-fn resource opts))))]
     (observe-focus stage)
     (ui/title! stage "Search in Files")
+    (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
     (.setShowRoot tree-view false)
     (.setRoot tree-view (doto (TreeItem.)
                           (.setExpanded true)))
 
     (ui/on-closed! stage (fn on-closed! [_] (abort-search!)))
-    (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
-    (ui/on-double! (:resources-tree controls) (fn on-double! [_] (close)))
+    (ui/on-action! (:ok controls) (fn on-ok! [_] (dismiss-and-show-find-results!)))
+    (ui/on-double! tree-view (fn on-double! [^Event event]
+                               (.consume event)
+                               (open-selected!)))
 
-    (ui/cell-factory! (:resources-tree controls) (fn [r] (if (instance? MatchContextResource r)
-                                                           {:text (resource/resource-name r)
-                                                            :icon (workspace/resource-icon r)
-                                                            :style (resource/style-classes r)}
-                                                           {:text (resource/proj-path r)
-                                                            :icon (workspace/resource-icon r)
-                                                            :style (resource/style-classes r)})))
+    (ui/cell-factory! tree-view (fn [r]
+                                  (if (instance? MatchContextResource r)
+                                    {:text (resource/resource-name r)
+                                     :icon (workspace/resource-icon r)
+                                     :style (resource/style-classes r)}
+                                    {:text (resource/proj-path r)
+                                     :icon (workspace/resource-icon r)
+                                     :style (resource/style-classes r)})))
 
     (ui/observe (.textProperty term-field) on-input-changed!)
     (ui/observe (.textProperty exts-field) on-input-changed!)
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
-      (ui/event-handler event
-                        (let [code (.getCode ^KeyEvent event)]
-                          (when (cond
-                                  (= code KeyCode/DOWN)   (ui/request-focus! (:resources-tree controls))
-                                  (= code KeyCode/ESCAPE) true
-                                  (= code KeyCode/ENTER)  (do (reset! return (ui/selection (:resources-tree controls)))
-                                                              true)
-                                  :else                   false)
-                            (.close stage)))))
+                     (ui/event-handler event
+                       (let [^KeyEvent event event]
+                         (condp = (.getCode event)
+                           KeyCode/DOWN   (when (and (= TextField (type (.getFocusOwner scene)))
+                                                     (not= 0 (.getExpandedItemCount tree-view)))
+                                            (.consume event)
+                                            (ui/request-focus! tree-view))
+                           KeyCode/ESCAPE (do (.consume event)
+                                              (ui/close! stage))
+                           KeyCode/ENTER  (do (.consume event)
+                                              (if (= term-field (.getFocusOwner scene))
+                                                (dismiss-and-show-find-results!)
+                                                (open-selected!)))
+                           KeyCode/TAB    (when (and (= exts-field (.getFocusOwner scene))
+                                                     (= 0 (.getExpandedItemCount tree-view)))
+                                            (.consume event)
+                                            (ui/request-focus! term-field))
+                           nil))))
 
     (.setScene stage scene)
-    (ui/show-and-wait-throwing! stage)
-
-    (let [resource (first @return)]
-      (cond
-        (instance? MatchContextResource resource)
-        [(:parent-resource resource) {:caret-position (:caret-position resource)}]
-
-        :else
-        [resource {}]))))
+    (ui/show! stage)))
 
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
