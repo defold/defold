@@ -27,13 +27,13 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.search-results-view :as search-results-view]
             [editor.sync :as sync]
             [editor.system :as system]
             [editor.updater :as updater]
             [editor.util :as util]
             [util.http-server :as http-server])
-  (:import [com.defold.editor EditorApplication]
-           [java.io File]
+  (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.layout Region VBox]
            [javafx.scene.control MenuBar Tab TabPane TreeView]))
@@ -138,14 +138,14 @@
                                                             hot-reload/url-prefix (partial hot-reload/build-handler project)
                                                             bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
+          open-resource        (partial app-view/open-resource app-view workspace project)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id opts]
-                                                                           (app-view/open-resource app-view
-                                                                                                   (g/node-value project :workspace)
-                                                                                                   project
-                                                                                                   resource
-                                                                                                   opts)
+                                                                           (open-resource resource opts)
                                                                            (app-view/select! app-view node-id)))
+          search-results-view  (search-results-view/make-search-results-view *view-graph*
+                                                                             (.lookup root "#search-results-container")
+                                                                             open-resource)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! app-view *view-graph*
@@ -182,17 +182,18 @@
                                :prev   prev-console})
 
       (ui/restyle-tabs! tool-tabs)
-      (let [context-env {:app-view          app-view
-                         :project           project
-                         :project-graph     (project/graph project)
-                         :prefs             prefs
-                         :workspace         (g/node-value project :workspace)
-                         :outline-view      outline-view
-                         :web-server        web-server
-                         :build-errors-view build-errors-view
-                         :changes-view      changes-view
-                         :main-stage        stage
-                         :asset-browser     asset-browser}
+      (let [context-env {:app-view            app-view
+                         :project             project
+                         :project-graph       (project/graph project)
+                         :prefs               prefs
+                         :workspace           (g/node-value project :workspace)
+                         :outline-view        outline-view
+                         :web-server          web-server
+                         :build-errors-view   build-errors-view
+                         :search-results-view search-results-view
+                         :changes-view        changes-view
+                         :main-stage          stage
+                         :asset-browser       asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
