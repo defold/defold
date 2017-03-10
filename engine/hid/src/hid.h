@@ -257,6 +257,8 @@ namespace dmHID
         int32_t m_DX;
         /// dy
         int32_t m_DY;
+        // Touch id
+        int32_t m_Id;
     };
 
     /**

@@ -623,7 +623,6 @@ namespace dmInput
                         int32_t tn = packet->m_TouchCount;
                         // NOTE: We assume dmHID::MAX_TOUCH_COUNT for both source and destination here
                         assert(tn <= (int32_t) (sizeof(action->m_Touch) / sizeof(action->m_Touch[0])));
-                        action->m_Value = 0;
                         for (int j = 0; j < tn; ++j) {
                             action->m_Touch[j] = packet->m_Touches[j];
                             dmHID::Phase p = packet->m_Touches[j].m_Phase;
@@ -634,10 +633,6 @@ namespace dmInput
                                 action->m_DX = action->m_Touch[j].m_DX;
                                 action->m_DY = action->m_Touch[j].m_DY;
                                 action->m_PositionSet = 1;
-                            }
-                            if (p == dmHID::PHASE_BEGAN || p == dmHID::PHASE_MOVED || p == dmHID::PHASE_STATIONARY)
-                            {
-                                action->m_Value = 1.0;
                             }
                         }
                         action->m_TouchCount = packet->m_TouchCount;
@@ -763,7 +758,7 @@ namespace dmInput
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
-        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0 || action->m_HasText;
+        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0 || action->m_TouchCount > 0 || action->m_HasText;
         // Mouse move action
         active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)

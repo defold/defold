@@ -55,6 +55,7 @@ static int g_appLaunchInterrupted = 0;
 
 static ASensorEventQueue* g_sensorEventQueue = 0;
 static ASensorRef g_accelerometer = 0;
+static GLFWTouch* g_MouseEmulationTouch = 0;
 
 static void initThreads( void )
 {
@@ -259,56 +260,94 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
 static GLFWTouch* touchById(void *ref)
 {
     int32_t i;
-    for (i=0;i!=_glfwInput.TouchCount;i++)
+
+    GLFWTouch* freeTouch = 0x0;
+    for (i=0;i!=GLFW_MAX_TOUCH;i++)
     {
+        _glfwInput.Touch[i].Id = i;
         if (_glfwInput.Touch[i].Reference == ref)
             return &_glfwInput.Touch[i];
+
+        // Save touch entry for later if we need to "alloc" one in case we don't find the current reference.
+        if (freeTouch == 0x0 && _glfwInput.Touch[i].Reference == 0x0) {
+            freeTouch = &_glfwInput.Touch[i];
+        }
     }
-    return 0;
+
+    if (freeTouch != 0x0) {
+        freeTouch->Reference = ref;
+    }
+
+    return freeTouch;
 }
 
-static GLFWTouch* touchGetOrAlloc(void *ref)
+
+static GLFWTouch* findNextMouseTouch() {
+    int i=0;
+
+    for (i=0;i!=GLFW_MAX_TOUCH;i++)
+    {
+        if (_glfwInput.Touch[i].Reference && _glfwInput.Touch[i].Phase != GLFW_PHASE_ENDED && _glfwInput.Touch[i].Phase != GLFW_PHASE_TAPPED)
+            return &_glfwInput.Touch[i];
+    }
+
+    return 0x0;
+}
+
+static GLFWTouch* touchStart(void *ref, int32_t x, int32_t y)
 {
-    // Return existing touch or a memset:ed new.
     GLFWTouch *touch = touchById(ref);
-    if (touch) {
-        return touch;
-    }
-
-    if (_glfwInput.TouchCount < GLFW_MAX_TOUCH) {
-        touch = &_glfwInput.Touch[_glfwInput.TouchCount++];
-        memset(touch, 0x00, sizeof(GLFWTouch));
-        touch->Reference = ref;
-        return touch;
-    }
-
-    return 0;
-}
-
-static void touchStart(void *ref, int32_t x, int32_t y)
-{
-    GLFWTouch *touch = touchGetOrAlloc(ref);
     if (touch)
     {
+        if (g_MouseEmulationTouch == 0x0) {
+            g_MouseEmulationTouch = touch;
+        }
+
         touch->Phase = GLFW_PHASE_BEGAN;
         touch->X = x;
         touch->Y = y;
         touch->DX = 0;
         touch->DY = 0;
+
+        return touch;
     }
+
+    return 0;
 }
 
-static void* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
+static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
 {
-    GLFWTouch *touch = touchGetOrAlloc(ref);
+    GLFWTouch *touch = touchById(ref);
     if (touch)
     {
-        touch->Phase = phase;
+        int prevPhase = touch->Phase;
+        int newPhase = phase;
+
+        if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
+            return touch;
+        }
+
         touch->DX = x - touch->X;
         touch->DY = y - touch->Y;
         touch->X = x;
         touch->Y = y;
-        return ref;
+
+        if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
+            return touch;
+        }
+
+        if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
+            touch->Phase = GLFW_PHASE_TAPPED;
+            return touch;
+        }
+
+        touch->Phase = phase;
+
+        if (newPhase == GLFW_PHASE_ENDED) {
+            g_MouseEmulationTouch = findNextMouseTouch();
+        }
+
+        return touch;
     }
     return 0;
 }
@@ -351,31 +390,37 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
         switch (action_action)
         {
             case AMOTION_EVENT_ACTION_DOWN:
-                updateGlfwMousePos(x,y);
-                _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
-                touchStart(pointer_ref, x, y);
+                if (touchStart(pointer_ref, x, y) == g_MouseEmulationTouch) {
+                    updateGlfwMousePos(x,y);
+                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+                }
                 break;
             case AMOTION_EVENT_ACTION_UP:
-                updateGlfwMousePos(x,y);
-                _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
-                touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED);
+                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                    updateGlfwMousePos(x,y);
+                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+                }
                 break;;
             case AMOTION_EVENT_ACTION_POINTER_DOWN:
-                updateGlfwMousePos(x,y);
-                touchStart(pointer_ref, x, y);
+                if (touchStart(pointer_ref, x, y) == g_MouseEmulationTouch) {
+                    updateGlfwMousePos(x,y);
+                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+                }
                 break;
             case AMOTION_EVENT_ACTION_POINTER_UP:
-                updateGlfwMousePos(x,y);
-                touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED);
+                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                    updateGlfwMousePos(x,y);
+                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+                }
                 break;
             case AMOTION_EVENT_ACTION_CANCEL:
-                updateGlfwMousePos(x,y);
-                touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED);
+                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                    updateGlfwMousePos(x,y);
+                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+                }
                 break;
             case AMOTION_EVENT_ACTION_MOVE:
                 {
-                    updateGlfwMousePos(x,y);
-
                     // these events contain updates for all pointers.
                     int i, max = AMotionEvent_getPointerCount(event);
                     for (i=0;i<max;i++)
@@ -383,19 +428,17 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
                         x = AMotionEvent_getX(event, i);
                         y = AMotionEvent_getY(event, i);
                         pointer_ref = pointerIdToRef(AMotionEvent_getPointerId(event, i));
-                        touchUpdate(pointer_ref, x, y, GLFW_PHASE_MOVED);
-                        if (i == 0 && _glfwWin.mousePosCallback)
+
+                        if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_MOVED) == g_MouseEmulationTouch)
                         {
-                            _glfwWin.mousePosCallback(x, y);
+                            updateGlfwMousePos(x,y);
+                            if (_glfwWin.mousePosCallback) {
+                                _glfwWin.mousePosCallback(x, y);
+                            }
                         }
                     }
                 }
                 break;
-        }
-
-        if (_glfwWin.touchCallback && _glfwInput.TouchCount > 0)
-        {
-            _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
         }
 
         return 1;
