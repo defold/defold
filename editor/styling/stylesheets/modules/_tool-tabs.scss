@@ -52,7 +52,7 @@
 
     .tab-content-area {
         -fx-background-color: $dark-grey-light;
-        -fx-padding: 5px;
+        -fx-padding: 0;
 
         .label {
             -fx-text-fill: $defold-white;
@@ -76,6 +76,10 @@
         .text-area {
             -fx-padding: 15px 0 0 0;
         }
+    }
+
+    AnchorPane {
+        -fx-padding: 5px;
     }
 
     GridPane {
@@ -141,4 +145,19 @@
             -fx-background-color: $dark-grey-light;
         }
     }
+}
+
+#search-results-tab {
+    @extend .console-tab-base;
+    -fx-background-image: url("icons/tabs/ic_search-results-grey.png");
+    &:selected {
+        -fx-background-image: url("icons/tabs/ic_search-results-white.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/ic_search-results-white.png");
+    }
+}
+
+#search-results-container {
+    -fx-padding: 0;
 }

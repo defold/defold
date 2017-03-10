@@ -22,6 +22,7 @@
             [editor.resource :as resource]
             [editor.graph-util :as gu]
             [editor.util :as util]
+            [editor.search-results-view :as search-results-view]
             [editor.targets :as targets]
             [editor.build-errors-view :as build-errors-view]
             [editor.hot-reload :as hot-reload]
@@ -741,13 +742,14 @@
 (handler/defhandler :open-asset :global
   (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
 
-(defn- show-search-in-files-dialog! [workspace project app-view]
-  (let [open-fn (fn [resource opts] (open-resource app-view workspace project resource opts))
-        show-matches-fn (fn [] (println "Open Find Results Tab!"))]
-    (dialogs/show-search-in-files-dialog! project open-fn show-matches-fn)))
+(defn- show-search-in-files-dialog! [project search-results-view]
+  (let [results-tab-tree-view (dialogs/make-search-in-files-tree-view)
+        open-fn (search-results-view/open-resource-fn search-results-view)
+        show-matches-fn (partial search-results-view/update-search-results search-results-view results-tab-tree-view)]
+    (dialogs/show-search-in-files-dialog! project [results-tab-tree-view] open-fn show-matches-fn)))
 
 (handler/defhandler :search-in-files :global
-  (run [workspace project app-view] (show-search-in-files-dialog! workspace project app-view)))
+  (run [project search-results-view] (show-search-in-files-dialog! project search-results-view)))
 
 (handler/defhandler :bundle :global
   (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))

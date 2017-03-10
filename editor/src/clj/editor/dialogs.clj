@@ -404,21 +404,23 @@
 (defn- make-match-tree-item [resource {:keys [line caret-position match]}]
   (TreeItem. (->MatchContextResource resource line caret-position match)))
 
-(defn- insert-search-result [^List tree-items search-result]
+(defn- insert-search-result [^TreeView tree-view search-result]
   (let [{:keys [resource matches]} search-result
         match-items (map (partial make-match-tree-item resource) matches)
         resource-item (TreeItem. resource)]
     (.setExpanded resource-item true)
     (-> resource-item .getChildren (.addAll ^Collection match-items))
-    (.add tree-items resource-item)))
+    (let [^List tree-items (.getChildren (.getRoot tree-view))
+          first-match? (.isEmpty tree-items)]
+      (.add tree-items resource-item)
+      (when first-match?
+        (-> tree-view .getSelectionModel (.clearAndSelect 1))))))
 
 (defn- seconds->nanoseconds [seconds]
   (long (* 1000000000 seconds)))
 
-(defn- start-tree-update-timer! [^TreeView tree-view poll-fn]
-  (let [tree-items (.getChildren (.getRoot tree-view))
-        first-match? (volatile! true)
-        timer (ui/->timer "tree-update-timer"
+(defn- start-tree-update-timer! [tree-views poll-fn]
+  (let [timer (ui/->timer "tree-update-timer"
                           (fn [^AnimationTimer timer _dt]
                             (let [start-time (System/nanoTime)
                                   end-time (+ start-time (seconds->nanoseconds (/ 1 90)))]
@@ -427,16 +429,44 @@
                                   (when-let [entry (poll-fn)]
                                     (if (= ::project-search/done entry)
                                       (.stop timer)
-                                      (do (insert-search-result tree-items entry)
-                                          (when first-match?
-                                            (-> tree-view .getSelectionModel (.clearAndSelect 1))
-                                            (vreset! first-match? false))
+                                      (do (doseq [^TreeView tree-view tree-views]
+                                            (insert-search-result tree-view entry))
                                           (recur (System/nanoTime))))))))))]
-    (.clear tree-items)
+    (doseq [^TreeView tree-view tree-views]
+      (.clear (.getChildren (.getRoot tree-view))))
     (ui/timer-start! timer)
     timer))
 
-(defn show-search-in-files-dialog! [project open-fn show-find-results-fn]
+(defn- init-search-in-files-tree-view! [^TreeView tree-view]
+  (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
+  (.setShowRoot tree-view false)
+  (.setRoot tree-view (doto (TreeItem.)
+                        (.setExpanded true)))
+  (ui/cell-factory! tree-view
+                    (fn [r]
+                      (if (instance? MatchContextResource r)
+                        {:text (resource/resource-name r)
+                         :icon (workspace/resource-icon r)
+                         :style (resource/style-classes r)}
+                        {:text (resource/proj-path r)
+                         :icon (workspace/resource-icon r)
+                         :style (resource/style-classes r)}))))
+
+(defn make-search-in-files-tree-view
+  ^TreeView []
+  (doto (TreeView.) init-search-in-files-tree-view!))
+
+(defn resolve-search-in-files-tree-view-selection [selection]
+  (mapv (fn [resource]
+          (cond
+            (instance? MatchContextResource resource)
+            [(:parent-resource resource) {:caret-position (:caret-position resource)}]
+
+            :else
+            [resource {}]))
+        selection))
+
+(defn show-search-in-files-dialog! [project additional-tree-views open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         stage     (doto (ui/make-stage)
                     (.initStyle StageStyle/DECORATED)
@@ -447,48 +477,30 @@
         term-field ^TextField (:search controls)
         exts-field ^TextField (:types controls)
         tree-view ^TreeView (:resources-tree controls)
-        start-consumer! (partial start-tree-update-timer! tree-view)
+        start-consumer! (partial start-tree-update-timer! (conj additional-tree-views tree-view))
         stop-consumer! ui/timer-stop!
         report-error! (fn [error] (ui/run-later (throw error)))
         file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
         {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
         on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))
+        dismiss-and-abort-search! (fn []
+                                    (abort-search!)
+                                    (ui/close! stage))
         dismiss-and-show-find-results! (fn []
                                          (show-find-results-fn)
                                          (ui/close! stage))
         open-selected! (fn []
-                         (let [selection (ui/selection tree-view)
-                               resource-opts-pairs (mapv (fn [resource]
-                                                           (cond
-                                                             (instance? MatchContextResource resource)
-                                                             [(:parent-resource resource) {:caret-position (:caret-position resource)}]
-
-                                                             :else
-                                                             [resource {}]))
-                                                         selection)]
-                           (doseq [[resource opts] resource-opts-pairs]
-                             (open-fn resource opts))))]
+                         (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection tree-view))]
+                           (open-fn resource opts)))]
     (observe-focus stage)
     (ui/title! stage "Search in Files")
-    (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
-    (.setShowRoot tree-view false)
-    (.setRoot tree-view (doto (TreeItem.)
-                          (.setExpanded true)))
+    (init-search-in-files-tree-view! tree-view)
 
-    (ui/on-closed! stage (fn on-closed! [_] (abort-search!)))
+    (ui/on-closed! stage (fn on-closed! [_] (when (empty? additional-tree-views) (abort-search!))))
     (ui/on-action! (:ok controls) (fn on-ok! [_] (dismiss-and-show-find-results!)))
     (ui/on-double! tree-view (fn on-double! [^Event event]
                                (.consume event)
                                (open-selected!)))
-
-    (ui/cell-factory! tree-view (fn [r]
-                                  (if (instance? MatchContextResource r)
-                                    {:text (resource/resource-name r)
-                                     :icon (workspace/resource-icon r)
-                                     :style (resource/style-classes r)}
-                                    {:text (resource/proj-path r)
-                                     :icon (workspace/resource-icon r)
-                                     :style (resource/style-classes r)})))
 
     (ui/observe (.textProperty term-field) on-input-changed!)
     (ui/observe (.textProperty exts-field) on-input-changed!)
@@ -502,7 +514,7 @@
                                             (.consume event)
                                             (ui/request-focus! tree-view))
                            KeyCode/ESCAPE (do (.consume event)
-                                              (ui/close! stage))
+                                              (dismiss-and-abort-search!))
                            KeyCode/ENTER  (do (.consume event)
                                               (if (= term-field (.getFocusOwner scene))
                                                 (dismiss-and-show-find-results!)
