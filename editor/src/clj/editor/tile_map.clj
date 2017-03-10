@@ -119,20 +119,6 @@
 ;;--------------------------------------------------------------------
 ;; rendering
 
-(shader/defshader selection-vert
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (uniform mat4 world)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix world position))))
-
-(shader/defshader selection-frag
-  (defn void main []
-    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
-
-(def selection-shader (shader/make-shader ::selection-shader selection-vert selection-frag))
-
-
 (vtx/defvertex pos-uv-vtx
   (vec3 position)
   (vec2 texcoord0))
@@ -161,13 +147,14 @@
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
-            {:keys [node-id vbuf]} user-data]
+            {:keys [node-id vbuf shader]} user-data]
         (when vbuf
-          (let [vertex-binding (vtx/use-with node-id vbuf selection-shader)]
-            (gl/with-gl-bindings gl render-args [selection-shader vertex-binding]
-              (shader/set-uniform selection-shader gl "world" world-transform)
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))))
-
+          (let [vertex-binding (vtx/use-with node-id vbuf shader)]
+            (gl/with-gl-bindings gl render-args [shader vertex-binding]
+              (shader/set-uniform shader gl "world" world-transform)
+              (gl/gl-push-matrix gl
+                (gl/gl-mult-matrix-4d gl world-transform)
+                (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))))))
 
 (defn make-tile-uv-lookup-cache
   [tile-count uv-transforms]
