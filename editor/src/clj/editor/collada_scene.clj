@@ -47,14 +47,7 @@
   (defn void main []
     (setq gl_FragColor (vec4 (* (.xyz (texture2D texture var_texcoord0.xy)) var_normal.z) 1.0))))
 
-(shader/defshader shader-frag-pos-nrm-tex-passthrough
-  (varying vec3 var_normal)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
-
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
-(def shader-pos-nrm-tex-passthrough (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex-passthrough))
 
 (defn- mesh->vb [^Matrix4d world-transform mesh]
   (let [positions         (vec (partition 3 (:positions mesh)))
@@ -123,12 +116,12 @@
             (gl/gl-disable gl GL/GL_CULL_FACE)
             (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
             (doseq [[name t] textures]
-              (gl/unbind gl t)))))
+              (gl/unbind gl t render-args)))))
 
       (= pass pass/selection)
       (doseq [vb vbs]
-        (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader-pos-nrm-tex-passthrough)]
-          (gl/with-gl-bindings gl render-args [shader-pos-nrm-tex-passthrough vertex-binding]
+        (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
+          (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (gl/gl-enable gl GL/GL_CULL_FACE)
             (gl/gl-cull-face gl GL/GL_BACK)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))

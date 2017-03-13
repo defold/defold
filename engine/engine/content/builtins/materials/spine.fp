@@ -1,4 +1,3 @@
-varying mediump vec4 position;
 varying mediump vec2 var_texcoord0;
 varying lowp vec4 var_color;
 
