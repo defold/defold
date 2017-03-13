@@ -47,8 +47,6 @@ ordinary paths."
                    (str prefix "_generated_" suffix "." ext))))
   (abs-path [this] (.getAbsolutePath (File. (str (build-path (resource/workspace this)) (resource/path this)))))
   (proj-path [this] (str "/" (resource/path this)))
-  ; TODO
-  (url [this] nil)
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))
@@ -175,6 +173,9 @@ ordinary paths."
   (let [library-urls (library/parse-library-urls (str library-url-string))]
     (g/set-property! workspace :dependencies library-urls)
     library-urls))
+
+(defn dependencies [workspace]
+  (g/node-value workspace :dependencies))
 
 (defn update-dependencies! [workspace render-progress! login-fn]
   (let [dependencies (g/node-value workspace :dependencies)

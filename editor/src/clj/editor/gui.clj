@@ -67,21 +67,6 @@
              :resource-fields [:script :material [:fonts :font] [:textures :texture] [:spine-scenes :spine-scene]]
              :tags #{:component :non-embeddable}})
 
-; Selection shader
-
-(shader/defshader selection-vert
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader selection-frag
-  (defn void main []
-    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
-
-; TODO - macro of this
-(def selection-shader (shader/make-shader ::selection-shader selection-vert selection-frag))
-
-
 ; Fallback shader
 
 (vtx/defvertex color-vtx
@@ -205,9 +190,7 @@
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (if (types/selection? (:pass render-args))
-                     selection-shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
-                     (or material-shader shader))
+      (let [shader (or material-shader shader)
             vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (clipping/setup-gl gl clipping-state)

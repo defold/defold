@@ -78,3 +78,9 @@
   (prefs/set-prefs prefs "first-name" nil)
   (prefs/set-prefs prefs "last-name" nil)
   (prefs/set-prefs prefs "token" nil))
+
+(defn credentials [prefs]
+  (let [email (prefs/get-prefs prefs "email" nil)
+        token (prefs/get-prefs prefs "token" nil)]
+    (when (and email token)
+      [email token])))

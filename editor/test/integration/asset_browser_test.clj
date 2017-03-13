@@ -13,7 +13,7 @@
     (with-clean-system
       (let [workspace     (test-util/setup-workspace! world)
             root          (g/node-value workspace :resource-tree)]
-        (is (resource/url root) "file:/")))))
+        (is (= (resource/proj-path root) "/"))))))
 
 (deftest asset-browser-search
   (testing "Searching for a resource produces a hit and renders a preview"

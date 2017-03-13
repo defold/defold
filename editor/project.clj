@@ -44,6 +44,7 @@
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
+                     [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
 
                      [amazonica                                   "0.3.79"

@@ -77,3 +77,14 @@
   (is (false? (seq-starts-with? [] [1])))
   (is (false? (seq-starts-with? [1 2] [1 2 3])))
   (is (false? (seq-starts-with? [nil 1] [nil 1 2]))))
+
+(deftest find-index-test
+  (is (= 1 (find-index even? (range 1 4))))
+  (is (= 2 (find-index nil? [:a :b nil :d])))
+  (is (= 3 (find-index (fn [[k v]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= 4 (find-index #(= :e %) (list :a nil :c nil :e))))
+  (is (= 5 (find-index #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (find-index nil? nil)))
+  (is (nil? (find-index even? nil)))
+  (is (nil? (find-index even? [])))
+  (is (nil? (find-index even? [1 3 5]))))
