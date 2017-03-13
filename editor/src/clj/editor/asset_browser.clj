@@ -347,7 +347,7 @@
                                                                                 (= (count selection) 1)
                                                                                 (not= nil (some-> (handler/adapt-single selection resource/Resource)
                                                                                             resource/abs-path)))))
-  (run [selection user-data asset-browser app-view workspace project]
+  (run [selection user-data asset-browser app-view prefs workspace project]
        (let [project-path (workspace/project-path workspace)
              base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
                                    first
@@ -363,7 +363,7 @@
              (let [resource-map (g/node-value workspace :resource-map)
                    new-resource-path (resource/file->proj-path project-path new-file)
                    resource (resource-map new-resource-path)]
-               (app-view/open-resource app-view workspace project resource)
+               (app-view/open-resource app-view prefs workspace project resource)
                (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
            (when (not user-data)
