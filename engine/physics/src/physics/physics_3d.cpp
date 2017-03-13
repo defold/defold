@@ -318,9 +318,7 @@ namespace dmPhysics
                 {
 	        		const btVector3& scaling = shape->getLocalScaling();
 
-	        		printf("Compound: %d\n", shape->isCompound() ? 1 : 0);
-
-
+	        		/*
 	                static float angle = 0;
 	                static float radius = 2;
 	                static float radiusscale = 1;
@@ -331,7 +329,7 @@ namespace dmPhysics
 	                float sinval = sinf(angle);
 	                float s = radius + sinval * radiusscale;
 
-	                /*
+	                /* // TAKE 1, SCALE ALL SUB SHAPES
 	                if( shape->isCompound() )
 	                {
 	                	btCompoundShape* compound = (btCompoundShape*)shape;
@@ -345,6 +343,8 @@ namespace dmPhysics
 	        			}
 	        		}
 	        		*/
+
+	        		/* // TAKE 2, seems promising to only scale the parent
 					btVector3 bt_scale(s, s, s);
 					printf("Shape %d: %f, %f, %f\n", i, bt_scale.getX(), bt_scale.getY(), bt_scale.getZ());
 					shape->setLocalScaling(bt_scale);
@@ -354,6 +354,7 @@ namespace dmPhysics
 	                	btCompoundShape* compound = (btCompoundShape*)shape;
 						compound->recalculateLocalAabb();
 					}
+					*/
 
 	        		btTransform world_t = collision_object->getWorldTransform();
 	        		btVector3 origin = world_t.getOrigin();

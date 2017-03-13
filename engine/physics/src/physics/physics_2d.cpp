@@ -343,7 +343,7 @@ namespace dmPhysics
 
                     b2Fixture* fix = body->GetFixtureList();
                     uint32_t i = 0;
-                    while( fix )
+                    while( fix && i < shape_count )
                     {
                         b2Shape* shape = fix->GetShape();
                         shape->m_radius = shape_scales[i].getX() * object_scale.getX();
@@ -351,7 +351,8 @@ namespace dmPhysics
                     }
 
                     // TODO: Only set this if we actually changed the scaling
-                    body->SetSleepingAllowed(false);
+                    if( shape_count > 0 )
+                        body->SetSleepingAllowed(false);
                 }
             }
         }
