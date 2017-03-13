@@ -78,6 +78,22 @@
   (is (false? (seq-starts-with? [1 2] [1 2 3])))
   (is (false? (seq-starts-with? [nil 1] [nil 1 2]))))
 
+(deftest first-where-test
+  (is (= 2 (first-where even? (range 1 4))))
+  (is (nil? (first-where nil? [:a :b nil :d])))
+  (is (= [:d 4] (first-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= :e (first-where #(= :e %) (list :a nil :c nil :e))))
+  (is (= "f" (first-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (first-where nil? nil)))
+  (is (nil? (first-where even? nil)))
+  (is (nil? (first-where even? [])))
+  (is (nil? (first-where even? [1 3 5])))
+
+  (testing "stops calling pred after first true"
+    (let [pred (test-util/make-call-logger (constantly true))]
+      (is (= 0 (first-where pred (range 10))))
+      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+
 (deftest first-index-where-test
   (is (= 1 (first-index-where even? (range 1 4))))
   (is (= 2 (first-index-where nil? [:a :b nil :d])))
