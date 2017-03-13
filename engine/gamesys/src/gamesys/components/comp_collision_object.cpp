@@ -65,7 +65,7 @@ namespace dmGameSystem
         uint8_t m_StartAsEnabled : 1;
     };
 
-    void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
+    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
     {
         if (!user_data)
             return;
@@ -74,7 +74,7 @@ namespace dmGameSystem
         world_transform = dmGameObject::GetWorldTransform(instance);
     }
 
-    void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
+    static void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
     {
         if (!user_data)
             return;
@@ -95,12 +95,26 @@ namespace dmGameSystem
         dmGameObject::SetRotation(instance, rotation);
     }
 
+    static void GetScale(void* user_data, Vector3** shape_scale, uint32_t* shape_count, Vector3* object_scale)
+    {
+        if (!user_data)
+            return;
+        CollisionComponent* component = (CollisionComponent*)user_data;
+        dmGameObject::HInstance instance = component->m_Instance;
+        const dmTransform::Transform& world_transform = dmGameObject::GetWorldTransform(instance);
+
+        *shape_scale = component->m_Resource->m_ShapeScale;
+        *shape_count = component->m_Resource->m_ShapeCount;
+        *object_scale = world_transform.GetScale();
+    }
+
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+        world_params.m_GetScaleCallback = GetScale;
         CollisionWorld* world = new CollisionWorld();
         memset(world, 0, sizeof(CollisionWorld));
         if (physics_context->m_3D)

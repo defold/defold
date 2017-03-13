@@ -10,6 +10,8 @@
 
 #include "physics_3d.h"
 
+#include <stdio.h>
+
 namespace dmPhysics
 {
     using namespace Vectormath::Aos;
@@ -291,6 +293,59 @@ namespace dmPhysics
                         collision_object->activate(true);
                     }
                 }
+
+                // Scaling
+                btCollisionShape* shape = collision_object->getCollisionShape();
+        		
+                if( !collision_object->isStaticObject() )
+                {
+	        		const btVector3& scaling = shape->getLocalScaling();
+
+	        		printf("Compound: %d\n", shape->isCompound() ? 1 : 0);
+
+
+	                static float angle = 0;
+	                static float radius = 2;
+	                static float radiusscale = 1;
+	                static int dir = 1;
+	                static float anglestep = 0.01f;
+
+	                angle += anglestep;
+	                float sinval = sinf(angle);
+	                float s = radius + sinval * radiusscale;
+
+	                /*
+	                if( shape->isCompound() )
+	                {
+	                	btCompoundShape* compound = (btCompoundShape*)shape;
+	        			for( int i = 0; i < compound->getNumChildShapes(); ++i )
+	        			{
+	        				btCollisionShape* childshape = compound->getChildShape(i);
+			                btVector3 bt_scale(s, s, s);
+
+	        				printf("Child %d: %f, %f, %f  type: %d \n", i, bt_scale.getX(), bt_scale.getY(), bt_scale.getZ(), childshape->getShapeType());
+			        		childshape->setLocalScaling(bt_scale);
+	        			}
+	        		}
+	        		*/
+					btVector3 bt_scale(s, s, s);
+					printf("Shape %d: %f, %f, %f\n", i, bt_scale.getX(), bt_scale.getY(), bt_scale.getZ());
+					shape->setLocalScaling(bt_scale);
+
+	                if( shape->isCompound() )
+	                {
+	                	btCompoundShape* compound = (btCompoundShape*)shape;
+						compound->recalculateLocalAabb();
+					}
+
+	        		btTransform world_t = collision_object->getWorldTransform();
+	        		btVector3 origin = world_t.getOrigin();
+	        		origin.setZ(0);
+	        		world_t.setOrigin(origin);
+	        		collision_object->setWorldTransform(world_t);
+
+	        		world->m_DynamicsWorld->getCollisionWorld()->updateSingleAabb( collision_object );
+	        	}
             }
         }
 
@@ -559,6 +614,7 @@ namespace dmPhysics
                 compound_shape->addChildShape(btTransform::getIdentity(), (btConvexShape*)shapes[i]);
             }
         }
+        printf("ADDED %d shapes\n", shape_count);
 
         btVector3 local_inertia(0.0f, 0.0f, 0.0f);
         if (data.m_Type == COLLISION_OBJECT_TYPE_DYNAMIC)
@@ -767,6 +823,14 @@ namespace dmPhysics
     {
         btCollisionObject* co = GetCollisionObject(collision_object);
         return co->isInWorld();
+    }
+
+    Vector3 GetScale3D(HCollisionShape3D _shape)
+    {
+        btCollisionShape* shape = (btCollisionShape*)_shape;
+        Vector3 scaling;
+        FromBt(shape->getLocalScaling(), scaling, 1.0f);
+        return scaling;
     }
 
     void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)
