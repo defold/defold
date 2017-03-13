@@ -37,6 +37,7 @@ namespace dmPhysics
         btDiscreteDynamicsWorld*                m_DynamicsWorld;
         GetWorldTransformCallback               m_GetWorldTransform;
         SetWorldTransformCallback               m_SetWorldTransform;
+        GetScaleCallback						m_GetScale;
     };
 
     struct Context3D

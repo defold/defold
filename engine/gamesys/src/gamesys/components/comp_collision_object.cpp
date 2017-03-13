@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -122,7 +122,7 @@ namespace dmGameSystem
     static void DeleteJoint(CollisionWorld* world, dmPhysics::HJoint joint);
     static void DeleteJoint(CollisionWorld* world, JointEntry* joint_entry);
 
-    void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
+    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
     {
         if (!user_data)
             return;
@@ -134,7 +134,7 @@ namespace dmGameSystem
     // TODO: Allow the SetWorldTransform to have a physics context which we can check instead!!
     static int g_NumPhysicsTransformsUpdated = 0;
 
-    void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
+    static void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
     {
         if (!user_data)
             return;
@@ -156,12 +156,26 @@ namespace dmGameSystem
         ++g_NumPhysicsTransformsUpdated;
     }
 
+    static void GetScale(void* user_data, Vector3** shape_scale, uint32_t* shape_count, Vector3* object_scale)
+    {
+        if (!user_data)
+            return;
+        CollisionComponent* component = (CollisionComponent*)user_data;
+        dmGameObject::HInstance instance = component->m_Instance;
+        const dmTransform::Transform& world_transform = dmGameObject::GetWorldTransform(instance);
+
+        *shape_scale = component->m_Resource->m_ShapeScale;
+        *shape_count = component->m_Resource->m_ShapeCount;
+        *object_scale = world_transform.GetScale();
+    }
+
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+        world_params.m_GetScaleCallback = GetScale;
 
         dmPhysics::HWorld2D world2D;
         dmPhysics::HWorld3D world3D;

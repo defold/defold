@@ -49,6 +49,7 @@ namespace dmPhysics
         ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
+        GetScaleCallback            m_GetScaleCallback;
     };
 
     struct Context2D

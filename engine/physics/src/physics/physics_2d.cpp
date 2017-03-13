@@ -48,6 +48,7 @@ namespace dmPhysics
     , m_ContactListener(this)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
+    , m_GetScaleCallback(params.m_GetScaleCallback)
     {
     	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
@@ -332,6 +333,26 @@ namespace dmPhysics
                         body->SetSleepingAllowed(true);
                     }
                 }
+
+                if( body->GetType() != b2_staticBody )
+                {
+                    Vectormath::Aos::Vector3* shape_scales = 0;
+                    uint32_t shape_count = 0;
+                    Vectormath::Aos::Vector3 object_scale;
+                    (*world->m_GetScaleCallback)(body->GetUserData(), &shape_scales, &shape_count, &object_scale);
+
+                    b2Fixture* fix = body->GetFixtureList();
+                    uint32_t i = 0;
+                    while( fix )
+                    {
+                        b2Shape* shape = fix->GetShape();
+                        shape->m_radius = shape_scales[i].getX() * object_scale.getX();
+                        fix = fix->GetNext();
+                    }
+
+                    // TODO: Only set this if we actually changed the scaling
+                    body->SetSleepingAllowed(false);
+                }
             }
         }
         {
@@ -586,6 +607,12 @@ namespace dmPhysics
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count)
     {
         return NewCollisionObject2D(world, data, shapes, 0, 0, shape_count);
+    }
+
+    Vectormath::Aos::Vector3 GetScale2D(HCollisionShape2D _shape)
+    {
+        b2Shape* shape = (b2Shape*)_shape;
+        return Vectormath::Aos::Vector3(shape->m_radius);
     }
 
     /*

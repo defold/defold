@@ -184,6 +184,7 @@ range_error:
                         for (uint32_t i = 0; i < shape_count; ++i)
                         {
                             resource->m_Shapes2D[i] = resource->m_TileGridResource->m_GridShapes[i];
+                            resource->m_ShapeScale[i] = Vector3(1.0f);
                         }
                         resource->m_ShapeCount = shape_count;
                         return true;
@@ -218,6 +219,7 @@ range_error:
                         resource->m_Shapes3D[current_shape_count] = shape;
                         resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
                         resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
+                        resource->m_ShapeScale[current_shape_count] = dmPhysics::GetScale3D(shape);
                         current_shape_count++;
                     }
                     else
@@ -234,6 +236,7 @@ range_error:
                         resource->m_Shapes2D[current_shape_count] = shape;
                         resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
                         resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
+                        resource->m_ShapeScale[current_shape_count] = dmPhysics::GetScale2D(shape);
                         current_shape_count++;
                     }
                     else
