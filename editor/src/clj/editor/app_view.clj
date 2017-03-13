@@ -294,7 +294,7 @@
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
-                     (let [build (build-project project build-errors-view)]
+                     (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
                        (when (and (future? build) @build)
                          (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))))
 
