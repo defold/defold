@@ -22,7 +22,7 @@ class ScriptTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_Context = dmScript::NewContext(0x0, 0);
+        m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
     }
