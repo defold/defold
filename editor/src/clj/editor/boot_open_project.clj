@@ -16,7 +16,6 @@
             [editor.login :as login]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
-            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
@@ -143,9 +142,9 @@
                                                                          (fn [resource node-id opts]
                                                                            (open-resource resource opts)
                                                                            (app-view/select! app-view node-id)))
-          search-results-view  (search-results-view/make-search-results-view *view-graph*
-                                                                             (.lookup root "#search-results-container")
-                                                                             open-resource)
+          search-results-view  (search-results-view/make-search-results-view! *view-graph*
+                                                                              (.lookup root "#search-results-container")
+                                                                              open-resource)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! app-view *view-graph*
