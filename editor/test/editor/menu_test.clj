@@ -8,7 +8,7 @@
                                       :id ::new
                                       :acc "Shortcut+N"
                                   :command :new}
-                                     {:label "Open..."
+                                     {:label "Open"
                                       :id ::open
                                       :acc "Shortcut+O"
                                       :command :open}]}
