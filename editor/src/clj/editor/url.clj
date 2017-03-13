@@ -11,6 +11,7 @@
   (let [conn (doto ^HttpURLConnection (.openConnection url)
                (.setAllowUserInteraction false)
                (.setInstanceFollowRedirects false)
+               (.setConnectTimeout 2000)
                (.setReadTimeout 2000)
                (.setUseCaches false))]
     (try
