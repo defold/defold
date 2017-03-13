@@ -238,7 +238,6 @@ namespace dmScript
     {
         if( !lua_istable(L, index) )
         {
-            free(decl);
             return luaL_error(L, "buffer.create: Expected table, got %s", lua_typename(L, lua_type(L, index)));
         }
 
@@ -249,7 +248,6 @@ namespace dmScript
         {
             if( lua_type(L, -2) != LUA_TSTRING )
             {
-                free(decl);
                 return luaL_error(L, "buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
             }
 
@@ -265,9 +263,9 @@ namespace dmScript
             else if( strcmp(key, "count") == 0)
             {
                 decl[current_decl].m_ValueCount = (uint32_t) luaL_checkint(L, -1);
-            } else
+            }
+            else
             {
-                free(decl);
                 return luaL_error(L, "buffer.create: Unknown index name: %s", key);
             }
 
@@ -327,7 +325,11 @@ namespace dmScript
             return luaL_error(L, "buffer.create: You must specify at least one stream declaration");
         }
 
-        dmBuffer::StreamDeclaration* decl = (dmBuffer::StreamDeclaration*)malloc(num_decl * sizeof(dmBuffer::StreamDeclaration));
+        dmBuffer::StreamDeclaration* decl = (dmBuffer::StreamDeclaration*)alloca(num_decl * sizeof(dmBuffer::StreamDeclaration));
+        if( !decl )
+        {
+            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);	
+        }
 
         uint32_t count = 0;
         lua_pushvalue(L, 2);
@@ -344,8 +346,6 @@ namespace dmScript
 
         dmBuffer::HBuffer buffer = 0;
         dmBuffer::Result r = dmBuffer::Create((uint32_t)num_elements, decl, num_decl, &buffer);
-
-        free(decl);
 
         if( r != dmBuffer::RESULT_OK )
         {
@@ -633,14 +633,19 @@ namespace dmScript
         dmBuffer::Result r = dmBuffer::GetElementCount(buffer->m_Buffer, &out_element_count);
         if( r != dmBuffer::RESULT_OK )
         {
-            assert(top + 1 == lua_gettop(L));
             lua_pushfstring(L, "buffer.%s(invalid)", SCRIPT_TYPE_NAME_BUFFER);
+            assert(top + 1 == lua_gettop(L));
             return 1;
         }
 
         char buf[128];
         uint32_t maxlen = 64 + num_streams * sizeof(buf);
-        char* s = (char*)malloc( maxlen );
+        char* s = (char*)alloca( maxlen );
+        if( !s )
+        {
+            return luaL_error(L, "buffer.tostring: Failed creating temp memory (%u bytes)", maxlen);
+        }
+
         *s = 0;
         DM_SNPRINTF(buf, sizeof(buf), "buffer.%s(count = %d, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count);
         dmStrlCat(s, buf, maxlen);
