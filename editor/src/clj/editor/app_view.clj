@@ -11,7 +11,6 @@
             [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.defold-project :as project]
-            [editor.defold-project-search :as project-search]
             [editor.github :as github]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -758,14 +757,8 @@
 (handler/defhandler :open-asset :global
   (run [workspace project app-view prefs] (make-resource-dialog workspace project app-view prefs)))
 
-(defn- show-search-in-files-dialog! [project search-results-view]
-  (let [results-tab-tree-view (dialogs/make-search-in-files-tree-view)
-        open-fn (search-results-view/open-resource-fn search-results-view)
-        show-matches-fn (partial search-results-view/update-search-results search-results-view results-tab-tree-view)]
-    (dialogs/show-search-in-files-dialog! project [results-tab-tree-view] open-fn show-matches-fn)))
-
 (handler/defhandler :search-in-files :global
-  (run [project search-results-view] (show-search-in-files-dialog! project search-results-view)))
+  (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
 (handler/defhandler :bundle :global
   (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
