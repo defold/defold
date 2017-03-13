@@ -56,15 +56,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defn get-prefs [app-view]
-  (g/node-value app-view :prefs))
-
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
-  (property prefs g/Any)
 
   (input open-views g/Any :array)
   (input outline g/Any)
@@ -359,7 +355,7 @@
                               :id ::new
                               :acc "Shortcut+N"
                               :command :new-file}
-                             {:label "Open..."
+                             {:label "Open"
                               :id ::open
                               :acc "Shortcut+O"
                               :command :open}
@@ -540,11 +536,11 @@
     second
     :resource-node))
 
-(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
+(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
   (force desktop-supported?)
-  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move :prefs prefs))))]
+  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -619,11 +615,10 @@
     tmpl args))
 
 (defn open-resource
-  ([app-view workspace project resource]
-   (open-resource app-view workspace project resource {}))
-  ([app-view workspace project resource opts]
-   (let [prefs (get-prefs app-view)
-         resource-type (resource/resource-type resource)
+  ([app-view prefs workspace project resource]
+   (open-resource app-view prefs workspace project resource {}))
+  ([app-view prefs workspace project resource opts]
+   (let [resource-type (resource/resource-type resource)
          view-type     (or (:selected-view-type opts)
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
@@ -672,17 +667,17 @@
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
   (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->resource-files selection))))
-  (run [selection app-view workspace project user-data]
+  (run [selection app-view prefs workspace project user-data]
        (doseq [resource (:resources user-data (selection->resource-files selection))]
-         (open-resource app-view workspace project resource))))
+         (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :open-as :global
   (active? [selection] (selection->single-resource-file selection))
   (enabled? [selection user-data] (resource/exists? (selection->single-resource-file selection)))
-  (run [selection app-view workspace project user-data]
+  (run [selection app-view prefs workspace project user-data]
        (let [resource (selection->single-resource-file selection)]
-         (open-resource app-view workspace project resource (when-let [view-type (:selected-view-type user-data)]
-                                                              {:selected-view-type view-type}))))
+         (open-resource app-view prefs workspace project resource (when-let [view-type (:selected-view-type user-data)]
+                                                                    {:selected-view-type view-type}))))
   (options [workspace selection user-data]
            (when-not user-data
              (let [resource (selection->single-resource-file selection)
@@ -712,18 +707,18 @@
   (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
                           (and (resource/abs-path r)
                                (resource/exists? r))))
-  (run [selection app-view workspace project] (when-let [r (selection->single-resource-file selection)]
-                                                (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "refs:%s" (resource/proj-path r))})]
-                                                  (open-resource app-view workspace project resource)))))
+  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "refs:%s" (resource/proj-path r))})]
+                                                        (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
   (active? [selection] (selection->single-resource-file selection))
   (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
                           (and (resource/abs-path r)
                                (resource/exists? r))))
-  (run [selection app-view workspace project] (when-let [r (selection->single-resource-file selection)]
-                                                (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "deps:%s" (resource/proj-path r))})]
-                                                  (open-resource app-view workspace project resource)))))
+  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "deps:%s" (resource/proj-path r))})]
+                                                        (open-resource app-view prefs workspace project resource)))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
@@ -752,23 +747,23 @@
                             (when-let [graph (ui/user-data image-view :graph)]
                               (g/delete-graph! graph))))))))))
 
-(defn- make-resource-dialog [workspace project app-view]
+(defn- make-resource-dialog [workspace project app-view prefs]
   (when-let [resource (first (dialogs/make-resource-dialog workspace project {:tooltip-gen (partial gen-tooltip workspace project app-view)}))]
-    (open-resource app-view workspace project resource)))
+    (open-resource app-view prefs workspace project resource)))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
 (handler/defhandler :open-asset :global
-  (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
+  (run [workspace project app-view prefs] (make-resource-dialog workspace project app-view prefs)))
 
-(defn- make-search-in-files-dialog [workspace project app-view]
+(defn- make-search-in-files-dialog [workspace project app-view prefs]
   (let [[resource opts] (dialogs/make-search-in-files-dialog project)]
     (when resource
-      (open-resource app-view workspace project resource opts))))
+      (open-resource app-view prefs workspace project resource opts))))
 
 (handler/defhandler :search-in-files :global
-  (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
+  (run [workspace project app-view prefs] (make-search-in-files-dialog workspace project app-view prefs)))
 
 (handler/defhandler :bundle :global
   (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
@@ -791,10 +786,10 @@
     (workspace/find-resource workspace "/liveupdate.settings")))
 
 (handler/defhandler :live-update-settings :global
-  (run [app-view workspace project]
+  (run [app-view prefs workspace project]
     (some->> (or (workspace/find-resource workspace "/liveupdate.settings")
                  (create-live-update-settings! workspace))
-      (open-resource app-view workspace project))))
+      (open-resource app-view prefs workspace project))))
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))
