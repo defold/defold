@@ -323,6 +323,10 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         int prevPhase = touch->Phase;
         int newPhase = phase;
 
+        if (newPhase == GLFW_PHASE_ENDED && g_MouseEmulationTouch == touch) {
+            g_MouseEmulationTouch = 0x0;
+        }
+
         if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
             return touch;
         }
@@ -342,10 +346,6 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         }
 
         touch->Phase = phase;
-
-        if (newPhase == GLFW_PHASE_ENDED) {
-            g_MouseEmulationTouch = findNextMouseTouch();
-        }
 
         return touch;
     }

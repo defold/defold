@@ -634,6 +634,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     int prevPhase = glfwt->Phase;
     int newPhase = t.phase;
 
+    if (newPhase == GLFW_PHASE_ENDED && _glfwInput.MouseEmulationTouch == glfwt) {
+        _glfwInput.MouseEmulationTouch = 0x0;
+    }
+
     if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
         return;
     }
@@ -655,9 +659,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     glfwt->Phase = t.phase;
 
-    if (newPhase == GLFW_PHASE_ENDED) {
-        _glfwInput.MouseEmulationTouch = [self findNextMouseTouch];
-    }
 }
 
 - (int) fillTouchStart: (UIEvent*) event
