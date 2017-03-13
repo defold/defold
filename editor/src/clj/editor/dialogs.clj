@@ -394,6 +394,7 @@
   (resource-name [this] (format "%d: %s" (inc line) match))
   (resource-type [this] (resource/resource-type parent-resource))
   (source-type [this]   (resource/source-type parent-resource))
+  (exists? [this]       (resource/exists? parent-resource))
   (read-only? [this]    (resource/read-only? parent-resource))
   (path [this]          (resource/path parent-resource))
   (abs-path [this]      (resource/abs-path parent-resource))
@@ -457,13 +458,16 @@
   (doto (TreeView.) init-search-in-files-tree-view!))
 
 (defn resolve-search-in-files-tree-view-selection [selection]
-  (mapv (fn [resource]
-          (cond
-            (instance? MatchContextResource resource)
-            [(:parent-resource resource) {:caret-position (:caret-position resource)}]
+  (into []
+        (comp (filter resource/exists?)
+              (keep (fn [resource]
+                      (cond
+                        (instance? MatchContextResource resource)
+                        [(:parent-resource resource) {:caret-position (:caret-position resource)
+                                                      :line (inc (:line resource))}]
 
-            :else
-            [resource {}]))
+                        :else
+                        [resource {}]))))
         selection))
 
 (defn show-search-in-files-dialog! [project additional-tree-views open-fn show-find-results-fn]
