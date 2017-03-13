@@ -27,6 +27,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.url :as url]
             [editor.view :as view]
+            [internal.util :refer [first-where]]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.control TabPaneBehavior]
@@ -773,12 +774,11 @@
   (let [library-url-string (project/project-dependencies project)
         library-urls (library/parse-library-urls library-url-string)
         hosts (into #{} (map url/strip-path) library-urls)]
-    (if-let [unreachable-hosts (seq (remove url/reachable? hosts))]
-      (dialogs/make-alert-dialog (string/join "\n" (concat ["Fetch was aborted because the following hosts could not be reached:"]
-                                                           (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
-                                                                (sort-by str unreachable-hosts))
-                                                           [""
-                                                            "Please verify internet connection and try again."])))
+    (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
+      (dialogs/make-alert-dialog (string/join "\n" ["Fetch was aborted because the following host could not be reached:"
+                                                    (str "\u00A0\u00A0\u2022\u00A0" first-unreachable-host) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                                                    ""
+                                                    "Please verify internet connection and try again."]))
       (future
         (ui/with-disabled-ui
           (ui/with-progress [render-fn ui/default-render-progress!]
