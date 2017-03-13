@@ -9,6 +9,7 @@ namespace dmRig
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
+    static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* RIG_MAX_INSTANCES_KEY = "rig.max_instance_count";
@@ -873,7 +874,14 @@ namespace dmRig
         // Init: [0, 1, 2]
         // Changed: 1 => 0, results in [1, 1, 2]
         // Unchanged: 0 => 0, 2 => 2, results in [1, 0, 2] (indices 1 and 2 were untouched and filled)
+        // An exception is made if there is an explicit entry with offset "0". This means that previous offset
+        // change is "done". In that case the order should be unchanged, but it should be considered as
+        // changed so that it is not shuffled when re-ordering.
+
+        // Subtract with arbitrary "large" number, catch meshes that have up to -5000 in draw offset in initial pose (unlikely)
+        uint32_t signal_locked_thresh = SIGNAL_ORDER_LOCKED - 5000;
         out_order_to_mesh.SetSize(mesh_count);
+
         // Intialize
         for (uint32_t i = 0; i < mesh_count; ++i) {
             out_order_to_mesh[i] = i;
@@ -885,7 +893,10 @@ namespace dmRig
         // Update changed
         for (uint32_t i = 0; i < mesh_count; ++i) {
             uint32_t order = instance->m_MeshProperties[i].m_Order;
-            if (order != i) {
+            if (order > signal_locked_thresh) {
+                out_order_to_mesh[i] = order;
+            }
+            else if (order != i) {
                 out_order_to_mesh[order] = i;
             }
         }
@@ -900,6 +911,13 @@ namespace dmRig
                 }
                 out_order_to_mesh[draw_order] = i;
                 ++draw_order;
+            }
+        }
+
+        // Set all done entries
+        for (uint32_t i = 0; i < mesh_count; ++i) {
+            if (out_order_to_mesh[i] > signal_locked_thresh) {
+                out_order_to_mesh[i] = i;
             }
         }
     }
