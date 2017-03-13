@@ -10,7 +10,7 @@ TEST(dmMaterialTest, TestTags)
 {
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
-    params.m_ScriptContext = dmScript::NewContext(0, 0);
+    params.m_ScriptContext = dmScript::NewContext(0, 0, true);
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, "foo", 3);
