@@ -100,6 +100,8 @@
                         [resource {}]))))
         selection))
 
+(def ^:private search-in-files-dialog-state (atom nil))
+
 (defn- start-search-in-files! [project results-tab-tree-view open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         stage     (doto (ui/make-stage)
@@ -116,7 +118,11 @@
         report-error! (fn [error] (ui/run-later (throw error)))
         file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
         {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
-        on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))
+        on-input-changed! (fn [_ _ _]
+                            (let [term (.getText term-field)
+                                  exts (.getText exts-field)]
+                              (reset! search-in-files-dialog-state {:term term :exts exts})
+                              (start-search! term exts)))
         dismiss-and-abort-search! (fn []
                                     (abort-search!)
                                     (ui/close! stage))
@@ -134,6 +140,11 @@
     (ui/on-double! tree-view (fn on-double! [^Event event]
                                (.consume event)
                                (open-selected!)))
+
+    (let [{:keys [term exts]} @search-in-files-dialog-state]
+      (ui/text! term-field term)
+      (ui/text! exts-field exts)
+      (start-search! term exts))
 
     (ui/observe (.textProperty term-field) on-input-changed!)
     (ui/observe (.textProperty exts-field) on-input-changed!)
