@@ -523,7 +523,7 @@ public class SpineSceneTest {
         boolean interpolate = false;
         boolean shouldSlerp = false;
         int expectedSampleCountPerMesh = 14;
-        int signal_done = 0xDEAD;
+        int signal_locked = 0x10CCED;
         
         MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
         MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
@@ -541,9 +541,9 @@ public class SpineSceneTest {
         assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
-        assertEquals(signal_done, drawOrderBuilder.GetOrderOffset(9));
-        assertEquals(signal_done, drawOrderBuilder.GetOrderOffset(10));
-        assertEquals(signal_done, drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(signal_locked, drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(signal_locked, drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(signal_locked, drawOrderBuilder.GetOrderOffset(11));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
         trackBuilder.clear();
