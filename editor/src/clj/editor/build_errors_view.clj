@@ -50,9 +50,12 @@
                            :parent (parent-file-resource (conj parents error))}))
                    (group-by :parent)
                    (reduce-kv (fn [ret resource errors]
-                                (conj ret {:type :resource
-                                           :value resource
-                                           :children (vec (distinct errors))}))
+                                (conj ret (if resource
+                                            {:type :resource
+                                             :value resource
+                                             :children (vec (distinct errors))}
+                                            {:type :default
+                                             :children (vec (distinct errors))})))
                               []))]
     {:label "root"
      :children items}))

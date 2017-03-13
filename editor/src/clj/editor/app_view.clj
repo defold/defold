@@ -13,6 +13,7 @@
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.github :as github]
+            [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
@@ -31,7 +32,8 @@
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor EditorApplication]
            [com.defold.editor Start]
-           [java.awt Desktop]
+           [java.awt Desktop Desktop$Action]
+           [java.net URI]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -245,14 +247,14 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
-(defn- build-project [project build-errors-view]
+(defn- build-project [project prefs build-fn build-errors-view]
   (let [build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
                        :render-error! (fn [errors]
                                         (ui/run-later
                                           (build-errors-view/update-build-errors
                                             build-errors-view
                                             errors)))}]
-    (project/build-and-save-project project build-options)))
+    (build-fn project prefs build-options)))
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -261,12 +263,29 @@
     (ui/default-render-progress-now! (progress/make "Building..."))
     (ui/->future 0.01
                  (fn []
-                   (let [build (build-project project build-errors-view)]
+                   (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
                      (when (and (future? build) @build)
                        (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
                              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
                                (engine/reboot (:url target) local-url)))
                            (engine/launch project prefs))))))))
+
+(handler/defhandler :build-html5 :global
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [project prefs web-server build-errors-view changes-view]
+    (console/clear-console!)
+    ;; We need to save because bob reads from FS
+    (project/save-all! project
+      (fn []
+        (changes-view/refresh! changes-view)
+        (ui/default-render-progress-now! (progress/make "Building..."))
+        (ui/->future 0.01
+          (fn []
+            (let [build (build-project project prefs bob/build-html5 build-errors-view)]
+              (when (and (future? build) @build)
+                (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
+                  (when (.isSupported desktop Desktop$Action/BROWSE)
+                    (.browse desktop (URI. (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
@@ -276,7 +295,7 @@
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
-                     (let [build (build-project project build-errors-view)]
+                     (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
                        (when (and (future? build) @build)
                          (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))))
 
@@ -337,7 +356,7 @@
                               :id ::new
                               :acc "Shortcut+N"
                               :command :new-file}
-                             {:label "Open..."
+                             {:label "Open"
                               :id ::open
                               :acc "Shortcut+O"
                               :command :open}
@@ -518,7 +537,7 @@
     second
     :resource-node))
 
-(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
+(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage (make-title))
   (force desktop-supported?)
@@ -591,35 +610,51 @@
                            (.handle close-handler event)))))
     tab))
 
+(defn- substitute-args [tmpl args]
+  (reduce (fn [tmpl [key val]]
+            (string/replace tmpl (format "{%s}" (name key)) (str val)))
+    tmpl args))
+
 (defn open-resource
-  ([app-view workspace project resource]
-   (open-resource app-view workspace project resource {}))
-  ([app-view workspace project resource opts]
+  ([app-view prefs workspace project resource]
+   (open-resource app-view prefs workspace project resource {}))
+  ([app-view prefs workspace project resource opts]
    (let [resource-type (resource/resource-type resource)
          view-type     (or (:selected-view-type opts)
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
-     (if-let [make-view-fn (:make-view-fn view-type)]
-       (let [resource-node     (or (project/get-resource-node project resource)
+     (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
+                              (let [ed-pref (string/trim (prefs/get-prefs prefs "code-custom-editor" ""))]
+                                (and (not (string/blank? ed-pref)) ed-pref)))]
+       (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
+             arg-sub (cond-> {:file (resource/abs-path resource)}
+                       (:line opts) (assoc :line (:line opts)))
+             args (->> (string/split arg-tmpl #" ")
+                    (map #(substitute-args % arg-sub)))]
+         (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
+           (.directory (workspace/project-path workspace))
+           (.start)))
+       (if-let [make-view-fn (:make-view-fn view-type)]
+         (let [resource-node     (or (project/get-resource-node project resource)
                                    (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
-                                                   {})))
-             ^TabPane tab-pane (g/node-value app-view :tab-pane)
-             tabs              (.getTabs tab-pane)
-             tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
-                                                  (= view-type (ui/user-data % ::view-type)))
-                                            %)
-                                     tabs)
-                                 (make-tab! app-view workspace project resource resource-node
-                                   resource-type view-type make-view-fn tabs opts))]
-         (.select (.getSelectionModel tab-pane) tab)
-         (when-let [focus (:focus-fn view-type)]
-           (focus (ui/user-data tab ::view) opts)))
-       (let [^String path (or (resource/abs-path resource)
-                            (resource/temp-path resource))]
-         (try
-           (.open (Desktop/getDesktop) (File. path))
-           (catch Exception _
-             (dialogs/make-alert-dialog (str "Unable to open external editor for " path)))))))))
+                                            {})))
+               ^TabPane tab-pane (g/node-value app-view :tab-pane)
+               tabs              (.getTabs tab-pane)
+               tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
+                                                    (= view-type (ui/user-data % ::view-type)))
+                                              %)
+                                       tabs)
+                                   (make-tab! app-view workspace project resource resource-node
+                                     resource-type view-type make-view-fn tabs opts))]
+           (.select (.getSelectionModel tab-pane) tab)
+           (when-let [focus (:focus-fn view-type)]
+             (focus (ui/user-data tab ::view) opts)))
+         (let [^String path (or (resource/abs-path resource)
+                              (resource/temp-path resource))]
+           (try
+             (.open (Desktop/getDesktop) (File. path))
+             (catch Exception _
+               (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))))))))
 
 (defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
@@ -633,17 +668,17 @@
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
   (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->resource-files selection))))
-  (run [selection app-view workspace project user-data]
+  (run [selection app-view prefs workspace project user-data]
        (doseq [resource (:resources user-data (selection->resource-files selection))]
-         (open-resource app-view workspace project resource))))
+         (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :open-as :global
   (active? [selection] (selection->single-resource-file selection))
   (enabled? [selection user-data] (resource/exists? (selection->single-resource-file selection)))
-  (run [selection app-view workspace project user-data]
+  (run [selection app-view prefs workspace project user-data]
        (let [resource (selection->single-resource-file selection)]
-         (open-resource app-view workspace project resource (when-let [view-type (:selected-view-type user-data)]
-                                                              {:selected-view-type view-type}))))
+         (open-resource app-view prefs workspace project resource (when-let [view-type (:selected-view-type user-data)]
+                                                                    {:selected-view-type view-type}))))
   (options [workspace selection user-data]
            (when-not user-data
              (let [resource (selection->single-resource-file selection)
@@ -673,18 +708,18 @@
   (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
                           (and (resource/abs-path r)
                                (resource/exists? r))))
-  (run [selection app-view workspace project] (when-let [r (selection->single-resource-file selection)]
-                                                (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "refs:%s" (resource/proj-path r))})]
-                                                  (open-resource app-view workspace project resource)))))
+  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "refs:%s" (resource/proj-path r))})]
+                                                        (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
   (active? [selection] (selection->single-resource-file selection))
   (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
                           (and (resource/abs-path r)
                                (resource/exists? r))))
-  (run [selection app-view workspace project] (when-let [r (selection->single-resource-file selection)]
-                                                (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "deps:%s" (resource/proj-path r))})]
-                                                  (open-resource app-view workspace project resource)))))
+  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "deps:%s" (resource/proj-path r))})]
+                                                        (open-resource app-view prefs workspace project resource)))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
@@ -713,23 +748,23 @@
                             (when-let [graph (ui/user-data image-view :graph)]
                               (g/delete-graph! graph))))))))))
 
-(defn- make-resource-dialog [workspace project app-view]
+(defn- make-resource-dialog [workspace project app-view prefs]
   (when-let [resource (first (dialogs/make-resource-dialog workspace project {:tooltip-gen (partial gen-tooltip workspace project app-view)}))]
-    (open-resource app-view workspace project resource)))
+    (open-resource app-view prefs workspace project resource)))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
 (handler/defhandler :open-asset :global
-  (run [workspace project app-view] (make-resource-dialog workspace project app-view)))
+  (run [workspace project app-view prefs] (make-resource-dialog workspace project app-view prefs)))
 
-(defn- make-search-in-files-dialog [workspace project app-view]
+(defn- make-search-in-files-dialog [workspace project app-view prefs]
   (let [[resource opts] (dialogs/make-search-in-files-dialog project)]
     (when resource
-      (open-resource app-view workspace project resource opts))))
+      (open-resource app-view prefs workspace project resource opts))))
 
 (handler/defhandler :search-in-files :global
-  (run [workspace project app-view] (make-search-in-files-dialog workspace project app-view)))
+  (run [workspace project app-view prefs] (make-search-in-files-dialog workspace project app-view prefs)))
 
 (handler/defhandler :bundle :global
   (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
@@ -760,10 +795,10 @@
     (workspace/find-resource workspace "/liveupdate.settings")))
 
 (handler/defhandler :live-update-settings :global
-  (run [app-view workspace project]
+  (run [app-view prefs workspace project]
     (some->> (or (workspace/find-resource workspace "/liveupdate.settings")
                  (create-live-update-settings! workspace))
-      (open-resource app-view workspace project))))
+      (open-resource app-view prefs workspace project))))
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))

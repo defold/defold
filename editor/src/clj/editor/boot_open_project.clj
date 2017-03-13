@@ -16,6 +16,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.login :as login]
             [editor.outline-view :as outline-view]
+            [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
@@ -130,16 +131,18 @@
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs prefs)
+          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)})
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)
+                                                            bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id opts]
                                                                            (app-view/open-resource app-view
+                                                                                                   prefs
                                                                                                    (g/node-value project :workspace)
                                                                                                    project
                                                                                                    resource

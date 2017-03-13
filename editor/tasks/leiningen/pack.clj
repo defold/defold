@@ -1,32 +1,14 @@
 (ns leiningen.pack
   (:require
    [clojure.java.io :as io]
-   [clojure.java.shell :as shell]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [cemerick.pomegranate.aether :as aether]
+   [leiningen.core.main :as main]
+   [leiningen.util.download :as dl])
   (:import
    (java.io File)
    (java.util.zip ZipFile ZipEntry)
    (org.apache.commons.io FileUtils)))
-
-(defn sha1
-  [s]
-  (.toString (BigInteger. 1 (-> (java.security.MessageDigest/getInstance "SHA1")
-                                (.digest (.getBytes s)))) 16))
-
-(defn download
-  [url]
-  (let [cache-file (io/file ".cache" (sha1 (str url)))]
-    (if (.exists cache-file)
-      (do
-        (println (format "using cached file '%s' for '%s'" cache-file url))
-        cache-file)
-      (do
-        (println (format "downloading file '%s' to '%s'" url cache-file))
-        (let [tmp-file (File/createTempFile "defold-download-cache" nil)]
-          (FileUtils/copyURLToFile url tmp-file (* 10 1000) (* 30 1000))
-          (FileUtils/moveFile tmp-file cache-file)
-          cache-file)))))
-
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
@@ -91,7 +73,7 @@
                  [dir files] dirs
                  file files]
              (let [src (if git-sha
-                         (download (engine-archive-url git-sha platform file))
+                         (dl/download (engine-archive-url git-sha platform file))
                          (io/file (dynamo-home) dir platform file))]
                [src (io/file platform dir file)]))))
 
