@@ -240,12 +240,11 @@ public class Start extends Application {
         appender.setName("FILE");
         appender.setAppend(true);
         appender.setPrudent(true);
-        appender.setFile(logDirectory.resolve("editor2.log").toString());
         appender.setContext(root.getLoggerContext());
 
         TimeBasedRollingPolicy rollingPolicy = new TimeBasedRollingPolicy();
         rollingPolicy.setMaxHistory(30);
-        rollingPolicy.setFileNamePattern("editor2.%d{yyyy-MM-dd}.log");
+        rollingPolicy.setFileNamePattern(logDirectory.resolve("editor2.%d{yyyy-MM-dd}.log").toString());
         rollingPolicy.setTotalSizeCap(FileSize.valueOf("1GB"));
         rollingPolicy.setContext(root.getLoggerContext());
         rollingPolicy.setParent(appender);
