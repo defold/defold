@@ -398,6 +398,10 @@ namespace dmGameObject
                     lua_pushinteger(L, (lua_Integer) (i+1));
                     lua_createtable(L, 0, 6);
 
+                    lua_pushliteral(L, "id");
+                    lua_pushinteger(L, (lua_Integer) t.m_Id);
+                    lua_settable(L, -3);
+
                     lua_pushliteral(L, "tap_count");
                     lua_pushinteger(L, (lua_Integer) t.m_TapCount);
                     lua_settable(L, -3);

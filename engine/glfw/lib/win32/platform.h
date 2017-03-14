@@ -312,7 +312,6 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
-    GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
@@ -414,7 +413,6 @@ GLFWGLOBAL struct {
     int  KeyRepeat;
 
     GLFWTouch Touch[GLFW_MAX_TOUCH];
-    int  TouchCount;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 
