@@ -1606,7 +1606,7 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 //========================================================================
 // Defold extension: Get native references (window, view and context)
 //========================================================================
-GLFWAPI id glfwGetiOSUVWindow(void)
+GLFWAPI id glfwGetiOSUIWindow(void)
 {
     return _glfwWin.window;
 };
