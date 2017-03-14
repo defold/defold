@@ -377,7 +377,7 @@ protected:
     virtual void SetUp()
     {
         dmBuffer::Init();
-        m_Context = dmScript::NewContext(0, 0);
+        m_Context = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
 
