@@ -587,21 +587,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     _glfwInput.MousePosY = y;
 }
 
-- (GLFWTouch*) findNextMouseTouch
-{
-    int i=0;
-
-    for (i=0;i!=GLFW_MAX_TOUCH;i++)
-    {
-        if (_glfwInput.Touch[i].Reference && _glfwInput.Touch[i].Phase != GLFW_PHASE_ENDED && _glfwInput.Touch[i].Phase != GLFW_PHASE_TAPPED)
-            return &_glfwInput.Touch[i];
-    }
-
-    return 0x0;
-}
-
 - (void) touchStart: (GLFWTouch*) glfwt withTouch: (UITouch*) t
 {
+    // When a new touch starts, and there was no previous one, this will be our mouse emulation touch.
     if (_glfwInput.MouseEmulationTouch == 0x0) {
         _glfwInput.MouseEmulationTouch = glfwt;
     }
@@ -634,10 +622,13 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     int prevPhase = glfwt->Phase;
     int newPhase = t.phase;
 
+    // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
     if (newPhase == GLFW_PHASE_ENDED && _glfwInput.MouseEmulationTouch == glfwt) {
         _glfwInput.MouseEmulationTouch = 0x0;
     }
 
+    // This is an invalid touch order, we need to recieve a began or moved
+    // phase before moving pushing any more move inputs.
     if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
         return;
     }
@@ -648,11 +639,14 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glfwt->DX = x - px;
     glfwt->DY = y - py;
 
+    // If we recieved both a began and moved for the same touch during one frame/update,
+    // just update the coordinates but leave the phase as began.
     if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
         return;
-    }
 
-    if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
+    // If a touch both began and ended during one frame/update, set the phase as
+    // tapped and we will send the released event during next update (see input.c).
+    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
         glfwt->Phase = GLFW_PHASE_TAPPED;
         return;
     }

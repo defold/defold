@@ -281,24 +281,12 @@ static GLFWTouch* touchById(void *ref)
     return freeTouch;
 }
 
-
-static GLFWTouch* findNextMouseTouch() {
-    int i=0;
-
-    for (i=0;i!=GLFW_MAX_TOUCH;i++)
-    {
-        if (_glfwInput.Touch[i].Reference && _glfwInput.Touch[i].Phase != GLFW_PHASE_ENDED && _glfwInput.Touch[i].Phase != GLFW_PHASE_TAPPED)
-            return &_glfwInput.Touch[i];
-    }
-
-    return 0x0;
-}
-
 static GLFWTouch* touchStart(void *ref, int32_t x, int32_t y)
 {
     GLFWTouch *touch = touchById(ref);
     if (touch)
     {
+        // When a new touch starts, and there was no previous one, this will be our mouse emulation touch.
         if (g_MouseEmulationTouch == 0x0) {
             g_MouseEmulationTouch = touch;
         }
@@ -323,10 +311,13 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         int prevPhase = touch->Phase;
         int newPhase = phase;
 
+        // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
         if (newPhase == GLFW_PHASE_ENDED && g_MouseEmulationTouch == touch) {
             g_MouseEmulationTouch = 0x0;
         }
 
+        // This is an invalid touch order, we need to recieve a began or moved
+        // phase before moving pushing any more move inputs.
         if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
             return touch;
         }
@@ -336,11 +327,14 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         touch->X = x;
         touch->Y = y;
 
+        // If we recieved both a began and moved for the same touch during one frame/update,
+        // just update the coordinates but leave the phase as began.
         if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
             return touch;
-        }
 
-        if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
+        // If a touch both began and ended during one frame/update, set the phase as
+        // tapped and we will send the released event during next update (see input.c).
+        } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
             touch->Phase = GLFW_PHASE_TAPPED;
             return touch;
         }
