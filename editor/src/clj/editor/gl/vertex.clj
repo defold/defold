@@ -481,8 +481,8 @@ the `do-gl` macro from `editor.gl`."
    [:stream :copy] GL2/GL_STREAM_COPY})
 
 (defn- find-attribute-index [attribute-name attributes]
-  (util/find-index (fn [[name-sym]] (= attribute-name (name name-sym)))
-                   attributes))
+  (util/first-index-where (fn [[name-sym]] (= attribute-name (name name-sym)))
+                          attributes))
 
 (defn- bind-vertex-buffer! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer]
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)
