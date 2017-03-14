@@ -567,7 +567,7 @@ namespace dmEngine
 
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
         if (shared) {
-            engine->m_SharedScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            engine->m_SharedScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
             dmScript::Initialize(engine->m_SharedScriptContext);
             engine->m_GOScriptContext = engine->m_SharedScriptContext;
             engine->m_RenderScriptContext = engine->m_SharedScriptContext;
@@ -575,11 +575,11 @@ namespace dmEngine
             module_script_contexts.SetCapacity(1);
             module_script_contexts.Push(engine->m_SharedScriptContext);
         } else {
-            engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
             dmScript::Initialize(engine->m_GOScriptContext);
-            engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
             dmScript::Initialize(engine->m_RenderScriptContext);
-            engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
             dmScript::Initialize(engine->m_GuiScriptContext);
             module_script_contexts.SetCapacity(3);
             module_script_contexts.Push(engine->m_GOScriptContext);
@@ -899,6 +899,7 @@ bail:
             dmHID::Touch& a = action->m_Touch[i];
             dmHID::Touch& ia = input_action.m_Touch[i];
             ia = action->m_Touch[i];
+            ia.m_Id = a.m_Id;
             ia.m_X = (a.m_X + 0.5f) * width_ratio;
             ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
             ia.m_DX = a.m_DX * width_ratio;

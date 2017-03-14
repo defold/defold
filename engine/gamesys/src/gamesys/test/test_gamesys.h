@@ -153,7 +153,7 @@ void GamesysTest<T>::SetUp()
     params.m_MaxResources = 32;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
-    m_ScriptContext = dmScript::NewContext(0, m_Factory);
+    m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
     dmScript::Initialize(m_ScriptContext);
     dmGameObject::Initialize(m_ScriptContext);
     m_Register = dmGameObject::NewRegister();

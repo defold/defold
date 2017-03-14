@@ -1,5 +1,6 @@
 (ns editor.boot-open-project
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
@@ -130,7 +131,7 @@
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs prefs)
+          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
@@ -141,6 +142,7 @@
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id opts]
                                                                            (app-view/open-resource app-view
+                                                                                                   prefs
                                                                                                    (g/node-value project :workspace)
                                                                                                    project
                                                                                                    resource
@@ -236,12 +238,22 @@
     (reset! the-root root)
     root))
 
+(defn- show-missing-dependencies-alert! [dependencies]
+  (dialogs/make-alert-dialog (string/join "\n" (concat ["The following dependencies are missing:"]
+                                                       (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                                                            (sort-by str dependencies))
+                                                       [""
+                                                        "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
+
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
-        ^VBox root   (ui/run-now (load-stage workspace project prefs))]
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
+    (ui/run-now
+      (load-stage workspace project prefs)
+      (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
+        (show-missing-dependencies-alert! missing-dependencies)))
     (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)))
