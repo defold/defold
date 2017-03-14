@@ -75,7 +75,7 @@ namespace dmScript
      * @name buffer.VALUE_TYPE_FLOAT32
      * @variable
     */
-    /*# int64
+    /*# float64
      * Float, double precision, 8 bytes
      * @name buffer.VALUE_TYPE_FLOAT64
      * @variable
@@ -236,6 +236,7 @@ namespace dmScript
 
     static int ParseStreamDeclaration(lua_State* L, int index, dmBuffer::StreamDeclaration* decl, int current_decl)
     {
+        int top = lua_gettop(L);
         if( !lua_istable(L, index) )
         {
             return luaL_error(L, "buffer.create: Expected table, got %s", lua_typename(L, lua_type(L, index)));
@@ -248,10 +249,13 @@ namespace dmScript
         {
             if( lua_type(L, -2) != LUA_TSTRING )
             {
+        		lua_pop(L, 3);
+        		assert(top == lua_gettop(L));
                 return luaL_error(L, "buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
             }
 
             const char* key = lua_tostring(L, -2);
+
             if( strcmp(key, "name") == 0)
             {
                 decl[current_decl].m_Name = dmScript::CheckHashOrString(L, -1);
@@ -266,6 +270,8 @@ namespace dmScript
             }
             else
             {
+        		lua_pop(L, 3);
+        		assert(top == lua_gettop(L));
                 return luaL_error(L, "buffer.create: Unknown index name: %s", key);
             }
 
@@ -273,6 +279,7 @@ namespace dmScript
         }
 
         lua_pop(L, 1);
+        assert(top == lua_gettop(L));
         return 0;
     }
 
