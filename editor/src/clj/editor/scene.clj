@@ -143,8 +143,10 @@
           wz (min 1.0 (max 0.0 (* (+ ndc-z 1.0) 0.5)))]
       (long (* Integer/MAX_VALUE (max 0.0 wz))))))
 
-(defn- render-key [^Matrix4d view-proj ^Matrix4d world-transform index tmp-v4d]
-  [(- Long/MAX_VALUE (z-distance view-proj world-transform tmp-v4d)) index])
+(defn- render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? tmp-v4d]
+  [(boolean topmost?)
+   (- Long/MAX_VALUE (z-distance view-proj world-transform tmp-v4d))
+   (or index 0)])
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -288,7 +290,7 @@
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
                                 :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world)
-                                :render-key (render-key view-proj world-transform (:index renderable) tmp-v4d)))]
+                                :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
       (when (and selected-id (types/selection? pass))
