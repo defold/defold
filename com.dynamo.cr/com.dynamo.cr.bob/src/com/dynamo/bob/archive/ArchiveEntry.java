@@ -57,6 +57,25 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
         this.fileName = fileName;
     }
+    
+    @Override
+    public boolean equals(Object other){
+        boolean result = this.getClass().equals(other.getClass());
+         if (result) {
+             ArchiveEntry entryOther = (ArchiveEntry)other;
+             result = this.fileName.equals(entryOther.fileName) 
+                     && this.relName.equals(entryOther.relName)
+                     && this.flags == entryOther.flags
+                     && this.compressedSize == entryOther.compressedSize
+                     && this.size == entryOther.size;
+         }
+        return result;
+    }
+    
+    public int hashCode()
+    {
+        return 17 * this.fileName.hashCode() + 31 * this.relName.hashCode();
+    }
 
     private int compare(byte[] left, byte[] right) {
         for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {

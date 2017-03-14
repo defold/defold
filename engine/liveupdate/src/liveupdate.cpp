@@ -30,6 +30,7 @@ namespace dmLiveUpdate
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
     {
         uint32_t resourceCount = MissingResources(g_LiveUpdate.m_Manifest, urlHash, NULL, 0);
+        uint32_t unique_count = 0;
         if (resourceCount > 0)
         {
             uint8_t** resources = (uint8_t**) malloc(resourceCount * sizeof(uint8_t*));
@@ -38,16 +39,34 @@ namespace dmLiveUpdate
 
             dmLiveUpdateDDF::HashAlgorithm algorithm = g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
             uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
+            bool is_unique;
+            char* scratch = (char*) malloc(hexDigestLength * sizeof(char*));
             for (uint32_t i = 0; i < resourceCount; ++i)
             {
-                (*buffer)[i] = (char*) malloc(hexDigestLength * sizeof(char*));
-                dmResource::HashToString(algorithm, resources[i], (*buffer)[i], hexDigestLength);
-            }
+                is_unique = true;
+                
+                dmResource::HashToString(algorithm, resources[i], scratch, hexDigestLength);
+                for (int j = 0; j < unique_count; ++j) // only return unique hashes even if there are multiple resource instances in the collectionproxy
+                {
+                    if (memcmp((*buffer)[j], scratch, hexDigestLength) == 0)
+                    {
+                        is_unique = false;
+                        break;
+                    }
+                }
 
+                if (is_unique)
+                {
+                    (*buffer)[unique_count] = (char*) malloc(hexDigestLength * sizeof(char*));
+                    memcpy((*buffer)[unique_count], scratch, hexDigestLength);
+                    ++unique_count;
+                }
+            }
+            free(scratch);
             free(resources);
         }
 
-        return resourceCount;
+        return unique_count;
     }
 
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
@@ -126,6 +145,25 @@ namespace dmLiveUpdate
         }
 
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
+
+        // DEBUG 
+        uint32_t hexDigestLength = digestLength * 2 + 1;
+        char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
+        dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
+        char* slask = new char[hexDigestLength+1];
+        memcpy(slask, hexDigest, hexDigestLength);
+        slask[hexDigestLength] = '\0';
+        dmLogInfo("hash: %s", slask);
+        for (int i = 0; i < manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
+        {
+           uint8_t* hash = manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
+           int cmp = memcmp(hash, digest, digestLength);
+            if (cmp == 0)
+           {
+               dmLogInfo("URL: %s", manifest->m_DDF->m_Data.m_Resources[i].m_Url);
+           }
+        }
+        // END DEBUG
 
         char proj_id[dmResource::MANIFEST_PROJ_ID_LEN];
         dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, proj_id, dmResource::MANIFEST_PROJ_ID_LEN);

@@ -25,6 +25,7 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.pipeline.ResourceEntry;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
@@ -115,7 +116,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<ResourceEntry>());
         outFileIndex.close();
         outFileData.close();
 
@@ -139,7 +140,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<ResourceEntry>());
         outFileIndex.close();
         outFileData.close();
 
@@ -178,7 +179,7 @@ public class ArchiveTest {
 	        RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
 	        archiveIndex.setLength(0);
 	        archiveData.setLength(0);
-	        instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<String>());
+	        instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<ResourceEntry>());
 	        archiveIndex.close();
 	        archiveData.close();
 	        
@@ -255,8 +256,8 @@ public class ArchiveTest {
 
         manifestBuilder.setDependencies(root);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/main.collectionproxyc");
+        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
+        excludedResources.add(new ResourceEntry("/main.collectionproxyc", ""));
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -285,8 +286,8 @@ public class ArchiveTest {
 
         manifestBuilder.setDependencies(root);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level2.collectionproxyc");
+        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
+        excludedResources.add(new ResourceEntry("/level2.collectionproxyc", ""));
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -317,8 +318,8 @@ public class ArchiveTest {
 
         manifestBuilder.setDependencies(root);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level2.collectionproxyc");
+        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
+        excludedResources.add(new ResourceEntry("/level2.collectionproxyc", ""));
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -330,6 +331,38 @@ public class ArchiveTest {
         assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // b32b3904944e63ed5a269caa47904645
         assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).relName);  // bc05302047f95ca60709254556402710
         assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
+    }
+    
+    @SuppressWarnings("unused")
+    @Test
+    public void testWriteArchive_ResourceInBundledAndExcludedProxies() throws Exception {
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
+        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
+        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
+        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collection1);
+        ResourceNode gameobject11 = addEntry("level1.goc", "gamma", instance, collectionproxy1); // should be bundled
+        ResourceNode gameobject12 = addEntry("level1.goc", "gamma", instance, collectionproxy2);
+        ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
+        
+        manifestBuilder.setDependencies(root);
+
+        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
+        excludedResources.add(new ResourceEntry("/level2.collectionproxyc", ""));
+        
+        // Test
+        RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
+        RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
+        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        
+        assertEquals(4, instance.getArchiveEntrySize());
+        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).relName);  // bc05302047f95ca60709254556402710
+        assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4 
     }
 
     @SuppressWarnings("unused")
@@ -349,8 +382,8 @@ public class ArchiveTest {
 
         manifestBuilder.setDependencies(root);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level1.collectionproxyc");
+        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
+        excludedResources.add(new ResourceEntry("/level1.collectionproxyc", ""));
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
