@@ -26,7 +26,6 @@
   (path [this])
   (abs-path ^String [this])
   (proj-path ^String [this])
-  (url [this])
   (resource-name ^String [this])
   (workspace [this])
   (resource-hash [this]))
@@ -54,7 +53,6 @@
   (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
-  (url [this] (relative-path (File. ^String root) file))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
@@ -98,7 +96,6 @@
   (path [this] nil)
   (abs-path [this] nil)
   (proj-path [this] nil)
-  (url [this] nil)
   (resource-name [this] nil)
   (workspace [this] workspace)
   (resource-hash [this] (hash data))
@@ -128,8 +125,6 @@
   (path [this] path)
   (abs-path [this] nil)
   (proj-path [this] (str "/" path))
-  ; TODO
-  (url [this] nil)
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
@@ -142,7 +137,7 @@
 
   io/Coercions
   (io/as-file [this] (when (= (.getPath zip-url) (.getFile zip-url)) (io/file (.getFile zip-url))))
-  (io/as-url [this] zip-url))
+  (io/as-url [this] (URL. (format "jar:%s!/%s" (.toString zip-url) path))))
 
 (core/register-record-type! ZipResource)
 

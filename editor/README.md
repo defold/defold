@@ -40,6 +40,9 @@ Consider putting it in an alias in your bash profile.
 ## Setup
 * Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
   from the `defold` directory
+* Build builtins with `scripts/build.py build_builtins`
+* Build Bob with `scripts/build.py build_bob --skip-sync-archive`
+  from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
 
 ## Running Tests
@@ -139,3 +142,13 @@ See `styling/README.md` for details.
 ### JavaFX Styling
 
 The best way to understand how JavaFX styling works is by studying the default stylesheet `modena.css` included in `jfxrt.jar`
+
+## Bundling games and running in browser
+
+As a temporary solution, we use bob (from Editor1) as the content pipeline for bundling and running in the browser.
+In order to setup bob locally, you need to:
+
+- Build the engine for the specific platform, e.g. python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests
+  - For android, you also need to build_go through build.py to obtain apkc
+- Build bob with local artefacts, python scripts/build.py build_bob --skip-sync-archive
+- lein init, which will install bob.jar as a local maven package

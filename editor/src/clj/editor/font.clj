@@ -35,8 +35,14 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
 (def ^:private resource-fields #{:font :material})
+
+(def ^:private alpha-slider-edit-type {:type :slider
+                                       :min 0.0
+                                       :max 1.0
+                                       :precision 0.01})
 
 (vtx/defvertex DefoldVertex
   (vec3 position)
@@ -256,18 +262,20 @@
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
 
-(g/defnk produce-scene [_node-id aabb gpu-texture font font-map material-shader type preview-text]
-  {:node-id _node-id
-   :aabb aabb
-   :renderable {:render-fn render-font
-                :batch-key gpu-texture
-                :select-batch-key _node-id
-                :user-data {:type type
-                            :texture gpu-texture
-                            :font-map font-map
-                            :shader material-shader
-                            :text preview-text}
-                :passes [pass/transparent]}})
+(g/defnk produce-scene [_node-id aabb gpu-texture font-map material-shader type preview-text]
+  (cond-> {:node-id _node-id
+           :aabb aabb}
+
+          (and (some? font-map) (not-empty preview-text))
+          (assoc :renderable {:render-fn render-font
+                              :batch-key gpu-texture
+                              :select-batch-key _node-id
+                              :user-data {:type type
+                                          :texture gpu-texture
+                                          :font-map font-map
+                                          :shader material-shader
+                                          :text preview-text}
+                              :passes [pass/transparent]})))
 
 (g/defnk produce-pb-msg [pb font material size antialias alpha outline-alpha outline-width
                          shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
@@ -298,10 +306,14 @@
    :content (protobuf/map->str Font$FontDesc pb-msg)})
 
 (g/defnk produce-font-map [_node-id font pb-msg]
-  (let [project (project/get-project _node-id)
-        workspace (project/workspace project)
-        resolver (partial workspace/resolve-workspace-resource workspace)]
-    (font-gen/generate pb-msg font resolver)))
+  (or (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font "Font")
+      (let [project (project/get-project _node-id)
+            workspace (project/workspace project)
+            resolver (partial workspace/resolve-workspace-resource workspace)]
+        (try
+          (font-gen/generate pb-msg font resolver)
+          (catch Exception _
+            (g/->error _node-id :font :fatal font "Failed to generate bitmap from Font. Unsupported format?"))))))
 
 (defn- build-font [self basis resource dep-resources user-data]
   (let [project (project/get-project self)
@@ -316,7 +328,7 @@
                           not-empty)]
         (g/error-aggregate errors))
       (let [project        (project/get-project _node-id)
-           workspace      (project/workspace project)]
+            workspace      (project/workspace project)]
        [{:node-id _node-id
          :resource (workspace/make-build-resource resource)
          :build-fn build-font
@@ -362,7 +374,10 @@
                                     [:resource :font-resource])))
     (dynamic error (g/fnk [_node-id font-resource]
                           (or (validation/prop-error :info _node-id :font validation/prop-nil? font-resource "Font")
-                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font")))))
+                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font"))))
+    (dynamic edit-type (g/constantly
+                         {:type resource/Resource
+                          :ext font-file-extensions})))
 
   (property material resource/Resource
     (value (gu/passthrough material-resource))
@@ -374,7 +389,10 @@
                                     [:shader :material-shader])))
     (dynamic error (g/fnk [_node-id material-resource]
                           (or (validation/prop-error :fatal _node-id :font validation/prop-nil? material-resource "Material")
-                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? material-resource "Material")))))
+                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? material-resource "Material"))))
+    (dynamic edit-type (g/constantly
+                         {:type resource/Resource
+                          :ext ["material"]})))
 
   (property size g/Int
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
@@ -384,11 +402,13 @@
   (property alpha g/Num
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (= type :defold))))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha))
+            (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property outline-alpha g/Num
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (= type :defold))))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-alpha)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-alpha))
+            (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property outline-width g/Num
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (or (= type :defold) (= type :distance-field)))))
@@ -396,7 +416,8 @@
   (property shadow-alpha g/Num
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (= type :defold))))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha))
+            (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property shadow-blur g/Num
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (= type :defold))))
@@ -476,7 +497,7 @@
                                       :icon font-icon
                                       :view-types [:scene :text])
     (workspace/register-resource-type workspace
-                                      :ext ["ttf" "otf" "fnt"]
+                                      :ext font-file-extensions
                                       :label "Font"
                                       :node-type FontSourceNode
                                       :icon font-icon

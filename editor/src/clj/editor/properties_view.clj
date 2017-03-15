@@ -333,7 +333,7 @@
                           (update-field-message [text] message)
                           (ui/editable! text (not read-only?))
                           (ui/editable! browse-button (not read-only?))
-                          (ui/editable! open-button (boolean (when val (resource/proj-path val))))))
+                          (ui/editable! open-button (boolean (and val (resource/proj-path val) (resource/exists? val))))))
         commit-fn     (fn [_]
                         (let [path     (ui/text text)
                               resource (workspace/resolve-workspace-resource workspace path)]

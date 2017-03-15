@@ -19,6 +19,8 @@ import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
  * Should preferably have been an extension to Bob rather than located inside it.
  */
 public class RigUtil {
+    static double EPSILON = 0.0001;
+    
     @SuppressWarnings("serial")
     public static class LoadException extends Exception {
         public LoadException(String msg) {
@@ -290,7 +292,6 @@ public class RigUtil {
         @Override
         public void addComposite(Point3d v) {
             builder.addPositions((float)v.x).addPositions((float)v.y).addPositions((float)v.z);
-
         }
 
         @Override
@@ -500,7 +501,7 @@ public class RigUtil {
         return BezierUtil.curve(t, 0.0, curve.y0, curve.y1, 1.0);
     }
 
-    private static void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1, double spf) {
+    private static void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
@@ -512,7 +513,7 @@ public class RigUtil {
         }
     }
 
-    private static Quat4d sampleCurveSlerp(RigUtil.AnimationCurve curve, double cursor, double t0, Quat4d q0, double t1, Quat4d q1, double spf) {
+    private static Quat4d sampleCurveSlerp(RigUtil.AnimationCurve curve, double cursor, double t0, Quat4d q0, double t1, Quat4d q1) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         Quat4d qOut = new Quat4d();
@@ -528,6 +529,7 @@ public class RigUtil {
             return;
         }
         int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();
         Key key = null;
@@ -535,8 +537,8 @@ public class RigUtil {
         T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
         for (int i = 0; i < sampleCount; ++i) {
             double cursor = i * spf;
-            // Skip passed keys
-            while (next != null && next.t <= cursor) {
+            // Skip passed keys. Also handles corner case where the cursor is sufficiently close to the very first key frame.
+            while ((next != null && next.t <= cursor) || (key == null && Math.abs(next.t - cursor) < EPSILON)) {
                 key = next;
                 ++keyIndex;
                 if (keyIndex < keyCount) {
@@ -548,20 +550,26 @@ public class RigUtil {
             if (key != null) {
                 if (next != null) {
                     if (key.stepped || !interpolate) {
-                        // Stepped sampling only uses current key
-                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                        // Calculate point where we should sample next instead of key
+                        // Check if cursor is past keyChangePoint, in that case sample next instead
+                        double keyChangePoint = next.t - halfSample;
+                        if (cursor > keyChangePoint) {
+                            propertyBuilder.addComposite(propertyBuilder.toComposite(next));
+                        } else {
+                            propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                        }
                     } else {
                         // Normal sampling
                         if (shouldSlerp) {
                             Quat4d q0 = new Quat4d(new double[]{key.value[0], key.value[1], key.value[2], key.value[3]});
                             Quat4d q1 = new Quat4d(new double[]{next.value[0], next.value[1], next.value[2], next.value[3]});
-                            Quat4d q2 = sampleCurveSlerp(key.curve, cursor, key.t, q0, next.t, q1, spf);
+                            Quat4d q2 = sampleCurveSlerp(key.curve, cursor, key.t, q0, next.t, q1);
                             propertyBuilder.add(q2.x);
                             propertyBuilder.add(q2.y);
                             propertyBuilder.add(q2.z);
                             propertyBuilder.add(q2.w);
                         } else {
-                            sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
+                            sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value);
                         }
                     }
                 } else {

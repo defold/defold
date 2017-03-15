@@ -763,7 +763,7 @@ namespace dmInput
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
-        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0 || action->m_HasText;
+        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0 || action->m_TouchCount > 0 || action->m_HasText;
         // Mouse move action
         active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)

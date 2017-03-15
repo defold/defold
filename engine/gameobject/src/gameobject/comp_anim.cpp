@@ -234,6 +234,7 @@ namespace dmGameObject
             }
             // Adjust cursor
             bool completed = false;
+
             switch (anim.m_Playback)
             {
             case PLAYBACK_ONCE_FORWARD:
@@ -247,21 +248,28 @@ namespace dmGameObject
                 break;
             case PLAYBACK_LOOP_FORWARD:
             case PLAYBACK_LOOP_BACKWARD:
-                while (anim.m_Cursor >= anim.m_Duration)
+                if (anim.m_Duration > 0)
                 {
-                    anim.m_Cursor -= anim.m_Duration;
+                    while (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor -= anim.m_Duration;
+                    }
                 }
                 break;
             case PLAYBACK_LOOP_PINGPONG:
-                while (anim.m_Cursor >= anim.m_Duration)
+                if (anim.m_Duration > 0)
                 {
-                    anim.m_Cursor -= anim.m_Duration;
-                    anim.m_Backwards = ~anim.m_Backwards;
+                    while (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor -= anim.m_Duration;
+                        anim.m_Backwards = ~anim.m_Backwards;
+                    }
                 }
                 break;
             default:
                 break;
             }
+
             // Evaluate animation
             if (!anim.m_Composite)
             {

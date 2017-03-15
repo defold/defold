@@ -1,4 +1,3 @@
-varying mediump vec4 position;
 varying mediump vec2 var_texcoord0;
 
 uniform lowp sampler2D DIFFUSE_TEXTURE;
