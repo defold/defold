@@ -22,6 +22,7 @@
             [editor.resource :as resource]
             [editor.graph-util :as gu]
             [editor.util :as util]
+            [editor.search-results-view :as search-results-view]
             [editor.targets :as targets]
             [editor.build-errors-view :as build-errors-view]
             [editor.hot-reload :as hot-reload]
@@ -759,13 +760,8 @@
 (handler/defhandler :open-asset :global
   (run [workspace project app-view prefs] (make-resource-dialog workspace project app-view prefs)))
 
-(defn- make-search-in-files-dialog [workspace project app-view prefs]
-  (let [[resource opts] (dialogs/make-search-in-files-dialog project)]
-    (when resource
-      (open-resource app-view prefs workspace project resource opts))))
-
 (handler/defhandler :search-in-files :global
-  (run [workspace project app-view prefs] (make-search-in-files-dialog workspace project app-view prefs)))
+  (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
 (handler/defhandler :bundle :global
   (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
