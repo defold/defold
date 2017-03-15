@@ -373,7 +373,7 @@
                                                  (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}
                   :passes [pass/outline pass/selection]}
      :updatable scene-updatable
-     :children child-scenes}))
+     :children (mapv #(scene/prepend-node-path % _node-id) child-scenes)}))
 
 (g/defnode EmitterProperties
   (property emitter-key-spawn-rate CurveSpread (dynamic label (g/constantly "Spawn Rate")))

@@ -24,7 +24,7 @@
               view-graph (g/make-graph! :history false :volatility 2)]
           (doseq [query queries
                   :let [results (project/find-resources project query)]]
-            (is (= 1 (count results)))
+            (is (not (zero? (count results))))
             (let [resource-node (get (first results) 1)
                   resource-type (project/get-resource-type resource-node)
                   view-type (first (:view-types resource-type))

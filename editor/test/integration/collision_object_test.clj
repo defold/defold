@@ -1,18 +1,12 @@
 (ns integration.collision-object-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
-            [editor.collection :as collection]
             [editor.collision-object :as collision-object]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
+            [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.properties :as properties]
-            [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [javax.vecmath Point3d Matrix4d]))
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]))
 
 (defn- outline-seq
   [outline]
@@ -81,7 +75,7 @@
       (testing "Collision object scene"
         (is (= collision-object (:node-id collision-object-scene)))
         (is (true? (contains? collision-object-scene :aabb)))
-        (is (true? (contains? collision-object-scene :renderable)))
+        (is (false? (contains? collision-object-scene :renderable)))
         (is (false? (contains? collision-object-scene :node-path)))
         (let [collision-object-children (:children collision-object-scene)]
           (is (= 3 (count collision-object-children)))
@@ -93,4 +87,4 @@
                 (is (some? shape-scene))
                 (is (true? (contains? shape-scene :aabb)))
                 (is (true? (contains? shape-scene :renderable)))
-                (is (= [(:node-id shape-scene)] (:node-path shape-scene)))))))))))
+                (is (= [(:node-id shape-scene)] (scene/node-path shape-scene)))))))))))
