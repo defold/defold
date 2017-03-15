@@ -15,6 +15,7 @@
             [editor.workspace :as workspace]
             [editor.handler :as handler]
             [editor.view :as view]
+            [internal.util :as util]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
@@ -22,7 +23,6 @@
            [java.nio.file.attribute FileAttribute]
            [java.util UUID]
            [javax.imageio ImageIO]
-           [javafx.scene.control Tab]
            [org.apache.commons.io FileUtils FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
@@ -474,4 +474,4 @@
   "Returns the first entry matching the specified node type among the supplied
   scene children collection, or nil if there was no match."
   [child-node-type-ref children]
-  (first (filter #(= child-node-type-ref (g/node-type* (:node-id %))) children)))
+  (util/first-where #(= child-node-type-ref (g/node-type* (:node-id %))) children))

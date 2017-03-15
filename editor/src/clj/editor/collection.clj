@@ -192,7 +192,8 @@
                                        (-> scene
                                          (assoc :node-id _node-id
                                                 :transform transform
-                                                :aabb aabb)
+                                                :aabb aabb
+                                                :renderable {:passes [pass/selection]})
                                          (update :children (fn [children]
                                                              (mapv #(scene/prepend-node-path % _node-id)
                                                                    (concat children child-scenes))))))))
@@ -555,7 +556,8 @@
                                 (-> scene
                                     (assoc :node-id _node-id
                                            :transform transform
-                                           :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform))
+                                           :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
+                                           :renderable {:passes [pass/selection]})
                                     (update :children (partial mapv #(scene/prepend-node-path % _node-id))))))
   (output build-targets g/Any :cached produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]

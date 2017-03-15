@@ -211,8 +211,7 @@
 
 (defn affine-inverse
   "Efficiently calculate the inverse of an affine matrix.
-  Warning: Currently does not support scaled matrices,
-  which are technically affine matrices."
+  Warning: You cannot use this with scaled matrices."
   ^Matrix4d [^Matrix4d mat]
   (let [t (Vector3d.)
         rs (Matrix3d.)]
