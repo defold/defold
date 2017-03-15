@@ -8,7 +8,8 @@ ordinary paths."
             [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
             [editor.library :as library]
-            [editor.graph-util :as gu])
+            [editor.graph-util :as gu]
+            [editor.url :as url])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]
@@ -176,16 +177,27 @@ ordinary paths."
 (defn dependencies [workspace]
   (g/node-value workspace :dependencies))
 
-(defn- has-dependencies? [workspace]
-  (not-empty (dependencies workspace)))
-
 (defn update-dependencies! [workspace render-progress! login-fn]
-  (when (and (has-dependencies? workspace) login-fn)
-    (login-fn))
-  (library/update-libraries! (project-path workspace)
-                             (g/node-value workspace :dependencies)
-                             library/default-http-resolver
-                             render-progress!))
+  (let [dependencies (g/node-value workspace :dependencies)
+        hosts (into #{} (map url/strip-path) dependencies)]
+    (when (and (seq dependencies)
+               (every? url/reachable? hosts)
+               (or (nil? login-fn)
+                   (not-any? url/defold-hosted? dependencies)
+                   (login-fn)))
+      (library/update-libraries! (project-path workspace)
+                                 dependencies
+                                 library/default-http-resolver
+                                 render-progress!)
+      true)))
+
+(defn missing-dependencies [workspace]
+  (let [project-directory (project-path workspace)
+        dependencies (g/node-value workspace :dependencies)]
+    (into #{}
+          (comp (remove :file)
+                (map :url))
+          (library/current-library-state project-directory dependencies))))
 
 (defn resource-sync!
   ([workspace]
@@ -245,8 +257,8 @@ ordinary paths."
 (defn fetch-libraries!
   [workspace library-urls render-fn login-fn]
   (set-project-dependencies! workspace library-urls)
-  (update-dependencies! workspace render-fn login-fn)
-  (resource-sync! workspace true [] render-fn))
+  (when (update-dependencies! workspace render-fn login-fn)
+    (resource-sync! workspace true [] render-fn)))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))

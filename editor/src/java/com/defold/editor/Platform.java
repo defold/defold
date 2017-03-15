@@ -27,6 +27,10 @@ public enum Platform {
         this.libPrefix = libPrefix;
     }
 
+    public String getOs() {
+        return os;
+    }
+
     public String getExeSuffix() {
         return exeSuffix;
     }

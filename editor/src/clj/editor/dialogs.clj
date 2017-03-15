@@ -16,7 +16,7 @@
            [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button Label ListView ProgressBar TextField]
+           [javafx.scene.control Button Label ListView ProgressBar TextArea TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout Region]
@@ -87,15 +87,16 @@
      :render-progress-fn (fn [progress]
                            (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
 
-(defn make-alert-dialog [message]
-  (let [root     ^Parent (ui/load-fxml "alert.fxml")
-        stage    (ui/make-dialog-stage)
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["message" "ok"])]
+(defn make-alert-dialog [text]
+  (let [root ^Parent (ui/load-fxml "alert.fxml")
+        stage (ui/make-dialog-stage)
+        scene (Scene. root)]
     (observe-focus stage)
     (ui/title! stage "Alert")
-    (ui/text! (:message controls) message)
-    (ui/on-action! (:ok controls) (fn [_] (.close stage)))
+    (ui/with-controls root [^TextArea message ^Button ok]
+      (ui/text! message text)
+      (ui/on-action! ok (fn [_] (.close stage)))
+      (.setOnShown stage (ui/event-handler _ (.setScrollTop message 0.0))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
