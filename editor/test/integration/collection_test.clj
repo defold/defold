@@ -5,18 +5,12 @@
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [editor.scene :as scene]
             [editor.types :as types]
             [editor.properties :as properties]
             [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+  (:import [javax.vecmath Point3d]))
 
 (deftest hierarchical-outline
   (testing "Hierarchical outline"
@@ -254,7 +248,7 @@
             (let [embedded-game-object-scene (test-util/find-child-scene collection/EmbeddedGOInstanceNode collection-children)]
               (is (some? embedded-game-object-scene))
               (is (true? (contains? embedded-game-object-scene :aabb)))
-              (is (false? (contains? embedded-game-object-scene :renderable)))
+              (is (true? (contains? embedded-game-object-scene :renderable)))
               (is (= [(:node-id embedded-game-object-scene)] (scene/node-path embedded-game-object-scene)))
               (let [game-object-children (:children embedded-game-object-scene)]
                 (is (= 2 (count game-object-children)))
@@ -274,7 +268,7 @@
             (let [referenced-game-object-scene (test-util/find-child-scene collection/ReferencedGOInstanceNode collection-children)]
               (is (some? referenced-game-object-scene))
               (is (true? (contains? referenced-game-object-scene :aabb)))
-              (is (false? (contains? referenced-game-object-scene :renderable)))
+              (is (true? (contains? referenced-game-object-scene :renderable)))
               (is (= [(:node-id referenced-game-object-scene)] (scene/node-path referenced-game-object-scene)))
               (let [game-object-children (:children referenced-game-object-scene)]
                 (is (= 2 (count game-object-children)))
@@ -302,7 +296,7 @@
             (let [referenced-collection-scene (test-util/find-child-scene collection/CollectionInstanceNode wrapper-collection-children)]
               (is (some? referenced-collection-scene))
               (is (true? (contains? referenced-collection-scene :aabb)))
-              (is (false? (contains? referenced-collection-scene :renderable)))
+              (is (true? (contains? referenced-collection-scene :renderable)))
               (is (= [(:node-id referenced-collection-scene)] (scene/node-path referenced-collection-scene)))
               (let [collection-children (:children referenced-collection-scene)]
                 (is (= 2 (count collection-children)))
@@ -310,7 +304,7 @@
                   (let [embedded-game-object-scene (test-util/find-child-scene collection/EmbeddedGOInstanceNode collection-children)]
                     (is (some? embedded-game-object-scene))
                     (is (true? (contains? embedded-game-object-scene :aabb)))
-                    (is (false? (contains? embedded-game-object-scene :renderable)))
+                    (is (true? (contains? embedded-game-object-scene :renderable)))
                     (is (= [(:node-id referenced-collection-scene) (:node-id embedded-game-object-scene)] (scene/node-path embedded-game-object-scene)))
                     (let [game-object-children (:children embedded-game-object-scene)]
                       (is (= 2 (count game-object-children)))
@@ -330,7 +324,7 @@
                   (let [referenced-game-object-scene (test-util/find-child-scene collection/ReferencedGOInstanceNode collection-children)]
                     (is (some? referenced-game-object-scene))
                     (is (true? (contains? referenced-game-object-scene :aabb)))
-                    (is (false? (contains? referenced-game-object-scene :renderable)))
+                    (is (true? (contains? referenced-game-object-scene :renderable)))
                     (is (= [(:node-id referenced-collection-scene) (:node-id referenced-game-object-scene)] (scene/node-path referenced-game-object-scene)))
                     (let [game-object-children (:children referenced-game-object-scene)]
                       (is (= 2 (count game-object-children)))

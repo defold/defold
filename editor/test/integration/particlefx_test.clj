@@ -1,20 +1,13 @@
 (ns integration.particlefx-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
-            [editor.collection :as collection]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.particlefx :as particlefx]
             [editor.particle-lib :as plib]
-            [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+            [editor.particlefx :as particlefx]
+            [editor.scene :as scene]
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]])
+  (:import [javax.vecmath  Matrix4d]))
 
 (defn- dump-outline [outline]
   {:_self (type (:_self outline)) :children (map dump-outline (:children outline))})
@@ -105,7 +98,7 @@
               (is (some? emitter-scene))
               (is (true? (contains? emitter-scene :aabb)))
               (is (true? (contains? emitter-scene :renderable)))
-              (is (= [(:node-id emitter-scene)] (:node-path emitter-scene)))
+              (is (= [(:node-id emitter-scene)] (scene/node-path emitter-scene)))
               (let [emitter-children (:children emitter-scene)]
                 (is (= 1 (count emitter-children)))
                 (testing "Local modifier scene"
@@ -113,10 +106,10 @@
                     (is (some? local-modifier-scene))
                     (is (true? (contains? local-modifier-scene :aabb)))
                     (is (true? (contains? local-modifier-scene :renderable)))
-                    (is (= [(:node-id emitter-scene) (:node-id local-modifier-scene)] (:node-path local-modifier-scene))))))))
+                    (is (= [(:node-id emitter-scene) (:node-id local-modifier-scene)] (scene/node-path local-modifier-scene))))))))
           (testing "Global modifier scene"
             (let [global-modifier-scene (test-util/find-child-scene particlefx/ModifierNode particle-fx-children)]
               (is (some? global-modifier-scene))
               (is (true? (contains? global-modifier-scene :aabb)))
               (is (true? (contains? global-modifier-scene :renderable)))
-              (is (= [(:node-id global-modifier-scene)] (:node-path global-modifier-scene))))))))))
+              (is (= [(:node-id global-modifier-scene)] (scene/node-path global-modifier-scene))))))))))
