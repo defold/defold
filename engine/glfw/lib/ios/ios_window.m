@@ -368,6 +368,14 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
 
     markedText = [[NSMutableString alloc] initWithCapacity:128];
+
+    _glfwInput.MouseEmulationTouch = 0;
+    for (int i = 0; i < GLFW_MAX_TOUCH; ++i)
+    {
+        _glfwInput.Touch[i].Id = i;
+        _glfwInput.Touch[i].Reference = 0x0;
+    }
+
     return self;
 }
 
@@ -548,7 +556,59 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     countDown = swapInterval;
 }
 
-- (void) fill: (GLFWTouch*) glfwt withTouch: (UITouch*) t
+- (GLFWTouch*) touchById: (UITouch*) ref
+{
+    int32_t i;
+
+    GLFWTouch* freeTouch = 0x0;
+    for (i=0;i!=GLFW_MAX_TOUCH;i++)
+    {
+        _glfwInput.Touch[i].Id = i;
+        if (_glfwInput.Touch[i].Reference == ref) {
+            return &_glfwInput.Touch[i];
+        }
+
+        // Save touch entry for later if we need to "alloc" one in case we don't find the current reference.
+        if (freeTouch == 0x0 && _glfwInput.Touch[i].Reference == 0x0) {
+            freeTouch = &_glfwInput.Touch[i];
+        }
+    }
+
+    if (freeTouch != 0x0) {
+        freeTouch->Reference = ref;
+    }
+
+    return freeTouch;
+}
+
+- (void) updateGlfwMousePos: (int32_t) x y: (int32_t) y
+{
+    _glfwInput.MousePosX = x;
+    _glfwInput.MousePosY = y;
+}
+
+- (void) touchStart: (GLFWTouch*) glfwt withTouch: (UITouch*) t
+{
+    // When a new touch starts, and there was no previous one, this will be our mouse emulation touch.
+    if (_glfwInput.MouseEmulationTouch == 0x0) {
+        _glfwInput.MouseEmulationTouch = glfwt;
+    }
+
+    CGPoint touchLocation = [t locationInView:self];
+    CGPoint prevTouchLocation = [t previousLocationInView:self];
+    CGFloat scaleFactor = self.contentScaleFactor;
+
+    int x = touchLocation.x * scaleFactor;
+    int y = touchLocation.y * scaleFactor;
+
+    glfwt->Phase = GLFW_PHASE_BEGAN;
+    glfwt->X = x;
+    glfwt->Y = y;
+    glfwt->DX = 0;
+    glfwt->DY = 0;
+}
+
+- (void) touchUpdate: (GLFWTouch*) glfwt withTouch: (UITouch*) t
 {
     CGPoint touchLocation = [t locationInView:self];
     CGPoint prevTouchLocation = [t previousLocationInView:self];
@@ -559,138 +619,87 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     int px = prevTouchLocation.x * scaleFactor;
     int py = prevTouchLocation.y * scaleFactor;
 
+    int prevPhase = glfwt->Phase;
+    int newPhase = t.phase;
+
+    // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
+    if (newPhase == GLFW_PHASE_ENDED && _glfwInput.MouseEmulationTouch == glfwt) {
+        _glfwInput.MouseEmulationTouch = 0x0;
+    }
+
+    // This is an invalid touch order, we need to recieve a began or moved
+    // phase before moving pushing any more move inputs.
+    if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
+        return;
+    }
+
     glfwt->TapCount = t.tapCount;
-    glfwt->Phase = t.phase;
     glfwt->X = x;
     glfwt->Y = y;
     glfwt->DX = x - px;
     glfwt->DY = y - py;
-    // Store reference to for later for ordering comparison
-    glfwt->Reference = t;
+
+    // If we recieved both a began and moved for the same touch during one frame/update,
+    // just update the coordinates but leave the phase as began.
+    if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
+        return;
+
+    // If a touch both began and ended during one frame/update, set the phase as
+    // tapped and we will send the released event during next update (see input.c).
+    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
+        glfwt->Phase = GLFW_PHASE_TAPPED;
+        return;
+    }
+
+    glfwt->Phase = t.phase;
+
 }
 
-- (int) fillTouch: (UIEvent*) event
+- (int) fillTouchStart: (UIEvent*) event
 {
     NSSet *touches = [event allTouches];
 
-    int touchCount = 0;
-
-    // Keep order by first resuing previous elements
-    for (int i = 0; i < _glfwInput.TouchCount; i++)
+    for (UITouch *t in touches)
     {
-        GLFWTouch* glfwt = &_glfwInput.Touch[i];
+        if (GLFW_PHASE_BEGAN == t.phase) {
+            GLFWTouch* glfwt = [self touchById: t];
+            [self touchStart: glfwt withTouch: t];
 
-        // NOTE: Tried first with [touchces contains] but got spurious crashes
-        int found = 0;
-        for (UITouch *t in touches)
-        {
-            if (t == glfwt->Reference)
-            {
-                [self fill: glfwt withTouch: t];
-                found = 1;
+            if (glfwt == _glfwInput.MouseEmulationTouch) {
+                [self updateGlfwMousePos: glfwt->X y: glfwt->Y];
+                _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
             }
         }
-
-        if (!found)
-            break;
-
-        touchCount++;
     }
+}
+
+- (void) fillTouch: (UIEvent*) event forPhase: phase
+{
+    NSSet *touches = [event allTouches];
 
     for (UITouch *t in touches)
     {
-         if (touchCount >= GLFW_MAX_TOUCH)
-             break;
+        if (phase == t.phase) {
+            GLFWTouch* glfwt = [self touchById: t];
+            [self touchUpdate: glfwt withTouch: t];
 
-         int found = 0;
-         // Check if already processed in the initial loop
-         for (int i = 0; i < touchCount; i++)
-         {
-             GLFWTouch* glfwt = &_glfwInput.Touch[i];
-             if (t == (UITouch*) glfwt->Reference)
-             {
-                 found = 1;
-             }
-         }
-         if (found)
-             continue;
-
-         GLFWTouch* glfwt = &_glfwInput.Touch[touchCount];
-         [self fill: glfwt withTouch: t];
-         touchCount++;
-    }
-    return touchCount;
-}
-
-- (void)updateMouseEmulation
-{
-    // Find the touch matched by the mouse emulation.
-    int32_t i, found=0, ended=0;
-    void *next = 0;
-
-    for (i=0;i!=_glfwInput.TouchCount;i++)
-    {
-        GLFWTouch *t = &_glfwInput.Touch[i];
-        if (t->Reference == _glfwInput.MouseEmulationTouch)
-        {
-            found = 1;
-
-            _glfwInput.MousePosX = t->X;
-            _glfwInput.MousePosY = t->Y;
-
-            if (_glfwWin.mousePosCallback)
-            {
-                _glfwWin.mousePosCallback(_glfwInput.MousePosX, _glfwInput.MousePosY);
+            if (glfwt == _glfwInput.MouseEmulationTouch || !_glfwInput.MouseEmulationTouch) {
+                [self updateGlfwMousePos: glfwt->X y: glfwt->Y];
+                if ((phase == GLFW_PHASE_ENDED || phase == GLFW_PHASE_CANCELLED)) {
+                    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+                } else {
+                    if (_glfwWin.mousePosCallback) {
+                        _glfwWin.mousePosCallback(glfwt->X, glfwt->Y);
+                    }
+                }
             }
-
-            if (t->Phase == GLFW_PHASE_ENDED || t->Phase == GLFW_PHASE_CANCELLED)
-            {
-                ended = 1;
-            }
-        }
-        else if (!next && (t->Phase == GLFW_PHASE_BEGAN || t->Phase == GLFW_PHASE_MOVED || t->Phase == GLFW_PHASE_STATIONARY))
-        {
-            // touch candidate for mouse.
-            next = t->Reference;
-        }
-    }
-
-    if (next != 0)
-    {
-        if (!_glfwInput.MouseEmulationTouch)
-        {
-            // mouse press start
-            _glfwInput.MouseEmulationTouch = next;
-            [self updateMouseEmulation];
-            _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
-        }
-        else if (ended)
-        {
-            // ended but there is another one
-            _glfwInput.MouseEmulationTouch = next;
-            [self updateMouseEmulation];
-        }
-    }
-    else
-    {
-        if (ended || !found)
-        {
-            // no more touches.
-            _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-            _glfwInput.MouseEmulationTouch = 0;
         }
     }
 }
 
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    _glfwInput.TouchCount = [self fillTouch: event];
-    if( _glfwWin.touchCallback )
-    {
-        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-    }
-
-    [self updateMouseEmulation];
+    [self fillTouch: event forPhase: UITouchPhaseMoved];
 }
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
@@ -700,23 +709,17 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         _glfwShowKeyboard(0, 0, 0);
     }
 
-    _glfwInput.TouchCount = [self fillTouch: event];
-    if( _glfwWin.touchCallback )
-    {
-        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-    }
-
-    [self updateMouseEmulation];
+    [self fillTouchStart: event];
 }
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    _glfwInput.TouchCount = [self fillTouch: event];
-    if( _glfwWin.touchCallback )
-    {
-        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-    }
-    [self updateMouseEmulation];
+    [self fillTouch: event forPhase: UITouchPhaseEnded];
+}
+
+- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
+{
+    [self fillTouch: event forPhase: UITouchPhaseCancelled];
 }
 
 - (BOOL)canBecomeFirstResponder
@@ -794,16 +797,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (UIReturnKeyType) returnKeyType
 {
     return UIReturnKeyDefault;
-}
-
-- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    _glfwInput.TouchCount = [self fillTouch: event];
-    if( _glfwWin.touchCallback )
-    {
-        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-    }
-    [self updateMouseEmulation];
 }
 
 - (void)layoutSubviews
@@ -1606,7 +1599,7 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 //========================================================================
 // Defold extension: Get native references (window, view and context)
 //========================================================================
-GLFWAPI id glfwGetiOSUVWindow(void)
+GLFWAPI id glfwGetiOSUIWindow(void)
 {
     return _glfwWin.window;
 };

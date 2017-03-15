@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
+import com.defold.editor.Editor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +26,7 @@ import com.defold.editor.Platform;
 public class ResourceUnpacker {
 
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
+    public static final String DEFOLD_SHA1_KEY = "defold.sha1";
 
     private static boolean isInitialized = false;
     private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
@@ -79,8 +81,12 @@ public class ResourceUnpacker {
                     if (dest.equals(target)) {
                         continue;
                     }
-                    logger.debug("unpacking '{}' to '{}'", source, dest);
-                    Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+                    if (Files.exists(dest)) {
+                        logger.debug("skipping already unpacked '{}'", source);
+                    } else {
+                        logger.debug("unpacking '{}' to '{}'", source, dest);
+                        Files.copy(source, dest);
+                    }
                 }
             }
         }
@@ -97,16 +103,23 @@ public class ResourceUnpacker {
     private static Path getUnpackPath() throws IOException {
         String unpackPath = System.getProperty(DEFOLD_UNPACK_PATH_KEY);
         if (unpackPath != null) {
-            Path p = Paths.get(unpackPath);
-            File f = p.toFile();
-            if (f.exists()) {
-                FileUtils.cleanDirectory(f);
-            } else {
-                f.mkdirs();
-            }
-            return p;
-        } else {
-            return Files.createTempDirectory("defold-unpack");
+            return ensureDirectory(Paths.get(unpackPath));
         }
+
+        Path supportPath = Editor.getSupportPath();
+        String sha1 = System.getProperty(DEFOLD_SHA1_KEY);
+        if (supportPath != null && sha1 != null) {
+            return ensureDirectory(supportPath.resolve(Paths.get("unpack", sha1)));
+        }
+
+        return Files.createTempDirectory("defold-unpack");
+    }
+
+    private static Path ensureDirectory(Path path) throws IOException {
+        File f = path.toFile();
+        if (!f.exists()) {
+            f.mkdirs();
+        }
+        return path;
     }
 }
