@@ -244,7 +244,7 @@ namespace dmGraphics
 
     #define NATIVE_HANDLE_IMPL(return_type, func_name) return_type GetNative##func_name() { return NULL; }
 
-    NATIVE_HANDLE_IMPL(id, iOSUVWindow);
+    NATIVE_HANDLE_IMPL(id, iOSUIWindow);
     NATIVE_HANDLE_IMPL(id, iOSUIView);
     NATIVE_HANDLE_IMPL(id, iOSEAGLContext);
     NATIVE_HANDLE_IMPL(id, OSXNSWindow);

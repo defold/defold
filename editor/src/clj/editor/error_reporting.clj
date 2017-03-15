@@ -1,10 +1,11 @@
 (ns editor.error-reporting
   (:require
-   [clojure.string :as str]
    [editor.sentry :as sentry]
+   [editor.system :as system]
    [service.log :as log])
   (:import
-   (java.util.concurrent LinkedBlockingQueue)))
+   (java.util.concurrent LinkedBlockingQueue)
+   (org.apache.commons.lang.exception ExceptionUtils)))
 
 (set! *warn-on-reflection* true)
 
@@ -71,23 +72,31 @@
     {:last-seen now
      :suppressed? (and last-seen (< (- now last-seen) suppress-exception-threshold-ms))}))
 
+(defn- ex-identity
+  [{:keys [cause trace]}]
+  {:cause cause
+   :trace (when (and trace (pos? (count trace)))
+            (subvec trace 0 1))})
+
 (defn- record-exception!
   [exception]
   (let [ex-map (Throwable->map exception)
-        ex-identity (select-keys ex-map [:cause :trace])
-        ret (swap! exception-stats update ex-identity update-stats)]
-    (assoc (get ret ex-identity) :ex-map ex-map)))
+        ex-id (ex-identity ex-map)
+        ret (swap! exception-stats update ex-id update-stats)]
+    (assoc (get ret ex-id) :ex-map ex-map)))
 
 (defn report-exception!
   ([exception]
    (report-exception! exception (Thread/currentThread)))
-  ([exception thread]
+  ([^Throwable exception thread]
    (try
-     (log/error :exception exception)
      (let [{:keys [ex-map suppressed?]} (record-exception! exception)]
-       (when-not suppressed?
-         (let [sentry-id-promise (sentry-reporter exception thread)]
-           (exception-notifier ex-map sentry-id-promise))))
+       (if suppressed?
+         (when (system/defold-dev?)
+           (println "Suppressed unhandled" (ExceptionUtils/getFullStackTrace exception)))
+         (do (log/error :exception exception)
+             (let [sentry-id-promise (sentry-reporter exception thread)]
+               (exception-notifier ex-map sentry-id-promise)))))
      (catch Throwable t
        (println (format "Fatal error reporting unhandled exception: '%s'\n%s" (.getMessage t) (pr-str (Throwable->map t))))))))
 

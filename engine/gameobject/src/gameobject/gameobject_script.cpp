@@ -229,7 +229,7 @@ namespace dmGameObject
 
     static int ScriptInstance_tostring (lua_State *L)
     {
-        lua_pushfstring(L, "GameObject: %p", lua_touserdata(L, 1));
+        lua_pushfstring(L, "Script: %p", lua_touserdata(L, 1));
         return 1;
     }
 

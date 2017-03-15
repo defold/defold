@@ -72,7 +72,7 @@ union SaveLoadBuffer
      *
      * ```lua
      * local my_table = {}
-     * table.add(my_table, "my_value")
+     * table.insert(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * if not sys.save(my_file_path, my_table) then
      *   -- Alert user that the data could not be saved

@@ -118,7 +118,7 @@ public class DefoldStyledTextSkin extends SkinBase<StyledTextArea> {
 				}
 				
 				int oldLineIndex = getSkinnable().getContent().getLineAtOffset(oldValue.intValue());
-				if (lineIndex < 0){
+				if (oldLineIndex < 0){
 					return;
 				}
 				Line oldLineObject = DefoldStyledTextSkin.this.lineList.get(oldLineIndex);

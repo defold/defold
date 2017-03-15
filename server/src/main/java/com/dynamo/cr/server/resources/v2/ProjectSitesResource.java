@@ -1,6 +1,5 @@
 package com.dynamo.cr.server.resources.v2;
 
-import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.clients.magazine.MagazineClient;
@@ -18,7 +17,6 @@ import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import java.io.InputStream;
-import java.util.List;
 
 @Path("/v2/projects/{project}/site/")
 public class ProjectSitesResource extends BaseResource {
@@ -27,31 +25,20 @@ public class ProjectSitesResource extends BaseResource {
     private ProjectService projectService;
 
     @Inject
-    private Config.Configuration configuration;
-
     private MagazineClient magazineClient;
-
-    @GET
-    @Path("sites")
-    @RolesAllowed(value = {"member"})
-    public Protocol.ProjectSiteList getProjectSites() throws Exception {
-        List<Project> projects = projectService.findAll(getUser());
-        return ProjectSiteMapper.map(getUser(), projects, getMagazineClient());
-    }
 
     @GET
     public Protocol.ProjectSite getProjectSite(@PathParam("project") Long projectId) throws Exception {
         Project project = projectService.find(projectId)
                 .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId)));
 
-        return ProjectSiteMapper.map(getUser(), project, getMagazineClient());
-    }
-
-    private MagazineClient getMagazineClient() throws Exception {
-        if (magazineClient == null) {
-            magazineClient = new MagazineClient(configuration.getMagazineServiceUrl());
+        if (project.getProjectSite() == null || !project.getProjectSite().isPublicSite()) {
+            if (!projectService.isProjectMember(getUser(), project)) {
+                throw new ServerException("No access to project site");
+            }
         }
-        return magazineClient;
+
+        return ProjectSiteMapper.map(getUser(), project, magazineClient);
     }
 
     @PUT
@@ -118,8 +105,8 @@ public class ProjectSitesResource extends BaseResource {
     @Path("cover_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addCoverImage(@PathParam("project") Long projectId,
-                                   @FormDataParam("file") InputStream file,
-                                   @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+                              @FormDataParam("file") InputStream file,
+                              @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
         projectService.addCoverImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
     }
 
@@ -128,8 +115,8 @@ public class ProjectSitesResource extends BaseResource {
     @Path("store_front_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addStoreFrontImage(@PathParam("project") Long projectId,
-                              @FormDataParam("file") InputStream file,
-                              @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+                                   @FormDataParam("file") InputStream file,
+                                   @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
         projectService.addStoreFrontImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
     }
 
@@ -138,8 +125,18 @@ public class ProjectSitesResource extends BaseResource {
     @Path("playable_image")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void addPlayableImage(@PathParam("project") Long projectId,
+                                 @FormDataParam("file") InputStream file,
+                                 @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
+        projectService.addPlayableImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
+    }
+
+    @POST
+    @RolesAllowed(value = {"member"})
+    @Path("attachment")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public void addAttachment(@PathParam("project") Long projectId,
                               @FormDataParam("file") InputStream file,
                               @FormDataParam("file") FormDataContentDisposition fileInfo) throws Exception {
-        projectService.addPlayableImage(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
+        projectService.addAttachment(getUser().getEmail(), projectId, fileInfo.getFileName(), file);
     }
 }

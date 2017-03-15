@@ -7,7 +7,7 @@
 
 namespace dmBuffer
 {
-    typedef struct Buffer* HBuffer;
+    typedef uint32_t HBuffer;
 }
 
 namespace dmResource

@@ -67,12 +67,13 @@
         }
         >.choice-box {
             -fx-pref-width: 84px;
-            .label {
+            >.label {
                 -fx-border-width: 0;
                 -fx-background-color: $scene-toolbar-background;
                 -fx-text-fill: $defold-white;
             }
             .open-button {
+                -fx-border-width: 0;
                 -fx-background-color: $scene-toolbar-background;
                 .arrow {
                     -fx-background-color: $defold-white;

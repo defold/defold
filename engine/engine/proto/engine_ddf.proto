@@ -142,6 +142,9 @@ message StopRecord
  * Arguments will be translated into command line arguments. Sending the reboot
  * command is equivalent to starting the engine with the same arguments.
  *
+ * On startup the engine reads configuration from "game.project" in the
+ * project root.
+ *
  * This message can only be sent to the designated `@system` socket.
  *
  * @message
@@ -154,8 +157,9 @@ message StopRecord
  * @param arg6 [type:string] argument 6
  * @examples
  *
+ * How to reboot engine with a specific bootstrap collection.
+ *
  * ```lua
- * -- Reboot engine with a specific bootstrap collection.
  * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
  * local arg2 = 'build/default/game.projectc'
  * msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})

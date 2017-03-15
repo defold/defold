@@ -13,6 +13,7 @@
             [editor.input :as i]
             [editor.math :as math]
             [editor.defold-project :as project]
+            [editor.error-reporting :as error-reporting]
             [util.profiler :as profiler]
             [editor.resource :as resource]
             [editor.scene-cache :as scene-cache]
@@ -76,7 +77,11 @@
 (defn- render-error
   [gl render-args renderables nrenderables]
   (when (= pass/overlay (:pass render-args))
-    (let [errors (set (mapcat root-causes (map (comp :error :user-data) renderables)))]
+    (let [errors (->> renderables
+                      (map (comp :error :user-data))
+                      (mapcat root-causes)
+                      (map #(select-keys % [:_node-id :message]))
+                      set)]
       (scene-text/overlay gl "Render error:" 24.0 -22.0)
       (doseq [[n error] (partition 2 (interleave (range) errors))]
         (let [message (format "- %s: %s"
@@ -138,8 +143,10 @@
           wz (min 1.0 (max 0.0 (* (+ ndc-z 1.0) 0.5)))]
       (long (* Integer/MAX_VALUE (max 0.0 wz))))))
 
-(defn render-key [^Matrix4d view-proj ^Matrix4d world-transform tmp-v4d]
-  (- Long/MAX_VALUE (z-distance view-proj world-transform tmp-v4d)))
+(defn- render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? tmp-v4d]
+  [(boolean topmost?)
+   (- Long/MAX_VALUE (z-distance view-proj world-transform tmp-v4d))
+   (or index 0)])
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -294,7 +301,7 @@
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
                                 :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
-                                :render-key (:index renderable (render-key view-proj world-transform tmp-v4d))))]
+                                :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
       (when (and selected-id (types/selection? pass))
@@ -329,7 +336,7 @@
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
   (input camera Camera)
-  (input aux-renderables pass/RenderData :array)
+  (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -371,8 +378,8 @@
 
 (defn- parse-select-buffer [hits ^IntBuffer select-buffer]
   (loop [offset 0
-        hits-left hits
-        selected-names []]
+         hits-left hits
+         selected-names []]
    (if (> hits-left 0)
      (let [name-count (int (.get select-buffer offset))
            min-z (unsigned-int (.get select-buffer (+ offset 1)))
@@ -399,8 +406,7 @@
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
         (with-drawable-as-current drawable
-          (let [render-args (generic-render-args viewport camera)
-                selection-set (set selection)]
+          (let [render-args (generic-render-args viewport camera)]
             (->> (for [pass pass/selection-passes
                        :let [render-args (assoc render-args :pass pass)]]
                    (do
@@ -408,7 +414,7 @@
                      (setup-pass gl-context gl pass camera viewport picking-rect)
                      (let [renderables (get renderables pass)
                            batches (batch-render gl render-args renderables true :select-batch-key)]
-                       (render-sort (end-select gl select-buffer renderables batches)))))
+                       (reverse (render-sort (end-select gl select-buffer renderables batches))))))
               flatten
               (mapv picking-node-id)))))
     []))
@@ -637,27 +643,33 @@
               (.setImage image-view image))))))))
 
 (defn register-event-handler! [^Parent parent view-id]
-  (let [event-handler   (ui/event-handler e
-                          (profiler/profile "input-event" -1
-                            (let [action (augment-action view-id (i/action-from-jfx e))
-                                  x (:x action)
-                                  y (:y action)
-                                  pos [x y 0.0]
-                                  picking-rect (selection/calc-picking-rect pos pos)]
-                              (when (= :mouse-pressed (:type action))
-                                ;; request focus and consume event to prevent someone else from stealing focus
-                                (.requestFocus parent)
-                                (.consume e))
-                              ; Only look for tool selection when the mouse is moving with no button pressed
-                              (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
-                                (let [s (g/node-value view-id :selected-tool-renderables)
-                                      tool-user-data (g/node-value view-id :tool-user-data)]
-                                  (reset! tool-user-data s)))
-                              (g/transact
-                                (concat
-                                  (g/set-property view-id :cursor-pos [x y])
-                                  (g/set-property view-id :tool-picking-rect picking-rect)
-                                  (g/update-property view-id :input-action-queue conj action))))))]
+  (let [process-events? (atom true)
+        event-handler   (ui/event-handler e
+                          (when @process-events?
+                            (try
+                              (profiler/profile "input-event" -1
+                                (let [action (augment-action view-id (i/action-from-jfx e))
+                                      x (:x action)
+                                      y (:y action)
+                                      pos [x y 0.0]
+                                      picking-rect (selection/calc-picking-rect pos pos)]
+                                  (when (= :mouse-pressed (:type action))
+                                    ;; Request focus and consume event to prevent someone else from stealing focus
+                                    (.requestFocus parent)
+                                    (.consume e))
+                                  ;; Only look for tool selection when the mouse is moving with no button pressed
+                                  (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
+                                    (let [s (g/node-value view-id :selected-tool-renderables)
+                                          tool-user-data (g/node-value view-id :tool-user-data)]
+                                      (reset! tool-user-data s)))
+                                  (g/transact
+                                    (concat
+                                      (g/set-property view-id :cursor-pos [x y])
+                                      (g/set-property view-id :tool-picking-rect picking-rect)
+                                      (g/update-property view-id :input-action-queue conj action)))))
+                              (catch Throwable error
+                                (reset! process-events? false)
+                                (error-reporting/report-exception! error)))))]
     (ui/on-mouse! parent (fn [type e] (cond
                                         (= type :exit)
                                         (g/set-property! view-id :cursor-pos nil))))
@@ -679,36 +691,43 @@
                  (let [this ^com.defold.control.Region this
                        w (.getWidth this)
                        h (.getHeight this)]
-                   (.setFitWidth image-view w)
-                   (.setFitHeight image-view h)
-                   (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
-                   (when (and (> w 0) (> h 0))
-                     (let [viewport (types/->Region 0 w 0 h)]
-                       (g/transact (g/set-property view-id :viewport viewport))
-                       (if-let [view-id (ui/user-data image-view ::view-id)]
-                         (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                           (doto drawable
-                             (.setSurfaceSize w h))
-                           (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                             (.setSize w h)))
-                         (do
-                           (register-event-handler! parent view-id)
-                           (ui/user-data! image-view ::view-id view-id)
-                           (let [drawable (make-drawable w h)
-                                 async-copier (make-copier viewport)
-                                 ^Tab tab      (:tab opts)
-                                 repainter     (ui/->timer timer-name
-                                                 (fn [_ dt]
-                                                   (when (.isSelected tab)
-                                                     (update-image-view! image-view drawable async-copier dt main-frame?))))]
-                             (ui/on-closed! tab
-                               (fn [e]
-                                 (ui/timer-stop! repainter)
-                                 (scene-view-dispose view-id)
-                                 (scene-cache/drop-context! nil true)))
-                             (ui/timer-start! repainter)
-                             (g/set-property! view-id :drawable drawable :async-copier async-copier))
-                           (frame-selection view-id false)))))
+                   (try
+                     (.setFitWidth image-view w)
+                     (.setFitHeight image-view h)
+                     (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
+                     (when (and (> w 0) (> h 0))
+                       (let [viewport (types/->Region 0 w 0 h)]
+                         (g/transact (g/set-property view-id :viewport viewport))
+                         (if-let [view-id (ui/user-data image-view ::view-id)]
+                           (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
+                             (doto drawable
+                               (.setSurfaceSize w h))
+                             (doto ^AsyncCopier (g/node-value view-id :async-copier)
+                               (.setSize w h)))
+                           (do
+                             (register-event-handler! parent view-id)
+                             (ui/user-data! image-view ::view-id view-id)
+                             (let [drawable (make-drawable w h)
+                                   async-copier (make-copier viewport)
+                                   ^Tab tab      (:tab opts)
+                                   repainter     (ui/->timer timer-name
+                                                             (fn [^AnimationTimer timer dt]
+                                                               (when (.isSelected tab)
+                                                                 (try
+                                                                   (update-image-view! image-view drawable async-copier dt main-frame?)
+                                                                   (catch Throwable error
+                                                                     (.stop timer)
+                                                                     (error-reporting/report-exception! error))))))]
+                               (ui/on-closed! tab
+                                              (fn [e]
+                                                (ui/timer-stop! repainter)
+                                                (scene-view-dispose view-id)
+                                                (scene-cache/drop-context! nil true)))
+                               (ui/timer-start! repainter)
+                               (g/set-property! view-id :drawable drawable :async-copier async-copier))
+                             (frame-selection view-id false)))))
+                     (catch Throwable error
+                       (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
     (.setFocusTraversable pane true)
     (.add (.getChildren pane) image-view)

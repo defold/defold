@@ -50,15 +50,6 @@
    :default "",
    :path ["tracking" "app_id"]}
   {:type :integer,
-   :help "Max number of labels, 64 by default",
-   :default 64,
-   :path ["label" "max_count"]}
-  {:type :boolean,
-   :help
-   "Allow labels to appear unaligned with respect to pixels. Note that this is also dependent on the camera position being aligned.",
-   :default true,
-   :path ["label" "subpixels"]}
-  {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
    :default 960,
@@ -230,6 +221,10 @@
    :help "http timeout in seconds. zero to disable timeout",
    :default 0.0,
    :path ["network" "http_timeout"]}
+  {:type :integer,
+   :help "max number of instances per collection, 1024 by default",
+   :default 1024,
+   :path ["collection" "max_instances"]}
   {:type :number,
    :help "global gain (volume), 0 - 1, 1 by default",
    :default 1.0,
@@ -268,9 +263,14 @@
    :default 64,
    :path ["gui" "max_count"]}
   {:type :integer,
-   :help "max number of instances per collection, 1024 by default",
-   :default 1024,
-   :path ["collection" "max_instances"]}
+   :help "Max number of labels, 64 by default",
+   :default 64,
+   :path ["label" "max_count"]}
+  {:type :boolean,
+   :help
+   "Allow labels to appear unaligned with respect to pixels. Note that this is also dependent on the camera position being aligned.",
+   :default true,
+   :path ["label" "subpixels"]}
   {:type :integer,
    :help "max number of particle fx components, 64 by default",
    :default 64,
@@ -279,10 +279,6 @@
    :help "max total number of living particles, 1024 by default",
    :default 1024,
    :path ["particle_fx" "max_particle_count"]}
-  {:type :boolean,
-   :help "set to true to auto-finish transactions",
-   :default true,
-   :path ["iap" "auto_finish_transactions"]}
   {:type :integer,
    :help "max number of collection proxies, 8 by default",
    :default 8,
@@ -552,14 +548,6 @@
    "Specify which input method to use. Supported options are 'KeyEvent' and 'HiddenInputField'",
    :default "KeyEvent",
    :path ["android" "input_method"]}
-  {:type :string
-   :help "Private key"
-   :default nil
-   :path ["liveupdate" "privatekey"]}
-  {:type :string
-   :help "Public key"
-   :default nil
-   :path ["liveupdate" "publickey"]}  
   {:type :resource,
    :filter "icns",
    :preserve-extension true,
@@ -619,7 +607,19 @@
   {:type :string,
    :help "the application id as issued by Facebook",
    :default "",
-   :path ["facebook" "appid"]}],
+   :path ["facebook" "appid"]}
+  {:type :boolean,
+   :help "set to true to auto-finish transactions",
+   :default true,
+   :path ["iap" "auto_finish_transactions"]}
+  {:type :string
+   :help "Private key"
+   :default nil
+   :path ["liveupdate" "privatekey"]}
+  {:type :string
+   :help "Public key"
+   :default nil
+   :path ["liveupdate" "publickey"]}],
  :categories
  {"sound" {:help "Sound related settings"},
   "html5" {:help "HTML5 related settings"},
@@ -650,4 +650,4 @@
   "iap" {:help "In App Purchase related settings"},
   "particle_fx" {:help "Particle FX related settings"},
   "android" {:help "Android related settings"}
-  "liveupdate" {:help "LiveUpdate settings"}}}
+  "liveupdate" {:help "Liveupdate settings"}}}

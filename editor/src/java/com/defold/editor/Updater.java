@@ -46,19 +46,10 @@ public class Updater {
             FileUtils.copyFile(from, to);
         }
 
-        private boolean apply(Map<String, File> files) throws IOException {
-            for (Entry<String, File> entry : files.entrySet()) {
-                File to = packageFile(entry.getKey());
-                if (to.exists()) {
-                    logger.error("update failed. file {} already exists", to);
-                    return false;
-                }
-            }
-
+        private void apply(Map<String, File> files) throws IOException {
             for (Entry<String, File> entry : files.entrySet()) {
                 copyFile(entry.getValue(), entry.getKey());
             }
-            return true;
         }
 
         /**
@@ -66,11 +57,10 @@ public class Updater {
          * @throws IOException
          */
         public void install() throws IOException {
-            if (apply(files)) {
-                File toConfig = new File(resourcesPath, "config");
-                logger.info("copying {} -> {}", new Object[] {config, toConfig});
-                FileUtils.copyFile(config, toConfig);
-            }
+            apply(files);
+            File toConfig = new File(resourcesPath, "config");
+            logger.info("copying {} -> {}", new Object[] {config, toConfig});
+            FileUtils.copyFile(config, toConfig);
         }
     }
 
@@ -88,6 +78,10 @@ public class Updater {
         this.resourcesPath = new File(resourcesPath);
         this.currentSha1 = currentSha1;
         this.mapper = new ObjectMapper();
+
+        // Delete temp files at shutdown.
+        File tempDirectory = this.tempDirectory.toFile();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(tempDirectory)));
     }
 
     private File download(String packagesUrl, String url) throws IOException {

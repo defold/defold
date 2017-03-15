@@ -22,7 +22,7 @@ class ScriptTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_Context = dmScript::NewContext(0x0, 0);
+        m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
     }
@@ -265,6 +265,27 @@ TEST_F(ScriptTest, TestErrorHandler) {
 
     ASSERT_EQ(LUA_ERRRUN, result);
     ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptTest, TestStackCheck) {
+
+    DM_LUA_STACK_CHECK(L, 0);
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushnumber(L, 0);
+    }
+    lua_pop(L, 1);
+}
+
+static int TestStackCheckErrorFunc(lua_State* L) {
+    DM_LUA_STACK_CHECK(L, 0);
+    return DM_LUA_ERROR("this function does not work");
+}
+
+TEST_F(ScriptTest, TestStackCheckError) {
+    lua_pushcfunction(L, TestStackCheckErrorFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
 }
 
 TEST_F(ScriptTest, TestErrorHandlerFunction)

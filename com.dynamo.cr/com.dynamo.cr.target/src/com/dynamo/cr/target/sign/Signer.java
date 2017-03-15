@@ -7,6 +7,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.zip.ZipEntry;
@@ -50,6 +51,31 @@ public class Signer {
             InputStream iconInput = getClass().getResourceAsStream(icon);
             File iconOutFile = new File(appDir, icon);
             FileUtils.copyInputStreamToFile(iconInput, iconOutFile);
+            iconInput.close();
+        }
+
+        // Copy launch images
+        HashMap<String, String> launchImageNames = new HashMap<String, String>();
+        launchImageNames.put("ios_launch_320x480.png", "Default.png");
+        launchImageNames.put("ios_launch_640x960.png", "Default@2x.png");
+        launchImageNames.put("ios_launch_640x1136.png", "Default-568h@2x.png");
+        launchImageNames.put("ios_launch_1024x748.png", "Default-Landscape.png");
+        launchImageNames.put("ios_launch_1024x768.png", "Default-Landscape.png");
+        launchImageNames.put("ios_launch_768x1004.png", "Default-Portrait.png");
+        launchImageNames.put("ios_launch_768x1024.png", "Default-Portrait.png");
+        launchImageNames.put("ios_launch_750x1334.png", "Default-667h@2x.png");
+        launchImageNames.put("ios_launch_1242x2208.png", "Default-Portrait-736h@3x.png");
+        launchImageNames.put("ios_launch_2208x1242.png", "Default-Landscape-736h@3x.png");
+        launchImageNames.put("ios_launch_1536x2008.png", "Default-Portrait@2x.png");
+        launchImageNames.put("ios_launch_1536x2048.png", "Default-Portrait@2x.png");
+        launchImageNames.put("ios_launch_2048x1496.png", "Default-Landscape@2x.png");
+        launchImageNames.put("ios_launch_2048x1536.png", "Default-Landscape@2x.png");
+        launchImageNames.put("ios_launch_2048x2732.png", "Default-Portrait-1366h@2x.png");
+        launchImageNames.put("ios_launch_2732x2048.png", "Default-Landscape-1366h@2x.png");
+        for (String launchImage : new String[] { "ios_launch_1024x768.png", "ios_launch_2732x2048.png", "ios_launch_1242x2208.png", "ios_launch_320x480.png", "ios_launch_1536x2048.png", "ios_launch_640x1136.png", "ios_launch_2048x1536.png", "ios_launch_640x960.png", "ios_launch_2048x2732.png", "ios_launch_750x1334.png", "ios_launch_2208x1242.png", "ios_launch_768x1024.png" }) {
+            InputStream iconInput = getClass().getResourceAsStream(launchImage);
+            File laucnImageOutFile = new File(appDir, launchImageNames.get(launchImage));
+            FileUtils.copyInputStreamToFile(iconInput, laucnImageOutFile);
             iconInput.close();
         }
 

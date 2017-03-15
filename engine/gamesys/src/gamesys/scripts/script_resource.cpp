@@ -66,9 +66,9 @@ static int Set(lua_State* L)
     int top = lua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-    dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 2);
+    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 2);
 
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, *buffer);
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, buffer->m_Buffer);
     if( r != dmResource::RESULT_OK )
     {
         assert(top == lua_gettop(L));
@@ -126,7 +126,7 @@ static int Load(lua_State* L)
     };
 
     dmBuffer::HBuffer buffer = 0;
-    dmBuffer::Allocate(resourcesize, streams_decl, 1, &buffer);
+    dmBuffer::Create(resourcesize, streams_decl, 1, &buffer);
 
     uint8_t* data = 0;
     uint32_t datasize = 0;
@@ -134,7 +134,8 @@ static int Load(lua_State* L)
 
     memcpy(data, resource, resourcesize);
 
-    dmScript::PushBuffer(L, buffer);
+    dmScript::LuaHBuffer luabuf = {buffer, true};
+    dmScript::PushBuffer(L, luabuf);
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
@@ -214,12 +215,27 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  * [icon:attention] Currently, only 1 mipmap is generated.
  *
  * @examples
+ * How to set all pixels of an atlas
  *
  * ```lua
- * function update(self, dt)
- *     -- Update a sprite texture from a dynamically updated buffer (e.g. camera, or videoplayer)
- *     local resource_path = go.get("#sprite", "texture0")
- *     resource.set( resource_path, self.dynamicbuffer )
+ * function init(self)
+ *   self.height = 128
+ *   self.width = 128
+ *   self.buffer = buffer.create(self.width * self.height, { {name=hash("rgb"), type=buffer.VALUE_TYPE_UINT8, count=3} } )
+ *   self.stream = buffer.get_stream(self.buffer, hash("rgb"))
+ *   
+ *   for y=1,self.height do
+ *       for x=1,self.width do
+ *           local index = (y-1) * self.width * 3 + (x-1) * 3 + 1
+ *           self.stream[index + 0] = 0xff
+ *           self.stream[index + 1] = 0x80
+ *           self.stream[index + 2] = 0x10
+ *       end
+ *   end
+
+ *   local resource_path = go.get("#sprite", "texture0")
+ *   local header = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   resource.set_texture( resource_path, header, self.stream )
  * end
  * ```
  */
@@ -237,11 +253,11 @@ static int SetTexture(lua_State* L)
 
     uint32_t num_mip_maps = 1;
 
-    dmBuffer::HBuffer* buffer = dmScript::CheckBuffer(L, 3);
+    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
 
     uint8_t* data = 0;
     uint32_t datasize = 0;
-    dmBuffer::GetBytes(*buffer, (void**)&data, &datasize);
+    dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
 
     dmGraphics::TextureImage* texture_image = new dmGraphics::TextureImage;
     texture_image->m_Alternatives.m_Data = new dmGraphics::TextureImage::Image[1];
