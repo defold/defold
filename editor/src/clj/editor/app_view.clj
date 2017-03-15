@@ -9,6 +9,7 @@
             [editor.engine :as engine]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
+            [editor.library :as library]
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.github :as github]
@@ -25,7 +26,9 @@
             [editor.targets :as targets]
             [editor.build-errors-view :as build-errors-view]
             [editor.hot-reload :as hot-reload]
+            [editor.url :as url]
             [editor.view :as view]
+            [internal.util :refer [first-where]]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.control TabPaneBehavior]
@@ -764,11 +767,18 @@
   (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
 
 (defn- fetch-libraries [workspace project prefs]
-  (future
-    (ui/with-disabled-ui
-      (ui/with-progress [render-fn ui/default-render-progress!]
-        (let [library-urls (project/project-dependencies project)]
-          (workspace/fetch-libraries! workspace library-urls render-fn (partial login/login prefs)))))))
+  (let [library-url-string (project/project-dependencies project)
+        library-urls (library/parse-library-urls library-url-string)
+        hosts (into #{} (map url/strip-path) library-urls)]
+    (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
+      (dialogs/make-alert-dialog (string/join "\n" ["Fetch was aborted because the following host could not be reached:"
+                                                    (str "\u00A0\u00A0\u2022\u00A0" first-unreachable-host) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                                                    ""
+                                                    "Please verify internet connection and try again."]))
+      (future
+        (ui/with-disabled-ui
+          (ui/with-progress [render-fn ui/default-render-progress!]
+            (workspace/fetch-libraries! workspace library-url-string render-fn (partial login/login prefs))))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))

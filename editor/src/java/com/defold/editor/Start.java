@@ -7,6 +7,9 @@ import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -20,8 +23,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.core.FileAppender;
+import ch.qos.logback.core.rolling.*;
+import ch.qos.logback.core.util.FileSize;
+
 import com.defold.editor.Updater.PendingUpdate;
 import com.defold.libs.ResourceUnpacker;
+import com.defold.util.SupportPath;
 
 import javafx.application.Application;
 import javafx.beans.value.ChangeListener;
@@ -215,6 +224,42 @@ public class Start extends Application {
 
     public static void main(String[] args) throws Exception {
         createdFromMain = true;
+        initializeLogging();
         Start.launch(args);
     }
+
+    private static void initializeLogging() {
+        Path logDirectory = Editor.isDev() ? Paths.get("") : Editor.getSupportPath();
+        if (logDirectory == null) {
+            logDirectory = Paths.get(System.getProperty("user.home"));
+        }
+
+        ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+
+        RollingFileAppender appender = new RollingFileAppender();
+        appender.setName("FILE");
+        appender.setAppend(true);
+        appender.setPrudent(true);
+        appender.setContext(root.getLoggerContext());
+
+        TimeBasedRollingPolicy rollingPolicy = new TimeBasedRollingPolicy();
+        rollingPolicy.setMaxHistory(30);
+        rollingPolicy.setFileNamePattern(logDirectory.resolve("editor2.%d{yyyy-MM-dd}.log").toString());
+        rollingPolicy.setTotalSizeCap(FileSize.valueOf("1GB"));
+        rollingPolicy.setContext(root.getLoggerContext());
+        rollingPolicy.setParent(appender);
+        appender.setRollingPolicy(rollingPolicy);
+        rollingPolicy.start();
+
+        PatternLayoutEncoder encoder = new PatternLayoutEncoder();
+        encoder.setPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} %-4relative [%thread] %-5level %logger{35} - %msg%n");
+        encoder.setContext(root.getLoggerContext());
+        encoder.start();
+
+        appender.setEncoder(encoder);
+        appender.start();
+
+        root.addAppender(appender);
+    }
+
 }
