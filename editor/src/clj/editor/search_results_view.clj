@@ -104,73 +104,69 @@
 
 (defn- start-search-in-files! [project results-tab-tree-view open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
+        scene     (Scene. root)
         stage     (doto (ui/make-stage)
                     (.initStyle StageStyle/DECORATED)
                     (.initOwner (ui/main-stage))
-                    (.setResizable false))
-        scene     (Scene. root)
-        controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
-        term-field ^TextField (:search controls)
-        exts-field ^TextField (:types controls)
-        tree-view ^TreeView (:resources-tree controls)
-        start-consumer! (partial start-tree-update-timer! [tree-view results-tab-tree-view])
-        stop-consumer! ui/timer-stop!
-        report-error! (fn [error] (ui/run-later (throw error)))
-        file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
-        {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
-        on-input-changed! (fn [_ _ _]
-                            (let [term (.getText term-field)
-                                  exts (.getText exts-field)]
-                              (reset! search-in-files-dialog-state {:term term :exts exts})
-                              (start-search! term exts)))
-        dismiss-and-abort-search! (fn []
-                                    (abort-search!)
-                                    (ui/close! stage))
-        dismiss-and-show-find-results! (fn []
-                                         (show-find-results-fn)
-                                         (ui/close! stage))
-        open-selected! (fn []
-                         (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection tree-view))]
-                           (open-fn resource opts)))]
-    (dialogs/observe-focus stage)
-    (ui/title! stage "Search in Files")
-    (init-search-in-files-tree-view! tree-view)
+                    (.setResizable false))]
+    (ui/with-controls root [^TextField search ^TextField types ^TreeView resources-tree ok]
+      (let [start-consumer! (partial start-tree-update-timer! [resources-tree results-tab-tree-view])
+            stop-consumer! ui/timer-stop!
+            report-error! (fn [error] (ui/run-later (throw error)))
+            file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
+            {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
+            on-input-changed! (fn [_ _ _]
+                                (let [term (.getText search)
+                                      exts (.getText types)]
+                                  (reset! search-in-files-dialog-state {:term term :exts exts})
+                                  (start-search! term exts)))
+            dismiss-and-abort-search! (fn []
+                                        (abort-search!)
+                                        (ui/close! stage))
+            dismiss-and-show-find-results! (fn []
+                                             (show-find-results-fn)
+                                             (ui/close! stage))
+            open-selected! (fn []
+                             (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection resources-tree))]
+                               (open-fn resource opts)))]
+        (dialogs/observe-focus stage)
+        (ui/title! stage "Search in Files")
+        (init-search-in-files-tree-view! resources-tree)
 
-    (ui/on-action! (:ok controls) (fn on-ok! [_] (dismiss-and-show-find-results!)))
-    (ui/on-double! tree-view (fn on-double! [^Event event]
-                               (.consume event)
-                               (open-selected!)))
+        (ui/on-action! ok (fn on-ok! [_] (dismiss-and-show-find-results!)))
+        (ui/on-double! resources-tree (fn on-double! [^Event event]
+                                        (.consume event)
+                                        (open-selected!)))
 
-    (let [{:keys [term exts]} @search-in-files-dialog-state]
-      (ui/text! term-field term)
-      (ui/text! exts-field exts)
-      (start-search! term exts))
+        (.addEventFilter scene KeyEvent/KEY_PRESSED
+                         (ui/event-handler event
+                           (let [^KeyEvent event event]
+                             (condp = (.getCode event)
+                               KeyCode/DOWN   (when (and (= TextField (type (.getFocusOwner scene)))
+                                                         (not= 0 (.getExpandedItemCount resources-tree)))
+                                                (.consume event)
+                                                (ui/request-focus! resources-tree))
+                               KeyCode/ESCAPE (do (.consume event)
+                                                  (dismiss-and-abort-search!))
+                               KeyCode/ENTER  (do (.consume event)
+                                                  (if (= TextField (type (.getFocusOwner scene)))
+                                                    (dismiss-and-show-find-results!)
+                                                    (open-selected!)))
+                               KeyCode/TAB    (when (and (= types (.getFocusOwner scene))
+                                                         (= 0 (.getExpandedItemCount resources-tree)))
+                                                (.consume event)
+                                                (ui/request-focus! search))
+                               nil))))
 
-    (ui/observe (.textProperty term-field) on-input-changed!)
-    (ui/observe (.textProperty exts-field) on-input-changed!)
+        (let [{:keys [term exts]} @search-in-files-dialog-state]
+          (ui/text! search term)
+          (ui/text! types exts)
+          (start-search! term exts))
 
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                       (let [^KeyEvent event event]
-                         (condp = (.getCode event)
-                           KeyCode/DOWN   (when (and (= TextField (type (.getFocusOwner scene)))
-                                                     (not= 0 (.getExpandedItemCount tree-view)))
-                                            (.consume event)
-                                            (ui/request-focus! tree-view))
-                           KeyCode/ESCAPE (do (.consume event)
-                                              (dismiss-and-abort-search!))
-                           KeyCode/ENTER  (do (.consume event)
-                                              (if (= term-field (.getFocusOwner scene))
-                                                (dismiss-and-show-find-results!)
-                                                (open-selected!)))
-                           KeyCode/TAB    (when (and (= exts-field (.getFocusOwner scene))
-                                                     (= 0 (.getExpandedItemCount tree-view)))
-                                            (.consume event)
-                                            (ui/request-focus! term-field))
-                           nil))))
-
-    (.setScene stage scene)
-    (ui/show! stage)))
+        (ui/observe (.textProperty search) on-input-changed!)
+        (ui/observe (.textProperty types) on-input-changed!)
+        (.setScene stage scene)
+        (ui/show! stage)))))
 
 (g/defnode SearchResultsView
   (inherits core/Scope)
@@ -190,10 +186,7 @@
     (doto (.getChildren search-results-container)
       (.clear)
       (.add (doto results-tree-view
-              (AnchorPane/setTopAnchor 0.0)
-              (AnchorPane/setRightAnchor 0.0)
-              (AnchorPane/setBottomAnchor 0.0)
-              (AnchorPane/setLeftAnchor 0.0)
+              (ui/fill-control)
               (ui/on-double! (fn on-double! [^Event event]
                                (.consume event)
                                (open-selected!))))))
