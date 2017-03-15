@@ -9,12 +9,8 @@
             [editor.gui :as gui]
             [editor.gl.pass :as pass]
             [editor.handler :as handler]
-            [editor.types :as types]
-            [criterium.core :as bench])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [javax.vecmath Point3d Matrix4d Vector3d]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+            [editor.scene :as scene])
+  (:import [javax.vecmath Point3d Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -523,20 +519,25 @@
           project (test-util/setup-project! workspace)
           gui (test-util/resource-node project "/scene_hierarchy/gui.gui")
           gui-scene (g/node-value gui :scene)]
+
       (testing "Gui scene"
         (is (= gui (:node-id gui-scene)))
         (is (true? (contains? gui-scene :aabb)))
         (is (true? (contains? gui-scene :renderable)))
         (is (false? (contains? gui-scene :node-path)))
-        (is (= {} gui-scene))
         (let [gui-children (:children gui-scene)]
-          (is (= 3 (count gui-children)))
-          (testing "Visual scenes"
-            (doseq [visual-node-type [gui/BoxNode
-                                      gui/PieNode
-                                      gui/TextNode]]
-              (let [visual-scene (test-util/find-child-scene visual-node-type gui-children)]
-                (is (some? visual-scene))
-                (is (true? (contains? visual-scene :aabb)))
-                (is (true? (contains? visual-scene :renderable)))
-                (is (= [(:node-id visual-scene)] (:node-path visual-scene)))))))))))
+          (is (= 1 (count gui-children)))
+          (let [node-tree-scene (test-util/find-child-scene gui/NodeTree gui-children)]
+            (is (some? node-tree-scene))
+            (let [node-tree-children (:children node-tree-scene)]
+              (is (= 3 (count node-tree-children)))
+
+              (testing "Visual scenes"
+                (doseq [visual-node-type [gui/BoxNode
+                                          gui/PieNode
+                                          gui/TextNode]]
+                  (let [visual-scene (test-util/find-child-scene visual-node-type node-tree-children)]
+                    (is (some? visual-scene))
+                    (is (true? (contains? visual-scene :aabb)))
+                    (is (true? (contains? visual-scene :renderable)))
+                    (is (= [(:node-id visual-scene)] (scene/node-path visual-scene)))))))))))))

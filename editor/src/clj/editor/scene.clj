@@ -282,16 +282,11 @@
           true (assoc :node-path (into [node-id] (node-path scene)))
           (contains? scene :children) (update :children (partial mapv #(prepend-node-path % node-id)))))
 
-(defn claim-scene [scene node-id]
-  (-> scene
-      (assoc :node-id node-id)
-      (prepend-node-path node-id)))
-
 (defn- flatten-scene [scene selection-set ^Matrix4d parent-world-transform out-renderables out-selected-renderables view-proj tmp-v4d]
   (let [renderable (:renderable scene)
         ^Matrix4d local-transform (or (:transform scene) geom/Identity4d)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
-        selected-id (selection-set (:node-id scene))
+        selected-id (some selection-set (node-path scene))
         new-renderable (-> scene
                          (dissoc :renderable)
                          (assoc :render-fn (:render-fn renderable)
