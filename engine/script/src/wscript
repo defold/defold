@@ -47,7 +47,7 @@ def build(bld):
 
     bld.add_group()
 
-    apidoc_extract_task(bld, ['script_hash.cpp', 'script.cpp', 'script_sys.cpp', 'script_msg.cpp', 'script_json.cpp', 'script_http.cpp', 'script_vmath.cpp', 'script_zlib.cpp', 'script_image.cpp', 'script_bitop.cpp'])
+    apidoc_extract_task(bld, ['script.cpp','script_bitop.cpp','script_buffer.cpp','script_hash.cpp','script_http.cpp','script_image.cpp','script_json.cpp','script_msg.cpp','script_sys.cpp','script_vmath.cpp','script_zlib.cpp'])
 
     bld.install_files('${PREFIX}/include/script', 'script.h')
 
