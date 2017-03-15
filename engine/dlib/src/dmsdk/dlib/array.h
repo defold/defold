@@ -14,7 +14,7 @@
  * With exception of changing the size and capacity, all operations are guaranteed to be O(1).
  *
  * ```cpp
- * dmArray<int>* a = new dmArray<int>();
+ * dmArray<int> a;
  * a.Push(1);
  * ```
  *

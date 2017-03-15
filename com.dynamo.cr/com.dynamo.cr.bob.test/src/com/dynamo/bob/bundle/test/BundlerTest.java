@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -14,7 +15,6 @@ import java.util.Set;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 
 import javax.imageio.ImageIO;
@@ -38,9 +38,11 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
 @RunWith(Parameterized.class)
 public class BundlerTest {
@@ -208,5 +210,29 @@ public class BundlerTest {
         build();
         entries = readDarcEntries(contentRoot);
         assertEquals(2, entries.size());
+    }
+
+    // Historically it has been possible to include custom resources by both specifying project relative paths and absolute paths.
+    // (The only difference being a leading slash.) To keep backwards compatibility we need to support both.
+    @Test
+    public void testAbsoluteCustomResourcePath() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError, NoSuchAlgorithmException {
+        final String expectedData = "dummy";
+        final HashAlgorithm hashAlgo = HashAlgorithm.HASH_SHA1;
+        final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
+        final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(hashAlgo);
+
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=/m.txt\n[display]\nwidth=640\nheight=480\n");
+        createFile(contentRoot, "m.txt", expectedData);
+        build();
+
+        Set<byte[]> entries = readDarcEntries(contentRoot);
+        assertEquals(1, entries.size());
+
+        // Verify that the entry contained in the darc has the same hash as m.txt
+        for (byte[] b : entries) {
+            for (int i = 0; i < hlen; ++i) {
+                assertEquals(expectedHash[i], b[i]);
+            }
+        }
     }
 }

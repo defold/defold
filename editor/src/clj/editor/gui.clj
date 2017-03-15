@@ -67,21 +67,6 @@
              :resource-fields [:script :material [:fonts :font] [:textures :texture] [:spine-scenes :spine-scene]]
              :tags #{:component :non-embeddable}})
 
-; Selection shader
-
-(shader/defshader selection-vert
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader selection-frag
-  (defn void main []
-    (setq gl_FragColor (vec4 1.0 1.0 1.0 1.0))))
-
-; TODO - macro of this
-(def selection-shader (shader/make-shader ::selection-shader selection-vert selection-frag))
-
-
 ; Fallback shader
 
 (vtx/defvertex color-vtx
@@ -205,9 +190,7 @@
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (if (types/selection? (:pass render-args))
-                     selection-shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
-                     (or material-shader shader))
+      (let [shader (or material-shader shader)
             vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (clipping/setup-gl gl clipping-state)
@@ -345,7 +328,6 @@
    [:scene :child-scenes]
    [:node-msgs :node-msgs]
    [:node-rt-msgs :node-rt-msgs]
-   [:node-ids :node-ids]
    [:node-overrides :node-overrides]
    [:build-errors :build-errors]
    [:template-build-targets :template-build-targets]])
@@ -578,7 +560,8 @@
                                  :blend-mode blend-mode)
                :batch-key {:texture gpu-texture :blend-mode blend-mode}
                :select-batch-key _node-id
-               :layer-index layer-index}))))
+               :layer-index layer-index
+               :topmost? true}))))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -1014,9 +997,9 @@
           (not= :clipping-mode-none clipping-mode)
           (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
   (output node-rt-msgs g/Any :cached
-    (g/fnk [node-msgs spine-scene-structure adjust-mode spine-skin-ids]
+    (g/fnk [node-msgs node-rt-msgs spine-scene-structure adjust-mode spine-skin-ids]
       (let [pb-msg (first node-msgs)
-            rt-pb-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))]
+            rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])
             gui-node-id (:id pb-msg)
             bones (tree-seq :children :children (:skeleton spine-scene-structure))
             child-to-parent (reduce (fn [m b] (into m (map (fn [c] [(:name c) b]) (:children b)))) {} bones)
@@ -1062,7 +1045,10 @@
                                                 [:anim-ids :anim-ids]
                                                 [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
-                                  (prop-resource-error _node-id :texture texture "Texture"))))
+                                  (prop-resource-error _node-id :texture texture "Texture")))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["atlas" "tilesource"]})))
 
   (input texture-resource resource/Resource)
   (input image BufferedImage)
@@ -1107,7 +1093,10 @@
                     [:material-shader :font-shader]
                     [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id font]
-                                  (prop-resource-error _node-id :font font "Font"))))
+                                  (prop-resource-error _node-id :font font "Font")))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["font"]})))
 
   (input font-resource resource/Resource)
   (input font-map g/Any)
@@ -1156,7 +1145,10 @@
                      [:scene :spine-scene-scene]
                      [:scene-structure :spine-scene-structure])))
             (dynamic error (g/fnk [_node-id spine-scene]
-                                  (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
+                                  (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["spinescene"]})))
 
   (input spine-scene-resource resource/Resource)
   (input spine-anim-ids g/Any)
@@ -1483,7 +1475,10 @@
             [:samplers :samplers]
             [:build-targets :dep-build-targets])))
     (dynamic error (g/fnk [_node-id material]
-                          (prop-resource-error _node-id :material material "Material"))))
+                          (prop-resource-error _node-id :material material "Material")))
+    (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["material"]})))
 
   (property adjust-reference g/Keyword (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/constantly false)))
@@ -1862,12 +1857,11 @@
                                                                                   (comp tmpl-children first)
                                                                                   [r nil]))))])
                                          tmpl-roots))
-        template-resources (map (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
-        texture-resources  (map (comp resolve-fn :texture) (:textures scene))
+        template-resources (keep (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
+        texture-resources  (keep (comp resolve-fn :texture) (:textures scene))
         scene-load-data  (project/load-resource-nodes (g/now) project
                                                       (->> (concat template-resources texture-resources)
-                                                           (map #(project/get-resource-node project %))
-                                                           (remove nil?))
+                                                           (keep #(project/get-resource-node project %)))
                                                       progress/null-render-progress!)]
     (concat
       scene-load-data
@@ -1899,10 +1893,13 @@
                     (g/connect textures-node :node-outline self :child-outlines)
                     (for [texture-desc (:textures scene)]
                       (let [resource (workspace/resolve-resource resource (:texture texture-desc))
-                            type (resource/resource-type resource)
-                            outputs (g/output-labels (:node-type type))]
+                            outputs (some-> resource
+                                            resource/resource-type
+                                            :node-type
+                                            g/output-labels)]
                         ;; Messy because we need to deal with legacy standalone image files
-                        (if (outputs :anim-data)
+                        (if (or (nil? resource) ;; i.e. :texture field not set
+                                (outputs :anim-data))
                           ;; TODO: have no tests for this
                           (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
                                         (attach-texture self textures-node texture))

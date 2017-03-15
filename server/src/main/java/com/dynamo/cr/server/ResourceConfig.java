@@ -18,6 +18,7 @@ public class ResourceConfig extends DefaultResourceConfig {
         classes.add(RepositoryResource.class);
         classes.add(ProjectResource.class);
         classes.add(ProjectsResource.class);
+        classes.add(com.dynamo.cr.server.resources.v2.ProjectsResource.class);
         classes.add(ProjectSitesResource.class);
         classes.add(UsersResource.class);
         classes.add(LoginResource.class);

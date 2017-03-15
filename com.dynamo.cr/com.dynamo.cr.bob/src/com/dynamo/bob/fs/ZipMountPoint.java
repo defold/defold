@@ -70,6 +70,12 @@ public class ZipMountPoint implements IMountPoint {
         public long getLastModified() {
             return entry.getLastModifiedTime().toMillis();
         }
+
+        @Override
+        public boolean isFile() {
+            boolean isDir = entry.isDirectory();
+            return !isDir;
+        }
     }
 
     public ZipMountPoint(IFileSystem fileSystem, String archivePath) {

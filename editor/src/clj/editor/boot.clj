@@ -11,15 +11,15 @@
    [editor.progress :as progress]
    [editor.sentry :as sentry]
    [editor.ui :as ui]
+   [editor.updater :as updater]
    [service.log :as log])
   (:import
    [com.defold.control ListCell]
    [java.io File]
-   [javafx.scene Scene Parent]
+   [javafx.scene Scene]
    [javafx.scene.control Button Control Label ListView]
    [javafx.scene.input MouseEvent]
    [javafx.scene.layout VBox]
-   [javafx.stage Stage]
    [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -67,6 +67,7 @@
         ^ListView recent-projects (.lookup root "#recent-projects")
         ^Button open-project (.lookup root "#open-project")
         import-project (.lookup root "#import-project")]
+    (updater/install-pending-update-check! stage nil)
     (ui/set-main-stage stage)
     (ui/on-action! open-project (fn [_] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
                                           (ui/close! stage)

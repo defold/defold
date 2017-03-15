@@ -47,7 +47,7 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory)
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
@@ -55,6 +55,7 @@ namespace dmScript
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
+        context->m_EnableExtensions = enable_extensions;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
         return context;
@@ -174,20 +175,22 @@ namespace dmScript
 #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
 #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            dmExtension::Params p;
-            p.m_ConfigFile = context->m_ConfigFile;
-            p.m_L = L;
-            dmExtension::Result r = ed->Initialize(&p);
-            if (r == dmExtension::RESULT_OK) {
-                context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
-            } else {
-                dmLogError("Failed to initialize extension: %s", ed->m_Name);
+        if (context->m_EnableExtensions) {
+            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+            uint32_t i = 0;
+            while (ed) {
+                dmExtension::Params p;
+                p.m_ConfigFile = context->m_ConfigFile;
+                p.m_L = L;
+                dmExtension::Result r = ed->Initialize(&p);
+                if (r == dmExtension::RESULT_OK) {
+                    context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
+                } else {
+                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
+                }
+                ++i;
+                ed = ed->m_Next;
             }
-            ++i;
-            ed = ed->m_Next;
         }
 
         assert(top == lua_gettop(L));
@@ -195,23 +198,25 @@ namespace dmScript
 
     void UpdateExtensions(HContext context)
     {
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            if (ed->Update)
-            {
-                dmExtension::Params p;
-                p.m_ConfigFile = context->m_ConfigFile;
-                p.m_L = context->m_LuaState;
-                if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                    dmExtension::Result r = ed->Update(&p);
-                    if (r != dmExtension::RESULT_OK) {
-                        dmLogError("Failed to update extension: %s", ed->m_Name);
+        if (context->m_EnableExtensions) {
+            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+            uint32_t i = 0;
+            while (ed) {
+                if (ed->Update)
+                {
+                    dmExtension::Params p;
+                    p.m_ConfigFile = context->m_ConfigFile;
+                    p.m_L = context->m_LuaState;
+                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
+                        dmExtension::Result r = ed->Update(&p);
+                        if (r != dmExtension::RESULT_OK) {
+                            dmLogError("Failed to update extension: %s", ed->m_Name);
+                        }
                     }
                 }
+                ++i;
+                ed = ed->m_Next;
             }
-            ++i;
-            ed = ed->m_Next;
         }
     }
 
@@ -220,20 +225,22 @@ namespace dmScript
         lua_State* L = context->m_LuaState;
         FinalizeHttp(L);
 
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            dmExtension::Params p;
-            p.m_ConfigFile = context->m_ConfigFile;
-            p.m_L = L;
-            if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                dmExtension::Result r = ed->Finalize(&p);
-                if (r != dmExtension::RESULT_OK) {
-                    dmLogError("Failed to finalize extension: %s", ed->m_Name);
+        if (context->m_EnableExtensions) {
+            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+            uint32_t i = 0;
+            while (ed) {
+                dmExtension::Params p;
+                p.m_ConfigFile = context->m_ConfigFile;
+                p.m_L = L;
+                if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
+                    dmExtension::Result r = ed->Finalize(&p);
+                    if (r != dmExtension::RESULT_OK) {
+                        dmLogError("Failed to finalize extension: %s", ed->m_Name);
+                    }
                 }
+                ++i;
+                ed = ed->m_Next;
             }
-            ++i;
-            ed = ed->m_Next;
         }
         if (context) {
             // context might be NULL in tests. Should probably be forbidden though
@@ -650,14 +657,31 @@ namespace dmScript
     {
     }
 
-    LuaStackCheck::~LuaStackCheck()
+    int LuaStackCheck::Error(const char* fmt, ... )
     {
-        uint32_t expected = m_Top + m_Diff;
+        Verify(0);
+        va_list argp;
+        va_start(argp, fmt);
+        luaL_where(m_L, 1);
+        lua_pushvfstring(m_L, fmt, argp);
+        va_end(argp);
+        lua_concat(m_L, 2);
+        return lua_error(m_L);
+    }
+
+    void LuaStackCheck::Verify(int diff)
+    {
+        uint32_t expected = m_Top + diff;
         uint32_t actual = lua_gettop(m_L);
         if (expected != actual)
         {
             dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
             assert(expected == actual);
         }
+    }
+
+    LuaStackCheck::~LuaStackCheck()
+    {
+        Verify(m_Diff);
     }
 }

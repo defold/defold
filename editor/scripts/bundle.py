@@ -33,11 +33,19 @@ def mkdirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def extract(file, path):
+def extract(file, path, is_mac):
     print('Extracting %s to %s' % (file, path))
-    tf = tarfile.TarFile.open(file, 'r:gz')
-    tf.extractall(path)
-    tf.close()
+
+    if is_mac:
+        # We use the system tar command for macOSX because tar (and
+        # others) on macOS has special handling of ._ files that
+        # contain additional HFS+ attributes. See for example:
+        # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
+        exec_command(['tar', '-C', path, '-xzf', file])
+    else:
+        tf = tarfile.TarFile.open(file, 'r:gz')
+        tf.extractall(path)
+        tf.close()
 
 def download(url, use_cache = True):
     name = os.path.basename(urlparse.urlparse(url).path)
@@ -73,7 +81,7 @@ def download(url, use_cache = True):
 
 def exec_command(args):
     print('[EXEC] %s' % args)
-    process = subprocess.Popen(args, shell = False)
+    process = subprocess.Popen(args, stdout=subprocess.PIPE, shell = False)
     output = process.communicate()[0]
     if process.returncode != 0:
         print(output)
@@ -113,6 +121,26 @@ def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
+def create_dmg(dmg_dir, bundle_dir, dmg_file):
+    # This certificate must be installed on the computer performing the operation
+    certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
+
+    certificate_found = exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0
+
+    if not certificate_found:
+        print("Warning: Codesigning certificate not found, DMG will not be signed")
+
+    # sign files in bundle
+    if certificate_found:
+        exec_command(['codesign', '--deep', '-s', certificate, bundle_dir])
+
+    # create dmg
+    exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
+
+    # sign dmg
+    if certificate_found:
+        exec_command(['codesign', '-s', certificate, dmg_file])
+
 def bundle(platform, jar_file, options):
     rmtree('tmp')
 
@@ -141,10 +169,11 @@ def bundle(platform, jar_file, options):
     mkdirs('tmp')
 
     if 'darwin' in platform:
-        resources_dir = 'tmp/Defold.app/Contents/Resources'
-        packages_dir = 'tmp/Defold.app/Contents/Resources/packages'
-        bundle_dir = 'tmp/Defold.app'
-        exe_dir = 'tmp/Defold.app/Contents/MacOS'
+        dmg_dir = 'tmp/dmg'
+        resources_dir = 'tmp/dmg/Defold.app/Contents/Resources'
+        packages_dir = 'tmp/dmg/Defold.app/Contents/Resources/packages'
+        bundle_dir = 'tmp/dmg/Defold.app'
+        exe_dir = 'tmp/dmg/Defold.app/Contents/MacOS'
         icon = 'logo.icns'
         is_mac = True
     else:
@@ -162,6 +191,9 @@ def bundle(platform, jar_file, options):
 
     if is_mac:
         shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
+        shutil.copy('bundle-resources/dmg_ds_store', '%s/.DS_Store' % dmg_dir)
+        shutil.copytree('bundle-resources/dmg_background', '%s/.background' % dmg_dir)
+        exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
     if icon:
         shutil.copy('bundle-resources/%s' % icon, resources_dir)
     config = ConfigParser.ConfigParser()
@@ -184,7 +216,8 @@ def bundle(platform, jar_file, options):
     if 'win32' in platform:
         exec_command(['java', '-cp', 'target/classes', 'com.defold.util.IconExe', '%s/Defold%s' % (exe_dir, exe_suffix), 'bundle-resources/logo.ico'])
 
-    extract(jre, 'tmp')
+    extract(jre, 'tmp', is_mac)
+
     print 'Creating bundle'
     if is_mac:
         jre_glob = 'tmp/jre1.8.0_%s.jre/Contents/Home/*' % (jre_minor)
@@ -194,7 +227,13 @@ def bundle(platform, jar_file, options):
     for p in glob.glob(jre_glob):
         shutil.move(p, '%s/jre' % packages_dir)
 
-    ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
+    if is_mac:
+        ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, dmg_dir)
+    else:
+        ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
+
+    if is_mac:
+        create_dmg(dmg_dir, bundle_dir, 'target/editor/Defold-%s.dmg' % platform)
 
 if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)'''

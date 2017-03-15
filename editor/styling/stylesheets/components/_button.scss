@@ -1,14 +1,14 @@
 .button {
   -fx-background-radius: 5;
   -fx-border-radius: 4;
-  -fx-padding: 6px 17px;
+  -fx-padding: 4px 17px;
   -fx-min-width: 100px;
   -fx-background-color: $mid-grey;
   -fx-background-insets: 0;
   -fx-border-color: rgba($dark-grey, 0.8);
   -fx-border-width: 1;
   -fx-text-fill: rgba($defold-white, 0.8);
-  -fx-font-size: 12px;
+  -fx-font-size: $default-font-size;
   &:hover {
     -fx-background-color: $mid-grey-light;
   }
@@ -33,7 +33,7 @@
 
 .button-small {
 	@extend .button;
-	-fx-padding: 2px 17px;//4px 22px;
+	-fx-padding: 2px 17px;
 	-fx-min-width: 0px;
 }
 
