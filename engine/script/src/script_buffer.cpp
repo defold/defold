@@ -408,7 +408,7 @@ namespace dmScript
      * -- copy entire stream
      * local srcstream = buffer.get_stream(srcbuffer, hash("luminance"))
      * local dststream = buffer.get_stream(dstbuffer, hash("a"))
-     * buffer.copy(dststream, 0, srcstream, 0, #srcstream)
+     * buffer.copy_stream(dststream, 0, srcstream, 0, #srcstream)
      * ```
     */
     static int CopyStream(lua_State* L)
@@ -483,10 +483,10 @@ namespace dmScript
      *
      * ```lua
      * -- copy entire buffer
-     * buffer.copy(dstbuffer, 0, srcbuffer, 0, #srcbuffer)
+     * buffer.copy_buffer(dstbuffer, 0, srcbuffer, 0, #srcbuffer)
      *
      * -- copy last 10 elements to the front of another buffer
-     * buffer.copy(dstbuffer, 0, srcbuffer, #srcbuffer - 10, 10)
+     * buffer.copy_buffer(dstbuffer, 0, srcbuffer, #srcbuffer - 10, 10)
      * ```
     */
     static int CopyBuffer(lua_State* L)
