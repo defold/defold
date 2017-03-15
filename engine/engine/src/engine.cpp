@@ -290,7 +290,7 @@ namespace dmEngine
         app_params.m_ConfigFile = engine->m_Config;
         dmExtension::AppFinalize(&app_params);
 
-        dmBuffer::Exit();
+        dmBuffer::DeleteContext();
 
         if (engine->m_Config)
         {
@@ -458,7 +458,7 @@ namespace dmEngine
             }
         }
 
-        dmBuffer::Init();
+        dmBuffer::NewContext();
 
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;

@@ -91,11 +91,11 @@ namespace dmScript
         dmBuffer::HBuffer   m_Buffer;
         dmhash_t            m_Name;     // The stream name
         void*               m_Data;     // Easy access to the buffer data
-        uint32_t            m_DataSize;
+        uint32_t            m_DataSize;	// Total data size in bytes
         uint32_t            m_Count;    // bytes / sizeof(type)
         uint32_t            m_TypeCount;// number of values that make up an "element". E.g. 3 in a Vec3
-        dmBuffer::ValueType m_Type;
-        int                 m_BufferRef; // Holds a reference to the Lua object
+        dmBuffer::ValueType m_Type;		// The type of elements in the array
+        int                 m_BufferRef;// Holds a reference to the Lua object
     };
 
     static bool IsBufferType(lua_State *L, int index, const char* type_name)

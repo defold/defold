@@ -50,7 +50,7 @@ namespace dmBuffer
     /////////////////////////////////////////////////////////////////
     // Buffer context
 
-    void Init()
+    void NewContext()
     {
         assert(g_BufferContext == 0 && "Buffer context should be null");
 
@@ -64,7 +64,7 @@ namespace dmBuffer
         memset(g_BufferContext->m_Buffers, 0, size);
     }
 
-    void Exit()
+    void DeleteContext()
     {
         if( g_BufferContext )
         {

@@ -24,7 +24,7 @@ class ScriptBufferTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmBuffer::Init();
+        dmBuffer::NewContext();
         m_Context = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
@@ -45,7 +45,7 @@ protected:
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
 
-        dmBuffer::Exit();
+        dmBuffer::DeleteContext();
     }
 
     dmScript::HContext m_Context;
@@ -376,7 +376,7 @@ class ScriptBufferCopyTest : public ::testing::TestWithParam<CopyBufferTestParam
 protected:
     virtual void SetUp()
     {
-        dmBuffer::Init();
+        dmBuffer::NewContext();
         m_Context = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
@@ -398,7 +398,7 @@ protected:
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
 
-        dmBuffer::Exit();
+        dmBuffer::DeleteContext();
     }
 
     dmScript::HContext m_Context;

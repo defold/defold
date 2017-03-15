@@ -51,7 +51,7 @@ protected:
     {
         const char* test_dir = "build/default/src/test";
 
-        dmBuffer::Init();
+        dmBuffer::NewContext();
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -65,7 +65,7 @@ protected:
         {
             dmResource::DeleteFactory(factory);
         }
-        dmBuffer::Exit();
+        dmBuffer::DeleteContext();
     }
 
     dmResource::HFactory factory;

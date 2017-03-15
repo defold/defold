@@ -9,11 +9,11 @@
 class BufferTest : public ::testing::Test
 {
     virtual void SetUp() {
-        dmBuffer::Init();
+        dmBuffer::NewContext();
     }
 
     virtual void TearDown() {
-        dmBuffer::Exit();
+        dmBuffer::DeleteContext();
     }
 };
 
@@ -27,7 +27,7 @@ public:
 
 protected:
     virtual void SetUp() {
-        dmBuffer::Init();
+        dmBuffer::NewContext();
 
         dmBuffer::StreamDeclaration streams_decl[] = {
             {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
@@ -40,7 +40,7 @@ protected:
 
     virtual void TearDown() {
         dmBuffer::Destroy(buffer);
-        dmBuffer::Exit();
+        dmBuffer::DeleteContext();
     }
 };
 
@@ -60,13 +60,13 @@ public:
 
 protected:
     virtual void SetUp() {
-        dmBuffer::Init();
+        dmBuffer::NewContext();
         buffer = 0x0;
     }
 
     virtual void TearDown() {
         dmBuffer::Destroy(buffer);
-        dmBuffer::Exit();
+        dmBuffer::DeleteContext();
     }
 };
 

@@ -303,10 +303,30 @@ namespace dmBuffer
     */
     Result GetStreamType(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType* type, uint32_t* type_count);
 
+	/*# get the number of streams in a buffer
+	 *
+	 * Gets the number of streams
+	 * @name dmBuffer::GetNumStreams
+	 * @param buffer [type:dmBuffer::HBuffer] The buffer
+	 * @return count [type:uint32_t] The number of streams
+	*/
+	uint32_t GetNumStreams(HBuffer buffer);
+
+	/*# get the hashed name of a stream
+	 *
+	 * Gets the hashed name of the stream
+	 * @name dmBuffer::GetStreamName
+	 * @param buffer [type:dmBuffer::HBuffer] The buffer
+	 * @param index [type:uint32_t] The index of the stream
+	 * @param stream_name [type:dmhash_t*] The out variable that receives the name
+	 * @return result [type:dmBuffer::Result] RESULT_OK if the stream exists
+	*/
+	Result GetStreamName(HBuffer buffer, uint32_t index, dmhash_t* stream_name);
+
     /*# get size of a value type
      *
      * Gets the size of a value type
-      *
+     *
      * @name dmBuffer::GetSizeForValueType
      * @param type [type:dmBuffer::ValueType] The value type
      * @return size [type:uint32_t] The size in bytes
