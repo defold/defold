@@ -121,7 +121,7 @@ def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
-def create_dmg(bundle_dir, dmg_file):
+def create_dmg(dmg_dir, bundle_dir, dmg_file):
     # This certificate must be installed on the computer performing the operation
     certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
 
@@ -135,7 +135,7 @@ def create_dmg(bundle_dir, dmg_file):
         exec_command(['codesign', '--deep', '-s', certificate, bundle_dir])
 
     # create dmg
-    exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', bundle_dir, dmg_file])
+    exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign dmg
     if certificate_found:
@@ -169,10 +169,11 @@ def bundle(platform, jar_file, options):
     mkdirs('tmp')
 
     if 'darwin' in platform:
-        resources_dir = 'tmp/Defold.app/Contents/Resources'
-        packages_dir = 'tmp/Defold.app/Contents/Resources/packages'
-        bundle_dir = 'tmp/Defold.app'
-        exe_dir = 'tmp/Defold.app/Contents/MacOS'
+        dmg_dir = 'tmp/dmg'
+        resources_dir = 'tmp/dmg/Defold.app/Contents/Resources'
+        packages_dir = 'tmp/dmg/Defold.app/Contents/Resources/packages'
+        bundle_dir = 'tmp/dmg/Defold.app'
+        exe_dir = 'tmp/dmg/Defold.app/Contents/MacOS'
         icon = 'logo.icns'
         is_mac = True
     else:
@@ -190,6 +191,9 @@ def bundle(platform, jar_file, options):
 
     if is_mac:
         shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
+        shutil.copy('bundle-resources/dmg_ds_store', '%s/.DS_Store' % dmg_dir)
+        shutil.copytree('bundle-resources/dmg_background', '%s/.background' % dmg_dir)
+        exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
     if icon:
         shutil.copy('bundle-resources/%s' % icon, resources_dir)
     config = ConfigParser.ConfigParser()
@@ -223,10 +227,13 @@ def bundle(platform, jar_file, options):
     for p in glob.glob(jre_glob):
         shutil.move(p, '%s/jre' % packages_dir)
 
-    ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
+    if is_mac:
+        ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, dmg_dir)
+    else:
+        ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
 
     if is_mac:
-        create_dmg(bundle_dir, 'target/editor/Defold-%s.dmg' % platform)
+        create_dmg(dmg_dir, bundle_dir, 'target/editor/Defold-%s.dmg' % platform)
 
 if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)'''
