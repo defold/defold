@@ -400,6 +400,7 @@ typedef unsigned char   GLubyte;
 #define GLFW_PHASE_STATIONARY (2)
 #define GLFW_PHASE_ENDED (3)
 #define GLFW_PHASE_CANCELLED (4)
+#define GLFW_PHASE_TAPPED (5)
 
 /*************************************************************************
  * Typedefs
@@ -427,6 +428,7 @@ typedef struct {
     int DX;
     int DY;
     void* Reference;
+    int Id;
 } GLFWTouch;
 
 /* Thread ID */
@@ -449,7 +451,6 @@ typedef void (GLFWCALL * GLFWkeyfun)(int,int);
 typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
-typedef void (GLFWCALL * GLFWtouchfun)(GLFWTouch*,int);
 
 
 /*************************************************************************
@@ -500,7 +501,6 @@ GLFWAPI void GLFWAPIENTRY glfwResetKeyboard( void );
 GLFWAPI int  GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );
-GLFWAPI int  GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count);
 
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z);

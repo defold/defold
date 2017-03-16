@@ -91,4 +91,10 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
         return new File(getAbsPath()).lastModified();
     }
 
+    @Override
+    public boolean isFile() {
+        File f = new File(getAbsPath());
+        return f.isFile();
+    }
+
 }

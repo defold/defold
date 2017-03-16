@@ -9,7 +9,6 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -329,6 +328,9 @@
                   :children (vec (remove nil? [{:label "Build"
                                                 :acc "Shortcut+B"
                                                 :command :build}
+                                               {:label "Build HTML5"
+                                                :acc "Shortcut+Shift+B"
+                                                :command :build-html5}
                                                (when system/fake-it-til-you-make-it?
                                                  {:label "Bundle"
                                                   :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
@@ -559,7 +561,7 @@
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-save-project [project build-options]
+(defn build-and-save-project [project prefs build-options]
   (when-not @ongoing-build-save-atom
     (reset! ongoing-build-save-atom true)
     (let [game-project  (get-resource-node project "/game.project")
@@ -647,6 +649,24 @@
         settings-core/parse-settings
         (settings-core/get-setting ["project" "dependencies"]))))
 
+(defn- cache-node-value! [node-id label]
+  (g/node-value node-id label {:skip-validation true})
+  nil)
+
+(defn- cache-save-data! [project render-progress!]
+  ;; Save data is required for the Search in Files feature. Sadly we cannot
+  ;; warm the caches in the background, as the graph cache cannot be updated
+  ;; from another thread.
+  (let [save-data-sources (g/sources-of project :save-data)
+        progress (atom (progress/make "Indexing..." (inc (count save-data-sources))))]
+    (doseq [[node-id label] save-data-sources]
+      (when render-progress!
+        (render-progress! (swap! progress progress/advance)))
+      (cache-node-value! node-id label))
+    (when render-progress!
+      (render-progress! (swap! progress progress/advance)))
+    (cache-node-value! project :save-data)))
+
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
@@ -655,8 +675,10 @@
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
     (workspace/resource-sync! workspace-id false [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project"))
-    (let [project (make-project graph workspace-id)]
-      (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress)))))
+    (let [project (make-project graph workspace-id)
+          populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress))]
+      (cache-save-data! populated-project (progress/nest-render-progress render-progress! @progress))
+      populated-project)))
 
 (defn resource-setter [basis self old-value new-value & connections]
   (let [project (get-project self)]

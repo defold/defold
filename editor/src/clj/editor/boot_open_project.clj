@@ -1,5 +1,6 @@
 (ns editor.boot-open-project
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
@@ -15,7 +16,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.login :as login]
             [editor.outline-view :as outline-view]
-            [editor.prefs :as prefs]
+            [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
@@ -26,12 +27,13 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.search-results-view :as search-results-view]
             [editor.sync :as sync]
             [editor.system :as system]
+            [editor.updater :as updater]
             [editor.util :as util]
             [util.http-server :as http-server])
-  (:import [com.defold.editor EditorApplication]
-           [java.io File]
+  (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.layout Region VBox]
            [javafx.scene.control MenuBar Tab TabPane TreeView]))
@@ -106,7 +108,7 @@
                 (fn [property old-val new-val]
                   (dialogs/record-focus-change! new-val)))
     (watch-focus-state! workspace)
-
+    (updater/install-pending-update-check! stage project)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
@@ -128,21 +130,22 @@
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs prefs)
+          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)})
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)
+                                                            bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
+          open-resource        (partial app-view/open-resource app-view prefs workspace project)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id opts]
-                                                                           (app-view/open-resource app-view
-                                                                                                   (g/node-value project :workspace)
-                                                                                                   project
-                                                                                                   resource
-                                                                                                   opts)
+                                                                           (open-resource resource opts)
                                                                            (app-view/select! app-view node-id)))
+          search-results-view  (search-results-view/make-search-results-view! *view-graph*
+                                                                              (.lookup root "#search-results-container")
+                                                                              open-resource)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! app-view *view-graph*
@@ -179,17 +182,18 @@
                                :prev   prev-console})
 
       (ui/restyle-tabs! tool-tabs)
-      (let [context-env {:app-view          app-view
-                         :project           project
-                         :project-graph     (project/graph project)
-                         :prefs             prefs
-                         :workspace         (g/node-value project :workspace)
-                         :outline-view      outline-view
-                         :web-server        web-server
-                         :build-errors-view build-errors-view
-                         :changes-view      changes-view
-                         :main-stage        stage
-                         :asset-browser     asset-browser}
+      (let [context-env {:app-view            app-view
+                         :project             project
+                         :project-graph       (project/graph project)
+                         :prefs               prefs
+                         :workspace           (g/node-value project :workspace)
+                         :outline-view        outline-view
+                         :web-server          web-server
+                         :build-errors-view   build-errors-view
+                         :search-results-view search-results-view
+                         :changes-view        changes-view
+                         :main-stage          stage
+                         :asset-browser       asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
@@ -233,28 +237,22 @@
     (reset! the-root root)
     root))
 
-(defn- make-blocking-save-action
-  "Returns a function that when called will save the specified project and block
-  until the operation completes. Used as a pre-update action to ensure the
-  project is saved before installing updates and restarting the editor."
-  [project]
-  (fn []
-    ; If a build or save was in progress, wait for it to complete.
-    (while (project/ongoing-build-save?)
-      (Thread/sleep 300))
-
-    ; Save the project and block until complete.
-    (let [save-future (project/save-all! project nil)]
-      (when (future? save-future)
-        (deref save-future)))))
+(defn- show-missing-dependencies-alert! [dependencies]
+  (dialogs/make-alert-dialog (string/join "\n" (concat ["The following dependencies are missing:"]
+                                                       (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                                                            (sort-by str dependencies))
+                                                       [""
+                                                        "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
 
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
-        ^VBox root   (ui/run-now (load-stage workspace project prefs))]
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
+    (ui/run-now
+      (load-stage workspace project prefs)
+      (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
+        (show-missing-dependencies-alert! missing-dependencies)))
     (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)
-    (EditorApplication/registerPreUpdateAction (make-blocking-save-action project))))
+    (g/reset-undo! *project-graph*)))

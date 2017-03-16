@@ -57,7 +57,6 @@
   (path [this] (resource/path resource))
   (abs-path [this] (resource/abs-path resource))
   (proj-path [this] (resource/proj-path resource))
-  (url [this] (resource/url resource))
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))

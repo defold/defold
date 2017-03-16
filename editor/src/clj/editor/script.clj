@@ -3,6 +3,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.code-completion :as code-completion]
+            [internal.util :as iutil]
             [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -165,7 +166,11 @@
 
   ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
-  (output script-properties g/Any :cached (g/fnk [code] (lua-scan/src->properties code)))
+  (output script-properties g/Any :cached (g/fnk [code]
+                                                 (->> (lua-scan/src->properties code)
+                                                      (filter #(not (string/blank? (:name %))))
+                                                      (iutil/distinct-by :name)
+                                                      vec)))
   (output user-properties g/Properties :cached produce-user-properties)
   (output _properties g/Properties :cached (g/fnk [_declared-properties user-properties]
                                                   ;; TODO - fix this when corresponding graph issue has been fixed

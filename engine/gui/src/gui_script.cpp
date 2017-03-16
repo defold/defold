@@ -317,9 +317,20 @@ namespace dmGui
 
     /*# gets the node with the specified id
      *
+     * Retrieves the node with the specified id.
+     *
      * @name gui.get_node
-     * @param id id of the node to retrieve [type:string|hash]
+     * @param id [type:string|hash] id of the node to retrieve
      * @return instance [type:node] a new node instance
+     * @examples
+     *
+     * Gets a node by id and change its color:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * local red = vmath.vector4(1.0, 0.0, 0.0, 1.0)
+     * gui.set_color(node, red)
+     * ```
      */
     int LuaGetNode(lua_State* L)
     {
@@ -365,9 +376,21 @@ namespace dmGui
 
     /*# gets the id of the specified node
      *
+     * Retrieves the id of the specified node.
+     *
      * @name gui.get_id
      * @param node [type:node] the node to retrieve the id from
      * @return id [type:hash] the id of the node
+     * @examples
+     *
+     * Gets the id of a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     *
+     * local id = gui.get_id(node)
+     * print(id) --> hash: [my_node]
+     * ```
      */
     int LuaGetId(lua_State* L)
     {
@@ -386,9 +409,27 @@ namespace dmGui
 
     /*# sets the id of the specified node
      *
+     * Set the id of the specicied node to a new value.
+     * Nodes created with the gui.new_*_node() functions get
+     * an empty id. This function allows you to give dynamically
+     * created nodes an id.
+     *
+     * [icon:attention] No checking is done on the uniqueness of supplied ids.
+     * It is up to you to make sure you use unique ids.
+     *
      * @name gui.set_id
      * @param node [type:node] node to set the id for
      * @param id [type:string|hash] id to set
+     * @examples
+     *
+     * Create a new node and set its id:
+     *
+     * ```lua
+     * local pos = vmath.vector3(100, 100, 0)
+     * local size = vmath.vector3(100, 100, 0)
+     * local node = gui.new_box_node(pos, size)
+     * gui.set_id(node, "my_new_node")
+     * ```
      */
     int LuaSetId(lua_State* L)
     {
@@ -416,11 +457,28 @@ namespace dmGui
     }
 
     /*# gets the index of the specified node
-     * The index defines the order in which a node appear in a gui scene.
-     * Higher index means the node is drawn above lower indexed nodes.
+     *
+     * Retrieve the index of the specified node.
+     * The index defines the order in which a node appear in a GUI scene.
+     * Higher index means the node is drawn on top of lower indexed nodes.
+     *
      * @name gui.get_index
      * @param node [type:node] the node to retrieve the id from
      * @return index [type:number] the index of the node
+     * @examples
+     *
+     * Compare the index order of two nodes:
+     *
+     * ```lua
+     * local node1 = gui.get_node("my_node_1")
+     * local node2 = gui.get_node("my_node_2")
+     *
+     * if gui.get_index(node1) < gui.get_index(node2) then
+     *     -- node1 is drawn below node2
+     * else
+     *     -- node2 is drawn below node1
+     * end
+     * ```
      */
     int LuaGetIndex(lua_State* L)
     {
@@ -453,8 +511,19 @@ namespace dmGui
 
     /*# deletes a node
      *
+     * Deletes the specified node. Any child nodes of the specified node will be
+     * recursively deleted.
+     *
      * @name gui.delete_node
      * @param node [type:node] node to delete
+     * @examples
+     *
+     * Delete a particular node and any child nodes it might have:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * gui.delete_node(node)
+     * ```
      */
     int LuaDeleteNode(lua_State* L)
     {
@@ -963,6 +1032,7 @@ namespace dmGui
     }
 
     /*# cancels an ongoing animation
+     *
      * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
      *
      * @name gui.cancel_animation
@@ -979,6 +1049,21 @@ namespace dmGui
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
      * - `"slice9"` (slice9)
+     *
+     * @examples
+     *
+     * Start an animation of the position property of a node, then cancel parts of
+     * the animation:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * -- animate to new position
+     * local pos = vmath.vector3(100, 100, 0)
+     * gui.animate(node, "position", pos, go.EASING_LINEAR, 2)
+     * ...
+     * -- cancel animation of the x component.
+     * gui.cancel_animation(node, "position.x")
+     * ```
      */
     int LuaCancelAnimation(lua_State* L)
     {
@@ -2803,7 +2888,7 @@ namespace dmGui
     }
 
     /*# gets the node size mode
-     * Returns the size node of a node.
+     * Returns the size of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
      * size mode alters the node size based on the node's content.
      *

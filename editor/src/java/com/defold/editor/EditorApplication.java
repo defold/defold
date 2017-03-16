@@ -30,10 +30,10 @@ public class EditorApplication {
         openEditor.invoke(startInstance, new Object[] { args });
     }
 
-    public static void registerPreUpdateAction(Runnable action) throws Exception {
+    public static Object getPendingUpdate() throws Exception {
         // See comment next to startInstance why we use reflection here
-        Method registerPreUpdateAction = startInstance.getClass().getMethod("registerPreUpdateAction", Runnable.class);
-        registerPreUpdateAction.invoke(startInstance, action);
+        Method getPendingUpdate = startInstance.getClass().getMethod("getPendingUpdate");
+        return getPendingUpdate.invoke(startInstance);
     }
 
     public void run(String[] args) {
