@@ -373,7 +373,7 @@
                                                  (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}
                   :passes [pass/outline pass/selection]}
      :updatable scene-updatable
-     :children (mapv #(scene/prepend-node-path % _node-id) child-scenes)}))
+     :children child-scenes}))
 
 (g/defnode EmitterProperties
   (property emitter-key-spawn-rate CurveSpread (dynamic label (g/constantly "Spawn Rate")))
@@ -638,7 +638,7 @@
 
 (defn- render-pfx [^GL2 gl render-args renderables count]
   (doseq [renderable renderables
-          :let [node-id (last (scene/node-path renderable))]]
+          :let [node-id (last (:node-path renderable))]]
     (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
       (let [pfx-sim @pfx-sim-ref
             user-data (:user-data renderable)

@@ -87,4 +87,4 @@
                 (is (some? shape-scene))
                 (is (true? (contains? shape-scene :aabb)))
                 (is (true? (contains? shape-scene :renderable)))
-                (is (= [(:node-id shape-scene)] (scene/node-path shape-scene)))))))))))
+                (is (false? (contains? shape-scene :node-path)))))))))))
