@@ -1573,7 +1573,8 @@
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
   (output child-scenes g/Any :cached (g/fnk [default-scene layout-scenes current-layout]
-                                            [(get layout-scenes current-layout default-scene)]))
+                                       (let [node-tree-scene (get layout-scenes current-layout default-scene)]
+                                         (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
   (output template-scene g/Any :cached (g/fnk [scene child-scenes]
                                          (assoc scene :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes)))))
