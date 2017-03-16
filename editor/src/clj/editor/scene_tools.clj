@@ -362,6 +362,12 @@
     (.get m v)
     v))
 
+(defn- transform->rotation
+  [^Matrix4d m]
+  (let [r ^Quat4d (Quat4d.)]
+    (.get m r)
+    r))
+
 (defn- supported-manips
   [active-tool node-ids]
   (let [manips-fn (get-in transform-tools [active-tool :manips-fn])]
@@ -430,9 +436,8 @@
     (fn [start-pos pos]
       (let [[start-dir dir] (map #(doto (Vector3d.) (.sub % manip-pos) (.normalize)) [start-pos pos])
             manip-rotation (math/from-to->quat start-dir dir)]
-        (for [[node ^Matrix4d world-transform] original-values
-              :let [world-rotation (Quat4d.)
-                    _ (.get world-transform world-rotation)
+        (for [[node world-transform] original-values
+              :let [world-rotation (transform->rotation world-transform)
                     local-rotation (doto (Quat4d. world-rotation) (.conjugate) (.mul manip-rotation) (.mul world-rotation) (.normalize))]]
           (manip-rotate basis node local-rotation))))
     (:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz)
@@ -451,7 +456,8 @@
           (manip-scale basis node s))))))
 
 (defn- apply-manipulator [basis original-values manip start-action prev-action action camera viewport]
-  (let [manip-origin ^Vector3d (transform->translation (last (last original-values)))
+  (let [[_ world-transform] (last original-values)
+        manip-origin ^Vector3d (transform->translation world-transform)
         lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))
                          (doto (Matrix4d.) (.set manip-origin)))]
