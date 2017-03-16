@@ -58,17 +58,16 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.fileName = fileName;
     }
     
+    // For checking duplicate when constructing archive
     @Override
     public boolean equals(Object other){
         boolean result = this.getClass().equals(other.getClass());
-         if (result) {
-             ArchiveEntry entryOther = (ArchiveEntry)other;
-             result = this.fileName.equals(entryOther.fileName) 
-                     && this.relName.equals(entryOther.relName)
-                     && this.flags == entryOther.flags
-                     && this.compressedSize == entryOther.compressedSize
-                     && this.size == entryOther.size;
-         }
+        if (result) {
+            ArchiveEntry entryOther = (ArchiveEntry)other;
+            result = this.fileName.equals(entryOther.fileName) 
+                    && this.relName.equals(entryOther.relName)
+                    && this.flags == entryOther.flags;
+        }
         return result;
     }
     
@@ -88,7 +87,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         return left.length - right.length;
     }
 
-
+    // For sorting according to hash when building archive
     @Override
     public int compareTo(ArchiveEntry other) {
         if (this.hash == null) {

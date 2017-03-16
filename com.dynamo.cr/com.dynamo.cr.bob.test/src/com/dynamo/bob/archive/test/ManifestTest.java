@@ -444,7 +444,7 @@ public class ManifestTest {
 
         assertEquals(2, parents.get(0).size());
         assertEquals("/main/level2.collectionproxyc", parents.get(0).get(0));
-        assertEquals("/main/level1.collectionproxyc", parents.get(0).get(1)); // maybe
+        assertEquals("/main/level1.collectionproxyc", parents.get(0).get(1));
     }
 
     @Test

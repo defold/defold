@@ -70,13 +70,17 @@ public class ArchiveTest {
 
         return 0;
     }
+    
+    private ResourceNode addEntryToManifest(String filename, ResourceNode parent) throws IOException {
+        ResourceNode current = new ResourceNode(filename, FilenameUtils.concat(contentRoot, filename));
+        parent.addChild(current);
+        return current;
+    }
 
     private ResourceNode addEntry(String filename, String content, ArchiveBuilder archiveBuilder, ResourceNode parent) throws IOException {
         String filepath = createDummyFile(contentRoot, filename, filename.getBytes());
         archiveBuilder.add(filepath);
-        ResourceNode current = new ResourceNode(filename, FilenameUtils.concat(contentRoot, filename));
-        parent.addChild(current);
-        return current;
+        return addEntryToManifest(filename, parent);
     }
 
     @Before
@@ -331,6 +335,38 @@ public class ArchiveTest {
         assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // b32b3904944e63ed5a269caa47904645
         assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).relName);  // bc05302047f95ca60709254556402710
         assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
+    }
+    
+    @SuppressWarnings("unused")
+    @Test
+    public void testExcludeResource() throws Exception {
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+        ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
+        ResourceNode collection1 = addEntryToManifest("main.collectionc", root);
+        ResourceNode collectionproxy1 = addEntryToManifest("level1.collectionproxyc", collection1);
+        ResourceNode collectionproxy2 = addEntryToManifest("level2.collectionproxyc", collection1);
+        ResourceNode gameobject2 = addEntryToManifest("level2.goc", collectionproxy2); // should be excluded
+        ResourceNode gameobject11 = addEntryToManifest("level1.goc", collectionproxy1); // should be bundled
+        ResourceNode gameobject12 = addEntryToManifest("level1.goc", collectionproxy2);
+        
+        manifestBuilder.setDependencies(root);
+
+        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
+        excludedResources.add(new ResourceEntry("/level2.collectionproxyc", ""));
+        
+        byte[] buffer = "level 2 content".getBytes();
+        String normalisedPath = FilenameUtils.separatorsToUnix("/level2.goc");
+        manifestBuilder.addResourceEntry(normalisedPath, buffer);
+        buffer = "level 1 content".getBytes();
+        normalisedPath = FilenameUtils.separatorsToUnix("/level1.goc");
+        manifestBuilder.addResourceEntry(normalisedPath, buffer);
+        
+        // Test
+        assertFalse(instance.excludeResource("/level1.goc", excludedResources));
+        assertTrue(instance.excludeResource("/level2.goc", excludedResources));
     }
     
     @SuppressWarnings("unused")
