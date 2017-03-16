@@ -217,7 +217,7 @@ public class GameProjectBuilder extends Builder<Void> {
             boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
             archiveBuilder.add(s.resourceAbsPath, compress);
         }
-        
+
         Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());

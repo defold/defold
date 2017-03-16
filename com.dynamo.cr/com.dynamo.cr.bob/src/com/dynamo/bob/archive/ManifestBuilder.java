@@ -406,7 +406,7 @@ public class ManifestBuilder {
                         result.get(i).add(current.relativeFilepath);
                     }
                 }
-                
+
                 current = current.getParent();
             }
             ++i;

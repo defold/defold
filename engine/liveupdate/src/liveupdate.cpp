@@ -30,7 +30,7 @@ namespace dmLiveUpdate
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
     {
         uint32_t resourceCount = MissingResources(g_LiveUpdate.m_Manifest, urlHash, NULL, 0);
-        uint32_t unique_count = 0;
+        uint32_t uniqueCount = 0;
         if (resourceCount > 0)
         {
             uint8_t** resources = (uint8_t**) malloc(resourceCount * sizeof(uint8_t*));
@@ -39,34 +39,34 @@ namespace dmLiveUpdate
 
             dmLiveUpdateDDF::HashAlgorithm algorithm = g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
             uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
-            bool is_unique;
+            bool isUnique;
             char* scratch = (char*) malloc(hexDigestLength * sizeof(char*));
             for (uint32_t i = 0; i < resourceCount; ++i)
             {
-                is_unique = true;
+                isUnique = true;
                 
                 dmResource::HashToString(algorithm, resources[i], scratch, hexDigestLength);
-                for (int j = 0; j < unique_count; ++j) // only return unique hashes even if there are multiple resource instances in the collectionproxy
+                for (int j = 0; j < uniqueCount; ++j) // only return unique hashes even if there are multiple resource instances in the collectionproxy
                 {
                     if (memcmp((*buffer)[j], scratch, hexDigestLength) == 0)
                     {
-                        is_unique = false;
+                        isUnique = false;
                         break;
                     }
                 }
 
-                if (is_unique)
+                if (isUnique)
                 {
-                    (*buffer)[unique_count] = (char*) malloc(hexDigestLength * sizeof(char*));
-                    memcpy((*buffer)[unique_count], scratch, hexDigestLength);
-                    ++unique_count;
+                    (*buffer)[uniqueCount] = (char*) malloc(hexDigestLength * sizeof(char*));
+                    memcpy((*buffer)[uniqueCount], scratch, hexDigestLength);
+                    ++uniqueCount;
                 }
             }
             free(scratch);
             free(resources);
         }
 
-        return unique_count;
+        return uniqueCount;
     }
 
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
