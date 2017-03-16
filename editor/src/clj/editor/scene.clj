@@ -274,35 +274,28 @@
       (setup-pass context gl pass camera viewport)
       (batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(defn node-path [scene]
-  (or (:node-path scene) [(:node-id scene)]))
-
-(defn prepend-node-path [scene node-id]
-  (cond-> scene
-          true (assoc :node-path (into [node-id] (node-path scene)))
-          (contains? scene :children) (update :children (partial mapv #(prepend-node-path % node-id)))))
-
-(defn- flatten-scene [scene selection-set ^Matrix4d parent-world-transform out-renderables out-selected-renderables view-proj tmp-v4d]
+(defn- flatten-scene [scene selection-set node-path ^Matrix4d parent-world-transform out-renderables out-selected-renderables view-proj tmp-v4d]
   (let [renderable (:renderable scene)
         ^Matrix4d local-transform (or (:transform scene) geom/Identity4d)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
-        selected-id (some selection-set (node-path scene))
+        appear-selected? (some? (some selection-set node-path)) ; Child nodes appear selected if parent is.
         new-renderable (-> scene
-                         (dissoc :renderable)
-                         (assoc :render-fn (:render-fn renderable)
+                         (dissoc :children :renderable)
+                         (assoc :node-path node-path
+                                :render-fn (:render-fn renderable)
                                 :world-transform world-transform
                                 :parent-world-transform parent-world-transform
-                                :selected (some? selected-id)
+                                :selected appear-selected?
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
                                 :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
                                 :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
-      (when (and selected-id (types/selection? pass))
-        (conj! out-selected-renderables (assoc new-renderable :node-id selected-id))))
+      (when (and (types/selection? pass) (contains? selection-set (:node-id new-renderable)))
+        (conj! out-selected-renderables new-renderable)))
     (doseq [child-scene (:children scene)]
-      (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables view-proj tmp-v4d))))
+      (flatten-scene child-scene selection-set (conj node-path (:node-id child-scene)) world-transform out-renderables out-selected-renderables view-proj tmp-v4d))))
 
 (defn produce-render-data [scene selection aux-renderables camera]
   (let [selection-set (set selection)
@@ -311,8 +304,10 @@
         world-transform (doto (Matrix4d.) (.setIdentity))
         view-proj (c/camera-view-proj-matrix camera)
         tmp-v4d (Vector4d.)
-        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables view-proj tmp-v4d)
-        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
+        _ (flatten-scene scene selection-set [] world-transform out-renderables out-selected-renderables view-proj tmp-v4d)
+        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables)
+                                    out-renderables
+                                    (apply merge-with concat aux-renderables))
         out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables)))]) out-renderables))
         out-selected-renderables (persistent! out-selected-renderables)]
     {:renderables out-renderables
@@ -349,7 +344,7 @@
                                           (let [flat-renderables (apply concat (map second renderables))]
                                             (into {} (keep (fn [r]
                                                              (when-let [u (:updatable r)]
-                                                               (when (or (= (:node-id u) (:node-id r)) (= (:node-id u) (last (node-path r))))
+                                                               (when (or (= (:node-id u) (:node-id r)) (= (:node-id u) (last (:node-path r))))
                                                                  [(:node-id u) (assoc u :world-transform (:world-transform r))])))
                                                        flat-renderables)))))
   (output render-args g/Any :cached produce-render-args))
@@ -396,7 +391,7 @@
         (persistent! selected)))))
 
 (defn- picking-node-id [renderable]
-  (first (node-path renderable)))
+  (first (:node-path renderable)))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect

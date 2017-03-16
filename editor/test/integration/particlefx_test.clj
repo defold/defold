@@ -98,7 +98,7 @@
               (is (some? emitter-scene))
               (is (true? (contains? emitter-scene :aabb)))
               (is (true? (contains? emitter-scene :renderable)))
-              (is (= [(:node-id emitter-scene)] (scene/node-path emitter-scene)))
+              (is (false? (contains? emitter-scene :node-path)))
               (let [emitter-children (:children emitter-scene)]
                 (is (= 1 (count emitter-children)))
                 (testing "Local modifier scene"
@@ -106,10 +106,10 @@
                     (is (some? local-modifier-scene))
                     (is (true? (contains? local-modifier-scene :aabb)))
                     (is (true? (contains? local-modifier-scene :renderable)))
-                    (is (= [(:node-id emitter-scene) (:node-id local-modifier-scene)] (scene/node-path local-modifier-scene))))))))
+                    (is (false? (contains? local-modifier-scene :node-path))))))))
           (testing "Global modifier scene"
             (let [global-modifier-scene (test-util/find-child-scene particlefx/ModifierNode particle-fx-children)]
               (is (some? global-modifier-scene))
               (is (true? (contains? global-modifier-scene :aabb)))
               (is (true? (contains? global-modifier-scene :renderable)))
-              (is (= [(:node-id global-modifier-scene)] (scene/node-path global-modifier-scene))))))))))
+              (is (false? (contains? global-modifier-scene :node-path))))))))))
