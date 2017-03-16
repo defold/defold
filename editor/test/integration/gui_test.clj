@@ -540,4 +540,4 @@
                     (is (some? visual-scene))
                     (is (true? (contains? visual-scene :aabb)))
                     (is (true? (contains? visual-scene :renderable)))
-                    (is (= [(:node-id visual-scene)] (scene/node-path visual-scene)))))))))))))
+                    (is (false? (contains? visual-scene :node-path)))))))))))))
