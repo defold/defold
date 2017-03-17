@@ -276,7 +276,7 @@
 
 (defn- flatten-scene [scene selection-set node-path ^Matrix4d parent-world-transform out-renderables out-selected-renderables view-proj tmp-v4d]
   (let [renderable (:renderable scene)
-        ^Matrix4d local-transform (or (:transform scene) geom/Identity4d)
+        ^Matrix4d local-transform (:transform scene geom/Identity4d)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
         appear-selected? (some? (some selection-set node-path)) ; Child nodes appear selected if parent is.
         new-renderable (-> scene
@@ -305,9 +305,7 @@
         view-proj (c/camera-view-proj-matrix camera)
         tmp-v4d (Vector4d.)
         _ (flatten-scene scene selection-set [] world-transform out-renderables out-selected-renderables view-proj tmp-v4d)
-        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables)
-                                    out-renderables
-                                    (apply merge-with concat aux-renderables))
+        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
         out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables)))]) out-renderables))
         out-selected-renderables (persistent! out-selected-renderables)]
     {:renderables out-renderables
@@ -341,16 +339,30 @@
                                                       (when-let [u (:updatable r)]
                                                         {(:node-id u) u})) selected-renderables)))
   (output updatables g/Any :cached (g/fnk [renderables]
-                                          (let [flat-renderables (apply concat (map second renderables))]
-                                            (into {}
-                                                  (comp (filter (comp some? key))
-                                                        (map (fn [[updatable-node-id renderables]]
-                                                               (let [renderable (first (sort-by (comp count :node-path) renderables))
-                                                                     updatable (:updatable renderable)
-                                                                     world-transform (:world-transform renderable)
-                                                                     transformed-updatable (assoc updatable :world-transform world-transform)]
-                                                                 [updatable-node-id transformed-updatable]))))
-                                                  (group-by (comp :node-id :updatable) flat-renderables)))))
+                                     ;; Currently updatables are implemented as extra info on the renderables.
+                                     ;; The renderable associates an updatable with itself, which contains info
+                                     ;; about the updatable. The updatable is identified by a node-id, for example
+                                     ;; the id of a ParticleFXNode. In the case of ParticleFX, the same updatable
+                                     ;; is also associated with every sub-element of the ParticleFX scene, such
+                                     ;; as every emitter and modifier below it. This makes it possible to start
+                                     ;; playback of the owning ParticleFX scene while a modifier is selected.
+                                     ;; In order to find the owning ParticleFX scene so we can position the
+                                     ;; effect in the world, we find the renderable with the shortest node-path
+                                     ;; for that particular updatable.
+                                     ;;
+                                     ;; TODO:
+                                     ;; We probably want to change how this works to make it possible to have
+                                     ;; multiple instances of the same updatable in a scene.
+                                     (let [flat-renderables (apply concat (map second renderables))
+                                           renderables-by-updatable-node-id (dissoc (group-by (comp :node-id :updatable) flat-renderables) nil)]
+                                       (into {}
+                                             (map (fn [[updatable-node-id renderables]]
+                                                    (let [renderable (first (sort-by (comp count :node-path) renderables))
+                                                          updatable (:updatable renderable)
+                                                          world-transform (:world-transform renderable)
+                                                          transformed-updatable (assoc updatable :world-transform world-transform)]
+                                                      [updatable-node-id transformed-updatable])))
+                                             renderables-by-updatable-node-id))))
   (output render-args g/Any :cached produce-render-args))
 
 ;; Scene selection
@@ -395,6 +407,9 @@
         (persistent! selected)))))
 
 (defn- picking-node-id [renderable]
+  ;; Clicking in the viewport selects nodes directly below the scene node, not
+  ;; specific elements deeper in the hierarchy. The node-path contains all the
+  ;; SceneNode ids leading up to and including the renderable.
   (first (:node-path renderable)))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
