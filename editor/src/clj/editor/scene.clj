@@ -342,11 +342,15 @@
                                                         {(:node-id u) u})) selected-renderables)))
   (output updatables g/Any :cached (g/fnk [renderables]
                                           (let [flat-renderables (apply concat (map second renderables))]
-                                            (into {} (keep (fn [r]
-                                                             (when-let [u (:updatable r)]
-                                                               (when (or (= (:node-id u) (:node-id r)) (= (:node-id u) (last (:node-path r))))
-                                                                 [(:node-id u) (assoc u :world-transform (:world-transform r))])))
-                                                       flat-renderables)))))
+                                            (into {}
+                                                  (comp (filter (comp some? key))
+                                                        (map (fn [[updatable-node-id renderables]]
+                                                               (let [renderable (first (sort-by (comp count :node-path) renderables))
+                                                                     updatable (:updatable renderable)
+                                                                     world-transform (:world-transform renderable)
+                                                                     transformed-updatable (assoc updatable :world-transform world-transform)]
+                                                                 [updatable-node-id transformed-updatable]))))
+                                                  (group-by (comp :node-id :updatable) flat-renderables)))))
   (output render-args g/Any :cached produce-render-args))
 
 ;; Scene selection
@@ -453,7 +457,7 @@
   (input selected-updatables g/Any)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
-                                                 (mapv updatables (filter #(contains? updatables %) active-updatable-ids))))
+                                                 (into [] (keep updatables) active-updatable-ids)))
 
   (output selection g/Any (gu/passthrough selection))
   (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables]
