@@ -357,13 +357,13 @@
            :filter-fn (fn [n] (get-method manip-scale (:key @(g/node-type* n))))}})
 
 (defn- transform->translation
-  [^Matrix4d m]
+  ^Vector3d [^Matrix4d m]
   (let [v ^Vector3d (Vector3d.)]
     (.get m v)
     v))
 
 (defn- transform->rotation
-  [^Matrix4d m]
+  ^Quat4d [^Matrix4d m]
   (let [r ^Quat4d (Quat4d.)]
     (.get m r)
     r))
