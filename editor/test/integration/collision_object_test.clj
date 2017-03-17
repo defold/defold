@@ -1,12 +1,18 @@
 (ns integration.collision-object-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
+            [editor.collection :as collection]
             [editor.collision-object :as collision-object]
-            [editor.scene :as scene]
+            [editor.handler :as handler]
+            [editor.defold-project :as project]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]))
+            [editor.types :as types]
+            [editor.properties :as properties]
+            [integration.test-util :as test-util])
+  (:import [editor.types Region]
+           [javax.vecmath Point3d Matrix4d]))
 
 (defn- outline-seq
   [outline]
@@ -64,27 +70,3 @@
                  (doseq [[prop value] props]
                    (test-util/with-prop [shape prop value]
                     (is (g/error? (test-util/prop-error shape prop)))))))))))
-
-(deftest scene-hierarchy-test
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          collision-object (test-util/resource-node project "/scene_hierarchy/collision_object.collisionobject")
-          collision-object-scene (g/node-value collision-object :scene)]
-
-      (testing "Collision object scene"
-        (is (= collision-object (:node-id collision-object-scene)))
-        (is (true? (contains? collision-object-scene :aabb)))
-        (is (false? (contains? collision-object-scene :renderable)))
-        (is (false? (contains? collision-object-scene :node-path)))
-        (let [collision-object-children (:children collision-object-scene)]
-          (is (= 3 (count collision-object-children)))
-          (testing "Shape scenes"
-            (doseq [shape-node-type [collision-object/BoxShape
-                                     collision-object/CapsuleShape
-                                     collision-object/SphereShape]]
-              (let [shape-scene (test-util/find-child-scene shape-node-type collision-object-children)]
-                (is (some? shape-scene))
-                (is (true? (contains? shape-scene :aabb)))
-                (is (true? (contains? shape-scene :renderable)))
-                (is (false? (contains? shape-scene :node-path)))))))))))
