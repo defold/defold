@@ -1,0 +1,21 @@
+{
+	"steps": [
+		["switch-focus" 1],
+		["press" "Shortcut+Shift+R"],
+		["type" ".coll"],
+		["press" "Down"],
+		["press" "Enter"],
+		["wait" 1000],
+		["screen-capture" "collection"],
+		["press" "Shortcut+Shift+R"],
+		["type" ".script"],
+		["press" "Down"],
+		["press" "Enter"],
+		["wait" 1000],
+		["screen-capture" "script"],
+		["press" "Shortcut+B"],
+		["wait" 10000],
+		["screen-capture" "build"],
+		["press" "Shortcut+Q"],
+	]
+}
