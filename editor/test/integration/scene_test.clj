@@ -298,4 +298,15 @@
         [:house-node-id :door-node-id :door-handle-node-id]
 
         [:house-node-id :door-handle-node-id]
-        [:house-node-id :door-node-id :door-handle-node-id]))))
+        [:house-node-id :door-node-id :door-handle-node-id]))
+
+    (testing "Selected renderables are ordered"
+      (are [selection]
+        (let [selected-renderables (:selected-renderables (scene/produce-render-data scene selection [] camera))]
+          (is (= selection (mapv :node-id selected-renderables))))
+        [:house-node-id :door-node-id :door-handle-node-id]
+        [:door-handle-node-id :house-node-id :door-node-id]
+        [:door-node-id :door-handle-node-id :house-node-id]
+        [:door-handle-node-id :door-node-id :house-node-id]
+        [:house-node-id :door-handle-node-id :door-node-id]
+        [:door-node-id :house-node-id :door-handle-node-id]))))

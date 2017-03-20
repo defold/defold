@@ -475,7 +475,7 @@
                            tool                 (get transform-tools active-tool)
                            filter-fn            (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables {:basis basis}))
-                           original-values      (map #(vector (:node-id %) (:world-transform %) (:parent-world-transform %)) selected-renderables)]
+                           original-values      (map (juxt :node-id :world-transform :parent-world-transform) selected-renderables)]
                        (when (not (empty? original-values))
                          (g/transact
                             (concat
