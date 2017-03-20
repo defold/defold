@@ -274,42 +274,63 @@
       (setup-pass context gl pass camera viewport)
       (batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(defn- flatten-scene [scene selection-set node-path ^Matrix4d parent-world-transform out-renderables out-selected-renderables view-proj tmp-v4d]
+(defn- append-flattened-scene-renderables! [scene selection-set view-proj node-path parent-world-transform out-renderables tmp-v4d]
   (let [renderable (:renderable scene)
-        ^Matrix4d local-transform (:transform scene geom/Identity4d)
-        world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
+        local-transform ^Matrix4d (:transform scene geom/Identity4d)
+        world-transform (doto (Matrix4d. ^Matrix4d parent-world-transform) (.mul local-transform))
         appear-selected? (some? (some selection-set node-path)) ; Child nodes appear selected if parent is.
         new-renderable (-> scene
-                         (dissoc :children :renderable)
-                         (assoc :node-path node-path
-                                :render-fn (:render-fn renderable)
-                                :world-transform world-transform
-                                :parent-world-transform parent-world-transform
-                                :selected appear-selected?
-                                :user-data (:user-data renderable)
-                                :batch-key (:batch-key renderable)
-                                :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
-                                :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
+                           (dissoc :children :renderable)
+                           (assoc :node-path node-path
+                                  :render-fn (:render-fn renderable)
+                                  :world-transform world-transform
+                                  :parent-world-transform parent-world-transform
+                                  :selected appear-selected?
+                                  :user-data (:user-data renderable)
+                                  :batch-key (:batch-key renderable)
+                                  :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
+                                  :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
     (doseq [pass (:passes renderable)]
-      (conj! (get out-renderables pass) new-renderable)
-      (when (and (types/selection? pass) (contains? selection-set (:node-id new-renderable)))
-        (conj! out-selected-renderables new-renderable)))
+      (conj! (get out-renderables pass) new-renderable))
     (doseq [child-scene (:children scene)]
-      (flatten-scene child-scene selection-set (conj node-path (:node-id child-scene)) world-transform out-renderables out-selected-renderables view-proj tmp-v4d))))
+      (append-flattened-scene-renderables! child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-transform out-renderables tmp-v4d))))
+
+(defn- flatten-scene [scene selection-set view-proj]
+  (let [node-path []
+        parent-world-transform (doto (Matrix4d.) (.setIdentity))
+        out-renderables (into {} (map #(vector % (transient [])) pass/all-passes))
+        tmp-v4d (Vector4d.)]
+    (append-flattened-scene-renderables! scene selection-set view-proj node-path parent-world-transform out-renderables tmp-v4d)
+    (into {}
+          (map (fn [[pass renderables]]
+                 [pass (persistent! renderables)]))
+          out-renderables)))
+
+(defn- get-selection-pass-renderables-by-node-id
+  "Returns a map of renderables that were in a selection pass by their node id.
+  If a renderable appears in multiple selection passes, the one from the latter
+  pass will be picked. This should be fine, since the new-renderable produced
+  by flatten-scene-impl will be the same for all passes."
+  [renderables-by-pass]
+  (into {}
+        (comp (filter (comp types/selection? key))
+              (mapcat (fn [[_pass renderables]]
+                        (map (fn [renderable]
+                               [(:node-id renderable) renderable])
+                             renderables))))
+        renderables-by-pass))
 
 (defn produce-render-data [scene selection aux-renderables camera]
   (let [selection-set (set selection)
-        out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
-        out-selected-renderables (transient [])
-        world-transform (doto (Matrix4d.) (.setIdentity))
         view-proj (c/camera-view-proj-matrix camera)
-        tmp-v4d (Vector4d.)
-        _ (flatten-scene scene selection-set [] world-transform out-renderables out-selected-renderables view-proj tmp-v4d)
-        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
-        out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables)))]) out-renderables))
-        out-selected-renderables (persistent! out-selected-renderables)]
-    {:renderables out-renderables
-     :selected-renderables out-selected-renderables}))
+        scene-renderables-by-pass (flatten-scene scene selection-set view-proj)
+        selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id scene-renderables-by-pass)
+        selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)
+        aux-renderables-by-pass (apply merge-with concat aux-renderables)
+        all-renderables-by-pass (merge-with into scene-renderables-by-pass aux-renderables-by-pass)
+        sorted-renderables-by-pass (into {} (map (fn [[pass renderables]] [pass (vec (render-sort renderables))]) all-renderables-by-pass))]
+    {:renderables sorted-renderables-by-pass
+     :selected-renderables selected-renderables}))
 
 (g/defnk produce-render-args [^Region viewport camera all-renderables frame-version]
   (let [current-frame-version (if frame-version (swap! frame-version inc) 0)]
