@@ -309,8 +309,8 @@
 (defn- get-selection-pass-renderables-by-node-id
   "Returns a map of renderables that were in a selection pass by their node id.
   If a renderable appears in multiple selection passes, the one from the latter
-  pass will be picked. This should be fine, since the new-renderable produced
-  by flatten-scene-impl will be the same for all passes."
+  pass will be picked. This should be fine, since the new-renderable added
+  by append-flattened-scene-renderables! will be the same for all passes."
   [renderables-by-pass]
   (into {}
         (comp (filter (comp types/selection? key))
