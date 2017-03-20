@@ -430,24 +430,28 @@
 (defn- picking-node-id [renderable]
   ;; Clicking in the viewport selects nodes directly below the scene node, not
   ;; specific elements deeper in the hierarchy. The node-path contains all the
-  ;; SceneNode ids leading up to and including the renderable.
+  ;; SceneNode ids leading up to and including the renderable, however it does
+  ;; not include the id of the node representing the edited scene itself.
+  ;; If the node path is empty, that means the renderable produced by the edited
+  ;; scene itself is drawing to the selection pass. We should not pick against
+  ;; that since it is a ResourceNode, not a SceneNode.
   (first (:node-path renderable)))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
         (with-drawable-as-current drawable
           (let [render-args (generic-render-args viewport camera)]
-            (->> (for [pass pass/selection-passes
-                       :let [render-args (assoc render-args :pass pass)]]
-                   (do
-                     (begin-select gl select-buffer)
-                     (setup-pass gl-context gl pass camera viewport picking-rect)
-                     (let [renderables (get renderables pass)
-                           batches (batch-render gl render-args renderables true :select-batch-key)]
-                       (reverse (render-sort (end-select gl select-buffer renderables batches))))))
-              flatten
-              (mapv picking-node-id)))))
-    []))
+            (into []
+                  (comp (mapcat (fn [pass]
+                                  (let [render-args (assoc render-args :pass pass)]
+                                    (begin-select gl select-buffer)
+                                    (setup-pass gl-context gl pass camera viewport picking-rect)
+                                    (let [renderables (get renderables pass)
+                                          batches (batch-render gl render-args renderables true :select-batch-key)]
+                                      (reverse (render-sort (end-select gl select-buffer renderables batches)))))))
+                        (keep picking-node-id))
+                  pass/selection-passes))))
+      []))
 
 (g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
   (or (and tool-picking-rect
