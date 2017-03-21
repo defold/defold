@@ -53,7 +53,7 @@ namespace dmGameSystem
         dmGraphics::VertexElement ve[] =
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
                 {"normal", 2, 3, dmGraphics::TYPE_FLOAT, false},
         };
 
