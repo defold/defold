@@ -2,6 +2,7 @@ package com.dynamo.bob;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -9,13 +10,25 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+import org.apache.commons.io.IOUtils;
+
 import com.dynamo.bob.util.PathUtil;
 
 public class ClassLoaderResourceScanner implements IResourceScanner {
 
     @Override
-    public URL getResource(String path) {
-        return this.getClass().getClassLoader().getResource(path);
+    public InputStream openInputStream(String path) throws IOException {
+        return this.getClass().getClassLoader().getResource(path).openStream();
+    }
+
+    @Override
+    public boolean exists(String path) {
+        return this.getClass().getClassLoader().getResource(path) != null;
+    }
+
+    @Override
+    public boolean isFile(String path) {
+        return !this.getClass().getClassLoader().getResource(path).getFile().isEmpty();
     }
 
     private static void scanDir(File dir, String filter, Set<String> results) {
@@ -30,14 +43,20 @@ public class ClassLoaderResourceScanner implements IResourceScanner {
     private static void scanJar(URL resource, String filter, Set<String> results) throws IOException {
         String resPath = resource.getPath();
         String jarPath = resPath.replaceFirst("[.]jar[!].*", ".jar").replaceFirst("file:", "");
-        JarFile jarFile;
-        jarFile = new JarFile(jarPath);
-        Enumeration<JarEntry> entries = jarFile.entries();
-        while(entries.hasMoreElements()) {
-            JarEntry entry = entries.nextElement();
-            String entryName = entry.getName();
-            if(!entry.isDirectory() && PathUtil.wildcardMatch(entryName, filter)) {
-                results.add(entryName);
+        JarFile jarFile = null;
+        try {
+            jarFile = new JarFile(jarPath);
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while(entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                String entryName = entry.getName();
+                if(!entry.isDirectory() && PathUtil.wildcardMatch(entryName, filter)) {
+                    results.add(entryName);
+                }
+            }
+        } finally {
+            if (jarFile != null) {
+                IOUtils.closeQuietly(jarFile);
             }
         }
     }
