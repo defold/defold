@@ -560,7 +560,8 @@
                                  :blend-mode blend-mode)
                :batch-key {:texture gpu-texture :blend-mode blend-mode}
                :select-batch-key _node-id
-               :layer-index layer-index}))))
+               :layer-index layer-index
+               :topmost? true}))))
 
 (g/defnode ShapeNode
   (inherits VisualNode)

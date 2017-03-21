@@ -171,8 +171,8 @@
     (gl/gl-disable-vertex-attrib-array gl l)))
 
 (defn- find-attribute-index [attribute-name attributes]
-  (util/find-index (fn [attribute] (= attribute-name (:name attribute)))
-                   attributes))
+  (util/first-index-where (fn [attribute] (= attribute-name (:name attribute)))
+                          attributes))
 
 (defn- bind-vertex-buffer! [^GL2 gl request-id ^VertexBuffer vertex-buffer]
   (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)
