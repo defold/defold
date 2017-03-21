@@ -3,10 +3,8 @@
   (:refer-clojure :exclude [repeat])
   (:require [editor.gl.protocols :as p])
   (:import [java.awt Font]
-           [java.util WeakHashMap]
            [java.nio IntBuffer]
            [com.jogamp.opengl GL GL2 GLDrawableFactory GLProfile]
-           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d]
            [com.jogamp.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
@@ -127,14 +125,14 @@
      (let [res# (do ~@body)]
        (doseq [b# (reverse items#)]
          (when (satisfies? p/GlBind b#)
-           (p/unbind b# gl#)))
+           (p/unbind b# gl# render-args#)))
        res#)))
 
 (defn bind [^GL2 gl bindable render-args]
   (p/bind bindable gl render-args))
 
-(defn unbind [^GL2 gl bindable]
-  (p/unbind bindable gl))
+(defn unbind [^GL2 gl bindable render-args]
+  (p/unbind bindable gl render-args))
 
 (defmacro do-gl
   [glsymb render-args bindings & body]

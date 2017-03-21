@@ -143,8 +143,10 @@
           wz (min 1.0 (max 0.0 (* (+ ndc-z 1.0) 0.5)))]
       (long (* Integer/MAX_VALUE (max 0.0 wz))))))
 
-(defn render-key [^Matrix4d view-proj ^Matrix4d world-transform tmp-v4d]
-  (- Long/MAX_VALUE (z-distance view-proj world-transform tmp-v4d)))
+(defn- render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? tmp-v4d]
+  [(boolean topmost?)
+   (- Long/MAX_VALUE (z-distance view-proj world-transform tmp-v4d))
+   (or index 0)])
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -288,7 +290,7 @@
                                 :user-data (:user-data renderable)
                                 :batch-key (:batch-key renderable)
                                 :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world)
-                                :render-key (:index renderable (render-key view-proj world-transform tmp-v4d))))]
+                                :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable)
       (when (and selected-id (types/selection? pass))
@@ -365,8 +367,8 @@
 
 (defn- parse-select-buffer [hits ^IntBuffer select-buffer]
   (loop [offset 0
-        hits-left hits
-        selected-names []]
+         hits-left hits
+         selected-names []]
    (if (> hits-left 0)
      (let [name-count (int (.get select-buffer offset))
            min-z (unsigned-int (.get select-buffer (+ offset 1)))
@@ -390,8 +392,7 @@
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
         (with-drawable-as-current drawable
-          (let [render-args (generic-render-args viewport camera)
-                selection-set (set selection)]
+          (let [render-args (generic-render-args viewport camera)]
             (->> (for [pass pass/selection-passes
                        :let [render-args (assoc render-args :pass pass)]]
                    (do
@@ -399,7 +400,7 @@
                      (setup-pass gl-context gl pass camera viewport picking-rect)
                      (let [renderables (get renderables pass)
                            batches (batch-render gl render-args renderables true :select-batch-key)]
-                       (render-sort (end-select gl select-buffer renderables batches)))))
+                       (reverse (render-sort (end-select gl select-buffer renderables batches))))))
               flatten
               (mapv :node-id)))))
     []))

@@ -16,3 +16,4 @@ pom.xml.asc
 /resources/_unpack/
 /.cache
 /resources/editor.css
+/editor2.*.log

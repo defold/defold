@@ -206,7 +206,7 @@ public:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
 
         dmMessage::NewSocket("test_m_Socket", &m_Socket);
