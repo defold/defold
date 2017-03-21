@@ -283,7 +283,7 @@
         (ui/default-render-progress-now! (progress/make "Building..."))
         (ui/->future 0.01
           (fn []
-            (let [build (build-project project prefs bob/build-html5 build-errors-view)]
+            (let [build (build-project project prefs bob/build-html5! build-errors-view)]
               (when (and (future? build) @build)
                 (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
                   (when (.isSupported desktop Desktop$Action/BROWSE)
@@ -766,7 +766,28 @@
   (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
 (handler/defhandler :bundle :global
-  (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [project prefs web-server build-errors-view changes-view]
+       (console/clear-console!)
+       (let [build-options {:release-mode? true
+                            :generate-build-report? false
+                            :publish-live-update-content? false
+                            :output-directory (io/file (workspace/build-path (project/workspace project)) "__bundle") ; TODO: TEST. REMOVE!
+                            :clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+                            :render-error! (fn [errors]
+                                             (ui/run-later
+                                               (build-errors-view/update-build-errors
+                                                 build-errors-view
+                                                 errors)))}]
+         ;; We need to save because bob reads from FS
+         (project/save-all! project
+                            (fn []
+                              (changes-view/refresh! changes-view)
+                              (ui/default-render-progress-now! (progress/make "Bundling..."))
+                              (ui/->future 0.01
+                                           (fn []
+                                             (deref (bob/bundle-macos! project prefs build-options))
+                                             (ui/default-render-progress-now! progress/done))))))))
 
 (defn- fetch-libraries [workspace project prefs]
   (let [library-url-string (project/project-dependencies project)
