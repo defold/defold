@@ -64,8 +64,7 @@
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (io/as-file [this] file)
-  (io/as-url [this] (.toURL (.toURI file))))
+  (io/as-file [this] file))
 
 (core/register-read-handler!
  "file-resource"
@@ -136,8 +135,7 @@
   (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
 
   io/Coercions
-  (io/as-file [this] (when (= (.getPath zip-url) (.getFile zip-url)) (io/file (.getFile zip-url))))
-  (io/as-url [this] (URL. (format "jar:%s!/%s" (.toString zip-url) path))))
+  (io/as-file [this] (when (= (.getPath zip-url) (.getFile zip-url)) (io/file (.getFile zip-url)))))
 
 (core/register-record-type! ZipResource)
 
