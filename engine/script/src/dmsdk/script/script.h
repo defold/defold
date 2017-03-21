@@ -251,8 +251,17 @@ namespace dmScript
      */
     lua_State* GetMainThread(lua_State* L);
 
+    /*# Lua wrapper for a buffer
+     * 
+     * Holds info about the buffer and who owns it
+     */
+    struct LuaHBuffer
+    {
+        dmBuffer::HBuffer   m_Buffer;
+        bool                m_UseLuaGC;     //!< If true, Lua will delete the buffer in the Lua GC phase
+    };
 
-    /*# check if the value at #index is a HBuffer
+    /*# check if the value at #index is a dmScript::LuaHBuffer
      *
      * @name dmScript::IsBuffer
      * @param L [type:lua_State*] lua state
@@ -267,9 +276,24 @@ namespace dmScript
      *
      * @name dmScript::PushBuffer
      * @param L [type:lua_State*] lua state
-     * @param buffer [type:dmBuffer::HBuffer] buffer to push
+     * @param buffer [type:dmScript::LuaHBuffer] buffer to push
+     * @examples
+     *
+     * How to push a buffer and give Lua ownership of the buffer (GC)
+     *
+     * ```cpp
+     * dmScript::LuaHBuffer luabuf = { buffer, true };
+     * PushBuffer(L, luabuf);
+     * ```
+     *
+     * How to push a buffer and keep ownership in C++
+     *
+     * ```cpp
+     * dmScript::LuaHBuffer luabuf = { buffer, false };
+     * PushBuffer(L, luabuf);
+     * ```
      */
-    void PushBuffer(lua_State* L, dmBuffer::HBuffer buffer);
+    void PushBuffer(lua_State* L, const LuaHBuffer& buffer);
 
     /*# retrieve a HBuffer from the supplied lua state
      *
@@ -278,9 +302,9 @@ namespace dmScript
      * @name dmScript::CheckBuffer
      * @param L [type:lua_State*] lua state
      * @param index [type:int] Index of the value
-     * @return buffer [type:dmBuffer::HBuffer*] pointer to dmBuffer::HBuffer
+     * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer
      */
-    dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index);
+    LuaHBuffer* CheckBuffer(lua_State* L, int index);
 }
 
 #endif // DMSDK_SCRIPT_H

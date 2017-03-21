@@ -4,4 +4,25 @@
             -fx-background-color: $dark-black-light;
         }
     }
+
+    // Only show the orange selection highlight while the tree view has input focus.
+    #resources-tree {
+        .tree-cell {
+            &:filled {
+                &:selected {
+                    -fx-border-color: transparent;
+                }
+            }
+        }
+
+        &:focused {
+            .tree-cell {
+                &:filled {
+                    &:selected {
+                        -fx-border-color: $defold-orange;
+                    }
+                }
+            }
+        }
+    }
 }

@@ -27,7 +27,7 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/message");
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -581,7 +581,7 @@ TEST_F(MessageTest, MessagePostDispatch)
 
     // Here we assume the code invoked a message, which later will complete (actual example: http_service.cpp which will post a response later on)
     dmGameObject::Delete(m_Collection, instance);
-    
+
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     dmGameObject::PostUpdate(m_Collection);
 
