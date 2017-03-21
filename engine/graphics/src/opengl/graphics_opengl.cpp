@@ -663,7 +663,7 @@ static void LogFrameBufferError(GLenum status)
 
     #define WRAP_GLFW_NATIVE_HANDLE_CALL(return_type, func_name) return_type GetNative##func_name() { return glfwGet##func_name(); }
 
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUVWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIWindow);
     WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIView);
     WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSEAGLContext);
     WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSWindow);

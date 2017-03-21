@@ -8,18 +8,15 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.defold-project :as project]
-            [editor.defold-project-search :as project-search]
             [editor.github :as github]
             [service.log :as log])
   (:import [java.io File]
            [java.nio.file Path Paths]
-           [java.util Collection List]
            [java.util.regex Pattern]
-           [javafx.animation AnimationTimer]
            [javafx.event Event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button Label ListView ProgressBar TextField TreeItem TreeView]
+           [javafx.scene.control Button Label ListView ProgressBar TextArea TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout Region]
@@ -90,15 +87,16 @@
      :render-progress-fn (fn [progress]
                            (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
 
-(defn make-alert-dialog [message]
-  (let [root     ^Parent (ui/load-fxml "alert.fxml")
-        stage    (ui/make-dialog-stage)
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["message" "ok"])]
+(defn make-alert-dialog [text]
+  (let [root ^Parent (ui/load-fxml "alert.fxml")
+        stage (ui/make-dialog-stage)
+        scene (Scene. root)]
     (observe-focus stage)
     (ui/title! stage "Alert")
-    (ui/text! (:message controls) message)
-    (ui/on-action! (:ok controls) (fn [_] (.close stage)))
+    (ui/with-controls root [^TextArea message ^Button ok]
+      (ui/text! message text)
+      (ui/on-action! ok (fn [_] (.close stage)))
+      (.setOnShown stage (ui/event-handler _ (.setScrollTop message 0.0))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
@@ -386,114 +384,6 @@
                                     (f arg items)))}
                   (merge options))]
     (make-select-list-dialog items options)))
-
-(defrecord MatchContextResource [parent-resource line caret-position match]
-  resource/Resource
-  (children [this]      [])
-  (ext [this]           (resource/ext parent-resource))
-  (resource-name [this] (format "%d: %s" (inc line) match))
-  (resource-type [this] (resource/resource-type parent-resource))
-  (source-type [this]   (resource/source-type parent-resource))
-  (read-only? [this]    (resource/read-only? parent-resource))
-  (path [this]          (resource/path parent-resource))
-  (abs-path [this]      (resource/abs-path parent-resource))
-  (proj-path [this]     (resource/proj-path parent-resource))
-  (workspace [this]     (resource/workspace parent-resource))
-  (resource-hash [this] (resource/resource-hash parent-resource)))
-
-(defn- make-match-tree-item [resource {:keys [line caret-position match]}]
-  (TreeItem. (->MatchContextResource resource line caret-position match)))
-
-(defn- insert-search-result [^List tree-items search-result]
-  (let [{:keys [resource matches]} search-result
-        match-items (map (partial make-match-tree-item resource) matches)
-        resource-item (TreeItem. resource)]
-    (.setExpanded resource-item true)
-    (-> resource-item .getChildren (.addAll ^Collection match-items))
-    (.add tree-items resource-item)))
-
-(defn- seconds->nanoseconds [seconds]
-  (long (* 1000000000 seconds)))
-
-(defn- start-tree-update-timer! [^TreeView tree-view poll-fn]
-  (let [tree-items (.getChildren (.getRoot tree-view))
-        first-match? (volatile! true)
-        timer (ui/->timer "tree-update-timer"
-                          (fn [^AnimationTimer timer _dt]
-                            (let [start-time (System/nanoTime)
-                                  end-time (+ start-time (seconds->nanoseconds (/ 1 90)))]
-                              (loop [poll-time 0]
-                                (when (> end-time poll-time)
-                                  (when-let [entry (poll-fn)]
-                                    (if (= ::project-search/done entry)
-                                      (.stop timer)
-                                      (do (insert-search-result tree-items entry)
-                                          (when first-match?
-                                            (-> tree-view .getSelectionModel (.clearAndSelect 1))
-                                            (vreset! first-match? false))
-                                          (recur (System/nanoTime))))))))))]
-    (.clear tree-items)
-    (ui/timer-start! timer)
-    timer))
-
-(defn make-search-in-files-dialog [project]
-  (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
-        stage     (ui/make-dialog-stage (ui/main-stage))
-        scene     (Scene. root)
-        controls  (ui/collect-controls root ["resources-tree" "ok" "search" "types"])
-        return    (atom nil)
-        close     (fn [] (reset! return (ui/selection (:resources-tree controls))) (.close stage))
-        term-field ^TextField (:search controls)
-        exts-field ^TextField (:types controls)
-        tree-view ^TreeView (:resources-tree controls)
-        start-consumer! (partial start-tree-update-timer! tree-view)
-        stop-consumer! ui/timer-stop!
-        report-error! (fn [error] (ui/run-later (throw error)))
-        file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
-        {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
-        on-input-changed! (fn [_ _ _] (start-search! (.getText term-field) (.getText exts-field)))]
-    (observe-focus stage)
-    (ui/title! stage "Search in Files")
-    (.setShowRoot tree-view false)
-    (.setRoot tree-view (doto (TreeItem.)
-                          (.setExpanded true)))
-
-    (ui/on-closed! stage (fn on-closed! [_] (abort-search!)))
-    (ui/on-action! (:ok controls) (fn on-action! [_] (close)))
-    (ui/on-double! (:resources-tree controls) (fn on-double! [_] (close)))
-
-    (ui/cell-factory! (:resources-tree controls) (fn [r] (if (instance? MatchContextResource r)
-                                                           {:text (resource/resource-name r)
-                                                            :icon (workspace/resource-icon r)
-                                                            :style (resource/style-classes r)}
-                                                           {:text (resource/proj-path r)
-                                                            :icon (workspace/resource-icon r)
-                                                            :style (resource/style-classes r)})))
-
-    (ui/observe (.textProperty term-field) on-input-changed!)
-    (ui/observe (.textProperty exts-field) on-input-changed!)
-
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-      (ui/event-handler event
-                        (let [code (.getCode ^KeyEvent event)]
-                          (when (cond
-                                  (= code KeyCode/DOWN)   (ui/request-focus! (:resources-tree controls))
-                                  (= code KeyCode/ESCAPE) true
-                                  (= code KeyCode/ENTER)  (do (reset! return (ui/selection (:resources-tree controls)))
-                                                              true)
-                                  :else                   false)
-                            (.close stage)))))
-
-    (.setScene stage scene)
-    (ui/show-and-wait-throwing! stage)
-
-    (let [resource (first @return)]
-      (cond
-        (instance? MatchContextResource resource)
-        [(:parent-resource resource) {:caret-position (:caret-position resource)}]
-
-        :else
-        [resource {}]))))
 
 (defn make-new-folder-dialog [base-dir]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")

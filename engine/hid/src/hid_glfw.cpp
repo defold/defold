@@ -173,6 +173,7 @@ namespace dmHID
                 for (int i = 0; i < n_touch; ++i)
                 {
                     packet->m_Touches[i].m_TapCount = glfw_touch[i].TapCount;
+                    packet->m_Touches[i].m_Id = glfw_touch[i].Id;
                     packet->m_Touches[i].m_Phase = (dmHID::Phase) glfw_touch[i].Phase;
                     packet->m_Touches[i].m_X = glfw_touch[i].X;
                     packet->m_Touches[i].m_Y = glfw_touch[i].Y;

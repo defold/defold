@@ -54,14 +54,14 @@
     (scene-cache/request-object! cache-id request-id gl texture-data))
 
   GlBind
-  (bind [this gl _]
+  (bind [this gl _render-args]
     (let [tex (->texture this gl)]
       (.glActiveTexture ^GL2 gl unit)
       (.enable tex gl)
       (.bind tex gl)
       (apply-params gl tex params)))
 
-  (unbind [this gl]
+  (unbind [this gl _render-args]
     (let [tex (->texture this gl)]
       (.disable tex gl))
     (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0)))
