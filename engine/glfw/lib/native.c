@@ -7,7 +7,7 @@
 // Expose stubs returning NULL for handles not available on current platform.
 //========================================================================
 #if !defined(__MACH__)
-    GLFW_EXPOSE_NATIVE_STUB(id, iOSUVWindow);
+    GLFW_EXPOSE_NATIVE_STUB(id, iOSUIWindow);
     GLFW_EXPOSE_NATIVE_STUB(id, iOSUIView);
     GLFW_EXPOSE_NATIVE_STUB(id, iOSEAGLContext);
     GLFW_EXPOSE_NATIVE_STUB(id, OSXNSWindow);
@@ -19,7 +19,7 @@
     GLFW_EXPOSE_NATIVE_STUB(id, OSXNSView);
     GLFW_EXPOSE_NATIVE_STUB(id, OSXNSOpenGLContext);
     #else
-    GLFW_EXPOSE_NATIVE_STUB(id, iOSUVWindow);
+    GLFW_EXPOSE_NATIVE_STUB(id, iOSUIWindow);
     GLFW_EXPOSE_NATIVE_STUB(id, iOSUIView);
     GLFW_EXPOSE_NATIVE_STUB(id, iOSEAGLContext);
     #endif

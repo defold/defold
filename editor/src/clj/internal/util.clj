@@ -234,7 +234,18 @@
       (and (= (first coll) (first subcoll))
            (recur (next coll) (next subcoll))))))
 
-(defn find-index
+(defn first-where
+  "Returns the first element in coll where pred returns true, or nil if there was
+  no matching element. If coll is a map, key-value pairs are passed to pred."
+  [pred coll]
+  (loop [elems coll]
+    (when (seq elems)
+      (let [elem (first elems)]
+        (if (pred elem)
+          elem
+          (recur (next elems)))))))
+
+(defn first-index-where
   "Returns the index of the first element in coll where pred returns true,
   or nil if there was no matching element. If coll is a map, key-value
   pairs are passed to pred."
