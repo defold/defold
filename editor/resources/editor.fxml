@@ -139,6 +139,11 @@
                                                     </AnchorPane>
                                                   </content>
                                               </Tab>
+                                              <Tab id="search-results-tab" text="Search Results">
+                                                  <content>
+                                                      <AnchorPane id="search-results-container" prefHeight="180.0" prefWidth="200.0" />
+                                                  </content>
+                                              </Tab>
                                               <Tab id="graph-tab" text="Graph">
                                                   <content>
                                                     <AnchorPane prefHeight="180.0" prefWidth="200.0">
