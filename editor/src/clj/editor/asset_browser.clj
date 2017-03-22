@@ -101,7 +101,7 @@
                  {:label "Paste"
                   :command :paste
                   :acc "Shortcut+V"}
-                 {:label "Rename"
+                 {:label "Rename..."
                   :command :rename}
                  {:label "Delete"
                   :command :delete
@@ -157,7 +157,8 @@
           files)))
 
 (defn rename [resource ^String new-name]
-  (when resource
+  (when (and resource
+             (not= (resource/resource-name resource) new-name))
     (let [workspace (resource/workspace resource)
           src-file  (File. (resource/abs-path resource))
           src-files (vec (file-seq src-file))
@@ -316,16 +317,17 @@
   (run [selection]
     (let [resource (first selection)
           dir? (= :folder (resource/source-type resource))
-          ext (:ext (resource/resource-type resource))
-          ^String new-name (dialogs/make-rename-dialog
-                             (if dir? "Rename folder" "Rename file")
-                             (if dir? "New folder name" "New file name")
-                             (if dir?
-                               (resource/resource-name resource)
-                               (string/replace (resource/resource-name resource)
-                                               (re-pattern (str "." ext))
-                                               ""))
-                             ext)]
+          extension (:ext (resource/resource-type resource))
+          name (if dir?
+                 (resource/resource-name resource)
+                 (if (seq extension)
+                   (string/replace (resource/resource-name resource)
+                                   (re-pattern (str "\\." extension "$"))
+                                   "")
+                   (resource/resource-name resource)))
+          options {:title (if dir? "Rename Folder" "Rename File")
+                   :label (if dir? "New Folder Name" "New File Name")}
+          new-name (dialogs/make-rename-dialog name extension options)]
       (rename resource new-name))))
 
 (handler/defhandler :delete :asset-browser
