@@ -53,11 +53,6 @@
 (defn- project-title [project]
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
-    
-(defn- build-html5-output-path [project]
-  (let [ws (project/workspace project)
-        build-path (workspace/build-path ws)]
-    (str build-path "__htmlLaunchDir")))
 
 (defn- root-task ^Task [^Task task]
   (if-let [parent (.getProductOf task)]
@@ -126,26 +121,12 @@
           (.findSources bob-project proj-path skip-dirs)
           (run-commands project bob-project build-options bob-commands))))))
 
-(defn- handler [project {:keys [url method headers]}]
-  (if (= method "GET")
-    (let [path (-> url
-                 (subs (count html5-url-prefix))
-                 (URLDecoder/decode "UTF-8"))
-          path (format "%s/%s%s" (build-html5-output-path project) (project-title project) path)
-          f (io/file path)]
-      (if (.exists f)
-        (let [length (.length f)
-              response {:code 200
-                        :response-headers {"Content-Length" (str length)}
-                        :body f}]
-          response)
-        {:code 404}))))
-
-(defn html5-handler [project req-headers]
-  (handler project req-headers))
-
 (defn- boolean? [value]
   (or (false? value) (true? value)))
+
+;; -----------------------------------------------------------------------------
+;; Bundling
+;; -----------------------------------------------------------------------------
 
 (defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? output-directory] :as _build-options}]
   (assert (boolean? release-mode?))
@@ -175,6 +156,21 @@
             email (assoc "email" email)
             auth (assoc "auth" auth))))
 
+(defn bundle-macos! [project prefs build-options]
+  (let [bob-commands ["distclean" "build" "bundle"]
+        bob-args (merge (generic-bundle-bob-args prefs build-options)
+                        {"platform" "x86-darwin"})]
+    (bob-build! project bob-commands bob-args build-options)))
+
+;; -----------------------------------------------------------------------------
+;; Build HTML5
+;; -----------------------------------------------------------------------------
+
+(defn- build-html5-output-path [project]
+  (let [ws (project/workspace project)
+        build-path (workspace/build-path ws)]
+    (str build-path "__htmlLaunchDir")))
+
 (defn build-html5! [project prefs build-options]
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
@@ -190,8 +186,20 @@
                          compress-archive? (assoc "compress" "true"))]
     (bob-build! project bob-commands bob-args build-options)))
 
-(defn bundle-macos! [project prefs build-options]
-  (let [bob-commands ["distclean" "build" "bundle"]
-        bob-args (merge (generic-bundle-bob-args prefs build-options)
-                        {"platform" "x86-darwin"})]
-    (bob-build! project bob-commands bob-args build-options)))
+(defn- handler [project {:keys [url method headers]}]
+  (if (= method "GET")
+    (let [path (-> url
+                 (subs (count html5-url-prefix))
+                 (URLDecoder/decode "UTF-8"))
+          path (format "%s/%s%s" (build-html5-output-path project) (project-title project) path)
+          f (io/file path)]
+      (if (.exists f)
+        (let [length (.length f)
+              response {:code 200
+                        :response-headers {"Content-Length" (str length)}
+                        :body f}]
+          response)
+        {:code 404}))))
+
+(defn html5-handler [project req-headers]
+  (handler project req-headers))
