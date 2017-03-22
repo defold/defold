@@ -357,11 +357,15 @@
                                       (commit-fn nil)))))
   (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
 
-(defn ^Parent load-fxml [path]
-  (let [root ^Parent (FXMLLoader/load (io/resource path))
-        css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
+(defn apply-css! [^Styleable root]
+  (let [css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
     (when (.exists css)
-      (.. root getStylesheets (add (str (.toURI css)))))
+      (.. root getStylesheets (add (str (.toURI css))))))
+  nil)
+
+(defn ^Parent load-fxml [path]
+  (let [root ^Parent (FXMLLoader/load (io/resource path))]
+    (apply-css! root)
     root))
 
 (extend-type Window
