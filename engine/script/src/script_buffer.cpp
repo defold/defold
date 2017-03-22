@@ -26,7 +26,7 @@ namespace dmScript
      * Functions for manipulating buffers and streams
      *
      * @document
-     * @name Buffers
+     * @name Buffer
      * @namespace buffer
      */
 
@@ -283,19 +283,24 @@ namespace dmScript
         return 0;
     }
 
-    /*# Creates a buffer
+    /*# creates a new buffer
+     *
+     * Create a new data buffer containing a specified set of streams. A data buffer
+     * can contain one or more streams with typed data. This is useful for managing
+     * compound data, for instance a vertex buffer could contain separate streams for
+     * vertex position, color, normal etc.
      *
      * @name buffer.create
      * @param element_count [type:number] The number of elements the buffer should hold
      * @param declaration [type:table] A table where each entry (table) describes a stream
      *
-     * - [type:dmhash_t|string] `name`: The name of the stream
+     * - [type:hash|string] `name`: The name of the stream
      * - [type:constant] `type`: The data type of the stream
      * - [type:number] `count`: The number of values each element should hold
-     * 
+     *
      * @examples
      * How to create and initialize a buffer
-     * 
+     *
      * ```lua
      * function init(self)
      *   local size = 128
@@ -305,9 +310,9 @@ namespace dmScript
      *   for y=0,self.height-1 do
      *      for x=0,self.width-1 do
      *          local index = y * self.width * 3 + x * 3 + 1
-     *          self.stream[index + 0] = self.r
-     *          self.stream[index + 1] = self.g
-     *          self.stream[index + 2] = self.b
+     *          self.imagestream[index + 0] = self.r
+     *          self.imagestream[index + 1] = self.g
+     *          self.imagestream[index + 2] = self.b
      *      end
      *   end
      * ```
@@ -367,13 +372,14 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Gets a stream from a buffer
+    /*# gets a stream from a buffer
+     *
+     * Get a specified stream from a buffer.
      *
      * @name buffer.get_stream
-     * @param buffer [type:buffer]
-     * @param stream_name [type:hash|string]
-     * @return stream [type:bufferstream] Returns the stream
+     * @param buffer [type:buffer] the buffer to get the stream from
+     * @param stream_name [type:hash|string] the stream name
+     * @return stream [type:bufferstream] the data stream
     */
     static int GetStream(lua_State* L)
     {
@@ -385,24 +391,22 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Copies data from one stream to another.
+    /*# copies data from one stream to another
      *
-     * Some notes:
+     * Copy a specified amount of data from one stream to another.
      *
-     * - The value type must match in both streams
-     *
-     * - The source and destination streams can be the same.
+     * [icon:attention] The value type must match between source and destination streams.
+     * The source and destination streams can be the same.
      *
      * @name buffer.copy_stream
-     * @param dst       [type:bufferstream] The destination stream
-     * @param dstoffset [type:number] The offset to start copying data to
-     * @param src       [type:bufferstream] The input data
-     * @param srcoffset [type:number] The offset to start copying data from
-     * @param count     [type:number] The number of values to copy
+     * @param dst [type:bufferstream] the destination stream
+     * @param dstoffset [type:number] the offset to start copying data to
+     * @param src [type:bufferstream] the source data stream
+     * @param srcoffset [type:number] the offset to start copying data from
+     * @param count [type:number] the number of values to copy
      *
      * @examples
-     * How to update a texture of a sprite
+     * How to update a texture of a sprite:
      *
      * ```lua
      * -- copy entire stream
@@ -462,21 +466,20 @@ namespace dmScript
         return 0;
     }
 
-    /*#
-     * Copies data from one buffer to another, element wise (e.g. vertices)
-     * Each of the source streams must exist in the destination buffer.
-     * Each stream is matched with both type and type count.
+    /*# copies one buffer to another
      *
-     * Some notes
+     * Copy all data streams from one buffer to another, element wise.
      *
-     * - The source and destination buffer can be the same.
+     * [icon:attention] Each of the source streams must have a matching stream in the
+     * destination buffer. The streams must match in both type and size.
+     * The source and destination buffer can be the same.
      *
      * @name buffer.copy_buffer
-     * @param dst       [type:buffer] The destination stream
-     * @param dstoffset [type:number] The offset to start copying data to
-     * @param src       [type:buffer] The input data
-     * @param srcoffset [type:number] The offset to start copying data from
-     * @param count     [type:number] The number of elements to copy
+     * @param dst [type:buffer] the destination buffer
+     * @param dstoffset [type:number] the offset to start copying data to
+     * @param src [type:buffer] the source data buffer
+     * @param srcoffset [type:number] the offset to start copying data from
+     * @param count [type:number] the number of elements to copy
      *
      * @examples
      * How to copy elements (e.g. vertices) from one buffer to another
@@ -586,14 +589,14 @@ namespace dmScript
     }
 
 
-    /*# get the bytes from a stream
-     * 
-     * Gets the bytes from a stream
+    /*# gets data from a stream
+     *
+     * Get all the bytes from a specified stream as a Lua string.
      *
      * @name buffer.get_bytes
-     * @param buffer        [type:buffer] The source buffer
-     * @param stream_name   [type:hash] The name of the stream
-     * @return string       [type:string] The buffer as a Lua string
+     * @param buffer [type:buffer] the source buffer
+     * @param stream_name [type:hash] the name of the stream
+     * @return data [type:string] the buffer data as a Lua string
     */
     static int GetBytes(lua_State* L)
     {
