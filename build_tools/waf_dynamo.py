@@ -567,6 +567,13 @@ Task.task_type_from_func('app_bundle',
                          #color = 'RED',
                          after  = 'cxx_link cc_link static_link')
 
+
+AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
+
+def authenticode_certificate_installed(task):
+    ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, log=True)
+    return ret > 0
+
 def authenticode_sign(task):
     exe_file = task.inputs[0].abspath(task.env)
     exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
@@ -577,7 +584,7 @@ def authenticode_sign(task):
         error("Unable to copy file before signing")
         return 1
     
-    ret = task.exec_command('"%s" sign /sm /n "Midasplayer Technology AB" /td sha256 /fd sha256 /tr http://timestamp.comodoca.com/authenticode /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], exe_file_to_sign), log=True)
+    ret = task.exec_command('"%s" sign /sm /n "%s" /td sha256 /fd sha256 /tr http://timestamp.comodoca.com/authenticode /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), log=True)
     if ret != 0:
         error("Unable to sign executable")
         return 1
