@@ -64,11 +64,12 @@ def build(bld):
                                 embed_source = embed_source,
                                 target = 'facebookext')
 
-    facebookext_test = bld.new_task_gen(features = 'cxx cstaticlib',
-                                includes = '.',
-                                source = testsource,
-                                target = 'facebookext_test')
-    facebookext_test.install_path = None
+    if testsource:
+        facebookext_test = bld.new_task_gen(features = 'cxx cstaticlib',
+                                    includes = '.',
+                                    source = testsource,
+                                    target = 'facebookext_test')
+        facebookext_test.install_path = None
 
     apidoc_extract_task(bld, ['facebook_ios.mm'])
 
