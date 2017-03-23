@@ -675,6 +675,7 @@ namespace dmEngine
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
         engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
+
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(engine->m_Config, "physics.type", "2D");
@@ -682,6 +683,8 @@ namespace dmEngine
         physics_params.m_Gravity.setY(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_y", -10.0f));
         physics_params.m_Gravity.setZ(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_z", 0.0f));
         physics_params.m_Scale = dmConfigFile::GetFloat(engine->m_Config, "physics.scale", 1.0f);
+        physics_params.m_RayCastLimit2D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_2d", 64);
+        physics_params.m_RayCastLimit3D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_3d", 128);
         if (physics_params.m_Scale < dmPhysics::MIN_SCALE || physics_params.m_Scale > dmPhysics::MAX_SCALE)
         {
             dmLogWarning("Physics scale must be in the range %.2f - %.2f and has been clamped.", dmPhysics::MIN_SCALE, dmPhysics::MAX_SCALE);
