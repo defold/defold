@@ -55,12 +55,19 @@ def build(bld):
         source += ' facebook_analytics.cpp'
     else:
         source = 'facebook_null.cpp'
+        testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
 
     facebook = bld.new_task_gen(features = 'cxx cstaticlib embed',
                                 includes = '.',
                                 source = source,
                                 embed_source = embed_source,
                                 target = 'facebookext')
+
+    facebookext_test = bld.new_task_gen(features = 'cxx cstaticlib',
+                                includes = '.',
+                                source = testsource,
+                                target = 'facebookext_test')
+    facebookext_test.install_path = None
 
     apidoc_extract_task(bld, ['facebook_ios.mm'])
 
