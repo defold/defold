@@ -357,7 +357,7 @@
                                       (commit-fn nil)))))
   (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
 
-(defn apply-css! [^Styleable root]
+(defn apply-css! [^Parent root]
   (let [css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
     (when (.exists css)
       (.. root getStylesheets (add (str (.toURI css))))))
