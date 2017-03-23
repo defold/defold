@@ -3,7 +3,7 @@
   (:import (java.io File)
            (javafx.scene Scene)
            (javafx.scene.control Button CheckBox Label)
-           (javafx.scene.layout AnchorPane HBox VBox)
+           (javafx.scene.layout HBox VBox)
            (javafx.stage DirectoryChooser Window)))
 
 (set! *warn-on-reflection* true)
@@ -12,7 +12,7 @@
   ^File [^Window owner ^File initial-directory]
   (let [chooser (DirectoryChooser.)]
     (when (and (some? initial-directory) (.exists initial-directory))
-      (.setInitialDirectory initial-directory))
+      (.setInitialDirectory chooser initial-directory))
     (.setTitle chooser "Output Directory")
     (.showDialog chooser owner)))
 
@@ -32,8 +32,12 @@
           (finally
             (vreset! refresh-in-progress false)))))))
 
+;; -----------------------------------------------------------------------------
+;; All platforms
+;; -----------------------------------------------------------------------------
+
 (defn- make-generic-headers [header description]
-  (doto (AnchorPane.)
+  (doto (VBox.)
     (ui/add-style! "headers")
     (ui/children! [(doto (Label. header) (ui/add-style! "header-label"))
                    (doto (Label. description) (ui/add-style! "description-label"))])))
@@ -83,6 +87,10 @@
   (set-options! [_this options]
     (set-generic-options! view options)))
 
+;; -----------------------------------------------------------------------------
+;; Android
+;; -----------------------------------------------------------------------------
+
 (defn- make-android-controls [refresh!]
   (assert (fn? refresh!))
   (doto (VBox.)
@@ -97,7 +105,8 @@
   {})
 
 (defn- set-android-options! [view options]
-  )
+  (ui/with-controls view [^Button ok-button]
+    (.setDisable ok-button true)))
 
 (deftype AndroidBundleOptionsPresenter [view]
   BundleOptionsPresenter
@@ -113,6 +122,10 @@
     (set-generic-options! view options)
     (set-android-options! view options)))
 
+;; -----------------------------------------------------------------------------
+;; iOS
+;; -----------------------------------------------------------------------------
+
 (defn- make-ios-controls [commit!]
   (assert (fn? commit!))
   (doto (VBox.)
@@ -127,7 +140,8 @@
   {})
 
 (defn- set-ios-options! [view options]
-  )
+  (ui/with-controls view [^Button ok-button]
+    (.setDisable ok-button true)))
 
 (deftype IOSBundleOptionsPresenter [view]
   BundleOptionsPresenter
@@ -143,6 +157,8 @@
     (set-generic-options! view options)
     (set-ios-options! view options)))
 
+;; -----------------------------------------------------------------------------
+
 (defmulti bundle-options-presenter (fn [_view platform] platform))
 (defmethod bundle-options-presenter :default [_view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
 (defmethod bundle-options-presenter :android [view _platform] (AndroidBundleOptionsPresenter. view))
@@ -157,9 +173,9 @@
          default-android-options
          default-ios-options))
 
-(defn show-bundle-dialog! [build-options platform ^Window owner]
+(defn show-bundle-dialog! [build-options platform owner-window]
   (let [build-options (merge default-build-options build-options)
-        stage (doto (ui/make-dialog-stage owner) (ui/title! "Package Application"))
+        stage (doto (ui/make-dialog-stage owner-window) (ui/title! "Package Application"))
         root (doto (VBox.) (ui/add-style! "bundle-view") (ui/apply-css!))
         presenter (bundle-options-presenter root platform)]
 
@@ -167,20 +183,22 @@
     (doseq [view (make-views presenter)]
       (ui/add-child! root view))
 
-    (set-options! presenter build-options)
-
     ;; Button bar.
-    (let [ok-button (doto (Button. "Package"))
+    (let [ok-button (doto (Button. "Package") (.setId "ok-button"))
           buttons (doto (HBox.) (ui/add-style! "buttons"))]
+      (ui/add-child! buttons ok-button)
       (ui/add-child! root buttons)
       (ui/on-action! ok-button
                      (fn on-ok! [_]
                        (let [build-options (get-options presenter)]
                          (ui/close! stage)
-                         (if-let [output-directory (query-output-directory! owner (:output-directory build-options))]
+                         (if-let [output-directory (query-output-directory! owner-window (:output-directory build-options))]
                            (let [build-options (assoc build-options :output-directory output-directory)]
                              (println "Bundle with settings" build-options))
-                           (show-bundle-dialog! build-options platform owner))))))
+                           (show-bundle-dialog! build-options platform owner-window))))))
+
+    ;; Refresh from build options.
+    (set-options! presenter build-options)
 
     ;; Show dialog.
     (let [scene (Scene. root)]

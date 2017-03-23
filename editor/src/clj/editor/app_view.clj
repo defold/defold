@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
+            [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
             [editor.dialogs :as dialogs]
@@ -765,29 +766,31 @@
 (handler/defhandler :search-in-files :global
   (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
+(defn- bundle! [project prefs changes-view build-options]
+  (console/clear-console!)
+
+  ;; We need to save because bob reads from FS
+  (project/save-all! project
+                     (fn []
+                       (changes-view/refresh! changes-view)
+                       (ui/default-render-progress-now! (progress/make "Bundling..."))
+                       (ui/->future 0.01
+                                    (fn []
+                                      (deref (bob/bundle-macos! project prefs build-options))
+                                      (ui/default-render-progress-now! progress/done))))))
+
 (handler/defhandler :bundle :global
   (enabled? [] (not (project/ongoing-build-save?)))
-  (run [project prefs web-server build-errors-view changes-view]
-       (console/clear-console!)
-       (let [build-options {:release-mode? true
-                            :generate-build-report? false
-                            :publish-live-update-content? false
-                            :output-directory (io/file (workspace/build-path (project/workspace project)) "__bundle") ; TODO: TEST. REMOVE!
-                            :clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+  (run [user-data project prefs app-view build-errors-view changes-view]
+       (let [owner-window (g/node-value app-view :stage)
+             platform (:platform user-data)
+             build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
                             :render-error! (fn [errors]
                                              (ui/run-later
                                                (build-errors-view/update-build-errors
                                                  build-errors-view
                                                  errors)))}]
-         ;; We need to save because bob reads from FS
-         (project/save-all! project
-                            (fn []
-                              (changes-view/refresh! changes-view)
-                              (ui/default-render-progress-now! (progress/make "Bundling..."))
-                              (ui/->future 0.01
-                                           (fn []
-                                             (deref (bob/bundle-macos! project prefs build-options))
-                                             (ui/default-render-progress-now! progress/done))))))))
+         (bundle-dialog/show-bundle-dialog! build-options platform owner-window))))
 
 (defn- fetch-libraries [workspace project prefs]
   (let [library-url-string (project/project-dependencies project)
