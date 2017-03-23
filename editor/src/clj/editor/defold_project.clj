@@ -314,13 +314,12 @@
   (enabled? [project-graph] (g/has-redo? project-graph))
   (run [project-graph] (g/redo! project-graph)))
 
-(def ^:private bundle-targets ["iOS Application..."
-                               "Android Application..."
-                               "macOS Application..."
-                               "Windows Application..."
-                               "Linux Application..."
-                               "HTML5 Application..."
-                               "Facebook Application..."])
+(def ^:private bundle-targets [[:ios     "iOS Application..."]
+                               [:android "Android Application..."]
+                               [:macos   "macOS Application..."]
+                               [:windows "Windows Application..."]
+                               [:linux   "Linux Application..."]
+                               [:html5   "HTML5 Application..."]])
 
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"
@@ -331,9 +330,12 @@
                                                {:label "Build HTML5"
                                                 :acc "Shortcut+Shift+B"
                                                 :command :build-html5}
-                                               (when system/fake-it-til-you-make-it?
-                                                 {:label "Bundle"
-                                                  :children (mapv #(do {:label % :command :bundle}) bundle-targets)})
+                                               {:label "Bundle"
+                                                :children (mapv (fn [[platform label]]
+                                                                  {:label label
+                                                                   :command :bundle
+                                                                   :user-data {:platform platform}})
+                                                                bundle-targets)}
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
                                                {:label "Live Update Settings"
