@@ -1,4 +1,4 @@
-void WebViewDummy()
+extern "C" void WebViewExt()
 {
 
 }
