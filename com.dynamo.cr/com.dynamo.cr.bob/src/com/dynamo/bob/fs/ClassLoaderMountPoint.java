@@ -25,14 +25,10 @@ public class ClassLoaderMountPoint implements IMountPoint {
 
         @Override
         public byte[] getContent() throws IOException {
-            InputStream is = null;
-            try {
-                is = ClassLoaderMountPoint.this.resourceScanner.openInputStream(path);
+            try (InputStream is = ClassLoaderMountPoint.this.resourceScanner.openInputStream(path)) {
                 ByteArrayOutputStream os = new ByteArrayOutputStream();
                 IOUtils.copy(is, os);
                 return os.toByteArray();
-            } finally {
-                IOUtils.closeQuietly(is);
             }
         }
 

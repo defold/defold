@@ -10,25 +10,35 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import org.apache.commons.io.IOUtils;
-
 import com.dynamo.bob.util.PathUtil;
 
 public class ClassLoaderResourceScanner implements IResourceScanner {
 
+    private URL getURL(String path) {
+        return this.getClass().getClassLoader().getResource(path);
+    }
+
     @Override
     public InputStream openInputStream(String path) throws IOException {
-        return this.getClass().getClassLoader().getResource(path).openStream();
+        URL url = getURL(path);
+        if (url != null) {
+            return url.openStream();
+        }
+        return null;
     }
 
     @Override
     public boolean exists(String path) {
-        return this.getClass().getClassLoader().getResource(path) != null;
+        return getURL(path) != null;
     }
 
     @Override
     public boolean isFile(String path) {
-        return !this.getClass().getClassLoader().getResource(path).getFile().isEmpty();
+        URL url = getURL(path);
+        if (url != null) {
+            return !url.getFile().isEmpty();
+        }
+        return false;
     }
 
     private static void scanDir(File dir, String filter, Set<String> results) {
@@ -43,9 +53,7 @@ public class ClassLoaderResourceScanner implements IResourceScanner {
     private static void scanJar(URL resource, String filter, Set<String> results) throws IOException {
         String resPath = resource.getPath();
         String jarPath = resPath.replaceFirst("[.]jar[!].*", ".jar").replaceFirst("file:", "");
-        JarFile jarFile = null;
-        try {
-            jarFile = new JarFile(jarPath);
+        try (JarFile jarFile = new JarFile(jarPath)){
             Enumeration<JarEntry> entries = jarFile.entries();
             while(entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
@@ -53,10 +61,6 @@ public class ClassLoaderResourceScanner implements IResourceScanner {
                 if(!entry.isDirectory() && PathUtil.wildcardMatch(entryName, filter)) {
                     results.add(entryName);
                 }
-            }
-        } finally {
-            if (jarFile != null) {
-                IOUtils.closeQuietly(jarFile);
             }
         }
     }
