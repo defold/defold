@@ -759,11 +759,12 @@
 
 (defn contexts
   ([^Scene scene]
-    (contexts scene true))
+   (contexts scene true))
   ([^Scene scene all-selections?]
-    (if scene
-      (node-contexts (or (.getFocusOwner scene) (.getRoot scene)) all-selections?)
-      [])))
+   (let [window (.getWindow scene)]
+     (if (and window (.isFocused window) scene)
+       (node-contexts (or (.getFocusOwner scene) (.getRoot scene)) all-selections?)
+       []))))
 
 (defn extend-menu [id location menu]
   (menu/extend-menu id location menu))
