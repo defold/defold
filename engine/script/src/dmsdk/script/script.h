@@ -251,9 +251,14 @@ namespace dmScript
      */
     lua_State* GetMainThread(lua_State* L);
 
-    /*# Lua wrapper for a buffer
+    /*# Lua wrapper for a [ref:dmBuffer::HBuffer]
      * 
      * Holds info about the buffer and who owns it
+     *
+     * @struct
+     * @name dmExtension::AppParams
+     * @member m_Buffer [type:dmBuffer::HBuffer]    The buffer
+     * @member m_UseLuaGC [type:bool]               If true, it will be garbage collected by Lua. If false, the C++ extension still owns the reference.
      */
     struct LuaHBuffer
     {
@@ -266,11 +271,11 @@ namespace dmScript
      * @name dmScript::IsBuffer
      * @param L [type:lua_State*] lua state
      * @param index [type:int] Index of the value
-     * @return boolean [type:boolean] true if value at #index is a HBuffer
+     * @return boolean [type:boolean] true if value at #index is a LuaHBuffer
      */
     bool IsBuffer(lua_State* L, int index);
 
-    /*# push a HBuffer onto the supplied lua state
+    /*# push a LuaHBuffer onto the supplied lua state
      *
      * Will increase the stack by 1.
      *
