@@ -51,6 +51,11 @@
 (def ^:private grid-vgap 6)
 (def ^:private ^Double cell-height 27.0)
 
+(def ^:private add-icon "icons/32/Icons_M_07_plus.png")
+(def ^:private remove-icon "icons/32/Icons_M_11_minus.png")
+(def ^:private open-icon "icons/32/Icons_S_14_linkarrow.png")
+(def ^:private reset-icon "icons/32/Icons_S_02_Reset.png")
+
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
 (def ^:private default-value-alignments
@@ -65,9 +70,9 @@
 (def ^:private default-field-widths
   {:number 80
    :integer 80
-   :string 200
-   :resource 280
-   :list 300})
+   :string 300
+   :resource 300
+   :list 200})
 
 (defn- field-width [field-info]
   (get default-field-widths (:type field-info) 100))
@@ -151,7 +156,7 @@
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
                         (ui/add-style! "button-small"))
-        open-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
+        open-button (doto (Button. "" (jfx/get-image-view open-icon 16))
                       (.setMaxWidth 26)
                        (ui/add-style! "button-small"))
         text (let [tf (TextField.)]
@@ -404,10 +409,10 @@
   (assert (not cancel) "no support for nested tables")
   (let [table (TableView.)
         table-insets (Insets. 1 1 1 1)
-        add-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_07_plus.png" 16))
+        add-button (doto (Button. "" (jfx/get-image-view add-icon 16))
                      (.setMaxWidth 26)
                      (ui/add-style! "button-small"))
-        remove-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_06_trash.png" 16))
+        remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
                         (.setMaxWidth 26)
                         (ui/add-style! "button-small"))
         button-box (doto (HBox. (to-node-array [add-button remove-button]))
@@ -448,7 +453,7 @@
            (.add (Bindings/max ^ObservableNumberValue (.multiply (Bindings/size (.getItems table))
                                                                  (.getFixedCellSize table))
                                cell-height)
-                 (+ cell-height (insets-vertical table-insets))))
+                 (+ (* 2 cell-height) (insets-vertical table-insets))))
 
     (.setEditable table true)
     (.setAll (.getColumns table)
@@ -571,21 +576,23 @@
 (defn- resize-list-view-to-fit-items [^ListView list-view]
   (let [list-view-insets (.getInsets list-view)
         items (.getItems list-view)
-        sample-cell (doto ^ListCell (.call (.getCellFactory list-view) list-view)
-                      (.updateListView list-view))
-        max (reduce-kv (fn [^double max index item]
-                         (.setItem sample-cell item)
-                         (.updateIndex sample-cell index)
-                         (if (or (and (some? (.getText sample-cell)) (not (.isEmpty (.getText sample-cell))))
-                                 (some? (.getGraphic sample-cell)))
-                           (do
-                             (.. list-view getChildren (add sample-cell))
-                             (.applyCss sample-cell)
-                             (let [new-max (Math/max max (.prefWidth sample-cell -1))]
-                               (.. list-view getChildren (remove sample-cell))
-                               new-max))
-                           max))
-                       0.0 (vec items))]
+        max (if (seq items)
+              (let [sample-cell (doto ^ListCell (.call (.getCellFactory list-view) list-view)
+                                  (.updateListView list-view))]
+                (reduce-kv (fn [^double max index item]
+                             (.setItem sample-cell item)
+                             (.updateIndex sample-cell index)
+                             (if (or (and (some? (.getText sample-cell)) (not (.isEmpty (.getText sample-cell))))
+                                     (some? (.getGraphic sample-cell)))
+                               (do
+                                 (.. list-view getChildren (add sample-cell))
+                                 (.applyCss sample-cell)
+                                 (let [new-max (Math/max max (.prefWidth sample-cell -1))]
+                                   (.. list-view getChildren (remove sample-cell))
+                                   new-max))
+                               max))
+                           0.0 (vec items)))
+              (:list default-field-widths))]
     (.setPrefWidth list-view (+ max (insets-horizontal list-view-insets)))))
 
 (defmethod create-field-control :list [field-info {:keys [set cancel] :as field-ops} ctxt]
@@ -593,10 +600,10 @@
                     (ui/add-style! "no-scroll-list-view")
                     (.setPlaceholder (Label. "No content in list"))
                     (VBox/setVgrow Priority/ALWAYS))
-        add-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_07_plus.png" 16))
+        add-button (doto (Button. "" (jfx/get-image-view add-icon 16))
                      (.setMaxWidth 26)
                      (ui/add-style! "button-small"))
-        remove-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_06_trash.png" 16))
+        remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
                         (.setMaxWidth 26)
                         (ui/add-style! "button-small"))
         button-box (doto (HBox. (to-node-array [add-button remove-button]))
@@ -671,10 +678,10 @@
                     (ui/add-style! "no-scroll-list-view")
                     (.setPlaceholder (Label. "No content in list"))
                     (VBox/setVgrow Priority/ALWAYS))
-        add-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_07_plus.png" 16))
+        add-button (doto (Button. "" (jfx/get-image-view add-icon 16))
                      (.setMaxWidth 26)
                      (ui/add-style! "button-small"))
-        remove-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_06_trash.png" 16))
+        remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
                         (.setMaxWidth 26)
                         (ui/add-style! "button-small"))
         button-box (doto (HBox. (to-node-array [add-button remove-button]))
@@ -792,7 +799,7 @@
 (defn- create-field-grid-row [field-info {:keys [set clear] :as field-ops} ctxt]
   (let [path (:path field-info)
         label (create-field-label (:label field-info))
-        reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
+        reset-btn (doto (Button. nil (jfx/get-image-view reset-icon))
                     (ui/add-styles! ["clear-button" "button-small"])
                     (ui/on-action! (fn [_] (clear path))))
         [control api] (create-field-control field-info field-ops ctxt)
