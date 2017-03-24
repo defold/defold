@@ -72,8 +72,10 @@ public class AndroidBundler implements IBundler {
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
         File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
         File bundleExe = defaultExe;
+        File classesDex = new File(Bob.getPath("lib/classes.dex"));
         if (extenderExe.exists()) {
             bundleExe = extenderExe;
+            classesDex = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), "classes.dex")));
         }
 
         File appDir = new File(bundleDir, title);
@@ -180,7 +182,7 @@ public class AndroidBundler implements IBundler {
         }
 
         File tmpClassesDex = new File("classes.dex");
-        FileUtils.copyFile(new File(Bob.getPath("lib/classes.dex")), tmpClassesDex);
+        FileUtils.copyFile(classesDex, tmpClassesDex);
 
         res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                 "add",
