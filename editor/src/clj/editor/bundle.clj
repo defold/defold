@@ -109,7 +109,7 @@
     (let [f (ui/choose-file "Selection Provisioning Profile" "Provisioning Profile" ["*.mobileprovision"])]
       (ui/text! (:provisioning-profile controls) f))))
 
-(defn- find-identities []
+(defn find-identities []
   (let [re #"\s+\d+\)\s+([0-9A-Z]+)\s+\"(.*?)\""
         lines (.split ^String (:out (shell/sh "security" "find-identity" "-v" "-p" "codesigning")) "\n" )]
     (->> lines

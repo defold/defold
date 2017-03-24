@@ -19,10 +19,11 @@
    [com.defold.control TreeCell]
    [java.awt Desktop]
    [java.net URI]
+   [java.util Collection]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans.value ChangeListener ObservableValue]
-   [javafx.collections ObservableList ListChangeListener]
+   [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
    [javafx.event EventHandler WeakEventHandler Event]
    [javafx.fxml FXMLLoader]
@@ -159,6 +160,13 @@
      :width (.getWidth b)
      :height (.getHeight b)}))
 
+(defn observable-list
+  ^ObservableList [^Collection items]
+  (if (empty? items)
+    (FXCollections/emptyObservableList)
+    (doto (FXCollections/observableArrayList)
+      (.addAll items))))
+
 (defn observe [^ObservableValue observable listen-fn]
   (.addListener observable (reify ChangeListener
                         (changed [this observable old new]
@@ -285,6 +293,9 @@
 (defn managed! [^Node node m]
   (.setManaged node m))
 
+(defn enable! [^Node node e]
+  (.setDisable node (not e)))
+
 (defn disable! [^Node node d]
   (.setDisable node d))
 
@@ -357,15 +368,23 @@
                                       (commit-fn nil)))))
   (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
 
-(defn apply-css! [^Parent root]
+(defn- apply-default-css! [^Parent root]
+  (.. root getStylesheets (add (str (io/resource "editor.css"))))
+  nil)
+
+(defn- apply-user-css! [^Parent root]
   (let [css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
     (when (.exists css)
       (.. root getStylesheets (add (str (.toURI css))))))
   nil)
 
+(defn apply-css! [^Parent root]
+  (apply-default-css! root)
+  (apply-user-css! root))
+
 (defn ^Parent load-fxml [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))]
-    (apply-css! root)
+    (apply-user-css! root)
     root))
 
 (extend-type Window
@@ -431,6 +450,13 @@
   (editable [this] (.isEditable this))
   (editable! [this val] (.setEditable this val))
   (on-edit! [this f] (observe (.textProperty this) (fn [this old new] (f old new)))))
+
+(extend-type ChoiceBox
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
+  HasValue
+  (value [this] (.getValue this))
+  (value! [this val] (.setValue this val)))
 
 (extend-type ComboBoxBase
   Editable

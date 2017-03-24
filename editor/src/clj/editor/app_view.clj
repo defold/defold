@@ -766,31 +766,35 @@
 (handler/defhandler :search-in-files :global
   (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
-(defn- bundle! [project prefs changes-view build-options]
+(defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
-
-  ;; We need to save because bob reads from FS
-  (project/save-all! project
-                     (fn []
-                       (changes-view/refresh! changes-view)
-                       (ui/default-render-progress-now! (progress/make "Bundling..."))
-                       (ui/->future 0.01
-                                    (fn []
-                                      (deref (bob/bundle-macos! project prefs build-options))
-                                      (ui/default-render-progress-now! progress/done))))))
+  (let [build-options (merge build-options
+                             {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+                              :render-error! (fn [errors]
+                                               (ui/run-later
+                                                 (build-errors-view/update-build-errors
+                                                   build-errors-view
+                                                   errors)))})]
+    ;; We need to save because bob reads from FS.
+    ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
+    (workspace/resource-sync! (project/workspace project))
+    (project/save-all! project
+                       (fn []
+                         (changes-view/refresh! changes-view)
+                         (ui/default-render-progress-now! (progress/make "Bundling..."))
+                         (ui/->future 0.01
+                                      (fn []
+                                        (deref (bob/bundle! project prefs platform build-options))
+                                        (ui/default-render-progress-now! progress/done)))))))
 
 (handler/defhandler :bundle :global
   (enabled? [] (not (project/ongoing-build-save?)))
-  (run [user-data project prefs app-view build-errors-view changes-view]
+  (run [user-data project prefs app-view changes-view build-errors-view]
        (let [owner-window (g/node-value app-view :stage)
              platform (:platform user-data)
-             build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
-                            :render-error! (fn [errors]
-                                             (ui/run-later
-                                               (build-errors-view/update-build-errors
-                                                 build-errors-view
-                                                 errors)))}]
-         (bundle-dialog/show-bundle-dialog! build-options platform owner-window))))
+             bundle! (partial bundle! changes-view build-errors-view project prefs platform)
+             build-options {}]
+         (bundle-dialog/show-bundle-dialog! platform build-options owner-window bundle!))))
 
 (defn- fetch-libraries [workspace project prefs]
   (let [library-url-string (project/project-dependencies project)
