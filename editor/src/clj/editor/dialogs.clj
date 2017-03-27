@@ -441,25 +441,30 @@
 
     @return))
 
-(defn make-rename-dialog [title label placeholder typ]
+(defn- sanitize-file-name [name extension]
+  (-> name
+      (str/replace #"[/\\]" "") ; strip path separators
+      (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
+      (#(if (empty? extension) (str/replace % #"\..*" "" ) %)) ; disallow adding extension = resource type
+      (#(if (and (seq extension) (seq %))
+          (str % "." extension)
+          %)))) ; append extension if there was one
+
+(defn make-rename-dialog ^String [name extension {:keys [title label] :as options}]
   (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
         stage    (ui/make-dialog-stage (ui/main-stage))
         scene    (Scene. root)
         controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
         return   (atom nil)
-        close    (fn [] (reset! return (ui/text (:name controls))) (.close stage))
-        full-name (fn [^String n]
-                    (-> n
-                        (str/replace #"/" "")
-                        (str/replace #"\\" "")
-                        (str (when typ (str "." typ)))))]
+        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) (sanitize-file-name extension) not-empty)))
+        close    (fn [] (reset-return!) (.close stage))]
     (observe-focus stage)
     (ui/title! stage title)
     (when label
       (ui/text! (:name-label controls) label))
-    (when-not (empty? placeholder)
-      (ui/text! (:path controls) (full-name placeholder))
-      (ui/text! (:name controls) placeholder)
+    (when-not (empty? name)
+      (ui/text! (:path controls) (sanitize-file-name name extension))
+      (ui/text! (:name controls) name)
       (.selectAll ^TextField (:name controls)))
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
@@ -468,17 +473,14 @@
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
                                          (when (condp = code
-                                                 KeyCode/ENTER  (do (reset! return
-                                                                            (when-let [txt (not-empty (ui/text (:name controls)))]
-                                                                              (full-name txt)))
-                                                                    true)
+                                                 KeyCode/ENTER  (do (reset-return!) true)
                                                  KeyCode/ESCAPE true
                                                  false)
                                            (.close stage)))))
     (.addEventFilter scene KeyEvent/KEY_RELEASED
                      (ui/event-handler event
                                        (if-let [txt (not-empty (ui/text (:name controls)))]
-                                         (ui/text! (:path controls) (full-name txt))
+                                         (ui/text! (:path controls) (sanitize-file-name txt extension))
                                          (ui/text! (:path controls) ""))))
 
     (.setScene stage scene)
