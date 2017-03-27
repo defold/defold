@@ -1,6 +1,7 @@
 package com.dynamo.bob;
 
-import java.net.URL;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Set;
 
 /**
@@ -9,11 +10,26 @@ import java.util.Set;
  */
 public interface IResourceScanner {
     /**
-     * Retrieve a URL to the resource at the specified path.
+     * Retrieve an input stream from the resource at the specified path.
+     * The caller is responsible for closing the stream.
      * @param path path of the resource
-     * @return URL pointing to the resource
+     * @return InputStream of the resource
      */
-    URL getResource(String path);
+    InputStream openInputStream(String path) throws IOException;
+
+    /**
+     * Whether the resource exists on disk or in an archive or not.
+     * @param path
+     * @return true if it exists
+     */
+    boolean exists(String path);
+
+    /**
+     * Whether the resource represents a file on disk or not.
+     * @param path
+     * @return true if it is a file
+     */
+    boolean isFile(String path);
 
     /**
      * Scan after resources matching the filter

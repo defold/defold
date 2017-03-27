@@ -499,7 +499,6 @@ class Configuration(object):
         defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
         # Includes
-        #includes = ['include/extension/extension.h', 'include/dlib/configfile.h', 'include/lua/lua.h', 'include/lua/lauxlib.h', 'include/lua/luaconf.h']
         includes = []
         cwd = os.getcwd()
         os.chdir(self.dynamo_home)
@@ -507,7 +506,6 @@ class Configuration(object):
             for file in files:
                 if file.endswith('.h'):
                     includes.append(os.path.join(root, file))
-                    print(includes[-1])
 
         os.chdir(cwd)
         includes = [os.path.join(self.dynamo_home, x) for x in includes]
@@ -523,6 +521,11 @@ class Configuration(object):
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
             return paths
 
+        def _findjars(jardir, ends_with):
+            paths = os.listdir(jardir)
+            paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
+            return paths
+
         # Dynamo libs
         libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
         paths = _findlibs(libdir)
@@ -531,6 +534,25 @@ class Configuration(object):
         libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
         paths = _findlibs(libdir)
         self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+        # Android Jars (Dynamo)
+        jardir = os.path.join(self.dynamo_home, 'share/java')
+        paths = _findjars(jardir, ('android.jar', 'dlib.jar'))
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+        # Android Jars (external)
+        external_jars = ("facebooksdk.jar",
+                         "bolts-android-1.2.0.jar",
+                         "google-play-services.jar",
+                         "android-support-v4.jar",
+                         "in-app-purchasing-2.0.61.jar")
+        jardir = os.path.join(self.dynamo_home, 'ext/share/java')
+        paths = _findjars(jardir, external_jars)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+        # For logging, print all paths in zip:
+        for x in zip.namelist():
+            print(x)
 
         zip.close()
         return outfile.name

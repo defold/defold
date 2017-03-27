@@ -87,7 +87,7 @@
             {:label "Grid Size" :type :long :key "scene-grid-size" :default 100}
             {:label "Grid Color" :type :color :key "scene-grid-color" :default (Color/web "#999999ff")}]}
    {:name  "Code"
-    :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor"}
+    :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
             {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
             {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}]}
    {:name  "Extensions"
