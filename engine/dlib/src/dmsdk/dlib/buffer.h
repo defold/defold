@@ -220,15 +220,13 @@ namespace dmBuffer
      * ```cpp
      * uint16_t* stream = 0x0;
      * uint32_t size = 0;
-     * uint32_t 
      * dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("numbers"), (void**)&stream, &size);
      *
      * if (r == dmBuffer::RESULT_OK) {
-     *     for (int i = 0; i < element_count; ++i)
+     *     for (int i = 0; i < size / sizeof(stream[0]); ++i)
      *     {
-     *         stream[0] = (uint16_t)i;
-     *         stream[1] = (uint16_t)i;
-     *         stream += stride;
+     *         stream[i*2+0] = (uint16_t)i;
+     *         stream[i*2+1] = (uint16_t)i;
      *     }
      * } else {
      *     // handle error
@@ -282,7 +280,7 @@ namespace dmBuffer
      * dmBuffer::Result r = dmBuffer::GetElementCount(buffer, &element_count);
      *
      * if (r == dmBuffer::RESULT_OK) {
-     *     printf("buffer %p has %d number of elemenets", buffer, element_count);
+     *     printf("buffer %p has %d number of elements", buffer, element_count);
      * } else {
      *     // handle error
      * }
@@ -305,7 +303,7 @@ namespace dmBuffer
 
 	/*# get the number of streams in a buffer
 	 *
-	 * Gets the number of streams
+	 * Gets the number of streams in a buffer
 	 * @name dmBuffer::GetNumStreams
 	 * @param buffer [type:dmBuffer::HBuffer] The buffer
 	 * @return count [type:uint32_t] The number of streams
