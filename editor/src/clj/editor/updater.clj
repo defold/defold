@@ -1,6 +1,7 @@
 (ns editor.updater
-  (:require [editor.ui :as ui]
-            [editor.defold-project :as project]
+  (:require [editor.defold-project :as project]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.defold.editor EditorApplication Updater$PendingUpdate]
            [java.io IOException]
@@ -35,7 +36,9 @@
       (while (project/ongoing-build-save?)
         (Thread/sleep 300))
 
-      ;; Save the project and block until complete.
+      ;; Save the project and block until complete. Before saving, perform a
+      ;; resource sync to ensure we do not overwrite external changes.
+      (workspace/resource-sync! (project/workspace project))
       (let [save-future (project/save-all! project nil)]
         (when (future? save-future)
           (deref save-future))))

@@ -23,11 +23,13 @@
 
 (defn bob-artifact-file ^File
   [sha]
-  (try
-    (dl/download (io/as-url (format "http://d.defold.com/archive/%s/bob/bob.jar" sha)))
-    (catch java.io.FileNotFoundException e
-      ;; Fallback to local bob
-      (io/file (dynamo-home) "share/java/bob.jar"))))
+  (let [url (format "http://d.defold.com/archive/%s/bob/bob.jar" sha)]
+    (try
+      (dl/download (io/as-url url))
+      (catch java.io.FileNotFoundException e
+        ;; Fallback to local bob
+        (println (format "- %s could not be found" url))
+        (io/file (dynamo-home) "share/java/bob.jar")))))
 
 (defn local-jars
   "Install local jar dependencies into the ~/.m2 Maven repository."
