@@ -54,11 +54,19 @@
 (defn- existing-file? [^File file]
   (and (some? file) (.isFile file)))
 
+(defn- label!
+  ^HBox [label-text control]
+  (assert (string? (not-empty label-text)))
+  (HBox/setHgrow control Priority/ALWAYS)
+  (let [label (doto (Label. label-text) (ui/add-style! "field-label"))]
+    (doto (HBox.)
+      (ui/children! [label control]))))
+
 (defn- make-file-field
-  ^GridPane [refresh! owner-window text-field-css-id title filter-descs]
+  ^GridPane [refresh! owner-window text-field-css-id title-text filter-descs]
   (assert (fn? refresh!))
   (assert (some? owner-window))
-  (assert (string? (not-empty title)))
+  (assert (string? (not-empty title-text)))
   (assert (seq filter-descs))
   (assert (every? seq filter-descs))
   (let [text-field (doto (TextField.)
@@ -71,7 +79,7 @@
                         (GridPane/setConstraints 1 0)
                         (ui/add-style! "button-small")
                         (ui/on-action! (fn [_]
-                                         (when-let [file (query-file! title filter-descs (get-file text-field) owner-window)]
+                                         (when-let [file (query-file! title-text filter-descs (get-file text-field) owner-window)]
                                            (set-file! text-field file)))))
         container (doto (GridPane.)
                     (ui/add-style! "composite-property-control-container")
@@ -109,10 +117,6 @@
     (ui/add-style! "headers")
     (ui/children! [(doto (Label. header) (ui/add-style! "header-label"))
                    (doto (Label. description) (ui/add-style! "description-label"))])))
-
-(defn- set-generic-headers-description! [view description]
-  (ui/with-controls view [^Label description-label]
-    (.setText description-label description)))
 
 (defn- make-generic-controls [refresh!]
   (assert (fn? refresh!))
@@ -161,13 +165,14 @@
 
 (defn- make-architecture-controls [refresh!]
   (assert (fn? refresh!))
-  (doto (VBox.)
-    (ui/add-style! "settings")
-    (ui/add-style! "architecture")
-    (ui/children! [(doto (ChoiceBox. (ui/observable-list [32 64]))
-                     (.setId "architecture-choice-box")
-                     (.setConverter (NumberStringConverter. "#-bit"))
-                     (ui/on-action! refresh!))])))
+  (let [architecture-choice-box (doto (ChoiceBox. (ui/observable-list [32 64]))
+                                  (.setId "architecture-choice-box")
+                                  (.setConverter (NumberStringConverter. "#-bit"))
+                                  (ui/on-action! refresh!))]
+    (doto (VBox.)
+      (ui/add-style! "settings")
+      (ui/add-style! "architecture")
+      (ui/children! [(label! "Architecture" architecture-choice-box)]))))
 
 (defn- default-architecture-options []
   {:arch-bits (if (= (system/os-arch) "x86")
@@ -208,7 +213,8 @@
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
-      (ui/children! [certificate-text-field private-key-text-field]))))
+      (ui/children! [(label! "Certificate" certificate-text-field)
+                     (label! "Private key" private-key-text-field)]))))
 
 (defn- default-android-options []
   {:certificate nil
@@ -264,7 +270,8 @@
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "ios")
-      (ui/children! [code-signing-identity-choice-box provisioning-profile-text-field]))))
+      (ui/children! [(label! "Code signing identity" code-signing-identity-choice-box)
+                     (label! "Provisioning profile" provisioning-profile-text-field)]))))
 
 (defn- default-ios-options []
   {:code-signing-identity nil
@@ -321,7 +328,10 @@
   (let [defaults (default-build-options)
         build-options (merge defaults (select-keys build-options (keys defaults)))
         stage (doto (ui/make-dialog-stage owner-window) (ui/title! "Package Application"))
-        root (doto (VBox.) (ui/add-style! "bundle-view") (ui/apply-css!))
+        root (doto (VBox.)
+               (ui/add-style! "bundle-dialog")
+               (ui/add-style! (name platform))
+               (ui/apply-css!))
         presenter (bundle-options-presenter root platform)]
 
     ;; Presenter views.
