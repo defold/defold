@@ -610,6 +610,7 @@ namespace dmRender
 
         dmhash_t namehash = dmScript::CheckHashOrString(L, 1);
 
+        const char* required_keys[] = { "format", "width", "height" };
         uint32_t buffer_type_flags = 0;
         luaL_checktype(L, 2, LUA_TTABLE);
         dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
@@ -617,6 +618,7 @@ namespace dmRender
         lua_pushnil(L);
         while (lua_next(L, 2))
         {
+            bool required_found[] = { false, false, false };
             uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
             buffer_type_flags |= buffer_type;
             uint32_t index = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
@@ -624,9 +626,37 @@ namespace dmRender
             dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
+            
+            // Verify that required keys are supplied
             while (lua_next(L, -2))
             {
                 const char* key = luaL_checkstring(L, -2);
+                for (uint32_t i = 0; i < sizeof(required_found) / sizeof(required_found[0]); ++i)
+                {
+                    if (strncmp(key, required_keys[i], strlen(required_keys[i])) == 0)
+                    {
+                        required_found[i] = true;
+                    }
+                }
+                lua_pop(L, 1);
+            }
+            for (uint32_t i = 0; i < sizeof(required_found) / sizeof(required_found[0]); ++i)
+            {
+                if (!required_found[i])
+                {
+                    return luaL_error(L, "Required parameter key not found: '%s'", required_keys[i]);
+                }
+            }
+            lua_pushnil(L);
+
+            while (lua_next(L, -2))
+            {
+                const char* key = luaL_checkstring(L, -2);
+                if (lua_isnil(L, -1) != 0)
+                {
+                    return luaL_error(L, "nil value supplied to %s.render_target: %s.", RENDER_SCRIPT_LIB_NAME, key);
+                }
+
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
                     p->m_Format = (dmGraphics::TextureFormat)(int)luaL_checknumber(L, -1);
@@ -1164,6 +1194,10 @@ namespace dmRender
         if (lua_islightuserdata(L, 1))
         {
             predicate = (dmRender::Predicate*)lua_touserdata(L, 1);
+        }
+        else
+        {
+            return luaL_error(L, "No render predicate specified.");
         }
 
         HNamedConstantBuffer constant_buffer = 0;

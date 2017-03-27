@@ -1,4 +1,4 @@
-void PushDummy()
+extern "C" void PushExt()
 {
 
 }

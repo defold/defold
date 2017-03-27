@@ -6,6 +6,7 @@
     [editor.error-reporting :as error-reporting]
     [editor.engine.native-extensions :as native-extensions]
     [editor.login :as login]
+    [editor.resource :as resource]
     [editor.system :as system]
     [editor.ui :as ui]
     [editor.workspace :as workspace])
@@ -13,8 +14,8 @@
     [com.dynamo.bob ClassLoaderScanner CompileExceptionError IProgress IResourceScanner Project Task TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem IResource]
     [com.dynamo.bob.util PathUtil]
-    [java.io File]
-    [java.net URL URLDecoder]))
+    [java.io File InputStream]
+    [java.net URLDecoder]))
 
 (set! *warn-on-reflection* true)
 
@@ -40,9 +41,17 @@
                   (map (fn [[key val]] [(subs key 1) val]))
                   (into {}))]
     (reify IResourceScanner
-      (getResource ^URL [this path]
+      (openInputStream ^InputStream [this path]
         (when-let [r (get res-map path)]
-          (io/as-url r)))
+          (io/input-stream r)))
+      (exists [this path]
+        (if-let [r (get res-map path)]
+          (resource/exists? r)
+          false))
+      (isFile [this path]
+        (if-let [r (get res-map path)]
+          (= (resource/source-type r) :file)
+          false))
       (scan [this pattern]
         (let [res (->> res-map
                     (map first)
