@@ -1584,6 +1584,14 @@ namespace dmGui
                             lua_pushinteger(L, (lua_Integer) t.m_Y);
                             lua_settable(L, -3);
 
+                            lua_pushstring(L, "screen_x");
+                            lua_pushnumber(L, (lua_Integer) t.m_ScreenX);
+                            lua_rawset(L, -3);
+
+                            lua_pushstring(L, "screen_y");
+                            lua_pushnumber(L, (lua_Integer) t.m_ScreenY);
+                            lua_rawset(L, -3);
+
                             lua_pushliteral(L, "dx");
                             lua_pushinteger(L, (lua_Integer) t.m_DX);
                             lua_settable(L, -3);

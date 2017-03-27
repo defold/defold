@@ -904,6 +904,8 @@ bail:
             ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
             ia.m_DX = a.m_DX * width_ratio;
             ia.m_DY = -a.m_DY * height_ratio;
+            ia.m_ScreenX = a.m_X;
+            ia.m_ScreenY = (int32_t)dmGraphics::GetWindowHeight(engine->m_GraphicsContext) - a.m_Y;
         }
 
         input_action.m_TextCount = action->m_TextCount;
