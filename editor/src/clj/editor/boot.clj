@@ -16,6 +16,7 @@
   (:import
    [com.defold.control ListCell]
    [java.io File]
+   [java.util Arrays]
    [javafx.scene Scene]
    [javafx.scene.control Button Control Label ListView]
    [javafx.scene.input MouseEvent]
@@ -146,7 +147,8 @@
                                                       :key        "9e25fea9bc334227b588829dd60265c1"
                                                       :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
   (let [namespace-loader (load-namespaces-in-background)
-        prefs            (prefs/make-prefs "defold")]
+        prefs            (prefs/make-prefs "defold")
+        args             (Arrays/asList args)]
     (try
       (if (= (count args) 0)
         (select-project-from-welcome namespace-loader prefs)

@@ -5,13 +5,16 @@
     [clojure.string :as string])
   (:import [java.awt Dimension Rectangle Robot Toolkit]
     [java.awt.event KeyEvent]
-    [java.io File]
-    [javax.imageio ImageIO])
+    [java.io File FileFilter InputStream Reader StringWriter]
+    [java.nio.file FileSystems PathMatcher]
+    [javax.imageio ImageIO]
+    [org.apache.commons.io.filefilter WildcardFileFilter])
   (:gen-class))
 
 (def cli-options
   ;; An option with a required argument
   [["-s" "--script PATH" "Script file"]
+   ["-o" "--output PATH" "Output directory for log" :default "."]
    ;; A non-idempotent option
    ["-v" nil "Verbosity level"
     :id :verbosity
@@ -24,14 +27,66 @@
 
 (defmethod exec-step "wait" [{:keys [robot log-fn]} [_ delay]]
   (let [delay (int delay)]
-    (log-fn (format "Wait %s" delay))
+    (log-fn (format "<p>Wait %s</p>" delay))
     (.delay robot (int delay))))
 
-(defmethod exec-step "screen-capture" [{:keys [robot log-fn]} [_ filename]]
+(defn- open-log [log-descs log-id fast-forward]
+  (when-let [desc (get log-descs log-id)]
+    (let [pattern (get desc "pattern")
+             dir (io/as-file (get desc "dir"))
+             ^FileFilter filter (WildcardFileFilter. pattern)
+             file (->> (.listFiles dir filter)
+                    vec
+                    (sort-by (fn [^File f] (.lastModified f)))
+                    last)]
+      (when file
+        (let [reader (io/reader file)]
+          #_(when fast-forward
+             (.skip reader (.length file)))
+          reader)))))
+
+(defmethod exec-step "await-log" [{:keys [robot log-fn log-descs]} [_ log-id timeout pattern]]
+  (let [^Reader reader nil]
+    (try
+      (let [end-time (+ (int timeout) (System/currentTimeMillis))
+            delay 50
+            re (re-pattern pattern)]
+        (log-fn (format "<p>Await-log %s %d '%s'</p>" log-id timeout pattern))
+        (log-fn "<div class=\"log\">")
+        (log-fn "<code>")
+        (let [result (loop [reader (open-log log-descs log-id true)]
+                       (if (< end-time (System/currentTimeMillis))
+                         (do
+                           false)
+                         (let [result (loop [line (.readLine reader)]
+                                        (if line
+                                          (do
+                                            (log-fn (format "%s<br>" line))
+                                            (if (re-find re line)
+                                              true
+                                              (recur (.readLine reader))))
+                                          false))]
+                           (if result
+                             result
+                             (do
+                               (.delay robot delay)
+                               (recur (or reader (open-log log-descs log-id false))))))))]
+          (log-fn "</code>")
+          (log-fn "</div>")
+          (when (not result)
+            (log-fn "<p class=\"error\">ERROR Await-log timed out</p>"))
+          result))
+      (finally
+        (when reader
+          (.close reader))))))
+
+(defmethod exec-step "screen-capture" [{:keys [robot out-dir log-fn]} [_ filename]]
   (let [dims (.getScreenSize (Toolkit/getDefaultToolkit))
         img (.createScreenCapture robot (Rectangle. dims))
-        dest (File. (format "%s.png" filename))]
-    (log-fn (format "Screen-capture %s" dest))
+        dest-name (format "%s.png" filename)
+        dest (File. out-dir dest-name)]
+    (log-fn (format "<p>Screen-capture %s</p>" dest-name))
+    (log-fn (format "<img src=\"%s\">" dest-name))
     (ImageIO/write img "png" dest)))
 
 (defn- key->key-code [key]
@@ -56,7 +111,7 @@
       (try
         (if code
           (.keyPress robot code)
-          (log-fn (format "Skipped unrecognized key '%s'" key)))
+          (log-fn (format "<p>Skipped unrecognized key '%s'</p>" key)))
         (press robot log-fn (next keys))
         (finally
           (when code
@@ -64,36 +119,55 @@
 
 (defmethod exec-step "press" [{:keys [robot log-fn]} [_ keys]]
   (let [keys (string/split keys #"\+")]
-    (log-fn (format "Press %s" (string/join "+" keys)))
+    (log-fn (format "<p>Press %s</p>" (string/join "+" keys)))
     (press robot log-fn keys)))
 
 (defmethod exec-step "type" [{:keys [robot log-fn]} [_ s]]
-  (log-fn (format "Type %s" s))
+  (log-fn (format "<p>Type %s</p>" s))
   (doseq [c s]
     (press robot log-fn [(str c)])))
 
 (defmethod exec-step "switch-focus" [{:keys [robot log-fn]} [_ times]]
   (dotimes [i times]
-    (log-fn (format "Switch-focus"))
+    (log-fn (format "<p>Switch-focus</p>"))
     ;; TODO - platform specific
     (press robot log-fn ["Shortcut" "Tab"])))
 
 (defmethod exec-step :default [{:keys [log-fn]} step]
-  (log-fn (format "Unknown %s" step)))
+  (log-fn (format "<p>Unknown %s</p>" step)))
 
-(defn- run [script]
-  (let [steps (get script "steps")
+(defn- store! [dir src-file args]
+  (let [src-file (io/as-file src-file)
+        src-content (slurp src-file)
+        out-content (reduce (fn [out [key value]] (string/replace out (format "$%s" key) value)) src-content args)]
+    (spit (File. dir (.getName src-file)) out-content)))
+
+(defn- run [script output]
+  (let [out-dir (doto (io/as-file output)
+                  (.mkdirs))
+        log-descs (get script "logs")
         robot (doto (Robot.)
                 (.setAutoDelay 40)
                 (.setAutoWaitForIdle true))
-        log-fn println
+        log-writer (StringWriter.)
+        log-fn (fn [s]
+                 (println s)
+                 (.write log-writer (format "%s\n" s)))
         ctx {:robot robot
-             :log-fn log-fn}]
-    (doseq [s steps]
-      (exec-step ctx s))))
+             :log-fn log-fn
+             :log-descs log-descs
+             :out-dir out-dir}
+        result (loop [steps (get script "steps")]
+                 (if-let [s (first steps)]
+                   (if (exec-step ctx s)
+                     (recur (rest steps))
+                     false)))]
+    (store! out-dir "resources/index.html" {"log" (.toString (.getBuffer log-writer))})
+    (store! out-dir "resources/robot.css" {})
+    result))
 
-(defn- parse-script [path]
-  (with-open [r (io/reader path)]
+(defn- parse-script [script]
+  (with-open [r (io/reader script)]
     (json/read r)))
 
 (defn -main [& args]
@@ -101,4 +175,5 @@
     (if (get-in opts [:options :help])
       (println (:summary opts))
       (let [s (parse-script (get-in opts [:options :script]))]
-        (run s)))))
+        (when (not (run s (get-in opts [:options :output])))
+          #_(System/exit 1))))))
