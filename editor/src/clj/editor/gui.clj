@@ -120,16 +120,12 @@
 (defn- ->color-vtx-vb [vs colors vcount]
   (let [vb (->color-vtx vcount)
         vs (mapv (comp vec concat) vs colors)]
-    (doseq [v vs]
-      (conj! vb v))
-    (persistent! vb)))
+    (persistent! (reduce conj! vb vs))))
 
 (defn- ->uv-color-vtx-vb [vs uvs colors vcount]
   (let [vb (->uv-color-vtx vcount)
         vs (mapv (comp vec concat) vs uvs colors)]
-    (doseq [v vs]
-      (conj! vb v))
-    (persistent! vb)))
+    (persistent! (reduce conj! vb vs))))
 
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
 (def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
