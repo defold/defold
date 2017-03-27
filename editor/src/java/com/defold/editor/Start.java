@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
@@ -181,7 +182,8 @@ public class Start extends Application {
                     @Override
                     public void run() {
                         try {
-                            openEditor(new String[0]);
+                            List<String> params = getParameters().getRaw();
+                            openEditor(params.toArray(new String[params.size()]));
                             splash.close();
                         } catch (Throwable t) {
                             t.printStackTrace();
