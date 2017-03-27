@@ -255,18 +255,22 @@
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
   (let [provisioning-profile-text-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles" "*.mobileprovision"]])
-        code-signing-identities (bundle/find-identities)
+        code-signing-identities (concat [[nil "None"]] (bundle/find-identities))
         code-signing-identity-ids (mapv first code-signing-identities)
         code-signing-identity-names-by-id (into {} code-signing-identities)
         code-signing-identity-ids-by-name (set/map-invert code-signing-identity-names-by-id)
         code-signing-identity-choice-box (doto (ChoiceBox. (ui/observable-list code-signing-identity-ids))
                                            (.setId "code-signing-identity-choice-box")
+                                           (.setMaxWidth Double/MAX_VALUE) ; Required to fill available space.
                                            (ui/on-action! refresh!)
                                            (.setConverter (proxy [StringConverter] []
                                                             (toString [identity-id]
                                                               (code-signing-identity-names-by-id identity-id))
                                                             (fromString [identity-name]
                                                               (code-signing-identity-ids-by-name identity-name)))))]
+    ;; Selecting nil won't update the ChoiceBox since it thinks it is
+    ;; already nil to begin with. Select "None" here as a workaround.
+    (.selectFirst (.getSelectionModel code-signing-identity-choice-box))
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "ios")
