@@ -282,6 +282,7 @@
         new-renderable (-> scene
                            (dissoc :children :renderable)
                            (assoc :node-path node-path
+                                  :picking-id (or (:picking-id scene) (peek node-path))
                                   :render-fn (:render-fn renderable)
                                   :world-transform world-transform
                                   :parent-world-transform parent-world-transform
@@ -427,15 +428,27 @@
           (recur (rest names) selected))
         (persistent! selected)))))
 
-(defn- picking-node-id [renderable]
-  ;; Clicking in the viewport selects nodes directly below the scene node, not
-  ;; specific elements deeper in the hierarchy. The node-path contains all the
-  ;; SceneNode ids leading up to and including the renderable, however it does
-  ;; not include the id of the node representing the edited scene itself.
-  ;; If the node path is empty, that means the renderable produced by the edited
-  ;; scene itself is drawing to the selection pass. We should not pick against
-  ;; that since it is a ResourceNode, not a SceneNode.
-  (first (:node-path renderable)))
+(declare claim-child-scene)
+
+(defn- claim-child-scenes [scene node-id]
+  (if-let [child-scenes (not-empty (:children scene))]
+    (assoc scene :children (mapv #(claim-child-scene % node-id) child-scenes))
+    scene))
+
+(defn claim-child-scene [scene node-id]
+  (-> scene
+      (assoc :picking-id node-id)
+      (claim-child-scenes node-id)))
+
+(defn claim-scene [scene node-id]
+  ;; When scenes reference other resources in the project, we want to treat the
+  ;; referenced scene as a group when picking in the scene view. To make this
+  ;; happen, the referencing scene claims ownership of the referenced scene and
+  ;; its children. Note that sub-elements can still be selected using the
+  ;; Outline view should the need arise.
+  (-> scene
+      (assoc :node-id node-id)
+      (claim-child-scenes node-id)))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
@@ -449,7 +462,7 @@
                                     (let [renderables (get renderables pass)
                                           batches (batch-render gl render-args renderables true :select-batch-key)]
                                       (reverse (render-sort (end-select gl select-buffer renderables batches)))))))
-                        (keep picking-node-id))
+                        (keep :picking-id))
                   pass/selection-passes))))
       []))
 

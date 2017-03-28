@@ -194,6 +194,26 @@
                (app-view/select! app-view [emitter])
                (is (seq (g/node-value view :selected-renderables)))))))
 
+(deftest claim-scene-test
+  (let [scene {:node-id :scene-node-id
+               :children [{:node-id :tree-node-id
+                           :children [{:node-id :apple-node-id}]}
+                          {:node-id :house-node-id
+                           :children [{:node-id :door-node-id
+                                       :children [{:node-id :door-handle-node-id}]}]}]}]
+    (is (= {:node-id :new-node-id
+            :children [{:node-id :tree-node-id
+                        :picking-id :new-node-id
+                        :children [{:node-id :apple-node-id
+                                    :picking-id :new-node-id}]}
+                       {:node-id :house-node-id
+                        :picking-id :new-node-id
+                        :children [{:node-id :door-node-id
+                                    :picking-id :new-node-id
+                                    :children [{:node-id :door-handle-node-id
+                                                :picking-id :new-node-id}]}]}]}
+           (scene/claim-scene scene :new-node-id)))))
+
 (defn- render-pass? [pass]
   (satisfies? types/Pass pass))
 
@@ -203,6 +223,7 @@
             :batch-key
             :node-id
             :node-path
+            :picking-id
             :parent-world-transform
             :render-fn
             :render-key
@@ -213,6 +234,7 @@
        (some? (:node-id renderable))
        (vector? (:node-path renderable))
        (every? some? (:node-path renderable))
+       (or (nil? (:picking-id renderable)) (= (type (:node-id renderable)) (type (:picking-id renderable))))
        (instance? Matrix4d (:parent-world-transform renderable))
        (some? (:render-fn renderable))
        (instance? Comparable (:render-key renderable))
@@ -243,6 +265,17 @@
                                                     :passes passes}
                                        :children [{:node-id :door-handle-node-id
                                                    :renderable {:render-fn :door-handle-render-fn
+                                                                :passes passes}}]}]}
+                          {:node-id :well-node-id
+                           :renderable {:render-fn :well-render-fn
+                                        :passes passes}
+                           :children [{:node-id :rope-node-id
+                                       :picking-id :well-node-id
+                                       :renderable {:render-fn :rope-render-fn
+                                                    :passes passes}
+                                       :children [{:node-id :bucket-node-id
+                                                   :picking-id :well-node-id
+                                                   :renderable {:render-fn :bucket-render-fn
                                                                 :passes passes}}]}]}]}]
     (testing "Output is well-formed"
       (let [render-data (scene/produce-render-data scene [] [] camera)]
@@ -274,6 +307,25 @@
           :door-render-fn        [:house-node-id :door-node-id]
           :door-handle-render-fn [:house-node-id :door-node-id :door-handle-node-id])))
 
+    (testing "Picking ids are assigned correctly"
+      (let [render-data (scene/produce-render-data scene [] [] camera)
+            selection-renderables (-> render-data :renderables (get pass/selection))
+            picking-ids-by-node-id (into {}
+                                         (map (juxt :node-id :picking-id))
+                                         selection-renderables)]
+        (are [node-id picking-id]
+          (= picking-id (get picking-ids-by-node-id node-id ::missing))
+
+          :scene-node-id       nil
+          :tree-node-id        :tree-node-id
+          :apple-node-id       :apple-node-id
+          :house-node-id       :house-node-id
+          :door-node-id        :door-node-id
+          :door-handle-node-id :door-handle-node-id
+          :well-node-id        :well-node-id
+          :rope-node-id        :well-node-id
+          :bucket-node-id      :well-node-id)))
+
     (testing "Selection"
       (are [selection appears-selected]
         (let [render-data (scene/produce-render-data scene selection [] camera)
@@ -298,7 +350,19 @@
         [:house-node-id :door-node-id :door-handle-node-id]
 
         [:house-node-id :door-handle-node-id]
-        [:house-node-id :door-node-id :door-handle-node-id]))
+        [:house-node-id :door-node-id :door-handle-node-id]
+
+        [:bucket-node-id]
+        [:bucket-node-id]
+
+        [:rope-node-id]
+        [:rope-node-id :bucket-node-id]
+
+        [:well-node-id]
+        [:well-node-id :rope-node-id :bucket-node-id]
+
+        [:well-node-id :rope-node-id]
+        [:well-node-id :rope-node-id :bucket-node-id]))
 
     (testing "Selected renderables are ordered"
       (are [selection]

@@ -126,11 +126,6 @@
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
-  (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (-> scene
-                                       (assoc :node-id _node-id
-                                              :transform transform
-                                              :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform)))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]
@@ -151,6 +146,11 @@
   (input save-data g/Any :cascade-delete)
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
                                               (gen-embed-ddf id position rotation save-data)))
+  (output scene g/Any :cached (g/fnk [_node-id transform scene]
+                                (-> scene
+                                    (assoc :node-id _node-id
+                                           :transform transform
+                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform)))))
   (output build-resource resource/Resource (g/fnk [source-resource save-data]
                                                   (some-> source-resource
                                                      (assoc :data (:content save-data))
@@ -212,6 +212,10 @@
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
 
   (input source-id g/NodeID :cascade-delete)
+  (output scene g/Any :cached (g/fnk [_node-id transform scene]
+                                (-> (scene/claim-scene scene _node-id)
+                                    (assoc :transform transform
+                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform)))))
   (output ddf-properties g/Any :cached
           (g/fnk [source-properties]
                  (let [prop-order (into {} (map-indexed (fn [i k] [k i]) (:display-order source-properties)))]
