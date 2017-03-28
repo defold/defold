@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <dlib/image.h>
+#include <dlib/webp.h>
 
 #include "../texc.h"
 
@@ -51,11 +53,24 @@ static dmTexc::HTexture CreateDefaultRGBA()
     return dmTexc::Create(2, 2, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, default_data_rgba);
 }
 
-static dmTexc::HTexture CreateDefaultRGBA16x16()
+static dmTexc::HTexture CreateDefaultRGBA(uint32_t w, uint32_t h)
 {
-    uint8_t data[16*16*4];
-    memset(data, 0xff, sizeof(data));
-    return dmTexc::Create(16, 16, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, data);
+    uint32_t* data = new uint32_t[w*h];
+    for(uint32_t y = 0, i = 0; y < w; ++y)
+    {
+        for(uint32_t x = 0; x < h; ++x)
+        {
+            uint32_t r = x & 0xff;
+            uint32_t g = (y & 0xff) << 8;
+            uint32_t b = (255-(i & 0xff)) << 16;
+            uint32_t a = (i & 0xff) << 24;
+            data[(y*w)+x] = r | g | b | a;
+            ++i;
+        }
+    }
+    dmTexc::HTexture texture = dmTexc::Create(w, h, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, data);
+    delete[] data;
+    return texture;
 }
 
 struct Format
@@ -173,7 +188,7 @@ TEST_F(TexcTest, Transcode)
 
 TEST_F(TexcTest, TranscodeWebPLossless)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA16x16();
+    dmTexc::HTexture texture = CreateDefaultRGBA(16, 16);
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP));
@@ -202,7 +217,7 @@ TEST_F(TexcTest, TranscodeWebPLossless)
 
 TEST_F(TexcTest, TranscodeWebPLossy)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA16x16();
+    dmTexc::HTexture texture = CreateDefaultRGBA(16, 16);
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP_LOSSY));
@@ -301,6 +316,45 @@ TEST_F(TexcTest, FlipAxis)
 }
 
 #undef ASSERT_RGBA
+
+static void TranscodeWebPTC(dmTexc::PixelFormat format)
+{
+    dmTexc::HTexture texture_default = CreateDefaultRGBA(256, 256);
+    ASSERT_TRUE(dmTexc::Transcode(texture_default, format, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_DEFAULT));
+    dmTexc::HTexture texture = CreateDefaultRGBA(256, 256);
+    ASSERT_TRUE(dmTexc::Transcode(texture, format, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP));
+
+    size_t compressed_size = dmTexc::GetDataSizeCompressed(texture, 0);
+    uint8_t* compressed_data = new uint8_t[compressed_size];
+    dmTexc::GetData(texture, compressed_data, compressed_size);
+    size_t uncompressed_size = dmTexc::GetDataSizeUncompressed(texture, 0);
+    uint8_t* uncompressed_data = new uint8_t[uncompressed_size];
+
+    dmTexc::Header header;
+    dmTexc::GetHeader(texture, &header);
+    dmWebP::Result res = dmWebP::DecodeCompressedTexture(compressed_data, compressed_size, uncompressed_data, uncompressed_size,
+            uncompressed_size/header.m_Height, format == dmTexc::PF_RGB_ETC1 ? dmWebP::TEXTURE_COMPRESSION_ETC1 : dmWebP::TEXTURE_COMPRESSION_PVRTC1);
+    ASSERT_EQ(dmWebP::RESULT_OK, res);
+
+    uint8_t* default_texture_data = new uint8_t[uncompressed_size];
+    dmTexc::GetData(texture_default, default_texture_data, uncompressed_size);
+    ASSERT_EQ(0, memcmp(uncompressed_data, default_texture_data, uncompressed_size));
+
+    dmTexc::Destroy(texture);
+    dmTexc::Destroy(texture_default);
+    delete[] compressed_data;
+    delete[] uncompressed_data;
+    delete[] default_texture_data;
+}
+
+TEST_F(TexcTest, TranscodeWebPTextureCompression)
+{
+    TranscodeWebPTC(dmTexc::PF_RGBA_PVRTC_4BPPV1);
+    TranscodeWebPTC(dmTexc::PF_RGB_PVRTC_4BPPV1);
+    TranscodeWebPTC(dmTexc::PF_RGBA_PVRTC_2BPPV1);
+    TranscodeWebPTC(dmTexc::PF_RGB_PVRTC_2BPPV1);
+    TranscodeWebPTC(dmTexc::PF_RGB_ETC1);
+}
 
 int main(int argc, char **argv)
 {
