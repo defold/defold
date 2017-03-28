@@ -870,6 +870,7 @@ bail:
     void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
+        int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
@@ -886,7 +887,7 @@ bail:
         input_action.m_DX = action->m_DX * width_ratio;
         input_action.m_DY = -action->m_DY * height_ratio;
         input_action.m_ScreenX = action->m_X;
-        input_action.m_ScreenY = (int32_t)dmGraphics::GetWindowHeight(engine->m_GraphicsContext) - action->m_Y;
+        input_action.m_ScreenY = window_height - action->m_Y;
         input_action.m_ScreenDX = action->m_DX;
         input_action.m_ScreenDY = -action->m_DY;
         input_action.m_AccX = action->m_AccX;
@@ -904,6 +905,10 @@ bail:
             ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
             ia.m_DX = a.m_DX * width_ratio;
             ia.m_DY = -a.m_DY * height_ratio;
+            ia.m_ScreenX = a.m_X;
+            ia.m_ScreenY = window_height - a.m_Y;
+            ia.m_ScreenDX = a.m_DX;
+            ia.m_ScreenDY = -a.m_DY;
         }
 
         input_action.m_TextCount = action->m_TextCount;
