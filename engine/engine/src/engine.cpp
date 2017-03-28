@@ -1020,12 +1020,6 @@ bail:
             {
                 DM_PROFILE(Engine, "Frame");
 
-                if (dLib::IsDebugMode() && engine->m_ShowProfile)
-                {
-                    DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
-                    DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
-                }
-
                 // We had buffering problems with the output when running the engine inside the editor
                 // Flushing stdout/stderr solves this problem.
                 fflush(stdout);
@@ -1134,6 +1128,9 @@ bail:
 
                     dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
                 }
+
+                DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
+                DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
 
                 if (dLib::IsDebugMode() && engine->m_ShowProfile)
                 {
