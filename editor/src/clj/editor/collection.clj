@@ -189,9 +189,8 @@
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> scene
-                                         (assoc :node-id _node-id
-                                                :transform transform
+                                       (-> (scene/claim-scene scene _node-id)
+                                         (assoc :transform transform
                                                 :aabb aabb
                                                 :renderable {:passes [pass/selection]})
                                          (update :children (fn [s] (reduce conj (or s []) child-scenes)))))))
@@ -551,8 +550,7 @@
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc scene
-                                            :node-id _node-id
+                                     (assoc (scene/claim-scene scene _node-id)
                                             :transform transform
                                             :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
                                             :renderable {:passes [pass/selection]})))
