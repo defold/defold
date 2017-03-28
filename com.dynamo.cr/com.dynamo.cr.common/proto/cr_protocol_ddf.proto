@@ -133,6 +133,8 @@ message ProjectSite {
     optional string library_url = 16;
     optional string attachment_url = 17;
     optional bool is_public_site = 18;
+    optional bool show_name = 19;
+    optional bool allow_comments = 20;
 
     message AppStoreReference {
         required int64 id = 1;
