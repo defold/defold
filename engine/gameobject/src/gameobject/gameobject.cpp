@@ -57,7 +57,7 @@ namespace dmGameObject
     PROP_VECTOR3(POSITION, position);
     PROP_QUAT(ROTATION, rotation);
     PROP_VECTOR3(EULER, euler);
-    PROP_FLOAT(SCALE, scale);
+    PROP_VECTOR3(SCALE, scale);
 
     InputAction::InputAction()
     {
@@ -2756,6 +2756,21 @@ namespace dmGameObject
                 out_value.m_Variant = PropertyVar(instance->m_Transform.GetUniformScale());
                 return PROPERTY_RESULT_OK;
             }
+            else if (property_id == PROP_SCALE_X)
+            {
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale().getX());
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_SCALE_Y)
+            {
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale().getY());
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_SCALE_Z)
+            {
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale().getZ());
+                return PROPERTY_RESULT_OK;
+            }
             float* position = instance->m_Transform.GetPositionPtr();
             float* rotation = instance->m_Transform.GetRotationPtr();
             if (property_id == PROP_POSITION)
@@ -2939,6 +2954,27 @@ namespace dmGameObject
                 scale[0] = (float)value.m_Number;
                 scale[1] = scale[0];
                 scale[2] = scale[0];
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_SCALE_X)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                scale[0] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_SCALE_Y)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                scale[1] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_SCALE_Z)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                scale[2] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION)

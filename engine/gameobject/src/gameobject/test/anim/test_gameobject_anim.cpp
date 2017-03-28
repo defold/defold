@@ -647,6 +647,72 @@ TEST_F(AnimTest, UniformScale)
     dmGameObject::Delete(m_Collection, go);
 }
 
+TEST_F(AnimTest, NonUniformScaleX)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::SetScale(go, 1.0);
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("scale.x");
+    dmGameObject::PropertyVar var(2.f);
+    float duration = 0.25f;
+    float delay = 0.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+    ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getX(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(AnimTest, NonUniformScaleY)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::SetScale(go, 1.0);
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("scale.y");
+    dmGameObject::PropertyVar var(2.f);
+    float duration = 0.25f;
+    float delay = 0.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getX(), 0.000001f);
+    ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(AnimTest, NonUniformScaleZ)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::SetScale(go, 1.0);
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("scale.z");
+    dmGameObject::PropertyVar var(2.f);
+    float duration = 0.25f;
+    float delay = 0.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getX(), 0.000001f);
+    ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
+    ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
