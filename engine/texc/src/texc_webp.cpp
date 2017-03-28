@@ -97,7 +97,79 @@ namespace dmTexc
             pic.custom_ptr = &memory_writer;
             uint8_t* data = (uint8_t*) pt->getDataPtr(mip_map);
 
-            if(bpp >= 24)
+            if(pixel_format == dmTexc::PF_RGB_ETC1)
+            {
+                // Require lossless compression
+                if(compression_type == dmTexc::CT_WEBP_LOSSY)
+                {
+                    dmLogError("WebP ETC1 compression requires lossless compression.");
+                    break;
+                }
+
+                // Hardcode compression level to max (TBD, setting in texture profile format).
+                config.exact = 1;
+                config.method = 6;
+                config.quality = 100;
+                pic.width >>= 2;    // 4px w blocks
+                pic.height >>= 2;   // 4px h blocks
+
+                // decompose 64 bit blocks into 2x texture, base colors and pixel indices
+                uint32_t* rgba = new uint32_t[pic.width*(pic.height*2)];
+                uint32_t* base_colors = &rgba[0];
+                uint32_t* pixel_indices = &rgba[pic.height*pic.width];
+                ETCDecomposeBlocks((uint64_t*)data, pic.width, pic.height, base_colors, pixel_indices);
+
+                uint32_t stride = pic.width << 2;   // 64 bits color or modulation per block
+                pic.height  *= 2;                   // We use base color information and pixel indices in one picture 2x high
+                bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) rgba, stride);
+                delete []rgba;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGBA from ETC1 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+            }
+            else if((pixel_format == dmTexc::PF_RGBA_PVRTC_4BPPV1) || (pixel_format == dmTexc::PF_RGB_PVRTC_4BPPV1) || (pixel_format == dmTexc::PF_RGBA_PVRTC_2BPPV1) || (pixel_format == dmTexc::PF_RGB_PVRTC_2BPPV1))
+            {
+                // Require lossless compression
+                if(compression_type == dmTexc::CT_WEBP_LOSSY)
+                {
+                    dmLogError("WebP PVRTC compression requires lossless compression.");
+                    break;
+                }
+
+                // Hardcode compression level to max (TBD, setting in texture profile format).
+                config.exact = 1;
+                config.method = 6;
+                config.quality = 100;
+                if(pixel_format == dmTexc::PF_RGBA_PVRTC_4BPPV1 || pixel_format == dmTexc::PF_RGB_PVRTC_4BPPV1)
+                {
+                    pic.width >>= 2;            // 4px w blocks
+                }
+                else
+                {
+                    pic.width >>= 3;            // 8px w blocks
+                }
+                pic.height >>= 2;               // 4px h blocks
+
+                // decompose 64 bit per block into 3x texture, color A, color B and modulation
+                uint32_t* rgba = new uint32_t[pic.width*(pic.height*3)];
+                uint32_t* color_a = &rgba[0];
+                uint32_t* color_b = &rgba[pic.height*pic.width];
+                uint32_t* modulation = &rgba[pic.height*2*pic.width];
+                PVRTCDecomposeBlocks((uint64_t*)data, pic.width, pic.height, color_a, color_b, modulation);
+
+                uint32_t stride = pic.width << 2;   // 64 bits color or modulation per block
+                pic.height  *= 3;                   // We use ColorA RGBA, ColorB RGBA and Modulation in one picture 3x high
+                bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) rgba, stride);
+                delete []rgba;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGBA from PVRTC (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+            }
+            else if(bpp >= 24)
             {
                 if(bpp == 32)
                 {
