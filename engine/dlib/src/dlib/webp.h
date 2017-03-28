@@ -19,7 +19,7 @@ namespace dmWebP
     };
 
     /**
-     * Result codes
+     * TextureCompression type enumeration
      */
     enum TextureCompression
     {

@@ -21,11 +21,14 @@ namespace dmWebP
         return RESULT_OK;
     }
 
+
+    // Compose 32-bit colora RGBA, colorb RGBA and 32-bit modulation buffers into PVRTC1 64-bit blocks.
+    // Data is transformed from linear bitmap space to morton order (PVRTC1), ref: http://graphics.stanford.edu/~seander/bithacks.html#InterleaveBMN
     static void PVRTComposeBlocks(uint64_t* data, const uint32_t width, const uint32_t height, const uint32_t* color_a, const uint32_t* color_b, const uint32_t* modulation)
     {
         for(uint32_t y = 0; y < height; ++y)
         {
-            // morton order y (max 0xffff). Ref: http://graphics.stanford.edu/~seander/bithacks.html#InterleaveBMN
+            // morton order y (max 0xffff).
             uint32_t my = (y | (y << 8)) & 0x00FF00FF;
             my = (my | (my << 4)) & 0x0F0F0F0F;
             my = (my | (my << 2)) & 0x33333333;
