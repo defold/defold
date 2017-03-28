@@ -153,6 +153,14 @@ public class ProjectService {
         if (projectSite.hasIsPublicSite()) {
             existingProjectSite.setPublicSite(projectSite.getIsPublicSite());
         }
+
+        if (projectSite.hasShowName()) {
+            existingProjectSite.setShowName(projectSite.getShowName());
+        }
+
+        if (projectSite.hasAllowComments()) {
+            existingProjectSite.setAllowComments(projectSite.getAllowComments());
+        }
     }
 
     @Transactional

@@ -92,6 +92,8 @@ public class ProjectSiteMapper {
             }
 
             builder.setIsPublicSite(projectSite.isPublicSite());
+            builder.setShowName(projectSite.isShowName());
+            builder.setAllowComments(projectSite.isAllowComments());
 
             Set<AppStoreReference> appStoreReferences = projectSite.getAppStoreReferences();
             if (appStoreReferences != null) {
