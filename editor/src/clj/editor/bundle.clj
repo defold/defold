@@ -1,14 +1,19 @@
 (ns editor.bundle
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as shell]
+            [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.client :as client]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
             [editor.system :as system]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
-            [editor.engine :as engine])
+            [editor.engine :as engine]
+            [editor.git :as git]
+            [editor.workspace :as workspace])
   (:import [java.io File]
+           [java.net URL]
            [javafx.scene Parent Node Scene Group]
            [javafx.stage Stage StageStyle Modality]
            [com.google.common.io Files]
@@ -71,43 +76,64 @@
     (shell/sh "zip" "-qr" ipa "Payload" :dir package-dir)
     app-dir))
 
+(defn- cr-project-id [workspace]
+  (with-open [git (git/open (workspace/project-path workspace))]
+    (when-let [remote-url (git/remote-origin-url git)]
+      (let [url (URL. remote-url)
+            host (.getHost url)]
+        (when (or (= host "cr.defold.se") (= host "cr.defold.com"))
+          (let [path (.getPath url)]
+            (Long/parseLong (subs path (inc (string/last-index-of path "/"))))))))))
+
 (handler/defhandler ::sign :dialog
   (enabled? [controls] (and (ui/selection (:identities controls))
-                            (.exists (io/file (ui/text (:provisioning-profile controls))))))
+                            (.exists (io/file (ui/text (:provisioning-profile controls))))
+                            (.exists (io/file (ui/text (:build-dir controls))))))
   (run [workspace prefs ^Stage stage root controls project]
+    (let [ipa-dir (ui/text (:build-dir controls))
+          settings (g/node-value project :settings)
+          w (get settings ["display" "width"] 1)
+          h (get settings ["display" "height"] 1)
+          orient-props (if (> w h)
+                         {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationLandscapeRight"
+                          "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationLandscapeRight"}
+                         {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationPortrait"
+                          "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationPortrait"})
+          name (get settings ["project" "title"] "Unnamed")
+          props {"CFBundleDisplayName" name
+                 "CFBundleExecutable" "dmengine"
+                 "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
 
+          ^File engine (get-ios-engine workspace prefs)
+          identity (get (ui/selection (:identities controls)) 0)
+          identity-id (get identity 0)
+          profile (ui/text (:provisioning-profile controls))]
 
-    (let [ipa-dir (ui/choose-directory "Select target directory for IPA file")]
-      (when ipa-dir
-        (let [settings (g/node-value project :settings)
-              w (get settings ["display" "width"] 1)
-              h (get settings ["display" "height"] 1)
-              orient-props (if (> w h)
-                             {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationLandscapeRight"
-                              "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationLandscapeRight"}
-                             {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationPortrait"
-                              "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationPortrait"})
-              name (get settings ["project" "title"] "Unnamed")
-              props {"CFBundleDisplayName" name
-                     "CFBundleExecutable" "dmengine"
-                     "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
-
-              ^File engine (get-ios-engine workspace prefs)
-              identity (get (ui/selection (:identities controls)) 0)
-              identity-id (get identity 0)
-              profile (ui/text (:provisioning-profile controls))]
-
-          (prefs/set-prefs prefs "last-identity" identity)
-          (prefs/set-prefs prefs "last-provisioning-profile" profile)
-          (ui/disable! root true)
-          (sign-ios-app (format "%s/%s.ipa" ipa-dir name) (.getAbsolutePath engine) identity-id profile props))))
+      (prefs/set-prefs prefs "last-identity" identity)
+      (prefs/set-prefs prefs "last-provisioning-profile" profile)
+      (prefs/set-prefs prefs "last-ios-build-dir" ipa-dir)
+      (ui/disable! root true)
+      (let [ipa (format "%s/%s.ipa" ipa-dir name)]
+        (sign-ios-app ipa (.getAbsolutePath engine) identity-id profile props)
+        (when-let [cr-project-id (cr-project-id workspace)]
+          (let [client (client/make-client prefs)]
+            (when-let [user-id (client/user-id client)]
+              (client/upload-engine client user-id cr-project-id "ios" (io/input-stream ipa)))))))
     (.close stage)))
 
 (handler/defhandler ::select-provisioning-profile :dialog
   (enabled? [] true)
   (run [stage controls]
-    (let [f (ui/choose-file "Selection Provisioning Profile" "Provisioning Profile" ["*.mobileprovision"])]
+    (let [f (ui/choose-file "Select Provisioning Profile" "Provisioning Profile" ["*.mobileprovision"])]
       (ui/text! (:provisioning-profile controls) f))))
+
+(handler/defhandler ::select-build-dir :dialog
+  (enabled? [] true)
+  (run [stage controls]
+    (let [^File f (io/as-file (ui/text (:build-dir controls)))
+          f (when (.exists f) f)]
+      (when-let [f (ui/choose-directory "Selection Build Directory" f)]
+        (ui/text! (:build-dir controls) f)))))
 
 (defn- find-identities []
   (let [re #"\s+\d+\)\s+([0-9A-Z]+)\s+\"(.*?)\""
@@ -121,15 +147,17 @@
   (let [root ^Parent (ui/load-fxml "sign-dialog.fxml")
         stage (ui/make-stage)
         scene (Scene. root)
-        controls (ui/collect-controls root ["identities" "sign" "provisioning-profile" "provisioning-profile-button"])
+        controls (ui/collect-controls root ["identities" "sign" "provisioning-profile" "provisioning-profile-button" "build-dir" "build-dir-button"])
         identities (find-identities)]
 
     (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project} nil)
     (ui/cell-factory! (:identities controls) (fn [i] {:text (second i)}))
 
     (ui/text! (:provisioning-profile controls) (prefs/get-prefs prefs "last-provisioning-profile" ""))
+    (ui/text! (:build-dir controls) (prefs/get-prefs prefs "last-ios-build-dir" (str (workspace/project-path workspace) "/build")))
 
     (ui/bind-action! (:provisioning-profile-button controls) ::select-provisioning-profile)
+    (ui/bind-action! (:build-dir-button controls) ::select-build-dir)
     (ui/bind-action! (:sign controls) ::sign)
 
     (ui/items! (:identities controls) identities)

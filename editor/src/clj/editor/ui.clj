@@ -18,6 +18,7 @@
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
    [java.awt Desktop]
+   [java.io File]
    [java.net URI]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
@@ -118,9 +119,11 @@
       (if file (.getAbsolutePath file)))))
 
 (defn choose-directory
-  ([title] (choose-directory title @*main-stage*))
-  ([title parent]
+  ([title ^File initial-dir] (choose-directory title initial-dir @*main-stage*))
+  ([title ^File initial-dir parent]
     (let [chooser (DirectoryChooser.)]
+      (when initial-dir
+        (.setInitialDirectory chooser initial-dir))
       (.setTitle chooser title)
       (let [file (.showDialog chooser parent)]
         (when file (.getAbsolutePath file))))))

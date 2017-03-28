@@ -20,6 +20,9 @@
 
 (set! *warn-on-reflection* true)
 
+(defn open ^Git [^File repo-path]
+  (Git/open repo-path))
+
 (defn get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
     (.setRetainBody walk true)
@@ -72,6 +75,10 @@
       (.setString config "user" nil "name" name))
     (when (str/blank? configured-email)
       (.setString config "user" nil "email" email))))
+
+(defn remote-origin-url [^Git git]
+  (let [config (.. git getRepository getConfig)]
+    (.getString config "remote" "origin" "url")))
 
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
