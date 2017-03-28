@@ -51,6 +51,12 @@ public class ProjectSite {
     @Column
     private boolean publicSite;
 
+    @Column
+    private boolean showName = true;
+
+    @Column
+    private boolean allowComments = true;
+
     @OneToMany(cascade = CascadeType.ALL)
     private Set<AppStoreReference> appStoreReferences = new HashSet<>();
 
@@ -175,5 +181,21 @@ public class ProjectSite {
 
     public void setPublicSite(boolean publicSite) {
         this.publicSite = publicSite;
+    }
+
+    public boolean isShowName() {
+        return showName;
+    }
+
+    public void setShowName(boolean showName) {
+        this.showName = showName;
+    }
+
+    public boolean isAllowComments() {
+        return allowComments;
+    }
+
+    public void setAllowComments(boolean allowComments) {
+        this.allowComments = allowComments;
     }
 }
