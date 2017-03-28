@@ -133,6 +133,7 @@
                                 :source-paths      ["dev/clj"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
+                                                    "-Djogl.texture.notexrect=true"
                                                     "-XX:+UnlockCommercialFeatures"
                                                     "-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"]}})
