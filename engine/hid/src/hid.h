@@ -257,10 +257,14 @@ namespace dmHID
         int32_t m_ScreenX;
         /// Current y, in screen space
         int32_t m_ScreenY;
-        /// dx
+        /// Current dx
         int32_t m_DX;
-        /// dy
+        /// Current dy
         int32_t m_DY;
+        /// Current dx, in screen space
+        int32_t m_ScreenDX;
+        /// Current dy, in screen space
+        int32_t m_ScreenDY;
         /// Touch id
         int32_t m_Id;
     };
