@@ -137,6 +137,11 @@
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
 
+(defn ^Vector3d transform-vector [^Matrix4d mat ^Vector3d v]
+  (let [v' (Vector3d. v)]
+    (.transform mat v')
+    v'))
+
 (defn inv-transform
   ([^Point3d position ^Quat4d rotation ^Point3d p]
     (let [q (doto (Quat4d. rotation) (.conjugate))
@@ -198,7 +203,16 @@
       (.set out-rotation mat3)
       (.set out-scale scale))))
 
-(defn affine-inverse ^Matrix4d [^Matrix4d mat]
+(defn inverse
+  "Calculate the inverse of a matrix."
+  ^Matrix4d [^Matrix4d mat]
+  (doto (Matrix4d.)
+    (.invert mat)))
+
+(defn affine-inverse
+  "Efficiently calculate the inverse of an affine matrix.
+  Warning: You cannot use this with scaled matrices."
+  ^Matrix4d [^Matrix4d mat]
   (let [t (Vector3d.)
         rs (Matrix3d.)]
     (.get mat t)

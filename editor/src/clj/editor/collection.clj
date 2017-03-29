@@ -60,15 +60,6 @@
    :scale3 scale
    :component-properties ddf-component-properties})
 
-(defn- claim-scene [scene node-id]
-  (let [prev-node-id (:node-id scene)
-        new-scene (-> scene
-                    (assoc :node-id node-id)
-                    (update :node-path (fn [p] (into [prev-node-id] p))))]
-    (if (:children scene)
-      (assoc new-scene :children (mapv #(claim-scene % node-id) (:children scene)))
-      new-scene)))
-
 (defn- prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
@@ -128,8 +119,8 @@
                      [:id-counts :id-counts]]]
       (g/connect coll-id from child-id to))))
 
-(def EmbeddedGOInstanceNode nil)
-(def ReferencedGOInstanceNode nil)
+(declare EmbeddedGOInstanceNode)
+(declare ReferencedGOInstanceNode)
 
 (defn- go-id->node-ids [go-id]
   (let [collection (core/scope go-id)]
@@ -198,7 +189,7 @@
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (claim-scene scene _node-id)
+                                       (-> (scene/claim-scene scene _node-id)
                                          (assoc :transform transform
                                                 :aabb aabb
                                                 :renderable {:passes [pass/selection]})
@@ -380,7 +371,7 @@
        :user-data {:name name :instance-data instance-data}
        :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
 
-(def CollectionInstanceNode nil)
+(declare CollectionInstanceNode)
 
 (g/defnk produce-coll-outline [_node-id child-outlines]
   (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
@@ -559,10 +550,10 @@
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc (claim-scene scene _node-id)
-                                           :transform transform
-                                           :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
-                                           :renderable {:passes [pass/selection]})))
+                                     (assoc (scene/claim-scene scene _node-id)
+                                            :transform transform
+                                            :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
+                                            :renderable {:passes [pass/selection]})))
   (output build-targets g/Any :cached produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
                                                   (map (fn [m] (update m :id (fn [s] (format "%s/%s" id s)))) ddf-properties)))
