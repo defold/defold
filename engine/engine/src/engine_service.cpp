@@ -189,18 +189,9 @@ namespace dmEngineService
         // See ssdp.cpp#ReplaceHttpHostVar
         static const char* ReplaceHttpHostVar(void *user_data, const char *key)
         {
-            dmWebServer::Request* request = (dmWebServer::Request*) user_data;
             if (strcmp(key, "HTTP-HOST") == 0)
             {
-                char buffer[128];
-                dmStrlCpy(buffer, dmWebServer::GetHeader(request, "Host"), sizeof(buffer));
-                // Strip possible port number included here
-                char *delim = strchr(buffer, ':');
-                if (delim)
-                {
-                    *delim = 0;
-                }
-                return buffer;
+                return (char*) user_data;
             }
             return 0;
         }
@@ -209,18 +200,26 @@ namespace dmEngineService
         static void UpnpHandler(void* user_data, dmWebServer::Request* request)
         {
             EngineService* service = (EngineService*) user_data;
-            dmWebServer::SetStatusCode(request, 200);
+            char host_buffer[64];
+            dmStrlCpy(host_buffer, dmWebServer::GetHeader(request, "Host"), sizeof(host_buffer));
+            // Strip possible port number included here
+            char *delim = strchr(host_buffer, ':');
+            if (delim)
+            {
+                *delim = 0;
+            }
             char buffer[1024];
-            dmTemplate::Result tr = dmTemplate::Format(request, buffer, sizeof(buffer), service->m_DeviceDesc.m_DeviceDescription, ReplaceHttpHostVar);
+            dmTemplate::Result tr = dmTemplate::Format(host_buffer, buffer, sizeof(buffer), service->m_DeviceDesc.m_DeviceDescription, ReplaceHttpHostVar);
             if (tr != dmTemplate::RESULT_OK)
             {
                 dmLogError("Error formating http response (%d)", tr);
                 dmWebServer::SetStatusCode(request, 500);
                 const char *s = "Internal error";
-                dmWebServer::Send(request, service->m_DeviceDesc.m_DeviceDescription, strlen(service->m_DeviceDesc.m_DeviceDescription));
+                dmWebServer::Send(request, s, strlen(s));
             }
             else
             {
+                dmWebServer::SetStatusCode(request, 200);
                 dmWebServer::Send(request, buffer, strlen(buffer));
             }
         }
