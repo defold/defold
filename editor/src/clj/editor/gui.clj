@@ -917,7 +917,10 @@
                                                 (merge template-overrides))))
   (output aabb g/Any (g/fnk [template-scene transform]
                        (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
-  (output scene-children g/Any (g/fnk [template-scene] (:children template-scene [])))
+  (output scene-children g/Any (g/fnk [_node-id template-scene]
+                                 (if-let [child-scenes (:children template-scene)]
+                                   (mapv #(scene/claim-child-scene % _node-id) child-scenes)
+                                   [])))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
@@ -1571,7 +1574,8 @@
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
   (output child-scenes g/Any :cached (g/fnk [default-scene layout-scenes current-layout]
-                                            [(get layout-scenes current-layout default-scene)]))
+                                       (let [node-tree-scene (get layout-scenes current-layout default-scene)]
+                                         (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
   (output template-scene g/Any :cached (g/fnk [scene child-scenes]
                                          (assoc scene :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes)))))
