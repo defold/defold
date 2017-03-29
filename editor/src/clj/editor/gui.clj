@@ -1748,6 +1748,7 @@
 
 (defn- add-handler-options [node]
   (let [types (protobuf/enum-values Gui$NodeDesc$Type)
+        node (if (g/override? node) (g/override-original node) node)
         scene (node->gui-scene node)
         node-options (if (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)
