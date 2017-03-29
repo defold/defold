@@ -636,21 +636,20 @@
       (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
 
 (defn- render-pfx [^GL2 gl render-args renderables count]
-  (doseq [renderable renderables
-          :let [node-id (last (:node-path renderable))]]
-    (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
-      (let [pfx-sim @pfx-sim-ref
-            user-data (:user-data renderable)
-            render-emitter-fn (:render-emitter-fn user-data)
-            vtx-binding (:vtx-binding pfx-sim)
-            camera (:camera render-args)
-            view-proj (doto (Matrix4d.)
-                        (.mul (camera/camera-projection-matrix camera) (camera/camera-view-matrix camera)))]
-        (plib/render pfx-sim (partial render-emitter-fn gl render-args vtx-binding view-proj))))))
+  (doseq [renderable renderables]
+    (when-let [node-id (some-> renderable :updatable :node-id)]
+      (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
+        (let [pfx-sim @pfx-sim-ref
+              user-data (:user-data renderable)
+              render-emitter-fn (:render-emitter-fn user-data)
+              vtx-binding (:vtx-binding pfx-sim)
+              camera (:camera render-args)
+              view-proj (doto (Matrix4d.)
+                          (.mul (camera/camera-projection-matrix camera) (camera/camera-view-matrix camera)))]
+          (plib/render pfx-sim (partial render-emitter-fn gl render-args vtx-binding view-proj)))))))
 
 (g/defnk produce-scene [_node-id child-scenes render-emitter-fn scene-updatable]
   {:node-id _node-id
-   :node-path [_node-id]
    :updatable scene-updatable
    :renderable {:render-fn render-pfx
                 :batch-key nil
