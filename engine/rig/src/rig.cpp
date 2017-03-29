@@ -10,6 +10,7 @@ namespace dmRig
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
     static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
+    static const uint32_t SIGNAL_SLOT_UNUSED = UINT32_MAX; // Used to indicate if a draw order slot is unused
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* RIG_MAX_INSTANCES_KEY = "rig.max_instance_count";
@@ -817,16 +818,16 @@ namespace dmRig
             player->m_Backwards = 0;
         }
 
-        if (fabs(t) > duration) 
+        if (fabs(t) > duration)
         {
             t = fmod(t, duration);
-            if (fabs(t) < CURSOR_EPSILON) 
+            if (fabs(t) < CURSOR_EPSILON)
             {
                 t = duration;
             }
         }
 
-        if (t < 0.0f) 
+        if (t < 0.0f)
         {
             t = duration - fmod(fabs(t), duration);
         }
@@ -837,7 +838,7 @@ namespace dmRig
         }
 
         player->m_Cursor = t;
-        
+
         return dmRig::RESULT_OK;
     }
 
@@ -867,8 +868,25 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
+    static void PlaceInSlot(dmArray<uint32_t>& slots, uint32_t slot_index, int32_t value)
+    {
+        uint32_t slot_count = slots.Size();
+
+        // Find first free slot from supplied slot index.
+        for (uint32_t i = slot_index; i < slot_count; ++i)
+        {
+            if (slots[i] == SIGNAL_SLOT_UNUSED) {
+                slots[i] = value;
+                break;
+            }
+        }
+    }
+
 	static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh) {
-        // dmLogInfo("------------------");
+
+        // Make sure output array has zero to begin with
+        out_order_to_mesh.SetSize(0);
+
         // Spine's approach to update draw order is to:
         // * Initialize with default draw order (integer sequence)
         // * Add entries with changed draw order
@@ -881,116 +899,66 @@ namespace dmRig
         // change is "done". In that case the order should be unchanged, but it should be considered as
         // changed so that it is not shuffled when re-ordering.
 
-        // Subtract with arbitrary "large" number, catch meshes that have up to -5000 in draw offset in initial pose (unlikely)
-        uint32_t signal_locked_thresh = SIGNAL_ORDER_LOCKED - 5000;
-        out_order_to_mesh.SetSize(mesh_count);
-        // dmLogInfo("-----------------");
-        // dmLogInfo("Instance ordering:")
-        // for (uint32_t i = 0; i < mesh_count; ++i) {
-        //     dmLogInfo("instance->m_MeshProperties[%u].m_Order: %u, visible: %u, offset: %i", i, instance->m_MeshProperties[i].m_Order, instance->m_MeshProperties[i].m_Visible, instance->m_MeshProperties[i].m_OrderOffset);
-        // }
-
-        // Intialize
-        for (uint32_t i = 0; i < mesh_count; ++i) {
-            out_order_to_mesh[i] = i;
-        }
-        // No need to reorder instances with only one, or none, meshes.
+        // No need to reorder instances with only ApplyOneBoneIKConstraint, or none, meshes.
         if (mesh_count <= 1) {
+            if (mesh_count == 1 && instance->m_MeshProperties[0].m_Visible) {
+                out_order_to_mesh.Push(0);
+            }
             return;
         }
 
-        dmArray<uint32_t> updated_orders;
-        updated_orders.SetCapacity(mesh_count);
-        updated_orders.SetSize(mesh_count);
+        // Array of "slots" where meshes will be added that should be rendered,
+        // their order in this array is the final draw order.
+        // We mark unused entries here as SIGNAL_SLOT_UNUSED and check against this value in PlaceInSlots(...).
+        dmArray<uint32_t> slots;
+        uint32_t slot_count = mesh_count*2;
+        slots.SetCapacity(slot_count);
+        slots.SetSize(slot_count);
+        for (int i = 0; i < slot_count; ++i) {
+            slots[i] = SIGNAL_SLOT_UNUSED;
+        }
 
-        // Update changed
-        for (uint32_t i = 0; i < mesh_count; ++i) {
+        // Loop over all mesh entries, only care about the ones that are visible;
+        // - Keep track of all unchanged entries (those with zero offset)
+        // - Directly apply offset to order and place in slots array
+        dmArray<uint32_t> unchanged;
+        unchanged.SetCapacity(mesh_count*2); // x2 size since we store both order and mesh index
+        unchanged.SetSize(0);
+        for (uint32_t i = 0; i < mesh_count; ++i)
+        {
             uint32_t order = instance->m_MeshProperties[i].m_Order;
             int32_t offset = instance->m_MeshProperties[i].m_OrderOffset;
-
-            if (!instance->m_MeshProperties[i].m_Visible) {
-                offset = 0;
-            }
-
-            // Offset is per slot. Each slot can have a single visible mesh and several non-visible meshes
-            // Adjust offset to compensate.
-            int offset_scratch = abs(offset);
-            if (offset >= 0)
-            {
-                uint32_t j = order + 1;
-                uint32_t lim = order + offset;
-                for (; j <= lim && j < mesh_count && instance->m_MeshProperties[i].m_Visible; ++j) 
-                {
-                    if (!instance->m_MeshProperties[j].m_Visible)
-                    {
-                        if (lim < mesh_count-1)
-                        {
-                            ++lim;
-                            ++offset_scratch;
-                        }
+            bool visible = instance->m_MeshProperties[i].m_Visible;
+            if (visible) {
+                if (offset == 0) {
+                    unchanged.Push(order);
+                    unchanged.Push(i);
+                } else {
+                    if (offset != SIGNAL_ORDER_LOCKED) {
+                        order += offset;
                     }
+
+                    PlaceInSlot(slots, order, i);
                 }
-            }
-            else
-            {
-                int j = order - 1;
-                int lim = order + offset; // offset is negative
-                for (; j >= lim && j >= 0 && instance->m_MeshProperties[i].m_Visible; --j) 
-                {
-                    if (!instance->m_MeshProperties[j].m_Visible)
-                    {
-                        if (lim > 0)
-                        {
-                            --lim;
-                            ++offset_scratch;
-                        }
-                    }
-                }
-            }
-
-            offset = (offset >= 0) ? offset_scratch : -1 * offset_scratch;
-
-            updated_orders[i] = order + offset;
-
-            if (updated_orders[i] > signal_locked_thresh) {
-                out_order_to_mesh[i] = updated_orders[i];
-            }
-            else if (updated_orders[i] != i) {
-                out_order_to_mesh[updated_orders[i]] = i;
             }
         }
 
-        // dmLogInfo("BEFORE shuffle");
-        // for (uint32_t i = 0; i < mesh_count; ++i) {
-        //     dmLogInfo("out_order_to_mesh[%u]: %u, visible: %u", i, out_order_to_mesh[i], instance->m_MeshProperties[out_order_to_mesh[i]].m_Visible);
-        // }
-
-        // Fill with unchanged
-        uint32_t draw_order = 0;
-        for (uint32_t i = 0; i < mesh_count; ++i) {
-            uint32_t order = updated_orders[i];
-
-            if (order == i) {
-                // Find free slot
-                while (out_order_to_mesh[draw_order] != draw_order) {
-                    ++draw_order;
-                }
-                out_order_to_mesh[draw_order] = i;
-                ++draw_order;
-            }
+        // Loop over unchanged entries and place in slots array
+        uint32_t unchanged_count = unchanged.Size();
+        for (uint32_t i = 0; i < unchanged_count; i+=2)
+        {
+            uint32_t order = unchanged[i];
+            uint32_t mesh_index = unchanged[i+1];
+            PlaceInSlot(slots, order, mesh_index);
         }
 
-        // Set all done entries
-        for (uint32_t i = 0; i < mesh_count; ++i) {
-            if (out_order_to_mesh[i] > signal_locked_thresh) {
-                out_order_to_mesh[i] = i;
+        // Go through slots and only copy valid draw entries to output array
+        for (uint32_t i = 0; i < slot_count; ++i) {
+            uint32_t slot = slots[i];
+            if (slot != SIGNAL_SLOT_UNUSED) {
+                out_order_to_mesh.Push(slot);
             }
         }
-
-        // dmLogInfo("AFTER shuffle");
-        // for (uint32_t i = 0; i < mesh_count; ++i) {
-        //     dmLogInfo("out_order_to_mesh[%u]: %u, visible: %u", i, out_order_to_mesh[i], instance->m_MeshProperties[out_order_to_mesh[i]].m_Visible);
-        // }
     }
 
     uint32_t GetVertexCount(HRigInstance instance)
@@ -1357,12 +1325,10 @@ namespace dmRig
         }
 
         dmRig::UpdateMeshDrawOrder(instance, mesh_count, draw_order);
-        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
+        uint32_t visible_mesh_count = draw_order.Size();
+        for (uint32_t draw_index = 0; draw_index < visible_mesh_count; ++draw_index) {
             uint32_t mesh_index = draw_order[draw_index];
             const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-            if (!properties->m_Visible) {
-                continue;
-            }
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
 
             // Bump scratch buffer capacity to handle current vertex count
