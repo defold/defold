@@ -227,6 +227,45 @@ public class ExtenderUtil {
     }
 
     /**
+     *
+     */
+    public static List<String> getAndroidResourcePaths(Project project, Platform platform) throws CompileExceptionError {
+
+        Map<String, IResource> bundleResources = new HashMap<String, IResource>();
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
+
+        List<String> out = new ArrayList<String>();
+        String rootDir = project.getRootDirectory();
+
+        // Project specific bundle resources
+        String bundleResourcesPath = rootDir + "/" + project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
+        if (bundleResourcesPath.length() > 0) {
+            for (String platformAlt : platformFolderAlternatives) {
+                File dir = new File(FilenameUtils.concat(bundleResourcesPath, platformAlt + "/res"));
+                if (dir.exists() && dir.isDirectory() )
+                {
+                    out.add(dir.getAbsolutePath());
+                }
+            }
+        }
+
+        // Get bundle resources from extensions
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            for (String platformAlt : platformFolderAlternatives) {
+                File dir = new File(FilenameUtils.concat(rootDir +"/" + extension, "res/" + platformAlt + "/res"));
+                if (dir.exists() && dir.isDirectory() )
+                {
+                    out.add(dir.getAbsolutePath());
+                }
+            }
+        }
+
+        return out;
+    }
+
+    /**
      * Collect bundle resources based on a Project, will automatically retrieve the target platform to collect correct platform specific resources.
      * @param project
      * @return Returns a map with output paths as keys and the corresponding IResource that should be used as value.

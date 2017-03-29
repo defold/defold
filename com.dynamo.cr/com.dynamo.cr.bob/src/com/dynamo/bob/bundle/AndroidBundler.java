@@ -8,9 +8,12 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
@@ -161,21 +164,58 @@ public class AndroidBundler implements IBundler {
             aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
 
-        Result res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
-                "package",
-                "--no-crunch",
-                "-f",
-                "--extra-packages",
-                "com.facebook:com.google.android.gms",
-                "-m",
-                //"--debug-mode",
-                "--auto-add-overlay",
-                "-S", resDir.getAbsolutePath(),
-                "-S", Bob.getPath("res/facebook"),
-                "-S", Bob.getPath("res/google-play-services"),
-                "-M", manifestFile.getAbsolutePath(),
-                "-I", Bob.getPath("lib/android.jar"),
-                "-F", ap1.getAbsolutePath());
+        List<String> androidResourceFolders = ExtenderUtil.getAndroidResourcePaths(project, targetPlatform);
+
+        // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
+        {
+            Map<String, IResource> newBundleResources = new HashMap<String, IResource>();
+            Iterator<Map.Entry<String, IResource>> it = bundleResources.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+
+                boolean discarded = false;
+                for( String resourceFolder : androidResourceFolders )
+                {
+                    if( entry.getValue().getAbsPath().startsWith(resourceFolder) )
+                    {
+                        discarded = true;
+                        break;
+                    }
+                }
+                if(discarded) {
+                    System.out.println("DISCARDED: " + entry.getKey());
+                } else {
+                    System.out.println("KEPT: " + entry.getKey());
+                    newBundleResources.put(entry.getKey(), entry.getValue());
+                }
+            }
+            bundleResources = newBundleResources;
+        }
+
+        List<String> args = new ArrayList<String>();
+        args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
+        args.add("package");
+        args.add("--no-crunch");
+        args.add("-f");
+        args.add("--extra-packages");
+        args.add("com.facebook:com.google.android.gms");
+        args.add("-m");
+        //args.add("--debug-mode");
+        args.add("--auto-add-overlay");
+
+        for( String s : androidResourceFolders )
+        {
+            args.add("-S"); args.add(s);
+        }
+
+        args.add("-S"); args.add(resDir.getAbsolutePath());
+        args.add("-S"); args.add(Bob.getPath("res/facebook"));
+        args.add("-S"); args.add(Bob.getPath("res/google-play-services"));
+
+        args.add("-M"); args.add(manifestFile.getAbsolutePath());
+        args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
+        args.add("-F"); args.add(ap1.getAbsolutePath());
+        Result res = Exec.execResultWithEnvironment(aaptEnv, args);
 
         if (res.ret != 0) {
             throw new IOException(new String(res.stdOutErr));
