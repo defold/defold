@@ -201,7 +201,19 @@ namespace dmEngineService
         {
             EngineService* service = (EngineService*) user_data;
             char host_buffer[64];
-            dmStrlCpy(host_buffer, dmWebServer::GetHeader(request, "Host"), sizeof(host_buffer));
+            const char* host_header = dmWebServer::GetHeader(request, "Host");
+            if (host_header == 0)
+            {
+                host_header = dmWebServer::GetHeader(request, "host");
+            }
+            if (host_header == 0)
+            {
+                *host_buffer = 0;
+            }
+            else
+            {
+                dmStrlCpy(host_buffer, host_header, sizeof(host_buffer));
+            }
             // Strip possible port number included here
             char *delim = strchr(host_buffer, ':');
             if (delim)
