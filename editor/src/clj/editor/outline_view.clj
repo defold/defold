@@ -89,7 +89,8 @@
     (.. tree-view getSelectionModel clearSelection)
     (when (and root (not (empty? selection)))
       (let [selected-ids (set selection)]
-        (auto-expand (.getChildren root) selected-ids)
+        (when (auto-expand (.getChildren root) selected-ids)
+          (.setExpanded root true))
         (let [count (.getExpandedItemCount tree-view)
               selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
           (when (not (empty? selected-indices))
