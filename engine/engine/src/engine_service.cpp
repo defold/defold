@@ -185,6 +185,46 @@ namespace dmEngineService
             dmWebServer::Send(request, service->m_InfoJson, strlen(service->m_InfoJson));
         }
 
+        // This is equivalent to what SSDP is doing when serving the UPNP descriptor through its own http server
+        // See ssdp.cpp#ReplaceHttpHostVar
+        static const char* ReplaceHttpHostVar(void *user_data, const char *key)
+        {
+            dmWebServer::Request* request = (dmWebServer::Request*) user_data;
+            if (strcmp(key, "HTTP-HOST") == 0)
+            {
+                char buffer[128];
+                dmStrlCpy(buffer, dmWebServer::GetHeader(request, "Host"), sizeof(buffer));
+                // Strip possible port number included here
+                char *delim = strchr(buffer, ':');
+                if (delim)
+                {
+                    *delim = 0;
+                }
+                return buffer;
+            }
+            return 0;
+        }
+
+        // See comment below where this handler is registered
+        static void UpnpHandler(void* user_data, dmWebServer::Request* request)
+        {
+            EngineService* service = (EngineService*) user_data;
+            dmWebServer::SetStatusCode(request, 200);
+            char buffer[1024];
+            dmTemplate::Result tr = dmTemplate::Format(request, buffer, sizeof(buffer), service->m_DeviceDesc.m_DeviceDescription, ReplaceHttpHostVar);
+            if (tr != dmTemplate::RESULT_OK)
+            {
+                dmLogError("Error formating http response (%d)", tr);
+                dmWebServer::SetStatusCode(request, 500);
+                const char *s = "Internal error";
+                dmWebServer::Send(request, service->m_DeviceDesc.m_DeviceDescription, strlen(service->m_DeviceDesc.m_DeviceDescription));
+            }
+            else
+            {
+                dmWebServer::Send(request, buffer, strlen(buffer));
+            }
+        }
+
         static const char* ReplaceCallback(void* user_data, const char* key)
         {
             EngineService* self = (EngineService*) user_data;
@@ -315,6 +355,15 @@ namespace dmEngineService
             info_params.m_Handler = InfoHandler;
             info_params.m_Userdata = this;
             dmWebServer::AddHandler(web_server, "/info", &info_params);
+
+            // The purpose of this handler is both for debugging but also for Editor2,
+            // where the user can manually specify an IP to connect to.
+            // We therefore need this handler because this is the only server where the port is known.
+            // SSDP has its own http server which binds to a dynamic port.
+            dmWebServer::HandlerParams upnp_params;
+            upnp_params.m_Handler = UpnpHandler;
+            upnp_params.m_Userdata = this;
+            dmWebServer::AddHandler(web_server, "/upnp", &upnp_params);
 
             m_WebServer = web_server;
             m_SSDP = ssdp;
