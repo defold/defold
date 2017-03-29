@@ -1683,7 +1683,7 @@
       g/tx-nodes-added
       first)))
 
-(defn- add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
+(defn add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
   (add-gui-node! project scene parent node-type select-fn))
 
 (defn- add-texture-handler [project {:keys [scene parent node-type]} select-fn]
