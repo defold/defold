@@ -82,7 +82,7 @@
                                                             selected (boolean (selected-ids id))
                                                             expanded (auto-expand (.getChildren item) selected-ids)]
                                                         (when expanded (.setExpanded item expanded))
-                                                        selected)) items)))
+                                                        (or selected expanded))) items)))
 
 (defn- sync-selection [^TreeView tree-view selection]
   (let [root (.getRoot tree-view)]
