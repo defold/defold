@@ -26,13 +26,13 @@
             <HBox prefHeight="100.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
                <children>
                   <TextField id="provisioning-profile" HBox.hgrow="ALWAYS" />
-                  <Button id="provisioning-profile-button" mnemonicParsing="false" text="..." HBox.hgrow="NEVER" />
+                  <Button id="provisioning-profile-button" mnemonicParsing="false" text="&#x2026;" HBox.hgrow="NEVER" />
                </children>
             </HBox>
             <HBox prefHeight="100.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="2">
                <children>
                   <TextField id="build-dir" HBox.hgrow="ALWAYS" />
-                  <Button id="build-dir-button" mnemonicParsing="false" text="..." HBox.hgrow="NEVER" />
+                  <Button id="build-dir-button" mnemonicParsing="false" text="&#x2026;" HBox.hgrow="NEVER" />
                </children>
             </HBox>
          </children>

@@ -4,6 +4,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.client :as client]
+            [editor.login :as login]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
             [editor.system :as system]
@@ -77,18 +78,24 @@
     app-dir))
 
 (defn- cr-project-id [workspace]
-  (with-open [git (git/open (workspace/project-path workspace))]
-    (when-let [remote-url (git/remote-origin-url git)]
-      (let [url (URL. remote-url)
-            host (.getHost url)]
-        (when (or (= host "cr.defold.se") (= host "cr.defold.com"))
-          (let [path (.getPath url)]
-            (Long/parseLong (subs path (inc (string/last-index-of path "/"))))))))))
+  (when-let [git (git/open (workspace/project-path workspace))]
+    (try
+      (when-let [remote-url (git/remote-origin-url git)]
+        (let [url (URL. remote-url)
+              host (.getHost url)]
+          (when (or (= host "cr.defold.se") (= host "cr.defold.com"))
+            (let [path (.getPath url)]
+              (try
+                (Long/parseLong (subs path (inc (string/last-index-of path "/"))))
+                (catch NumberFormatException e
+                  nil))))))
+      (finally
+        (.close git)))))
 
 (handler/defhandler ::sign :dialog
   (enabled? [controls] (and (ui/selection (:identities controls))
                             (.exists (io/file (ui/text (:provisioning-profile controls))))
-                            (.exists (io/file (ui/text (:build-dir controls))))))
+                            (.isDirectory (io/file (ui/text (:build-dir controls))))))
   (run [workspace prefs ^Stage stage root controls project]
     (let [ipa-dir (ui/text (:build-dir controls))
           settings (g/node-value project :settings)
@@ -116,15 +123,17 @@
       (let [ipa (format "%s/%s.ipa" ipa-dir name)]
         (sign-ios-app ipa (.getAbsolutePath engine) identity-id profile props)
         (when-let [cr-project-id (cr-project-id workspace)]
-          (let [client (client/make-client prefs)]
-            (when-let [user-id (client/user-id client)]
-              (client/upload-engine client user-id cr-project-id "ios" (io/input-stream ipa)))))))
+          (when (login/login prefs)
+            (let [client (client/make-client prefs)]
+              (when-let [user-id (client/user-id client)]
+                (with-open [in (io/input-stream ipa)]
+                  (client/upload-engine client user-id cr-project-id "ios" in))))))))
     (.close stage)))
 
 (handler/defhandler ::select-provisioning-profile :dialog
   (enabled? [] true)
   (run [stage controls]
-    (let [f (ui/choose-file "Select Provisioning Profile" "Provisioning Profile" ["*.mobileprovision"])]
+    (let [f (ui/choose-file "Select Provisioning Profile" "Provisioning Profile (*.mobileprovision)" ["*.mobileprovision"])]
       (ui/text! (:provisioning-profile controls) f))))
 
 (handler/defhandler ::select-build-dir :dialog
@@ -132,7 +141,7 @@
   (run [stage controls]
     (let [^File f (io/as-file (ui/text (:build-dir controls)))
           f (when (.exists f) f)]
-      (when-let [f (ui/choose-directory "Selection Build Directory" f)]
+      (when-let [f (ui/choose-directory "Select Build Directory" f)]
         (ui/text! (:build-dir controls) f)))))
 
 (defn- find-identities []
@@ -145,7 +154,7 @@
 
 (defn make-sign-dialog [workspace prefs project]
   (let [root ^Parent (ui/load-fxml "sign-dialog.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["identities" "sign" "provisioning-profile" "provisioning-profile-button" "build-dir" "build-dir-button"])
         identities (find-identities)]

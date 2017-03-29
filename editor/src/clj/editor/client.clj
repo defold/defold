@@ -69,19 +69,14 @@
 
 (defn upload-engine [client user-id cr-project-id ^String platform ^InputStream stream]
   (let [{:keys [^Client client prefs]} client]
-    (try
-      (let [resource (.resource client (server-url prefs))
-            ^ClientResponse resp (-> resource
-                                   (.path "projects")
-                                   (.path (str user-id))
-                                   (.path (str cr-project-id))
-                                   (.path "engine")
-                                   (.path platform)
-                                   (.type MediaType/APPLICATION_OCTET_STREAM_TYPE)
-                                   (.post ClientResponse stream))]
-        (when (not= 200 (.getStatus resp))
-          (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp)) {}))))
-      (catch ClientHandlerException e
-        (throw e))
-      (finally
-        (IOUtils/closeQuietly stream)))))
+    (let [resource (.resource client (server-url prefs))
+          ^ClientResponse resp (-> resource
+                                 (.path "projects")
+                                 (.path (str user-id))
+                                 (.path (str cr-project-id))
+                                 (.path "engine")
+                                 (.path platform)
+                                 (.type MediaType/APPLICATION_OCTET_STREAM_TYPE)
+                                 (.post ClientResponse stream))]
+      (when (not= 200 (.getStatus resp))
+        (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp)) {}))))))

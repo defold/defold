@@ -12,6 +12,7 @@
            [org.eclipse.jgit.api Git ResetCommand$ResetType]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
+           [org.eclipse.jgit.errors RepositoryNotFoundException]
            [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
@@ -21,7 +22,10 @@
 (set! *warn-on-reflection* true)
 
 (defn open ^Git [^File repo-path]
-  (Git/open repo-path))
+  (try
+    (Git/open repo-path)
+    (catch RepositoryNotFoundException e
+      nil)))
 
 (defn get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
@@ -78,7 +82,7 @@
 
 (defn remote-origin-url [^Git git]
   (let [config (.. git getRepository getConfig)]
-    (.getString config "remote" "origin" "url")))
+    (not-empty (.getString config "remote" "origin" "url"))))
 
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
