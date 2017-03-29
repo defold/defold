@@ -768,11 +768,10 @@
               (child-go-go parent-id child-id)
               (child-coll-any self child-id)))))
       (for [coll-instance (:collection-instances collection)
-            :let [; TODO - fix non-uniform hax
-                  scale (:scale coll-instance)
+            :let [scale (read-scale3-or-scale coll-instance)
                   source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
         (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-          (:rotation coll-instance) [scale scale scale] (:instance-properties coll-instance))))))
+          (:rotation coll-instance) scale (:instance-properties coll-instance))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
