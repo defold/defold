@@ -135,6 +135,8 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .setDevLogUrl("devLogUrl")
                 .setReviewUrl("reviewUrl")
                 .setLibraryUrl("libraryUrl")
+                .setShowName(false)
+                .setAllowComments(false)
                 .build();
 
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
@@ -149,6 +151,8 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals("reviewUrl", result.getReviewUrl());
         assertEquals("libraryUrl", result.getLibraryUrl());
         assertEquals(false, result.getIsPublicSite()); // Project site should be private by default.
+        assertEquals(false, result.getShowName());
+        assertEquals(false, result.getAllowComments());
         assertEquals(project.getId(), result.getProjectId());
     }
 

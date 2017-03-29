@@ -45,6 +45,7 @@
                  "**/sub_props.collection"
                  "**/sub_sub_props.collection"
                  "**/go_with_scale3.collection"
+                 "**/collection_with_scale3.collection"
                  "**/atlas_sprite.go"
                  "**/atlas.sprite"
                  "**/props.go"
