@@ -1,8 +1,14 @@
 (ns editor.pipeline
   (:require
+   [clojure.java.io :as io]
    [editor.resource :as resource]
    [editor.protobuf :as protobuf]
-   [editor.workspace :as workspace]))
+   [editor.util :as util]
+   [editor.workspace :as workspace])
+  (:import
+   (java.nio.file Files)
+   (java.nio.file.attribute FileAttribute)
+   (java.util UUID)))
 
 (defn- resolve-resource-paths
   [pb dep-resources resource-props]
@@ -105,25 +111,50 @@
         dep-resources (make-dep-resources deps build-targets-by-key)]
     (build-fn node-id basis resource dep-resources user-data)))
 
+
 (defn make-build-cache
-  ([]
-   (make-build-cache {}))
-  ([init]
-   (atom init)))
+  []
+  {:dir     (doto (.toFile (Files/createTempDirectory "defold-build-cache" (make-array FileAttribute 0)))
+              (util/delete-on-exit!))
+   :entries (atom {})})
+
+(defn cache!
+  [build-cache resource key result]
+  (let [id (str (UUID/randomUUID))
+        content (:content result)
+        cache-file (io/file (:dir build-cache) id)
+        cache-value (-> result
+                        (dissoc :content)
+                        (assoc :id id :key key :cached true))]
+    (io/copy content cache-file)
+    (swap! (:entries build-cache) assoc resource cache-value)
+    (assoc result :key key)))
+
+(defn lookup
+  [build-cache resource key]
+  (when-let [entry (get @(:entries build-cache) resource)]
+    (when (= key (:key entry))
+      (let [file (io/file (:dir build-cache) (:id entry))]
+        (-> entry
+            (dissoc :id)
+            (assoc :content file))))))
 
 (defn- prune-build-cache!
-  [cache build-targets-by-key]
-  (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets-by-key (:key result))) @cache))))
+  [{:keys [dir entries] :as build-cache} build-targets-by-key]
+  (swap! entries #(reduce-kv (fn [ret resource {:keys [key] :as result}]
+                               (if (contains? build-targets-by-key key)
+                                 (assoc ret resource result)
+                                 ret))
+                             {}
+                             %))
+  build-cache)
 
 (defn build-target-cached
   [basis target build-targets-by-key build-cache]
   (let [{:keys [resource key]} target]
-    (or (when-let [cached-result (get @build-cache resource)]
-          (and (= key (:key cached-result)) cached-result))
-        (let [result (-> (build-target basis target build-targets-by-key)
-                         (assoc :key key))]
-          (swap! build-cache assoc resource (assoc result :cached true))
-          result))))
+    (or (lookup build-cache resource key)
+        (let [result (build-target basis target build-targets-by-key)]
+          (cache! build-cache resource key result)))))
 
 (defn build
   ([basis build-targets build-cache]
