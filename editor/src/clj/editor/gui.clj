@@ -120,16 +120,12 @@
 (defn- ->color-vtx-vb [vs colors vcount]
   (let [vb (->color-vtx vcount)
         vs (mapv (comp vec concat) vs colors)]
-    (doseq [v vs]
-      (conj! vb v))
-    (persistent! vb)))
+    (persistent! (reduce conj! vb vs))))
 
 (defn- ->uv-color-vtx-vb [vs uvs colors vcount]
   (let [vb (->uv-color-vtx vcount)
         vs (mapv (comp vec concat) vs uvs colors)]
-    (doseq [v vs]
-      (conj! vb v))
-    (persistent! vb)))
+    (persistent! (reduce conj! vb vs))))
 
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
 (def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
@@ -158,13 +154,15 @@
   (let [user-data (get-in renderables [0 :user-data])]
     (cond
       (contains? user-data :geom-data)
-      (let [[vs uvs colors] (reduce (fn [[vs uvs colors] renderable]
+      (let [[vs uvs colors] (reduce (fn [[vs uvs colors :as vb] renderable]
                                       (let [user-data (:user-data renderable)
                                             world-transform (:world-transform renderable)
                                             vcount (count (:geom-data user-data))]
-                                        [(into vs (geom/transf-p world-transform (:geom-data user-data)))
-                                         (into uvs (:uv-data user-data))
-                                         (into colors (repeat vcount (premul (:color user-data))))]))
+                                        (if (pos? vcount)
+                                          [(into vs (geom/transf-p world-transform (:geom-data user-data)))
+                                           (into uvs (:uv-data user-data))
+                                           (into colors (repeat vcount (premul (:color user-data))))]
+                                          vb)))
                                     [[] [] []] renderables)]
         (when (not-empty vs)
           (->uv-color-vtx-vb vs uvs colors (count vs))))
