@@ -435,8 +435,8 @@ TEST_F(PropsTest, PropsGetSet)
 
     // Uniform scale
     dmGameObject::SetScale(go, 2.0f);
-    ASSERT_GET_PROP_NUM(go, "scale", 2.0f, epsilon);
-    ASSERT_SET_PROP_NUM(go, "scale", 3.0f, epsilon);
+    ASSERT_GET_PROP_V3(go, "scale", Vector3(2.0f), epsilon);
+    ASSERT_SET_PROP_V3(go, "scale", Vector3(3.0f), epsilon);
 
     // Non-uniform scale
     dmGameObject::SetScale(go, 2.0f);

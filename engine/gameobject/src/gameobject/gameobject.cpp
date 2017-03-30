@@ -2749,31 +2749,35 @@ namespace dmGameObject
         if (component_id == 0)
         {
             out_value.m_ValuePtr = 0x0;
+            float* scale = instance->m_Transform.GetScalePtr();
+            float* position = instance->m_Transform.GetPositionPtr();
+            float* rotation = instance->m_Transform.GetRotationPtr();
+
             // Scale used to be a uniform scalar, but is now a non-uniform 3-component scale
-            // We need to still treat it as a uniform scale for backwards compatibility
             if (property_id == PROP_SCALE)
             {
-                out_value.m_Variant = PropertyVar(instance->m_Transform.GetUniformScale());
-                return PROPERTY_RESULT_OK;
+                out_value.m_ValuePtr = scale;
+                out_value.m_ElementIds[0] = PROP_SCALE_X;
+                out_value.m_ElementIds[1] = PROP_SCALE_Y;
+                out_value.m_ElementIds[2] = PROP_SCALE_Z;
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale());
             }
             else if (property_id == PROP_SCALE_X)
             {
-                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale().getX());
-                return PROPERTY_RESULT_OK;
+                out_value.m_ValuePtr = scale;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_SCALE_Y)
             {
-                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale().getY());
-                return PROPERTY_RESULT_OK;
+                out_value.m_ValuePtr = scale + 1;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_SCALE_Z)
             {
-                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale().getZ());
-                return PROPERTY_RESULT_OK;
+                out_value.m_ValuePtr = scale + 2;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
-            float* position = instance->m_Transform.GetPositionPtr();
-            float* rotation = instance->m_Transform.GetRotationPtr();
-            if (property_id == PROP_POSITION)
+            else if (property_id == PROP_POSITION)
             {
                 out_value.m_ValuePtr = position;
                 out_value.m_ElementIds[0] = PROP_POSITION_X;
@@ -2949,12 +2953,21 @@ namespace dmGameObject
             }
             else if (property_id == PROP_SCALE)
             {
-                if (value.m_Type != PROPERTY_TYPE_NUMBER)
-                    return PROPERTY_RESULT_TYPE_MISMATCH;
-                scale[0] = (float)value.m_Number;
-                scale[1] = scale[0];
-                scale[2] = scale[0];
-                return PROPERTY_RESULT_OK;
+                if (value.m_Type == PROPERTY_TYPE_NUMBER)
+                {
+                    scale[0] = (float)value.m_Number;
+                    scale[1] = scale[0];
+                    scale[2] = scale[0];
+                    return PROPERTY_RESULT_OK;
+                }
+                else if (value.m_Type == PROPERTY_TYPE_VECTOR3)
+                {
+                    scale[0] = value.m_V4[0];
+                    scale[1] = value.m_V4[1];
+                    scale[2] = value.m_V4[2];
+                    return PROPERTY_RESULT_OK;
+                }
+                return PROPERTY_RESULT_TYPE_MISMATCH;
             }
             else if (property_id == PROP_SCALE_X)
             {
