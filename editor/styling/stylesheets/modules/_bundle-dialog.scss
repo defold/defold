@@ -13,9 +13,17 @@
       -fx-text-fill: $defold-white;
     }
 
-    .description-label {
+    #header-info-label {
       -fx-text-fill: $bright-grey;
       -fx-wrap-text: true;
+    }
+
+    #header-info-label.error {
+      -fx-text-fill: $defold-orange;
+    }
+
+    #header-info-label.warning {
+      -fx-text-fill: $defold-yellow;
     }
   }
 
@@ -45,30 +53,30 @@
   }
 
   &.android {
-    -fx-pref-width: 500px;
+    -fx-min-width: 500px;
     @include field-layout(71px);
   }
 
   &.html5 {
-    -fx-pref-width: 350px;
+    -fx-min-width: 350px;
   }
 
   &.ios {
-    -fx-pref-width: 500px;
+    -fx-min-width: 500px;
     @include field-layout(125px);
   }
 
   &.linux {
-    -fx-pref-width: 430px;
+    -fx-min-width: 430px;
     @include field-layout(78px);
   }
 
   &.macos {
-    -fx-pref-width: 350px;
+    -fx-min-width: 350px;
   }
 
   &.windows {
-    -fx-pref-width: 430px;
+    -fx-min-width: 430px;
     @include field-layout(78px);
   }
 }
