@@ -513,7 +513,6 @@ namespace dmRig
                     }
                 }
                 if (track->m_OrderOffset.m_Count > 0 && draw_order) {
-                    //props.m_Order += track->m_OrderOffset[rounded_sample];
                     props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
                 }
             }

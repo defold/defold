@@ -6,6 +6,52 @@
 #define RIG_EPSILON_FLOAT 0.0001f
 #define RIG_EPSILON_BYTE (1.0f / 255.0f)
 
+static void CreateDrawOrderMeshes(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id)
+{
+    mesh_entry.m_Id = id;
+    mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[5];
+    mesh_entry.m_Meshes.m_Count = 5;
+
+    const uint32_t draw_order[] = { 0, 0, 1, 1, 2 };
+    const bool visible[] = { true, false, true, false, true };
+    for (uint32_t i = 0; i < mesh_entry.m_Meshes.m_Count; ++i)
+    {
+        // set vertice position so they match bone positions
+        dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[i];
+        mesh.m_Positions.m_Data = new float[3];
+        mesh.m_Positions.m_Count = 3;
+        mesh.m_Positions.m_Data[0]  = (float)i;
+        mesh.m_Positions.m_Data[1]  = (float)i;
+        mesh.m_Positions.m_Data[2]  = (float)i;
+
+        // data for each vertex (tex coords not used)
+        mesh.m_Texcoord0.m_Data       = new float[2];
+        mesh.m_Texcoord0.m_Count      = 2;
+        mesh.m_Texcoord0.m_Data[0]    = 0.0f;
+        mesh.m_Texcoord0.m_Data[1]    = 0.0f;
+        mesh.m_Texcoord0Indices.m_Count = 0;
+
+        mesh.m_Color.m_Data           = new float[4];
+        mesh.m_Color.m_Count          = 4;
+        mesh.m_Color.m_Data[0]        = 0.0f;
+        mesh.m_Color.m_Data[1]        = 0.0f;
+        mesh.m_Color.m_Data[2]        = 0.0f;
+        mesh.m_Color.m_Data[3]        = 0.0f;
+
+        mesh.m_Indices.m_Data         = new uint32_t[1];
+        mesh.m_Indices.m_Count        = 1;
+        mesh.m_Indices.m_Data[0]      = 0;
+
+        mesh.m_Normals.m_Count        = 0;
+        mesh.m_NormalsIndices.m_Count = 0;
+        mesh.m_BoneIndices.m_Count    = 0;
+        mesh.m_Weights.m_Count        = 0;
+
+        mesh.m_Visible = visible[i];
+        mesh.m_DrawOrder = draw_order[i];
+    }
+}
+
 static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color)
 {
     mesh_entry.m_Id = id;
@@ -250,6 +296,20 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
 
             0: Pos; (10,0), rotation: 90 degrees around Z
 
+        ------------------------------------
+
+            Animation 7 (id: "mesh_colors")
+
+
+        ------------------------------------
+
+            Animation 8 (id: "draw_order_anim")
+
+                Animates the draw order of "draw_order_skin".
+
+                t0: Mesh 0 has a positive offset of 2
+                t1: Mesh 4 has a negative offset of 2
+                t2: Mesh 2 has a negative offset of 1
         */
 
         uint32_t bone_count = 6;
@@ -334,7 +394,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRig::CreateBindPose(*skeleton, bind_pose);
 
         // Bone animations
-        uint32_t animation_count = 8;
+        uint32_t animation_count = 9;
         animation_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         animation_set->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = animation_set->m_Animations.m_Data[0];
@@ -345,6 +405,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::RigAnimation& anim5 = animation_set->m_Animations.m_Data[5];
         dmRigDDF::RigAnimation& anim6 = animation_set->m_Animations.m_Data[6];
         dmRigDDF::RigAnimation& anim7 = animation_set->m_Animations.m_Data[7];
+        dmRigDDF::RigAnimation& anim8 = animation_set->m_Animations.m_Data[8];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
@@ -393,6 +454,12 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         anim7.m_EventTracks.m_Count = 0;
         anim7.m_Tracks.m_Count      = 0;
         anim7.m_IkTracks.m_Count    = 0;
+        anim8.m_Id = dmHashString64("draw_order_anim");
+        anim8.m_Duration            = 3.0f;
+        anim8.m_SampleRate          = 1.0f;
+        anim8.m_EventTracks.m_Count = 0;
+        anim8.m_Tracks.m_Count      = 0;
+        anim8.m_IkTracks.m_Count    = 0;
 
         // Animation 0: "valid"
         {
@@ -618,15 +685,51 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim_track0.m_Colors.m_Data[15] = 0.5f;
         }
 
+        // Animation 8: "draw_order_anim"
+        {
+            uint32_t track_count = 5;
+            uint32_t samples = 4;
+
+            anim8.m_MeshTracks.m_Data = new dmRigDDF::MeshAnimationTrack[track_count];
+            anim8.m_MeshTracks.m_Count = track_count;
+
+            const int32_t track_entries[] = {
+                // t0, t1, t2, t3
+                    2,  0,  0,  0, // Track for mesh 0
+                    0,  0,  0,  0, // Track for mesh 1
+                    0,  0, -1,  0, // Track for mesh 2
+                    0,  0,  0,  0, // Track for mesh 3
+                    0, -2,  0,  0, // Track for mesh 4
+            };
+
+            // Loop over all tracks and pick appropriet offset entries from list above.
+            for (int i = 0; i < track_count; ++i)
+            {
+                dmRigDDF::MeshAnimationTrack& anim_track = anim8.m_MeshTracks.m_Data[i];
+                anim_track.m_MeshIndex           = i;
+                anim_track.m_MeshId              = dmHashString64("draw_order_skin");
+                anim_track.m_Colors.m_Count      = 0;
+                anim_track.m_Visible.m_Count     = 0;
+
+                anim_track.m_OrderOffset.m_Data = new int32_t[samples];
+                anim_track.m_OrderOffset.m_Count = samples;
+                for (int j = 0; j < samples; ++j)
+                {
+                    anim_track.m_OrderOffset.m_Data[j] = track_entries[i*samples+j];
+                }
+            }
+        }
+
         // Meshes / skins
-        mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
-        mesh_set->m_MeshEntries.m_Count = 2;
+        mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[3];
+        mesh_set->m_MeshEntries.m_Count = 3;
         mesh_set->m_MaxBoneCount = bone_count + 1;
 
         CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
         CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
+        CreateDrawOrderMeshes(mesh_set->m_MeshEntries.m_Data[2], dmHashString64("draw_order_skin"));
 
-        // We create bone lists for both the meshste and animationset,
+        // We create bone lists for both the meshset and animationset,
         // that is in "inverted" order of the skeleton hirarchy.
         mesh_set->m_BoneList.m_Data = new uint64_t[bone_count];
         mesh_set->m_BoneList.m_Count = bone_count;
@@ -755,17 +858,23 @@ private:
         delete [] m_Skeleton->m_Bones.m_Data;
         delete [] m_Skeleton->m_Iks.m_Data;
 
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < m_MeshSet->m_MeshEntries.m_Count; ++i)
         {
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_NormalsIndices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
+            dmRigDDF::MeshEntry& mesh_entry = m_MeshSet->m_MeshEntries.m_Data[i];
+            uint32_t mesh_count = mesh_entry.m_Meshes.m_Count;
+            for (int j = 0; j < mesh_count; ++j)
+            {
+                dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[j];
+                if (mesh.m_NormalsIndices.m_Count > 0) { delete [] mesh.m_NormalsIndices.m_Data; }
+                if (mesh.m_Normals.m_Count > 0) {        delete [] mesh.m_Normals.m_Data; }
+                if (mesh.m_BoneIndices.m_Count > 0) {    delete [] mesh.m_BoneIndices.m_Data; }
+                if (mesh.m_Weights.m_Count > 0) {        delete [] mesh.m_Weights.m_Data; }
+                if (mesh.m_Indices.m_Count > 0) {        delete [] mesh.m_Indices.m_Data; }
+                if (mesh.m_Color.m_Count > 0) {          delete [] mesh.m_Color.m_Data; }
+                if (mesh.m_Texcoord0.m_Count > 0) {      delete [] mesh.m_Texcoord0.m_Data; }
+                if (mesh.m_Positions.m_Count > 0) {      delete [] mesh.m_Positions.m_Data; }
+            }
+            delete [] mesh_entry.m_Meshes.m_Data;
         }
         delete [] m_MeshSet->m_MeshEntries.m_Data;
         delete [] m_MeshSet->m_BoneList.m_Data;
@@ -1080,17 +1189,23 @@ private:
         delete [] m_Skeleton->m_Bones.m_Data;
         delete [] m_Skeleton->m_Iks.m_Data;
 
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < m_MeshSet->m_MeshEntries.m_Count; ++i)
         {
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_NormalsIndices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
+            dmRigDDF::MeshEntry& mesh_entry = m_MeshSet->m_MeshEntries.m_Data[i];
+            uint32_t mesh_count = mesh_entry.m_Meshes.m_Count;
+            for (int j = 0; j < mesh_count; ++j)
+            {
+                dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[j];
+                if (mesh.m_NormalsIndices.m_Count > 0) { delete [] mesh.m_NormalsIndices.m_Data; }
+                if (mesh.m_Normals.m_Count > 0) {        delete [] mesh.m_Normals.m_Data; }
+                if (mesh.m_BoneIndices.m_Count > 0) {    delete [] mesh.m_BoneIndices.m_Data; }
+                if (mesh.m_Weights.m_Count > 0) {        delete [] mesh.m_Weights.m_Data; }
+                if (mesh.m_Indices.m_Count > 0) {        delete [] mesh.m_Indices.m_Data; }
+                if (mesh.m_Color.m_Count > 0) {          delete [] mesh.m_Color.m_Data; }
+                if (mesh.m_Texcoord0.m_Count > 0) {      delete [] mesh.m_Texcoord0.m_Data; }
+                if (mesh.m_Positions.m_Count > 0) {      delete [] mesh.m_Positions.m_Data; }
+            }
+            delete [] mesh_entry.m_Meshes.m_Data;
         }
         delete [] m_MeshSet->m_MeshEntries.m_Data;
         delete [] m_MeshSet->m_BoneList.m_Data;
@@ -1543,6 +1658,46 @@ TEST_F(RigInstanceTest, GenerateColorDataPremultiply)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(0.5), true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_COLOR(Vector4(0.0f, 0.125f, 0.25f, 0.25f), data[0].rgba);
+}
+
+TEST_F(RigInstanceTest, AnimatedDrawOrder)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("draw_order_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    dmRig::RigSpineModelVertex data[1*3];
+    dmRig::RigSpineModelVertex* data_end = data + 1*3;
+
+    // Check bind "pose" of draw order
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+
+    // Play draw order animation
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("draw_order_anim"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+
+    // sample 0, mesh 0 has offset +2
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(2.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(0.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+
+    // sample 1, mesh 4 has offset -2
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(4.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(0.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[2]);
+
+    // sample 3, mesh 2 has offset -1
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(2.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(0.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
 }
 
 // Test Spine 2.x skeleton that has scaling relative to the bone local space.
