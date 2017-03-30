@@ -82,7 +82,7 @@
               (when (instance? FileResource resource)
                 (g/connect node-id :save-data project :save-data)))
             (catch Exception e
-              (log/warn :exception e)
+              (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
           (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
         []))
@@ -297,9 +297,10 @@
              ;; Create underlying directories
              (when (not (.exists parent))
                (.mkdirs parent))
-             ;; Write bytes
-             (with-open [out (io/output-stream resource)]
-               (.write out ^bytes content))
+             ;; Write content
+             (with-open [in (io/input-stream content)
+                         out (io/output-stream resource)]
+               (io/copy in out))
              (let [f (File. abs-path)]
                (swap! fs-build-cache assoc resource [key (.lastModified f)]))))))
      build-results

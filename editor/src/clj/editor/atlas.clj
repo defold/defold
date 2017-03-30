@@ -27,12 +27,10 @@
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
            [com.dynamo.tile.proto Tile$Playback]
-           [com.jogamp.opengl.util.awt TextRenderer]
            [com.google.protobuf ByteString]
            [editor.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point3d Matrix4d]
            [java.nio ByteBuffer ByteOrder FloatBuffer]))
 
@@ -41,9 +39,9 @@
 (defn mind ^double [^double a ^double b] (Math/min a b))
 (defn maxd ^double [^double a ^double b] (Math/max a b))
 
-(def atlas-icon "icons/32/Icons_13-Atlas.png")
-(def animation-icon "icons/32/Icons_24-AT-Animation.png")
-(def image-icon "icons/32/Icons_25-AT-Image.png")
+(def ^:const atlas-icon "icons/32/Icons_13-Atlas.png")
+(def ^:const animation-icon "icons/32/Icons_24-AT-Animation.png")
+(def ^:const image-icon "icons/32/Icons_25-AT-Image.png")
 
 (vtx/defvertex texture-vtx
   (vec4 position)
@@ -122,30 +120,31 @@
   (inherits outline/OutlineNode)
 
   (property size types/Vec2
-    (value (g/fnk [^BufferedImage src-image]
-             (if src-image
-               [(.getWidth src-image) (.getHeight src-image)]
-               [0 0])))
+    (value (g/fnk [image-size] [(:width image-size 0) (:height image-size 0)]))
     (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
     (dynamic read-only? (g/constantly true)))
   (property order g/Int (dynamic visible (g/constantly false)) (default 0))
 
-  (input src-resource resource/Resource)
-  (input src-image BufferedImage)
+  (input image-resource resource/Resource)
+  (output image-resource resource/Resource (gu/passthrough image-resource))
+  
+  (input image-size g/Any)
+
   (input image-data g/Any)
 
   (output image-order g/Any (g/fnk [_node-id order] [_node-id order]))
-  (output path g/Str (g/fnk [src-resource] (resource/proj-path src-resource)))
+  (output path g/Str (g/fnk [image-resource] (resource/proj-path image-resource)))
   (output id g/Str (g/fnk [path] (path->id path)))
-  (output image Image (g/fnk [_node-id path ^BufferedImage src-image]
-                             (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
+  (output image Image (g/fnk [path image-size]
+                        (Image. path nil (:width image-size) (:height image-size))))
+
   (output animation Animation (g/fnk [image id] (image->animation image id)))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id src-resource order]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id image-resource order]
                                                           (cond-> {:node-id _node-id
                                                                    :label id
                                                                    :order order
                                                                    :icon image-icon}
-                                                            src-resource (assoc :link src-resource))))
+                                                            image-resource (assoc :link image-resource))))
   (output ddf-message g/Any :cached (g/fnk [path order] {:image path :order order}))
   (output scene g/Any :cached produce-image-scene))
 
@@ -165,24 +164,26 @@
 (defn- attach-image [parent labels image-node scope-node image-order]
   (concat
     (g/set-property image-node :order image-order)
-    (g/connect image-node :image-order  parent     :image-order)
-    (g/connect image-node :_node-id     scope-node :nodes)
+    (g/connect image-node :image-order          parent     :image-order)
+    (g/connect image-node :_node-id             scope-node :nodes)
     (for [[from to] labels]
       (g/connect image-node from parent to))
-    (g/connect image-node :node-outline parent     :child-outlines)
-    (g/connect image-node :ddf-message  parent     :img-ddf)
-    (g/connect image-node :scene        parent     :child-scenes)
-    (g/connect parent     :image-data   image-node :image-data)))
+    (g/connect image-node :node-outline         parent     :child-outlines)
+    (g/connect image-node :ddf-message          parent     :img-ddf)
+    (g/connect image-node :scene                parent     :child-scenes)
+    (g/connect image-node :image-resource       parent     :image-resources)
+    (g/connect parent     :image-data           image-node :image-data)))
 
 (defn- attach-animation [atlas-node animation-node]
   (concat
-   (g/connect animation-node :_node-id     atlas-node :nodes)
-   (g/connect animation-node :animation    atlas-node :animations)
-   (g/connect animation-node :id           atlas-node :animation-ids)
-   (g/connect animation-node :node-outline atlas-node :child-outlines)
-   (g/connect animation-node :ddf-message  atlas-node :anim-ddf)
-   (g/connect animation-node :scene        atlas-node :child-scenes)
-   (g/connect atlas-node     :image-data   animation-node :image-data)))
+   (g/connect animation-node :_node-id             atlas-node :nodes)
+   (g/connect animation-node :animation            atlas-node :animations)
+   (g/connect animation-node :id                   atlas-node :animation-ids)
+   (g/connect animation-node :node-outline         atlas-node :child-outlines)
+   (g/connect animation-node :ddf-message          atlas-node :anim-ddf)
+   (g/connect animation-node :scene                atlas-node :child-scenes)
+   (g/connect animation-node :image-resources      atlas-node :image-resources)
+   (g/connect atlas-node     :image-data           animation-node :image-data)))
 
 (defn- next-image-order [parent]
   (inc (apply max -1 (map second (g/node-value parent :image-order)))))
@@ -222,6 +223,8 @@
   (input child-scenes g/Any :array)
   (input image-order g/Any :array)
   (input image-data g/Any)
+  (input image-resources g/Any :array)
+  (output image-resources g/Any (gu/passthrough image-resources))
 
   (output animation Animation (g/fnk [this id frames fps flip-horizontal flip-vertical playback]
                                 (types/->Animation id frames fps flip-horizontal flip-vertical playback)))
@@ -245,18 +248,11 @@
                      :animations anim-ddf}]
               (protobuf/map->str AtlasProto$Atlas m))})
 
-; TODO - fix real profiles
-(def test-profile {:name "test-profile"
-                   :platforms [{:os :os-id-generic
-                                :formats [{:format :texture-format-rgba
-                                           :compression-level :fast}]
-                                :mipmaps false}]})
-
-(g/defnk produce-build-targets [_node-id resource texture-set-data save-data]
+(g/defnk produce-build-targets [_node-id resource texture-set packed-image save-data]
   (let [project           (project/get-project _node-id)
         workspace         (project/workspace project)
-        texture-target    (image/make-texture-build-target workspace _node-id (:image texture-set-data))
-        pb-msg            (:texture-set texture-set-data)
+        texture-target    (image/make-texture-build-target workspace _node-id packed-image)
+        pb-msg            texture-set
         dep-build-targets [texture-target]]
     [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
                                           TextureSetProto$TextureSet
@@ -280,10 +276,8 @@
            (conj! [x0 y0 0 1 0 0])))))
 
 (g/defnk produce-scene
-  [_node-id texture-set-data aabb gpu-texture child-scenes]
-  (let [^BufferedImage img (:image texture-set-data)
-        width (.getWidth img)
-        height (.getHeight img)
+  [_node-id layout-size aabb gpu-texture child-scenes]
+  (let [[width height] layout-size
         vertex-buffer (gen-renderable-vertex-buffer width height)
         vertex-binding (vtx/use-with _node-id vertex-buffer atlas-shader)]
     {:aabb aabb
@@ -292,15 +286,16 @@
                   :passes [pass/transparent]}
      :children child-scenes}))
 
-(g/defnk produce-texture-set-data [_node-id animations images margin inner-padding extrude-borders]
+(g/defnk produce-texture-set-data
+  [_node-id animations images margin inner-padding extrude-borders]
   (or (when-let [errors (->> [[margin "Margin"]
                               [inner-padding "Inner Padding"]
                               [extrude-borders "Extrude Borders"]]
-                          (keep (fn [[v name]]
-                                  (validation/prop-error :fatal _node-id :texture-set-data validation/prop-negative? v name)))
-                          not-empty)]
+                             (keep (fn [[v name]]
+                                     (validation/prop-error :fatal _node-id :layout-result validation/prop-negative? v name)))
+                             not-empty)]
         (g/error-aggregate errors))
-      (texture-set-gen/->texture-set-data animations images margin inner-padding extrude-borders)))
+      (texture-set-gen/atlas->texture-set-data animations images margin inner-padding extrude-borders)))
 
 (defn- ->uv-vertex [vert-index ^FloatBuffer tex-coords]
   (let [index (* vert-index 2)]
@@ -319,16 +314,13 @@
    :frames (mapv #(->anim-frame % tex-coords) (range (:start anim) (:end anim)))
    :uv-transforms (subvec uv-transforms (:start anim) (:end anim))})
 
-(g/defnk produce-anim-data [texture-set-data]
-  (let [tex-set (:texture-set texture-set-data)
-        tex-coords (-> ^ByteString (:tex-coords tex-set)
+(g/defnk produce-anim-data [texture-set uv-transforms]
+  (let [tex-coords (-> ^ByteString (:tex-coords texture-set)
                      (.asReadOnlyByteBuffer)
                      (.order ByteOrder/LITTLE_ENDIAN)
                      (.asFloatBuffer))
-        uv-transforms (:uv-transforms texture-set-data)
-        animations (:animations tex-set)]
+        animations (:animations texture-set)]
     (into {} (map #(do [(:id %) (->anim-data % tex-coords uv-transforms)]) animations))))
-
 
 (defn- tex-coords->rect
   [^FloatBuffer tex-coords index atlas-width atlas-height]
@@ -348,12 +340,9 @@
   [index tex-coords atlas-width atlas-height]
   {:rect (tex-coords->rect tex-coords index atlas-width atlas-height)})
 
-(g/defnk produce-image-data [images texture-set-data]
-  (let [tex-set (:texture-set texture-set-data)
-        image ^BufferedImage (:image texture-set-data)
-        width (.getWidth image)
-        height (.getHeight image)
-        tex-coords (-> ^ByteString (:tex-coords tex-set)
+(g/defnk produce-image-data [images layout-size texture-set]
+  (let [[width height] layout-size
+        tex-coords (-> ^ByteString (:tex-coords texture-set)
                        (.asReadOnlyByteBuffer)
                        (.order ByteOrder/LITTLE_ENDIAN)
                        (.asFloatBuffer))
@@ -372,16 +361,14 @@
 (defn- atlas-outline-sort-by-fn [v]
   [(:name (g/node-type* (:node-id v)))])
 
+
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
   (property size types/Vec2
-    (value (g/fnk [texture-set-data]
-             (if-let [^BufferedImage img (:image texture-set-data)]
-               [(.getWidth img) (.getHeight img)]
-               [0 0])))
-    (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
-    (dynamic read-only? (g/constantly true)))
+            (value (g/fnk [layout-size] layout-size))
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+            (dynamic read-only? (g/constantly true)))
   (property margin g/Int
             (default 0)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? margin)))
@@ -398,33 +385,46 @@
   (input anim-ddf g/Any :array)
   (input image-order g/Any :array)
   (input child-scenes g/Any :array)
+  (input image-resources g/Any :array)
 
-  (output images           [Image]             :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
-  (output aabb             AABB                (g/fnk [texture-set-data]
-                                                 (if (zero? (get-in texture-set-data [:texture-set :tile-count]))
-                                                   (geom/null-aabb)
-                                                   (let [^BufferedImage img (:image texture-set-data)]
-                                                     (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0))))))
-  (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
+  (output images           [Image]             :cached (g/fnk [animations]
+                                                         (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
+
   (output texture-set-data g/Any               :cached produce-texture-set-data)
-  (output packed-image     BufferedImage       (g/fnk [texture-set-data] (:image texture-set-data)))
+  (output layout-size      g/Any               (g/fnk [texture-set-data] (:size texture-set-data)))
+  (output texture-set      g/Any               (g/fnk [texture-set-data] (:texture-set texture-set-data)))
+  (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
+
+  (output packed-image     BufferedImage       :cached (g/fnk [_node-id texture-set-data image-resources]
+                                                         (let [id->image (reduce (fn [ret image-resource]
+                                                                                   (let [id (resource/proj-path image-resource)
+                                                                                         image (image/read-image image-resource)]
+                                                                                     (assoc ret id image)))
+                                                                                 {}
+                                                                                 (flatten image-resources))]
+                                                           (texture-set-gen/layout-images (:layout texture-set-data) id->image))))
+
+  (output aabb             AABB                (g/fnk [layout-size]
+                                                 (if (= [0 0] layout-size)
+                                                   (geom/null-aabb)
+                                                   (let [[w h] layout-size]
+                                                     (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
+
+  (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-image]
+                                                         (texture/image-texture _node-id packed-image)))
+
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-data       g/Any               :cached produce-image-data)
   (output anim-ids         g/Any               :cached (gu/passthrough animation-ids))
-  (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines] {:node-id _node-id
-                                                                                         :label "Atlas"
-                                                                                         :children (->> child-outlines
-                                                                                                     (sort-by atlas-outline-sort-by-fn)
-                                                                                                     vec)
-                                                                                         :icon atlas-icon
-                                                                                         :child-reqs [{:node-type AtlasImage
-                                                                                                       :tx-attach-fn tx-attach-image-to-atlas
-                                                                                                       }
-                                                                                                      {:node-type AtlasAnimation
-                                                                                                       :tx-attach-fn attach-animation
-                                                                                                       }
-                                                                                                      ]
-                                                                                         }))
+  (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines]
+                                                         {:node-id    _node-id
+                                                          :label      "Atlas"
+                                                          :children   (vec (sort-by atlas-outline-sort-by-fn child-outlines))
+                                                          :icon       atlas-icon
+                                                          :child-reqs [{:node-type    AtlasImage
+                                                                        :tx-attach-fn tx-attach-image-to-atlas}
+                                                                       {:node-type    AtlasAnimation
+                                                                        :tx-attach-fn attach-animation}]}))
   (output save-data        g/Any          :cached produce-save-data)
   (output build-targets    g/Any          :cached produce-build-targets)
   (output scene            g/Any          :cached produce-scene))
@@ -441,8 +441,9 @@
            (g/make-nodes
             graph-id
             [atlas-image [AtlasImage]]
-            (project/connect-resource-node (project/get-project scope-node) image atlas-image [[:content :src-image]
-                                                                                              [:resource :src-resource]])
+            (project/connect-resource-node (project/get-project scope-node) image atlas-image
+                                           [[:resource :image-resource]
+                                            [:size :image-size]])
             (attach-image parent labels atlas-image scope-node image-order))))
        images))))
 

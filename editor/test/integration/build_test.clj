@@ -7,6 +7,7 @@
             [editor.math :as math]
             [editor.game-project :as game-project]
             [editor.defold-project :as project]
+            [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
@@ -343,7 +344,7 @@
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
           (is (not-every? :cached build-results)))
-        (reset! (g/node-value project :build-cache) {})
+        (g/set-property! project :build-cache (pipeline/make-build-cache))
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
           (is (not-any? :cached first-build-results)))))))
@@ -385,12 +386,12 @@
             path          "/main/main.collection"
             resource-node (test-util/resource-node project path)
             _             (project/build project resource-node {})
-            cache-count   (count @(g/node-value project :build-cache))]
+            cache-count   (-> (g/node-value project :build-cache) :entries deref count)]
         (g/transact
          (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
            (g/delete-node node-id)))
         (project/build project resource-node {})
-        (is (< (count @(g/node-value project :build-cache)) cache-count))))))
+        (is (< (-> (g/node-value project :build-cache) :entries deref count) cache-count))))))
 
 (deftest prune-fs-build-cache
   (testing "Verify the fs build cache works as expected"

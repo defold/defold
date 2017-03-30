@@ -1,7 +1,8 @@
 (ns editor.util
   (:require [clojure.string :as string])
   (:import
-    [java.io File]))
+   [java.io File]
+   [org.apache.commons.io FileUtils]))
 
 (defmacro spy
   [& body]
@@ -71,3 +72,9 @@
                   (when (pred x)
                     idx))
                 coll))
+
+(defn delete-on-exit!
+  [^File file]
+  (if (.isDirectory file)
+    (.. Runtime getRuntime (addShutdownHook (Thread. #(FileUtils/deleteQuietly file))))
+    (.deleteOnExit file)))
