@@ -89,7 +89,7 @@
                 {:line (.getLineNumber e)}))
      :message (.getMessage e)}))
 
-(defn- run-commands [project ^Project bob-project {:keys [render-error!] :as _build-options} commands]
+(defn- run-commands! [project ^Project bob-project {:keys [render-error!] :as _build-options} commands]
   (try
     (let [progress (->progress)
           result (.build bob-project progress (into-array String commands))
@@ -103,7 +103,7 @@
       (render-error! {:causes [(exc->error project error)]})
       false)))
 
-(defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
+(defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error! finished!] :as build-options}]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
@@ -128,7 +128,9 @@
             (.resolveLibUrls bob-project (->progress)))
           (.mount bob-project (->graph-resource-scanner ws))
           (.findSources bob-project proj-path skip-dirs)
-          (run-commands project bob-project build-options bob-commands))))))
+          (let [succeeded? (run-commands! project bob-project build-options bob-commands)]
+            (when (some? finished!)
+              (finished! succeeded?))))))))
 
 (defn- boolean? [value]
   (or (false? value) (true? value)))

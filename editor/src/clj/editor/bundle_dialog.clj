@@ -208,8 +208,8 @@
 (defn- make-android-controls [refresh! owner-window]
   (assert (fn? refresh!))
   (let [make-file-field (partial make-file-field refresh! owner-window)
-        certificate-text-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates" "*.pem"]])
-        private-key-text-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys" "*.pk8"]])]
+        certificate-text-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates (*.pem)" "*.pem"]])
+        private-key-text-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
@@ -254,7 +254,7 @@
 
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
-  (let [provisioning-profile-text-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles" "*.mobileprovision"]])
+  (let [provisioning-profile-text-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
         code-signing-identities (concat [[nil "None"]] (bundle/find-identities))
         code-signing-identity-ids (mapv first code-signing-identities)
         code-signing-identity-names-by-id (into {} code-signing-identities)
