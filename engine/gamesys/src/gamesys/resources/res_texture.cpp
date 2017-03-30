@@ -75,15 +75,32 @@ namespace dmGameSystem
             return false;
         }
 
-        uint32_t stride = decompressed_data_size/params.m_Height;
         dmWebP::Result webp_res;
-        if(stride == params.m_Width*3)
+        uint32_t stride = decompressed_data_size/params.m_Height;
+
+        switch (image->m_Format)
         {
-            webp_res = dmWebP::DecodeRGB(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
-        }
-        else
-        {
-            webp_res = dmWebP::DecodeRGBA(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+                webp_res = dmWebP::DecodeCompressedTexture(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride, dmWebP::TEXTURE_COMPRESSION_PVRTC1);
+            break;
+
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
+                webp_res = dmWebP::DecodeCompressedTexture(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride, dmWebP::TEXTURE_COMPRESSION_ETC1);
+            break;
+
+            default:
+                if(stride == params.m_Width*3)
+                {
+                    webp_res = dmWebP::DecodeRGB(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
+                }
+                else
+                {
+                    webp_res = dmWebP::DecodeRGBA(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
+                }
+            break;
         }
         if(webp_res != dmWebP::RESULT_OK)
         {

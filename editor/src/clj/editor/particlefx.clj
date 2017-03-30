@@ -476,7 +476,7 @@
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :tile-source-resource]
                                                 [:build-targets :dep-build-targets]
-                                                [:texture-set-data :texture-set-data]
+                                                [:texture-set :texture-set]
                                                 [:gpu-texture :gpu-texture]
                                                 [:anim-ids :anim-ids])))
             (dynamic edit-type (g/constantly
@@ -529,7 +529,7 @@
 
   (input tile-source-resource resource/Resource)
   (input material-resource resource/Resource)
-  (input texture-set-data g/Any)
+  (input texture-set g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
   (output build-targets g/Any (g/fnk [_node-id tile-source material animation anim-ids dep-build-targets]
@@ -570,10 +570,9 @@
                                (geom/aabb-incorporate (- w) (- h) (- d))
                                (geom/aabb-incorporate w h d)))))
   (output emitter-sim-data g/Any :cached
-          (g/fnk [animation texture-set-data gpu-texture]
-                 (let [tex-set (:texture-set texture-set-data)
-                       texture-set-anim (first (filter #(= animation (:id %)) (:animations tex-set)))
-                       ^ByteString tex-coords (:tex-coords tex-set)
+          (g/fnk [animation texture-set gpu-texture]
+                 (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
+                       ^ByteString tex-coords (:tex-coords texture-set)
                        tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))]
                    (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
                    (.flip tex-coords-buffer)
@@ -637,21 +636,20 @@
       (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
 
 (defn- render-pfx [^GL2 gl render-args renderables count]
-  (doseq [renderable renderables
-          :let [node-id (last (:node-path renderable))]]
-    (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
-      (let [pfx-sim @pfx-sim-ref
-            user-data (:user-data renderable)
-            render-emitter-fn (:render-emitter-fn user-data)
-            vtx-binding (:vtx-binding pfx-sim)
-            camera (:camera render-args)
-            view-proj (doto (Matrix4d.)
-                        (.mul (camera/camera-projection-matrix camera) (camera/camera-view-matrix camera)))]
-        (plib/render pfx-sim (partial render-emitter-fn gl render-args vtx-binding view-proj))))))
+  (doseq [renderable renderables]
+    (when-let [node-id (some-> renderable :updatable :node-id)]
+      (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
+        (let [pfx-sim @pfx-sim-ref
+              user-data (:user-data renderable)
+              render-emitter-fn (:render-emitter-fn user-data)
+              vtx-binding (:vtx-binding pfx-sim)
+              camera (:camera render-args)
+              view-proj (doto (Matrix4d.)
+                          (.mul (camera/camera-projection-matrix camera) (camera/camera-view-matrix camera)))]
+          (plib/render pfx-sim (partial render-emitter-fn gl render-args vtx-binding view-proj)))))))
 
 (g/defnk produce-scene [_node-id child-scenes render-emitter-fn scene-updatable]
   {:node-id _node-id
-   :node-path [_node-id]
    :updatable scene-updatable
    :renderable {:render-fn render-pfx
                 :batch-key nil
