@@ -768,8 +768,12 @@
 
 (defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
-  (let [build-options (merge build-options
-                             {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+  (let [output-directory (:output-directory build-options)
+        build-options (merge build-options
+                             {:finished! (fn [succeeded?]
+                                           (when (and succeeded? (some-> ^File output-directory .isDirectory))
+                                             (.open (Desktop/getDesktop) output-directory)))
+                              :clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
                               :render-error! (fn [errors]
                                                (ui/run-later
                                                  (build-errors-view/update-build-errors
