@@ -435,6 +435,10 @@
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
     (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
+(defn- add-gui-node! [project scene app-view parent node-type]
+  (let [user-data {:scene scene :parent parent :node-type node-type :handler-fn gui/add-gui-node-handler}]
+    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
+
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
 
@@ -462,6 +466,17 @@
       (add-layout! project app-view node-id "Portrait")
       (set-visible-layout! node-id "Portrait")
       (is (not= box (gui-node node-id "box"))))))
+
+(deftest gui-layout-add-node
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          scene (test-util/resource-node project "/gui/layouts.gui")]
+      (add-layout! project app-view scene "Portrait")
+      (set-visible-layout! scene "Portrait")
+      (let [node-tree (g/node-value scene :node-tree)]
+        (is (= #{"box"} (set (map :label (:children (test-util/outline scene [0]))))))
+        (add-gui-node! project scene app-view node-tree :type-box)
+        (is (= #{"box" "box1"} (set (map :label (:children (test-util/outline scene [0]))))))))))
 
 (defn- gui-text [scene id]
   (-> (gui-node scene id)

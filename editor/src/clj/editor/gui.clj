@@ -1687,7 +1687,7 @@
       g/tx-nodes-added
       first)))
 
-(defn- add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
+(defn add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
   (add-gui-node! project scene parent node-type select-fn))
 
 (defn- add-texture-handler [project {:keys [scene parent node-type]} select-fn]
@@ -1752,6 +1752,7 @@
 
 (defn- add-handler-options [node]
   (let [types (protobuf/enum-values Gui$NodeDesc$Type)
+        node (if (g/override? node) (g/override-original node) node)
         scene (node->gui-scene node)
         node-options (if (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)
