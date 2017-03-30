@@ -1,7 +1,7 @@
 (ns editor.bundle-dialog
   (:require [clojure.java.io :as io]
-            [clojure.set :as set]
             [editor.bundle :as bundle]
+            [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui])
   (:import [java.io File]
@@ -54,13 +54,25 @@
 (defn- existing-file? [^File file]
   (and (some? file) (.isFile file)))
 
-(defn- label!
+(defn existing-file-of-type? [^String ext ^File file]
+  (and (existing-file? file)
+       (.endsWith (.toLowerCase (.getPath file))
+                  (str "." ext))))
+
+(defn- labeled!
   ^HBox [label-text control]
   (assert (string? (not-empty label-text)))
   (HBox/setHgrow control Priority/ALWAYS)
   (let [label (doto (Label. label-text) (ui/add-style! "field-label"))]
     (doto (HBox.)
       (ui/children! [label control]))))
+
+(defn- set-label! [label severity message]
+  (assert (contains? #{:error :warning :info} severity))
+  (ui/text! label message)
+  (ui/remove-styles! label ["error" "warning"])
+  (when-not (= :info severity)
+    (ui/add-style! label (name severity))))
 
 (defn- make-file-field
   ^GridPane [refresh! owner-window text-field-css-id title-text filter-descs]
@@ -78,9 +90,10 @@
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (GridPane/setConstraints 1 0)
                         (ui/add-style! "button-small")
-                        (ui/on-action! (fn [_]
+                        (ui/on-action! (fn [event]
                                          (when-let [file (query-file! title-text filter-descs (get-file text-field) owner-window)]
-                                           (set-file! text-field file)))))
+                                           (set-file! text-field file)
+                                           (refresh! event)))))
         container (doto (GridPane.)
                     (ui/add-style! "composite-property-control-container")
                     (ui/children! [text-field browse-button]))]
@@ -108,15 +121,34 @@
           (finally
             (vreset! refresh-in-progress false)))))))
 
+(defn- get-string-pref
+  ^String [prefs key]
+  (some-> (prefs/get-prefs prefs key nil) not-empty))
+
+(defn- set-string-pref!
+  [prefs key ^String string]
+  (prefs/set-prefs prefs key (not-empty string)))
+
+(defn- get-file-pref
+  ^File [prefs key]
+  (io/file (get-string-pref prefs key)))
+
+(defn- set-file-pref!
+  [prefs key ^File file]
+  (set-string-pref! prefs key (.getPath file)))
+
 ;; -----------------------------------------------------------------------------
 ;; Generic
 ;; -----------------------------------------------------------------------------
 
-(defn- make-generic-headers [header description]
+(def ^:private no-issues-header-info-text "Proceed to select output folder.")
+
+(defn- make-generic-headers
+  ^VBox [header]
   (doto (VBox.)
     (ui/add-style! "headers")
     (ui/children! [(doto (Label. header) (ui/add-style! "header-label"))
-                   (doto (Label. description) (ui/add-style! "description-label"))])))
+                   (doto (Label. no-issues-header-info-text) (.setId "header-info-label"))])))
 
 (defn- make-generic-controls [refresh!]
   (assert (fn? refresh!))
@@ -127,10 +159,15 @@
                    (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (ui/on-action! refresh!))
                    (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (ui/on-action! refresh!))])))
 
-(defn- default-generic-options []
-  {:release-mode? true
-   :generate-build-report? false
-   :publish-live-update-content? false})
+(defn- read-generic-options [prefs]
+  {:release-mode? (prefs/get-prefs prefs "bundle-release-mode?" true)
+   :generate-build-report? (prefs/get-prefs prefs "bundle-generate-build-report?" false)
+   :publish-live-update-content? (prefs/get-prefs prefs "bundle-publish-live-update-content?" false)})
+
+(defn- write-generic-options! [prefs build-options]
+  (some->> build-options :release-mode? (prefs/set-prefs prefs "bundle-release-mode?"))
+  (some->> build-options :generate-build-report? (prefs/set-prefs prefs "bundle-generate-build-report?"))
+  (some->> build-options :publish-live-update-content? (prefs/set-prefs prefs "bundle-publish-live-update-content?")))
 
 (defn- get-generic-options [view]
   (ui/with-controls view [^CheckBox release-mode-check-box
@@ -152,7 +189,7 @@
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers title "Set build options")
+      [(make-generic-headers title)
        (make-generic-controls refresh!)]))
   (get-options [_this]
     (get-generic-options view))
@@ -172,12 +209,13 @@
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "architecture")
-      (ui/children! [(label! "Architecture" architecture-choice-box)]))))
+      (ui/children! [(labeled! "Architecture" architecture-choice-box)]))))
 
-(defn- default-architecture-options []
-  {:arch-bits (if (= (system/os-arch) "x86")
-                32
-                64)})
+(defn- read-architecture-options [prefs]
+  {:arch-bits (prefs/get-prefs prefs "bundle-arch-bits" (if (= (system/os-arch) "x86") 32 64))})
+
+(defn- write-architecture-options! [prefs build-options]
+  (some->> build-options :arch-bits (prefs/set-prefs prefs "bundle-arch-bits")))
 
 (defn- get-architecture-options [view]
   (ui/with-controls view [architecture-choice-box]
@@ -191,7 +229,7 @@
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers title "Set build options")
+      [(make-generic-headers title)
        (make-architecture-controls refresh!)
        (make-generic-controls refresh!)]))
   (get-options [_this]
@@ -213,32 +251,63 @@
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
-      (ui/children! [(label! "Certificate" certificate-text-field)
-                     (label! "Private key" private-key-text-field)]))))
+      (ui/children! [(labeled! "Certificate" certificate-text-field)
+                     (labeled! "Private key" private-key-text-field)]))))
 
-(defn- default-android-options []
-  {:certificate nil
-   :private-key nil})
+(defn- read-android-options [prefs]
+  {:certificate (get-file-pref prefs "bundle-android-certificate")
+   :private-key (get-file-pref prefs "bundle-android-private-key")})
+
+(defn- write-android-options! [prefs build-options]
+  (some->> build-options :certificate (set-file-pref! prefs "bundle-android-certificate"))
+  (some->> build-options :private-key (set-file-pref! prefs "bundle-android-private-key")))
 
 (defn- get-android-options [view]
   (ui/with-controls view [certificate-text-field private-key-text-field]
     {:certificate (get-file certificate-text-field)
      :private-key (get-file private-key-text-field)}))
 
-(defn- set-android-options! [view options]
-  (let [certificate (:certificate options)
-        private-key (:private-key options)]
-    (ui/with-controls view [certificate-text-field private-key-text-field ok-button]
-      (set-file! certificate-text-field certificate)
-      (set-file! private-key-text-field private-key)
-      (ui/enable! ok-button (and (existing-file? certificate)
-                                 (existing-file? private-key))))))
+(defn- set-android-options! [view {:keys [certificate private-key] :as _options}]
+  (ui/with-controls view [certificate-text-field private-key-text-field ok-button]
+    (set-file! certificate-text-field certificate)
+    (set-file! private-key-text-field private-key)
+    (ui/enable! ok-button (or (and (nil? certificate)
+                                   (nil? private-key))
+                              (and (existing-file-of-type? "pem" certificate)
+                                   (existing-file-of-type? "pk8" private-key))))))
+
+(defn- set-android-headers! [view {:keys [certificate private-key] :as _options}]
+  (ui/with-controls view [header-info-label]
+    (cond
+      (and (nil? certificate) (nil? private-key))
+      (set-label! header-info-label :info "Set certificate and private key, or leave blank to sign APK with an auto-generated debug certificate.")
+
+      (and (some? certificate) (not (existing-file? certificate)))
+      (set-label! header-info-label :error "Certificate file not found.")
+
+      (and (some? certificate) (not (existing-file-of-type? "pem" certificate)))
+      (set-label! header-info-label :error "Invalid certificate.")
+
+      (and (some? private-key) (not (existing-file? private-key)))
+      (set-label! header-info-label :error "Private key file not found.")
+
+      (and (some? private-key) (not (existing-file-of-type? "pk8" private-key)))
+      (set-label! header-info-label :error "Invalid private key.")
+
+      (and (nil? certificate) (some? private-key))
+      (set-label! header-info-label :error "Certificate must be set if private key is specified.")
+
+      (and (some? certificate) (nil? private-key))
+      (set-label! header-info-label :error "Private key must be set if certificate is specified.")
+
+      :else
+      (set-label! header-info-label :info no-issues-header-info-text))))
 
 (deftype AndroidBundleOptionsPresenter [view]
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers "Package Android Application" "Set certificate and private key (leave fields blank to sign APK with an auto-generated debug certificate)")
+      [(make-generic-headers "Package Android Application")
        (make-android-controls refresh! owner-window)
        (make-generic-controls refresh!)]))
   (get-options [_this]
@@ -246,61 +315,93 @@
            (get-android-options view)))
   (set-options! [_this options]
     (set-generic-options! view options)
-    (set-android-options! view options)))
+    (set-android-options! view options)
+    (set-android-headers! view options)))
 
 ;; -----------------------------------------------------------------------------
 ;; iOS
 ;; -----------------------------------------------------------------------------
 
+(defn- get-code-signing-identity-names []
+  (mapv second (bundle/find-identities)))
+
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
   (let [provisioning-profile-text-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
-        code-signing-identities (concat [[nil "None"]] (bundle/find-identities))
-        code-signing-identity-ids (mapv first code-signing-identities)
-        code-signing-identity-names-by-id (into {} code-signing-identities)
-        code-signing-identity-ids-by-name (set/map-invert code-signing-identity-names-by-id)
-        code-signing-identity-choice-box (doto (ChoiceBox. (ui/observable-list code-signing-identity-ids))
+        no-identity-label "None"
+        code-signing-identity-choices (into [nil] (get-code-signing-identity-names))
+        code-signing-identity-choice-box (doto (ChoiceBox. (ui/observable-list code-signing-identity-choices))
                                            (.setId "code-signing-identity-choice-box")
                                            (.setMaxWidth Double/MAX_VALUE) ; Required to fill available space.
-                                           (ui/on-action! refresh!)
                                            (.setConverter (proxy [StringConverter] []
-                                                            (toString [identity-id]
-                                                              (code-signing-identity-names-by-id identity-id))
-                                                            (fromString [identity-name]
-                                                              (code-signing-identity-ids-by-name identity-name)))))]
+                                                            (toString [value]
+                                                              (if (some? value) value no-identity-label))
+                                                            (fromString [label]
+                                                              (if (= no-identity-label label) nil label)))))]
     ;; Selecting nil won't update the ChoiceBox since it thinks it is
-    ;; already nil to begin with. Select "None" here as a workaround.
+    ;; already nil to begin with. Select the first entry here as a workaround.
     (.selectFirst (.getSelectionModel code-signing-identity-choice-box))
+    (ui/on-action! code-signing-identity-choice-box refresh!)
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "ios")
-      (ui/children! [(label! "Code signing identity" code-signing-identity-choice-box)
-                     (label! "Provisioning profile" provisioning-profile-text-field)]))))
+      (ui/children! [(labeled! "Code signing identity" code-signing-identity-choice-box)
+                     (labeled! "Provisioning profile" provisioning-profile-text-field)]))))
 
-(defn- default-ios-options []
-  {:code-signing-identity nil
-   :provisioning-profile nil})
+
+(defn- read-ios-options [prefs]
+  ;; This falls back on settings from the Sign iOS Application dialog if available,
+  ;; but we will write to our own keys in the preference for these.
+  (let [code-signing-identity-names (get-code-signing-identity-names)]
+    {:code-signing-identity (or (some (set code-signing-identity-names)
+                                  (or (get-string-pref prefs "bundle-ios-code-signing-identity")
+                                      (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
+                                (first code-signing-identity-names))
+     :provisioning-profile (or (get-file-pref prefs "bundle-ios-provisioning-profile")
+                               (get-file-pref prefs "last-provisioning-profile"))}))
+
+(defn- write-ios-options! [prefs build-options]
+  (some->> build-options :code-signing-identity (set-string-pref! prefs "bundle-ios-code-signing-identity"))
+  (some->> build-options :provisioning-profile (set-file-pref! prefs "bundle-ios-provisioning-profile")))
 
 (defn- get-ios-options [view]
   (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
     {:code-signing-identity (ui/value code-signing-identity-choice-box)
      :provisioning-profile (get-file provisioning-profile-text-field)}))
 
-(defn- set-ios-options! [view options]
+(defn- set-ios-options! [view {:keys [code-signing-identity provisioning-profile] :as _options}]
   (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field ok-button]
-    (let [code-signing-identity (:code-signing-identity options)
-          provisioning-profile (:provisioning-profile options)]
-      (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field ok-button]
-        (ui/value! code-signing-identity-choice-box code-signing-identity)
-        (set-file! provisioning-profile-text-field provisioning-profile)
-        (ui/enable! ok-button (and (some? code-signing-identity)
-                                   (existing-file? provisioning-profile)))))))
+    (ui/value! code-signing-identity-choice-box code-signing-identity)
+    (set-file! provisioning-profile-text-field provisioning-profile)
+    (ui/enable! ok-button (and (some? code-signing-identity)
+                               (existing-file? provisioning-profile)))))
+
+(defn- set-ios-headers! [view {:keys [code-signing-identity provisioning-profile] :as _options}]
+  (ui/with-controls view [header-info-label]
+    (cond
+      (empty? (get-code-signing-identity-names))
+      (set-label! header-info-label :error "No code signing identities found on this computer.")
+
+      (nil? code-signing-identity)
+      (set-label! header-info-label :error "Code signing identity must be set.")
+
+      (nil? provisioning-profile)
+      (set-label! header-info-label :error "Provisioning profile must be set.")
+
+      (not (existing-file? provisioning-profile))
+      (set-label! header-info-label :error "Provisioning profile file not found.")
+
+      (not (existing-file-of-type? "mobileprovision" provisioning-profile))
+      (set-label! header-info-label :error "Invalid provisioning profile.")
+
+      :else
+      (set-label! header-info-label :info no-issues-header-info-text))))
 
 (deftype IOSBundleOptionsPresenter [view]
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers "Package iOS Application" "Set build options")
+      [(make-generic-headers "Package iOS Application")
        (make-ios-controls refresh! owner-window)
        (make-generic-controls refresh!)]))
   (get-options [_this]
@@ -308,7 +409,8 @@
            (get-ios-options view)))
   (set-options! [_this options]
     (set-generic-options! view options)
-    (set-ios-options! view options)))
+    (set-ios-options! view options)
+    (set-ios-headers! view options)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -321,16 +423,20 @@
 (defmethod bundle-options-presenter :macos   [view _platform] (GenericBundleOptionsPresenter. view "Package macOS Application"))
 (defmethod bundle-options-presenter :windows [view _platform] (ArchitectureConcernedBundleOptionsPresenter. view "Package Windows Application"))
 
-(defn- default-build-options []
-  (merge {:output-directory nil}
-         (default-generic-options)
-         (default-architecture-options)
-         (default-android-options)
-         (default-ios-options)))
+(defn- read-build-options [prefs]
+  (merge (read-generic-options prefs)
+         (read-architecture-options prefs)
+         (read-android-options prefs)
+         (read-ios-options prefs)))
 
-(defn show-bundle-dialog! [platform build-options owner-window bundle!]
-  (let [defaults (default-build-options)
-        build-options (merge defaults (select-keys build-options (keys defaults)))
+(defn- write-build-options! [prefs build-options]
+  (write-generic-options! prefs build-options)
+  (write-architecture-options! prefs build-options)
+  (write-android-options! prefs build-options)
+  (write-ios-options! prefs build-options))
+
+(defn show-bundle-dialog! [platform prefs owner-window bundle!]
+  (let [build-options (read-build-options prefs)
         stage (doto (ui/make-dialog-stage owner-window) (ui/title! "Package Application"))
         root (doto (VBox.)
                (ui/add-style! "bundle-dialog")
@@ -343,18 +449,18 @@
       (ui/add-child! root view))
 
     ;; Button bar.
-    (let [ok-button (doto (Button. "Package") (.setId "ok-button"))
+    (let [ok-button (doto (Button. "Package...") (.setId "ok-button"))
           buttons (doto (HBox.) (ui/add-style! "buttons"))]
       (ui/add-child! buttons ok-button)
       (ui/add-child! root buttons)
       (ui/on-action! ok-button
                      (fn on-ok! [_]
                        (let [build-options (get-options presenter)]
-                         (ui/close! stage)
-                         (if-let [output-directory (query-directory! "Output Directory" (:output-directory build-options) owner-window)]
+                         (write-build-options! prefs build-options)
+                         (when-let [output-directory (query-directory! "Output Directory" (:output-directory build-options) stage)]
                            (let [build-options (assoc build-options :output-directory output-directory)]
-                             (bundle! build-options))
-                           (show-bundle-dialog! platform build-options owner-window bundle!))))))
+                             (ui/close! stage)
+                             (bundle! build-options)))))))
 
     ;; Refresh from build options.
     (set-options! presenter build-options)
