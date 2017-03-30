@@ -180,8 +180,8 @@ namespace dmRig
         float x;
         float y;
         float z;
-        uint16_t u;
-        uint16_t v;
+        float u;
+        float v;
         float nx;
         float ny;
         float nz;

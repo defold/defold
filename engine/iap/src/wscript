@@ -36,7 +36,7 @@ def build(bld):
         bld.install_files('${PREFIX}/lib/js-web/js', '../src/js/library_facebook_iap.js', postpone = False)
         source += ['iap_emscripten.cpp']
     else:
-        source += ['iap_null.cpp']
+        source = ['iap_null.cpp']
 
     apidoc_extract_task(bld, ['iap_ios.mm'])
 

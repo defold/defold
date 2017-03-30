@@ -1192,8 +1192,8 @@ namespace dmRig
                 out_write_ptr->z = positions[++e];
                 vi = uv0_indices[i];
                 e = vi << 1;
-                out_write_ptr->u = (uint16_t)((uv0[e+0]) * 65535.0f);
-                out_write_ptr->v = (uint16_t)((uv0[e+1]) * 65535.0f);
+                out_write_ptr->u = uv0[e+0];
+                out_write_ptr->v = uv0[e+1];
                 e = i * 3;
                 out_write_ptr->nx = normals[e];
                 out_write_ptr->ny = normals[++e];
@@ -1212,8 +1212,8 @@ namespace dmRig
                 out_write_ptr->z = positions[++e];
                 vi = uv0_indices[i];
                 e = vi << 1;
-                out_write_ptr->u = (uint16_t)((uv0[e+0]) * 65535.0f);
-                out_write_ptr->v = (uint16_t)((uv0[e+1]) * 65535.0f);
+                out_write_ptr->u = uv0[e+0];
+                out_write_ptr->v = uv0[e+1];
                 out_write_ptr->nx = 0.0f;
                 out_write_ptr->ny = 0.0f;
                 out_write_ptr->nz = 1.0f;
