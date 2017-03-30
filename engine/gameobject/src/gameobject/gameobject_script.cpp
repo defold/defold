@@ -773,7 +773,7 @@ namespace dmGameObject
     }
 
     /*# gets the uniform scale factor of the instance
-     * The uniform scale is relative the parent (if any).
+     * The uniform scale is relative the parent (if any). If the underlying scale vector is non-uniform the min element of the vector is returned as the uniform scale factor.
      *
      * @name go.get_scale_uniform
      * @param [id] [type:string|hash|url] optional id of the instance to get the uniform scale for, by default the instance of the calling script
