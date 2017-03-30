@@ -26,10 +26,24 @@
                                            :compression-level :fast}]
                                 :mipmaps true}]})
 
-(defn- read-image
+(defn read-image
   [source]
   (with-open [s (io/input-stream source)]
     (ImageIO/read s)))
+
+(defn- read-size
+  [source]
+  (with-open [s (ImageIO/createImageInputStream (io/input-stream source))]
+    (let [readers (ImageIO/getImageReaders s)]
+      (when (.hasNext readers)
+        (let [^javax.imageio.ImageReader reader (.next readers)]
+          (try
+            (.setInput reader s true true)
+            {:width (.getWidth reader 0)
+             :height (.getHeight reader 0)}
+            (finally
+              (.dispose reader))))))))
+
 
 (defn- build-texture [self basis resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
@@ -43,12 +57,19 @@
 (g/defnode ImageNode
   (inherits project/ResourceNode)
 
-  (output content BufferedImage :cached (g/fnk [resource] (try
-                                                            (if-let [img (read-image resource)]
-                                                              img
-                                                              (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
-                                                            (catch java.io.FileNotFoundException e
-                                                              (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
+  (output size g/Any :cached (g/fnk [resource]
+                               (try
+                                 (or (read-size resource)
+                                     (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
+                                 (catch java.io.FileNotFoundException e
+                                   (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
+  
+  (output content BufferedImage (g/fnk [resource]
+                                  (try
+                                    (or (read-image resource)
+                                        (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
+                                    (catch java.io.FileNotFoundException e
+                                      (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics
@@ -92,12 +113,6 @@
 
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))
-
-;; Behavior
-(g/defnode ImageSource
-  (inherits core/ResourceNode)
-
-  (output content Image :cached (g/fnk [filename] (load-image filename (types/local-path filename)))))
 
 (s/defn image-color-components :- long
   [src :- BufferedImage]
@@ -198,7 +213,8 @@ region will be identical to the nearest pixel of the source image."
     (workspace/register-resource-type workspace :ext "texture")))
 
 (defn- build-texture [self basis resource dep-resources user-data]
-  {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
+  {:resource resource
+   :content (tex-gen/->bytes (:image user-data) test-profile)})
 
 (defn make-texture-build-target [workspace node-id image]
   (let [texture-type     (workspace/get-resource-type workspace "texture")

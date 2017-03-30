@@ -74,6 +74,36 @@
    :build-fn build-animation-set
    :user-data {:animation-set animation-set}})
 
+(def ^:private form-sections
+  {
+   :sections
+   [
+    {
+     :title "Animation Set"
+     :fields
+     [
+      {
+       :path [:animations]
+       :type :list
+       :label "Animations"
+       :element {:type :resource :filter #{"animationset" "dae"} :default nil}
+       }
+      ]
+     }
+    ]
+   })
+
+(defn- set-form-op [{:keys [node-id]} path value]
+  (assert (= path [:animations]))
+  (g/set-property! node-id :animations value))
+
+(g/defnk produce-form-data [_node-id animations]
+  (let [values {[:animations] animations}]
+    (-> form-sections
+        (assoc :form-ops {:user-data {:node-id _node-id}
+                          :set set-form-op})
+        (assoc :values values))))
+
 (g/defnode AnimationSetNode
   (inherits project/ResourceNode)
 
@@ -88,10 +118,16 @@
                                       [:animation-set :animation-sets]]]
                      (concat
                        (for [old-resource old-value]
-                         (project/disconnect-resource-node project old-resource self connections))
+                         (if old-resource
+                           (project/disconnect-resource-node project old-resource self connections)
+                           (g/disconnect project :nil-resource self :animation-resources)))
                        (for [new-resource new-value]
-                         (project/connect-resource-node project new-resource self connections))))))
+                         (if new-resource
+                           (project/connect-resource-node project new-resource self connections)
+                           (g/connect project :nil-resource self :animation-resources)))))))
             (dynamic visible (g/constantly false)))
+
+  (output form-data g/Any :cached produce-form-data)
 
   (output desc-pb-msg g/Any :cached produce-desc-pb-msg)
   (output save-data g/Any :cached produce-save-data)
@@ -113,4 +149,5 @@
                                     :load-fn load-animation-set
                                     :node-type AnimationSetNode
                                     :textual? true
-                                    :view-types [:text]))
+                                    :view-types [:form-view]))
+
