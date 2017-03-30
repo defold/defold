@@ -39,6 +39,7 @@ namespace dmPhysics
         float                       m_InvScale;
         float                       m_ContactImpulseLimit;
         float                       m_TriggerEnterLimit;
+        int                         m_RayCastLimit;
     };
 
     inline void ToBt(const Vectormath::Aos::Point3& p0, btVector3& p1, float scale)
