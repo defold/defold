@@ -103,6 +103,7 @@
   (assert (every? seq filter-descs))
   (let [text-field (doto (TextField.)
                      (.setId text-field-css-id)
+                     (ui/prevent-auto-focus!)
                      (GridPane/setFillWidth true)
                      (GridPane/setConstraints 0 0)
                      (ui/on-action! refresh!)

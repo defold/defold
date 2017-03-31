@@ -169,8 +169,20 @@
 
 (defn observe [^ObservableValue observable listen-fn]
   (.addListener observable (reify ChangeListener
-                        (changed [this observable old new]
-                          (listen-fn observable old new)))))
+                             (changed [this observable old new]
+                               (listen-fn observable old new)))))
+
+(defn observe-once [^ObservableValue observable listen-fn]
+  (let [listener-atom (atom nil)
+        listener (reify ChangeListener
+                   (changed [_this observable old new]
+                     (when-let [listener @listener-atom]
+                       (.removeListener observable listener)
+                       (reset! listener-atom nil))
+                     (listen-fn observable old new)))]
+    (.addListener observable listener)
+    (reset! listener-atom listener)
+    nil))
 
 (defn observe-list
   ([^ObservableList observable listen-fn]
@@ -360,6 +372,13 @@
   (observe (.focusedProperty node)
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
+
+(defn prevent-auto-focus! [^Node node]
+  (observe-once (.focusedProperty node)
+                (fn [_observable _old-val got-focus]
+                  (when got-focus
+                    (when-let [root (some-> node .getScene .getRoot)]
+                      (.requestFocus root))))))
 
 (defn auto-commit! [^Node node commit-fn]
   (on-focus! node (fn [got-focus] (if got-focus
