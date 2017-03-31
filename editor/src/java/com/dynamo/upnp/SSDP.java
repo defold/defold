@@ -67,6 +67,7 @@ public class SSDP implements ISSDP {
         private List<DatagramSocket> sockets;
     }
 
+    public static final String SSDP_SERVER_IDENTIFIER = "Defold SSDP 1.0";
     public static final int SSDP_MCAST_TTL = 4;
 
     private static final String SSDP_MCAST_ADDR_IP = "239.255.255.250";
