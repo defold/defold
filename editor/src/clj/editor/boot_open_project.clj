@@ -104,9 +104,7 @@
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
-    (ui/observe (.focusedProperty stage)
-                (fn [property old-val new-val]
-                  (dialogs/record-focus-change! new-val)))
+    (dialogs/observe-focus stage)
     (watch-focus-state! workspace)
     (updater/install-pending-update-check! stage project)
     (ui/set-main-stage stage)
