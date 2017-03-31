@@ -53,7 +53,7 @@
   }
 
   &.android {
-    -fx-min-width: 500px;
+    -fx-min-width: 600px;
     @include field-layout(71px);
   }
 
@@ -62,7 +62,7 @@
   }
 
   &.ios {
-    -fx-min-width: 500px;
+    -fx-min-width: 600px;
     @include field-layout(125px);
   }
 
