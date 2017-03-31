@@ -176,7 +176,7 @@
   (let [listener-atom (atom nil)
         listener (reify ChangeListener
                    (changed [_this observable old new]
-                     (when-let [listener @listener-atom]
+                     (when-let [^ChangeListener listener @listener-atom]
                        (.removeListener observable listener)
                        (reset! listener-atom nil))
                      (listen-fn observable old new)))]
@@ -374,11 +374,25 @@
              (focus-fn got-focus))))
 
 (defn prevent-auto-focus! [^Node node]
-  (observe-once (.focusedProperty node)
-                (fn [_observable _old-val got-focus]
-                  (when got-focus
-                    (when-let [root (some-> node .getScene .getRoot)]
-                      (.requestFocus root))))))
+  (.setFocusTraversable node false)
+  (run-later (.setFocusTraversable node true)))
+
+(defn- ensure-some-focus-owner! [^Window window]
+  (run-later
+    (when-let [scene (.getScene window)]
+      (when (nil? (.getFocusOwner scene))
+        (when-let [root (.getRoot scene)]
+          (.requestFocus root))))))
+
+(defn ensure-receives-key-events!
+  "Ensures the window receives key events even if it has no FocusTraversable controls."
+  [^Window window]
+  (if (.isShowing window)
+    (ensure-some-focus-owner! window)
+    (observe-once (.showingProperty window)
+                  (fn [_observable _old-val showing?]
+                    (when showing?
+                      (ensure-some-focus-owner! window))))))
 
 (defn auto-commit! [^Node node commit-fn]
   (on-focus! node (fn [got-focus] (if got-focus

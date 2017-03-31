@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
+            [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui])
@@ -9,6 +10,7 @@
            [java.util Collection List]
            [javafx.scene Scene]
            [javafx.scene.control Button CheckBox ChoiceBox Label TextField]
+           [javafx.scene.input KeyCode]
            [javafx.scene.layout ColumnConstraints GridPane HBox Priority VBox]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]
            [javafx.util StringConverter]
@@ -103,9 +105,9 @@
   (assert (every? seq filter-descs))
   (let [text-field (doto (TextField.)
                      (.setId text-field-css-id)
-                     (ui/prevent-auto-focus!)
                      (GridPane/setFillWidth true)
                      (GridPane/setConstraints 0 0)
+                     (ui/prevent-auto-focus!)
                      (ui/on-action! refresh!)
                      (ui/auto-commit! refresh!))
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
@@ -282,13 +284,13 @@
 (defn- make-android-controls [refresh! owner-window]
   (assert (fn? refresh!))
   (let [make-file-field (partial make-file-field refresh! owner-window)
-        certificate-text-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates (*.pem)" "*.pem"]])
-        private-key-text-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])]
+        certificate-file-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates (*.pem)" "*.pem"]])
+        private-key-file-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
-      (ui/children! [(labeled! "Certificate" certificate-text-field)
-                     (labeled! "Private key" private-key-text-field)]))))
+      (ui/children! [(labeled! "Certificate" certificate-file-field)
+                     (labeled! "Private key" private-key-file-field)]))))
 
 (defn- read-android-options [prefs]
   {:certificate (get-file-pref prefs "bundle-android-certificate")
@@ -363,7 +365,7 @@
 
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
-  (let [provisioning-profile-text-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
+  (let [provisioning-profile-file-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
         no-identity-label "None"
         code-signing-identity-choice-box (doto (ChoiceBox.)
                                            (.setId "code-signing-identity-choice-box")
@@ -379,7 +381,7 @@
       (ui/add-style! "settings")
       (ui/add-style! "ios")
       (ui/children! [(labeled! "Code signing identity" code-signing-identity-choice-box)
-                     (labeled! "Provisioning profile" provisioning-profile-text-field)]))))
+                     (labeled! "Provisioning profile" provisioning-profile-file-field)]))))
 
 
 (defn- read-ios-options [prefs]
@@ -471,12 +473,27 @@
 
 (defn- watch-focus-state! [presenter]
   (assert (satisfies? BundleOptionsPresenter presenter))
-  (add-watch dialogs/focus-state ::bundle-dialog-focus-state-watch
+  (add-watch dialogs/focus-state ::focus-state-watch
              (fn [_key _ref _old _new]
                (refresh-presenter! presenter))))
 
 (defn- unwatch-focus-state! [_event]
-  (remove-watch dialogs/focus-state ::bundle-dialog-focus-state-watch))
+  (remove-watch dialogs/focus-state ::focus-state-watch))
+
+(handler/defhandler ::close :bundle-dialog
+  (run [stage]
+    (ui/close! stage)))
+
+(handler/defhandler ::query-output-directory :bundle-dialog
+  (run [bundle! prefs presenter stage]
+    (let [build-options (get-options presenter)
+          initial-directory (get-file-pref prefs "bundle-output-directory")]
+      (write-build-options! prefs build-options)
+      (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
+        (set-file-pref! prefs "bundle-output-directory" output-directory)
+        (let [build-options (assoc build-options :output-directory output-directory)]
+          (ui/close! stage)
+          (bundle! build-options))))))
 
 (defn show-bundle-dialog! [platform prefs owner-window bundle!]
   (let [build-options (read-build-options prefs)
@@ -489,6 +506,15 @@
                (ui/apply-css!))
         presenter (bundle-options-presenter root platform)]
 
+    ;; Dialog context.
+    (ui/context! root :bundle-dialog {:bundle! bundle!
+                                      :prefs prefs
+                                      :presenter presenter
+                                      :stage stage} nil)
+    ;; Key bindings.
+    (ui/ensure-receives-key-events! stage)
+    (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+
     ;; Presenter views.
     (doseq [view (make-views presenter stage)]
       (ui/add-child! root view))
@@ -498,16 +524,7 @@
           buttons (doto (HBox.) (ui/add-style! "buttons"))]
       (ui/add-child! buttons ok-button)
       (ui/add-child! root buttons)
-      (ui/on-action! ok-button
-                     (fn on-ok! [_]
-                       (let [build-options (get-options presenter)
-                             initial-directory (get-file-pref prefs "bundle-output-directory")]
-                         (write-build-options! prefs build-options)
-                         (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
-                           (set-file-pref! prefs "bundle-output-directory" output-directory)
-                           (let [build-options (assoc build-options :output-directory output-directory)]
-                             (ui/close! stage)
-                             (bundle! build-options)))))))
+      (ui/bind-action! ok-button ::query-output-directory))
 
     ;; Refresh from build options.
     (set-options! presenter build-options)
