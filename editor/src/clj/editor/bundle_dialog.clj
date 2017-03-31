@@ -37,7 +37,7 @@
 (defn- query-directory!
   ^File [title ^File initial-directory ^Window owner-window]
   (let [chooser (DirectoryChooser.)]
-    (when (and (some? initial-directory) (.exists initial-directory))
+    (when (some-> initial-directory .isDirectory)
       (.setInitialDirectory chooser initial-directory))
     (.setTitle chooser title)
     (.showDialog chooser owner-window)))
@@ -497,9 +497,11 @@
       (ui/add-child! root buttons)
       (ui/on-action! ok-button
                      (fn on-ok! [_]
-                       (let [build-options (get-options presenter)]
+                       (let [build-options (get-options presenter)
+                             initial-directory (get-file-pref prefs "bundle-output-directory")]
                          (write-build-options! prefs build-options)
-                         (when-let [output-directory (query-directory! "Output Directory" (:output-directory build-options) stage)]
+                         (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
+                           (set-file-pref! prefs "bundle-output-directory" output-directory)
                            (let [build-options (assoc build-options :output-directory output-directory)]
                              (ui/close! stage)
                              (bundle! build-options)))))))
