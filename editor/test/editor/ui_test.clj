@@ -148,7 +148,7 @@
     (ui/context! root :global {} selection-provider)
     (ui/run-now (.add (.getChildren root) menubar))
     (.setId menubar "menubar")
-    (ui/register-menubar scene "#menubar" ::my-menu)
+    (ui/register-menubar scene menubar ::my-menu)
     (ui/run-now (ui/refresh scene))
     (let [c1 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))
           c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
