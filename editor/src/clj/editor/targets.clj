@@ -79,20 +79,6 @@
    :fetch-url-fn http-get
    :on-targets-changed-fn ui/invalidate-menus!})
 
-(defn- desc->target [desc local-address]
-   (when-let [tags (and (= {:xmlns:defold "urn:schemas-defold-com:DEFOLD-1-0", :xmlns "urn:schemas-upnp-org:device-1-0"}
-                           (:attrs desc))
-                        (->> desc :content (filter #(= :device (:tag %))) first :content))]
-     (when (some->> tags (tag->val :manufacturer) str/lower-case (= "defold"))
-       (let [target {:name     (tag->val :friendlyName tags)
-                     :model    (tag->val :modelName tags)
-                     :udn      (tag->val :UDN tags)
-                     :url      (tag->val :defold:url tags)
-                     :log-port (tag->val :defold:logPort tags)
-                     :local-address local-address}]
-         (when (not-any? nil? (vals target))
-           target)))))
-
 (defn- device->target [{:keys [fetch-url-fn]} device]
   ;; The reason we try/throw/catch is so that this function can run through pmap,
   ;; yet return sensible error messages in case of failure for later logging
@@ -121,13 +107,12 @@
                      "Local"
                      (tag->val :friendlyName tags))
               target {:name name
-                      :model (tag->val :modelName tags)
-                      :udn (tag->val :UDN tags)
                       :url (tag->val :defold:url tags)
                       :log-port (tag->val :defold:logPort tags)
                       :address address
                       :local-address local-address}]
-          target)))
+          (when (not-any? nil? (vals target))
+            target))))
     (catch ExceptionInfo e
       (.getMessage e))))
 
@@ -171,7 +156,7 @@
 
 (defn- defold-service? [device]
   (let [server (get (:headers device) "SERVER" "")]
-    (str/starts-with? server "Defold")))
+    (= server SSDP/SSDP_SERVER_IDENTIFIER)))
 
 (defn- devices [^SSDP ssdp]
   (filter defold-service? (map device->map (.getDevices ssdp))))
