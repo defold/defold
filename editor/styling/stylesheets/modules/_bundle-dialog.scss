@@ -15,15 +15,9 @@
 
     #header-info-label {
       -fx-text-fill: $bright-grey;
-      -fx-wrap-text: true;
-    }
 
-    #header-info-label.error {
-      -fx-text-fill: $defold-orange;
-    }
-
-    #header-info-label.warning {
-      -fx-text-fill: $defold-yellow;
+      &.error { -fx-text-fill: $defold-orange; }
+      &.warning { -fx-text-fill: $defold-yellow; }
     }
   }
 
@@ -34,6 +28,12 @@
     .field-label {
       -fx-alignment: center-right;
       -fx-padding: 5px 10px 5px 0px;
+    }
+
+    .choice-box, .text-field {
+      &.error { -fx-border-color: $defold-red; }
+      &.warning { -fx-border-color: $defold-yellow; }
+      &.info { -fx-border-color: $defold-light-blue; }
     }
   }
 
