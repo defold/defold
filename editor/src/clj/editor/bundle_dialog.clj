@@ -311,7 +311,7 @@
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers "Package Android Application")
+      [(make-generic-headers "Bundle Android Application")
        (make-android-controls refresh! owner-window)
        (make-generic-controls refresh!)]))
   (get-options [_this]
@@ -405,7 +405,7 @@
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers "Package iOS Application")
+      [(make-generic-headers "Bundle iOS Application")
        (make-ios-controls refresh! owner-window)
        (make-generic-controls refresh!)]))
   (get-options [_this]
@@ -421,11 +421,11 @@
 (defmulti bundle-options-presenter (fn [_view platform] platform))
 (defmethod bundle-options-presenter :default [_view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
 (defmethod bundle-options-presenter :android [view _platform] (AndroidBundleOptionsPresenter. view))
-(defmethod bundle-options-presenter :html5   [view _platform] (GenericBundleOptionsPresenter. view "Package HTML5 Application"))
+(defmethod bundle-options-presenter :html5   [view _platform] (GenericBundleOptionsPresenter. view "Bundle HTML5 Application"))
 (defmethod bundle-options-presenter :ios     [view _platform] (IOSBundleOptionsPresenter. view))
-(defmethod bundle-options-presenter :linux   [view _platform] (ArchitectureConcernedBundleOptionsPresenter. view "Package Linux Application"))
-(defmethod bundle-options-presenter :macos   [view _platform] (GenericBundleOptionsPresenter. view "Package macOS Application"))
-(defmethod bundle-options-presenter :windows [view _platform] (ArchitectureConcernedBundleOptionsPresenter. view "Package Windows Application"))
+(defmethod bundle-options-presenter :linux   [view _platform] (ArchitectureConcernedBundleOptionsPresenter. view "Bundle Linux Application"))
+(defmethod bundle-options-presenter :macos   [view _platform] (GenericBundleOptionsPresenter. view "Bundle macOS Application"))
+(defmethod bundle-options-presenter :windows [view _platform] (ArchitectureConcernedBundleOptionsPresenter. view "Bundle Windows Application"))
 
 (defn- read-build-options [prefs]
   (merge (read-generic-options prefs)
@@ -451,7 +451,7 @@
 (defn show-bundle-dialog! [platform prefs owner-window bundle!]
   (let [build-options (read-build-options prefs)
         stage (doto (ui/make-dialog-stage owner-window)
-                (ui/title! "Package Application")
+                (ui/title! "Bundle Application")
                 (dialogs/observe-focus))
         root (doto (VBox.)
                (ui/add-style! "bundle-dialog")
@@ -464,7 +464,7 @@
       (ui/add-child! root view))
 
     ;; Button bar.
-    (let [ok-button (doto (Button. "Package...") (.setId "ok-button"))
+    (let [ok-button (doto (Button. "Create Bundle...") (.setId "ok-button"))
           buttons (doto (HBox.) (ui/add-style! "buttons"))]
       (ui/add-child! buttons ok-button)
       (ui/add-child! root buttons)
