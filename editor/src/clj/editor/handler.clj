@@ -41,27 +41,34 @@
 (defn- get-fnk [handler fsym]
   (get-in handler [:fns fsym]))
 
-(def ^:private invoke-fnk
-  (let [throwing-handlers (atom #{})]
-    (fn invoke-fnk [handler fsym command-context default]
-      (let [env (:env command-context)
-            throwing-id [(:command handler) (:context handler) fsym (:active-resource env)]]
-        (if (contains? @throwing-handlers throwing-id)
-          nil
-          (if-let [f (get-fnk handler fsym)]
-            (binding [*adapters* (:adapters command-context)]
-              (try
-                (f env)
-                (catch Exception e
-                  (swap! throwing-handlers conj throwing-id)
-                  (error-reporting/report-exception!
-                    (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
-                                     (:command handler) (:context handler) fsym (.getMessage e))
-                             {:handler handler
-                              :command-context command-context}
-                             e))
-                  nil)))
-            default))))))
+(defonce ^:private throwing-handlers (atom #{}))
+
+(defn enable-disabled-handlers!
+  "Re-enables any handlers that were disabled because they threw an exception."
+  []
+  (reset! throwing-handlers #{})
+  nil)
+
+(defn- invoke-fnk [handler fsym command-context default]
+  (let [env (:env command-context)
+        throwing-id [(:command handler) (:context handler) fsym (:active-resource env)]]
+    (if (contains? @throwing-handlers throwing-id)
+      nil
+      (if-let [f (get-fnk handler fsym)]
+        (binding [*adapters* (:adapters command-context)]
+          (try
+            (f env)
+            (catch Exception e
+              (when (not= :run fsym)
+                (swap! throwing-handlers conj throwing-id))
+              (error-reporting/report-exception!
+                (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
+                                 (:command handler) (:context handler) fsym (.getMessage e))
+                         {:handler handler
+                          :command-context command-context}
+                         e))
+              nil)))
+        default))))
 
 (defn- get-active-handler [command command-context]
   (let [ctx-name (:name command-context)]
