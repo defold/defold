@@ -626,11 +626,36 @@ TEST_F(AnimTest, ScriptedChainedEasing)
     }
 }
 
+TEST_F(AnimTest, PositionUniformAnim)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    dmGameObject::SetPosition(go, Point3(1.f, 2.f, 3.f));
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("position");
+    dmGameObject::PropertyVar var(2.f);
+    float duration = 0.25f;
+    float delay = 0.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+    Point3 position = dmGameObject::GetPosition(go);
+    ASSERT_NEAR(2.0f, position.getX(), 0.000001f);
+    ASSERT_NEAR(2.0f, position.getY(), 0.000001f);
+    ASSERT_NEAR(2.0f, position.getZ(), 0.000001f);
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
 // Test that the 3 component scale can be animated as a uniform scale (legacy)
 TEST_F(AnimTest, UniformScale)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
 
+    dmGameObject::SetScale(go, 1.0f);
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("scale");
     dmGameObject::PropertyVar var(2.f);
@@ -643,6 +668,30 @@ TEST_F(AnimTest, UniformScale)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
     ASSERT_NEAR(2.0f, dmGameObject::GetUniformScale(go), 0.000001f);
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(AnimTest, ScaleUniformAnim)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    dmGameObject::SetScale(go, Vector3(1.f, 2.f, 3.f));
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("scale");
+    dmGameObject::PropertyVar var(2.f);
+    float duration = 0.25f;
+    float delay = 0.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+    Vector3 scale = dmGameObject::GetScale(go);
+    ASSERT_NEAR(2.0f, scale.getX(), 0.000001f);
+    ASSERT_NEAR(2.0f, scale.getY(), 0.000001f);
+    ASSERT_NEAR(2.0f, scale.getZ(), 0.000001f);
 
     dmGameObject::Delete(m_Collection, go);
 }

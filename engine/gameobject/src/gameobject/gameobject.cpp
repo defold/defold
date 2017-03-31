@@ -2749,13 +2749,11 @@ namespace dmGameObject
         if (component_id == 0)
         {
             out_value.m_ValuePtr = 0x0;
-            float* scale = instance->m_Transform.GetScalePtr();
-            float* position = instance->m_Transform.GetPositionPtr();
-            float* rotation = instance->m_Transform.GetRotationPtr();
 
             // Scale used to be a uniform scalar, but is now a non-uniform 3-component scale
             if (property_id == PROP_SCALE)
             {
+                float* scale = instance->m_Transform.GetScalePtr();
                 out_value.m_ValuePtr = scale;
                 out_value.m_ElementIds[0] = PROP_SCALE_X;
                 out_value.m_ElementIds[1] = PROP_SCALE_Y;
@@ -2764,21 +2762,25 @@ namespace dmGameObject
             }
             else if (property_id == PROP_SCALE_X)
             {
+                float* scale = instance->m_Transform.GetScalePtr();
                 out_value.m_ValuePtr = scale;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_SCALE_Y)
             {
+                float* scale = instance->m_Transform.GetScalePtr();
                 out_value.m_ValuePtr = scale + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_SCALE_Z)
             {
+                float* scale = instance->m_Transform.GetScalePtr();
                 out_value.m_ValuePtr = scale + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION)
             {
+                float* position = instance->m_Transform.GetPositionPtr();
                 out_value.m_ValuePtr = position;
                 out_value.m_ElementIds[0] = PROP_POSITION_X;
                 out_value.m_ElementIds[1] = PROP_POSITION_Y;
@@ -2787,21 +2789,25 @@ namespace dmGameObject
             }
             else if (property_id == PROP_POSITION_X)
             {
+                float* position = instance->m_Transform.GetPositionPtr();
                 out_value.m_ValuePtr = position;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Y)
             {
+                float* position = instance->m_Transform.GetPositionPtr();
                 out_value.m_ValuePtr = position + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Z)
             {
+                float* position = instance->m_Transform.GetPositionPtr();
                 out_value.m_ValuePtr = position + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation;
                 out_value.m_ElementIds[0] = PROP_ROTATION_X;
                 out_value.m_ElementIds[1] = PROP_ROTATION_Y;
@@ -2811,21 +2817,25 @@ namespace dmGameObject
             }
             else if (property_id == PROP_ROTATION_X)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Y)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Z)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_W)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 3;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }

@@ -12,7 +12,7 @@ function init(self)
     local p = vmath.vector3(1, 2, 3)
     local r = vmath.quat(1, 2, 3, 4)
     local s = 2
-    local sv = vmath.vector3(2, 2, 2)
+    local sv = vmath.vector3(1, 2, 3)
     local e = vmath.vector3(1, 2, 3)
     go.set(url, "position", p)
     assert(go.get(url, "position") == p)
