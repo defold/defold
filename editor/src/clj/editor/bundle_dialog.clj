@@ -90,9 +90,9 @@
 
 (defn- set-field-status! [field [severity message]]
   (ui/tooltip! field (not-empty message))
-  (set-style-class! field severity {:fatal "field-error"
-                                    :warning "field-warning"
-                                    :info "field-info"}))
+  (set-style-class! field severity {:fatal "error"
+                                    :warning "warning"
+                                    :info "info"}))
 
 (defn- make-file-field
   ^GridPane [refresh! owner-window text-field-css-id title-text filter-descs]
