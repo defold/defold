@@ -58,7 +58,7 @@
   }
 
   &.html5 {
-    -fx-min-width: 350px;
+    -fx-min-width: 375px;
   }
 
   &.ios {
@@ -67,16 +67,16 @@
   }
 
   &.linux {
-    -fx-min-width: 430px;
+    -fx-min-width: 450px;
     @include field-layout(78px);
   }
 
   &.macos {
-    -fx-min-width: 350px;
+    -fx-min-width: 375px;
   }
 
   &.windows {
-    -fx-min-width: 430px;
+    -fx-min-width: 450px;
     @include field-layout(78px);
   }
 }
