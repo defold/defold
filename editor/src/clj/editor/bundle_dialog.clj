@@ -1,6 +1,7 @@
 (ns editor.bundle-dialog
   (:require [clojure.java.io :as io]
             [editor.bundle :as bundle]
+            [editor.dialogs :as dialogs]
             [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui])
@@ -47,9 +48,9 @@
     (io/file path)))
 
 (defn- set-file! [^TextField text-field ^File file]
-  (.setText text-field (if (some? file)
-                         (.getAbsolutePath file)
-                         "")))
+  (let [new-text (if (some? file) (.getAbsolutePath file) "")]
+    (when (not= new-text (.getText text-field))
+      (.setText text-field new-text))))
 
 (defn- existing-file? [^File file]
   (and (some? file) (.isFile file)))
@@ -110,6 +111,9 @@
   (get-options [this])
   (set-options! [this options]))
 
+(defn- refresh-presenter! [presenter]
+  (set-options! presenter (get-options presenter)))
+
 (defn- make-presenter-refresher [presenter]
   (assert (satisfies? BundleOptionsPresenter presenter))
   (let [refresh-in-progress (volatile! false)]
@@ -117,7 +121,7 @@
       (when-not @refresh-in-progress
         (vreset! refresh-in-progress true)
         (try
-          (set-options! presenter (get-options presenter))
+          (refresh-presenter! presenter)
           (finally
             (vreset! refresh-in-progress false)))))))
 
@@ -435,9 +439,20 @@
   (write-android-options! prefs build-options)
   (write-ios-options! prefs build-options))
 
+(defn- watch-focus-state! [presenter]
+  (assert (satisfies? BundleOptionsPresenter presenter))
+  (add-watch dialogs/focus-state ::bundle-dialog-focus-state-watch
+             (fn [_key _ref _old _new]
+               (refresh-presenter! presenter))))
+
+(defn- unwatch-focus-state! [_event]
+  (remove-watch dialogs/focus-state ::bundle-dialog-focus-state-watch))
+
 (defn show-bundle-dialog! [platform prefs owner-window bundle!]
   (let [build-options (read-build-options prefs)
-        stage (doto (ui/make-dialog-stage owner-window) (ui/title! "Package Application"))
+        stage (doto (ui/make-dialog-stage owner-window)
+                (ui/title! "Package Application")
+                (dialogs/observe-focus))
         root (doto (VBox.)
                (ui/add-style! "bundle-dialog")
                (ui/add-style! (name platform))
@@ -464,6 +479,10 @@
 
     ;; Refresh from build options.
     (set-options! presenter build-options)
+
+    ;; Refresh whenever our application becomes active.
+    (watch-focus-state! presenter)
+    (ui/on-closed! stage unwatch-focus-state!)
 
     ;; Show dialog.
     (let [scene (Scene. root)]
