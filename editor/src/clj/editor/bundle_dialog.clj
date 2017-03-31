@@ -108,6 +108,7 @@
                      (ui/on-action! refresh!)
                      (ui/auto-commit! refresh!))
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
+                        (.setFocusTraversable false)
                         (GridPane/setConstraints 1 0)
                         (ui/add-style! "button-small")
                         (ui/on-action! (fn [event]
@@ -189,9 +190,9 @@
   (doto (VBox.)
     (ui/add-style! "settings")
     (ui/add-style! "generic")
-    (ui/children! [(doto (CheckBox. "Release mode") (.setId "release-mode-check-box") (ui/on-action! refresh!))
-                   (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (ui/on-action! refresh!))
-                   (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (ui/on-action! refresh!))])))
+    (ui/children! [(doto (CheckBox. "Release mode") (.setId "release-mode-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
+                   (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
+                   (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))])))
 
 (defn- read-generic-options [prefs]
   {:release-mode? (prefs/get-prefs prefs "bundle-release-mode?" true)
@@ -365,6 +366,7 @@
         no-identity-label "None"
         code-signing-identity-choice-box (doto (ChoiceBox.)
                                            (.setId "code-signing-identity-choice-box")
+                                           (.setFocusTraversable false)
                                            (.setMaxWidth Double/MAX_VALUE) ; Required to fill available space.
                                            (.setConverter (proxy [StringConverter] []
                                                             (toString [value]
@@ -491,7 +493,7 @@
       (ui/add-child! root view))
 
     ;; Button bar.
-    (let [ok-button (doto (Button. "Create Bundle...") (.setId "ok-button"))
+    (let [ok-button (doto (Button. "Create Bundle...") (.setId "ok-button") (.setFocusTraversable false))
           buttons (doto (HBox.) (ui/add-style! "buttons"))]
       (ui/add-child! buttons ok-button)
       (ui/add-child! root buttons)
