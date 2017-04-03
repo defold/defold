@@ -105,7 +105,6 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
     uint32_t entry_count = htonl(archive->m_ArchiveIndex->m_EntryDataCount);
-    uint32_t hash_length = JAVA_TO_C(archive->m_ArchiveIndex->m_HashLength);
     uint32_t hash_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset);
     uint32_t entries_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataOffset);
     dmResourceArchive::EntryData* entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entries_offset);
@@ -212,7 +211,6 @@ TEST(dmResourceArchive, ShiftInsertResource)
 
     // Find inserted entry in archive after insertion
     dmResourceArchive::EntryData entry;
-    char buffer[1024] = { 0 };
     result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(entry.m_ResourceSize, resource->m_Count);
@@ -251,7 +249,6 @@ TEST(dmResourceArchive, CacheLiveUpdateEntries)
 {
     dmResourceArchive::HArchiveIndexContainer bundled_archive_container;
     dmResourceArchive::ArchiveIndex* bundled_archive_index;
-    uint32_t bundled_archive_size;
 
     dmResourceArchive::HArchiveIndexContainer archive_container = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);
