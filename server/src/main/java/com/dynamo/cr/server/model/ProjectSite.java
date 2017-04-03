@@ -1,8 +1,8 @@
 package com.dynamo.cr.server.model;
 
 import javax.persistence.*;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name="project_sites")
@@ -111,6 +111,23 @@ public class ProjectSite {
         return screenshots;
     }
 
+    public List<Screenshot> getScreenshotsOrdered() {
+        if (screenshots == null) {
+            return Collections.emptyList();
+        }
+        return screenshots.stream()
+                .sorted((o1, o2) -> {
+                    if (o1.getSortOrder() == null) {
+                        if (o2.getMediaType() == null) {
+                            return 0;
+                        }
+                        return -1;
+                    }
+                    return Integer.compare(o1.getSortOrder(), o2.getSortOrder());
+                })
+                .collect(Collectors.toList());
+    }
+
     public void setStudioUrl(String studioUrl) {
         this.studioUrl = studioUrl;
     }
@@ -133,14 +150,6 @@ public class ProjectSite {
 
     public void setReviewUrl(String reviewUrl) {
         this.reviewUrl = reviewUrl;
-    }
-
-    public void setAppStoreReferences(Set<AppStoreReference> appStoreReferences) {
-        this.appStoreReferences = appStoreReferences;
-    }
-
-    public void setScreenshots(Set<Screenshot> screenShots) {
-        this.screenshots = screenShots;
     }
 
     public boolean isPlayableUploaded() {
