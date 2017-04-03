@@ -139,14 +139,19 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? ^File output-directory] :as _build-options}]
-  (assert (.isDirectory output-directory))
+(defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _build-options}]
+  (assert (some? output-directory))
+  (assert (or (not (.exists output-directory))
+              (.isDirectory output-directory)))
+  (assert (string? (not-empty platform)))
   (let [[email auth] (login/credentials prefs)
         build-server-url (native-extensions/get-build-server-url prefs)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
         defold-sdk-sha1 (or (system/defold-sha1) "")]
-    (cond-> {;; From AbstractBundleHandler
+    (cond-> {"platform" platform
+
+             ;; From AbstractBundleHandler
              "archive" "true"
              "bundle-output" bundle-output-path
              "texture-profiles" "true"
@@ -165,47 +170,27 @@
             auth (assoc "auth" auth))))
 
 (defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _build-options}]
-  (assert (.isFile certificate))
-  (assert (.isFile private-key))
-  (let [certificate-path (.getAbsolutePath certificate)
-        private-key-path (.getAbsolutePath private-key)]
-    {"platform" "armv7-android"
-     "certificate" certificate-path
-     "private-key" private-key-path}))
-
-(defn- html5-bundle-bob-args []
-  {"platform" "js-web"})
+  (assert (or (nil? certificate) (.isFile certificate)))
+  (assert (or (nil? private-key) (.isFile private-key)))
+  (cond-> {}
+          certificate (assoc "certificate" (.getAbsolutePath certificate))
+          private-key (assoc "private-key" (.getAbsolutePath private-key))))
 
 (defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile] :as _build-options}]
   (assert (string? (not-empty code-signing-identity)))
-  (assert (.isFile provisioning-profile))
+  (assert (some-> provisioning-profile .isFile))
   (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
-    {"platform" "armv7-darwin"
-     "mobileprovisioning" provisioning-profile-path
+    {"mobileprovisioning" provisioning-profile-path
      "identity" code-signing-identity}))
-
-(defn- linux-bundle-bob-args [{:keys [arch-bits] :as _build-options}]
-  {"platform" (case (int arch-bits)
-                32 "x86-linux"
-                64 "x86_64-linux")})
-
-(defn- macos-bundle-bob-args []
-  ;; TODO: The minimum OS X version we run on is 10.7 Lion, which does not support 32-bit processors. Shouldn't this be "x86_64-darwin"?
-  {"platform" "x86-darwin"})
-
-(defn- windows-bundle-bob-args [{:keys [arch-bits] :as _build-options}]
-  {"platform" (case (int arch-bits)
-                32 "x86-win32"
-                64 "x86_64-win32")})
 
 (defmulti bundle-bob-args (fn [_prefs platform _build-options] platform))
 (defmethod bundle-bob-args :default [_prefs platform _build-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
 (defmethod bundle-bob-args :android [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (android-bundle-bob-args build-options)))
-(defmethod bundle-bob-args :html5   [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (html5-bundle-bob-args)))
+(defmethod bundle-bob-args :html5   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
 (defmethod bundle-bob-args :ios     [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (ios-bundle-bob-args build-options)))
-(defmethod bundle-bob-args :linux   [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (linux-bundle-bob-args build-options)))
-(defmethod bundle-bob-args :macos   [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (macos-bundle-bob-args)))
-(defmethod bundle-bob-args :windows [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (windows-bundle-bob-args build-options)))
+(defmethod bundle-bob-args :linux   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
+(defmethod bundle-bob-args :macos   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
+(defmethod bundle-bob-args :windows [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
 
 (defn bundle! [project prefs platform build-options]
   (let [bob-commands ["distclean" "build" "bundle"]
