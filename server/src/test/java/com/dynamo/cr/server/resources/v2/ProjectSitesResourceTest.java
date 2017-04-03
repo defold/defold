@@ -16,6 +16,8 @@ import javax.ws.rs.core.MediaType;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -94,6 +96,14 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
     private void deleteScreenshot(TestUser testUser, Long projectId, Long screenshotId) {
         projectSiteResource(testUser, projectId).path("screenshots").path(screenshotId.toString()).delete();
+    }
+
+    private void orderScreenshots(TestUser testUser, Long projectId, List<Long> screenshotIds) {
+        Protocol.ScreenshotSortOrderRequest screenshotSortOrderRequest = Protocol.ScreenshotSortOrderRequest.newBuilder()
+                .addAllScreenshotIds(screenshotIds)
+                .build();
+
+        projectSiteResource(testUser, projectId).path("screenshots").path("order").put(screenshotSortOrderRequest);
     }
 
     @Test
@@ -271,6 +281,46 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         // Ensure that you get one reference back.
         projectSite = getProjectSite(TestUser.JAMES, project.getId());
         assertEquals(1, projectSite.getScreenshotsCount());
+    }
+
+    @Test
+    public void sortScreenshots() {
+
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Add three screenshots.
+        Protocol.NewScreenshot screenshot = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com")
+                .setMediaType(Protocol.ScreenshotMediaType.IMAGE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot);
+
+        Protocol.NewScreenshot screenshot2 = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com/2")
+                .setMediaType(Protocol.ScreenshotMediaType.YOUTUBE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot2);
+
+        Protocol.NewScreenshot screenshot3 = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com/3")
+                .setMediaType(Protocol.ScreenshotMediaType.YOUTUBE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot3);
+
+        // Sort
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        List<Long> screenshotIds = new ArrayList<>();
+        screenshotIds.add(projectSite.getScreenshots(1).getId());
+        screenshotIds.add(projectSite.getScreenshots(0).getId());
+        screenshotIds.add(projectSite.getScreenshots(2).getId());
+        orderScreenshots(TestUser.JAMES, project.getId(), screenshotIds);
+
+        // Ensure that you get two screenshots back.
+        projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(3, projectSite.getScreenshotsCount());
+        assertEquals(screenshotIds.get(0).longValue(), projectSite.getScreenshots(0).getId());
+        assertEquals(screenshotIds.get(1).longValue(), projectSite.getScreenshots(1).getId());
+        assertEquals(screenshotIds.get(2).longValue(), projectSite.getScreenshots(2).getId());
     }
 
     @Test
