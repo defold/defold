@@ -95,6 +95,21 @@ public class ProjectSiteMapper {
             builder.setShowName(projectSite.isShowName());
             builder.setAllowComments(projectSite.isAllowComments());
 
+            if (projectSite.getProjectUrl() != null) {
+                builder.setProjectUrl(projectSite.getProjectUrl());
+            }
+
+            Set<SocialMediaReference> socialMediaReferences = projectSite.getSocialMediaReferences();
+            if (socialMediaReferences != null) {
+                for (SocialMediaReference socialMediaReference : socialMediaReferences) {
+                    Protocol.ProjectSite.SocialMediaReference.Builder socialMediaReferenceBuilder = Protocol.ProjectSite.SocialMediaReference.newBuilder();
+                    socialMediaReferenceBuilder.setId(socialMediaReference.getId());
+                    socialMediaReferenceBuilder.setLabel(socialMediaReference.getLabel());
+                    socialMediaReferenceBuilder.setUrl(socialMediaReference.getUrl());
+                    builder.addSocialMediaReferences(socialMediaReferenceBuilder.build());
+                }
+            }
+
             Set<AppStoreReference> appStoreReferences = projectSite.getAppStoreReferences();
             if (appStoreReferences != null) {
                 for (AppStoreReference appStoreReference : appStoreReferences) {
