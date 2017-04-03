@@ -1248,7 +1248,7 @@ namespace dmGameObject
     PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id,
                      Playback playback,
-                     const PropertyVar& to,
+                     PropertyVar& to,
                      dmEasing::Curve easing,
                      float duration,
                      float delay,

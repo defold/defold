@@ -507,41 +507,43 @@
     :resource-node))
 
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
-  (.setUseSystemMenuBar menu-bar true)
-  (.setTitle stage (make-title))
-  (force desktop-supported?)
-  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
-    (-> tab-pane
-      (.getSelectionModel)
-      (.selectedItemProperty)
-      (.addListener
-        (reify ChangeListener
-          (changed [this observable old-val new-val]
-            (->> (tab->resource-node new-val)
-              (on-selected-tab-changed app-view))
-            (ui/refresh (.getScene stage))))))
-    (-> tab-pane
-      (.getTabs)
-      (.addListener
-        (reify ListChangeListener
-          (onChanged [this change]
-            (ui/restyle-tabs! tab-pane)))))
+  (let [app-scene (.getScene stage)]
+    (.setUseSystemMenuBar menu-bar true)
+    (.setTitle stage (make-title))
+    (force desktop-supported?)
+    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
+      (-> tab-pane
+          (.getSelectionModel)
+          (.selectedItemProperty)
+          (.addListener
+            (reify ChangeListener
+              (changed [this observable old-val new-val]
+                (->> (tab->resource-node new-val)
+                     (on-selected-tab-changed app-view))
+                (ui/refresh app-scene)))))
+      (-> tab-pane
+          (.getTabs)
+          (.addListener
+            (reify ListChangeListener
+              (onChanged [this change]
+                (ui/restyle-tabs! tab-pane)))))
 
-    ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
-    ;; Consume key events that would select non-existing tabs in case we have none.
-    (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
-                                                     (when (and (empty? (.getTabs tab-pane))
-                                                                (TabPaneBehavior/isTraversalEvent event))
-                                                       (.consume event))))
+      ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
+      ;; Consume key events that would select non-existing tabs in case we have none.
+      (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
+                                                                       (when (and (empty? (.getTabs tab-pane))
+                                                                                  (TabPaneBehavior/isTraversalEvent event))
+                                                                         (.consume event))))
 
-    (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
+      (ui/register-menubar app-scene menu-bar ::menubar)
+      (ui/add-handle-shortcut-workaround! app-scene menu-bar)
 
-    (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! stage project)))
-                          (ui/->timer 13 "refresh-views" (fn [_ dt] (refresh-views! app-view)))]]
-      (doseq [timer refresh-timers]
-        (ui/timer-stop-on-closed! stage timer)
-        (ui/timer-start! timer)))
-    app-view))
+      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! stage project)))
+                            (ui/->timer 13 "refresh-views" (fn [_ dt] (refresh-views! app-view)))]]
+        (doseq [timer refresh-timers]
+          (ui/timer-stop-on-closed! stage timer)
+          (ui/timer-start! timer)))
+      app-view)))
 
 (defn- make-tab! [app-view workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
