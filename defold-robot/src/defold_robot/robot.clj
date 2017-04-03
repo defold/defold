@@ -86,7 +86,7 @@
         dest-name (format "%s.png" filename)
         dest (File. out-dir dest-name)]
     (log-fn (format "<p>Screen-capture %s</p>" dest-name))
-    (log-fn (format "<img src=\"%s\">" dest-name))
+    (log-fn (format "<img src=\"%s\"></img>" dest-name))
     (ImageIO/write img "png" dest))
   true)
 

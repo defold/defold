@@ -47,3 +47,7 @@ code {
 	font-family: 'Source Sans Pro', sans-serif;
 	color: var(--defold-white);
 }
+
+img {
+	width: 100%;
+}
