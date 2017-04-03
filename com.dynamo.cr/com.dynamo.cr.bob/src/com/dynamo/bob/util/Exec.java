@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.List;
 import java.util.Map;
 
 public class Exec {
@@ -65,6 +66,35 @@ public class Exec {
     }
 
     public static Result execResultWithEnvironment(Map<String, String> env, String... args) throws IOException {
+        ProcessBuilder pb = new ProcessBuilder(args);
+        pb.redirectErrorStream(true);
+
+        Map<String, String> pbenv = pb.environment();
+        for (Map.Entry<String, String> entry : env.entrySet())
+        {
+            pbenv.put(entry.getKey(), entry.getValue());
+        }
+
+        Process p = pb.start();
+        int ret = 127;
+        byte[] buf = new byte[16 * 1024];
+        ByteArrayOutputStream out = new ByteArrayOutputStream(10 * 1024);
+        try {
+            InputStream is = p.getInputStream();
+            int n = is.read(buf);
+            while (n > 0) {
+                out.write(buf, 0, n);
+                n = is.read(buf);
+            }
+            ret = p.waitFor();
+        } catch (InterruptedException e) {
+            logger.log(Level.SEVERE, "Unexpected interruption", e);
+        }
+
+        return new Result(ret, out.toByteArray());
+    }
+
+    public static Result execResultWithEnvironment(Map<String, String> env, List<String> args) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
 
