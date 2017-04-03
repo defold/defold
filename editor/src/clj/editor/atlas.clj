@@ -125,9 +125,17 @@
     (dynamic read-only? (g/constantly true)))
   (property order g/Int (dynamic visible (g/constantly false)) (default 0))
 
+  (property image resource/Resource
+            (value (gu/passthrough image-resource))
+            (set (fn [basis self old-value new-value]
+                   (project/resource-setter basis self old-value new-value
+                                            [:resource :image-resource]
+                                            [:size :image-size])))
+            (dynamic visible (g/constantly false)))
+
   (input image-resource resource/Resource)
   (output image-resource resource/Resource (gu/passthrough image-resource))
-  
+
   (input image-size g/Any)
 
   (input image-data g/Any)
@@ -135,10 +143,10 @@
   (output image-order g/Any (g/fnk [_node-id order] [_node-id order]))
   (output path g/Str (g/fnk [image-resource] (resource/proj-path image-resource)))
   (output id g/Str (g/fnk [path] (path->id path)))
-  (output image Image (g/fnk [path image-size]
+  (output frame Image (g/fnk [path image-size]
                         (Image. path nil (:width image-size) (:height image-size))))
 
-  (output animation Animation (g/fnk [image id] (image->animation image id)))
+  (output animation Animation (g/fnk [frame id] (image->animation frame id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id image-resource order]
                                                           (cond-> {:node-id _node-id
                                                                    :label id
@@ -190,7 +198,7 @@
 
 (defn- tx-attach-image-to-animation [animation-node image-node]
   (attach-image animation-node
-                [[:image :frames]]
+                [[:frame :frames]]
                 image-node
                 (core/scope animation-node)
                 (next-image-order animation-node)))
@@ -432,20 +440,17 @@
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
 
 (defn- attach-image-nodes
-  [parent labels images scope-node]
+  [parent labels image-resources scope-node]
   (let [graph-id (g/node-id->graph-id parent)]
     (let [next-order (next-image-order parent)]
       (map-indexed
-       (fn [index image]
+       (fn [index image-resource]
          (let [image-order (+ next-order index)]
            (g/make-nodes
             graph-id
-            [atlas-image [AtlasImage]]
-            (project/connect-resource-node (project/get-project scope-node) image atlas-image
-                                           [[:resource :image-resource]
-                                            [:size :image-size]])
+            [atlas-image [AtlasImage {:image image-resource}]]
             (attach-image parent labels atlas-image scope-node image-order))))
-       images))))
+       image-resources))))
 
 
 (defn add-images [atlas-node img-resources]
@@ -456,13 +461,16 @@
                       img-resources atlas-node))
 
 (defn- attach-atlas-animation [atlas-node anim]
-  (let [graph-id (g/node-id->graph-id atlas-node)]
+  (let [graph-id (g/node-id->graph-id atlas-node)
+        project (project/get-project atlas-node)
+        workspace (project/workspace project)
+        image-resources (map #(workspace/resolve-workspace-resource workspace (:image %)) (:images anim))]
     (g/make-nodes
      graph-id
      [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
                   :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
      (attach-animation atlas-node atlas-anim)
-     (attach-image-nodes atlas-anim [[:image :frames]] (map :image (:images anim)) atlas-node))))
+     (attach-image-nodes atlas-anim [[:frame :frames]] image-resources atlas-node))))
 
 (defn- update-int->bool [keys m]
   (reduce (fn [m key]
@@ -472,9 +480,10 @@
             m
             keys))
 
-(defn load-atlas [project self resources]
-  (let [atlas         (protobuf/read-text AtlasProto$Atlas resources)
-        graph-id      (g/node-id->graph-id self)]
+(defn load-atlas [project self resource]
+  (let [atlas (protobuf/read-text AtlasProto$Atlas resource)
+        workspace (project/workspace project)
+        image-resources (map #(workspace/resolve-workspace-resource workspace (:image %)) (:images atlas))]
     (concat
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
@@ -482,7 +491,8 @@
       (attach-image-nodes self
                           [[:animation :animations]
                            [:id :animation-ids]]
-                          (map :image (:images atlas)) self)
+                          image-resources
+                          self)
       (map (comp (partial attach-atlas-animation self)
                  (partial update-int->bool [:flip-horizontal :flip-vertical]))
            (:animations atlas)))))
@@ -522,11 +532,11 @@
   (run [selection] (add-animation-group-handler (selection->atlas selection))))
 
 (defn- add-images-handler [workspace project labels parent scope-node] ; parent = new parent of images
-  (when-let [images (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
+  (when-let [image-resources (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
     (g/transact
      (concat
       (g/operation-label "Add Images")
-      (attach-image-nodes parent labels images scope-node)))))
+      (attach-image-nodes parent labels image-resources scope-node)))))
 
 (handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
@@ -538,7 +548,7 @@
                                                     [:id :animation-ids]]
                                                    atlas-node atlas-node)
                                (when-let [animation-node (selection->animation selection)]
-                                 (add-images-handler workspace project [[:image :frames]] animation-node (core/scope animation-node)))))))
+                                 (add-images-handler workspace project [[:frame :frames]] animation-node (core/scope animation-node)))))))
 
 (defn- targets-of [node label]
   (keep
