@@ -31,7 +31,7 @@ def build(bld):
 
         bld.install_files('${PREFIX}/share/java', 'webview_android.jar')
     else:
-        source += ['webview_null.cpp']
+        source = ['webview_null.cpp']
 
     webview = bld.new_task_gen(features = 'cxx cstaticlib',
                                includes = '.',

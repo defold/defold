@@ -57,7 +57,7 @@ namespace dmGameObject
     PROP_VECTOR3(POSITION, position);
     PROP_QUAT(ROTATION, rotation);
     PROP_VECTOR3(EULER, euler);
-    PROP_FLOAT(SCALE, scale);
+    PROP_VECTOR3(SCALE, scale);
 
     InputAction::InputAction()
     {
@@ -2749,17 +2749,38 @@ namespace dmGameObject
         if (component_id == 0)
         {
             out_value.m_ValuePtr = 0x0;
+
             // Scale used to be a uniform scalar, but is now a non-uniform 3-component scale
-            // We need to still treat it as a uniform scale for backwards compatibility
             if (property_id == PROP_SCALE)
             {
-                out_value.m_Variant = PropertyVar(instance->m_Transform.GetUniformScale());
-                return PROPERTY_RESULT_OK;
+                float* scale = instance->m_Transform.GetScalePtr();
+                out_value.m_ValuePtr = scale;
+                out_value.m_ElementIds[0] = PROP_SCALE_X;
+                out_value.m_ElementIds[1] = PROP_SCALE_Y;
+                out_value.m_ElementIds[2] = PROP_SCALE_Z;
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale());
             }
-            float* position = instance->m_Transform.GetPositionPtr();
-            float* rotation = instance->m_Transform.GetRotationPtr();
-            if (property_id == PROP_POSITION)
+            else if (property_id == PROP_SCALE_X)
             {
+                float* scale = instance->m_Transform.GetScalePtr();
+                out_value.m_ValuePtr = scale;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
+            }
+            else if (property_id == PROP_SCALE_Y)
+            {
+                float* scale = instance->m_Transform.GetScalePtr();
+                out_value.m_ValuePtr = scale + 1;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
+            }
+            else if (property_id == PROP_SCALE_Z)
+            {
+                float* scale = instance->m_Transform.GetScalePtr();
+                out_value.m_ValuePtr = scale + 2;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
+            }
+            else if (property_id == PROP_POSITION)
+            {
+                float* position = instance->m_Transform.GetPositionPtr();
                 out_value.m_ValuePtr = position;
                 out_value.m_ElementIds[0] = PROP_POSITION_X;
                 out_value.m_ElementIds[1] = PROP_POSITION_Y;
@@ -2768,21 +2789,25 @@ namespace dmGameObject
             }
             else if (property_id == PROP_POSITION_X)
             {
+                float* position = instance->m_Transform.GetPositionPtr();
                 out_value.m_ValuePtr = position;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Y)
             {
+                float* position = instance->m_Transform.GetPositionPtr();
                 out_value.m_ValuePtr = position + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Z)
             {
+                float* position = instance->m_Transform.GetPositionPtr();
                 out_value.m_ValuePtr = position + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation;
                 out_value.m_ElementIds[0] = PROP_ROTATION_X;
                 out_value.m_ElementIds[1] = PROP_ROTATION_Y;
@@ -2792,21 +2817,25 @@ namespace dmGameObject
             }
             else if (property_id == PROP_ROTATION_X)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Y)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Z)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_W)
             {
+                float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 3;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
@@ -2934,11 +2963,41 @@ namespace dmGameObject
             }
             else if (property_id == PROP_SCALE)
             {
+                if (value.m_Type == PROPERTY_TYPE_NUMBER)
+                {
+                    scale[0] = (float)value.m_Number;
+                    scale[1] = scale[0];
+                    scale[2] = scale[0];
+                    return PROPERTY_RESULT_OK;
+                }
+                else if (value.m_Type == PROPERTY_TYPE_VECTOR3)
+                {
+                    scale[0] = value.m_V4[0];
+                    scale[1] = value.m_V4[1];
+                    scale[2] = value.m_V4[2];
+                    return PROPERTY_RESULT_OK;
+                }
+                return PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+            else if (property_id == PROP_SCALE_X)
+            {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 scale[0] = (float)value.m_Number;
-                scale[1] = scale[0];
-                scale[2] = scale[0];
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_SCALE_Y)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                scale[1] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_SCALE_Z)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                scale[2] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION)

@@ -1,4 +1,4 @@
-void AdtruthDummy()
+extern "C" void AdTruthExt()
 {
 
 }

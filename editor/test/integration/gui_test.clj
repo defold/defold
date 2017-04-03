@@ -1,20 +1,15 @@
 (ns integration.gui-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]
-            [integration.test-util :as test-util]
             [editor.app-view :as app-view]
-            [editor.workspace :as workspace]
             [editor.defold-project :as project]
-            [editor.gui :as gui]
             [editor.gl.pass :as pass]
+            [editor.gui :as gui]
             [editor.handler :as handler]
-            [editor.types :as types]
-            [criterium.core :as bench])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [javax.vecmath Point3d Matrix4d Vector3d]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system tx-nodes]])
+  (:import [javax.vecmath Point3d Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -38,7 +33,7 @@
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
           node-id   (test-util/resource-node project "/logic/main.gui")
-          gui-node (ffirst (g/sources-of node-id :node-outlines))])))
+          _gui-node (ffirst (g/sources-of node-id :node-outlines))])))
 
 (deftest gui-scene-generation
  (with-clean-system
@@ -46,7 +41,7 @@
          project   (test-util/setup-project! workspace)
          node-id   (test-util/resource-node project "/logic/main.gui")
          scene (g/node-value node-id :scene)]
-     (is (= 0.25 (get-in scene [:children 0 :children 2 :children 0 :renderable :user-data :color 3]))))))
+     (is (= 0.25 (get-in scene [:children 2 :children 0 :renderable :user-data :color 3]))))))
 
 (deftest gui-scene-validation
  (with-clean-system
@@ -96,7 +91,7 @@
           project   (test-util/setup-project! workspace)
           node-id   (test-util/resource-node project "/logic/main.gui")
           scene (g/node-value node-id :scene)]
-      (is (> (count (get-in scene [:children 0 :children 3 :renderable :user-data :line-data])) 0)))))
+      (is (> (count (get-in scene [:children 3 :renderable :user-data :line-data])) 0)))))
 
 (deftest gui-textures
   (with-clean-system
@@ -237,7 +232,7 @@
           node-id (test-util/resource-node project "/gui/scene.gui")
           original-template (test-util/resource-node project "/gui/sub_scene.gui")
           tmpl-node (gui-node node-id "sub_scene")
-          path [:children 0 :children 0 :node-id]]
+          path [:children 0 :node-id]]
       (is (not= (get-in (g/node-value tmpl-node :scene) path)
                 (get-in (g/node-value original-template :scene) path))))))
 
@@ -440,6 +435,10 @@
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
     (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
+(defn- add-gui-node! [project scene app-view parent node-type]
+  (let [user-data {:scene scene :parent parent :node-type node-type :handler-fn gui/add-gui-node-handler}]
+    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
+
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
 
@@ -467,6 +466,17 @@
       (add-layout! project app-view node-id "Portrait")
       (set-visible-layout! node-id "Portrait")
       (is (not= box (gui-node node-id "box"))))))
+
+(deftest gui-layout-add-node
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          scene (test-util/resource-node project "/gui/layouts.gui")]
+      (add-layout! project app-view scene "Portrait")
+      (set-visible-layout! scene "Portrait")
+      (let [node-tree (g/node-value scene :node-tree)]
+        (is (= #{"box"} (set (map :label (:children (test-util/outline scene [0]))))))
+        (add-gui-node! project scene app-view node-tree :type-box)
+        (is (= #{"box" "box1"} (set (map :label (:children (test-util/outline scene [0]))))))))))
 
 (defn- gui-text [scene id]
   (-> (gui-node scene id)

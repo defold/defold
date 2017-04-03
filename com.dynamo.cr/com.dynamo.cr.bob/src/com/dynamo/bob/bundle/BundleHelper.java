@@ -175,7 +175,7 @@ public class BundleHelper {
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine) throws CompileExceptionError, MultipleCompileExceptionError {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine, File outputClassesDex) throws CompileExceptionError, MultipleCompileExceptionError {
         File zipFile = null;
 
         try {
@@ -235,6 +235,16 @@ public class BundleHelper {
             zip = FileSystems.newFileSystem(zipFile.toPath(), null);
         } catch (IOException e) {
             throw new CompileExceptionError(String.format("Failed to mount temp zip file %s", zipFile.getAbsolutePath()), e.getCause());
+        }
+
+        // If we expect a classes.dex file, try to extract it from the zip
+        if (outputClassesDex != null) {
+            try {
+                Path source = zip.getPath("classes.dex");
+                Files.copy(source, new FileOutputStream(outputClassesDex));
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("Failed to copy classes.dex to %s", outputClassesDex.getAbsolutePath()), e.getCause());
+            }
         }
 
         try {

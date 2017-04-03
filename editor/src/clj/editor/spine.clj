@@ -126,6 +126,13 @@
                               "attachment" :visible
                               "drawOrder" :order-offset})
 
+(def timeline-type->vector-type {"translate" :double
+                                 "rotate" :double
+                                 "scale" :double
+                                 "color" :double
+                                 "attachment" :boolean
+                                 "drawOrder" :long})
+
 (defn key->curve-data
   [key]
   ; NOTE:
@@ -167,30 +174,33 @@
                                offset 0]
                           (if-let [key-count (first key-counts)]
                             (recur (rest key-counts) (conj! v offset) (+ (int key-count) offset))
-                            (persistent! v)))
-        samples (mapv (fn [sample]
-                        (let [cursor (* spf sample)
-                              idx1 (get sample->key-idx sample)
-                              idx0 (dec idx1)
-                              k0 (get keys idx0)
-                              v0 (get vals idx0)
-                              k1 (get keys idx1)
-                              v1 (get vals idx1)
-                              v (if (and k0 (not interpolate?))
-                                  v0
-                                  (if-let [k1 (get keys (get sample->key-idx sample))]
-                                    (if (>= cursor (get k1 "time"))
-                                      v1
-                                      (let [c (key->curve-data k0)
-                                            t (/ (- cursor (get k0 "time")) (- (get k1 "time") (get k0 "time")))
-                                            rate (curve c t)]
-                                        (interpolate v0 v1 rate)))
-                                    v0))]
-                          (if interpolate?
-                            (math/vecmath->clj v)
-                            v)))
-                      (range sample-count))]
-    (flatten samples)))
+                            (persistent! v)))]
+    (reduce (fn [ret sample]
+              (let [cursor (* spf sample)
+                    idx1 (get sample->key-idx sample)
+                    idx0 (dec idx1)
+                    k0 (get keys idx0)
+                    v0 (get vals idx0)
+                    k1 (get keys idx1)
+                    v1 (get vals idx1)
+                    v (if (and k0 (not interpolate?))
+                        v0
+                        (if-let [k1 (get keys (get sample->key-idx sample))]
+                          (if (>= cursor (get k1 "time"))
+                            v1
+                            (let [c (key->curve-data k0)
+                                  t (/ (- cursor (get k0 "time")) (- (get k1 "time") (get k0 "time")))
+                                  rate (curve c t)]
+                              (interpolate v0 v1 rate)))
+                          v0))
+                    v (if interpolate?
+                        (math/vecmath->clj v)
+                        v)]
+                (if (vector? v)
+                  (reduce conj ret v)
+                  (conj ret v))))
+            (vector-of (timeline-type->vector-type type))
+            (range sample-count))))
 
 ; This value is used to counter how the key values for rotations are interpreted in spine:
 ; * All values are modulated into the interval 0 <= x < 360
