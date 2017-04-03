@@ -226,8 +226,8 @@ public class ExtenderUtil {
         return bundleResources;
     }
 
-    /**
-     *
+    /** Gets a list of all android specific folders (/res) from all project and extension resource folders
+     * E.g. "res/android/res" but not "res/android/foo"
      */
     public static List<String> getAndroidResourcePaths(Project project, Platform platform) throws CompileExceptionError {
 
