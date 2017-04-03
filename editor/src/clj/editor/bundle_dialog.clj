@@ -1,5 +1,6 @@
 (ns editor.bundle-dialog
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
@@ -13,8 +14,7 @@
            [javafx.scene.input KeyCode]
            [javafx.scene.layout ColumnConstraints GridPane HBox Priority VBox]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]
-           [javafx.util StringConverter]
-           [javafx.util.converter NumberStringConverter]))
+           [javafx.util StringConverter]))
 
 (set! *warn-on-reflection* true)
 
@@ -43,6 +43,21 @@
       (.setInitialDirectory chooser initial-directory))
     (.setTitle chooser title)
     (.showDialog chooser owner-window)))
+
+(defn- query-overwrite!
+  [^File existing-entry ^Window owner-window]
+  (let [writable? (try
+                    (and (.isDirectory existing-entry)
+                         (.canWrite existing-entry))
+                    (catch SecurityException _
+                      false))]
+    (if-not writable?
+      (do (dialogs/make-alert-dialog (str "Cannot create directory at \"" (.getAbsolutePath existing-entry) "\". You might not have permission to write to that directory, or there might be a file with the same name as the directory we're trying to create."))
+          false)
+      (dialogs/make-confirm-dialog (str "A directory already exists at \"" (.getAbsolutePath existing-entry) "\".")
+                                   {:title "Overwrite Existing Directory?"
+                                    :ok-label "Overwrite"
+                                    :owner-window owner-window}))))
 
 (defn- get-file
   ^File [^TextField text-field]
@@ -162,7 +177,7 @@
 
 (defn- set-file-pref!
   [prefs key ^File file]
-  (set-string-pref! prefs key (.getPath file)))
+  (set-string-pref! prefs key (when file (.getPath file))))
 
 ;; -----------------------------------------------------------------------------
 ;; Generic
@@ -203,9 +218,12 @@
    :publish-live-update-content? (prefs/get-prefs prefs "bundle-publish-live-update-content?" false)})
 
 (defn- write-generic-options! [prefs options]
-  (some->> options :release-mode? (prefs/set-prefs prefs "bundle-release-mode?"))
-  (some->> options :generate-build-report? (prefs/set-prefs prefs "bundle-generate-build-report?"))
-  (some->> options :publish-live-update-content? (prefs/set-prefs prefs "bundle-publish-live-update-content?")))
+  (when (contains? options :release-mode?)
+    (prefs/set-prefs prefs "bundle-release-mode?" (:release-mode? options)))
+  (when (contains? options :generate-build-report?)
+    (prefs/set-prefs prefs "bundle-generate-build-report?" (:generate-build-report? options)))
+  (when (contains? options :publish-live-update-content?)
+    (prefs/set-prefs prefs "bundle-publish-live-update-content?" (:publish-live-update-content? options))))
 
 (defn- get-generic-options [view]
   (ui/with-controls view [^CheckBox release-mode-check-box
@@ -223,59 +241,89 @@
     (.setSelected generate-build-report-check-box (:generate-build-report? options))
     (.setSelected publish-live-update-content-check-box (:publish-live-update-content? options))))
 
-(deftype GenericBundleOptionsPresenter [view title]
+(deftype GenericBundleOptionsPresenter [view title platform]
   BundleOptionsPresenter
   (make-views [this _owner-window]
+    (assert (string? (not-empty platform)))
     (let [refresh! (make-presenter-refresher this)]
       [(make-generic-headers title)
        (make-generic-controls refresh!)]))
   (get-options [_this]
-    (get-generic-options view))
+    (merge {:platform platform}
+           (get-generic-options view)))
   (set-options! [_this options]
     (set-generic-options! view options)))
 
 ;; -----------------------------------------------------------------------------
-;; Generic, architecture-concerned
+;; Selectable platform
 ;; -----------------------------------------------------------------------------
 
-(defn- make-architecture-controls [refresh!]
+(defn- make-platform-controls [refresh! platform-choices]
   (assert (fn? refresh!))
-  (let [architecture-choice-box (doto (ChoiceBox. (ui/observable-list [32 64]))
-                                  (.setId "architecture-choice-box")
-                                  (.setConverter (NumberStringConverter. "#-bit"))
-                                  (ui/on-action! refresh!))]
+  (assert (sequential? (not-empty platform-choices)))
+  (assert (every? (fn [[k v]] (and (string? (not-empty k)) (string? (not-empty v)))) platform-choices))
+  (let [platform-values-by-label (into {} platform-choices)
+        platform-labels-by-value (set/map-invert platform-values-by-label)
+        platform-choice-box (doto (ChoiceBox. (ui/observable-list (map second platform-choices)))
+                                  (.setId "platform-choice-box")
+                                  (ui/on-action! refresh!)
+                                  (.setConverter (proxy [StringConverter] []
+                                                   (toString [value]
+                                                     (platform-labels-by-value value))
+                                                   (fromString [label]
+                                                     (platform-values-by-label label)))))]
     (doto (VBox.)
       (ui/add-style! "settings")
-      (ui/add-style! "architecture")
-      (ui/children! [(labeled! "Architecture" architecture-choice-box)]))))
+      (ui/add-style! "platform")
+      (ui/children! [(labeled! "Architecture" platform-choice-box)]))))
 
-(defn- read-architecture-options [prefs]
-  {:arch-bits (prefs/get-prefs prefs "bundle-arch-bits" (if (= (system/os-arch) "x86") 32 64))})
+(declare bundle-options-presenter)
 
-(defn- write-architecture-options! [prefs options]
-  (some->> options :arch-bits (prefs/set-prefs prefs "bundle-arch-bits")))
+(defn- get-bundle-platform-keys [platform]
+  (assert (keyword? platform))
+  (assert (not= :default platform))
+  (assert (some? (get-method bundle-options-presenter platform)))
+  (let [platform-name (name platform)
+        prefs-key (str "bundle-" platform-name "-platform")
+        options-key (keyword (str platform-name "-platform"))]
+    [prefs-key options-key]))
 
-(defn- get-architecture-options [view]
-  (ui/with-controls view [architecture-choice-box]
-    {:arch-bits (ui/value architecture-choice-box)}))
+(defn- read-platform-options [prefs platform default]
+  (let [[prefs-key options-key] (get-bundle-platform-keys platform)
+        value (prefs/get-prefs prefs prefs-key default)]
+    (hash-map options-key value)))
 
-(defn- set-architecture-options! [view options]
-  (ui/with-controls view [architecture-choice-box]
-    (ui/value! architecture-choice-box (:arch-bits options))))
+(defn- write-platform-options! [prefs options platform]
+  (let [[prefs-key options-key] (get-bundle-platform-keys platform)]
+    (when (contains? options options-key)
+      (prefs/set-prefs prefs prefs-key (get options options-key)))))
 
-(deftype ArchitectureConcernedBundleOptionsPresenter [view title]
+(defn- get-platform-options [view platform]
+  (ui/with-controls view [platform-choice-box]
+    (let [[_prefs-key options-key] (get-bundle-platform-keys platform)
+          value (ui/value platform-choice-box)]
+      (hash-map :platform value
+                options-key value))))
+
+(defn- set-platform-options! [view options platform]
+  (ui/with-controls view [platform-choice-box]
+    (let [[_prefs-key options-key] (get-bundle-platform-keys platform)
+          value (get options options-key)]
+      (ui/value! platform-choice-box value))))
+
+(deftype SelectablePlatformBundleOptionsPresenter [view title platform platform-choices]
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (let [refresh! (make-presenter-refresher this)]
       [(make-generic-headers title)
-       (make-architecture-controls refresh!)
+       (make-platform-controls refresh! platform-choices)
        (make-generic-controls refresh!)]))
   (get-options [_this]
     (merge (get-generic-options view)
-           (get-architecture-options view)))
+           (get-platform-options view platform)))
   (set-options! [_this options]
     (set-generic-options! view options)
-    (set-architecture-options! view options)))
+    (set-platform-options! view options platform)))
 
 ;; -----------------------------------------------------------------------------
 ;; Android
@@ -297,8 +345,10 @@
    :private-key (get-file-pref prefs "bundle-android-private-key")})
 
 (defn- write-android-options! [prefs options]
-  (some->> options :certificate (set-file-pref! prefs "bundle-android-certificate"))
-  (some->> options :private-key (set-file-pref! prefs "bundle-android-private-key")))
+  (when (contains? options :certificate)
+    (set-file-pref! prefs "bundle-android-certificate" (:certificate options)))
+  (when (contains? options :private-key)
+    (set-file-pref! prefs "bundle-android-private-key" (:private-key options))))
 
 (defn- get-android-options [view]
   (ui/with-controls view [certificate-text-field private-key-text-field]
@@ -348,7 +398,8 @@
        (make-android-controls refresh! owner-window)
        (make-generic-controls refresh!)]))
   (get-options [_this]
-    (merge (get-generic-options view)
+    (merge {:platform "armv7-android"}
+           (get-generic-options view)
            (get-android-options view)))
   (set-options! [_this options]
     (let [issues (get-android-issues options)]
@@ -396,8 +447,10 @@
                                (get-file-pref prefs "last-provisioning-profile"))}))
 
 (defn- write-ios-options! [prefs options]
-  (some->> options :code-signing-identity (set-string-pref! prefs "bundle-ios-code-signing-identity"))
-  (some->> options :provisioning-profile (set-file-pref! prefs "bundle-ios-provisioning-profile")))
+  (when (contains? options :code-signing-identity)
+    (set-string-pref! prefs "bundle-ios-code-signing-identity" (:code-signing-identity options)))
+  (when (contains? options :provisioning-profile)
+    (set-file-pref! prefs "bundle-ios-provisioning-profile" (:provisioning-profile options))))
 
 (defn- get-ios-options [view]
   (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
@@ -439,7 +492,8 @@
        (make-ios-controls refresh! owner-window)
        (make-generic-controls refresh!)]))
   (get-options [_this]
-    (merge (get-generic-options view)
+    (merge {:platform "armv7-darwin"}
+           (get-generic-options view)
            (get-ios-options view)))
   (set-options! [_this options]
     (let [code-signing-identity-names (get-code-signing-identity-names)
@@ -453,23 +507,27 @@
 (defmulti bundle-options-presenter (fn [_view platform] platform))
 (defmethod bundle-options-presenter :default [_view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
 (defmethod bundle-options-presenter :android [view _platform] (AndroidBundleOptionsPresenter. view))
-(defmethod bundle-options-presenter :html5   [view _platform] (GenericBundleOptionsPresenter. view "Bundle HTML5 Application"))
+(defmethod bundle-options-presenter :html5   [view _platform] (GenericBundleOptionsPresenter. view "Bundle HTML5 Application" "js-web"))
 (defmethod bundle-options-presenter :ios     [view _platform] (IOSBundleOptionsPresenter. view))
-(defmethod bundle-options-presenter :linux   [view _platform] (ArchitectureConcernedBundleOptionsPresenter. view "Bundle Linux Application"))
-(defmethod bundle-options-presenter :macos   [view _platform] (GenericBundleOptionsPresenter. view "Bundle macOS Application"))
-(defmethod bundle-options-presenter :windows [view _platform] (ArchitectureConcernedBundleOptionsPresenter. view "Bundle Windows Application"))
+(defmethod bundle-options-presenter :linux   [view _platform] (SelectablePlatformBundleOptionsPresenter. view "Bundle Linux Application" :linux [["32-bit" "x86-linux"]
+                                                                                                                                                 ["64-bit" "x86_64-linux"]]))
+(defmethod bundle-options-presenter :macos   [view _platform] (GenericBundleOptionsPresenter. view "Bundle macOS Application" "x86-darwin")) ; TODO: The minimum OS X version we run on is 10.7 Lion, which does not support 32-bit processors. Shouldn't this be "x86_64-darwin"?
+(defmethod bundle-options-presenter :windows [view _platform] (SelectablePlatformBundleOptionsPresenter. view "Bundle Windows Application" :windows [["32-bit" "x86-win32"]
+                                                                                                                                                     ["64-bit" "x86_64-win32"]]))
 
 (defn- read-build-options [prefs]
   (merge (read-generic-options prefs)
-         (read-architecture-options prefs)
          (read-android-options prefs)
-         (read-ios-options prefs)))
+         (read-ios-options prefs)
+         (read-platform-options prefs :linux (if (= (system/os-arch) "x86") "x86-linux" "x86_64-linux"))
+         (read-platform-options prefs :windows (if (= (system/os-arch) "x86") "x86-win32" "x86_64-win32"))))
 
 (defn- write-build-options! [prefs build-options]
   (write-generic-options! prefs build-options)
-  (write-architecture-options! prefs build-options)
   (write-android-options! prefs build-options)
-  (write-ios-options! prefs build-options))
+  (write-ios-options! prefs build-options)
+  (write-platform-options! prefs build-options :linux)
+  (write-platform-options! prefs build-options :windows))
 
 (defn- watch-focus-state! [presenter]
   (assert (satisfies? BundleOptionsPresenter presenter))
@@ -488,12 +546,16 @@
   (run [bundle! prefs presenter stage]
     (let [build-options (get-options presenter)
           initial-directory (get-file-pref prefs "bundle-output-directory")]
+      (assert (string? (not-empty (:platform build-options))))
       (write-build-options! prefs build-options)
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
         (set-file-pref! prefs "bundle-output-directory" output-directory)
-        (let [build-options (assoc build-options :output-directory output-directory)]
-          (ui/close! stage)
-          (bundle! build-options))))))
+        (let [platform-bundle-output-directory (io/file output-directory (:platform build-options))]
+          (when (or (not (.exists platform-bundle-output-directory))
+                    (query-overwrite! platform-bundle-output-directory stage))
+            (let [build-options (assoc build-options :output-directory platform-bundle-output-directory)]
+              (ui/close! stage)
+              (bundle! build-options))))))))
 
 (defn show-bundle-dialog! [platform prefs owner-window bundle!]
   (let [build-options (read-build-options prefs)
