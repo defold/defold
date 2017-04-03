@@ -10,7 +10,7 @@
     [com.dynamo.bob ClassLoaderScanner ClassLoaderResourceScanner CompileExceptionError IProgress IResourceScanner Project Task TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem IResource]
     [com.dynamo.bob.util BobProjectProperties PathUtil]
-    [java.io File]
+    [java.io File InputStream]
     [java.net URL URLDecoder]))
 
 (set! *warn-on-reflection* true)
@@ -37,9 +37,17 @@
                   (map (fn [[key val]] [(subs key 1) val]))
                   (into {}))]
     (reify IResourceScanner
-      (getResource ^URL [this path]
+      (openInputStream ^InputStream [this path]
         (when-let [r (get res-map path)]
-          (io/as-url r)))
+          (io/input-stream r)))
+      (exists [this path]
+        (if-let [r (get res-map path)]
+          (resource/exists? r)
+          false))
+      (isFile [this path]
+        (if-let [r (get res-map path)]
+          (= (resource/source-type r) :file)
+          false))
       (scan [this pattern]
         (let [res (->> res-map
                     (map first)

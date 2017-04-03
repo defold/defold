@@ -35,6 +35,8 @@ protected:
     {
         dmPhysics::NewContextParams context_params = dmPhysics::NewContextParams();
         context_params.m_Scale = PHYSICS_SCALE;
+        context_params.m_RayCastLimit2D = 64;
+        context_params.m_RayCastLimit3D = 128;
         m_Context = (*m_Test.m_NewContextFunc)(context_params);
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;

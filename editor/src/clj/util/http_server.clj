@@ -20,9 +20,11 @@
         body       (:body response)
         headers    (.getResponseHeaders e)
         in-headers (:headers response {})
-        length     (if-let [content-length (get in-headers "Content-Length")]
-                     (Long/parseLong content-length)
-                     0)]
+        length     (if (nil? body)
+                     -1
+                     (if-let [content-length (get in-headers "Content-Length")]
+                       (Long/parseLong content-length)
+                       0))]
     (doseq [[key value] in-headers]
       (.add headers key value))
     (.sendResponseHeaders e code length)
