@@ -57,11 +57,17 @@ public class ProjectSite {
     @Column
     private boolean allowComments = true;
 
+    @Column
+    private String projectUrl;
+
     @OneToMany(cascade = CascadeType.ALL)
     private Set<AppStoreReference> appStoreReferences = new HashSet<>();
 
     @OneToMany(cascade = CascadeType.ALL)
     private Set<Screenshot> screenshots = new HashSet<>();
+
+    @OneToMany(cascade = CascadeType.ALL)
+    private Set<SocialMediaReference> socialMediaReferences = new HashSet<>();
 
     public String getName() {
         return name;
@@ -206,5 +212,21 @@ public class ProjectSite {
 
     public void setAllowComments(boolean allowComments) {
         this.allowComments = allowComments;
+    }
+
+    public String getProjectUrl() {
+        return projectUrl;
+    }
+
+    public void setProjectUrl(String projectUrl) {
+        this.projectUrl = projectUrl;
+    }
+
+    public Set<SocialMediaReference> getSocialMediaReferences() {
+        return socialMediaReferences;
+    }
+
+    public void setSocialMediaReferences(Set<SocialMediaReference> socialMediaReferences) {
+        this.socialMediaReferences = socialMediaReferences;
     }
 }
