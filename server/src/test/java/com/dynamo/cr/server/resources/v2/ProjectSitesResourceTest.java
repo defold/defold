@@ -114,6 +114,14 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         projectSiteResource(testUser, projectId).path("screenshots").path("order").put(screenshotSortOrderRequest);
     }
 
+    private void addSocialMediaReference(TestUser testUser, Long projectId, Protocol.NewSocialMediaReference newSocialMediaReference) {
+        projectSiteResource(testUser, projectId).path("social_media_references").post(newSocialMediaReference);
+    }
+
+    private void deleteSocialMediaReference(TestUser testUser, Long projectId, Long socialMediaReferenceId) {
+        projectSiteResource(testUser, projectId).path("social_media_references").path(socialMediaReferenceId.toString()).delete();
+    }
+
     @Test
     public void listProjectSites() {
         int originalSitesCount = getProjectSites(TestUser.JAMES).getSitesCount();
@@ -133,7 +141,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
 
-        Protocol.ProjectInfo projectWithoutSite = createProject(TestUser.JAMES);
+        createProject(TestUser.JAMES);
 
         Protocol.ProjectSiteList result = getProjectSites(TestUser.JAMES);
 
@@ -170,6 +178,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .setLibraryUrl("libraryUrl")
                 .setShowName(false)
                 .setAllowComments(false)
+                .setProjectUrl("projectUrl")
                 .build();
 
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
@@ -186,6 +195,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals(false, result.getIsPublicSite()); // Project site should be private by default.
         assertEquals(false, result.getShowName());
         assertEquals(false, result.getAllowComments());
+        assertEquals("projectUrl", result.getProjectUrl());
         assertEquals(project.getId(), result.getProjectId());
     }
 
@@ -344,6 +354,35 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals(screenshotIds.get(0).longValue(), projectSite.getScreenshots(0).getId());
         assertEquals(screenshotIds.get(1).longValue(), projectSite.getScreenshots(1).getId());
         assertEquals(screenshotIds.get(2).longValue(), projectSite.getScreenshots(2).getId());
+    }
+
+    @Test
+    public void addAndDeleteSocialMediaReferences() {
+
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Add social media reference
+        String label = "Facebook";
+        String url = "https://www.facebook.com/my-game";
+        Protocol.NewSocialMediaReference socialMediaReference = Protocol.NewSocialMediaReference.newBuilder()
+                .setLabel(label)
+                .setUrl(url)
+                .build();
+        addSocialMediaReference(TestUser.JAMES, project.getId(), socialMediaReference);
+
+        // Ensure that you get once reference back.
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(1, projectSite.getSocialMediaReferencesCount());
+        assertEquals(label, projectSite.getSocialMediaReferences(0).getLabel());
+        assertEquals(url, projectSite.getSocialMediaReferences(0).getUrl());
+
+        // Delete reference.
+        long id = projectSite.getSocialMediaReferences(0).getId();
+        deleteSocialMediaReference(TestUser.JAMES, project.getId(), id);
+
+        // Ensure that you get zero references back.
+        projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(0, projectSite.getSocialMediaReferencesCount());
     }
 
     @Test
