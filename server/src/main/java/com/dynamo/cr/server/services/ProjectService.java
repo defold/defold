@@ -153,6 +153,14 @@ public class ProjectService {
         if (projectSite.hasIsPublicSite()) {
             existingProjectSite.setPublicSite(projectSite.getIsPublicSite());
         }
+
+        if (projectSite.hasShowName()) {
+            existingProjectSite.setShowName(projectSite.getShowName());
+        }
+
+        if (projectSite.hasAllowComments()) {
+            existingProjectSite.setAllowComments(projectSite.getAllowComments());
+        }
     }
 
     @Transactional
@@ -240,7 +248,6 @@ public class ProjectService {
         addScreenshot(projectId, new Screenshot(resourcePath, Screenshot.MediaType.IMAGE));
     }
 
-
     private String uploadImage(long projectId, String user, String originalFilename, InputStream file) throws Exception {
         String contextPath = String.format("/projects/%d/images", projectId);
         return uploadFile(user, originalFilename, file, contextPath);
@@ -253,9 +260,28 @@ public class ProjectService {
 
     private String uploadFile(String user, String originalFilename, InputStream file, String contextPath) throws Exception {
         String writeToken = magazineClient.createWriteToken(user, contextPath);
-        String filename = UUID.randomUUID().toString() + "-" + originalFilename;
+        String filename = createFilename(originalFilename);
         magazineClient.put(writeToken, "", file, filename);
         return Paths.get(contextPath, filename).toString();
+    }
+
+    /**
+     * Creates a random filename but keeping the file extension. The reason for using this is to create unique filnames
+     * for uploaded files and also not have to care about special characters.
+     *
+     * @param originalFilename Original filename.
+     * @return Random filename with file extension preserved.
+     */
+    String createFilename(String originalFilename) {
+        String filename = UUID.randomUUID().toString();
+
+        if (originalFilename != null) {
+            int beginIndex = originalFilename.lastIndexOf(".");
+            if (beginIndex > -1) {
+                filename += originalFilename.substring(beginIndex);
+            }
+        }
+        return filename;
     }
 
     @Transactional

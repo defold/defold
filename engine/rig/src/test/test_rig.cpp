@@ -33,10 +33,18 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Positions.m_Data[10] = 2.0f;
     mesh.m_Positions.m_Data[11] = 0.0f;
 
-    // data for each vertex (tex coords not used)
+    // data for each vertex
     mesh.m_Texcoord0.m_Data       = new float[vert_count*2];
     mesh.m_Texcoord0.m_Count      = vert_count*2;
-    mesh.m_Texcoord0Indices.m_Count = 0;
+    mesh.m_Texcoord0[0]           = -1.0;
+    mesh.m_Texcoord0[1]           = 2.0;
+
+    mesh.m_Texcoord0Indices.m_Data  = new uint32_t[vert_count];
+    mesh.m_Texcoord0Indices.m_Count = vert_count;
+    mesh.m_Texcoord0Indices[0]      = 0;
+    mesh.m_Texcoord0Indices[1]      = 0;
+    mesh.m_Texcoord0Indices[2]      = 0;
+    mesh.m_Texcoord0Indices[3]      = 0;
 
     mesh.m_Normals.m_Data         = new float[vert_count*3];
     mesh.m_Normals.m_Count        = vert_count*3;
@@ -763,6 +771,7 @@ private:
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0Indices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
@@ -1088,6 +1097,7 @@ private:
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0Indices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
@@ -1410,6 +1420,10 @@ TEST_F(RigInstanceTest, GetVertexCount)
 #define ASSERT_VERT_NORM(exp, act)\
     ASSERT_VEC3(exp, Vector3(act.nx, act.ny, act.nz));
 
+#define ASSERT_VERT_UV(exp_u, exp_v, act_u, act_v)\
+    ASSERT_NEAR(exp_u, act_u, RIG_EPSILON_FLOAT);\
+    ASSERT_NEAR(exp_v, act_v, RIG_EPSILON_FLOAT);\
+
 #define ASSERT_VERT_COLOR(exp, act)\
     {\
         uint32_t r = (act & 255);\
@@ -1543,6 +1557,21 @@ TEST_F(RigInstanceTest, GenerateColorDataPremultiply)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(0.5), true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_COLOR(Vector4(0.0f, 0.125f, 0.25f, 0.25f), data[0].rgba);
+}
+
+TEST_F(RigInstanceTest, GenerateTexcoordData)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("secondary_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("mesh_colors"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    dmRig::RigModelVertex data[4];
+    dmRig::RigModelVertex* data_end = data + 4;
+
+    // Trigger update which will recalculate mesh properties
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].u, data[0].v);
 }
 
 // Test Spine 2.x skeleton that has scaling relative to the bone local space.

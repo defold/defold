@@ -16,18 +16,6 @@ Important: *Make sure your branches are up to date!*
         $ git checkout dev
         $ git pull
 
- 1. Bump version:
-
-        $ ./scripts/build.py bump
-        $ git diff
-        $ git add VERSION
-        $ git commit
-        > Message: "Bumped version to 1.2.xx"
-
- 1. Push to dev
- 
-        $ git push
-
  1. Merge dev into beta;
 
         $ git checkout beta
@@ -60,7 +48,7 @@ Important: *Make sure your branches are up to date!*
 
  1. If everything is OK, time to release beta:
  
-    $ `git./scripts/build.py release --channel=beta --branch=beta`
+    $ `./scripts/build.py release --channel=beta --branch=beta`
 
     Important: *Make sure the SHA1 and channel is correct!*
 
@@ -113,8 +101,6 @@ The following smoke tests are currently performed by the team on each platform (
 
     Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
  
- 1. Sign the editor: [sign-editor-master](http://ci.defold.com/builders/sign-editor-master)
-
  1. Fetch editor via:
  
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
@@ -138,16 +124,25 @@ The following smoke tests are currently performed by the team on each platform (
         $ ./scripts/build.py release
     Important: *Make sure the SHA1 and channel is correct!*
 
-2. Verify release by updating an old editor, OSX, Win and Linux.
-3. Post release notes on forum.defold.com and send notification email to defold-users@king.com and releasenotification@king.com
-4. Publish latest documentation by logging into http://www.defold.com/ref/update/latest
-5. Merge master into dev
+1. Verify release by updating an old editor, OSX, Win and Linux.
+1. Publish latest documentation by logging into http://www.defold.com/ref/update/latest
+1. Post release notes on forum.defold.com and send notification email to defold-users@king.com and releasenotification@king.com
+1. Post release notes on http://www.defold.com/admin/base/releasenote/
+
+1. Merge master into dev
 
         $ git checkout dev
         $ git pull
         $ git merge master
         $ git push
 
+ 1. Bump version:
 
+        $ ./scripts/build.py bump
+        $ git diff
+        $ git add VERSION
+        $ git commit
+        > Message: "Bumped version to 1.2.xx"
+        $ git push
 
 

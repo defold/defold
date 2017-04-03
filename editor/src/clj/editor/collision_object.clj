@@ -512,6 +512,7 @@
   [_node-id child-scenes]
   {:node-id _node-id
    :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
+   :renderable {:passes [pass/selection]}
    :children child-scenes})
 
 (defn- produce-embedded-collision-shape

@@ -34,7 +34,7 @@ def build(bld):
         bld.install_files('${PREFIX}/share/java', 'iac_android.jar')
 
     else:
-        source += ['iac_null.cpp']
+        source = ['iac_null.cpp']
 
     iac = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = '.',

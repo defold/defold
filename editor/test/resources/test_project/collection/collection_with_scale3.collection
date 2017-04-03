@@ -1,0 +1,22 @@
+name: "default"
+collection_instances {
+  id: "collection"
+  collection: "/collection/empty_go.collection"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale3 {
+    x: 1.1
+    y: 2.2
+    z: 3.3
+  }
+}
+scale_along_z: 0

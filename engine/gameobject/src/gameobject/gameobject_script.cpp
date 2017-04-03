@@ -718,12 +718,12 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the uniform scale factor of the instance
-     * The uniform scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
+     /*# gets the 3D scale factor of the instance
+     * The scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world 3D scale factor.
      *
      * @name go.get_scale
      * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
-     * @return scale [type:number] uniform instance scale factor
+     * @return scale [type:vector3] instance scale factor
      * @examples
      *
      * Get the scale of the instance the script is attached to:
@@ -741,11 +741,11 @@ namespace dmGameObject
     int Script_GetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
+        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
         return 1;
     }
 
-    /*# gets the 3D scale factor of the instance
+    /* DEPRECATED gets the 3D scale factor of the instance
      * The scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
      *
      * @name go.get_scale_vector
@@ -769,6 +769,33 @@ namespace dmGameObject
     {
         Instance* instance = ResolveInstance(L, 1);
         dmScript::PushVector3(L, dmGameObject::GetScale(instance));
+        return 1;
+    }
+
+    /*# gets the uniform scale factor of the instance
+     * The uniform scale is relative the parent (if any). If the underlying scale vector is non-uniform the min element of the vector is returned as the uniform scale factor.
+     *
+     * @name go.get_scale_uniform
+     * @param [id] [type:string|hash|url] optional id of the instance to get the uniform scale for, by default the instance of the calling script
+     * @return scale [type:number] uniform instance scale factor
+     * @examples
+     *
+     * Get the scale of the instance the script is attached to:
+     *
+     * ```lua
+     * local s = go.get_scale_uniform()
+     * ```
+     *
+     * Get the uniform scale of another instance "x":
+     *
+     * ```lua
+     * local s = go.get_scale_uniform("x")
+     * ```
+     */
+    int Script_GetScaleUniform(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
+        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
         return 1;
     }
 
@@ -935,15 +962,17 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the instance world scale factor
-     * Use <code>go.get_scale</code> to retrieve the scale factor relative to the parent.
+    /*# gets the instance world 3D scale factor
+     * Use <code>go.get_scale</code> to retrieve the 3D scale factor relative to the parent. 
+     * This vector is derived by decomposing the transformation matrix and should be used with care.
+     * For most cases it should be fine to use [ref:go.get_world_scale_uniform] instead.
      *
      * @name go.get_world_scale
      * @param [id] [type:string|hash|url] optional id of the instance to get the world scale for, by default the instance of the calling script
-     * @return scale [type:number] uniform instance world scale factor
+     * @return scale [type:vector3] instance world 3D scale factor
      * @examples
      *
-     * Get the world scale of the instance the script is attached to:
+     * Get the world 3D scale of the instance the script is attached to:
      *
      * ```lua
      * local s = go.get_world_scale()
@@ -956,6 +985,33 @@ namespace dmGameObject
      * ```
      */
     int Script_GetWorldScale(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushVector3(L, dmGameObject::GetWorldScale(instance));
+        return 1;
+    }
+
+    /*# gets the instance world scale factor
+     * Use <code>go.get_scale_uniform</code> to retrieve the scale factor relative to the parent.
+     *
+     * @name go.get_world_scale_uniform
+     * @param [id] [type:string|hash|url] optional id of the instance to get the world scale for, by default the instance of the calling script
+     * @return scale [type:number] instance world scale factor
+     * @examples
+     *
+     * Get the world scale of the instance the script is attached to:
+     *
+     * ```lua
+     * local s = go.get_world_scale_uniform()
+     * ```
+     *
+     * Get the world scale of another instance "x":
+     *
+     * ```lua
+     * local s = go.get_world_scale_uniform("x")
+     * ```
+     */
+    int Script_GetWorldScaleUniform(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
         lua_pushnumber(L, dmGameObject::GetWorldUniformScale(instance));
@@ -1537,25 +1593,27 @@ namespace dmGameObject
 
     static const luaL_reg GO_methods[] =
     {
-        {"get",                 Script_Get},
-        {"set",                 Script_Set},
-        {"get_position",        Script_GetPosition},
-        {"get_rotation",        Script_GetRotation},
-        {"get_scale",           Script_GetScale},
-        {"get_scale_vector",    Script_GetScaleVector},
-        {"set_position",        Script_SetPosition},
-        {"set_rotation",        Script_SetRotation},
-        {"set_scale",           Script_SetScale},
-        {"get_world_position",  Script_GetWorldPosition},
-        {"get_world_rotation",  Script_GetWorldRotation},
-        {"get_world_scale",     Script_GetWorldScale},
-        {"get_id",              Script_GetId},
-        {"animate",             Script_Animate},
-        {"cancel_animations",   Script_CancelAnimations},
-        {"delete",              Script_Delete},
-        {"delete_all",          Script_DeleteAll},
-        {"screen_ray",          Script_ScreenRay},
-        {"property",            Script_Property},
+        {"get",                     Script_Get},
+        {"set",                     Script_Set},
+        {"get_position",            Script_GetPosition},
+        {"get_rotation",            Script_GetRotation},
+        {"get_scale",               Script_GetScale},
+        {"get_scale_vector",        Script_GetScaleVector},
+        {"get_scale_uniform",       Script_GetScaleUniform},
+        {"set_position",            Script_SetPosition},
+        {"set_rotation",            Script_SetRotation},
+        {"set_scale",               Script_SetScale},
+        {"get_world_position",      Script_GetWorldPosition},
+        {"get_world_rotation",      Script_GetWorldRotation},
+        {"get_world_scale",         Script_GetWorldScale},
+        {"get_world_scale_uniform", Script_GetWorldScaleUniform},
+        {"get_id",                  Script_GetId},
+        {"animate",                 Script_Animate},
+        {"cancel_animations",       Script_CancelAnimations},
+        {"delete",                  Script_Delete},
+        {"delete_all",              Script_DeleteAll},
+        {"screen_ray",              Script_ScreenRay},
+        {"property",                Script_Property},
         {0, 0}
     };
 

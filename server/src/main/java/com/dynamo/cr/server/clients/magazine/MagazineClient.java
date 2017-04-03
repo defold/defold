@@ -68,7 +68,11 @@ public class MagazineClient {
     public String createReadUrl(String resource) {
         String fileName = Paths.get(resource).getFileName().toString();
         String path = Paths.get(resource).getParent().toString();
-        String jwt = jwtFactory.create("", Instant.now().plus(READ_EXPIRATION), path, false);
+
+        // Truncated to facilitate caching (preventing ever changing URL).
+        Instant expires = Instant.now().truncatedTo(ChronoUnit.DAYS).plus(READ_EXPIRATION);
+
+        String jwt = jwtFactory.create("", expires, path, false);
         return getMagazineServiceUrl() + "/" + jwt + "/" + fileName;
     }
 

@@ -274,43 +274,64 @@
       (setup-pass context gl pass camera viewport)
       (batch-render gl render-args (get renderables pass) false :batch-key))))
 
-(defn- flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables view-proj tmp-v4d]
+(defn- append-flattened-scene-renderables! [scene selection-set view-proj node-path parent-world-transform out-renderables tmp-v4d]
   (let [renderable (:renderable scene)
-        ^Matrix4d trans (or (:transform scene) geom/Identity4d)
-        parent-world world-transform
-        world-transform (doto (Matrix4d. world-transform) (.mul trans))
-        selected-id (or
-                      (selection-set (:node-id scene))
-                      (some selection-set (:node-path scene)))
+        local-transform ^Matrix4d (:transform scene geom/Identity4d)
+        world-transform (doto (Matrix4d. ^Matrix4d parent-world-transform) (.mul local-transform))
+        appear-selected? (some? (some selection-set node-path)) ; Child nodes appear selected if parent is.
         new-renderable (-> scene
-                         (dissoc :renderable)
-                         (assoc :render-fn (:render-fn renderable)
-                                :world-transform world-transform
-                                :selected (some? selected-id)
-                                :user-data (:user-data renderable)
-                                :batch-key (:batch-key renderable)
-                                :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world)
-                                :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
+                           (dissoc :children :renderable)
+                           (assoc :node-path node-path
+                                  :picking-id (or (:picking-id scene) (peek node-path))
+                                  :render-fn (:render-fn renderable)
+                                  :world-transform world-transform
+                                  :parent-world-transform parent-world-transform
+                                  :selected appear-selected?
+                                  :user-data (:user-data renderable)
+                                  :batch-key (:batch-key renderable)
+                                  :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
+                                  :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
     (doseq [pass (:passes renderable)]
-      (conj! (get out-renderables pass) new-renderable)
-      (when (and selected-id (types/selection? pass))
-        (conj! out-selected-renderables (assoc new-renderable :node-id selected-id))))
+      (conj! (get out-renderables pass) new-renderable))
     (doseq [child-scene (:children scene)]
-      (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables view-proj tmp-v4d))))
+      (append-flattened-scene-renderables! child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-transform out-renderables tmp-v4d))))
+
+(defn- flatten-scene [scene selection-set view-proj]
+  (let [node-path []
+        parent-world-transform (doto (Matrix4d.) (.setIdentity))
+        out-renderables (into {} (map #(vector % (transient [])) pass/all-passes))
+        tmp-v4d (Vector4d.)]
+    (append-flattened-scene-renderables! scene selection-set view-proj node-path parent-world-transform out-renderables tmp-v4d)
+    (into {}
+          (map (fn [[pass renderables]]
+                 [pass (persistent! renderables)]))
+          out-renderables)))
+
+(defn- get-selection-pass-renderables-by-node-id
+  "Returns a map of renderables that were in a selection pass by their node id.
+  If a renderable appears in multiple selection passes, the one from the latter
+  pass will be picked. This should be fine, since the new-renderable added
+  by append-flattened-scene-renderables! will be the same for all passes."
+  [renderables-by-pass]
+  (into {}
+        (comp (filter (comp types/selection? key))
+              (mapcat (fn [[_pass renderables]]
+                        (map (fn [renderable]
+                               [(:node-id renderable) renderable])
+                             renderables))))
+        renderables-by-pass))
 
 (defn produce-render-data [scene selection aux-renderables camera]
   (let [selection-set (set selection)
-        out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
-        out-selected-renderables (transient [])
-        world-transform (doto (Matrix4d.) (.setIdentity))
         view-proj (c/camera-view-proj-matrix camera)
-        tmp-v4d (Vector4d.)
-        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables view-proj tmp-v4d)
-        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
-        out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables)))]) out-renderables))
-        out-selected-renderables (persistent! out-selected-renderables)]
-    {:renderables out-renderables
-     :selected-renderables out-selected-renderables}))
+        scene-renderables-by-pass (flatten-scene scene selection-set view-proj)
+        selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id scene-renderables-by-pass)
+        selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)
+        aux-renderables-by-pass (apply merge-with concat aux-renderables)
+        all-renderables-by-pass (merge-with into scene-renderables-by-pass aux-renderables-by-pass)
+        sorted-renderables-by-pass (into {} (map (fn [[pass renderables]] [pass (vec (render-sort renderables))]) all-renderables-by-pass))]
+    {:renderables sorted-renderables-by-pass
+     :selected-renderables selected-renderables}))
 
 (g/defnk produce-render-args [^Region viewport camera all-renderables frame-version]
   (let [current-frame-version (if frame-version (swap! frame-version inc) 0)]
@@ -340,12 +361,30 @@
                                                       (when-let [u (:updatable r)]
                                                         {(:node-id u) u})) selected-renderables)))
   (output updatables g/Any :cached (g/fnk [renderables]
-                                          (let [flat-renderables (apply concat (map second renderables))]
-                                            (into {} (keep (fn [r]
-                                                             (when-let [u (:updatable r)]
-                                                               (when (or (= (:node-id u) (:node-id r)) (= (:node-id u) (last (:node-path r))))
-                                                                 [(:node-id u) (assoc u :world-transform (:world-transform r))])))
-                                                       flat-renderables)))))
+                                     ;; Currently updatables are implemented as extra info on the renderables.
+                                     ;; The renderable associates an updatable with itself, which contains info
+                                     ;; about the updatable. The updatable is identified by a node-id, for example
+                                     ;; the id of a ParticleFXNode. In the case of ParticleFX, the same updatable
+                                     ;; is also associated with every sub-element of the ParticleFX scene, such
+                                     ;; as every emitter and modifier below it. This makes it possible to start
+                                     ;; playback of the owning ParticleFX scene while a modifier is selected.
+                                     ;; In order to find the owning ParticleFX scene so we can position the
+                                     ;; effect in the world, we find the renderable with the shortest node-path
+                                     ;; for that particular updatable.
+                                     ;;
+                                     ;; TODO:
+                                     ;; We probably want to change how this works to make it possible to have
+                                     ;; multiple instances of the same updatable in a scene.
+                                     (let [flat-renderables (apply concat (map second renderables))
+                                           renderables-by-updatable-node-id (dissoc (group-by (comp :node-id :updatable) flat-renderables) nil)]
+                                       (into {}
+                                             (map (fn [[updatable-node-id renderables]]
+                                                    (let [renderable (first (sort-by (comp count :node-path) renderables))
+                                                          updatable (:updatable renderable)
+                                                          world-transform (:world-transform renderable)
+                                                          transformed-updatable (assoc updatable :world-transform world-transform)]
+                                                      [updatable-node-id transformed-updatable])))
+                                             renderables-by-updatable-node-id))))
   (output render-args g/Any :cached produce-render-args))
 
 ;; Scene selection
@@ -389,21 +428,43 @@
           (recur (rest names) selected))
         (persistent! selected)))))
 
+(declare claim-child-scene)
+
+(defn- claim-child-scenes [scene node-id]
+  (if-let [child-scenes (not-empty (:children scene))]
+    (assoc scene :children (mapv #(claim-child-scene % node-id) child-scenes))
+    scene))
+
+(defn claim-child-scene [scene node-id]
+  (-> scene
+      (assoc :picking-id node-id)
+      (claim-child-scenes node-id)))
+
+(defn claim-scene [scene node-id]
+  ;; When scenes reference other resources in the project, we want to treat the
+  ;; referenced scene as a group when picking in the scene view. To make this
+  ;; happen, the referencing scene claims ownership of the referenced scene and
+  ;; its children. Note that sub-elements can still be selected using the
+  ;; Outline view should the need arise.
+  (-> scene
+      (assoc :node-id node-id)
+      (claim-child-scenes node-id)))
+
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
         (with-drawable-as-current drawable
           (let [render-args (generic-render-args viewport camera)]
-            (->> (for [pass pass/selection-passes
-                       :let [render-args (assoc render-args :pass pass)]]
-                   (do
-                     (begin-select gl select-buffer)
-                     (setup-pass gl-context gl pass camera viewport picking-rect)
-                     (let [renderables (get renderables pass)
-                           batches (batch-render gl render-args renderables true :select-batch-key)]
-                       (reverse (render-sort (end-select gl select-buffer renderables batches))))))
-              flatten
-              (mapv :node-id)))))
-    []))
+            (into []
+                  (comp (mapcat (fn [pass]
+                                  (let [render-args (assoc render-args :pass pass)]
+                                    (begin-select gl select-buffer)
+                                    (setup-pass gl-context gl pass camera viewport picking-rect)
+                                    (let [renderables (get renderables pass)
+                                          batches (batch-render gl render-args renderables true :select-batch-key)]
+                                      (reverse (render-sort (end-select gl select-buffer renderables batches)))))))
+                        (keep :picking-id))
+                  pass/selection-passes))))
+      []))
 
 (g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
   (or (and tool-picking-rect
@@ -449,7 +510,7 @@
   (input selected-updatables g/Any)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
-                                                 (mapv updatables (filter #(contains? updatables %) active-updatable-ids))))
+                                                 (into [] (keep updatables) active-updatable-ids)))
 
   (output selection g/Any (gu/passthrough selection))
   (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables]

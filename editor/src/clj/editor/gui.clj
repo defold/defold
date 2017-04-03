@@ -120,16 +120,12 @@
 (defn- ->color-vtx-vb [vs colors vcount]
   (let [vb (->color-vtx vcount)
         vs (mapv (comp vec concat) vs colors)]
-    (doseq [v vs]
-      (conj! vb v))
-    (persistent! vb)))
+    (persistent! (reduce conj! vb vs))))
 
 (defn- ->uv-color-vtx-vb [vs uvs colors vcount]
   (let [vb (->uv-color-vtx vcount)
         vs (mapv (comp vec concat) vs uvs colors)]
-    (doseq [v vs]
-      (conj! vb v))
-    (persistent! vb)))
+    (persistent! (reduce conj! vb vs))))
 
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
 (def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
@@ -158,13 +154,15 @@
   (let [user-data (get-in renderables [0 :user-data])]
     (cond
       (contains? user-data :geom-data)
-      (let [[vs uvs colors] (reduce (fn [[vs uvs colors] renderable]
+      (let [[vs uvs colors] (reduce (fn [[vs uvs colors :as vb] renderable]
                                       (let [user-data (:user-data renderable)
                                             world-transform (:world-transform renderable)
                                             vcount (count (:geom-data user-data))]
-                                        [(into vs (geom/transf-p world-transform (:geom-data user-data)))
-                                         (into uvs (:uv-data user-data))
-                                         (into colors (repeat vcount (premul (:color user-data))))]))
+                                        (if (pos? vcount)
+                                          [(into vs (geom/transf-p world-transform (:geom-data user-data)))
+                                           (into uvs (:uv-data user-data))
+                                           (into colors (repeat vcount (premul (:color user-data))))]
+                                          vb)))
                                     [[] [] []] renderables)]
         (when (not-empty vs)
           (->uv-color-vtx-vb vs uvs colors (count vs))))
@@ -919,7 +917,10 @@
                                                 (merge template-overrides))))
   (output aabb g/Any (g/fnk [template-scene transform]
                        (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
-  (output scene-children g/Any (g/fnk [template-scene] (:children template-scene [])))
+  (output scene-children g/Any (g/fnk [_node-id template-scene]
+                                 (if-let [child-scenes (:children template-scene)]
+                                   (mapv #(scene/claim-child-scene % _node-id) child-scenes)
+                                   [])))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
@@ -1573,7 +1574,8 @@
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
   (output child-scenes g/Any :cached (g/fnk [default-scene layout-scenes current-layout]
-                                            [(get layout-scenes current-layout default-scene)]))
+                                       (let [node-tree-scene (get layout-scenes current-layout default-scene)]
+                                         (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
   (output template-scene g/Any :cached (g/fnk [scene child-scenes]
                                          (assoc scene :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes)))))
@@ -1685,7 +1687,7 @@
       g/tx-nodes-added
       first)))
 
-(defn- add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
+(defn add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
   (add-gui-node! project scene parent node-type select-fn))
 
 (defn- add-texture-handler [project {:keys [scene parent node-type]} select-fn]
@@ -1750,6 +1752,7 @@
 
 (defn- add-handler-options [node]
   (let [types (protobuf/enum-values Gui$NodeDesc$Type)
+        node (if (g/override? node) (g/override-original node) node)
         scene (node->gui-scene node)
         node-options (if (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)

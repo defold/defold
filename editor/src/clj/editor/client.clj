@@ -1,12 +1,16 @@
 (ns editor.client
   (:require [editor.protobuf :as protobuf]
-            [editor.prefs :as prefs])
+            [editor.prefs :as prefs]
+            [service.log :as log])
   (:import [com.defold.editor.client DefoldAuthFilter]
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
-           [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
+           [com.dynamo.cr.protocol.proto Protocol$UserInfo]
+           [com.sun.jersey.api.client Client ClientHandlerException ClientResponse WebResource WebResource$Builder]
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
+           [java.io InputStream]
            [java.net URI]
-           [javax.ws.rs.core MediaType]))
+           [javax.ws.rs.core MediaType]
+           [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -53,3 +57,26 @@
   (let [resource   (.resource ^Client (:client client) (server-url (:prefs client)))
         builder    (.accept (.path resource path) media-types)]
     (protobuf/pb->map (.get builder entity-class))))
+
+(defn user-id [client]
+  (when-let [email (prefs/get-prefs (:prefs client) "email" nil)]
+    (try
+      (let [info (rget client (format "/users/%s" email) Protocol$UserInfo)]
+        (:id info))
+      (catch Exception e
+        (log/warn :exception e)
+        nil))))
+
+(defn upload-engine [client user-id cr-project-id ^String platform ^InputStream stream]
+  (let [{:keys [^Client client prefs]} client]
+    (let [resource (.resource client (server-url prefs))
+          ^ClientResponse resp (-> resource
+                                 (.path "projects")
+                                 (.path (str user-id))
+                                 (.path (str cr-project-id))
+                                 (.path "engine")
+                                 (.path platform)
+                                 (.type MediaType/APPLICATION_OCTET_STREAM_TYPE)
+                                 (.post ClientResponse stream))]
+      (when (not= 200 (.getStatus resp))
+        (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp)) {}))))))

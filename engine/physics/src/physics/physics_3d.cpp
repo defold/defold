@@ -132,7 +132,7 @@ namespace dmPhysics
         m_GetWorldTransform = params.m_GetWorldTransformCallback;
         m_SetWorldTransform = params.m_SetWorldTransformCallback;
 
-        m_RayCastRequests.SetCapacity(128);
+        m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
     }
 
@@ -183,6 +183,7 @@ namespace dmPhysics
         context->m_InvScale = 1.0f / params.m_Scale;
         context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale;
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
+        context->m_RayCastLimit = params.m_RayCastLimit3D;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
