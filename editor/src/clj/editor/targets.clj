@@ -135,7 +135,7 @@
                   (filter some?))
         errors (filter string? targets-result)
         local-target (or (first (filter local-target? targets)) local-target)
-        external-targets (filter (complement local-target?) targets)
+        external-targets (remove local-target? targets)
         targets (vec (distinct (cons local-target (sort-by :name util/natural-order external-targets))))]
     (doseq [error errors]
       (log-fn error))
@@ -248,9 +248,9 @@
 
 (defn selected-target [prefs]
   (let [target-address (prefs/get-prefs prefs "selected-target-address" nil)
-        targets (get-targets)
-        targets-by-address (into {} (map (fn [t] [(:address t) t]) targets))]
-    (get targets-by-address target-address (first targets))))
+        targets (get-targets)]
+    (or (first (filter #(= target-address (:address %)) targets))
+      (first targets))))
 
 (defn- select-target! [prefs target]
   (prefs/set-prefs prefs "selected-target-address" (:address target)))
@@ -264,7 +264,7 @@
            (= user-data selected-target)))
   (options [user-data prefs]
            (when-not user-data
-             (let [targets     (get-targets)]
+             (let [targets (get-targets)]
                (mapv (fn [target]
                        {:label     (format "%s (%s)" (:name target) (:address target))
                         :command   :target
@@ -275,15 +275,15 @@
 (defn- locate-device [ip]
   (when (not-empty ip)
     (let [inet-addr (InetAddress/getByName ip)
-         n-ifs (SSDP/getMCastInterfaces)
-         device (when-let [^NetworkInterface n-if (first (filter (fn [^NetworkInterface n-if] (.isReachable inet-addr n-if SSDP/SSDP_MCAST_TTL timeout)) n-ifs))]
-                  (when-let [^InetAddress local-address (first (SSDP/getIPv4Addresses n-if))]
-                    {:address ip
-                     :local-address (.getHostAddress local-address)
-                     :headers {"LOCATION" (format "http://%s:8001/upnp" ip)}}))]
-     (if device
-       device
-       (throw (ex-info (format "'%s' could not be reached from this host" ip) {}))))))
+          n-ifs (SSDP/getMCastInterfaces)
+          device (when-let [^NetworkInterface n-if (first (filter (fn [^NetworkInterface n-if] (.isReachable inet-addr n-if SSDP/SSDP_MCAST_TTL timeout)) n-ifs))]
+                   (when-let [^InetAddress local-address (first (SSDP/getIPv4Addresses n-if))]
+                     {:address ip
+                      :local-address (.getHostAddress local-address)
+                      :headers {"LOCATION" (format "http://%s:8001/upnp" ip)}}))]
+      (if device
+        device
+        (throw (ex-info (format "'%s' could not be reached from this host" ip) {}))))))
 
 (handler/defhandler :target-ip :global
   (run [prefs]

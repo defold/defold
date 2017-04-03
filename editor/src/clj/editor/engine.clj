@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.prefs :as prefs]
             [editor.dialogs :as dialogs]
+            [editor.error-reporting :as error-reporting]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.console :as console]
@@ -49,9 +50,10 @@
         (.disconnect conn)))))
 
 (defn- swap-engine-input-stream! [new-input-stream]
-  (when-let [^InputStream is @engine-input-stream]
-    (.close is))
-  (reset! engine-input-stream new-input-stream))
+  (swap! engine-input-stream (fn [^InputStream is new-is]
+                               (when is (.close is))
+                               new-is)
+    new-input-stream))
 
 (defn- pump-output [^InputStream is]
   (swap-engine-input-stream! is)
@@ -87,22 +89,22 @@
                            ;; We try our best to connect to logging, fail without retry if we couldn't
                            (try
                              (let [port (Integer/parseInt (:log-port target))
-                                   socket-addr (InetSocketAddress. ^String (:address target) port)
-                                   socket (doto (Socket.)
-                                            (.setSoTimeout timeout)
-                                            (.connect socket-addr))
-                                   is (.getInputStream socket)
-                                   status (-> ^BufferedReader (io/reader is)
-                                            (.readLine))]
-                               ;; The '0 OK' string is part of the log service protocol
-                               (if (= "0 OK" status)
-                                 (do
-                                   (console/append-console-message! (format "[Running on target '%s' (%s)]\n" (:name target) (:address target)))
-                                   ;; Setting to 0 means wait indefinitely for new data
-                                   (.setSoTimeout socket 0)
-                                   (pump-output is))
-                                 (.close is)))
-                             (catch Exception _ nil)))))
+                                   socket-addr (InetSocketAddress. ^String (:address target) port)]
+                               (with-open [socket (doto (Socket.)
+                                                    (.setSoTimeout timeout)
+                                                    (.connect socket-addr timeout))]
+                                 (let [is (.getInputStream socket)
+                                       status (-> ^BufferedReader (io/reader is)
+                                                (.readLine))]
+                                   ;; The '0 OK' string is part of the log service protocol
+                                   (if (= "0 OK" status)
+                                     (do
+                                       (console/append-console-message! (format "[Running on target '%s' (%s)]\n" (:name target) (:address target)))
+                                       ;; Setting to 0 means wait indefinitely for new data
+                                       (.setSoTimeout socket 0)
+                                       (pump-output is))))))
+                             (catch Exception e
+                               (error-reporting/report-exception! e))))))
         :ok)
       (catch Exception e
         (.disconnect conn)
