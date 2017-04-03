@@ -6,10 +6,10 @@
 		}
 	},
 	"steps": [
-		["await-log" "editor-log" 1000 "Command 2"],
 		["screen-capture" "test"],
 	],
 	"old": [
+		["await-log" "editor-log" 5000 "Command 2"],
 		["switch-focus" 1],
 		["press" "Shortcut+Shift+R"],
 		["type" ".coll"],
