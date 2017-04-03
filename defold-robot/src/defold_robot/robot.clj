@@ -28,7 +28,8 @@
 (defmethod exec-step "wait" [{:keys [robot log-fn]} [_ delay]]
   (let [delay (int delay)]
     (log-fn (format "<p>Wait %s</p>" delay))
-    (.delay robot (int delay))))
+    (.delay robot (int delay))
+    true))
 
 (defn- open-log [log-descs log-id fast-forward]
   (when-let [desc (get log-descs log-id)]
@@ -41,8 +42,8 @@
                     last)]
       (when file
         (let [reader (io/reader file)]
-          #_(when fast-forward
-             (.skip reader (.length file)))
+          (when fast-forward
+            (.skip reader (.length file)))
           reader)))))
 
 (defmethod exec-step "await-log" [{:keys [robot log-fn log-descs]} [_ log-id timeout pattern]]
@@ -55,9 +56,8 @@
         (log-fn "<div class=\"log\">")
         (log-fn "<code>")
         (let [result (loop [reader (open-log log-descs log-id true)]
-                       (if (< end-time (System/currentTimeMillis))
-                         (do
-                           false)
+                       (if (or (nil? reader) (< end-time (System/currentTimeMillis)))
+                         false
                          (let [result (loop [line (.readLine reader)]
                                         (if line
                                           (do
@@ -87,7 +87,8 @@
         dest (File. out-dir dest-name)]
     (log-fn (format "<p>Screen-capture %s</p>" dest-name))
     (log-fn (format "<img src=\"%s\">" dest-name))
-    (ImageIO/write img "png" dest)))
+    (ImageIO/write img "png" dest))
+  true)
 
 (defn- key->key-code [key]
   (if (= 1 (count key))
@@ -120,21 +121,25 @@
 (defmethod exec-step "press" [{:keys [robot log-fn]} [_ keys]]
   (let [keys (string/split keys #"\+")]
     (log-fn (format "<p>Press %s</p>" (string/join "+" keys)))
-    (press robot log-fn keys)))
+    (press robot log-fn keys))
+  true)
 
 (defmethod exec-step "type" [{:keys [robot log-fn]} [_ s]]
   (log-fn (format "<p>Type %s</p>" s))
   (doseq [c s]
-    (press robot log-fn [(str c)])))
+    (press robot log-fn [(str c)]))
+  true)
 
 (defmethod exec-step "switch-focus" [{:keys [robot log-fn]} [_ times]]
   (dotimes [i times]
     (log-fn (format "<p>Switch-focus</p>"))
     ;; TODO - platform specific
-    (press robot log-fn ["Shortcut" "Tab"])))
+    (press robot log-fn ["Shortcut" "Tab"]))
+  true)
 
 (defmethod exec-step :default [{:keys [log-fn]} step]
-  (log-fn (format "<p>Unknown %s</p>" step)))
+  (log-fn (format "<p>Unknown %s</p>" step))
+  false)
 
 (defn- store! [dir src-file args]
   (let [src-file (io/as-file src-file)
@@ -176,4 +181,4 @@
       (println (:summary opts))
       (let [s (parse-script (get-in opts [:options :script]))]
         (when (not (run s (get-in opts [:options :output])))
-          #_(System/exit 1))))))
+          (System/exit 1))))))
