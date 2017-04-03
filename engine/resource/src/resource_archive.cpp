@@ -72,7 +72,6 @@ namespace dmResourceArchive
         uint32_t count = 0;
         uint32_t entry_count = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
         uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_length = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashLength);
         uint32_t hash_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashOffset);
         uint32_t bundled_hash_offset = JAVA_TO_C(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
 
@@ -153,7 +152,6 @@ namespace dmResourceArchive
     Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resource_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info)
     {
         LiveUpdateEntries* lu_entries = new LiveUpdateEntries;
-        uint32_t num_lu_entries = 0;
         void* bundled_index_mount_info = 0;
 
         // Mount bundled archive and make deep copy
@@ -181,7 +179,7 @@ namespace dmResourceArchive
             int insert_index = -1;
             const uint8_t* hash = (const uint8_t*)((uintptr_t)lu_entries->m_Hashes + hash_len * i);
             const EntryData* entry = (EntryData*)((uintptr_t)lu_entries->m_Entries + sizeof(EntryData) * i);
-            Result index_result = GetInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, &insert_index);
+            GetInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, &insert_index);
 
             // Insert each liveupdate entry WITHOUT writing any resource data!
             Result insert_result = ShiftAndInsert(bundled_archive_container, reloaded_index, hash, hash_len, insert_index, 0x0, entry);
@@ -585,7 +583,7 @@ namespace dmResourceArchive
             Result write_res = WriteResourceToArchive(archive_container, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
             if (write_res != RESULT_OK)
             {
-                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %u", bytes_written, resource->m_Count);
+                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %lu", bytes_written, resource->m_Count);
                 delete archive;
                 return RESULT_IO_ERROR;
             }
@@ -838,7 +836,6 @@ namespace dmResourceArchive
             void* r = 0x0;
             if (loaded_with_liveupdate)
             {
-                uint32_t bufsize = (compressed_size != 0xFFFFFFFF) ? compressed_size : size;
                 r = (void*) (((uintptr_t)archive->m_LiveUpdateResourceData + entry_data->m_ResourceDataOffset));
             }
             else
