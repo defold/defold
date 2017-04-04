@@ -21,7 +21,8 @@
                     vec)]
     (dotimes [i (count dir-names)]
       (let [dir (->> (subvec dir-names 0 (inc i))
-                  (string/join "/"))]
+                  (string/join "/")
+                  (format "%s/"))]
         (.putNextEntry os (TarEntry. dir))
         (.closeEntry os)))
     (.putNextEntry os (TarEntry. f name))
