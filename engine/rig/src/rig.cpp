@@ -886,19 +886,26 @@ namespace dmRig
         // Make sure output array has zero to begin with
         out_order_to_mesh.SetSize(0);
 
-        // Spine's approach to update draw order is to:
-        // * Initialize with default draw order (integer sequence)
-        // * Add entries with changed draw order
-        // * Fill untouched slots with the unchanged entries
+        // We resolve draw order and offsets in these two steps:
+        //   I. Add entries with changed draw order (has explicit offset)
+        //  II. Add untouched entries (those with no explicit offset)
+        //      If an untouched entry placement is already occupied, find the first next empty slot.
+        //
         // E.g.:
-        // Init: [0, 1, 2]
-        // Changed: 1 => 0, results in [1, 1, 2]
-        // Unchanged: 0 => 0, 2 => 2, results in [1, 0, 2] (indices 1 and 2 were untouched and filled)
-        // An exception is made if there is an explicit entry with offset "0". This means that previous offset
-        // change is "done". In that case the order should be unchanged, but it should be considered as
-        // changed so that it is not shuffled when re-ordering.
+        // Bind draw order: [0, 1, 2]
+        // Keyframe has entry 1 with offset -1, results in:
+        //   (I) Entry 1 is placed first => [1, _, _]
+        //   (II) Entry 0 has no offset. Entry 0 can't be placed at index 0, so look for next empty space,
+        //        which is index 1:
+        //        => [1, 0, _]
+        //        Entry 2 also has no offset, and index 2 is empty so it can be placed directly:
+        //        => [1, 0, 2]
+        //
+        // An exception is made if there is an explicit entry with offset "0". This means that previous order should
+        // be conserved. These entries are marked as SIGNAL_ORDER_LOCKED. In that case the order should be unchanged,
+        // so they will be placed in step (I) as those with explicit offset.
 
-        // No need to reorder instances with only ApplyOneBoneIKConstraint, or none, meshes.
+        // No need to reorder instances with only one, or none, meshes.
         if (mesh_count <= 1) {
             if (mesh_count == 1 && instance->m_MeshProperties[0].m_Visible) {
                 out_order_to_mesh.Push(0);
