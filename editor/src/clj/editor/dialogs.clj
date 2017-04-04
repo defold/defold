@@ -413,12 +413,14 @@
 
     @return))
 
-(defn make-target-ip-dialog []
+(defn make-target-ip-dialog [ip msg]
   (let [root     ^Parent (ui/load-fxml "target-ip-dialog.fxml")
         stage    (ui/make-dialog-stage (ui/main-stage))
         scene    (Scene. root)
-        controls (ui/collect-controls root ["add" "cancel" "ip"])
+        controls (ui/collect-controls root ["add" "cancel" "ip" "msg"])
         return   (atom nil)]
+    (ui/text! (:msg controls) (or msg "Enter Target IP address"))
+    (ui/text! (:ip controls) ip)
     (observe-focus stage)
     (ui/title! stage "Target IP")
 
