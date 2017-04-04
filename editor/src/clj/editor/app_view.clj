@@ -149,39 +149,6 @@
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
 
-(handler/defhandler :target :global
-  (run [user-data prefs]
-    (when user-data
-      (prefs/set-prefs prefs "last-target" user-data)))
-  (state [user-data prefs]
-         (let [last-target (prefs/get-prefs prefs "last-target" nil)]
-           (= user-data last-target)))
-  (options [user-data prefs]
-           (when-not user-data
-             (let [targets     (targets/get-targets)
-                   last-target (when-let [lt (prefs/get-prefs prefs "last-target" nil)]
-                                 [lt])]
-               (mapv (fn [target]
-                       (let [[_ _ ip] (re-matches #"^(http://)([\w\.]+)(:)(.*)$" (:url target))]
-                         {:label     (format "%s (%s)" (:name target) ip)
-                          :command   :target
-                          :check     true
-                          :user-data target}))
-                     (distinct (concat last-target targets)))))))
-
-(handler/defhandler :target-ip :global
-  (run [prefs]
-    (ui/run-later
-     (when-let [ip (dialogs/make-target-ip-dialog)]
-       (let [url (format "http://%s:8001" ip)]
-         (prefs/set-prefs prefs "last-target" {:name "Manual IP"
-                                               :url  url})
-         (ui/invalidate-menus!))))))
-
-(handler/defhandler :target-log :global
-  (run []
-    (ui/run-later (targets/make-target-log-dialog))))
-
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x      (.getX stage)
                  :y      (.getY stage)
@@ -268,9 +235,9 @@
                  (fn []
                    (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
                      (when (and (future? build) @build)
-                       (or (when-let [target (prefs/get-prefs prefs "last-target" targets/local-target)]
+                       (or (when-let [target (targets/selected-target prefs)]
                              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                               (engine/reboot (:url target) local-url)))
+                               (engine/reboot target local-url)))
                            (engine/launch project prefs))))))))
 
 (handler/defhandler :build-html5 :global
