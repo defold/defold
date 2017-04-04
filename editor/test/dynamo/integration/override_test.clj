@@ -24,7 +24,11 @@
   (output sub-nodes [g/NodeID] (g/fnk [sub-nodes] sub-nodes))
   (output cached-output g/Str :cached (g/fnk [a-property] a-property))
   (input cached-values g/Str :array)
-  (output cached-values [g/Str] :cached (g/fnk [cached-values] cached-values)))
+  (output cached-values [g/Str] :cached (g/fnk [cached-values] cached-values))
+  (output _properties g/Properties (g/fnk [_declared-properties]
+                                     (-> _declared-properties
+                                         (update :properties assoc :c-property (-> _declared-properties :properties :a-property))
+                                         (update :display-order conj :c-property)))))
 
 (g/defnode SubNode
   (property value g/Str))
@@ -247,6 +251,51 @@
       (testing "top level override"
                (g/transact (g/set-property or2-main :a-property "main3"))
                (is (= "main3" (g/node-value or2-main :a-property)))))))
+
+(defn- prop-map-value
+  [node prop-kw]
+  (-> node (g/node-value :_properties) :properties prop-kw :value))
+
+(deftest multi-override-with-dynamic-properties
+  (with-clean-system
+    (let [[[main sub]
+           [or1-main or1-sub]
+           [or2-main or2-sub]
+           [or3-main or3-sub]] (setup world 3)]
+      (testing "property value is propagated through all override nodes"
+        (is (= "main" (prop-map-value main :c-property)))
+        (is (= "main" (prop-map-value or1-main :c-property)))
+        (is (= "main" (prop-map-value or2-main :c-property)))
+        (is (= "main" (prop-map-value or3-main :c-property)))
+
+        (g/set-property! or1-main :a-property "a")
+        (is (= "main" (prop-map-value main :a-property)))
+        (is (= "a" (prop-map-value or1-main :a-property)))
+        (is (= "a" (prop-map-value or2-main :a-property)))
+        (is (= "a" (prop-map-value or3-main :a-property)))
+
+        (g/set-property! or1-main :c-property "b")
+        (is (= "main" (prop-map-value main :c-property)))
+        (is (= "b" (prop-map-value or1-main :c-property)))
+        (is (= "b" (prop-map-value or2-main :c-property)))
+        (is (= "b" (prop-map-value or3-main :c-property)))))))
+
+(g/defnode ScriptNode
+  (property number g/Any))
+
+(g/defnode ReferencedComponent
+  (input source-id g/Any :cascade-delete))
+
+(g/defnode GameObjectNode
+  (input referenced-component-id g/Any :cascade-delete))
+
+
+(g/defnode ANode
+  (property number g/Any)
+  (output _properties g/Properties (g/fnk [_declared-properties]
+                                     (-> _declared-properties
+                                         (update :properties assoc :__number (-> _declared-properties :properties :number))
+                                         (update :display-order conj :__number)))))
 
 (deftest mark-defective
   (with-clean-system
