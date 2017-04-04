@@ -39,7 +39,7 @@ public class PreferencePage
         anonymousLogging = new BooleanFieldEditor(PreferenceConstants.P_ANONYMOUS_LOGGING, "Enable anonymous logging", getFieldEditorParent());
         addField(anonymousLogging);
 
-        askBundlingOverwrite = new BooleanFieldEditor(PreferenceConstants.P_CHECK_BUNDLUNG_OVERWRITE, "Check if output directory exist when bundling", getFieldEditorParent());
+        askBundlingOverwrite = new BooleanFieldEditor(PreferenceConstants.P_CHECK_BUNDLUNG_OVERWRITE, "Check if output directory exists when bundling", getFieldEditorParent());
         addField(askBundlingOverwrite);
 
         enableTextureProfiles = new BooleanFieldEditor(PreferenceConstants.P_TEXTURE_PROFILES, "Enable texture profiles", getFieldEditorParent());
