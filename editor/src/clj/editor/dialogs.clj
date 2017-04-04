@@ -644,7 +644,7 @@
     (ui/user-data! stage ::file-conflict-resolution-strategy :overwrite)
     (ui/close! stage)))
 
-(defn make-resolve-file-conflicts-dialog
+(defn ^:dynamic make-resolve-file-conflicts-dialog
   [src-dest-pairs]
   (let [^Parent root (ui/load-fxml "resolve-file-conflicts.fxml")
         scene (Scene. root)

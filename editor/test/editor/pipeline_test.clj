@@ -8,12 +8,11 @@
    [editor.resource :as resource]
    [editor.workspace :as workspace])
   (:import
-   (editor.resource FileResource)
    (com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode)))
 
 (defn make-file-resource
   [path]
-  (FileResource. nil "tmp" (io/file path) nil))
+  (resource/make-file-resource nil "tmp" (io/file path) nil))
 
 (defn noop-build-fn
   [resource]
