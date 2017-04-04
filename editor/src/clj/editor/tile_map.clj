@@ -160,15 +160,18 @@
   [tile-count uv-transforms]
   (let [uv-cache (object-array tile-count)]
     (fn [tile]
-      (or (aget uv-cache tile)
-          (let [[[u0 v0] [u1 v1]] (geom/uv-trans (nth uv-transforms tile) [[0 0] [1 1]])
-                uv-coords (float-array 4 [u0 v0 u1 v1])]
-            (aset uv-cache tile uv-coords)
-            uv-coords)))))
+      (if (< tile tile-count)
+        (or (aget uv-cache tile)
+            (let [[[u0 v0] [u1 v1]] (geom/uv-trans (nth uv-transforms tile) [[0 0] [1 1]])
+                  uv-coords (float-array 4 [u0 v0 u1 v1])]
+              (aset uv-cache tile uv-coords)
+              uv-coords))
+        (float-array [0 1 1 0])))))
 
 (defn gen-layer-render-data
   [cell-map texture-set-data]
-  (let [{:keys [^long tile-width ^long tile-height ^long tile-count]} (:texture-set texture-set-data)
+  (let [{:keys [^long tile-width ^long tile-height ^long tile-count]
+         :or {tile-width 0, tile-height 0, tile-count 0}} (:texture-set texture-set-data)
         uv-lookup (make-tile-uv-lookup-cache tile-count (:uv-transforms texture-set-data))]
     (loop [^java.util.Iterator it (.iterator (.values ^java.util.Map cell-map))
            vbuf (->pos-uv-vtx (* 6 (count cell-map)))
@@ -224,13 +227,13 @@
   {:id id
    :z z
    :is-visible (if visible 1 0)
-   :cell (map (fn [{:keys [x y tile v-flip h-flip]}]
-                {:x x
-                 :y y
-                 :tile tile
-                 :v-flip (if v-flip 1 0)
-                 :h-flip (if h-flip 1 0)})
-              (vals cell-map))})
+   :cell (mapv (fn [{:keys [x y tile v-flip h-flip]}]
+                 {:x x
+                  :y y
+                  :tile tile
+                  :v-flip (if v-flip 1 0)
+                  :h-flip (if h-flip 1 0)})
+               (vals cell-map))})
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -350,6 +353,13 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
+(defn- prop-tile-source-range-error
+  [_node-id tile-source tile-count max-tile-index]
+  (validation/prop-error :fatal _node-id :tile-source
+                         (fn [v name]
+                           (when-not (< max-tile-index tile-count)
+                             (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used in tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
+
 (g/defnode TileMapNode
   (inherits project/ResourceNode)
 
@@ -374,8 +384,9 @@
                                             [:tile-source-attributes :tile-source-attributes]
                                             [:texture-set-data :texture-set-data]
                                             [:gpu-texture :gpu-texture])))
-            (dynamic error (g/fnk [_node-id tile-source]
-                                  (prop-resource-error :info _node-id :tile-source tile-source "Tile Source")))
+            (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
+                             (or (prop-resource-error :warning _node-id :tile-source tile-source "Tile Source")
+                                 (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
 
   ;; material
@@ -393,8 +404,14 @@
   (property blend-mode g/Any
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$TileGrid$BlendMode))))
 
+  (output max-tile-index g/Any :cached (g/fnk [pb-msg]
+                                         (transduce (comp (mapcat :cell)
+                                                          (map :tile))
+                                                    max 0 (:layers pb-msg))))
 
   (output tile-source-attributes g/Any (gu/passthrough tile-source-attributes))
+  (output tile-count g/Int (g/fnk [tile-source-attributes]
+                             (* (:tiles-per-row tile-source-attributes 0) (:tiles-per-column tile-source-attributes 0))))
   (output tile-dimensions g/Any
           (g/fnk [tile-source-attributes]
             (when tile-source-attributes
@@ -480,7 +497,7 @@
   [vbuf {:keys [tile h-flip v-flip]} uvs w h x y]
   (if-not tile
     vbuf
-    (let [uv (nth uvs tile)
+    (let [uv (nth uvs tile (geom/identity-uv-trans))
           [p1 p2] (geom/uv-trans uv [[0 0] [1 1]])
           u0 (first (if h-flip p2 p1))
           v0 (second (if v-flip p2 p1))
@@ -788,18 +805,18 @@
 (defmethod begin-op :paint
   [op self action state basis]
   (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (let [current-tile (g/node-value self :current-tile {:basis basis})
-          brush (g/node-value self :brush {:basis basis})
-          op-seq (gensym)]
-      (swap! state assoc :last-tile current-tile)
-      [(g/set-property self :op-seq op-seq)
-       (g/operation-sequence op-seq)
-       (g/update-property active-layer :cell-map paint current-tile brush)])))
+    (when-let [current-tile (g/node-value self :current-tile {:basis basis})]
+      (let [brush (g/node-value self :brush {:basis basis})
+            op-seq (gensym)]
+        (swap! state assoc :last-tile current-tile)
+        [(g/set-property self :op-seq op-seq)
+         (g/operation-sequence op-seq)
+         (g/update-property active-layer :cell-map paint current-tile brush)]))))
 
 (defmethod update-op :paint
   [op self action state basis]
   (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (let [current-tile (g/node-value self :current-tile {:basis basis})]
+    (when-let [current-tile (g/node-value self :current-tile {:basis basis})]
       (when (not= current-tile (-> state deref :last-tile))
         (swap! state assoc :last-tile current-tile)
         (let [brush (g/node-value self :brush {:basis basis})
@@ -809,7 +826,7 @@
 
 (defmethod end-op :paint
   [op self action state basis]
-  (swap! state dissoc :last-tile)  
+  (swap! state dissoc :last-tile)
   [(g/set-property self :op-seq nil)])
 
 
@@ -818,14 +835,14 @@
 (defmethod begin-op :select
   [op self action state basis]
   (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (let [current-tile (g/node-value self :current-tile {:basis basis})]
+    (when-let [current-tile (g/node-value self :current-tile {:basis basis})]
       [(g/set-property self :op-select-start current-tile)
        (g/set-property self :op-select-end current-tile)])))
 
 (defmethod update-op :select
   [op self action state basis]
   (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (let [current-tile (g/node-value self :current-tile {:basis basis})]
+    (when-let [current-tile (g/node-value self :current-tile {:basis basis})]
       [(g/set-property self :op-select-end current-tile)])))
 
 (defmethod end-op :select
@@ -846,10 +863,12 @@
              :mouse-pressed  (when-not (some? op)
                                (let [op (if (true? (:shift action))
                                           :select
-                                          :paint)]
-                                 (concat
-                                   (g/set-property self :op op)
-                                   (begin-op op self action state basis))))
+                                          :paint)
+                                     op-tx (begin-op op self action state basis)]
+                                 (when (seq op-tx)
+                                   (concat
+                                     (g/set-property self :op op)
+                                     op-tx))))
 
              :mouse-moved    (concat
                               (g/set-property self :cursor-world-pos (:world-pos action))
@@ -999,12 +1018,12 @@
 (defn- erase-tool-handler [tool-controller]
   (g/set-property! tool-controller :brush erase-brush))
 
-(defn- active-tile-map? [app-view]
+(defn- active-tile-map [app-view]
   (when-let [resource-node (g/node-value app-view :active-resource-node)]
     (when (g/node-instance? TileMapNode resource-node)
       resource-node)))
 
-(defn- active-scene-view? [app-view]
+(defn- active-scene-view [app-view]
   (when-let [view-node (g/node-value app-view :active-view)]
     (when (g/node-instance? scene/SceneView view-node)
       view-node)))
@@ -1016,22 +1035,25 @@
 
 (handler/defhandler :erase-tool :workbench
   (label [user-data] "Select Eraser")
-  (active? [app-view] (and (active-tile-map? app-view)
-                        (active-scene-view? app-view)))
-  (enabled? [selection] (selection->layer selection))
-  (run [app-view] (erase-tool-handler (-> (active-scene-view? app-view) scene-view->tool-controller))))
+  (active? [app-view] (and (active-tile-map app-view)
+                        (active-scene-view app-view)))
+  (enabled? [app-view selection]
+    (and (selection->layer selection)
+         (-> (active-tile-map app-view)
+             (g/node-value :tile-source-resource))))
+  (run [app-view] (erase-tool-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
 (handler/defhandler :tile-map-palette :workbench
-  (active? [app-view] (and (active-tile-map? app-view)
-                        (active-scene-view? app-view)))
+  (active? [app-view] (and (active-tile-map app-view)
+                        (active-scene-view app-view)))
   (enabled? [app-view selection]
     (and (selection->layer selection)
-      (-> (active-tile-map? app-view)
-        (g/node-value :tile-source-resource))))
-  (run [app-view] (tile-map-palette-handler (-> (active-scene-view? app-view) scene-view->tool-controller))))
+         (-> (active-tile-map app-view)
+             (g/node-value :tile-source-resource))))
+  (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (ui/extend-menu ::menubar :editor.scene/scene-end
                 [{:label    "Tile Map"
