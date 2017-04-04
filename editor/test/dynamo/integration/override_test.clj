@@ -280,23 +280,6 @@
         (is (= "b" (prop-map-value or2-main :c-property)))
         (is (= "b" (prop-map-value or3-main :c-property)))))))
 
-(g/defnode ScriptNode
-  (property number g/Any))
-
-(g/defnode ReferencedComponent
-  (input source-id g/Any :cascade-delete))
-
-(g/defnode GameObjectNode
-  (input referenced-component-id g/Any :cascade-delete))
-
-
-(g/defnode ANode
-  (property number g/Any)
-  (output _properties g/Properties (g/fnk [_declared-properties]
-                                     (-> _declared-properties
-                                         (update :properties assoc :__number (-> _declared-properties :properties :number))
-                                         (update :display-order conj :__number)))))
-
 (deftest mark-defective
   (with-clean-system
     (let [[[main sub]
