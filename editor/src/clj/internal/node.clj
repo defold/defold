@@ -1633,9 +1633,7 @@
               props         (reduce-kv (fn [p k v]
                                          (if (and (not (contains? static-props k))
                                                   (= original-id (:node-id v)))
-                                           (cond-> p
-                                             (contains? v :original-value)
-                                             (assoc-in [:properties k :value] (:value v)))
+                                           (assoc-in p [:properties k :value] (:value v))
                                            p))
                                        props orig-props)]
           (reduce (fn [props [k v]]
