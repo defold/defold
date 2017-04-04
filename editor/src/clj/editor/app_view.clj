@@ -762,11 +762,11 @@
 
 (handler/defhandler :bundle :global
   (enabled? [] (not (project/ongoing-build-save?)))
-  (run [user-data project prefs app-view changes-view build-errors-view]
+  (run [user-data workspace project prefs app-view changes-view build-errors-view]
        (let [owner-window (g/node-value app-view :stage)
              platform (:platform user-data)
              bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
-         (bundle-dialog/show-bundle-dialog! platform prefs owner-window bundle!))))
+         (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (defn- fetch-libraries [workspace project prefs]
   (let [library-url-string (project/project-dependencies project)

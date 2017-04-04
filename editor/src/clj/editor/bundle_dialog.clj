@@ -6,7 +6,8 @@
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
   (:import [java.io File]
            [java.util Collection List]
            [javafx.scene Scene]
@@ -17,6 +18,8 @@
            [javafx.util StringConverter]))
 
 (set! *warn-on-reflection* true)
+
+(defonce ^:private os-32-bit? (= (system/os-arch) "x86"))
 
 (defn- query-file!
   ^File [title filter-descs ^File initial-file ^Window owner-window]
@@ -146,6 +149,8 @@
 
 (defprotocol BundleOptionsPresenter
   (make-views [this owner-window])
+  (load-prefs! [this prefs])
+  (save-prefs! [this prefs])
   (get-options [this])
   (set-options! [this options]))
 
@@ -212,59 +217,64 @@
                    (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
                    (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))])))
 
-(defn- read-generic-options [prefs]
-  {:release-mode? (prefs/get-prefs prefs "bundle-release-mode?" true)
-   :generate-build-report? (prefs/get-prefs prefs "bundle-generate-build-report?" false)
-   :publish-live-update-content? (prefs/get-prefs prefs "bundle-publish-live-update-content?" false)})
+(defn- load-generic-prefs! [prefs view]
+  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
+    (ui/value! release-mode-check-box (prefs/get-prefs prefs "bundle-release-mode?" true))
+    (ui/value! generate-build-report-check-box (prefs/get-prefs prefs "bundle-generate-build-report?" false))
+    (ui/value! publish-live-update-content-check-box (prefs/get-prefs prefs "bundle-publish-live-update-content?" false))))
 
-(defn- write-generic-options! [prefs options]
-  (when (contains? options :release-mode?)
-    (prefs/set-prefs prefs "bundle-release-mode?" (:release-mode? options)))
-  (when (contains? options :generate-build-report?)
-    (prefs/set-prefs prefs "bundle-generate-build-report?" (:generate-build-report? options)))
-  (when (contains? options :publish-live-update-content?)
-    (prefs/set-prefs prefs "bundle-publish-live-update-content?" (:publish-live-update-content? options))))
+(defn- save-generic-prefs! [prefs view]
+  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
+    (prefs/set-prefs prefs "bundle-release-mode?" (ui/value release-mode-check-box))
+    (prefs/set-prefs prefs "bundle-generate-build-report?" (ui/value generate-build-report-check-box))
+    (prefs/set-prefs prefs "bundle-publish-live-update-content?" (ui/value publish-live-update-content-check-box))))
 
 (defn- get-generic-options [view]
-  (ui/with-controls view [^CheckBox release-mode-check-box
-                          ^CheckBox generate-build-report-check-box
-                          ^CheckBox publish-live-update-content-check-box]
-    {:release-mode? (.isSelected release-mode-check-box)
-     :generate-build-report? (.isSelected generate-build-report-check-box)
-     :publish-live-update-content? (.isSelected publish-live-update-content-check-box)}))
+  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
+    {:release-mode? (ui/value release-mode-check-box)
+     :generate-build-report? (ui/value generate-build-report-check-box)
+     :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
+                                        (ui/editable publish-live-update-content-check-box))}))
 
-(defn- set-generic-options! [view options]
-  (ui/with-controls view [^CheckBox release-mode-check-box
-                          ^CheckBox generate-build-report-check-box
-                          ^CheckBox publish-live-update-content-check-box]
-    (.setSelected release-mode-check-box (:release-mode? options))
-    (.setSelected generate-build-report-check-box (:generate-build-report? options))
-    (.setSelected publish-live-update-content-check-box (:publish-live-update-content? options))))
+(defn- has-live-update-settings? [workspace]
+  (some? (workspace/find-resource workspace "/liveupdate.settings")))
 
-(deftype GenericBundleOptionsPresenter [view title platform]
+(defn- set-generic-options! [view options workspace]
+  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
+    (ui/value! release-mode-check-box (:release-mode? options))
+    (ui/value! generate-build-report-check-box (:generate-build-report? options))
+    (doto publish-live-update-content-check-box
+      (ui/value! (:publish-live-update-content? options))
+      (ui/editable! (has-live-update-settings? workspace)))))
+
+(deftype GenericBundleOptionsPresenter [workspace view title platform]
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (assert (string? (not-empty platform)))
     (let [refresh! (make-presenter-refresher this)]
       [(make-generic-headers title)
        (make-generic-controls refresh!)]))
+  (load-prefs! [_this prefs]
+    (load-generic-prefs! prefs view))
+  (save-prefs! [_this prefs]
+    (save-generic-prefs! prefs view))
   (get-options [_this]
     (merge {:platform platform}
            (get-generic-options view)))
   (set-options! [_this options]
-    (set-generic-options! view options)))
+    (set-generic-options! view options workspace)))
 
 ;; -----------------------------------------------------------------------------
 ;; Selectable platform
 ;; -----------------------------------------------------------------------------
 
-(defn- make-platform-controls [refresh! platform-choices]
+(defn- make-platform-controls [refresh! bob-platform-choices]
   (assert (fn? refresh!))
-  (assert (sequential? (not-empty platform-choices)))
-  (assert (every? (fn [[k v]] (and (string? (not-empty k)) (string? (not-empty v)))) platform-choices))
-  (let [platform-values-by-label (into {} platform-choices)
+  (assert (sequential? (not-empty bob-platform-choices)))
+  (assert (every? (fn [[k v]] (and (string? (not-empty k)) (string? (not-empty v)))) bob-platform-choices))
+  (let [platform-values-by-label (into {} bob-platform-choices)
         platform-labels-by-value (set/map-invert platform-values-by-label)
-        platform-choice-box (doto (ChoiceBox. (ui/observable-list (map second platform-choices)))
+        platform-choice-box (doto (ChoiceBox. (ui/observable-list (map second bob-platform-choices)))
                                   (.setId "platform-choice-box")
                                   (ui/on-action! refresh!)
                                   (.setConverter (proxy [StringConverter] []
@@ -279,51 +289,49 @@
 
 (declare bundle-options-presenter)
 
-(defn- get-bundle-platform-keys [platform]
+(defn- get-bundle-platform-prefs-key [platform]
   (assert (keyword? platform))
   (assert (not= :default platform))
   (assert (some? (get-method bundle-options-presenter platform)))
-  (let [platform-name (name platform)
-        prefs-key (str "bundle-" platform-name "-platform")
-        options-key (keyword (str platform-name "-platform"))]
-    [prefs-key options-key]))
+  (str "bundle-" (name platform) "-platform"))
 
-(defn- read-platform-options [prefs platform default]
-  (let [[prefs-key options-key] (get-bundle-platform-keys platform)
-        value (prefs/get-prefs prefs prefs-key default)]
-    (hash-map options-key value)))
-
-(defn- write-platform-options! [prefs options platform]
-  (let [[prefs-key options-key] (get-bundle-platform-keys platform)]
-    (when (contains? options options-key)
-      (prefs/set-prefs prefs prefs-key (get options options-key)))))
-
-(defn- get-platform-options [view platform]
+(defn- load-platform-prefs! [prefs view platform default]
   (ui/with-controls view [platform-choice-box]
-    (let [[_prefs-key options-key] (get-bundle-platform-keys platform)
-          value (ui/value platform-choice-box)]
-      (hash-map :platform value
-                options-key value))))
+    (let [prefs-key (get-bundle-platform-prefs-key platform)]
+      (ui/value! platform-choice-box (prefs/get-prefs prefs prefs-key default)))))
 
-(defn- set-platform-options! [view options platform]
+(defn- save-platform-prefs! [prefs view platform]
   (ui/with-controls view [platform-choice-box]
-    (let [[_prefs-key options-key] (get-bundle-platform-keys platform)
-          value (get options options-key)]
-      (ui/value! platform-choice-box value))))
+    (let [prefs-key (get-bundle-platform-prefs-key platform)]
+      (prefs/set-prefs prefs prefs-key (ui/value platform-choice-box)))))
 
-(deftype SelectablePlatformBundleOptionsPresenter [view title platform platform-choices]
+(defn- get-platform-options [view]
+  (ui/with-controls view [platform-choice-box]
+    {:platform (ui/value platform-choice-box)}))
+
+(defn- set-platform-options! [view options]
+  (ui/with-controls view [platform-choice-box]
+    (ui/value! platform-choice-box (:platform options))))
+
+(deftype SelectablePlatformBundleOptionsPresenter [workspace view title platform bob-platform-choices bob-platform-default]
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (let [refresh! (make-presenter-refresher this)]
       [(make-generic-headers title)
-       (make-platform-controls refresh! platform-choices)
+       (make-platform-controls refresh! bob-platform-choices)
        (make-generic-controls refresh!)]))
+  (load-prefs! [_this prefs]
+    (load-generic-prefs! prefs view)
+    (load-platform-prefs! prefs view platform bob-platform-default))
+  (save-prefs! [_this prefs]
+    (save-generic-prefs! prefs view)
+    (save-platform-prefs! prefs view platform))
   (get-options [_this]
     (merge (get-generic-options view)
-           (get-platform-options view platform)))
+           (get-platform-options view)))
   (set-options! [_this options]
-    (set-generic-options! view options)
-    (set-platform-options! view options platform)))
+    (set-generic-options! view options workspace)
+    (set-platform-options! view options)))
 
 ;; -----------------------------------------------------------------------------
 ;; Android
@@ -340,15 +348,15 @@
       (ui/children! [(labeled! "Certificate" certificate-file-field)
                      (labeled! "Private key" private-key-file-field)]))))
 
-(defn- read-android-options [prefs]
-  {:certificate (get-file-pref prefs "bundle-android-certificate")
-   :private-key (get-file-pref prefs "bundle-android-private-key")})
+(defn- load-android-prefs! [prefs view]
+  (ui/with-controls view [certificate-text-field private-key-text-field]
+    (ui/value! certificate-text-field (get-string-pref prefs "bundle-android-certificate"))
+    (ui/value! private-key-text-field (get-string-pref prefs "bundle-android-private-key"))))
 
-(defn- write-android-options! [prefs options]
-  (when (contains? options :certificate)
-    (set-file-pref! prefs "bundle-android-certificate" (:certificate options)))
-  (when (contains? options :private-key)
-    (set-file-pref! prefs "bundle-android-private-key" (:private-key options))))
+(defn- save-android-prefs! [prefs view]
+  (ui/with-controls view [certificate-text-field private-key-text-field]
+    (set-string-pref! prefs "bundle-android-certificate" (ui/value certificate-text-field))
+    (set-string-pref! prefs "bundle-android-private-key" (ui/value private-key-text-field))))
 
 (defn- get-android-options [view]
   (ui/with-controls view [certificate-text-field private-key-text-field]
@@ -390,20 +398,26 @@
                   (and (some? certificate) (nil? private-key))
                   [:fatal "Private key must be set if certificate is specified."])})
 
-(deftype AndroidBundleOptionsPresenter [view]
+(deftype AndroidBundleOptionsPresenter [workspace view]
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
       [(make-generic-headers "Bundle Android Application")
        (make-android-controls refresh! owner-window)
        (make-generic-controls refresh!)]))
+  (load-prefs! [_this prefs]
+    (load-generic-prefs! prefs view)
+    (load-android-prefs! prefs view))
+  (save-prefs! [_this prefs]
+    (save-generic-prefs! prefs view)
+    (save-android-prefs! prefs view))
   (get-options [_this]
     (merge {:platform "armv7-android"}
            (get-generic-options view)
            (get-android-options view)))
   (set-options! [_this options]
     (let [issues (get-android-issues options)]
-      (set-generic-options! view options)
+      (set-generic-options! view options workspace)
       (set-android-options! view options issues)
       (set-generic-headers! view issues [:certificate :private-key]))))
 
@@ -435,22 +449,21 @@
                      (labeled! "Provisioning profile" provisioning-profile-file-field)]))))
 
 
-(defn- read-ios-options [prefs]
+(defn- load-ios-prefs! [prefs view code-signing-identity-names]
   ;; This falls back on settings from the Sign iOS Application dialog if available,
   ;; but we will write to our own keys in the preference for these.
-  (let [code-signing-identity-names (get-code-signing-identity-names)]
-    {:code-signing-identity (or (some (set code-signing-identity-names)
-                                  (or (get-string-pref prefs "bundle-ios-code-signing-identity")
-                                      (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
-                                (first code-signing-identity-names))
-     :provisioning-profile (or (get-file-pref prefs "bundle-ios-provisioning-profile")
-                               (get-file-pref prefs "last-provisioning-profile"))}))
+  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
+    (ui/value! code-signing-identity-choice-box (or (some (set code-signing-identity-names)
+                                                          (or (get-string-pref prefs "bundle-ios-code-signing-identity")
+                                                              (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
+                                                    (first code-signing-identity-names)))
+    (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
+                                                   (get-string-pref prefs "last-provisioning-profile")))))
 
-(defn- write-ios-options! [prefs options]
-  (when (contains? options :code-signing-identity)
-    (set-string-pref! prefs "bundle-ios-code-signing-identity" (:code-signing-identity options)))
-  (when (contains? options :provisioning-profile)
-    (set-file-pref! prefs "bundle-ios-provisioning-profile" (:provisioning-profile options))))
+(defn- save-ios-prefs! [prefs view]
+  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
+    (set-string-pref! prefs "bundle-ios-code-signing-identity" (ui/value code-signing-identity-choice-box))
+    (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))))
 
 (defn- get-ios-options [view]
   (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
@@ -484,13 +497,19 @@
                            (not (existing-file-of-type? "mobileprovision" provisioning-profile))
                            [:fatal "Invalid provisioning profile."])})
 
-(deftype IOSBundleOptionsPresenter [view]
+(deftype IOSBundleOptionsPresenter [workspace view]
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
       [(make-generic-headers "Bundle iOS Application")
        (make-ios-controls refresh! owner-window)
        (make-generic-controls refresh!)]))
+  (load-prefs! [_this prefs]
+    (load-generic-prefs! prefs view)
+    (load-ios-prefs! prefs view (get-code-signing-identity-names)))
+  (save-prefs! [_this prefs]
+    (save-generic-prefs! prefs view)
+    (save-ios-prefs! prefs view))
   (get-options [_this]
     (merge {:platform "armv7-darwin"}
            (get-generic-options view)
@@ -498,36 +517,20 @@
   (set-options! [_this options]
     (let [code-signing-identity-names (get-code-signing-identity-names)
           issues (get-ios-issues options code-signing-identity-names)]
-      (set-generic-options! view options)
+      (set-generic-options! view options workspace)
       (set-ios-options! view options issues code-signing-identity-names)
       (set-generic-headers! view issues [:code-signing-identity :provisioning-profile]))))
 
 ;; -----------------------------------------------------------------------------
 
-(defmulti bundle-options-presenter (fn [_view platform] platform))
-(defmethod bundle-options-presenter :default [_view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
-(defmethod bundle-options-presenter :android [view _platform] (AndroidBundleOptionsPresenter. view))
-(defmethod bundle-options-presenter :html5   [view _platform] (GenericBundleOptionsPresenter. view "Bundle HTML5 Application" "js-web"))
-(defmethod bundle-options-presenter :ios     [view _platform] (IOSBundleOptionsPresenter. view))
-(defmethod bundle-options-presenter :linux   [view _platform] (SelectablePlatformBundleOptionsPresenter. view "Bundle Linux Application" :linux [["32-bit" "x86-linux"]
-                                                                                                                                                 ["64-bit" "x86_64-linux"]]))
-(defmethod bundle-options-presenter :macos   [view _platform] (GenericBundleOptionsPresenter. view "Bundle macOS Application" "x86-darwin")) ; TODO: The minimum OS X version we run on is 10.7 Lion, which does not support 32-bit processors. Shouldn't this be "x86_64-darwin"?
-(defmethod bundle-options-presenter :windows [view _platform] (SelectablePlatformBundleOptionsPresenter. view "Bundle Windows Application" :windows [["32-bit" "x86-win32"]
-                                                                                                                                                     ["64-bit" "x86_64-win32"]]))
-
-(defn- read-build-options [prefs]
-  (merge (read-generic-options prefs)
-         (read-android-options prefs)
-         (read-ios-options prefs)
-         (read-platform-options prefs :linux (if (= (system/os-arch) "x86") "x86-linux" "x86_64-linux"))
-         (read-platform-options prefs :windows (if (= (system/os-arch) "x86") "x86-win32" "x86_64-win32"))))
-
-(defn- write-build-options! [prefs build-options]
-  (write-generic-options! prefs build-options)
-  (write-android-options! prefs build-options)
-  (write-ios-options! prefs build-options)
-  (write-platform-options! prefs build-options :linux)
-  (write-platform-options! prefs build-options :windows))
+(defmulti bundle-options-presenter (fn [_workspace _view platform] platform))
+(defmethod bundle-options-presenter :default [_workspace _view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
+(defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view))
+(defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web"))
+(defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view))
+(defmethod bundle-options-presenter :linux   [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Linux Application" :linux [["32-bit" "x86-linux"] ["64-bit" "x86_64-linux"]] (if os-32-bit? "x86-linux" "x86_64-linux")))
+(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86-darwin")) ; TODO: The minimum OS X version we run on is 10.7 Lion, which does not support 32-bit processors. Shouldn't this be "x86_64-darwin"?
+(defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32")))
 
 (defn- watch-focus-state! [presenter]
   (assert (satisfies? BundleOptionsPresenter presenter))
@@ -544,10 +547,10 @@
 
 (handler/defhandler ::query-output-directory :bundle-dialog
   (run [bundle! prefs presenter stage]
+    (save-prefs! presenter prefs)
     (let [build-options (get-options presenter)
           initial-directory (get-file-pref prefs "bundle-output-directory")]
       (assert (string? (not-empty (:platform build-options))))
-      (write-build-options! prefs build-options)
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
         (set-file-pref! prefs "bundle-output-directory" output-directory)
         (let [platform-bundle-output-directory (io/file output-directory (:platform build-options))
@@ -560,16 +563,15 @@
               (ui/close! stage)
               (bundle! build-options))))))))
 
-(defn show-bundle-dialog! [platform prefs owner-window bundle!]
-  (let [build-options (read-build-options prefs)
-        stage (doto (ui/make-dialog-stage owner-window)
+(defn show-bundle-dialog! [workspace platform prefs owner-window bundle!]
+  (let [stage (doto (ui/make-dialog-stage owner-window)
                 (ui/title! "Bundle Application")
                 (dialogs/observe-focus))
         root (doto (VBox.)
                (ui/add-style! "bundle-dialog")
                (ui/add-style! (name platform))
                (ui/apply-css!))
-        presenter (bundle-options-presenter root platform)]
+        presenter (bundle-options-presenter workspace root platform)]
 
     ;; Dialog context.
     (ui/context! root :bundle-dialog {:bundle! bundle!
@@ -591,10 +593,10 @@
       (ui/add-child! root buttons)
       (ui/bind-action! ok-button ::query-output-directory))
 
-    ;; Refresh from build options.
-    (set-options! presenter build-options)
-
-    ;; Refresh whenever our application becomes active.
+    ;; Load preferences and refresh the view.
+    ;; We also refresh whenever our application becomes active.
+    (load-prefs! presenter prefs)
+    (refresh-presenter! presenter)
     (watch-focus-state! presenter)
     (ui/on-closed! stage unwatch-focus-state!)
 
