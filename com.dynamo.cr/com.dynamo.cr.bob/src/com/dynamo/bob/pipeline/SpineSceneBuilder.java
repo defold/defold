@@ -199,7 +199,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         int meshIndex = 0;
         for (RigUtil.Mesh mesh : meshes) {
             Mesh.Builder meshBuilder = Mesh.newBuilder();
-            toDDF(mesh, meshBuilder, boneIndexRemap, meshIndex);
+            toDDF(mesh, meshBuilder, boneIndexRemap, mesh.slot.index);
             meshEntryBuilder.addMeshes(meshBuilder);
             List<MeshIndex> indexList = getIndexList(slotIndices, mesh.slot.name);
             indexList.add(new MeshIndex(meshIndex, mesh.attachment));
