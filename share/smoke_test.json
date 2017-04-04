@@ -1,0 +1,16 @@
+{
+	"logs": {
+		"editor-log": {
+			"pattern": "editor2.*.log",
+			"dir" : "."
+		},
+		"engine-log": {
+			"pattern": "log.txt",
+			"dir" : "."
+		}
+	},
+	"steps": [
+		["await-log" "editor-log" 15000 "Started REPL"],
+		["screen-capture" "test"],
+	],
+}

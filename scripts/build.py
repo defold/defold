@@ -1405,6 +1405,20 @@ instructions.configure=\
         for f in futures:
             f()
 
+    def smoke_test(self):
+        cwd = 'editor'
+        robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
+        robot_proc = subprocess.Popen(['java', '-jar', robot_jar, '-s', '../share/smoke_test.json'], cwd = cwd, stdout = subprocess.PIPE, shell = False)
+        ed_proc = subprocess.Popen(['java', '-jar', 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'], cwd = cwd, shell = False)
+
+        output = robot_proc.communicate()[0]
+        if ed_proc.poll() == None:
+            ed_proc.kill()
+        if robot_proc.returncode != 0:
+            self._log(output)
+            sys.exit(robot_proc.returncode)
+        return True
+
     def _get_s3_bucket(self, bucket_name):
         if bucket_name in self.s3buckets:
             return self.s3buckets[bucket_name]
@@ -1614,6 +1628,7 @@ build_builtins  - Build builtin content archive
 bump            - Bump version number
 release         - Release editor
 shell           - Start development shell
+smoke_test      - Test editor and engine in combination
 
 Multiple commands can be specified
 

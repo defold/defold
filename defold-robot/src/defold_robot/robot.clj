@@ -141,11 +141,10 @@
   (log-fn (format "<p>Unknown %s</p>" step))
   false)
 
-(defn- store! [dir src-file args]
-  (let [src-file (io/as-file src-file)
-        src-content (slurp src-file)
+(defn- store! [dir resource args]
+  (let [src-content (slurp (io/resource resource))
         out-content (reduce (fn [out [key value]] (string/replace out (format "$%s" key) value)) src-content args)]
-    (spit (File. dir (.getName src-file)) out-content)))
+    (spit (File. dir resource) out-content)))
 
 (defn- run [script output]
   (let [out-dir (doto (io/as-file output)
@@ -167,8 +166,8 @@
                    (if (exec-step ctx s)
                      (recur (rest steps))
                      false)))]
-    (store! out-dir "resources/index.html" {"log" (.toString (.getBuffer log-writer))})
-    (store! out-dir "resources/robot.css" {})
+    (store! out-dir "index.html" {"log" (.toString (.getBuffer log-writer))})
+    (store! out-dir "robot.css" {})
     result))
 
 (defn- parse-script [script]
