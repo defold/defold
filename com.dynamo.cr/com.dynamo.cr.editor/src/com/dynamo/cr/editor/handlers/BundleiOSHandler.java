@@ -8,7 +8,6 @@ import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
-import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.target.bundle.BundleiOSDialog;
 import com.dynamo.cr.target.bundle.BundleiOSPresenter;
@@ -24,6 +23,7 @@ public class BundleiOSHandler extends AbstractBundleHandler {
     private BundleiOSDialog view;
     private IdentityLister identityLister;
     private BundleiOSPresenter presenter;
+    private static String PLATFORM_STRING = "armv7-darwin";
 
     class Module extends AbstractModule {
         @Override
@@ -56,7 +56,7 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         String identity = presenter.getIdentity();
         options.put("mobileprovisioning", profile);
         options.put("identity", identity);
-        options.put("platform", "armv7-darwin");
+        options.put("platform", PLATFORM_STRING);
         options.put("build-server", store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI));
 
         EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
@@ -76,6 +76,11 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         if (presenter.shouldPublishLiveUpdate()) {
             options.put("liveupdate", "true");
         }
+    }
+
+    @Override
+    protected String getOutputPlatformDir() {
+        return PLATFORM_STRING;
     }
 
 }
