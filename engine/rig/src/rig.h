@@ -95,6 +95,7 @@ namespace dmRig
     {
         float m_Color[4];
         uint32_t m_Order;
+        int32_t m_OrderOffset;
         bool m_Visible;
     };
 
