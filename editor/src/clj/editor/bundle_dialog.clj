@@ -550,9 +550,12 @@
       (write-build-options! prefs build-options)
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
         (set-file-pref! prefs "bundle-output-directory" output-directory)
-        (let [platform-bundle-output-directory (io/file output-directory (:platform build-options))]
-          (when (or (not (.exists platform-bundle-output-directory))
+        (let [platform-bundle-output-directory (io/file output-directory (:platform build-options))
+              platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
+          (when (or (not platform-bundle-output-directory-exists?)
                     (query-overwrite! platform-bundle-output-directory stage))
+            (when (not platform-bundle-output-directory-exists?)
+              (.mkdirs platform-bundle-output-directory))
             (let [build-options (assoc build-options :output-directory platform-bundle-output-directory)]
               (ui/close! stage)
               (bundle! build-options))))))))
