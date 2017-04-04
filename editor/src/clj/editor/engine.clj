@@ -84,7 +84,13 @@
     parent))
 
 (defn- do-launch [path launch-dir prefs]
-  (let [pb (doto (ProcessBuilder. ^java.util.List (list path))
+  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
+                         (File.)
+                         (.getAbsolutePath))
+        ^java.util.List args (cond-> [path]
+                               defold-log-dir (conj "--config=project.write_log=1" (format "--config=project.log_dir=%s" defold-log-dir))
+                               true list*)
+        pb (doto (ProcessBuilder. args)
              (.redirectErrorStream true)
              (.directory launch-dir))]
     (when (prefs/get-prefs prefs "general-quit-on-esc" false)

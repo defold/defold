@@ -231,7 +231,8 @@ public class Start extends Application {
     }
 
     private static void initializeLogging() {
-        Path logDirectory = Editor.isDev() ? Paths.get("") : Editor.getSupportPath();
+        String defoldLogDir = System.getProperty("defold.log.dir");
+        Path logDirectory = defoldLogDir != null ? Paths.get(defoldLogDir) : Editor.getSupportPath();
         if (logDirectory == null) {
             logDirectory = Paths.get(System.getProperty("user.home"));
         }
