@@ -358,7 +358,7 @@
   (validation/prop-error :fatal _node-id :tile-source
                          (fn [v name]
                            (when-not (< max-tile-index tile-count)
-                             (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
+                             (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used in tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
 
 (g/defnode TileMapNode
   (inherits project/ResourceNode)
@@ -1018,12 +1018,12 @@
 (defn- erase-tool-handler [tool-controller]
   (g/set-property! tool-controller :brush erase-brush))
 
-(defn- active-tile-map? [app-view]
+(defn- active-tile-map [app-view]
   (when-let [resource-node (g/node-value app-view :active-resource-node)]
     (when (g/node-instance? TileMapNode resource-node)
       resource-node)))
 
-(defn- active-scene-view? [app-view]
+(defn- active-scene-view [app-view]
   (when-let [view-node (g/node-value app-view :active-view)]
     (when (g/node-instance? scene/SceneView view-node)
       view-node)))
@@ -1035,25 +1035,25 @@
 
 (handler/defhandler :erase-tool :workbench
   (label [user-data] "Select Eraser")
-  (active? [app-view] (and (active-tile-map? app-view)
-                        (active-scene-view? app-view)))
+  (active? [app-view] (and (active-tile-map app-view)
+                        (active-scene-view app-view)))
   (enabled? [app-view selection]
     (and (selection->layer selection)
-         (-> (active-tile-map? app-view)
+         (-> (active-tile-map app-view)
              (g/node-value :tile-source-resource))))
-  (run [app-view] (erase-tool-handler (-> (active-scene-view? app-view) scene-view->tool-controller))))
+  (run [app-view] (erase-tool-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
 (handler/defhandler :tile-map-palette :workbench
-  (active? [app-view] (and (active-tile-map? app-view)
-                        (active-scene-view? app-view)))
+  (active? [app-view] (and (active-tile-map app-view)
+                        (active-scene-view app-view)))
   (enabled? [app-view selection]
     (and (selection->layer selection)
-         (-> (active-tile-map? app-view)
+         (-> (active-tile-map app-view)
              (g/node-value :tile-source-resource))))
-  (run [app-view] (tile-map-palette-handler (-> (active-scene-view? app-view) scene-view->tool-controller))))
+  (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (ui/extend-menu ::menubar :editor.scene/scene-end
                 [{:label    "Tile Map"
