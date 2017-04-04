@@ -58,7 +58,7 @@ Bundle-NativeCode: lib/osx/libgluegen-rt.jnilib;
  lib/win32/x86/nativewindow_awt.dll;
  lib/win32/x86/nativewindow_win32.dll;
  lib/win32/x86/newt.dll;
- osname=Win32;
+ osname=Win32; osname="Windows 10"; 
  processor=x86,
  lib/win32/x86-64/gluegen-rt.dll;
  lib/win32/x86-64/joal.dll;
@@ -69,7 +69,7 @@ Bundle-NativeCode: lib/osx/libgluegen-rt.jnilib;
  lib/win32/x86-64/nativewindow_awt.dll;
  lib/win32/x86-64/nativewindow_win32.dll;
  lib/win32/x86-64/newt.dll;
- osname=Win32;
+ osname=Win32; osname="Windows 10"; 
  processor=x86-64
 Export-Package: com.jogamp.common,
  com.jogamp.common.jvm,
