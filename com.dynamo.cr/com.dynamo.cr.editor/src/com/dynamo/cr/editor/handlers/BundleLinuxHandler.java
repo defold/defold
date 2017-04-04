@@ -16,16 +16,25 @@ public class BundleLinuxHandler extends BundleGenericHandler {
         return super.openBundleDialog();
     }
 
-    @Override
-    protected void setProjectOptions(Map<String, String> options) {
+    private String getPlatformString() {
         if (System.getProperty("os.arch") == "x86") {
-            options.put("platform", "x86-linux");
+            return "x86-linux";
         }
         else
         {
-            options.put("platform", "x86_64-linux");
+            return "x86_64-linux";
         }
+    }
+
+    @Override
+    protected void setProjectOptions(Map<String, String> options) {
+        options.put("platform", getPlatformString());
         super.setProjectOptions(options);
+    }
+
+    @Override
+    protected String getOutputPlatformDir() {
+        return getPlatformString();
     }
 
 }
