@@ -9,4 +9,6 @@
 <?import javafx.scene.layout.*?>
 
 
-<TabPane id="prefs" prefHeight="400.0" prefWidth="600.0" stylesheets="@editor.css" tabClosingPolicy="UNAVAILABLE" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" />
+<VBox stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <TabPane id="prefs" prefHeight="400.0" prefWidth="600.0" tabClosingPolicy="UNAVAILABLE" />
+</VBox>
