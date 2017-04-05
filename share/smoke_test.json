@@ -10,7 +10,7 @@
 		}
 	},
 	"steps": [
-		["await-log" "editor-log" 15000 "Started REPL"],
+		["wait" 30000],
 		["screen-capture" "test"],
 	],
 }
