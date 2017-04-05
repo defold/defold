@@ -72,7 +72,9 @@ In brief, this script:
 Basically, the only complex part is listening for logging.
 There is a python script to aid in this, which writes to a log file based on user input:
 
-$ python sripts/test_logging.py 
+```shell
+$ python scripts/test_logging.py
+```
 
 ### Release a new version
 
