@@ -26,10 +26,21 @@
                                            :compression-level :fast}]
                                 :mipmaps true}]})
 
+(defn- convert-to-abgr
+  [^BufferedImage image]
+  (let [type (.getType image)]
+    (if (= type BufferedImage/TYPE_4BYTE_ABGR)
+      image
+      (let [abgr-image (BufferedImage. (.getWidth image) (.getHeight image) BufferedImage/TYPE_4BYTE_ABGR)]
+        (doto (.createGraphics abgr-image)
+          (.drawImage image 0 0 nil)
+          (.dispose))
+        abgr-image))))
+
 (defn read-image
   [source]
   (with-open [s (io/input-stream source)]
-    (ImageIO/read s)))
+    (convert-to-abgr (ImageIO/read s))))
 
 (defn- read-size
   [source]
