@@ -225,14 +225,13 @@
 
 ;; Iff every item-iterator has the same parent, return that parent, else nil
 (defn- single-parent-it [item-iterators]
-  (let [parents (map outline/parent item-iterators)
-        single-parent (first parents)]
-    (loop [parents (rest parents)]
-      (if-let [parent (first parents)]
-        (if (= parent single-parent)
-          (recur (rest parents))
-          nil)
-        single-parent))))
+  (when (not-empty item-iterators)
+    (let [parents (map outline/parent item-iterators)]
+      (when (apply = parents)
+        (first parents)))))
+
+(defn- set-paste-parent! [root-its]
+  (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id))))
 
 (handler/defhandler :copy :workbench
   (active? [selection] (handler/selection->node-ids selection))
@@ -241,7 +240,7 @@
        (let [root-its (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
              data (outline/copy root-its)]
-         (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id)))
+         (set-paste-parent! root-its)
          (.setContent cb {(data-format-fn) data}))))
 
 (defn- paste-target-it [item-iterators]
@@ -264,7 +263,7 @@
           cb (Clipboard/getSystemClipboard)
           data-format (data-format-fn)]
       (outline/paste! (g/node-id->graph-id project) target-item-it (.getContent cb data-format) (partial app-view/select app-view))
-      (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it (root-iterators outline-view)) outline/value :node-id))))))
+      (set-paste-parent! (root-iterators outline-view)))))
 
 (handler/defhandler :cut :workbench
   (active? [selection] (handler/selection->node-ids selection))
@@ -415,7 +414,7 @@
 
 (defn- propagate-selection [selected-items app-view]
   (when-not *programmatic-selection*
-    (alter-var-root #'*paste-into-parent* (constantly nil))
+    (set-paste-parent! nil)
     (when-let [selection (into [] (keep :node-id) selected-items)]
       ;; TODO - handle selection order
       (app-view/select! app-view selection))))
