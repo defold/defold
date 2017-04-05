@@ -56,6 +56,10 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return createBaseResource(user.email, user.password).path("v2/projects").path(projectId.toString()).path("site");
     }
 
+    private WebResource projectSiteResourceWithFaultyPassword(Long projectId) {
+        return createBaseResource("FAULTY", "FAULTY").path("v2/projects").path(projectId.toString()).path("site");
+    }
+
     private WebResource projectSitesResource(TestUser user) {
         return createBaseResource(user.email, user.password).path("v2/projects").path("sites");
     }
@@ -78,6 +82,10 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
     private Protocol.ProjectSite getProjectSite(Long projectId) {
         return projectSiteResource(projectId).get(Protocol.ProjectSite.class);
+    }
+
+    private Protocol.ProjectSite getProjectSiteWithFaultyPassword(Long projectId) {
+        return projectSiteResourceWithFaultyPassword(projectId).get(Protocol.ProjectSite.class);
     }
 
     private void addAppStoreReference(TestUser testUser, Long projectId, Protocol.NewAppStoreReference newAppStoreReference) {
@@ -120,6 +128,21 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         Protocol.ProjectSiteList result = getProjectSites(TestUser.JAMES);
 
         assertEquals(originalSitesCount + 1, result.getSitesCount());
+    }
+
+    @Test
+    public void accessPublicSiteWithExpiredSession() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSite projectSiteUpdate = Protocol.ProjectSite.newBuilder()
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSiteUpdate);
+
+
+        Protocol.ProjectSite projectSite = getProjectSiteWithFaultyPassword(project.getId());
+        assertNotNull(projectSite);
     }
 
     @Test
