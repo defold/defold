@@ -68,9 +68,10 @@ public class SSDP implements ISSDP {
     }
 
     public static final String SSDP_SERVER_IDENTIFIER = "Defold SSDP 1.0";
+    public static final int SSDP_MCAST_TTL = 4;
+
     private static final String SSDP_MCAST_ADDR_IP = "239.255.255.250";
     private static final int SSDP_MCAST_PORT = 1900;
-    private static final int SSDP_MCAST_TTL = 4;
     private static final int SSDP_MAX_WAIT_TIME = 2;
 
     private Logger logger;
@@ -88,7 +89,7 @@ public class SSDP implements ISSDP {
                     + "MX: %d\r\n"
                     + "ST: upnp:rootdevice\r\n\r\n", SSDP_MCAST_ADDR_IP, SSDP_MCAST_PORT, SSDP_MAX_WAIT_TIME);
 
-    static List<NetworkInterface> getMCastInterfaces() throws SocketException {
+    public static List<NetworkInterface> getMCastInterfaces() throws SocketException {
         List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
         List<NetworkInterface> r = new ArrayList<NetworkInterface>();
 
@@ -101,7 +102,7 @@ public class SSDP implements ISSDP {
         return r;
     }
 
-    static List<InetAddress> getIPv4Addresses(NetworkInterface i) throws SocketException {
+    public static List<InetAddress> getIPv4Addresses(NetworkInterface i) throws SocketException {
         List<InetAddress> r = new ArrayList<InetAddress>();
         for (InetAddress a : Collections.list(i.getInetAddresses())) {
             if (a instanceof Inet4Address) {
@@ -233,7 +234,8 @@ public class SSDP implements ISSDP {
                         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                         c.mcastSocket.receive(packet);
                         String data = new String(buffer, 0, packet.getLength());
-                        handleRequest(data, packet.getAddress().getHostAddress(), c.mcastSocket.getLocalAddress().getHostAddress());
+                        InetAddress localAddress = getIPv4Addresses(c.mcastSocket.getNetworkInterface()).get(0);
+                        handleRequest(data, packet.getAddress().getHostAddress(), localAddress.getHostAddress());
                     } catch (SocketTimeoutException e) {
                         // Ignore
                         cont = false;
@@ -267,23 +269,20 @@ public class SSDP implements ISSDP {
         }
 
         if (request.method.equals("NOTIFY")) {
-            String server = request.headers.get("SERVER");
-            if (SSDP_SERVER_IDENTIFIER.equals(server)) {
-                String nts = request.headers.get("NTS");
-                String usn = request.headers.get("USN");
-                if (nts != null && usn != null) {
-                    DeviceInfo device = DeviceInfo.create(request.headers, address, localAddress);
-                    // alive vs byebye in NTS field?
-                    if (nts.equals("ssdp:alive")) {
-                        registerDevice(usn, device);
-                    } else if (nts.equals("ssdp:byebye")) {
-                        unregisterDevice(usn);
-                    } else {
-                        log(String.format("[%s] Unsupported NOTIFY response: %s", address, nts));
-                    }
+            String nts = request.headers.get("NTS");
+            String usn = request.headers.get("USN");
+            if (nts != null && usn != null) {
+                DeviceInfo device = DeviceInfo.create(request.headers, address, localAddress);
+                // alive vs byebye in NTS field?
+                if (nts.equals("ssdp:alive")) {
+                    registerDevice(usn, device);
+                } else if (nts.equals("ssdp:byebye")) {
+                    unregisterDevice(usn);
                 } else {
-                    log(String.format("[%s] Malformed NOTIFY response: %s", address, data));
+                    log(String.format("[%s] Unsupported NOTIFY response: %s", address, nts));
                 }
+            } else {
+                log(String.format("[%s] Malformed NOTIFY response: %s", address, data));
             }
         }
         // We ignore M-SEARCH requests
