@@ -20,6 +20,8 @@ public class PreferenceConstants {
 
 	public static final String P_NATIVE_EXT_SERVER_URI = "nativeExtServerUrlPreference";
 
+	public static final String P_CHECK_BUNDLUNG_OVERWRITE = "checkBundlingOverwrite";
+
     // Debug
     public static final String P_RUN_IN_DEBUGGER = "runInDebugger";
     public static final String P_AUTO_RUN_DEBUGGER = "autoRunDebugger";

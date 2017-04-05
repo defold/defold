@@ -384,6 +384,10 @@
   (let [angle (/ 360 segments)]
     (chain (dec segments) (partial rotate [0 0 angle]) ps)))
 
+(defn identity-uv-trans
+  []
+  (TextureSetGenerator$UVTransform.))
+
 (defn uv-trans [^TextureSetGenerator$UVTransform uv-trans ps]
   (if uv-trans
     (let [p (Point2d.)]
