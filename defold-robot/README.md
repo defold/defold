@@ -11,11 +11,12 @@ Automatic smoke testing of software, supporting:
 
 ```shell
 $ java -jar defold-robot.jar -s [script] -o [output-dir]
-``
+```
 
 ### Script
 
 A simple script in JSON:
+
 ```json
 {
 	"logs": {
@@ -78,6 +79,7 @@ $ python sripts/test_logging.py
 1. Edit the source
 2. Change the version in project.clj
 3. Release:
+
 ```shell
 $ lein release
 ```
