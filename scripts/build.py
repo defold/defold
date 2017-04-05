@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
-import optparse, subprocess, urllib, urlparse, tempfile
+import optparse, subprocess, urllib, urlparse, tempfile, time
 import imp
 from datetime import datetime
 from tarfile import TarFile
@@ -9,6 +9,7 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 from glob import glob
 from threading import Thread, Event
 from Queue import Queue
+from ConfigParser import ConfigParser
 
 """
 Build utility for installing external packages, building engine, editor and cr
@@ -255,6 +256,10 @@ class Configuration(object):
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
+
+    def _copy_tree(self, src, dst):
+        self._log('Copying %s -> %s' % (src, dst))
+        shutil.copytree(src, dst)
 
     def _download(self, url, use_cache = True):
         name = basename(urlparse.urlparse(url).path)
@@ -1406,17 +1411,104 @@ instructions.configure=\
         for f in futures:
             f()
 
+    def _download_editor2(self):
+        sha1 = self._git_sha1()
+        bundles = {
+            'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
+            'x86_64-linux' : 'Defold-x86_64-linux.zip',
+            'x86_64-win32' : 'Defold-x86_64-win32.zip'
+        }
+        host2 = get_host_platform2()
+        bundle = bundles.get(host2)
+        if bundle:
+            url = 'http://d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
+            return self._download(url)
+        else:
+            print("No editor2 bundle found for %s" % host2)
+            return None
+
+    def _install_editor2(self, bundle):
+        host2 = get_host_platform2()
+        install_path = join('tmp', 'smoke_test')
+        if 'darwin' in host2:
+            out = self.exec_command(['hdiutil', 'attach', bundle], False)
+            print("cmd:" + out)
+            last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
+            words = last.split()
+            fs = words[0]
+            volume = words[-1]
+            install_path = join(install_path, 'Defold.app')
+            self._copy_tree(join(volume, 'Defold.app'), install_path)
+            result = {'volume': volume,
+                      'fs': fs,
+                      'install_path': install_path,
+                      'resources_path': join('Defold.app', 'Contents', 'Resources'),
+                      'config': join(install_path, 'Contents', 'Resources', 'config')}
+            return result
+        else:
+            self._extract(bundle, install_path)
+            install_path = join(install_path, 'Defold')
+            result = {'install_path': install_path,
+                      'resources_path': 'Defold',
+                      'config': join(install_path, 'config')}
+            return result
+
+    def _uninstall_editor2(self, info):
+        host2 = get_host_platform2()
+        shutil.rmtree(info['install_path'])
+        if 'darwin' in host2:
+            out = self.exec_command(['hdiutil', 'detach', info['fs']], False)
+
+    def _get_config(self, config, section, option, overrides):
+        combined = '%s.%s' % (section, option)
+        if combined in overrides:
+            return overrides[combined]
+        if section == 'bootstrap' and option == 'resourcespath':
+            return '.'
+        v = config.get(section, option)
+        m = re.search(r"\${(\w+).(\w+)}", v)
+        while m:
+            s = m.group(1)
+            o = m.group(2)
+            v = re.sub(r"\${(\w+).(\w+)}", self._get_config(config, s, o, overrides), v, 1)
+            m = re.search(r"\${(\w+).(\w+)}", v)
+        return v
+
     def smoke_test(self):
-        cwd = 'editor'
+        sha1 = self._git_sha1()
+        cwd = join('tmp', 'smoke_test')
+        bundle = self._download_editor2()
+        info = self._install_editor2(bundle)
+        config = ConfigParser()
+        config.read(info['config'])
+        overrides = {'bootstrap.resourcespath': info['resources_path']}
+        jar = self._get_config(config, 'launcher', 'jar', overrides)
+        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
+        main = self._get_config(config, 'launcher', 'main', overrides)
+        game_project = '../../editor/test/resources/test_project/game.project'
+        args = ['java', '-cp', jar] + vmargs + [main, game_project]
+        self._log('Running editor: %s' % args)
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
-        robot_proc = subprocess.Popen(['java', '-jar', robot_jar, '-s', '../share/smoke_test.json'], cwd = cwd, stdout = subprocess.PIPE, shell = False)
-        ed_proc = subprocess.Popen(['java', '-jar', 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'], cwd = cwd, shell = False)
+        robot_proc = subprocess.Popen(['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result'], cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        time.sleep(2)
+        ed_proc = subprocess.Popen(args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
 
         output = robot_proc.communicate()[0]
         if ed_proc.poll() == None:
-            ed_proc.kill()
+            ed_proc.terminate()
+        self._uninstall_editor2(info)
+
+        result_archive_path = join(self.archive_path, sha1, 'editor2', 'smoke_test').replace('\\', '/')
+        def _findwebfiles(libdir):
+            paths = os.listdir(libdir)
+            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
+            return paths
+        for f in _findwebfiles(join(cwd, 'result')):
+            self.upload_file(f, '%s/%s' % (result_archive_path, basename(f)))
+        self.wait_uploads()
+        self._log('Log available <a href="%s" target="_blank">here</a>' % result_archive_path.replace('s3', 'http'))
+
         if robot_proc.returncode != 0:
-            self._log(output)
             sys.exit(robot_proc.returncode)
         return True
 
@@ -1424,7 +1516,6 @@ instructions.configure=\
         if bucket_name in self.s3buckets:
             return self.s3buckets[bucket_name]
 
-        from ConfigParser import ConfigParser
         config = ConfigParser()
         configpath = os.path.expanduser("~/.s3cfg")
         config.read(configpath)
