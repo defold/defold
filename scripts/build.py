@@ -1003,13 +1003,14 @@ instructions.configure=\
 
         for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+        self.wait_uploads()
 
+    def release_editor2(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
         host = bucket.get_website_endpoint()
 
         release_sha1 = self._git_sha1()
-        self.wait_uploads()
         self._log('Uploading update.json')
         key = bucket.new_key('editor2/update.json')
         key.content_type = 'application/json'

@@ -8,7 +8,6 @@ import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
-import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.target.bundle.BundleAndroidDialog;
 import com.dynamo.cr.target.bundle.BundleAndroidPresenter;
@@ -24,6 +23,8 @@ public class BundleAndroidHandler extends AbstractBundleHandler {
     private BundleAndroidDialog view;
     private IdentityLister identityLister;
     private BundleAndroidPresenter presenter;
+
+    private static String PLATFORM_STRING = "armv7-android";
 
     class Module extends AbstractModule {
         @Override
@@ -57,7 +58,7 @@ public class BundleAndroidHandler extends AbstractBundleHandler {
         String key = presenter.getKey();
         options.put("certificate", certificate);
         options.put("private-key", key);
-        options.put("platform", "armv7-android");
+        options.put("platform", PLATFORM_STRING);
         if(!presenter.isReleaseMode()) {
             options.put("debug", "true");
         }
@@ -77,6 +78,11 @@ public class BundleAndroidHandler extends AbstractBundleHandler {
             sdkVersion = "";
         }
         options.put("defoldsdk", sdkVersion);
+    }
+
+    @Override
+    protected String getOutputPlatformDir() {
+        return PLATFORM_STRING;
     }
 
 }
