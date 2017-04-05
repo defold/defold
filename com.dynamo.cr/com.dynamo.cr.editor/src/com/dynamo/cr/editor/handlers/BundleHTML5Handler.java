@@ -10,6 +10,8 @@ import java.util.Map;
  */
 public class BundleHTML5Handler extends BundleGenericHandler {
 
+    private static String PLATFORM_STRING = "js-web";
+
     @Override
     protected boolean openBundleDialog() {
         setTitle("Package HTML5 Application");
@@ -18,8 +20,13 @@ public class BundleHTML5Handler extends BundleGenericHandler {
 
     @Override
     protected void setProjectOptions(Map<String, String> options) {
-        options.put("platform", "js-web");
+        options.put("platform", PLATFORM_STRING);
         super.setProjectOptions(options);
+    }
+
+    @Override
+    protected String getOutputPlatformDir() {
+        return PLATFORM_STRING;
     }
 
 }

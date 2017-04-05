@@ -123,6 +123,7 @@ def build(bld):
 
     if 'win32' in bld.env.BUILD_PLATFORM:
         obj.source.append('engine.rc')
+        obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup'])
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.android/dmengine_release.apk')

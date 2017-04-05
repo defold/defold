@@ -94,13 +94,14 @@
     :prefs [{:label "Enable Extensions" :type :boolean :key "enable-extensions" :default false}
             {:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}])
 
-(defn open-prefs [prefs]
+(defn open-prefs [preferences]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")
         stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)]
 
-    (doseq [p (pref-pages)]
-      (add-page! prefs root p))
+    (ui/with-controls root [^TabPane prefs]
+      (doseq [p (pref-pages)]
+        (add-page! preferences prefs p)))
 
     (ui/title! stage "Preferences")
     (.setScene stage scene)
