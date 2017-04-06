@@ -106,21 +106,18 @@ public class ProjectSiteMapper {
                 }
             }
 
-            Set<Screenshot> screenShots = projectSite.getScreenshots();
-            if (screenShots != null) {
-                for (Screenshot screenShot : screenShots) {
-                    Protocol.ProjectSite.Screenshot.Builder screenShotBuilder = Protocol.ProjectSite.Screenshot.newBuilder();
-                    screenShotBuilder.setId(screenShot.getId());
+            for (Screenshot screenShot : projectSite.getScreenshotsOrdered()) {
+                Protocol.ProjectSite.Screenshot.Builder screenShotBuilder = Protocol.ProjectSite.Screenshot.newBuilder();
+                screenShotBuilder.setId(screenShot.getId());
 
-                    if (screenShot.getMediaType() == Screenshot.MediaType.IMAGE) {
-                        // Sign URL for images hosted by Magazine
-                        screenShotBuilder.setUrl(magazineClient.createReadUrl(screenShot.getUrl()));
-                    } else {
-                        screenShotBuilder.setUrl(screenShot.getUrl());
-                    }
-                    screenShotBuilder.setMediaType(Protocol.ScreenshotMediaType.valueOf(screenShot.getMediaType().name()));
-                    builder.addScreenshots(screenShotBuilder.build());
+                if (screenShot.getMediaType() == Screenshot.MediaType.IMAGE) {
+                    // Sign URL for images hosted by Magazine
+                    screenShotBuilder.setUrl(magazineClient.createReadUrl(screenShot.getUrl()));
+                } else {
+                    screenShotBuilder.setUrl(screenShot.getUrl());
                 }
+                screenShotBuilder.setMediaType(Protocol.ScreenshotMediaType.valueOf(screenShot.getMediaType().name()));
+                builder.addScreenshots(screenShotBuilder.build());
             }
         }
 
