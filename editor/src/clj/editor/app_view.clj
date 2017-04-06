@@ -737,12 +737,9 @@
 
 (defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
-  (let [output-directory (:output-directory build-options)
+  (let [output-directory ^File (:output-directory build-options)
         build-options (merge build-options
-                             {:finished! (fn [succeeded?]
-                                           (when (and succeeded? (some-> ^File output-directory .isDirectory))
-                                             (.open (Desktop/getDesktop) output-directory)))
-                              :clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+                             {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
                               :render-error! (fn [errors]
                                                (ui/run-later
                                                  (build-errors-view/update-build-errors
@@ -757,8 +754,10 @@
                          (ui/default-render-progress-now! (progress/make "Bundling..."))
                          (ui/->future 0.01
                                       (fn []
-                                        (deref (bob/bundle! project prefs platform build-options))
-                                        (ui/default-render-progress-now! progress/done)))))))
+                                        (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
+                                          (ui/default-render-progress-now! progress/done)
+                                          (when (and succeeded? (some-> output-directory .isDirectory))
+                                            (.open (Desktop/getDesktop) output-directory)))))))))
 
 (handler/defhandler :bundle :global
   (enabled? [] (not (project/ongoing-build-save?)))

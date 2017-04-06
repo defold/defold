@@ -103,7 +103,7 @@
       (render-error! {:causes [(exc->error project error)]})
       false)))
 
-(defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error! finished!] :as build-options}]
+(defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
@@ -128,9 +128,7 @@
             (.resolveLibUrls bob-project (->progress)))
           (.mount bob-project (->graph-resource-scanner ws))
           (.findSources bob-project proj-path skip-dirs)
-          (let [succeeded? (run-commands! project bob-project build-options bob-commands)]
-            (when (some? finished!)
-              (finished! succeeded?))))))))
+          (run-commands! project bob-project build-options bob-commands))))))
 
 (defn- boolean? [value]
   (or (false? value) (true? value)))
