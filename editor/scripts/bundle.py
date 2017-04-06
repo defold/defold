@@ -79,9 +79,9 @@ def download(url, use_cache = True):
     os.rename(tmp, path)
     return path
 
-def exec_command(args):
+def exec_command(args, stdout = None, stderr = None):
     print('[EXEC] %s' % args)
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, shell = False)
+    process = subprocess.Popen(args, stdout=stdout, stderr=stderr, shell = False)
     output = process.communicate()[0]
     if process.returncode != 0:
         print(output)
@@ -235,6 +235,24 @@ def bundle(platform, jar_file, options):
     if is_mac:
         create_dmg(dmg_dir, bundle_dir, 'target/editor/Defold-%s.dmg' % platform)
 
+def check_reflections():
+    reflection_prefix = 'Reflection warning, ' # final space important
+    included_reflections = ['editor/'] # [] = include all
+    ignored_reflections = []
+
+    # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
+    output = exec_command(['./scripts/lein', 'check'], stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+    lines = output.splitlines()
+    reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
+    reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
+    filtered_reflections = reflections if not included_reflections else (line for line in reflections if any((re.match(include, line) for include in included_reflections)))
+    failures = list(line for line in filtered_reflections if not any((re.match(ignored, line) for ignored in ignored_reflections)))
+
+    if failures:
+        for failure in failures:
+            print(failure)
+        exit(1)
+
 if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)'''
 
@@ -278,13 +296,18 @@ if __name__ == '__main__':
 
     print 'Building editor'
 
-    exec_command(['bash', './scripts/lein', 'clean'])
+    sha1 = '' if options.pack_local else options.git_sha1
+    commands = [['clean'],
+                ['local-jars', sha1],
+                ['builtins', sha1],
+                ['protobuf'],
+                ['sass', 'once'],
+                ['pack', sha1]]
 
-    if options.pack_local:
-        exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'pack'])
-    else:
-        exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'pack', options.git_sha1])
-
+    for c in commands:
+        exec_command(['bash', './scripts/lein', 'with-profile', '+release'] + c)
+    check_reflections()
+    exec_command(['./scripts/lein', 'test'])
     exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
     jar_file = 'defold-%s.jar' % options.git_sha1
