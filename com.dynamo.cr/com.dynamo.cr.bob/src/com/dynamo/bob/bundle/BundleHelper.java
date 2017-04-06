@@ -27,10 +27,9 @@ import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.MultipleCompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -159,23 +158,33 @@ public class BundleHelper {
         }
     };
 
-    private static Pattern gccRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/(.*):([0-9]+):([0-9]+):\\s+(.*)");
+    // Error regexp works for both cpp and javac errors
+    private static Pattern errorRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/([^:]+):([0-9]+):?([0-9]*):\\s*(.+)");
+    // Warning regexp is more simple, catches anything starting with "warning:"
+    private static Pattern warningRe = Pattern.compile("warning:(.+)");
 
-    private static void parseLog(String log, List<ResourceInfo> infos) {
+    private static void parseLog(String log, List<ResourceInfo> errors, List<ResourceInfo> warnings) {
         String[] lines = log.split("\n");
-            for (String line : lines) {
 
-            Matcher m = BundleHelper.gccRe.matcher(line);
+        for (String line : lines) {
+
+            Matcher m = BundleHelper.errorRe.matcher(line);
             if (m.matches()) {
                 String resource = m.group(1);
                 int lineNumber = Integer.parseInt(m.group(2)); // column is group 3
                 String msg = m.group(4);
-                infos.add( new BundleHelper.ResourceInfo(resource, lineNumber, msg) );
+                errors.add( new BundleHelper.ResourceInfo(resource, lineNumber, msg) );
+            }
+
+            m = BundleHelper.warningRe.matcher(line);
+            if (m.matches()) {
+                String msg = m.group(0);
+                warnings.add( new BundleHelper.ResourceInfo(null, 0, msg) );
             }
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine, File outputClassesDex) throws CompileExceptionError, MultipleCompileExceptionError {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -193,14 +202,15 @@ public class BundleHelper {
                 try {
                     buildError = FileUtils.readFileToString(logFile);
 
-                    List<ResourceInfo> infos = new ArrayList<>();
-                    parseLog(buildError, infos);
+                    List<ResourceInfo> errors = new ArrayList<>();
+                    List<ResourceInfo> warnings = new ArrayList<>();
+                    parseLog(buildError, errors, warnings);
 
-                    MultipleCompileExceptionError exception = new MultipleCompileExceptionError("Build error", e);
+                    MultipleCompileException exception = new MultipleCompileException("Build error", e);
 
                     IResource firstresource = null;
-                    if (infos.size() > 0) {
-                        for (ResourceInfo info : infos) {
+                    if (errors.size() > 0) {
+                        for (ResourceInfo info : errors) {
                             IResource resource = ExtenderUtil.getResource(info.resource, allSource);
                             if (resource != null) {
                                 exception.addError(resource, info.message, info.lineNumber);
@@ -212,6 +222,15 @@ public class BundleHelper {
                         }
                     }
 
+                    if (warnings.size() > 0) {
+                        for (ResourceInfo info : warnings) {
+                            IResource resource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
+                            if (resource != null) {
+                                exception.addWarning(resource, info.message, info.lineNumber);
+                            }
+                        }
+                    }
+
                     // Trick to always supply the full log
                     // 1. We pick a resource, the first one generating errors should be related.
                     //    Otherwise we fall back on an ext.manifest (possibly the wrong one!)
@@ -219,7 +238,7 @@ public class BundleHelper {
                     if (firstresource == null) {
                         firstresource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
                     }
-                    exception.addError(firstresource, buildError, 1);
+                    exception.addError(firstresource, "Build server output: " + buildError, 1);
 
                     throw exception;
                 } catch (IOException ioe) {

@@ -323,14 +323,14 @@ public class Project {
      * @throws IOException
      * @throws CompileExceptionError
      */
-    public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileExceptionError {
+    public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
             // Pass on unmodified
             throw e;
-        } catch (MultipleCompileExceptionError e) {
+        } catch (MultipleCompileException e) {
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
@@ -489,7 +489,7 @@ public class Project {
         return false;
     }
 
-    public void buildEngine(IProgress monitor) throws IOException, CompileExceptionError, MultipleCompileExceptionError {
+    public void buildEngine(IProgress monitor) throws IOException, CompileExceptionError, MultipleCompileException {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
@@ -545,7 +545,7 @@ public class Project {
         m.done();
     }
 
-    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileExceptionError {
+    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
