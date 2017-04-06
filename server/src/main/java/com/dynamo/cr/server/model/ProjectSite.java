@@ -1,8 +1,8 @@
 package com.dynamo.cr.server.model;
 
 import javax.persistence.*;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name="project_sites")
@@ -15,7 +15,7 @@ public class ProjectSite {
     @Column
     private String name;
 
-    @Column(length = 3000)
+    @Column(length = 10000)
     private String description;
 
     @Column
@@ -41,6 +41,21 @@ public class ProjectSite {
 
     @Column
     private String playableImageUrl;
+
+    @Column
+    private String libraryUrl;
+
+    @Column
+    private String attachmentUrl;
+
+    @Column
+    private boolean publicSite;
+
+    @Column
+    private boolean showName = true;
+
+    @Column
+    private boolean allowComments = true;
 
     @OneToMany(cascade = CascadeType.ALL)
     private Set<AppStoreReference> appStoreReferences = new HashSet<>();
@@ -96,6 +111,23 @@ public class ProjectSite {
         return screenshots;
     }
 
+    public List<Screenshot> getScreenshotsOrdered() {
+        if (screenshots == null) {
+            return Collections.emptyList();
+        }
+        return screenshots.stream()
+                .sorted((o1, o2) -> {
+                    if (o1.getSortOrder() == null) {
+                        if (o2.getMediaType() == null) {
+                            return 0;
+                        }
+                        return -1;
+                    }
+                    return Integer.compare(o1.getSortOrder(), o2.getSortOrder());
+                })
+                .collect(Collectors.toList());
+    }
+
     public void setStudioUrl(String studioUrl) {
         this.studioUrl = studioUrl;
     }
@@ -120,14 +152,6 @@ public class ProjectSite {
         this.reviewUrl = reviewUrl;
     }
 
-    public void setAppStoreReferences(Set<AppStoreReference> appStoreReferences) {
-        this.appStoreReferences = appStoreReferences;
-    }
-
-    public void setScreenshots(Set<Screenshot> screenShots) {
-        this.screenshots = screenShots;
-    }
-
     public boolean isPlayableUploaded() {
         return playableUploaded;
     }
@@ -142,5 +166,45 @@ public class ProjectSite {
 
     public void setPlayableImageUrl(String playableImageUrl) {
         this.playableImageUrl = playableImageUrl;
+    }
+
+    public String getLibraryUrl() {
+        return libraryUrl;
+    }
+
+    public void setLibraryUrl(String libraryUrl) {
+        this.libraryUrl = libraryUrl;
+    }
+
+    public String getAttachmentUrl() {
+        return attachmentUrl;
+    }
+
+    public void setAttachmentUrl(String attachmentUrl) {
+        this.attachmentUrl = attachmentUrl;
+    }
+
+    public boolean isPublicSite() {
+        return publicSite;
+    }
+
+    public void setPublicSite(boolean publicSite) {
+        this.publicSite = publicSite;
+    }
+
+    public boolean isShowName() {
+        return showName;
+    }
+
+    public void setShowName(boolean showName) {
+        this.showName = showName;
+    }
+
+    public boolean isAllowComments() {
+        return allowComments;
+    }
+
+    public void setAllowComments(boolean allowComments) {
+        this.allowComments = allowComments;
     }
 }

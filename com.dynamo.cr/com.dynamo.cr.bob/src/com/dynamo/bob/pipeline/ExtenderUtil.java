@@ -74,7 +74,11 @@ public class ExtenderUtil {
         project.findResourcePaths(path, paths);
         for (String p : paths) {
             IResource r = project.getResource(p);
-            resources.add(new FSExtenderResource(r));
+            // Note: findResourcePaths will return the supplied path even if it's not a file.
+            // We need to check if the resource is not a directory before adding it to the list of paths found.
+            if (r.isFile()) {
+                resources.add(new FSExtenderResource(r));
+            }
         }
 
         return resources;
@@ -142,12 +146,12 @@ public class ExtenderUtil {
         for (String extension : extensionFolders) {
 
             sources.add( new FSExtenderResource( project.getResource(extension + "/" + ExtenderClient.extensionFilename)) );
-            sources.addAll( listFilesRecursive( project, extension + "/include" ) );
-            sources.addAll( listFilesRecursive( project, extension + "/src") );
+            sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
+            sources.addAll( listFilesRecursive( project, extension + "/src/") );
 
             // Get "lib" folder; branches of into sub folders such as "common" and platform specifics
             for (String platformAlt : platformFolderAlternatives) {
-                sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt) );
+                sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt + "/") );
             }
         }
 
@@ -174,8 +178,12 @@ public class ExtenderUtil {
             String pathProjectAbsolute = "/" + p;
             if (!excludes.contains(pathProjectAbsolute)) {
                 IResource r = project.getResource(p);
-                String bundleRelativePath = pathProjectAbsolute.substring(path.length());
-                resources.put(bundleRelativePath, r);
+                // Note: findResourcePaths will return the supplied path even if it's not a file.
+                // We need to check if the resource is not a directory before adding it to the list of paths found.
+                if (r.isFile()) {
+                    String bundleRelativePath = pathProjectAbsolute.substring(path.length());
+                    resources.put(bundleRelativePath, r);
+                }
             }
         }
 
@@ -216,6 +224,45 @@ public class ExtenderUtil {
         }
 
         return bundleResources;
+    }
+
+    /** Gets a list of all android specific folders (/res) from all project and extension resource folders
+     * E.g. "res/android/res" but not "res/android/foo"
+     */
+    public static List<String> getAndroidResourcePaths(Project project, Platform platform) throws CompileExceptionError {
+
+        Map<String, IResource> bundleResources = new HashMap<String, IResource>();
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
+
+        List<String> out = new ArrayList<String>();
+        String rootDir = project.getRootDirectory();
+
+        // Project specific bundle resources
+        String bundleResourcesPath = rootDir + "/" + project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
+        if (bundleResourcesPath.length() > 0) {
+            for (String platformAlt : platformFolderAlternatives) {
+                File dir = new File(FilenameUtils.concat(bundleResourcesPath, platformAlt + "/res"));
+                if (dir.exists() && dir.isDirectory() )
+                {
+                    out.add(dir.getAbsolutePath());
+                }
+            }
+        }
+
+        // Get bundle resources from extensions
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            for (String platformAlt : platformFolderAlternatives) {
+                File dir = new File(FilenameUtils.concat(rootDir +"/" + extension, "res/" + platformAlt + "/res"));
+                if (dir.exists() && dir.isDirectory() )
+                {
+                    out.add(dir.getAbsolutePath());
+                }
+            }
+        }
+
+        return out;
     }
 
     /**

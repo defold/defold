@@ -1,6 +1,6 @@
 uniform mediump mat4 view_proj;
-uniform mediump mat4 world;
 
+// positions are in world space
 attribute mediump vec4 position;
 attribute mediump vec2 texcoord0;
 attribute lowp vec4 color;
@@ -10,8 +10,6 @@ varying lowp vec4 var_color;
 
 void main()
 {
-    // NOTE: world isn't used here. Particle positions are already transformed
-    // prior to rendering but the world-transform is set for sorting.
     gl_Position = view_proj * vec4(position.xyz, 1.0);
     var_texcoord0 = texcoord0;
     var_color = color;

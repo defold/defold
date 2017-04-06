@@ -101,7 +101,7 @@
 
 (s/defrecord Image
   [path     :- s/Any
-   contents :- BufferedImage
+   contents :- (s/maybe BufferedImage)
    width    :- Int32
    height   :- Int32]
   ImageHolder

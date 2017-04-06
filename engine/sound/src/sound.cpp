@@ -13,26 +13,6 @@
 #include <math.h>
 #include <cfloat>
 
-namespace
-{
-
-    /**
-     * Return true if the two floats differs less than EPSILON.
-     *
-     * @note Precision cannot be guaranteed for really small numbers.
-     * @see http://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html
-     *
-     * @param a Float to compare
-     * @param b Float to compare
-     * @return true if the two floats differs less than FLT_EPSILON (as defined
-     * by IEEE), false otherwise.
-     */
-    inline bool EqFloat(float a, float b) {
-        float difference = fabsf(a - b);
-        return difference < FLT_EPSILON;
-    }
-}
-
 /**
  * Defold simple sound system
  * NOTE: Must units is in frames, i.e a sample in time with N channels
@@ -1014,7 +994,6 @@ namespace dmSound
     }
 
     static Result MixInstances(const MixContext* mix_context) {
-        Result result = RESULT_NOTHING_TO_PLAY;
         SoundSystem* sound = g_SoundSystem;
 
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
@@ -1049,13 +1028,14 @@ namespace dmSound
             }
         }
 
+        uint32_t num_playing = 0;
         uint32_t instances = sound->m_Instances.Size();
         for (uint32_t i = 0; i < instances; ++i) {
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0)
             {
                 MixInstance(mix_context, instance);
-                result = dmSound::IsMuted(instance) ? RESULT_NOTHING_TO_PLAY : RESULT_OK;
+                num_playing += dmSound::IsMuted(instance) ? 0 : 1;
             }
 
             if (instance->m_EndOfStream && instance->m_FrameCount == 0) {
@@ -1064,7 +1044,7 @@ namespace dmSound
 
         }
 
-        return result;
+        return num_playing > 0 ? RESULT_OK : RESULT_NOTHING_TO_PLAY;
     }
 
     void Master(const MixContext* mix_context) {

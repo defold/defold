@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.InputStream;
@@ -27,6 +28,7 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.RigAnimation;
 
@@ -755,6 +757,69 @@ public class ColladaUtilTest {
                 }
             } else {
                 fail("Invalid bone index!");
+            }
+        }
+    }
+
+    /*
+     *  Test collada file with rotation going from 0 to 180 degrees, that previously made the rotation quaternion being flipped on last keyframe.
+     */
+    @Test
+    public void testDecomposeRotationFlip() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("rotating_box.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        RigAnimation animation = animSetBuilder.getAnimations(0);
+
+        /*
+         *  We go through rotating tracks and verify they always rotate in correct direction.
+         */
+        int trackCount = animation.getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animation.getTracks(trackIndex);
+            if (track.getRotationsCount() > 0) {
+                int rotationsCount = track.getRotationsCount();
+                List<Float> rotations = track.getRotationsList();
+
+                // Check that the Y component never goes below zero.
+                for (int i = 0; i < rotationsCount; i+=4) {
+                    assertTrue(rotations.get(i+1) >= 0.0f);
+                }
+            }
+        }
+    }
+
+    /*
+     * Test collada file with scale applied on its skeleton.
+     */
+    @Test
+    public void testS() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("skeleton_scale.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        RigAnimation animation = animSetBuilder.getAnimations(0);
+
+        Vector3 boneScale = skeletonBuilder.getBones(0).getScale();
+        assertEquals(0.1, boneScale.getX(), EPSILON);
+        assertEquals(0.1, boneScale.getY(), EPSILON);
+        assertEquals(0.1, boneScale.getZ(), EPSILON);
+
+        int trackCount = animation.getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animation.getTracks(trackIndex);
+            if (track.getScaleCount() > 0) {
+                int scalesCount = track.getScaleCount();
+                List<Float> scales = track.getScaleList();
+
+                for (int i = 0; i < scalesCount; ++i) {
+                    assertEquals(1.0, scales.get(i), EPSILON);
+                }
             }
         }
     }

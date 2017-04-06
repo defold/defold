@@ -12,13 +12,20 @@
            [org.eclipse.jgit.api Git ResetCommand$ResetType]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
-           [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
+           [org.eclipse.jgit.errors RepositoryNotFoundException]
+           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
            [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
 
 (set! *warn-on-reflection* true)
+
+(defn open ^Git [^File repo-path]
+  (try
+    (Git/open repo-path)
+    (catch RepositoryNotFoundException e
+      nil)))
 
 (defn get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
@@ -73,6 +80,10 @@
     (when (str/blank? configured-email)
       (.setString config "user" nil "email" email))))
 
+(defn remote-origin-url [^Git git]
+  (let [config (.. git getRepository getConfig)]
+    (not-empty (.getString config "remote" "origin" "url"))))
+
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
 
@@ -120,25 +131,23 @@
   (io/file (str (worktree git) "/" file-path)))
 
 (defn show-file
-  ([^Git git name]
+  (^bytes [^Git git name]
    (show-file git name "HEAD"))
-  ([^Git git name ref]
-   (let [repo         (.getRepository git)
-         lastCommitId (.resolve repo ref)
-         rw           (RevWalk. repo)
-         commit       (.parseCommit rw lastCommitId)
-         tree         (.getTree commit)
-         tw           (TreeWalk. repo)]
-     (.addTree tw tree)
-     (.setRecursive tw true)
-     (.setFilter tw (PathFilter/create name))
-     (.next tw)
-     (let [id     (.getObjectId tw 0)
-           loader (.open repo id)
-           ret    (.getBytes loader)]
-       (.dispose rw)
-       (.close repo)
-       ret))))
+  (^bytes [^Git git name ref]
+   (with-open [repo (.getRepository git)
+               rw (RevWalk. repo)]
+     (let [last-commit-id (.resolve repo ref)
+           commit (.parseCommit rw last-commit-id)
+           tree (.getTree commit)]
+       (with-open [tw (TreeWalk. repo)]
+         (.addTree tw tree)
+         (.setRecursive tw true)
+         (.setFilter tw (PathFilter/create name))
+         (.next tw)
+         (let [id (.getObjectId tw 0)]
+           (when (not= (ObjectId/zeroId) id)
+             (let [loader (.open repo id)]
+               (.getBytes loader)))))))))
 
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)

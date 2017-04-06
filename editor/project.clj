@@ -19,8 +19,7 @@
                      [prismatic/plumbing                          "0.5.2"]
                      [at.bestsolution.eclipse/org.eclipse.fx.code.editor.fx "2.2.0"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
-                     [org.slf4j/slf4j-api                         "1.7.14"]
-                     [ch.qos.logback/logback-classic              "1.1.3"]
+                     [ch.qos.logback/logback-classic              "1.2.1"]
                      [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
                      [commons-configuration/commons-configuration "1.10"
@@ -44,6 +43,7 @@
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
+                     [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
 
                      [amazonica                                   "0.3.79"
@@ -133,6 +133,7 @@
                                 :source-paths      ["dev/clj"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
+                                                    "-Djogl.texture.notexrect=true"
                                                     "-XX:+UnlockCommercialFeatures"
                                                     "-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"]}})

@@ -11,15 +11,15 @@
    [editor.progress :as progress]
    [editor.sentry :as sentry]
    [editor.ui :as ui]
+   [editor.updater :as updater]
    [service.log :as log])
   (:import
    [com.defold.control ListCell]
    [java.io File]
-   [javafx.scene Scene Parent]
+   [javafx.scene Scene]
    [javafx.scene.control Button Control Label ListView]
    [javafx.scene.input MouseEvent]
    [javafx.scene.layout VBox]
-   [javafx.stage Stage]
    [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -62,11 +62,12 @@
 
 (defn open-welcome [prefs cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")
         ^Button open-project (.lookup root "#open-project")
         import-project (.lookup root "#import-project")]
+    (updater/install-pending-update-check! stage nil)
     (ui/set-main-stage stage)
     (ui/on-action! open-project (fn [_] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
                                           (ui/close! stage)
@@ -101,7 +102,6 @@
                    (into-array File))]
       (.addAll (.getItems recent-projects) ^"[Ljava.io.File;" recent))
     (.setScene stage scene)
-    (.setResizable stage false)
     (ui/show! stage)))
 
 (defn- load-namespaces-in-background

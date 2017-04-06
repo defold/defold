@@ -101,7 +101,7 @@
                  {:label "Paste"
                   :command :paste
                   :acc "Shortcut+V"}
-                 {:label "Rename"
+                 {:label "Rename..."
                   :command :rename}
                  {:label "Delete"
                   :command :delete
@@ -130,8 +130,9 @@
 (defn tmp-file [^File dir resource]
   (let [f (File. dir (resource/resource-name resource))]
     (if (= :file (resource/source-type resource))
-      (with-open [out (io/writer f)]
-        (IOUtils/copy (io/input-stream resource) out))
+      (with-open [in (io/input-stream resource)
+                  out (io/output-stream f)]
+        (IOUtils/copy in out))
       (do
         (.mkdirs f)
         (doseq [c (:children resource)]
@@ -156,7 +157,8 @@
           files)))
 
 (defn rename [resource ^String new-name]
-  (when resource
+  (when (and resource
+             (not= (resource/resource-name resource) new-name))
     (let [workspace (resource/workspace resource)
           src-file  (File. (resource/abs-path resource))
           src-files (vec (file-seq src-file))
@@ -244,6 +246,26 @@
       (str original-basename "1")
       (str original-basename (str (inc (Integer/parseInt suffix)))))))
 
+(defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
+
+(defmethod resolve-conflicts :overwrite
+  [_ src-dest-pairs]
+  src-dest-pairs)
+
+(defmethod resolve-conflicts :rename
+  [_ src-dest-pairs]
+  (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
+
+(defn- resolve-any-conflicts
+  [src-dest-pairs]
+  (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
+        conflicts (get files-by-existence true)
+        non-conflicts (get files-by-existence false [])]
+    (if (seq conflicts)
+      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts)]
+        (into non-conflicts (resolve-conflicts strategy conflicts)))
+      non-conflicts)))
+
 (defn- select-files! [workspace tree-view files]
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
     (ui/user-data! tree-view ::pending-selection selected-paths)))
@@ -295,16 +317,17 @@
   (run [selection]
     (let [resource (first selection)
           dir? (= :folder (resource/source-type resource))
-          ext (:ext (resource/resource-type resource))
-          ^String new-name (dialogs/make-rename-dialog
-                             (if dir? "Rename folder" "Rename file")
-                             (if dir? "New folder name" "New file name")
-                             (if dir?
-                               (resource/resource-name resource)
-                               (string/replace (resource/resource-name resource)
-                                               (re-pattern (str "." ext))
-                                               ""))
-                             ext)]
+          extension (:ext (resource/resource-type resource))
+          name (if dir?
+                 (resource/resource-name resource)
+                 (if (seq extension)
+                   (string/replace (resource/resource-name resource)
+                                   (re-pattern (str "\\." extension "$"))
+                                   "")
+                   (resource/resource-name resource)))
+          options {:title (if dir? "Rename Folder" "Rename File")
+                   :label (if dir? "New Folder Name" "New File Name")}
+          new-name (dialogs/make-rename-dialog name extension options)]
       (rename resource new-name))))
 
 (handler/defhandler :delete :asset-browser
@@ -326,23 +349,24 @@
                                                                                 (= (count selection) 1)
                                                                                 (not= nil (some-> (handler/adapt-single selection resource/Resource)
                                                                                             resource/abs-path)))))
-  (run [selection user-data asset-browser app-view workspace project]
+  (run [selection user-data asset-browser app-view prefs workspace project]
        (let [project-path (workspace/project-path workspace)
              base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
                                    first
                                    resource/abs-path
                                    (File.))
                                  project-path)
-                           util/to-folder)
+                             util/to-folder)
              rt (:resource-type user-data)]
-         (when-let [new-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
-           (spit new-file (workspace/template rt))
-           (workspace/resource-sync! workspace)
-           (let [resource-map (g/node-value workspace :resource-map)
-                 new-resource-path (resource/file->proj-path project-path new-file)
-                 resource (resource-map new-resource-path)]
-             (app-view/open-resource app-view workspace project resource)
-             (select-resource! asset-browser resource)))))
+         (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
+           (when-let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
+             (spit new-file (workspace/template rt))
+             (workspace/resource-sync! workspace)
+             (let [resource-map (g/node-value workspace :resource-map)
+                   new-resource-path (resource/file->proj-path project-path new-file)
+                   resource (resource-map new-resource-path)]
+               (app-view/open-resource app-view prefs workspace project resource)
+               (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
            (when (not user-data)
              (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
@@ -469,61 +493,57 @@
              (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY])))
            (.consume e)))))))
 
-(defn- find-files [^File src ^File tgt]
-  (if (.isDirectory src)
-    (let [base (.getAbsolutePath src)
-          base-count (inc (count base))]
-      (mapv (fn [^File f]
-              (let [rel-path (subs (.getAbsolutePath f) base-count)]
-                [f (File. tgt rel-path)]))
-            (filter (fn [^File f] (.isFile f)) (file-seq src))))
-    [[src tgt]]))
+(defn- find-entries [^File src-dir ^File tgt-dir]
+  (let [base (.getAbsolutePath src-dir)
+        base-count (inc (count base))]
+    (mapv (fn [^File src-entry]
+            (let [rel-path (subs (.getAbsolutePath src-entry) base-count)
+                  tgt-entry (File. tgt-dir rel-path)]
+              [src-entry tgt-entry]))
+          (.listFiles src-dir))))
 
+(declare move-entry!)
 
-(defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
-
-(defmethod resolve-conflicts :overwrite
-  [_ src-dest-pairs]
-  src-dest-pairs)
-
-(defmethod resolve-conflicts :rename
-  [_ src-dest-pairs]
-  (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
-
-(defn- resolve-any-conflicts
-  [src-dest-pairs]
-  (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
-        conflicts (get files-by-existence true)
-        non-conflicts (get files-by-existence false [])]
-    (if (seq conflicts)
-      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts)]
-        (into non-conflicts (resolve-conflicts strategy conflicts)))
-      non-conflicts)))
-
-(defn- move-file
-  "Moves a file to the specified target location. Any existing file at the
-  target location will be overwritten. If it does not already exist, the path
-  leading up to the target location will be created. Returns true if the move
-  was successful, or false if the move failed for any reason."
-  [^File src ^File tgt]
+(defn- move-directory! [^File src ^File tgt]
   (try
-    (if (.exists tgt)
-      (and (FileUtils/deleteQuietly tgt)
-           (.renameTo src tgt))
-      (do (io/make-parents tgt)
-          (.renameTo src tgt)))
-    (catch Exception _
-      false)))
+    (.mkdirs tgt)
+    (catch SecurityException _))
+  (let [moved-file-pairs (into []
+                               (mapcat (fn [[child-src child-tgt]]
+                                         (move-entry! child-src child-tgt)))
+                               (find-entries src tgt))]
+    (when (empty? (.listFiles src))
+      (try
+        (when-not (.canWrite src)
+          (.setWritable src true))
+        (FileUtils/deleteQuietly src)
+        (catch SecurityException _)))
+    moved-file-pairs))
+
+(defn- move-file! [^File src ^File tgt]
+  (if (try
+        (if (.exists tgt)
+          (when-not (.canWrite tgt)
+            (.setWritable tgt true))
+          (io/make-parents tgt))
+        (FileUtils/deleteQuietly tgt)
+        (.renameTo src tgt)
+        (catch SecurityException _))
+    [[src tgt]]
+    []))
+
+(defn move-entry!
+  "Moves a file system entry to the specified target location. Any existing
+  files at the target location will be overwritten. If it does not already
+  exist, the path leading up to the target location will be created. Returns
+  a sequence of [source, destination] File pairs that were successfully moved."
+  [^File src ^File tgt]
+  (if (.isDirectory src)
+    (move-directory! src tgt)
+    (move-file! src tgt)))
 
 (defn- drag-move-files [dragged-pairs]
-  (let [file-pairs (mapcat (fn [[src tgt]] (find-files src tgt)) dragged-pairs)
-        moved-file-pairs (filterv (fn [[src tgt]] (move-file src tgt)) file-pairs)]
-    ;; Delete any now-empty directories.
-    (doseq [[^File src] dragged-pairs]
-      (when (and (.isDirectory src)
-                 (empty? (.list src)))
-        (FileUtils/deleteQuietly src)))
-    moved-file-pairs))
+  (into [] (mapcat (fn [[src tgt]] (move-entry! src tgt)) dragged-pairs)))
 
 (defn- drag-copy-files [dragged-pairs]
   (doseq [[^File src ^File tgt] dragged-pairs]

@@ -1,16 +1,17 @@
 (ns integration.scene-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
-            [editor.system :as system]
-            [editor.collection :as collection]
+            [editor.camera :as camera]
             [editor.geom :as geom]
-            [editor.defold-project :as project]
-            [editor.sprite :as sprite]
+            [editor.gl.pass :as pass]
+            [editor.scene :as scene]
+            [editor.system :as system]
+            [editor.types :as types]
             [integration.test-util :as test-util]
-            [editor.gl.pass :as pass])
-  (:import [javax.vecmath Point3d]))
+            [support.test-support :refer [with-clean-system]])
+  (:import [editor.types AABB]
+           [javax.vecmath Point3d Matrix4d]))
 
 (defn- make-aabb [min max]
   (reduce geom/aabb-incorporate (geom/null-aabb) (map #(Point3d. (double-array (conj % 0))) [min max])))
@@ -192,3 +193,184 @@
                (is (not (seq (g/node-value view :selected-renderables))))
                (app-view/select! app-view [emitter])
                (is (seq (g/node-value view :selected-renderables)))))))
+
+(deftest claim-scene-test
+  (let [scene {:node-id :scene-node-id
+               :children [{:node-id :tree-node-id
+                           :children [{:node-id :apple-node-id}]}
+                          {:node-id :house-node-id
+                           :children [{:node-id :door-node-id
+                                       :children [{:node-id :door-handle-node-id}]}]}]}]
+    (is (= {:node-id :new-node-id
+            :children [{:node-id :tree-node-id
+                        :picking-id :new-node-id
+                        :children [{:node-id :apple-node-id
+                                    :picking-id :new-node-id}]}
+                       {:node-id :house-node-id
+                        :picking-id :new-node-id
+                        :children [{:node-id :door-node-id
+                                    :picking-id :new-node-id
+                                    :children [{:node-id :door-handle-node-id
+                                                :picking-id :new-node-id}]}]}]}
+           (scene/claim-scene scene :new-node-id)))))
+
+(defn- render-pass? [pass]
+  (satisfies? types/Pass pass))
+
+(defn- output-renderable? [renderable]
+  (and (map? renderable)
+       (= #{:aabb
+            :batch-key
+            :node-id
+            :node-path
+            :picking-id
+            :parent-world-transform
+            :render-fn
+            :render-key
+            :selected
+            :user-data
+            :world-transform} (set (keys renderable)))
+       (instance? AABB (:aabb renderable))
+       (some? (:node-id renderable))
+       (vector? (:node-path renderable))
+       (every? some? (:node-path renderable))
+       (or (nil? (:picking-id renderable)) (= (type (:node-id renderable)) (type (:picking-id renderable))))
+       (instance? Matrix4d (:parent-world-transform renderable))
+       (some? (:render-fn renderable))
+       (instance? Comparable (:render-key renderable))
+       (or (true? (:selected renderable)) (false? (:selected renderable)))
+       (instance? Matrix4d (:world-transform renderable))))
+
+(defn- output-renderable-vector? [coll]
+  (and (vector? coll)
+       (every? output-renderable? coll)))
+
+(deftest produce-render-data-test
+  (let [passes [pass/transparent pass/selection pass/outline]
+        camera (camera/make-camera)
+        scene {:node-id :scene-node-id
+               :renderable {:render-fn :scene-render-fn
+                            :passes passes}
+               :children [{:node-id :tree-node-id
+                           :renderable {:render-fn :tree-render-fn
+                                        :passes passes}
+                           :children [{:node-id :apple-node-id
+                                       :renderable {:render-fn :apple-render-fn
+                                                    :passes passes}}]}
+                          {:node-id :house-node-id
+                           :renderable {:render-fn :house-render-fn
+                                       :passes passes}
+                           :children [{:node-id :door-node-id
+                                       :renderable {:render-fn :door-render-fn
+                                                    :passes passes}
+                                       :children [{:node-id :door-handle-node-id
+                                                   :renderable {:render-fn :door-handle-render-fn
+                                                                :passes passes}}]}]}
+                          {:node-id :well-node-id
+                           :renderable {:render-fn :well-render-fn
+                                        :passes passes}
+                           :children [{:node-id :rope-node-id
+                                       :picking-id :well-node-id
+                                       :renderable {:render-fn :rope-render-fn
+                                                    :passes passes}
+                                       :children [{:node-id :bucket-node-id
+                                                   :picking-id :well-node-id
+                                                   :renderable {:render-fn :bucket-render-fn
+                                                                :passes passes}}]}]}]}]
+    (testing "Output is well-formed"
+      (let [render-data (scene/produce-render-data scene [] [] camera)]
+        (is (= [:renderables :selected-renderables] (keys render-data)))
+        (is (every? render-pass? (keys (:renderables render-data))))
+        (is (every? output-renderable-vector? (vals (:renderables render-data))))
+        (is (output-renderable-vector? (:selected-renderables render-data)))))
+
+    (testing "Aux renderables are included unaltered"
+      (let [background-renderable {:batch-key [false 0 0] :render-fn :background-render-fn}
+            aux-renderables [{pass/background [background-renderable]}]
+            render-data (scene/produce-render-data scene [] aux-renderables camera)
+            background-renderables (-> render-data :renderables (get pass/background))]
+        (is (some? (some #(= background-renderable %) background-renderables)))))
+
+    (testing "Node paths are relative to scene"
+      (let [render-data (scene/produce-render-data scene [] [] camera)
+            selection-renderables (-> render-data :renderables (get pass/selection))]
+        (are [render-fn node-path]
+          (= [node-path] (into []
+                               (comp (filter (fn [renderable]
+                                               (= render-fn (:render-fn renderable))))
+                                     (map :node-path))
+                               selection-renderables))
+          :scene-render-fn       []
+          :tree-render-fn        [:tree-node-id]
+          :apple-render-fn       [:tree-node-id :apple-node-id]
+          :house-render-fn       [:house-node-id]
+          :door-render-fn        [:house-node-id :door-node-id]
+          :door-handle-render-fn [:house-node-id :door-node-id :door-handle-node-id])))
+
+    (testing "Picking ids are assigned correctly"
+      (let [render-data (scene/produce-render-data scene [] [] camera)
+            selection-renderables (-> render-data :renderables (get pass/selection))
+            picking-ids-by-node-id (into {}
+                                         (map (juxt :node-id :picking-id))
+                                         selection-renderables)]
+        (are [node-id picking-id]
+          (= picking-id (get picking-ids-by-node-id node-id ::missing))
+
+          :scene-node-id       nil
+          :tree-node-id        :tree-node-id
+          :apple-node-id       :apple-node-id
+          :house-node-id       :house-node-id
+          :door-node-id        :door-node-id
+          :door-handle-node-id :door-handle-node-id
+          :well-node-id        :well-node-id
+          :rope-node-id        :well-node-id
+          :bucket-node-id      :well-node-id)))
+
+    (testing "Selection"
+      (are [selection appears-selected]
+        (let [render-data (scene/produce-render-data scene selection [] camera)
+              outline-renderables (-> render-data :renderables (get pass/outline))
+              selected-renderables (:selected-renderables render-data)]
+          (is (= selection (mapv :node-id selected-renderables)))
+          (is (= appears-selected (mapv :node-id (filter :selected outline-renderables)))))
+
+        []
+        []
+
+        [:apple-node-id]
+        [:apple-node-id]
+
+        [:tree-node-id]
+        [:tree-node-id :apple-node-id]
+
+        [:door-node-id]
+        [:door-node-id :door-handle-node-id]
+
+        [:house-node-id]
+        [:house-node-id :door-node-id :door-handle-node-id]
+
+        [:house-node-id :door-handle-node-id]
+        [:house-node-id :door-node-id :door-handle-node-id]
+
+        [:bucket-node-id]
+        [:bucket-node-id]
+
+        [:rope-node-id]
+        [:rope-node-id :bucket-node-id]
+
+        [:well-node-id]
+        [:well-node-id :rope-node-id :bucket-node-id]
+
+        [:well-node-id :rope-node-id]
+        [:well-node-id :rope-node-id :bucket-node-id]))
+
+    (testing "Selected renderables are ordered"
+      (are [selection]
+        (let [selected-renderables (:selected-renderables (scene/produce-render-data scene selection [] camera))]
+          (is (= selection (mapv :node-id selected-renderables))))
+        [:house-node-id :door-node-id :door-handle-node-id]
+        [:door-handle-node-id :house-node-id :door-node-id]
+        [:door-node-id :door-handle-node-id :house-node-id]
+        [:door-handle-node-id :door-node-id :house-node-id]
+        [:house-node-id :door-handle-node-id :door-node-id]
+        [:door-node-id :house-node-id :door-handle-node-id]))))

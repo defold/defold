@@ -28,7 +28,7 @@ protected:
     virtual void SetUp()
     {
         g_LuaTableTest = this;
-        m_Context = dmScript::NewContext(0, 0);
+        m_Context = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
         top = lua_gettop(L);
@@ -719,7 +719,7 @@ TEST_F(LuaTableTest, Stress)
 	      dmScript::PushTable(L, buf);
 	      lua_pop(L, 1);
 	    }
-	    
+
             lua_pop(L, 1);
             delete[] buf;
         }

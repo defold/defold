@@ -32,7 +32,7 @@
   manipulator    false true
   overlay        false false
   selection      true  true
-  manipulator-selection      false true
+  manipulator-selection      true true
   icon           false false
   icon-selection true false
   overlay-selection false false)

@@ -7,6 +7,9 @@ import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -15,18 +18,19 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.scene.control.ButtonBase;
-import javafx.stage.Modality;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.core.FileAppender;
+import ch.qos.logback.core.rolling.*;
+import ch.qos.logback.core.util.FileSize;
+
 import com.defold.editor.Updater.PendingUpdate;
 import com.defold.libs.ResourceUnpacker;
+import com.defold.util.SupportPath;
 
 import javafx.application.Application;
 import javafx.beans.value.ChangeListener;
@@ -56,9 +60,13 @@ public class Start extends Application {
         return urls;
     }
 
+    public PendingUpdate getPendingUpdate() {
+        return this.pendingUpdate.get();
+    }
+
     private LinkedBlockingQueue<Object> pool;
     private ThreadPoolExecutor threadPool;
-    private LinkedBlockingQueue<Runnable> preUpdateActions;
+    private AtomicReference<PendingUpdate> pendingUpdate;
     private Timer updateTimer;
     private Updater updater;
     private static boolean createdFromMain = false;
@@ -70,19 +78,12 @@ public class Start extends Application {
         threadPool = new ThreadPoolExecutor(1, 1, 3000, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>());
         threadPool.allowCoreThreadTimeOut(true);
-        preUpdateActions = new LinkedBlockingQueue<>();
+        pendingUpdate = new AtomicReference<>();
 
         if (System.getProperty("defold.resourcespath") != null && System.getProperty("defold.sha1") != null)  {
             logger.debug("automatic updates enabled");
             installUpdater();
         }
-    }
-
-    public void registerPreUpdateAction(Runnable action) throws Exception {
-        if (action == null) {
-            throw new IllegalArgumentException("action cannot be null");
-        }
-        preUpdateActions.add(action);
     }
 
     private void installUpdater() throws IOException {
@@ -92,87 +93,20 @@ public class Start extends Application {
         updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
     }
 
-    private Boolean showRestartDialog() throws IOException {
-        Parent root = FXMLLoader.load(Thread.currentThread().getContextClassLoader().getResource("update-alert.fxml"));
-        Stage stage = new Stage();
-        Scene scene = new Scene(root);
-        ButtonBase ok = (ButtonBase) root.lookup("#ok");
-        ButtonBase cancel = (ButtonBase) root.lookup("#cancel");
-        final Boolean[] result = {false};
-
-        ok.setOnAction(event -> {
-            result[0] = true;
-            stage.close();
-        });
-
-        cancel.setOnAction(event -> {
-            result[0] = false;
-            stage.close();
-        });
-
-        stage.setTitle("Update Available");
-        stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setScene(scene);
-        stage.showAndWait();
-
-        return result[0];
-    }
-
     private TimerTask newCheckForUpdateTask() {
         return new TimerTask() {
             @Override
             public void run() {
                 try {
                     logger.debug("checking for updates");
-                    PendingUpdate pendingUpdate = updater.check();
-                    if (pendingUpdate != null) {
-                        javafx.application.Platform.runLater(() -> {
-                            try {
-                                // We found a pending update. Ask the user if we should install it.
-                                // If not, we won't check for further updates during this session.
-                                if (showRestartDialog()) {
-                                    updateTimer.schedule(newInstallUpdateTask(pendingUpdate), 0);
-                                }
-                            } catch (IOException e) {
-                                logger.error("unable to open update alert dialog");
-                            }
-                        });
+                    PendingUpdate update = updater.check();
+                    if (update != null) {
+                        pendingUpdate.compareAndSet(null, update);
                     } else {
                         updateTimer.schedule(newCheckForUpdateTask(), updateDelay);
                     }
                 } catch (IOException e) {
                     logger.debug("update check failed", e);
-                }
-            }
-        };
-    }
-
-    private TimerTask newInstallUpdateTask(PendingUpdate pendingUpdate) {
-        return new TimerTask() {
-            @Override
-            public void run() {
-                // User has requested we install the update.
-                // Before proceeding, run any registered pre-update actions.
-                // For example, we might want to save the project before
-                // applying the update and restarting the editor.
-                try {
-                    Runnable action;
-                    while (null != (action = preUpdateActions.poll())) {
-                        action.run();
-                    }
-                } catch (Exception e) {
-                    logger.error("an exception was thrown from a pre-update action", e);
-                    return;
-                }
-
-                // All the pre-update actions completed successfully.
-                // Apply the update and restart the editor.
-                try {
-                    pendingUpdate.install();
-                    logger.info("update installed - restarting");
-                    System.exit(17);
-                } catch (IOException e) {
-                    logger.debug("update installation failed", e);
                 }
             }
         };
@@ -290,6 +224,42 @@ public class Start extends Application {
 
     public static void main(String[] args) throws Exception {
         createdFromMain = true;
+        initializeLogging();
         Start.launch(args);
     }
+
+    private static void initializeLogging() {
+        Path logDirectory = Editor.isDev() ? Paths.get("") : Editor.getSupportPath();
+        if (logDirectory == null) {
+            logDirectory = Paths.get(System.getProperty("user.home"));
+        }
+
+        ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+
+        RollingFileAppender appender = new RollingFileAppender();
+        appender.setName("FILE");
+        appender.setAppend(true);
+        appender.setPrudent(true);
+        appender.setContext(root.getLoggerContext());
+
+        TimeBasedRollingPolicy rollingPolicy = new TimeBasedRollingPolicy();
+        rollingPolicy.setMaxHistory(30);
+        rollingPolicy.setFileNamePattern(logDirectory.resolve("editor2.%d{yyyy-MM-dd}.log").toString());
+        rollingPolicy.setTotalSizeCap(FileSize.valueOf("1GB"));
+        rollingPolicy.setContext(root.getLoggerContext());
+        rollingPolicy.setParent(appender);
+        appender.setRollingPolicy(rollingPolicy);
+        rollingPolicy.start();
+
+        PatternLayoutEncoder encoder = new PatternLayoutEncoder();
+        encoder.setPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} %-4relative [%thread] %-5level %logger{35} - %msg%n");
+        encoder.setContext(root.getLoggerContext());
+        encoder.start();
+
+        appender.setEncoder(encoder);
+        appender.start();
+
+        root.addAppender(appender);
+    }
+
 }

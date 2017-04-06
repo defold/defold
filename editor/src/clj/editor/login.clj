@@ -38,7 +38,7 @@
 
 (defn- open-login-dialog [prefs client]
   (let [root ^Parent (ui/load-fxml "login.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         web-view ^WebView (.lookup root "#web")
         engine (.getEngine web-view)
@@ -57,7 +57,6 @@
                        (log/error :exception e)))
                    (ui/run-later (ui/close! stage))
                    (NanoHTTPD$Response. "")))]
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setTitle stage "Login")
     (.start server)
     (.setOnHidden stage (ui/event-handler event (.stop server)))
@@ -79,3 +78,9 @@
   (prefs/set-prefs prefs "first-name" nil)
   (prefs/set-prefs prefs "last-name" nil)
   (prefs/set-prefs prefs "token" nil))
+
+(defn credentials [prefs]
+  (let [email (prefs/get-prefs prefs "email" nil)
+        token (prefs/get-prefs prefs "token" nil)]
+    (when (and email token)
+      [email token])))

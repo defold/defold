@@ -83,6 +83,18 @@ public class ProjectSiteMapper {
                 builder.setReviewUrl(projectSite.getReviewUrl());
             }
 
+            if (projectSite.getLibraryUrl() != null) {
+                builder.setLibraryUrl(projectSite.getLibraryUrl());
+            }
+
+            if (projectSite.getAttachmentUrl() != null) {
+                builder.setAttachmentUrl(magazineClient.createReadUrl(projectSite.getAttachmentUrl()));
+            }
+
+            builder.setIsPublicSite(projectSite.isPublicSite());
+            builder.setShowName(projectSite.isShowName());
+            builder.setAllowComments(projectSite.isAllowComments());
+
             Set<AppStoreReference> appStoreReferences = projectSite.getAppStoreReferences();
             if (appStoreReferences != null) {
                 for (AppStoreReference appStoreReference : appStoreReferences) {
@@ -94,21 +106,18 @@ public class ProjectSiteMapper {
                 }
             }
 
-            Set<Screenshot> screenShots = projectSite.getScreenshots();
-            if (screenShots != null) {
-                for (Screenshot screenShot : screenShots) {
-                    Protocol.ProjectSite.Screenshot.Builder screenShotBuilder = Protocol.ProjectSite.Screenshot.newBuilder();
-                    screenShotBuilder.setId(screenShot.getId());
+            for (Screenshot screenShot : projectSite.getScreenshotsOrdered()) {
+                Protocol.ProjectSite.Screenshot.Builder screenShotBuilder = Protocol.ProjectSite.Screenshot.newBuilder();
+                screenShotBuilder.setId(screenShot.getId());
 
-                    if (screenShot.getMediaType() == Screenshot.MediaType.IMAGE) {
-                        // Sign URL for images hosted by Magazine
-                        screenShotBuilder.setUrl(magazineClient.createReadUrl(screenShot.getUrl()));
-                    } else {
-                        screenShotBuilder.setUrl(screenShot.getUrl());
-                    }
-                    screenShotBuilder.setMediaType(Protocol.ScreenshotMediaType.valueOf(screenShot.getMediaType().name()));
-                    builder.addScreenshots(screenShotBuilder.build());
+                if (screenShot.getMediaType() == Screenshot.MediaType.IMAGE) {
+                    // Sign URL for images hosted by Magazine
+                    screenShotBuilder.setUrl(magazineClient.createReadUrl(screenShot.getUrl()));
+                } else {
+                    screenShotBuilder.setUrl(screenShot.getUrl());
                 }
+                screenShotBuilder.setMediaType(Protocol.ScreenshotMediaType.valueOf(screenShot.getMediaType().name()));
+                builder.addScreenshots(screenShotBuilder.build());
             }
         }
 

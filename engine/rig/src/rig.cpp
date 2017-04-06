@@ -9,6 +9,8 @@ namespace dmRig
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
+    static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
+    static const uint32_t SIGNAL_SLOT_UNUSED = UINT32_MAX; // Used to indicate if a draw order slot is unused
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* RIG_MAX_INSTANCES_KEY = "rig.max_instance_count";
@@ -138,6 +140,7 @@ namespace dmRig
                 properties->m_Color[3] = color[3];
                 properties->m_Order = mesh->m_DrawOrder;
                 properties->m_Visible = mesh->m_Visible;
+                properties->m_OrderOffset = 0;
             }
             instance->m_DoRender = 1;
         } else {
@@ -510,7 +513,7 @@ namespace dmRig
                     }
                 }
                 if (track->m_OrderOffset.m_Count > 0 && draw_order) {
-                    props.m_Order += track->m_OrderOffset[rounded_sample];
+                    props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
                 }
             }
         }
@@ -814,16 +817,16 @@ namespace dmRig
             player->m_Backwards = 0;
         }
 
-        if (fabs(t) > duration) 
+        if (fabs(t) > duration)
         {
             t = fmod(t, duration);
-            if (fabs(t) < CURSOR_EPSILON) 
+            if (fabs(t) < CURSOR_EPSILON)
             {
                 t = duration;
             }
         }
 
-        if (t < 0.0f) 
+        if (t < 0.0f)
         {
             t = duration - fmod(fabs(t), duration);
         }
@@ -834,7 +837,7 @@ namespace dmRig
         }
 
         player->m_Cursor = t;
-        
+
         return dmRig::RESULT_OK;
     }
 
@@ -864,42 +867,102 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-	static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh) {
-        // Spine's approach to update draw order is to:
-        // * Initialize with default draw order (integer sequence)
-        // * Add entries with changed draw order
-        // * Fill untouched slots with the unchanged entries
-        // E.g.:
-        // Init: [0, 1, 2]
-        // Changed: 1 => 0, results in [1, 1, 2]
-        // Unchanged: 0 => 0, 2 => 2, results in [1, 0, 2] (indices 1 and 2 were untouched and filled)
-        out_order_to_mesh.SetSize(mesh_count);
-        // Intialize
-        for (uint32_t i = 0; i < mesh_count; ++i) {
-            out_order_to_mesh[i] = i;
-        }
-        // No need to reorder instances with only one, or none, meshes.
-        if (mesh_count <= 1) {
-            return;
-        }
-        // Update changed
-        for (uint32_t i = 0; i < mesh_count; ++i) {
-            uint32_t order = instance->m_MeshProperties[i].m_Order;
-            if (order != i) {
-                out_order_to_mesh[order] = i;
+    static void PlaceInSlot(dmArray<uint32_t>& slots, uint32_t slot_index, int32_t value)
+    {
+        uint32_t slot_count = slots.Size();
+
+        // Find first free slot from supplied slot index.
+        for (uint32_t i = slot_index; i < slot_count; ++i)
+        {
+            if (slots[i] == SIGNAL_SLOT_UNUSED) {
+                slots[i] = value;
+                break;
             }
         }
-        // Fill with unchanged
-        uint32_t draw_order = 0;
-        for (uint32_t i = 0; i < mesh_count; ++i) {
+    }
+
+	static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh) {
+
+        // Make sure output array has zero to begin with
+        out_order_to_mesh.SetSize(0);
+
+        // We resolve draw order and offsets in these two steps:
+        //   I. Add entries with changed draw order (has explicit offset)
+        //  II. Add untouched entries (those with no explicit offset)
+        //      If an untouched entry placement is already occupied, find the first next empty slot.
+        //
+        // E.g.:
+        // Bind draw order: [0, 1, 2]
+        // Keyframe has entry 1 with offset -1, results in:
+        //   (I) Entry 1 is placed first => [1, _, _]
+        //   (II) Entry 0 has no offset. Entry 0 can't be placed at index 0, so look for next empty space,
+        //        which is index 1:
+        //        => [1, 0, _]
+        //        Entry 2 also has no offset, and index 2 is empty so it can be placed directly:
+        //        => [1, 0, 2]
+        //
+        // An exception is made if there is an explicit entry with offset "0". This means that previous order should
+        // be conserved. These entries are marked as SIGNAL_ORDER_LOCKED. In that case the order should be unchanged,
+        // so they will be placed in step (I) as those with explicit offset.
+
+        // No need to reorder instances with only one, or none, meshes.
+        if (mesh_count <= 1) {
+            if (mesh_count == 1 && instance->m_MeshProperties[0].m_Visible) {
+                out_order_to_mesh.Push(0);
+            }
+            return;
+        }
+
+        // Array of "slots" where meshes will be added that should be rendered,
+        // their order in this array is the final draw order.
+        // We mark unused entries here as SIGNAL_SLOT_UNUSED and check against this value in PlaceInSlots(...).
+        dmArray<uint32_t> slots;
+        uint32_t slot_count = mesh_count*2;
+        slots.SetCapacity(slot_count);
+        slots.SetSize(slot_count);
+        for (int i = 0; i < slot_count; ++i) {
+            slots[i] = SIGNAL_SLOT_UNUSED;
+        }
+
+        // Loop over all mesh entries, only care about the ones that are visible;
+        // - Keep track of all unchanged entries (those with zero offset)
+        // - Directly apply offset to order and place in slots array
+        dmArray<uint32_t> unchanged;
+        unchanged.SetCapacity(mesh_count*2); // x2 size since we store both order and mesh index
+        unchanged.SetSize(0);
+        for (uint32_t i = 0; i < mesh_count; ++i)
+        {
             uint32_t order = instance->m_MeshProperties[i].m_Order;
-            if (order == i) {
-                // Find free slot
-                while (out_order_to_mesh[draw_order] != draw_order) {
-                    ++draw_order;
+            int32_t offset = instance->m_MeshProperties[i].m_OrderOffset;
+            bool visible = instance->m_MeshProperties[i].m_Visible;
+            if (visible) {
+                if (offset == 0) {
+                    unchanged.Push(order);
+                    unchanged.Push(i);
+                } else {
+                    if (offset != SIGNAL_ORDER_LOCKED) {
+                        order += offset;
+                    }
+
+                    PlaceInSlot(slots, order, i);
                 }
-                out_order_to_mesh[draw_order] = i;
-                ++draw_order;
+            }
+        }
+
+        // Loop over unchanged entries and place in slots array
+        uint32_t unchanged_count = unchanged.Size();
+        for (uint32_t i = 0; i < unchanged_count; i+=2)
+        {
+            uint32_t order = unchanged[i];
+            uint32_t mesh_index = unchanged[i+1];
+            PlaceInSlot(slots, order, mesh_index);
+        }
+
+        // Go through slots and only copy valid draw entries to output array
+        for (uint32_t i = 0; i < slot_count; ++i) {
+            uint32_t slot = slots[i];
+            if (slot != SIGNAL_SLOT_UNUSED) {
+                out_order_to_mesh.Push(slot);
             }
         }
     }
@@ -1136,8 +1199,8 @@ namespace dmRig
                 out_write_ptr->z = positions[++e];
                 vi = uv0_indices[i];
                 e = vi << 1;
-                out_write_ptr->u = (uint16_t)((uv0[e+0]) * 65535.0f);
-                out_write_ptr->v = (uint16_t)((uv0[e+1]) * 65535.0f);
+                out_write_ptr->u = uv0[e+0];
+                out_write_ptr->v = uv0[e+1];
                 e = i * 3;
                 out_write_ptr->nx = normals[e];
                 out_write_ptr->ny = normals[++e];
@@ -1156,8 +1219,8 @@ namespace dmRig
                 out_write_ptr->z = positions[++e];
                 vi = uv0_indices[i];
                 e = vi << 1;
-                out_write_ptr->u = (uint16_t)((uv0[e+0]) * 65535.0f);
-                out_write_ptr->v = (uint16_t)((uv0[e+1]) * 65535.0f);
+                out_write_ptr->u = uv0[e+0];
+                out_write_ptr->v = uv0[e+1];
                 out_write_ptr->nx = 0.0f;
                 out_write_ptr->ny = 0.0f;
                 out_write_ptr->nz = 1.0f;
@@ -1268,12 +1331,10 @@ namespace dmRig
         }
 
         dmRig::UpdateMeshDrawOrder(instance, mesh_count, draw_order);
-        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
+        uint32_t visible_mesh_count = draw_order.Size();
+        for (uint32_t draw_index = 0; draw_index < visible_mesh_count; ++draw_index) {
             uint32_t mesh_index = draw_order[draw_index];
             const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-            if (!properties->m_Visible) {
-                continue;
-            }
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
 
             // Bump scratch buffer capacity to handle current vertex count

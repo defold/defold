@@ -16,6 +16,8 @@ import javax.ws.rs.core.MediaType;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -56,6 +58,14 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return createBaseResource(user.email, user.password).path("v2/projects").path(projectId.toString()).path("site");
     }
 
+    private WebResource projectSiteResourceWithFaultyPassword(Long projectId) {
+        return createBaseResource("FAULTY", "FAULTY").path("v2/projects").path(projectId.toString()).path("site");
+    }
+
+    private WebResource projectSitesResource(TestUser user) {
+        return createBaseResource(user.email, user.password).path("v2/projects").path("sites");
+    }
+
     private WebResource projectSiteResource(Long projectId) {
         return createAnonymousResource().path("v2/projects").path(projectId.toString()).path("site");
     }
@@ -68,8 +78,16 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return projectSiteResource(testUser, projectId).get(Protocol.ProjectSite.class);
     }
 
+    private Protocol.ProjectSiteList getProjectSites(TestUser testUser) {
+        return projectSitesResource(testUser).get(Protocol.ProjectSiteList.class);
+    }
+
     private Protocol.ProjectSite getProjectSite(Long projectId) {
         return projectSiteResource(projectId).get(Protocol.ProjectSite.class);
+    }
+
+    private Protocol.ProjectSite getProjectSiteWithFaultyPassword(Long projectId) {
+        return projectSiteResourceWithFaultyPassword(projectId).get(Protocol.ProjectSite.class);
     }
 
     private void addAppStoreReference(TestUser testUser, Long projectId, Protocol.NewAppStoreReference newAppStoreReference) {
@@ -88,6 +106,55 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         projectSiteResource(testUser, projectId).path("screenshots").path(screenshotId.toString()).delete();
     }
 
+    private void orderScreenshots(TestUser testUser, Long projectId, List<Long> screenshotIds) {
+        Protocol.ScreenshotSortOrderRequest screenshotSortOrderRequest = Protocol.ScreenshotSortOrderRequest.newBuilder()
+                .addAllScreenshotIds(screenshotIds)
+                .build();
+
+        projectSiteResource(testUser, projectId).path("screenshots").path("order").put(screenshotSortOrderRequest);
+    }
+
+    @Test
+    public void listProjectSites() {
+        int originalSitesCount = getProjectSites(TestUser.JAMES).getSitesCount();
+
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSite projectSite = Protocol.ProjectSite.newBuilder()
+                .setName("name")
+                .setDescription("description")
+                .setStudioUrl("studioUrl")
+                .setStudioName("studioName")
+                .setDevLogUrl("devLogUrl")
+                .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
+
+        Protocol.ProjectInfo projectWithoutSite = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSiteList result = getProjectSites(TestUser.JAMES);
+
+        assertEquals(originalSitesCount + 1, result.getSitesCount());
+    }
+
+    @Test
+    public void accessPublicSiteWithExpiredSession() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSite projectSiteUpdate = Protocol.ProjectSite.newBuilder()
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSiteUpdate);
+
+
+        Protocol.ProjectSite projectSite = getProjectSiteWithFaultyPassword(project.getId());
+        assertNotNull(projectSite);
+    }
+
     @Test
     public void updateProjectSite() {
 
@@ -100,6 +167,9 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .setStudioName("studioName")
                 .setDevLogUrl("devLogUrl")
                 .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setShowName(false)
+                .setAllowComments(false)
                 .build();
 
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
@@ -112,13 +182,57 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals("studioName", result.getStudioName());
         assertEquals("devLogUrl", result.getDevLogUrl());
         assertEquals("reviewUrl", result.getReviewUrl());
+        assertEquals("libraryUrl", result.getLibraryUrl());
+        assertEquals(false, result.getIsPublicSite()); // Project site should be private by default.
+        assertEquals(false, result.getShowName());
+        assertEquals(false, result.getAllowComments());
         assertEquals(project.getId(), result.getProjectId());
+    }
+
+    @Test
+    public void privateSiteShouldNotBeAccessibleForNonMembers() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSite projectSite = Protocol.ProjectSite.newBuilder()
+                .setName("name")
+                .setDescription("description")
+                .setStudioUrl("studioUrl")
+                .setStudioName("studioName")
+                .setDevLogUrl("devLogUrl")
+                .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setIsPublicSite(false)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
+
+        assertNotNull(getProjectSite(TestUser.JAMES, project.getId()));
+
+        try {
+            getProjectSite(TestUser.CARL, project.getId());
+        } catch (Exception e) {
+            return;
+        }
+        fail();
     }
 
     @Test
     public void projectMembersAreSiteAdmins() {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
         addProjectMember(project.getId(), TestUser.JAMES, TestUser.CARL);
+
+        Protocol.ProjectSite projectSite = Protocol.ProjectSite.newBuilder()
+                .setName("name")
+                .setDescription("description")
+                .setStudioUrl("studioUrl")
+                .setStudioName("studioName")
+                .setDevLogUrl("devLogUrl")
+                .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
 
         Protocol.ProjectSite result = getProjectSite(TestUser.JAMES, project.getId());
         assertTrue(result.getIsAdmin());
@@ -193,10 +307,63 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void sortScreenshots() {
+
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Add three screenshots.
+        Protocol.NewScreenshot screenshot = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com")
+                .setMediaType(Protocol.ScreenshotMediaType.IMAGE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot);
+
+        Protocol.NewScreenshot screenshot2 = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com/2")
+                .setMediaType(Protocol.ScreenshotMediaType.YOUTUBE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot2);
+
+        Protocol.NewScreenshot screenshot3 = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com/3")
+                .setMediaType(Protocol.ScreenshotMediaType.YOUTUBE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot3);
+
+        // Sort
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        List<Long> screenshotIds = new ArrayList<>();
+        screenshotIds.add(projectSite.getScreenshots(1).getId());
+        screenshotIds.add(projectSite.getScreenshots(0).getId());
+        screenshotIds.add(projectSite.getScreenshots(2).getId());
+        orderScreenshots(TestUser.JAMES, project.getId(), screenshotIds);
+
+        // Ensure that you get two screenshots back.
+        projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(3, projectSite.getScreenshotsCount());
+        assertEquals(screenshotIds.get(0).longValue(), projectSite.getScreenshots(0).getId());
+        assertEquals(screenshotIds.get(1).longValue(), projectSite.getScreenshots(1).getId());
+        assertEquals(screenshotIds.get(2).longValue(), projectSite.getScreenshots(2).getId());
+    }
+
+    @Test
     public void getProjectSiteAsUnauthorizedUser() {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
-        Protocol.ProjectSite projectSite = getProjectSite(project.getId());
-        assertNotNull(projectSite);
+
+        Protocol.ProjectSite projectSite = Protocol.ProjectSite.newBuilder()
+                .setName("name")
+                .setDescription("description")
+                .setStudioUrl("studioUrl")
+                .setStudioName("studioName")
+                .setDevLogUrl("devLogUrl")
+                .setReviewUrl("reviewUrl")
+                .setLibraryUrl("libraryUrl")
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
+
+        assertNotNull(getProjectSite(project.getId()));
     }
 
     @Test
@@ -251,5 +418,25 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
         projectSite = getProjectSite(TestUser.JAMES, project.getId());
         System.out.println(projectSite.getPlayableUrl());
+    }
+
+    @Test
+    @Ignore("Integration test to run explicitly.")
+    public void uploadAttachment() throws URISyntaxException {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        File playableFile = new File(ClassLoader.getSystemResource("test_playable.zip").toURI());
+
+        MultiPart multiPart = new MultiPart(MediaType.MULTIPART_FORM_DATA_TYPE);
+        FileDataBodyPart fileDataBodyPart = new FileDataBodyPart("file", playableFile, MediaType.APPLICATION_OCTET_STREAM_TYPE);
+        multiPart.bodyPart(fileDataBodyPart);
+
+        projectSiteResource(TestUser.JAMES, project.getId())
+                .path("attachment")
+                .type(MediaType.MULTIPART_FORM_DATA_TYPE)
+                .post(multiPart);
+
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        System.out.println(projectSite.getAttachmentUrl());
     }
 }

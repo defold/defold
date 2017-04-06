@@ -43,26 +43,13 @@
 (def collection-icon "icons/32/Icons_09-Collection.png")
 (def path-sep "/")
 
-(defn- comp-overrides->ddf [o]
-  (reduce-kv (fn [r k v]
-               (if (empty? v)
-                 r
-                 (conj r {:id k :properties (mapv (fn [[_ v]] (second v)) v)})))
-             [] o))
-
-(defn- strip-properties [v]
-  (mapv #(dissoc % :properties) v))
-
-(defn- gen-embed-ddf [id child-ids position rotation scale proto-msg ddf-component-properties]
-  (let [proto-msg (-> proto-msg
-                    (update :components strip-properties))]
-    {:id id
-     :children (sort child-ids)
-     :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
-     :position position
-     :rotation rotation
-     :scale3 scale
-     :component-properties ddf-component-properties}))
+(defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
+  {:id id
+   :children (sort child-ids)
+   :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
+   :position position
+   :rotation rotation
+   :scale3 scale})
 
 (defn- gen-ref-ddf [id child-ids position rotation scale path ddf-component-properties]
   {:id id
@@ -72,15 +59,6 @@
    :rotation rotation
    :scale3 scale
    :component-properties ddf-component-properties})
-
-(defn- claim-scene [scene node-id]
-  (let [prev-node-id (:node-id scene)
-        new-scene (-> scene
-                    (assoc :node-id node-id)
-                    (update :node-path (fn [p] (into [prev-node-id] p))))]
-    (if (:children scene)
-      (assoc new-scene :children (mapv #(claim-scene % node-id) (:children scene)))
-      new-scene)))
 
 (defn- prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
@@ -141,8 +119,8 @@
                      [:id-counts :id-counts]]]
       (g/connect coll-id from child-id to))))
 
-(def EmbeddedGOInstanceNode nil)
-(def ReferencedGOInstanceNode nil)
+(declare EmbeddedGOInstanceNode)
+(declare ReferencedGOInstanceNode)
 
 (defn- go-id->node-ids [go-id]
   (let [collection (core/scope go-id)]
@@ -211,7 +189,7 @@
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (claim-scene scene _node-id)
+                                       (-> (scene/claim-scene scene _node-id)
                                          (assoc :transform transform
                                                 :aabb aabb
                                                 :renderable {:passes [pass/selection]})
@@ -223,26 +201,6 @@
 (g/defnode EmbeddedGOInstanceNode
   (inherits GameObjectInstanceNode)
 
-  (property overrides g/Any
-              (dynamic visible (g/constantly false))
-              (value (gu/passthrough ddf-component-properties))
-              (set (fn [basis self old-value new-value]
-                     (let [go (g/node-value self :source-id {:basis basis})
-                           component-ids (g/node-value go :component-ids {:basis basis})]
-                       (for [{:keys [id properties]} new-value
-                             p properties
-                             :let [src-id (-> id
-                                            component-ids
-                                            (g/node-value :source-id {:basis basis}))
-                                   key (properties/user-name->key (:id p))
-                                   type (:type p)
-                                   val (properties/str->go-prop (:value p) type)]
-                             :when src-id]
-                         (let [comp-props (:properties (g/node-value src-id :_properties {:basis basis}))
-                               original-type (get-in comp-props [key :type])
-                               override-type (script/go-prop-type->property-types type)]
-                           (when (= original-type override-type)
-                             (g/set-property src-id key val))))))))
   (display-order [:id :url scene/ScalableSceneNode])
 
   (input proto-msg g/Any)
@@ -253,8 +211,8 @@
                                                   (some-> source-resource
                                                      (assoc :data (:content source-save-data))
                                                      workspace/make-build-resource)))
-  (output ddf-message g/Any :cached (g/fnk [id child-ids position rotation scale proto-msg ddf-component-properties]
-                                           (gen-embed-ddf id child-ids position rotation scale proto-msg ddf-component-properties))))
+  (output ddf-message g/Any :cached (g/fnk [id child-ids position rotation scale proto-msg]
+                                           (gen-embed-ddf id child-ids position rotation scale proto-msg))))
 
 (defn- component-resource [comp-id basis]
   (cond
@@ -413,7 +371,7 @@
        :user-data {:name name :instance-data instance-data}
        :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
 
-(def CollectionInstanceNode nil)
+(declare CollectionInstanceNode)
 
 (g/defnk produce-coll-outline [_node-id child-outlines]
   (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
@@ -592,10 +550,10 @@
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc (claim-scene scene _node-id)
-                                           :transform transform
-                                           :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
-                                           :renderable {:passes [pass/selection]})))
+                                     (assoc (scene/claim-scene scene _node-id)
+                                            :transform transform
+                                            :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
+                                            :renderable {:passes [pass/selection]})))
   (output build-targets g/Any :cached produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
                                                   (map (fn [m] (update m :id (fn [s] (format "%s/%s" id s)))) ddf-properties)))
@@ -659,7 +617,7 @@
       (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
         (add-game-object-file collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
-(defn- make-embedded-go [self project type data id position rotation scale parent select-fn overrides]
+(defn- make-embedded-go [self project type data id position rotation scale parent select-fn]
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project type data)]
     (g/make-nodes graph [go-node [EmbeddedGOInstanceNode :id id :position position :rotation rotation :scale scale]]
@@ -682,7 +640,6 @@
           (if (empty? tx-data)
             []
             (concat
-              (g/set-property go-node :overrides overrides)
               (attach-coll-embedded-go self go-node)
               (if parent
                 (if (= parent self)
@@ -698,7 +655,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] parent select-fn {})))))
+        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] parent select-fn)))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (selection->collection selection))
@@ -787,7 +744,7 @@
                                  (make-embedded-go self project "go" (:data embedded) (:id embedded)
                                    (:position embedded)
                                    (:rotation embedded)
-                                   scale nil nil (:component-properties embedded)))))
+                                   scale nil nil))))
             new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))
@@ -802,11 +759,10 @@
               (child-go-go parent-id child-id)
               (child-coll-any self child-id)))))
       (for [coll-instance (:collection-instances collection)
-            :let [; TODO - fix non-uniform hax
-                  scale (:scale coll-instance)
+            :let [scale (read-scale3-or-scale coll-instance)
                   source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
         (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-          (:rotation coll-instance) [scale scale scale] (:instance-properties coll-instance))))))
+          (:rotation coll-instance) scale (:instance-properties coll-instance))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

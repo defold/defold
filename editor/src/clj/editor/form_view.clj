@@ -19,11 +19,12 @@
            [javafx.util Callback StringConverter]
            [javafx.collections FXCollections ObservableList]
            [javafx.beans.property ReadOnlyObjectWrapper]
-           [javafx.beans.value ChangeListener]
-           [javafx.beans.binding Bindings]
+           [javafx.beans.value ChangeListener ObservableNumberValue]
+           [javafx.beans.binding Bindings DoubleBinding]
+           [javafx.beans Observable]
            [javafx.scene.layout Region AnchorPane Pane GridPane HBox VBox Priority ColumnConstraints]
-           [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
-           [com.defold.control ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
+           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
+           [com.defold.control ListView ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
            [com.sun.javafx.scene.control.behavior ListCellBehavior]))
 
 ;; A note about the cell-factory controls (:list, :table, :2panel):
@@ -46,8 +47,14 @@
 
 (set! *warn-on-reflection* true)
 
-(def grid-hgap 4)
-(def grid-vgap 6)
+(def ^:private grid-hgap 4)
+(def ^:private grid-vgap 6)
+(def ^:private ^Double cell-height 27.0)
+
+(def ^:private add-icon "icons/32/Icons_M_07_plus.png")
+(def ^:private remove-icon "icons/32/Icons_M_11_minus.png")
+(def ^:private open-icon "icons/32/Icons_S_14_linkarrow.png")
+(def ^:private reset-icon "icons/32/Icons_S_02_Reset.png")
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
@@ -65,7 +72,7 @@
    :integer 80
    :string 300
    :resource 300
-   :list 300})
+   :list 200})
 
 (defn- field-width [field-info]
   (get default-field-widths (:type field-info) 100))
@@ -82,7 +89,6 @@
                     (when-let [val (parse (ui/text tf))]
                       (set path val)))]
     (.setPrefWidth tf (field-width field-info))
-    (.setMinWidth tf Control/USE_PREF_SIZE)
     (ui/on-action! tf commit-fn)
     (ui/auto-commit! tf commit-fn)
     (install-escape-handler! tf cancel)
@@ -150,18 +156,17 @@
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
                         (ui/add-style! "button-small"))
-        open-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
+        open-button (doto (Button. "" (jfx/get-image-view open-icon 16))
                       (.setMaxWidth 26)
                        (ui/add-style! "button-small"))
         text (let [tf (TextField.)]
                (.setPrefWidth tf (field-width field-info))
-               (.setMinWidth tf Control/USE_PREF_SIZE)
                (GridPane/setFillWidth tf true)
                tf)
         content (atom nil)
         update-fn (fn [value]
                     (reset! content value)
-                    (ui/editable! open-button (some? @content))
+                    (ui/editable! open-button (boolean (and value (resource/proj-path value) (resource/exists? value))))
                     (ui/text! text (resource/resource->proj-path value)))
         commit-fn (fn [_] (let [resource-path (ui/text text)
                                 resource (some->> (when-not (string/blank? resource-path) resource-path)
@@ -213,7 +218,7 @@
 (defn- create-multi-number-field-control [labels {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [text-fields (mapv (fn [l]
                             (let [tf (TextField.)]
-                              (.setMinWidth tf (field-width field-info))
+                              (.setPrefWidth tf (field-width field-info))
                               (GridPane/setFillWidth tf true)
                               tf))
                             labels)
@@ -246,7 +251,7 @@
       (ui/tooltip! tf help))
     (doall (map-indexed (fn [idx [tf label]]
                           (let [label-ctrl (doto (Label. label)
-                                             (.setMinWidth 25))
+                                             (.setPrefWidth 25))
                                 comp (create-field-component [label-ctrl tf])]
                             (ui/add-child! box comp)
                             (GridPane/setConstraints comp idx 0)
@@ -278,13 +283,11 @@
                    :cancel #(.cancelEdit cell)
                    }
         [^Control control api] (create-field-control column-info field-ops ctxt)] ; column-info ~ field-info
-    (GridPane/setConstraints control 0 0)
-    (GridPane/setFillWidth control true)
-    (ui/fill-control control)
-    [(AnchorPane. (into-array Node [control])) api]))
+    (.setPadding control (Insets. 0 0 0 0))
+    [control api]))
 
 (defn- resize-column-to-fit-control [^TableColumn table-column ^Node ctrl]
-  (let [min-width (.minWidth ctrl -1)
+  (let [min-width (.prefWidth ctrl -1)
         curr-width (.getWidth table-column)]
     (when (< curr-width min-width)
       (.impl_setWidth table-column min-width))))
@@ -394,9 +397,30 @@
                                             (.show cm ctrl (.getScreenX event) (.getScreenY event))
                                             (.consume event)))))))
 
+(defn- to-node-array ^"[Ljavafx.scene.Node;" [nodes] (into-array Node nodes))
+
+(defn- insets-horizontal ^double [^Insets insets]
+  (+ (.getLeft insets) (.getRight insets)))
+
+(defn- insets-vertical ^double [^Insets insets]
+  (+ (.getTop insets) (.getBottom insets)))
+
 (defmethod create-field-control :table [field-info {:keys [set cancel] :as field-ops} ctxt]
   (assert (not cancel) "no support for nested tables")
   (let [table (TableView.)
+        table-insets (Insets. 1 1 1 1)
+        add-button (doto (Button. "" (jfx/get-image-view add-icon 16))
+                     (.setMaxWidth 26)
+                     (ui/add-style! "button-small"))
+        remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
+                        (.setMaxWidth 26)
+                        (ui/add-style! "button-small"))
+        button-box (doto (HBox. (to-node-array [add-button remove-button]))
+                     (.setSpacing 1.0)
+                     (.setPrefHeight Control/USE_COMPUTED_SIZE))
+        wrapper-box (doto (VBox. (to-node-array [table button-box]))
+                      (.setSpacing 1.0)
+                      (.setPadding (Insets. 0 0 10 0)))
         content (atom nil)
         edited-cell (atom nil)
         update-fn (fn [value]
@@ -417,11 +441,19 @@
                         (swap! content remove-table-row (selected-row))
                         (set (:path field-info) @content))]
 
-    (.setFixedCellSize table 26)
+    (ui/disable! add-button (nil? default-row))
+    (ui/on-action! add-button (fn [_] (on-add-row)))
+
+    (.bind (.disableProperty remove-button)
+           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel table))))
+    (ui/on-action! remove-button (fn [_] (on-remove-row)))
+
+    (.setFixedCellSize table cell-height)
     (.bind (.prefHeightProperty table)
-           (.add (.multiply (Bindings/size (.getItems table))
-                            (.getFixedCellSize table))
-                 52))
+           (.add (Bindings/max ^ObservableNumberValue (.multiply (Bindings/size (.getItems table))
+                                                                 (.getFixedCellSize table))
+                               cell-height)
+                 (+ (* 2 cell-height) (insets-vertical table-insets))))
 
     (.setEditable table true)
     (.setAll (.getColumns table)
@@ -430,9 +462,17 @@
     (set-context-menu! table [["Add" on-add-row (constantly default-row)]
                               ["Remove" on-remove-row selected-row]])
 
-    (GridPane/setFillWidth table true)
+    (GridPane/setFillWidth wrapper-box true)
 
-    [table {:update update-fn}]))
+    [wrapper-box {:update update-fn}]))
+
+(defn- resize-list-view-to-fit-control [^ListView list-view ^ListCell cell ^Node ctrl]
+  (let [list-view-insets (.getInsets list-view)
+        cell-insets (.getInsets cell)
+        min-width (+ (.prefWidth ctrl -1) (insets-horizontal cell-insets) (insets-horizontal list-view-insets))
+        curr-width (.getWidth list-view)]
+    (when (< curr-width min-width)
+      (.setPrefWidth list-view min-width))))
 
 (defn- create-list-cell-factory [element-info ctxt edited-cell-atom]
   (let [get-value-string (get-value-string-fn element-info)]
@@ -451,8 +491,10 @@
                   (.setText this nil)
                   (.setGraphic this (first @ctrl-data))
                   (when-let [start-edit (:edit (second @ctrl-data))]
-                    (ui/run-later
-                     (start-edit))))))
+                    (let [list-view (.getListView this)]
+                      (ui/run-later
+                        (resize-list-view-to-fit-control list-view this (first @ctrl-data))
+                        (start-edit)))))))
             (cancelEdit []
               (let [this ^ListCell this]
                 (proxy-super cancelEdit)
@@ -513,26 +555,76 @@
   (remove-vec-index list-data row))
 
 (defn- create-fixed-cell-size-list-view ^ListView []
-  (let [list-view (ListView.)]
-    (.setFixedCellSize list-view 26)
+  (let [list-view (ListView.)
+        list-view-insets (Insets. 1 1 1 1)] ; this is what the insets *will* be when added to the scene
+    (.setFixedCellSize list-view cell-height)
     (.bind (.prefHeightProperty list-view)
-           (.add (.multiply (Bindings/size (.getItems list-view))
-                            (.getFixedCellSize list-view))
-                 52))
-  list-view))
+           (.add (Bindings/max ^ObservableNumberValue (.multiply (Bindings/size (.getItems list-view))
+                                                                 (.getFixedCellSize list-view))
+                               ^double (.getFixedCellSize list-view))
+                 (insets-vertical list-view-insets)))
+    list-view))
+
+(defmulti query-value-fn (fn [field-info ctxt] (:type field-info)))
+
+(defmethod query-value-fn :resource [field-info {:keys [workspace project] :as ctxt}]
+  (fn [] (first (dialogs/make-resource-dialog workspace project {:ext (:filter field-info)}))))
+
+(defmethod query-value-fn :default [_ _] nil)
+
+
+(defn- resize-list-view-to-fit-items [^ListView list-view]
+  (let [list-view-insets (.getInsets list-view)
+        items (.getItems list-view)
+        max (if (seq items)
+              (let [sample-cell (doto ^ListCell (.call (.getCellFactory list-view) list-view)
+                                  (.updateListView list-view))]
+                (reduce-kv (fn [^double max index item]
+                             (.setItem sample-cell item)
+                             (.updateIndex sample-cell index)
+                             (if (or (and (some? (.getText sample-cell)) (not (.isEmpty (.getText sample-cell))))
+                                     (some? (.getGraphic sample-cell)))
+                               (do
+                                 (.. list-view getChildren (add sample-cell))
+                                 (.applyCss sample-cell)
+                                 (let [new-max (Math/max max (.prefWidth sample-cell -1))]
+                                   (.. list-view getChildren (remove sample-cell))
+                                   new-max))
+                               max))
+                           0.0 (vec items)))
+              (:list default-field-widths))]
+    (.setPrefWidth list-view (+ max (insets-horizontal list-view-insets)))))
 
 (defmethod create-field-control :list [field-info {:keys [set cancel] :as field-ops} ctxt]
-  (let [list-view (create-fixed-cell-size-list-view)
+  (let [list-view (doto (create-fixed-cell-size-list-view)
+                    (ui/add-style! "no-scroll-list-view")
+                    (.setPlaceholder (Label. "No content in list"))
+                    (VBox/setVgrow Priority/ALWAYS))
+        add-button (doto (Button. "" (jfx/get-image-view add-icon 16))
+                     (.setMaxWidth 26)
+                     (ui/add-style! "button-small"))
+        remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
+                        (.setMaxWidth 26)
+                        (ui/add-style! "button-small"))
+        button-box (doto (HBox. (to-node-array [add-button remove-button]))
+                     (.setSpacing 1.0)
+                     (.setPrefHeight Control/USE_COMPUTED_SIZE))
+        wrapper-box (doto (VBox. (to-node-array [list-view button-box]))
+                      (.setSpacing 1.0)
+                      (.setPadding (Insets. 0 0 10 0)))
         content (atom nil)
         edited-cell (atom nil)
-        default-row (form/field-default (:element field-info))
+        has-default-row? (fn [] (or (query-value-fn (:element field-info) ctxt) (form/has-default? (:element field-info))))
+        get-default-row (fn [] (if-let [query-fn (query-value-fn (:element field-info) ctxt)]
+                                 (query-fn)
+                                 (form/field-default (:element field-info))))
         set-row (fn [row val]
-                  (swap! content
-                         assoc row val)
+                  (swap! content assoc row val)
                   (set (:path field-info) @content))
         on-add-row (fn []
-                     (swap! content conj default-row)
-                     (set (:path field-info) @content))
+                     (when-let [row (get-default-row)]
+                       (swap! content conj row)
+                       (set (:path field-info) @content)))
         on-remove-row (fn []
                         (swap! content remove-list-row (get-selected-index list-view))
                         (set (:path field-info) @content))
@@ -542,7 +634,15 @@
                           old-focus (get-focused-index list-view)]
                       (.setAll (.getItems list-view) ^Collection @content)
                       (select-index list-view old-selected)
-                      (focus-index list-view old-focus)))]
+                      (focus-index list-view old-focus)
+                      (ui/run-later (resize-list-view-to-fit-items list-view))))]
+
+    (ui/disable! add-button (not (has-default-row?)))
+    (ui/on-action! add-button (fn [_] (on-add-row)))
+
+    (.bind (.disableProperty remove-button)
+           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (ui/on-action! remove-button (fn [_] (on-remove-row)))
 
     (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt edited-cell))
     (.setOnEditCommit list-view
@@ -552,13 +652,12 @@
                                                    (.getNewValue event)))))
     (.setEditable list-view true)
 
-    (.setPrefWidth list-view (field-width field-info))
-    (.setMinWidth list-view Control/USE_PREF_SIZE)
+    (.setPrefWidth list-view (field-width (:element field-info)))
 
-    (set-context-menu! list-view [["Add" on-add-row (constantly default-row)]
+    (set-context-menu! list-view [["Add" on-add-row has-default-row?]
                                   ["Remove" on-remove-row #(get-selected-index list-view)]])
 
-    [list-view {:update update-fn}]))
+    [wrapper-box {:update update-fn}]))
 
 (declare create-section-grid-rows)
 (declare ^GridPane create-form-grid)
@@ -576,7 +675,21 @@
 
 (defmethod create-field-control :2panel [field-info field-ops ctxt]
   (let [list-view (doto (create-fixed-cell-size-list-view)
-                    (.setMinWidth Control/USE_PREF_SIZE))
+                    (ui/add-style! "no-scroll-list-view")
+                    (.setPlaceholder (Label. "No content in list"))
+                    (VBox/setVgrow Priority/ALWAYS))
+        add-button (doto (Button. "" (jfx/get-image-view add-icon 16))
+                     (.setMaxWidth 26)
+                     (ui/add-style! "button-small"))
+        remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
+                        (.setMaxWidth 26)
+                        (ui/add-style! "button-small"))
+        button-box (doto (HBox. (to-node-array [add-button remove-button]))
+                     (.setSpacing 1.0)
+                     (.setPrefHeight Control/USE_COMPUTED_SIZE))
+        list-wrapper-box (doto (VBox. (to-node-array [list-view button-box]))
+                           (.setSpacing 1.0)
+                           (.setPadding (Insets. 0 0 10 0)))
         hbox (HBox.)
         content (atom nil)
         edited-cell (atom nil)
@@ -604,9 +717,9 @@
                                      (reset! internal-select-change true)
                                      (.setAll (.getItems list-view) ^Collection panel-keys)
                                      (reset! internal-select-change false)
-
                                      (select-index list-view old-selected)
-                                     (focus-index list-view old-focus))))
+                                     (focus-index list-view old-focus)
+                                     (ui/run-later (resize-list-view-to-fit-items list-view)))))
                                (if-let [selected-index (get-selected-index list-view)]
                                  (do
                                    (.setDisable grid false)
@@ -637,14 +750,22 @@
                           (if (contains? field-info :on-remove)
                             ((:on-remove field-info) v)
                             ((:set field-ops) (:path field-info) @content))))]
+
+    (ui/disable! add-button (nil? default-row))
+    (ui/on-action! add-button (fn [_] (on-add-row)))
+
+    (.bind (.disableProperty remove-button)
+           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (ui/on-action! remove-button (fn [_] (on-remove-row)))
+
     (ui/user-data! grid ::ui-update-fns updaters)
+
     (HBox/setHgrow grid Priority/ALWAYS)
 
-    (ui/children! hbox [list-view grid])
+    (ui/children! hbox [list-wrapper-box grid])
     (.setSpacing hbox 10) ; same as inset of outer VBox
 
     (.setCellFactory list-view (create-list-cell-factory panel-key-info ctxt edited-cell))
-
     (.setOnEditCommit list-view
                       (ui/event-handler event
                                         (let [event ^ListView$EditEvent event]
@@ -668,9 +789,9 @@
 
 
 (defn- create-field-label [name]
-  (let [label (Label. name)]
-    (.setMinWidth label Control/USE_PREF_SIZE)
-    label))
+  (doto (Label. name)
+    (ui/add-style! "property-label")
+    (.setMinWidth Control/USE_PREF_SIZE)))
 
 (defn- field-label-valign [field-info]
   (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER))
@@ -678,7 +799,7 @@
 (defn- create-field-grid-row [field-info {:keys [set clear] :as field-ops} ctxt]
   (let [path (:path field-info)
         label (create-field-label (:label field-info))
-        reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
+        reset-btn (doto (Button. nil (jfx/get-image-view reset-icon))
                     (ui/add-styles! ["clear-button" "button-small"])
                     (ui/on-action! (fn [_] (clear path))))
         [control api] (create-field-control field-info field-ops ctxt)

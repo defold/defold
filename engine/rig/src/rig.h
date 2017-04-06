@@ -95,6 +95,7 @@ namespace dmRig
     {
         float m_Color[4];
         uint32_t m_Order;
+        int32_t m_OrderOffset;
         bool m_Visible;
     };
 
@@ -179,8 +180,8 @@ namespace dmRig
         float x;
         float y;
         float z;
-        uint16_t u;
-        uint16_t v;
+        float u;
+        float v;
         float nx;
         float ny;
         float nz;
