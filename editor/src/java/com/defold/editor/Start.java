@@ -81,17 +81,25 @@ public class Start extends Application {
         threadPool.allowCoreThreadTimeOut(true);
         pendingUpdate = new AtomicReference<>();
 
-        if (System.getProperty("defold.resourcespath") != null && System.getProperty("defold.sha1") != null)  {
-            logger.debug("automatic updates enabled");
-            installUpdater();
-        }
+        installUpdater();
     }
 
     private void installUpdater() throws IOException {
-        // TODO: Localhost. Move to config or equivalent
-        updater = new Updater("http://d.defold.com/editor2", System.getProperty("defold.resourcespath"), System.getProperty("defold.sha1"));
-        updateTimer = new Timer();
-        updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
+        String updateUrl = System.getProperty("defold.update.url");
+        if (updateUrl != null && !updateUrl.isEmpty()) {
+            logger.debug("automatic updates enabled");
+            String resourcesPath = System.getProperty("defold.resourcespath");
+            String sha1 = System.getProperty("defold.sha1");
+            if (resourcesPath != null && sha1 != null) {
+                updater = new Updater(updateUrl, resourcesPath, sha1);
+                updateTimer = new Timer();
+                updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
+            } else {
+                logger.error(String.format("automatic updates could not be enabled with resourcespath='%s' and sha1='%s'", resourcesPath, sha1));
+            }
+        } else {
+            logger.debug(String.format("automatic updates disabled (defold.update.url='%s')", updateUrl));
+        }
     }
 
     private TimerTask newCheckForUpdateTask() {
