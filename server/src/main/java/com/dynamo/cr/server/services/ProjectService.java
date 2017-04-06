@@ -161,6 +161,10 @@ public class ProjectService {
         if (projectSite.hasAllowComments()) {
             existingProjectSite.setAllowComments(projectSite.getAllowComments());
         }
+
+        if (projectSite.hasProjectUrl()) {
+            existingProjectSite.setProjectUrl(projectSite.getProjectUrl());
+        }
     }
 
     @Transactional
@@ -316,5 +320,21 @@ public class ProjectService {
     public void orderScreenshots(Long projectId, List<Long> screenshotIds) {
         ProjectSite projectSite = getProjectSite(projectId);
         projectSite.getScreenshots().forEach(s -> s.setSortOrder(screenshotIds.indexOf(s.getId())));
+    }
+
+    @Transactional
+    public void addSocialMediaReference(Long projectId, SocialMediaReference socialMediaReference) {
+        getProjectSite(projectId).getSocialMediaReferences().add(socialMediaReference);
+    }
+
+    @Transactional
+    public void deleteSocialMediaReference(Long projectId, Long id) {
+        ProjectSite projectSite = getProjectSite(projectId);
+
+        Optional<SocialMediaReference> any = projectSite.getSocialMediaReferences().stream()
+                .filter(socialMediaReference -> socialMediaReference.getId().equals(id))
+                .findAny();
+
+        any.ifPresent(socialMediaReference -> projectSite.getSocialMediaReferences().remove(socialMediaReference));
     }
 }
