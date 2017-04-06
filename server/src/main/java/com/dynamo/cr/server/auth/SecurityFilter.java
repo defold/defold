@@ -4,7 +4,6 @@ import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
-import com.sun.jersey.api.container.MappableContainerException;
 import com.sun.jersey.spi.container.ContainerRequest;
 import com.sun.jersey.spi.container.ContainerRequestFilter;
 import org.slf4j.Logger;
@@ -21,11 +20,11 @@ import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.core.UriInfo;
 import java.security.Principal;
 import java.util.Objects;
+import java.util.Optional;
 
 public class SecurityFilter implements ContainerRequestFilter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SecurityFilter.class);
-    private static final String REALM = "Defold";
 
     /**
      * A request to a path that exactly matches any string in the array will be skipped by this filter.
@@ -95,6 +94,8 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         EntityManager em = emf.createEntityManager();
 
+        Optional<User> authenticatedUser = Optional.empty();
+
         /*
             X-header authentication.
          */
@@ -102,51 +103,51 @@ public class SecurityFilter implements ContainerRequestFilter {
         String email = request.getHeaderValue("X-Email");
 
         if (authToken != null && email != null) {
-            return authenticateAccessToken(email, authToken, em);
+            authenticatedUser = authenticateAccessToken(email, authToken, em);
         }
 
         /*
             Basic authentication.
+
+            NOTE: Currently only used by unit tests.
          */
-        String authentication = request.getHeaderValue(ContainerRequest.AUTHORIZATION);
+        if (!authenticatedUser.isPresent()) {
+            String authentication = request.getHeaderValue(ContainerRequest.AUTHORIZATION);
 
-        if (authentication != null && authentication.startsWith("Basic ")) {
-            /*
-             * Http Authentication is only used for the tests so we keep it for now
-             * NOTE: HTTP Basic only works if provied. No authorization request is returned to the
-             * user. See below about anonymous access
-             * We used to "throw new MappableContainerException(new AuthenticationException(
-             *                                                  "Authentication credentials are required", REALM));
-             */
+            if (authentication != null && authentication.startsWith("Basic ")) {
 
-            authentication = authentication.substring("Basic ".length());
-            String[] values = Base64.base64Decode(authentication).split(":");
-            if (values.length < 2) {
-                throw new WebApplicationException(400);
-                // "Invalid syntax for username and password"
-            }
-            String username = values[0];
-            String password = values[1];
-            if ((username == null) || (password == null)) {
-                throw new WebApplicationException(400);
-                // "Missing username or password"
-            }
+                authentication = authentication.substring("Basic ".length());
+                String[] values = Base64.base64Decode(authentication).split(":");
+                if (values.length < 2) {
+                    throw new WebApplicationException(400);
+                    // "Invalid syntax for username and password"
+                }
+                String username = values[0];
+                String password = values[1];
+                if ((username == null) || (password == null)) {
+                    throw new WebApplicationException(400);
+                    // "Missing username or password"
+                }
 
-            // Validate the extracted credentials
-            User user = ModelUtil.findUserByEmail(em, username);
-            if (user != null && user.authenticate(password)) {
-                return user;
-            } else if (user != null && accessTokenAuthenticator.authenticate(user, password, httpServletRequest.getRemoteAddr())) {
-                // NOTE: This is rather messy. We also support
-                // auth-cookie login using http basic auth.
-                // Should perhaps deprecate X-Auth and use basic auth for
-                // everything. The reason for this is that the gitsrv
-                // must handle both passwords and cookies as passwords
-                // are used in tests
-                return user;
-            } else {
-                LOGGER.warn("User authentication failed for user {}", email);
-                throw new MappableContainerException(new AuthenticationException("Invalid username or password", REALM));
+                // Validate the extracted credentials
+                User user = ModelUtil.findUserByEmail(em, username);
+                if (user != null) {
+                    if (user.authenticate(password)) {
+                        authenticatedUser = Optional.of(user);
+                    } else if (accessTokenAuthenticator.authenticate(user, password, httpServletRequest.getRemoteAddr())) {
+                        // NOTE: This is rather messy. We also support
+                        // auth-cookie login using http basic auth.
+                        // Should perhaps deprecate X-Auth and use basic auth for
+                        // everything. The reason for this is that the gitsrv
+                        // must handle both passwords and cookies as passwords
+                        // are used in tests
+                        authenticatedUser = Optional.of(user);
+                    } else {
+                        LOGGER.warn("User authentication failed for user {}", user.getEmail());
+                    }
+                } else {
+                    LOGGER.warn("User authentication failed for user {}", username);
+                }
             }
         }
 
@@ -160,16 +161,17 @@ public class SecurityFilter implements ContainerRequestFilter {
         User anonymous = new User();
         anonymous.setEmail("anonymous");
         anonymous.setRole(Role.ANONYMOUS);
-        return anonymous;
+
+        return authenticatedUser.orElse(anonymous);
     }
 
-    private User authenticateAccessToken(String email, String token, EntityManager entityManager) {
+    private Optional<User> authenticateAccessToken(String email, String token, EntityManager entityManager) {
         User user = ModelUtil.findUserByEmail(entityManager, email);
         if (user != null && accessTokenAuthenticator.authenticate(user, token, httpServletRequest.getRemoteAddr())) {
-            return user;
+            return Optional.of(user);
         }
         LOGGER.warn("User authentication failed for user {}", email);
-        throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
+        return Optional.empty();
     }
 
     private class Authorizer implements SecurityContext {

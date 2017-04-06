@@ -28,10 +28,8 @@ import java.util.logging.Handler;
 import java.util.logging.LogManager;
 
 public class Main {
-
-    private Server server;
+    private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
     private static Main instance;
-    protected static Logger logger = LoggerFactory.getLogger(Main.class);
 
     private class Module extends AbstractModule {
 
@@ -88,8 +86,8 @@ public class Main {
         // Remove default java.util.logging-handlers
         java.util.logging.Logger rootLogger = LogManager.getLogManager().getLogger("");
         Handler[] handlers = rootLogger.getHandlers();
-        for (int i = 0; i < handlers.length; i++) {
-            rootLogger.removeHandler(handlers[i]);
+        for (Handler handler : handlers) {
+            rootLogger.removeHandler(handler);
         }
 
         // Install java.util.logging to slf4j logging bridge
@@ -103,7 +101,7 @@ public class Main {
 
         final String serverConfig = System.getProperty("server.config");
         if (serverConfig == null) {
-            logger.warn("Property server.config not set. Server is not started");
+            LOGGER.warn("Property server.config not set. Server is not started");
             return;
         }
 
@@ -111,15 +109,9 @@ public class Main {
         final Injector injector = Guice.createInjector(module);
 
         Thread t = new Thread(() -> {
-            server = injector.getInstance(Server.class);
+            injector.getInstance(Server.class);
         });
         t.start();
-    }
-
-    public void stop() {
-        instance = null;
-        if (server != null)
-            server.stop();
     }
 
     public static void main(String[] args) {
