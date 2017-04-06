@@ -165,6 +165,10 @@ enum ScreenshotMediaType {
     VIMEO = 3;
 }
 
+message ScreenshotSortOrderRequest {
+    repeated int64 screenshot_ids = 1;
+}
+
 message ProjectSiteList {
     repeated ProjectSite sites = 1;
 }

@@ -92,6 +92,13 @@ public class ProjectSitesResource extends BaseResource {
 
     @PUT
     @RolesAllowed(value = {"member"})
+    @Path("screenshots/order")
+    public void orderScreenshots(@PathParam("project") Long projectId, Protocol.ScreenshotSortOrderRequest screenshotSortOrderRequest) throws Exception {
+        projectService.orderScreenshots(projectId, screenshotSortOrderRequest.getScreenshotIdsList());
+    }
+
+    @PUT
+    @RolesAllowed(value = {"member"})
     @Path("playable")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public void putPlayable(@PathParam("project") Long projectId,

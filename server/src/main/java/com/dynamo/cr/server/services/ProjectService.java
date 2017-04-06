@@ -311,4 +311,10 @@ public class ProjectService {
     public boolean isProjectMember(User user, Project project) {
         return user != null && project.getMembers().stream().anyMatch(member -> member.getEmail().equals(user.getEmail()));
     }
+
+    @Transactional
+    public void orderScreenshots(Long projectId, List<Long> screenshotIds) {
+        ProjectSite projectSite = getProjectSite(projectId);
+        projectSite.getScreenshots().forEach(s -> s.setSortOrder(screenshotIds.indexOf(s.getId())));
+    }
 }
