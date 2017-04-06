@@ -1486,7 +1486,7 @@ instructions.configure=\
         vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
-        game_project = '../../editor/test/resources/test_project/game.project'
+        game_project = '../../editor/test/resources/geometry_wars/game.project'
         args = ['java', '-cp', jar] + vmargs + [main, game_project]
         self._log('Running editor: %s' % args)
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
